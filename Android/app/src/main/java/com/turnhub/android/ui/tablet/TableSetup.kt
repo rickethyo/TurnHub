@@ -132,3 +132,11 @@ internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, st
 /** How the seat map is explained in both lobbies. */
 internal const val SEAT_MAP_HINT = "This is how the table will look. Drag a player onto another seat to swap them, " +
     "or tap two seats. Turns go clockwise in number order."
+
+/** Formats offered in the shared lobby. */
+internal val FORMATS = listOf(
+    Triple(GameProfile.MTG_COMMANDER, "Commander", 40),
+    Triple(GameProfile.MTG, "Magic", 20),
+    Triple(GameProfile.YUGIOH, "Yu-Gi-Oh!", 8000),
+    Triple(GameProfile.GENERIC, "Other", 20),
+)

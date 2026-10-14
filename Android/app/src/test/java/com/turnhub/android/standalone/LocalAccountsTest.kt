@@ -1,6 +1,8 @@
 package com.turnhub.android.standalone
 
 import com.turnhub.android.protocol.TableState
+import com.turnhub.android.domain.TileBackground
+import com.turnhub.android.domain.TileBackgroundStyle
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -9,6 +11,61 @@ import java.util.Base64
 import kotlin.random.Random
 
 class LocalAccountsTest {
+    @Test fun `tile backgrounds persist by identity across swaps and clearing without changing avatars`() {
+        val store = Store()
+        val table = StandaloneTable(store)
+        table.addPlayer("Alex"); table.addPlayer("Alex")
+        val players = table.state.value.library.players
+        val background = TileBackground(TileBackgroundStyle.IMAGE, "#123ABC", Base64.getEncoder().encodeToString(byteArrayOf(1, 2)))
+        val prefs = LocalPersonalization(avatar = "cat", tileBackground = background)
+        assertTrue(table.saveAccount(players[0].localId, players[0].name, prefs))
+        table.swapPlayers(0, 1)
+        val state = table.state.value
+        val summary = state.game.toSummary(0, 0, state.library.players.associate { it.localId to it.personalization })
+        assertEquals(TileBackground(), summary.players[0].tileBackground)
+        assertEquals(background, summary.players[1].tileBackground)
+        assertEquals("cat", summary.players[1].avatar?.key)
+        table.clearPlayers()
+        val restored = StandaloneTable(store)
+        restored.selectPlayer(players[0].localId)
+        assertEquals(prefs, restored.state.value.library.players[0].personalization)
+        assertEquals(players[0].localId, restored.state.value.game.players.single().localId)
+        assertTrue(restored.state.value.library.history.isEmpty())
+    }
+
+    @Test fun `connected decoration requires verified links and preserves canonical state`() {
+        val background = TileBackground(TileBackgroundStyle.SOLID, "#123ABC")
+        val local = SavedLocalPlayer("local", "Alex", "AABBCCDD", LocalPersonalization(tileBackground = background))
+        val localSummary = StandaloneGame().addPlayer("Alex").toSummary(0, 0)
+        val base = localSummary.copy(atlasId = "atlas-a", players = localSummary.players.map { it.copy(profileId = local.profileId) })
+        val unlinked = LocalLibrary(players = listOf(local))
+        assertEquals(base, unlinked.decorateTable(base))
+        val linked = LocalLibrary(players = listOf(local.copy(links = listOf(AtlasProfileLink("atlas-a", local.profileId)))))
+        val decorated = linked.decorateTable(base)
+        assertEquals(background, decorated.players.single().tileBackground)
+        assertEquals(base, decorated.copy(players = decorated.players.map { it.copy(tileBackground = TileBackground()) }))
+        val other = base.copy(atlasId = "atlas-b")
+        assertEquals(other, linked.decorateTable(other))
+        assertNull(linked.linkedPlayer("atlas-a", null))
+    }
+
+    @Test fun `background settings reject malformed colors styles and oversized images`() {
+        assertEquals(TileBackground(), LocalPersonalization.fromJson(JSONObject()).tileBackground)
+        assertTrue(runCatching { TileBackground(TileBackgroundStyle.SOLID, "red") }.isFailure)
+        assertTrue(runCatching { TileBackground(TileBackgroundStyle.IMAGE) }.isFailure)
+        assertTrue(runCatching { TileBackground(image = "not base64!") }.isFailure)
+        assertTrue(runCatching { TileBackground(image = Base64.getEncoder().encodeToString(ByteArray(TileBackground.MAX_IMAGE_BYTES + 1))) }.isFailure)
+        assertTrue(runCatching { LocalPersonalization.fromJson(JSONObject("""{"tileBackground":{"style":"unknown"}}""")) }.isFailure)
+        val store = Store()
+        val table = StandaloneTable(store)
+        table.createAccount("Alex")
+        val player = table.state.value.library.players.single()
+        store.fail = true
+        assertFalse(table.saveAccount(player.localId, player.name, player.personalization.copy(tileBackground = TileBackground(TileBackgroundStyle.GRADIENT))))
+        assertEquals(player, table.state.value.library.players.single())
+        assertNotNull(table.state.value.storageProblem)
+    }
+
     private class Store : StandaloneStore {
         var game: String? = null
         var library: String? = null

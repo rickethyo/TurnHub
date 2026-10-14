@@ -152,12 +152,20 @@ class StandaloneTable(
         }
     }
     fun removePlayer(index: Int) = edit { it.removePlayer(index) }
+    fun clearPlayers() = edit { it.clearPlayers() }
     fun movePlayer(index: Int, by: Int) = edit { it.movePlayer(index, by) }
     fun swapPlayers(a: Int, b: Int) = edit { it.swapPlayers(a, b) }
     fun setFormat(profile: GameProfile) = edit { it.setFormat(profile) }
     fun setStartingLife(life: Int) = edit { it.setStartingLife(life) }
     fun setTurnTimer(ms: Long) = edit { it.setTurnTimer(ms) }
     fun setTwoHeadedGiant(on: Boolean) = edit { it.setTwoHeadedGiant(on) }
+    /** One settings update from the shared lobby, preserving unspecified fields. */
+    fun configure(profile: GameProfile?, life: Int?, teams: Boolean?) = edit { game ->
+        var next = profile?.let { game.setFormat(it) } ?: game
+        teams?.let { next = next.setTwoHeadedGiant(it) }
+        life?.let { next = next.setStartingLife(it) }
+        next
+    }
     fun start() = edit { it.start(wallClock(), newId()) }
 
     /** A pending/acknowledged payload cannot be silently redirected or remapped. */

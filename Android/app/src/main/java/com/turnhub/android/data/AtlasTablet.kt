@@ -183,9 +183,15 @@ class AtlasTablet(
         }
     }
 
-    suspend fun unseat(profileId: String) {
-        val response = post("/api/tablet/unseat", listOf("profileId" to profileId)) ?: return
+    suspend fun unseat(profileId: String): Boolean {
+        val response = post("/api/tablet/unseat", listOf("profileId" to profileId)) ?: return false
         if (response.ok) succeed() else fail(response)
+        return response.ok
+    }
+
+    /** Uses Atlas's existing validation; a refusal stops the batch and stays visible. */
+    suspend fun clearSeats(profileIds: List<String>) {
+        for (id in profileIds.distinct()) if (!unseat(id)) break
     }
 
     /** `/api/game/settings` fields, sent for any seated player; null keeps Atlas's value. */

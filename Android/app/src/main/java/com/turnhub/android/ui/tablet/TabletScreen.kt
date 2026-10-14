@@ -9,9 +9,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,39 +16,29 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -65,19 +52,15 @@ import com.turnhub.android.data.AtlasTablet
 import com.turnhub.android.data.ProfileSecret
 import com.turnhub.android.data.TabletSeat
 import com.turnhub.android.data.TabletState
-import com.turnhub.android.domain.ControllerHandle
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.protocol.AccountPermission
-import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.SessionInfo
 import com.turnhub.android.protocol.TableState
-import com.turnhub.android.standalone.StandaloneGame
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.OfflineBanner
 import com.turnhub.android.ui.components.Eyebrow
-import com.turnhub.android.ui.components.Tone
 import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.components.tableBackground
 import com.turnhub.android.ui.theme.palette
@@ -112,6 +95,8 @@ fun TabletScreen(
     offline: Boolean = false,
     onFollowGame: (Int) -> Unit = {},
     switching: Boolean = false,
+    onEditBackground: ((TablePlayer) -> Unit)? = null,
+    canEditBackground: (TablePlayer) -> Boolean = { false },
 ) {
     val scopedActions = actions.copy(run = { block -> actions.run { inGame(summary?.game ?: 1, block) } })
     val p = palette
@@ -133,7 +118,7 @@ fun TabletScreen(
                     session.game != summary.game -> Gate(tablet, scopedActions, onClose) {
                         Text("Refreshing the selected game…", color = p.muted)
                     }
-                    summary.state == TableState.LOBBY -> Lobby(summary, tablet, scopedActions, onClose)
+                    summary.state == TableState.LOBBY -> Lobby(summary, tablet, scopedActions, onClose, onEditBackground, canEditBackground)
                     else -> {
                         Immersive()
                         TabletTable(summary, tablet, { block -> scopedActions.run { this.block() } }, scopedActions.onDismissMessage, reduceMotion, onClose, offline)
@@ -298,22 +283,14 @@ internal fun Feedback(message: String, isError: Boolean) {
 
 // --- the lobby ----------------------------------------------------------------------
 
-/** Formats offered in the lobby, with the starting life each sets. */
-internal val FORMATS = listOf(
-    Triple(GameProfile.MTG_COMMANDER, "Commander", 40),
-    Triple(GameProfile.MTG, "Magic", 20),
-    Triple(GameProfile.YUGIOH, "Yu-Gi-Oh!", 8000),
-    Triple(GameProfile.GENERIC, "Other", 20),
-)
-
 /** Any seated player carries lobby settings and Start; Atlas treats them alike. */
 internal fun TableSummary.anySeat(): TabletSeat? = players.firstOrNull()?.seat()
 
 internal fun TablePlayer.seat(): TabletSeat = TabletSeat(controller.id, slot)
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletActions, onClose: () -> Unit) {
+private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletActions, onClose: () -> Unit,
+    onEditBackground: ((TablePlayer) -> Unit)?, canEditBackground: (TablePlayer) -> Boolean) {
     val p = palette
     LaunchedEffect(summary.players.size) { actions.run { loadSavedProfiles() } }
     var confirmLeave by remember { mutableStateOf(false) }
@@ -331,192 +308,49 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
             dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Cancel", color = p.text) } },
         )
     }
-    Box(Modifier.fillMaxSize().safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
-        Column(
-            Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Full-screen table", color = p.text, style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.weight(1f).semantics { heading() })
-                TextButton(onClick = onClose) { Text("Back", color = p.muted) }
-                TextButton(onClick = { confirmLeave = true }) { Text("Leave tablet mode", color = p.bad) }
-            }
-            tablet.message?.let { Feedback(it.message, it.isError) }
-
-            BrassCard {
-                Eyebrow("At the table")
-                if (summary.players.isEmpty()) {
-                    Text("Add everyone who is playing. Sigils can join too.", color = p.muted)
-                }
-                if (summary.players.size > 1) {
-                    // How the game will look, as without Atlas. Atlas moves a player one place at a time,
-                    // so a swap is the lower player moved down to the higher seat and the other moved back up.
-                    val players = summary.players.sortedBy { it.playerNumber }
-                    val swap = { a: Int, b: Int ->
-                        if (!tablet.busy) {
-                            val lo = minOf(a, b)
-                            val hi = maxOf(a, b)
-                            val low = players[lo].seat()
-                            val high = players[hi].seat()
-                            actions.run {
-                                var ok = true
-                                repeat(hi - lo) { if (ok) ok = control(low, "move-later") }
-                                repeat(hi - lo - 1) { if (ok) ok = control(high, "move-earlier") }
-                            }
-                        }
-                    }
-                    if (summary.star) {
-                        // Star Commander: relationships follow the seats, so the star is the seat map.
-                        val seats = summary.starSeats()
-                        StarMap(seats, onSwap = swap)
-                        StarRelationsList(seats)
-                        Text(STAR_MAP_HINT, color = p.faint, style = MaterialTheme.typography.bodySmall)
-                    } else {
-                        SeatMap(players.map { it.label }, swap)
-                        Text(SEAT_MAP_HINT, color = p.faint, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-                summary.players.forEach { player -> SeatedRow(player, tablet.busy, actions) }
-                var name by rememberSaveable { mutableStateOf("") }
-                val add = {
-                    val trimmed = name.trim()
-                    if (trimmed.isNotEmpty()) {
-                        actions.run { seatNew(trimmed) }
-                        name = ""
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it.take(32) },
-                        label = { Text("New player's name") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { add() }),
-                        modifier = Modifier.weight(1f),
-                    )
-                    ToneButton("Add", add, enabled = name.isNotBlank() && !tablet.busy)
-                }
-                Text("A new name gets an account without a PIN.", color = p.faint, style = MaterialTheme.typography.bodySmall)
-                val seated = summary.players.mapNotNull { it.profileId }.toSet()
-                val free = tablet.savedProfiles.filter { it.profileId !in seated }
-                if (free.isNotEmpty()) {
-                    Text("Saved players", color = p.muted, style = MaterialTheme.typography.labelLarge)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        free.forEach { profile ->
-                            SuggestionChip(
-                                onClick = { actions.run { seatSaved(profile.profileId, profile.name) } },
-                                label = { Text(profile.name.ifBlank { "Unnamed" }) },
-                                enabled = !tablet.busy,
-                            )
-                        }
-                    }
-                }
-            }
-
-            GameCard(summary, tablet, actions)
-
-            StartTableButton(summary.players.size, summary.settings.twoHeadedGiant, enabled = !tablet.busy,
-                star = summary.settings.profile.starCommander) {
-                summary.anySeat()?.let { seat -> actions.run { control(seat, "start") } }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SeatedRow(player: TablePlayer, busy: Boolean, actions: TabletActions) {
-    val p = palette
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(
-            Modifier.size(30.dp).background(p.avatarColor(player.playerNumber), CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("${player.playerNumber}", color = p.avatarText, style = MaterialTheme.typography.labelLarge)
-        }
-        Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        if (player.controller.kind == ControllerHandle.Kind.PHYSICAL) {
-            Text(
-                "Sigil",
-                color = p.muted,
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.border(1.dp, p.line, RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
-            )
-        }
-        player.profileId?.let { id ->
-            IconButton(onClick = { actions.run { unseat(id) } }) {
-                Text("×", color = p.muted, style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.semantics { contentDescription = "Remove ${player.label}" })
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun GameCard(summary: TableSummary, tablet: TabletState, actions: TabletActions) {
-    val p = palette
-    val settings = summary.settings
+    val players = summary.players.sortedBy { it.playerNumber }
     val seat = summary.anySeat()
-    BrassCard {
-        Eyebrow("Game")
-        if (seat == null) Text("Add a player to choose the game.", color = p.muted)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FORMATS.forEach { (profile, label, life) ->
-                FilterChip(
-                    selected = formatSelected(settings.profile, profile),
-                    onClick = {
-                        if (!formatSelected(settings.profile, profile)) seat?.let { actions.run { saveSettings(it, profile.wireValue, life, null) } }
-                    },
-                    label = { Text(label) },
-                    enabled = seat != null && !tablet.busy,
-                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = p.accentSoft),
-                )
-            }
-        }
-        var life by rememberSaveable(settings.startingLife) { mutableStateOf("${settings.startingLife}") }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = life,
-                onValueChange = { life = it.filter(Char::isDigit).take(5) },
-                label = { Text(if (settings.twoHeadedGiant) "Starting life per team" else "Starting life") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.weight(1f),
-            )
-            ToneButton(
-                "Set",
-                { seat?.let { s -> life.toIntOrNull()?.let { actions.run { saveSettings(s, null, it, null) } } } },
-                enabled = seat != null && life.toIntOrNull() != null && life != "${settings.startingLife}" && !tablet.busy,
-            )
-        }
-        TurnTimerChips(settings.turnTimerMs, enabled = seat != null && !tablet.busy) { ms ->
-            seat?.let { actions.run { saveSettings(it, null, null, null, turnTimerMs = ms) } }
-        }
-        SetupSwitch("Automatic elimination at zero life", null, settings.autoEliminateAtZeroLife, seat != null && !tablet.busy) { on ->
-            seat?.let { actions.run { setAutoEliminateAtZeroLife(it, on) } }
-        }
-        if (settings.profile.magicRules) {
-            GameModeChips(GameMode.of(settings.profile, settings.twoHeadedGiant), seat != null && !tablet.busy) { mode ->
-                seat?.let {
+    val seated = players.mapNotNull { it.profileId }.toSet()
+    TableLobby(
+        summary = summary,
+        actions = TableLobbyActions(
+            add = { name -> actions.run { seatNew(name) } },
+            select = { player -> actions.run { seatSaved(player.id, player.name) } },
+            remove = { player -> player.profileId?.let { id -> actions.run { unseat(id) } } },
+            canRemove = { it.profileId != null },
+            clear = { actions.run { clearSeats(players.mapNotNull { it.profileId }) } },
+            swap = { a, b ->
+                if (!tablet.busy && a in players.indices && b in players.indices && a != b) {
+                    val lo = minOf(a, b)
+                    val hi = maxOf(a, b)
+                    val low = players[lo].seat()
+                    val high = players[hi].seat()
                     actions.run {
-                        when {
-                            // Star Commander is its own format at 40 life, never with Two-Headed Giant.
-                            mode == GameMode.STAR_COMMANDER ->
-                                saveSettings(it, GameProfile.MTG_STAR_COMMANDER.wireValue, StandaloneGame.defaultLife(GameProfile.MTG_STAR_COMMANDER), false)
-                            // Leaving it goes back to Commander, with that mode's life.
-                            settings.profile.starCommander -> {
-                                val teams = mode == GameMode.TWO_HEADED_GIANT
-                                saveSettings(it, GameProfile.MTG_COMMANDER.wireValue, StandaloneGame.defaultLife(GameProfile.MTG_COMMANDER, teams), teams)
-                            }
-                            else -> saveSettings(it, null, null, mode == GameMode.TWO_HEADED_GIANT)
-                        }
+                        var ok = true
+                        repeat(hi - lo) { if (ok) ok = control(low, "move-later") }
+                        repeat(hi - lo - 1) { if (ok) ok = control(high, "move-earlier") }
                     }
                 }
-            }
-        }
-    }
+            },
+            settings = { profile, life, teams -> seat?.let { actions.run { saveSettings(it, profile?.wireValue, life, teams) } } },
+            timer = { ms -> seat?.let { actions.run { saveSettings(it, null, null, null, turnTimerMs = ms) } } },
+            zeroLife = { on -> seat?.let { actions.run { setAutoEliminateAtZeroLife(it, on) } } },
+            start = { seat?.let { actions.run { control(it, "start") } } },
+            background = onEditBackground,
+            canEditBackground = canEditBackground,
+        ),
+        savedPlayers = tablet.savedProfiles.filter { it.profileId !in seated }.map { LobbySavedPlayer(it.profileId, it.name) },
+        enabled = !tablet.busy,
+        settingsEnabled = seat != null && !tablet.busy,
+        canAdd = true,
+        identityHint = "A new name gets an account without a PIN. Sigils can join too.",
+        savedTitle = "Saved players",
+        headerActions = {
+            TextButton(onClick = onClose) { Text("Back", color = p.muted) }
+            TextButton(onClick = { confirmLeave = true }) { Text("Leave tablet mode", color = p.bad) }
+        },
+        feedback = { tablet.message?.let { Feedback(it.message, it.isError) } },
+    )
 }
 
 @Composable

@@ -84,6 +84,15 @@ everything implemented. Only the checks listed below are still open.
 
 ### Accounts, portal and app
 
+- **Common engine and full phone takeover** (owner, 2026-10-13): shared lobby
+  and live table presentation are unified. Extract one portable engine for
+  Atlas/native apps, prefer Atlas after a validated handoff, and let the
+  designated phone host all game actions after fenced disconnection.
+  Checkpoint/command contracts, authority leases, reconnect reconciliation and
+  durable completion receipts are designed in [Shared table authority](TABLE_AUTHORITY.md)
+  and remain to be implemented. Current connected offline behavior still queues
+  life/Commander edits only.
+
 - **Router-style web administration** (*Implemented locally; device acceptance pending*, owner confirmed, 2026-10-09):
   web portal for Admin settings/maintenance and Android for personal/shared
   tablet play; retire browser gameplay, including the web tablet. Preserve the

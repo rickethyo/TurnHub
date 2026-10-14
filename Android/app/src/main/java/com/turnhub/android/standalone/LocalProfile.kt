@@ -1,6 +1,8 @@
 package com.turnhub.android.standalone
 
 import com.turnhub.android.protocol.AvatarIcon
+import com.turnhub.android.domain.TileBackground
+import com.turnhub.android.domain.TileBackgroundStyle
 import java.security.SecureRandom
 import java.security.MessageDigest
 import javax.crypto.SecretKeyFactory
@@ -18,6 +20,7 @@ data class LocalPersonalization(
     val reduceMotion: Boolean = false,
     /** Phone-computed RGB332 thumbnail; Atlas never decodes the full JPEG. */
     val thumbnail: String? = null,
+    val tileBackground: TileBackground = TileBackground(),
 ) {
     fun icon(): AvatarIcon? = when {
         image != null -> AvatarIcon(128, "custom", "Player image", emptyList(), Base64.getDecoder().decode(image))
@@ -26,16 +29,26 @@ data class LocalPersonalization(
     }
     fun toJson() = JSONObject().put("color", color ?: JSONObject.NULL).put("avatar", avatar)
         .put("image", image ?: JSONObject.NULL).put("reduceMotion", reduceMotion).put("thumbnail", thumbnail ?: JSONObject.NULL)
+        .put("tileBackground", JSONObject().put("style", tileBackground.style.key)
+            .put("color", tileBackground.color ?: JSONObject.NULL).put("image", tileBackground.image ?: JSONObject.NULL))
 
     companion object {
         val AVATARS = listOf("none", "die", "crown", "sword", "shield", "star", "moon", "flame", "tree", "cat", "skull", "gem", "bolt")
         const val MAX_IMAGE_BYTES = 48 * 1024
-        fun fromJson(json: JSONObject) = LocalPersonalization(json.optStringOrNull("color"),
-            json.optString("avatar", "none"), json.optStringOrNull("image"), json.optBoolean("reduceMotion"), json.optStringOrNull("thumbnail")).also {
-            require(it.color == null || it.color.matches(Regex("#[0-9a-fA-F]{6}")))
-            require(it.avatar in AVATARS)
-            require(it.image == null || Base64.getDecoder().decode(it.image).size in 1..MAX_IMAGE_BYTES)
-            require(it.thumbnail == null || it.thumbnail.matches(Regex("[0-9a-fA-F]{512}")))
+        fun fromJson(json: JSONObject): LocalPersonalization {
+            val background = if (!json.has("tileBackground")) TileBackground() else {
+                val value = json.getJSONObject("tileBackground")
+                TileBackground(TileBackgroundStyle.entries.first { it.key == value.getString("style") },
+                    value.optStringOrNull("color"), value.optStringOrNull("image"))
+            }
+            return LocalPersonalization(json.optStringOrNull("color"),
+                json.optString("avatar", "none"), json.optStringOrNull("image"), json.optBoolean("reduceMotion"),
+                json.optStringOrNull("thumbnail"), background).also {
+                require(it.color == null || it.color.matches(Regex("#[0-9a-fA-F]{6}")))
+                require(it.avatar in AVATARS)
+                require(it.image == null || Base64.getDecoder().decode(it.image).size in 1..MAX_IMAGE_BYTES)
+                require(it.thumbnail == null || it.thumbnail.matches(Regex("[0-9a-fA-F]{512}")))
+            }
         }
     }
 }

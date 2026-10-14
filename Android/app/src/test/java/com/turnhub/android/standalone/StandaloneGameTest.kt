@@ -35,6 +35,47 @@ class StandaloneGameTest {
         .setTwoHeadedGiant(true)
 
     @Test
+    fun `clear players is lobby only and preserves game settings`() {
+        val lobby = teams().setTurnTimer(60_000).setStartingLife(75)
+        val cleared = lobby.clearPlayers()
+        assertEquals(lobby.copy(players = emptyList(), revision = lobby.revision + 1), cleared)
+        assertTrue(!cleared.canStart)
+        assertSame(cleared, cleared.clearPlayers())
+        val running = lobby.start(1_000, "g", firstSeat)
+        assertSame(running, running.clearPlayers())
+        val paused = running.togglePause(2_000)
+        assertSame(paused, paused.clearPlayers())
+        val finished = running.claimWin(0, 3_000)
+        assertSame(finished, finished.clearPlayers())
+    }
+
+    @Test
+    fun `clear players persists once and retains accounts and history for reselection`() = runTest {
+        val store = MemoryStore()
+        val table = StandaloneTable(store)
+        table.addPlayer("Ana")
+        table.addPlayer("Ben")
+        table.start()
+        table.control(TabletSeat(StandaloneGame.seatHandle(0).id, 1), "win")
+        table.control(TabletSeat(StandaloneGame.seatHandle(0).id, 1), "reset")
+        val library = table.state.value.library
+        assertEquals(1, library.history.size)
+        library.players.forEach { table.selectPlayer(it.localId) }
+        table.setTurnTimer(60_000)
+        val game = table.state.value.game
+        val writes = store.writes
+        table.clearPlayers()
+        assertEquals(writes + 1, store.writes)
+        assertEquals(game.clearPlayers(), table.state.value.game)
+        assertEquals(library, table.state.value.library)
+        val restored = StandaloneTable(store)
+        assertEquals(table.state.value, restored.state.value)
+        restored.selectPlayer(library.players.first().localId)
+        assertEquals(library.players.first().localId, restored.state.value.game.players.single().localId)
+        assertEquals(library, restored.state.value.library)
+    }
+
+    @Test
     fun `two-headed giant sets team life and poison and needs an even table of four`() {
         val lobby = teams()
         assertEquals(60, lobby.startingLife)
@@ -729,9 +770,11 @@ class StandaloneGameTest {
         var records: String? = null
         var library: String? = null
         var failWrites = false
+        var writes = 0
         override fun loadLibrary() = library
         override fun saveSnapshot(game: String, library: String): Boolean {
             if (failWrites) return false
+            writes++
             this.game = game
             this.library = library
             return true
