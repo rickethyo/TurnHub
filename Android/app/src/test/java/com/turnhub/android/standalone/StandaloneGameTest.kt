@@ -455,8 +455,9 @@ class StandaloneGameTest {
     @Test
     fun `games under a minute wait to be saved and a start can be undone for three minutes`() = runTest {
         var clock = 0L
+        var ids = 0
         val store = MemoryStore()
-        val table = StandaloneTable(store, { clock }, { "g$clock" })
+        val table = StandaloneTable(store, { clock }, { "id${ids++}" })
         table.addPlayer("Ana"); table.addPlayer("Ben"); table.chooseStarter(1)
         val lobby = table.state.value.game
         val seat = TabletSeat(StandaloneGame.seatHandle(0).id, 1)
