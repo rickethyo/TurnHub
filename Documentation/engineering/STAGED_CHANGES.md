@@ -107,7 +107,12 @@ everything implemented. Only the checks listed below are still open.
   signed maintenance, native game/session polling, custom timer entry, empty
   seat A attachment and app-install QR. Android unit tests/debug build, Atlas
   host/firmware checks and administration browser checks with/without a card pass; device
-  acceptance remains pending; native event-feedback preferences/background decision alert remain open.
+  acceptance remains pending; native vibration preferences/background decision alert remain open.
+- **Android game sounds device acceptance:** confirm pass/start/pause/resume/
+  win/draw cues in local and connected play, rapid actions, silent/vibrate/media
+  volume, mute while a cue plays, lifecycle/reconnect suppression and accessible
+  labeled sound/volume controls. JVM transition tests and a build do not verify
+  speaker behavior.
 - **Password hashing:** parked, see "Parked: storage batch" below.
 - **High-resolution uploaded avatars and tablet card backgrounds** (*Planned*,
   owner, 2026-10-08; TH-003 in [COLLABORATION.md](../../COLLABORATION.md)):

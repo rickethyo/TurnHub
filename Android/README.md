@@ -27,6 +27,21 @@ The app must not:
 - Reimplement gameplay rules that already belong to Atlas.
 - Depend directly on ESP32 C++ implementation details.
 
+### Game-action sounds
+
+Local and Atlas-connected play share short cues for confirmed start, pass/turn
+change, pause, resume, victory and draw. Initial load, repeated polls, cancelled
+or rejected actions, rotation, returning to the app and reconnect catch-up stay
+quiet. Cues stop when the app leaves the foreground; the existing background
+turn notification remains separate.
+
+**Game sounds** and **Sound volume** are phone-only preferences available in
+both table setup screens, the live table menu and My account. Default: on at
+50%. Phone silent/vibrate mode and media volume still apply. Sound supplements
+the visible state and existing haptics, and never changes a game. Original WAV
+assets come from `tools/generate_game_sounds.py` (stdlib; `--check` validates
+them); native SoundPool adds no third-party runtime dependency.
+
 ### The one exception: the standalone tablet game
 
 The app always opens to the local full-screen table or its saved game on a
@@ -514,8 +529,8 @@ empty seat A in the lobby, confirmed with Link phone. Atlas still rejects occupi
 or unavailable seats. The Players invitation QR installs the app; joining Atlas
 Wi-Fi and choosing Connect remain explicit steps. There is no password in the QR.
 
-Native foreground event sound/vibration settings and a background win-decision
-notification remain planned. Existing native haptics, turn notifications and
+Native vibration preferences and a background win-decision notification remain
+planned. Foreground game-action sounds, existing native haptics, turn notifications and
 text decision controls remain; device acceptance is tracked in STAGED_CHANGES.
 
 Atlas firmware includes the complete admin portal and its maintenance/Developer

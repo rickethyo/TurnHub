@@ -164,6 +164,7 @@ internal fun TableLobby(
                 SetupSwitch("Automatic elimination at zero life", null, settings.autoEliminateAtZeroLife, settingsEnabled, actions.zeroLife)
             }
             StartTableButton(players.size, settings.twoHeadedGiant, enabled, settings.profile.starCommander, actions.start)
+            BrassCard { com.turnhub.android.ui.components.GameSoundControls() }
             footer()
         }
     }

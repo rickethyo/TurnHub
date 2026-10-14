@@ -52,6 +52,8 @@ fun StandaloneScreen(
     BackHandler(onBack = onClose)
     val scope = rememberCoroutineScope()
     val game = state.game
+    val soundSummary = remember(game) { game.toSummary(0, 0) }
+    com.turnhub.android.ui.components.GameSoundEffect(soundSummary, available = state.storageProblem == null)
     Box(modifier.fillMaxSize().tableBackground(p)) {
         if (state.storageProblem != null) {
             Column(Modifier.safeDrawingPadding().padding(24.dp)) {

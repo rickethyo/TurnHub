@@ -445,6 +445,7 @@ internal fun TabletTable(
             else -> if (menuOpen) {
                 Overlay("Table", null, onDismiss = { menuOpen = false }) {
                     GameClockLine(summary)
+                    com.turnhub.android.ui.components.GameSoundControls()
                     if (summary.star) {
                         // Live: eliminated players are struck through; tap one to see their allies and enemies.
                         StarMap(summary.starSeats())

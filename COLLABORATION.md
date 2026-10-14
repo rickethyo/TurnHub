@@ -39,7 +39,8 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-021 | Unified table setup, backgrounds and authority design | Android, hosting design | Ready for review; CI passes | Owner / PR #106 and device acceptance |
+| TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
+| TH-021 | Shared table authority design | Android, hosting design | UI integrated; common engine/authority staged | Owner / design implementation and device acceptance |
 | TH-020 | Star Commander game mode | Atlas, protocol, Android, stats | Implemented on `claude/master`; host and JVM tests pass | Owner / interpretations below, playtest G14 |
 | TH-019 | iOS foundation and development flow | iOS, contracts, CI | Active framework slice | Codex / scaffold and staged plan; owner / Apple device acceptance |
 | TH-018 | Phone-owned profiles and lighter Atlas requests | Android, account import, documentation | Implemented; local validation passes | Owner / device acceptance and PR review |
@@ -65,36 +66,36 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 Append replies under the same topic with date, author and reviewed SHA. Record a final outcome and links when resolved.
 
+## TH-022: Native game-action sounds
+
+- Date / owner: 2026-10-14 / Codex on `codex/master`, baseline `25ce417`.
+  Clean checkout, fetched and fast-forwarded accepted master; PR #106 is merged,
+  with no open PR or overlapping audio scope. A new PR is needed for this slice.
+- Scope: short foreground sounds for confirmed pass/start/pause/resume/game-over
+  transitions, shared by local and connected play. Repeated polls, initial load,
+  screen changes, reconnect and rejected actions must stay quiet.
+- Feature gate: Android owns disposable cue detection and phone-only sound/volume
+  preferences in `turnhub_ui`; existing engines still validate game actions.
+  No Intent or protocol change. Native SoundPool plays original generated WAV
+  assets; no third-party dependency. Standard labeled mute/volume controls in
+  setup, table menu and My account; sounds supplement existing text/haptics and
+  respect phone silent/vibrate mode and media volume. Lifecycle cleanup stops
+  foreground cues. Device/audio/TalkBack acceptance is separate from JVM tests.
+- Implementation: one foreground cue observer shared across local and connected
+  screens, native SoundPool lifecycle cleanup, six original generated clips and
+  saved sound/volume controls. Seven JVM regressions cover actual local actions,
+  Atlas pending/committed passes, team/missed turns, replay suppression and epochs.
+- Validation: [CI on `5549d06`](https://github.com/rickethyo/TurnHub/actions/runs/38492919879)
+  passes JVM tests and release bundle compilation, plus relevant host/manual/
+  design guards. Clip regeneration, mono PCM/duration/silent-edge/no-clipping,
+  manual export, documentation links and whitespace checks pass locally.
+  [PR #107](https://github.com/rickethyo/TurnHub/pull/107) is ready for review.
+  No physical speaker, silent/media-volume, lifecycle or TalkBack acceptance
+  is claimed. Next owner: review and device checks.
+
 ## TH-021: Unified table setup, tile backgrounds and authority design
 
-- Owner: Codex on `codex/master`; baseline `211ae99`, implementation through
-  `2675c79`; [PR #106](https://github.com/rickethyo/TurnHub/pull/106).
-- Both setup screens now use `TableLobby`/`TableLobbyActions`. Live rendering
-  remains shared through `TabletTable`/`TableControls`. The zero/one-player
-  preview reserves two seats. Clear all changes the local selection in one
-  saved update; the connected adapter uses scoped Atlas unseat requests and
-  stops at the first refusal. Accounts, history and game settings remain intact.
-- Per-player tile backgrounds (default/solid/gradient/image) are saved under
-  local UUIDs separately from avatars and match records. Preview/live panels
-  share the decorative renderer. Connected tables use the phone's backgrounds
-  only through verified Atlas/profile links. Account locks and bounded image
-  cropping remain enforced. No gameplay contract or dependency change.
-- Owner requested a common engine with full phone authority, deferring to Atlas
-  while connected, and chose design of full takeover/reconciliation. The
-  [authority design](Documentation/engineering/TABLE_AUTHORITY.md) owns the
-  feature gate, portable C++ core extraction, checkpoints/journal, fenced
-  ownership, reconnect reconciliation and durable completion receipts.
-  Full-engine hosting and live authority transfers remain planned; current
-  connected offline behavior still queues life/Commander edits only.
-- Validation: [CI on `2675c79`](https://github.com/rickethyo/TurnHub/actions/runs/38483995794)
-  passes Android JVM tests and the release bundle build, plus relevant host
-  guards/manual/design checks. Documentation links, Word ZIP/XML, manual export
-  consistency and whitespace checks pass locally. The final documentation-only
-  follow-up updates the manual's Add label and this handoff, with `[skip ci]`.
-  No physical phone/Atlas, image-picker, TalkBack or text-scale acceptance is
-  claimed.
-- Next owner: PR review and device acceptance; shared-engine/authority work
-  follows the staged design separately.
+UI/background changes are integrated through PR #106. The [authority design](Documentation/engineering/TABLE_AUTHORITY.md) and STAGED_CHANGES own future common-engine/takeover work; implementation evidence is in the [archive](Documentation/engineering/history/2026-10-13-collaboration-archive.md).
 
 ## TH-019: iOS foundation and development flow
 
