@@ -129,7 +129,13 @@ private fun Lobby(
         introduction = "This phone or tablet becomes the table: lay it in the middle and everyone plays on one screen. " +
             "It keeps life, Commander damage, counters, turns, the turn timer and the winner. " +
             "Your game is saved when you close the app.",
-        headerActions = { if (atlasEnabled) TextButton(onClick = onClose) { Text("Atlas", color = palette.muted) } },
+        headerActions = {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            TextButton(onClick = { com.turnhub.android.ui.components.openBugReport(context) }) {
+                Text("Report a bug", color = palette.muted)
+            }
+            if (atlasEnabled) TextButton(onClick = onClose) { Text("Atlas", color = palette.muted) }
+        },
         footer = {
             ToneButton("Players and history", onHistory, Modifier.fillMaxWidth())
             TextButton(onClick = { onAtlasEnabled(!atlasEnabled) }, modifier = Modifier.fillMaxWidth()) {
