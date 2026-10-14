@@ -19,6 +19,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.domain.ControllerHandle
+import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.protocol.GameProfile
@@ -81,15 +82,18 @@ internal fun TableLobby(
                     Eyebrow("At the table")
                     TextButton(onClick = actions.clear, enabled = enabled && players.any(actions.canRemove)) { Text("Clear all") }
                 }
-                if (summary.star) {
+                // The preview takes the mode's shape from the first player: the star's five
+                // seats, or Two-Headed Giant's split team panels, filling in as players join.
+                if (settings.profile.starCommander && players.size <= StarCommander.PLAYERS) {
                     val seats = summary.starSeats()
                     StarMap(seats, onSwap = { a, b -> if (enabled) actions.swap(a, b) })
                     StarRelationsList(seats)
                     Text(STAR_MAP_HINT, color = p.faint, style = MaterialTheme.typography.bodySmall)
                 } else {
                     SeatMap(players.map { it.label }, { a, b -> if (enabled) actions.swap(a, b) },
-                        backgrounds = players.map { it.tileBackground }, colors = players.map { it.color })
-                    Text(SEAT_MAP_HINT, color = p.faint, style = MaterialTheme.typography.bodySmall)
+                        backgrounds = players.map { it.tileBackground }, colors = players.map { it.color },
+                        teams = settings.twoHeadedGiant)
+                    Text(if (settings.twoHeadedGiant) TEAM_MAP_HINT else SEAT_MAP_HINT, color = p.faint, style = MaterialTheme.typography.bodySmall)
                 }
                 players.forEach { player ->
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -97,6 +101,8 @@ internal fun TableLobby(
                             Text("${player.playerNumber}", color = p.avatarText, style = MaterialTheme.typography.labelLarge)
                         }
                         Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        if (settings.twoHeadedGiant) Text("Team ${(player.playerNumber + 1) / 2}", color = p.muted,
+                            style = MaterialTheme.typography.labelMedium)
                         if (player.controller.kind == ControllerHandle.Kind.PHYSICAL) Text("Sigil", color = p.muted,
                             style = MaterialTheme.typography.labelMedium)
                         actions.background?.takeIf { actions.canEditBackground(player) }?.let { edit ->

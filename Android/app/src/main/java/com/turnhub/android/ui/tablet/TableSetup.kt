@@ -72,8 +72,8 @@ internal fun SetupSwitch(title: String, detail: String?, checked: Boolean, enabl
  */
 enum class GameMode(val label: String, val detail: String) {
     STANDARD("Standard", "Everyone for themselves."),
-    TWO_HEADED_GIANT("Two-Headed Giant", "Neighbours in turn order play as teams of two, sharing life, poison and the turn."),
-    STAR_COMMANDER("Star Commander", "Five players. Your neighbours are allies who can't deal you Commander damage; " +
+    TWO_HEADED_GIANT("Two-Headed Giant", "Players next to each other play as teams of two (1 and 2, 3 and 4, and so on), sharing life, poison and the turn."),
+    STAR_COMMANDER("Star Commander", "Five players. Your neighbors are allies who can't deal you Commander damage; " +
         "win when both players across the star are out."),
     ;
 
@@ -132,6 +132,10 @@ internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, st
 /** How the seat map is explained in both lobbies. */
 internal const val SEAT_MAP_HINT = "This is how the table will look. Drag a player onto another seat to swap them, " +
     "or tap two seats. Turns go clockwise in number order."
+
+/** The seat map's explanation in Two-Headed Giant. */
+internal const val TEAM_MAP_HINT = "Each outlined panel is a team: players 1 and 2, then 3 and 4, and so on. " +
+    "Teammates share one panel, life total and turn. Drag a player onto another seat to swap them, or tap two seats."
 
 /** Formats offered in the shared lobby. */
 internal val FORMATS = listOf(

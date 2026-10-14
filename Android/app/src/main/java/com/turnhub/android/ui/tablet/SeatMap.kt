@@ -57,17 +57,21 @@ import androidx.compose.ui.graphics.Color
  * where it will land, turned the way it will face, numbered in turn order.
  * Drag a panel onto another to swap the two, or tap one and then the other
  * (also the screen-reader path, with a "Swap with" action per seat).
+ * With [teams] (Two-Headed Giant) each panel is a team split in two:
+ * players 1 and 2, then 3 and 4, with empty halves until the team fills.
  */
 @Composable
 internal fun SeatMap(names: List<String>, onSwap: (Int, Int) -> Unit, modifier: Modifier = Modifier,
-    backgrounds: List<TileBackground> = emptyList(), colors: List<String?> = emptyList()) {
+    backgrounds: List<TileBackground> = emptyList(), colors: List<String?> = emptyList(), teams: Boolean = false) {
     val p = palette
     val swap by rememberUpdatedState(onSwap)
     val configuration = LocalConfiguration.current
-    // The same choice the table makes: side-by-side rows unless the screen is upright and more than two play.
-    val landscape = configuration.screenWidthDp >= configuration.screenHeightDp || names.size <= 2
-    // Reserve both ends even before the second player joins, so setup doesn't jump.
-    val plan = placements(names.size.coerceAtLeast(2))
+    // Panels: one per player, or one per team of two. Reserve both ends even before the
+    // second panel fills, so setup doesn't jump.
+    val panels = (if (teams) (names.size + 1) / 2 else names.size).coerceAtLeast(2)
+    // The same choice the table makes: side-by-side rows unless the screen is upright and more than two panels.
+    val landscape = configuration.screenWidthDp >= configuration.screenHeightDp || panels <= 2
+    val plan = placements(panels)
     val bounds = remember(names.size) { mutableStateMapOf<Int, Rect>() }
     var picked by remember(names.size) { mutableStateOf<Int?>(null) }
     var dragging by remember(names.size) { mutableStateOf<Int?>(null) }
@@ -176,6 +180,16 @@ internal fun SeatMap(names: List<String>, onSwap: (Int, Int) -> Unit, modifier: 
         }
     }
 
+    // A team's two halves, ordered left to right as its players see them once turned.
+    val team: @Composable (Int, Int, Modifier) -> Unit = { unit, degrees, slotModifier ->
+        val members = listOf(2 * unit, 2 * unit + 1).let { if (degrees == 180 || degrees == 270) it.reversed() else it }
+        val shape = RoundedCornerShape(14.dp)
+        val frame = slotModifier.padding(2.dp).clip(shape).border(2.dp, p.accent, shape).padding(2.dp)
+        if (degrees % 180 == 0) Row(frame) { members.forEach { seat(it, degrees, Modifier.weight(1f).fillMaxHeight()) } }
+        else Column(frame) { members.forEach { seat(it, degrees, Modifier.weight(1f).fillMaxWidth()) } }
+    }
+    val slot: @Composable (Int, Int, Modifier) -> Unit = if (teams) team else seat
+
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Box(
         Modifier
             .wrapAspect(landscape)
@@ -187,16 +201,16 @@ internal fun SeatMap(names: List<String>, onSwap: (Int, Int) -> Unit, modifier: 
         if (landscape) {
             Column(Modifier.fillMaxSize()) {
                 if (plan.far.isNotEmpty()) {
-                    Row(Modifier.weight(1f).fillMaxWidth()) { plan.far.forEach { seat(it, 180, Modifier.weight(1f).fillMaxHeight()) } }
+                    Row(Modifier.weight(1f).fillMaxWidth()) { plan.far.forEach { slot(it, 180, Modifier.weight(1f).fillMaxHeight()) } }
                 }
-                Row(Modifier.weight(1f).fillMaxWidth()) { plan.near.forEach { seat(it, 0, Modifier.weight(1f).fillMaxHeight()) } }
+                Row(Modifier.weight(1f).fillMaxWidth()) { plan.near.forEach { slot(it, 0, Modifier.weight(1f).fillMaxHeight()) } }
             }
         } else {
             Row(Modifier.fillMaxSize()) {
                 if (plan.far.isNotEmpty()) {
-                    Column(Modifier.weight(1f).fillMaxHeight()) { plan.far.asReversed().forEach { seat(it, 90, Modifier.weight(1f).fillMaxWidth()) } }
+                    Column(Modifier.weight(1f).fillMaxHeight()) { plan.far.asReversed().forEach { slot(it, 90, Modifier.weight(1f).fillMaxWidth()) } }
                 }
-                Column(Modifier.weight(1f).fillMaxHeight()) { plan.near.asReversed().forEach { seat(it, 270, Modifier.weight(1f).fillMaxWidth()) } }
+                Column(Modifier.weight(1f).fillMaxHeight()) { plan.near.asReversed().forEach { slot(it, 270, Modifier.weight(1f).fillMaxWidth()) } }
             }
         }
         // The centre menu disc, so the miniature reads as the same table.

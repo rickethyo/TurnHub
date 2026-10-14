@@ -64,7 +64,8 @@ internal fun TableSummary.starSeats(): List<StarSeat> =
 
 /** "Allies: B, E · Enemies: C, D" for [seat], the same words the map's labels and legend use. */
 internal fun starRelations(seats: List<StarSeat>, seat: Int): String {
-    fun names(of: List<Int>) = of.joinToString(", ") { s -> seats[s].name + if (seats[s].eliminated) " (out)" else "" }
+    fun names(of: List<Int>) = of.joinToString(", ") { s ->
+        seats.getOrNull(s)?.let { it.name + if (it.eliminated) " (out)" else "" } ?: "seat ${s + 1} (empty)" }
     return "Allies: ${names(StarCommander.allies(seat))} · Enemies: ${names(StarCommander.enemies(seat))}"
 }
 
@@ -83,13 +84,16 @@ internal fun starProgress(seats: List<StarSeat>, seat: Int): String =
  */
 @Composable
 internal fun StarMap(seats: List<StarSeat>, modifier: Modifier = Modifier, onSwap: ((Int, Int) -> Unit)? = null) {
-    if (seats.size != StarCommander.PLAYERS) return
+    if (seats.size > StarCommander.PLAYERS) return
     val p = palette
     val swap by rememberUpdatedState(onSwap)
     var focus by remember { mutableStateOf<Int?>(null) }
     val allyColor = p.accent
     val enemyColor = p.bad
+    // The lobby fills the star seat by seat; empty seats keep their place.
+    if (focus != null && focus!! >= seats.size) focus = null
     fun tap(index: Int) {
+        if (index !in seats.indices) return
         val first = focus
         val swapper = swap
         focus = when {
@@ -122,9 +126,27 @@ internal fun StarMap(seats: List<StarSeat>, modifier: Modifier = Modifier, onSwa
                     val c = Offset(size.width / 2, size.height / 2)
                     fun point(i: Int) = at(i).let { (x, y) -> c + Offset(x.dp.toPx(), y.dp.toPx()) }
                     for (a in 0 until StarCommander.PLAYERS) for (b in a + 1 until StarCommander.PLAYERS) {
-                        val involved = focus == null || focus == a || focus == b
+                        val filled = a < seats.size && b < seats.size
+                        val involved = filled && (focus == null || focus == a || focus == b)
                         val ally = StarCommander.allied(a, b)
                         link(point(a), point(b), if (ally) allyColor else enemyColor, ally, if (involved) 1f else .18f)
+                    }
+                }
+                for (i in seats.size until StarCommander.PLAYERS) {
+                    val (x, y) = at(i)
+                    Column(
+                        Modifier
+                            .offset(x.dp, y.dp)
+                            .width(node)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(p.surface)
+                            .border(1.dp, p.line, RoundedCornerShape(12.dp))
+                            .clearAndSetSemantics { contentDescription = "Seat ${i + 1}, empty" }
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text("Empty seat", color = p.muted, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
+                        Text("Seat ${i + 1}", color = p.faint, style = MaterialTheme.typography.labelSmall)
                     }
                 }
                 seats.forEachIndexed { i, seat ->
@@ -213,7 +235,7 @@ private fun LegendLine(color: Color, solid: Boolean) {
 /** Every player's allies and enemies as text, for the lobby (and screen readers). */
 @Composable
 internal fun StarRelationsList(seats: List<StarSeat>) {
-    if (seats.size != StarCommander.PLAYERS) return
+    if (seats.isEmpty() || seats.size > StarCommander.PLAYERS) return
     val p = palette
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         seats.forEachIndexed { i, seat ->
@@ -223,6 +245,6 @@ internal fun StarRelationsList(seats: List<StarSeat>) {
 }
 
 /** How the star map is explained in both lobbies. */
-internal const val STAR_MAP_HINT = "Your neighbours are your allies: they can't deal you Commander damage. " +
+internal const val STAR_MAP_HINT = "Your neighbors are your allies: they can't deal you Commander damage. " +
     "The two players across the star are your enemies; win when both are out, and allies can share the win. " +
-    "Tap a player to see their allies and enemies, then another to swap their seats."
+    "Empty seats fill in as players are added. Tap a player to see their allies and enemies, then another to swap their seats."
