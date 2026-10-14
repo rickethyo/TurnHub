@@ -165,6 +165,7 @@ internal fun TableLobby(
             }
             StartTableButton(players.size, settings.twoHeadedGiant, enabled, settings.profile.starCommander, actions.start)
             BrassCard { com.turnhub.android.ui.components.GameSoundControls() }
+            BrassCard { com.turnhub.android.ui.components.ReportBugButton() }
             footer()
         }
     }
