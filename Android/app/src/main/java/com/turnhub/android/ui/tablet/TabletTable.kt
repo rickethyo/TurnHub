@@ -272,6 +272,8 @@ internal fun TabletTable(
     BoxWithConstraints(Modifier.fillMaxSize().background(p.bg)) {
         val landscape = maxWidth >= maxHeight || units.size <= 2
         val plan = placements(units.size)
+        // The middle panel of a side with an odd count meets the centre disc at its inner (top) edge.
+        val underHub = listOf(plan.near, plan.far).filter { it.size % 2 == 1 }.map { it[it.size / 2] }.toSet()
         fun degreesOf(index: Int) = when {
             landscape -> if (index in plan.far) 180 else 0
             else -> if (index in plan.far) 90 else 270
@@ -304,6 +306,7 @@ internal fun TabletTable(
                         offlineCommander = tablet::offlineCommander,
                         haptics = haptics,
                         reduceMotion = reduceMotion,
+                        underHub = index in underHub,
                     )
                 }
             }
@@ -589,6 +592,7 @@ private fun PlayerPanel(
     offlineCommander: (Long, Int, Int) -> Int,
     haptics: TurnHubHaptics,
     reduceMotion: Boolean = false,
+    underHub: Boolean = false,
 ) {
     val p = palette
     val shape = RoundedCornerShape(22.dp)
@@ -638,9 +642,15 @@ private fun PlayerPanel(
         // slim bottom bar, and the number is sized to the room between it and the name.
         val compact = maxHeight < 260.dp
         val between = (maxHeight.value - if (compact) 104f else 120f).coerceAtLeast(24f)
+        // Room for the lines under the number, so a short panel shrinks the number instead of
+        // squashing those lines to slivers.
+        val linesBelow = (if (summary.star) 22f else 0f) +
+            (if (summary.settings.profile.magicRules) unit.members.count { m -> counterChips(m.counters, summary.initiativePlayerNumber == m.playerNumber,
+                summary.settings.profile.commanderRules, summary.settings.poisonLimit).isNotEmpty() } * 30f else 0f) +
+            (if (summary.settings.profile.commanderRules && unit.members.any { m -> m.commanderDamage.any { d -> d.damage.any { it > 0 } } }) 26f else 0f)
         val lifeSize = minOf(
             minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f,
-            between * .8f,
+            (between - linesBelow) * .8f,
         ).coerceIn(24f, 160f)
         Column(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
             HoldHalf("+", "$name: add $small life", !out, { onBump(small) }, { onBump(big) }, Alignment.CenterEnd, Modifier.weight(1f).fillMaxWidth())
@@ -648,7 +658,9 @@ private fun PlayerPanel(
         }
 
         Row(
-            Modifier.align(Alignment.TopStart).padding(horizontal = 16.dp, vertical = 12.dp),
+            Modifier.align(Alignment.TopStart).padding(horizontal = 16.dp, vertical = 12.dp)
+                // Stops short of the centre disc, which covers the middle of this edge.
+                .then(if (underHub) Modifier.widthIn(max = (panelWidth / 2 - 62.dp).coerceAtLeast(64.dp)) else Modifier),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -656,7 +668,7 @@ private fun PlayerPanel(
                 com.turnhub.android.ui.components.AvatarGlyph(it, p.text, 32.dp)
             } }
             Text(name, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = nameMax))
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false).widthIn(max = nameMax))
             if (active) Tag("Turn", p.active, p.onActive)
             if (out) Tag(if (unit.members.any { it.conceded }) "Conceded" else "Eliminated", p.bad, p.surface)
         }
@@ -707,14 +719,18 @@ private fun PlayerPanel(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             MenuButton(name, compact, onOpenMenu)
+            // A short panel keeps the bar to its start side, so the far end of the subtract half
+            // (where its − sits) stays clear to tap.
+            if (compact && active) TurnClock(summary)
             val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
-            if (actor != null && !out && summary.state == TableState.RUNNING) {
+            val canPass = actor != null && !out && summary.state == TableState.RUNNING
+            if (canPass && actor != null) {
                 val passing = summary.pending.passPlayer != null && unit.members.any { it.playerNumber == summary.pending.passPlayer }
-                HoldToPass(passing, { onControl(actor.seat(), "pass") }, haptics, Modifier.weight(1f), compact)
-            } else {
-                Spacer(Modifier.weight(1f))
+                HoldToPass(passing, { onControl(actor.seat(), "pass") }, haptics,
+                    if (compact) Modifier.widthIn(max = 168.dp) else Modifier.weight(1f), compact)
             }
-            if (active) TurnClock(summary)
+            if (compact || !canPass) Spacer(Modifier.weight(1f))
+            if (active && !compact) TurnClock(summary)
         }
 
         Prompt(unit, summary, onControl, onRespond, Modifier.align(Alignment.BottomCenter))
