@@ -514,6 +514,23 @@ Lobby/finished matches, eliminated seats, non-Magic formats and open table
 decisions are rejected (409). Bad fields/ranges are 400; unauthenticated
 personal requests are 401. Existing commander-damage routes are unchanged.
 
+### Official rules and house rules (2026-10-14)
+
+`GET /api/game/settings` and state `settings` expose `houseRules` (Boolean,
+default false); the settings POST and `/api/tablet/settings` accept
+`houseRules=0|1` in the lobby only. Without house rules the official modes keep
+the official starting life and poison limit, as the standalone app does
+(`OfficialRules.kt`): `mtg` 20 and 10, `mtg_commander` 40 and 10, Two-Headed
+Giant `mtg` 30 and 15, `yugioh` 8000. Atlas saves those values whatever life or
+limit the request carries (200), and refuses a live poison-limit change (409).
+Start is refused (409) unless official Two-Headed Giant has exactly four players
+and a Yu-Gi-Oh! Duel two. Custom modes (`generic`, `mtg_star_commander`,
+Two-Headed Giant `mtg_commander`) stay editable. In Two-Headed Giant a
+teammate is never a source of Commander damage (409).
+
+With nobody chosen to go first, Atlas picks a random starter when the
+countdown ends. `starter` on the chosen player again clears the choice.
+
 `POST /api/game/settings` and `/api/tablet/settings` additionally accept
 `autoEliminateAtPoisonLimit`, `autoEliminateAtCommanderDamage` (0 or 1) and
 `poisonLimit` (1..1,000,000), in the lobby and during running/paused play.

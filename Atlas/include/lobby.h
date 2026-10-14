@@ -48,6 +48,8 @@ class Lobby {
   bool selectStarter(uint8_t controllerId, PlayerSeat &selected);
   bool selectStarterSeat(uint8_t controllerId, uint8_t slot, PlayerSeat &selected);
   bool randomStarter(PlayerSeat &selected);
+  // Nobody chosen: the game picks a random starter (see startGame).
+  void clearStarter();
   // The selected starter, else the first seat at the table.
   bool starterOrDefault(PlayerSeat &selected) const;
   bool selectedStarter(PlayerSeat &selected) const;

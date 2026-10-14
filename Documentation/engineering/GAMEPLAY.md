@@ -15,9 +15,23 @@ loss condition; Commander damage totals alone do not trigger elimination.
 | Star Commander | 40, Commander rules for exactly five players (below) |
 | Yu-Gi-Oh! | 8000, counted in hundreds on every client |
 
-- Custom starting life 0 to 1,000,000. Any seated player may change the
-  next game's settings in the lobby (`ConfigureGame`); a running match
-  keeps what it captured at start, and a rematch starts fresh.
+- **Official rules** (2026-10-14, owner request; host tests only, *needs a
+  playtest*): Magic (20 life, 10 poison), Commander (40, 10), Two-Headed Giant
+  Magic (30, 15 shared, exactly two teams of two) and Yu-Gi-Oh! (8000, exactly
+  two players) keep those values unless the table turns on **House rules**
+  (`GameSettings::houseRules`, `houseRules` on `/api/game/settings`, bit 4 of
+  the `gamecfg` and recovery flags byte). Atlas saves the official values
+  whatever a request carries (`applyOfficialRules`), refuses a live poison-limit
+  change, and refuses Start on the wrong table size (`validOfficialTable`).
+  Custom modes (Generic, Star Commander, Two-Headed Giant Commander) stay
+  editable. The standalone app follows the same table (`OfficialRules.kt`).
+- Custom starting life 0 to 1,000,000 (custom modes or house rules). Any
+  seated player may change the next game's settings in the lobby
+  (`ConfigureGame`); a running match keeps what it captured at start, and a
+  rematch starts fresh.
+- **Who goes first:** any player can choose (`SelectStarter`); choosing the
+  chosen player again clears it. With nobody chosen, Atlas picks a random
+  player when the countdown ends, as the standalone app does (rematches too).
 - Saved in `gamecfg` (format, starting life, turn timer). A corrupt record
   blocks setup rather than being overwritten.
 - HTTP: `GET/POST /api/game/settings` (omitted fields keep their value);
@@ -73,12 +87,15 @@ option for the Magic and Commander profiles (`GameSettings::twoHeadedGiant`,
   team's pending pass, and the pass goes to the next team. A team turn counts
   for both teammates' turn statistics. Both teammates' Sigils show the turn
   and hear its cues.
-- **One life total.** Starting life is the team's total: 30 for Magic and 60
-  for Commander when the toggle is turned on in a client (editable). Either
+- **One life total.** Starting life is the team's total: 30 for Magic (fixed,
+  with exactly four players, unless house rules are on) and 60 for Commander
+  (editable). Either
   teammate changes it directly; a change to the other team's life is a
   request either opponent can answer, one pending per team.
 - **Commander damage** stays per player (21 from one commander is the usual
-  loss), and every hit comes off the team's life.
+  loss), and every hit comes off the team's life. A teammate is never a source
+  (2026-10-14). Two-Headed Giant Commander is a custom mode: its life stays
+  editable.
 - **Leaving together.** Eliminating or conceding one teammate eliminates the
   team. A win claim waits only on the other teams; the last team standing
   wins, and both teammates get the win in their statistics.

@@ -24,6 +24,8 @@ using TurnHub::serialLog;
 
 namespace TurnHubAtlas {
 
+bool randomStarterByDefault = true;
+
 namespace {
 
 bool validSlot(uint8_t slot) { return slot == 1 || slot == 2; }
@@ -150,6 +152,12 @@ void cancelCountdown() {
 
 void startGame() {
   PlayerSeat starter;
+  // Nobody chosen to go first: a random player (randomStarter also shows who).
+  if (randomStarterByDefault && !table().lobby.selectedStarter(starter) && table().lobby.playerCount() >= 2 &&
+      table().lobby.randomStarter(starter)) {
+    serialLog.print("ATLAS|GAME|RANDOM_STARTER|");
+    serialLog.println(starter.playerNumber);
+  }
   if (!table().lobby.starterOrDefault(starter) || table().lobby.playerCount() < 2) {
     cancelCountdown();
     return;
@@ -664,9 +672,18 @@ IntentResult handleSelectStarterIntent(const Intent &intent, void *) {
     case TurnHub::StarterSelection::CycleModule:
       selectedOk = table().lobby.selectStarter(module, selected);
       break;
-    case TurnHub::StarterSelection::ExactSeat:
+    case TurnHub::StarterSelection::ExactSeat: {
+      // Choosing the chosen player again clears the choice (a random starter).
+      PlayerSeat current;
+      if (table().lobby.selectedStarter(current) && current.controllerId == module && current.slot == intent.actor.slot) {
+        table().lobby.clearStarter();
+        leds.invalidateAll();
+        serialLog.println("ATLAS|INTENT|SELECT_STARTER|CLEARED");
+        return IntentResult::accept("Nobody chosen: a random player goes first");
+      }
       selectedOk = table().lobby.selectStarterSeat(module, intent.actor.slot, selected);
       break;
+    }
   }
   if (!selectedOk) {
     return IntentResult::reject(IntentStatus::InvalidActor, "Could not select this seat as starter");
@@ -709,6 +726,11 @@ IntentResult handleStartIntent(const Intent &intent, void *) {
   }
   if (!TurnHub::validStarTable(table().nextGameSettings, table().lobby.playerCount())) {
     return IntentResult::reject(IntentStatus::InvalidState, "Star Commander needs exactly five players.");
+  }
+  if (!TurnHub::validOfficialTable(table().nextGameSettings, table().lobby.playerCount())) {
+    return IntentResult::reject(IntentStatus::InvalidState, table().nextGameSettings.twoHeadedGiant
+        ? "Official Two-Headed Giant is two teams of two. Turn on House rules for more players"
+        : "A Yu-Gi-Oh! Duel is two players. Turn on House rules for more players");
   }
   if (intent.type == IntentType::ArmStart) {
     table().lobby.setStartArmedBy(module);
@@ -1404,7 +1426,7 @@ void serviceFactoryReset(uint32_t nowMs) {
   eraseSettingsAndRestart();
 }
 
-// Payload: flags = GameProfile (| GAME_FLAG_TWO_HEADED_GIANT), value = starting
+// Payload: flags = GameProfile (| GAME_FLAG_TWO_HEADED_GIANT, GAME_FLAG_HOUSE_RULES, ...), value = starting
 // life, durationMs = turn timer.
 IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   PlayerSeat actor;
@@ -1415,7 +1437,8 @@ IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::Unauthorized,
         "Only a seated player can change settings in the lobby or during play");
   }
-  const uint32_t profile = intent.payload.flags & ~(TurnHub::GAME_FLAG_TWO_HEADED_GIANT | TurnHub::GAME_FLAG_MANUAL_ELIMINATION | TurnHub::GAME_FLAG_MANUAL_POISON | TurnHub::GAME_FLAG_MANUAL_COMMANDER);
+  const uint32_t profile = intent.payload.flags & ~(TurnHub::GAME_FLAG_TWO_HEADED_GIANT | TurnHub::GAME_FLAG_MANUAL_ELIMINATION |
+      TurnHub::GAME_FLAG_MANUAL_POISON | TurnHub::GAME_FLAG_MANUAL_COMMANDER | TurnHub::GAME_FLAG_HOUSE_RULES);
   if (profile >= static_cast<uint32_t>(TurnHub::GameProfile::Count)) {
     return IntentResult::reject(IntentStatus::Rejected, "Unknown game profile");
   }
@@ -1426,6 +1449,7 @@ IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   settings.autoEliminateAtCommanderDamage = !(intent.payload.flags & TurnHub::GAME_FLAG_MANUAL_COMMANDER);
   settings.autoEliminateAtZeroLife = !(intent.payload.flags & TurnHub::GAME_FLAG_MANUAL_ELIMINATION);
   settings.twoHeadedGiant = (intent.payload.flags & TurnHub::GAME_FLAG_TWO_HEADED_GIANT) != 0;
+  settings.houseRules = (intent.payload.flags & TurnHub::GAME_FLAG_HOUSE_RULES) != 0;
   if (settings.twoHeadedGiant && settings.profile == TurnHub::GameProfile::StarCommander) {
     return IntentResult::reject(IntentStatus::Rejected, "Two-Headed Giant isn't available in Star Commander");
   }
@@ -1444,18 +1468,25 @@ IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   if (table().hubState != HubState::Lobby) {
     const auto &current = table().game.settings();
     if (settings.profile != current.profile || settings.startingLife != current.startingLife ||
-        settings.turnTimerMs != current.turnTimerMs || settings.twoHeadedGiant != current.twoHeadedGiant)
+        settings.turnTimerMs != current.turnTimerMs || settings.twoHeadedGiant != current.twoHeadedGiant ||
+        settings.houseRules != current.houseRules)
       return IntentResult::reject(IntentStatus::Conflict, "Only elimination settings can change during play");
+    if (!TurnHub::followsOfficialRules(settings))
+      return IntentResult::reject(IntentStatus::Conflict, "This game follows the official rules: the poison limit is fixed");
     if (table().game.hasWinClaim() || table().eliminationTargetPlayer)
       return IntentResult::reject(IntentStatus::Conflict, "Resolve the current table decision first");
     table().game.setEliminationSettings(settings);
     return IntentResult::accept("Elimination settings updated for this match");
   }
+  // Official modes keep their official life and poison limit unless house rules are on.
+  const bool official = TurnHub::applyOfficialRules(settings);
   if (!gameSettingsAvailable || TurnHub::saveGameSettings(settings) != TurnHubStorage::Status::Ok) {
     return IntentResult::reject(IntentStatus::Rejected, "Game settings could not be saved");
   }
   table().nextGameSettings = settings;
-  return IntentResult::accept("Game settings saved on Atlas");
+  return IntentResult::accept(official
+      ? "Saved with the official starting life and poison limit. Turn on House rules to change them"
+      : "Game settings saved on Atlas");
 }
 
 }  // namespace TurnHubAtlas

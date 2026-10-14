@@ -133,8 +133,8 @@ data class GameActions(
     val onPlayerCounter: (String, Int, Int) -> Unit = { _, _, _ -> },
     val onEliminationRule: (String, Int) -> Unit = { _, _ -> },
     val onSetZeroLifeElimination: (Boolean) -> Unit = {},
-    val onSaveGameSettings: (profile: String?, startingLife: Int?, turnTimerMs: Long?, twoHeadedGiant: Boolean?) -> Unit =
-        { _, _, _, _ -> },
+    val onSaveGameSettings: (profile: String?, startingLife: Int?, turnTimerMs: Long?, twoHeadedGiant: Boolean?, houseRules: Boolean?) -> Unit =
+        { _, _, _, _, _ -> },
 )
 
 
@@ -1070,6 +1070,11 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
     var teams by remember(current.twoHeadedGiant) { mutableStateOf(current.twoHeadedGiant) }
     // Star Commander never has teams.
     val teamsAllowed = profile.magicRules && !profile.starCommander
+    // Official modes keep the official life and player count unless house rules are on (Atlas enforces it).
+    var house by remember(current.houseRules) { mutableStateOf(current.houseRules) }
+    val official = com.turnhub.android.standalone.officialRules(profile, teams && teamsAllowed)
+    val locked = official != null && !house
+    val shownLife = if (locked) official!!.life.toString() else life
     // Two-Headed Giant team life: 30, or 60 for Commander.
     fun defaultLife(choice: GameProfile, withTeams: Boolean) = when (choice) {
         GameProfile.MTG -> if (withTeams) "30" else "20"
@@ -1115,12 +1120,35 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
             }
             Switch(checked = teams && teamsAllowed, onCheckedChange = null, enabled = editable && teamsAllowed)
         }
+        if (official != null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(value = house, enabled = editable, role = Role.Switch, onValueChange = { house = it })
+                    .padding(vertical = 4.dp),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("House rules", color = p.text)
+                    Text(
+                        "Change the starting life, poison limit and player count. The game no longer follows the " +
+                            "official ${official.name} rules.",
+                        color = p.muted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(checked = house, onCheckedChange = null, enabled = editable)
+            }
+        }
         OutlinedTextField(
-            value = life,
+            value = shownLife,
             onValueChange = { life = it.filter(Char::isDigit).take(7) },
             label = { Text(if (teams && teamsAllowed) "Team starting life" else "Starting life") },
+            supportingText = if (locked) {
+                { Text("Official starting life. Turn on house rules to change it.") }
+            } else null,
             singleLine = true,
-            enabled = editable,
+            enabled = editable && !locked,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -1150,9 +1178,9 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
         )
         AccentButton(
             "Save game settings",
-            { actions.onSaveGameSettings(profile.wireValue, life.toIntOrNull(), chosenTimer, teams && teamsAllowed) },
+            { actions.onSaveGameSettings(profile.wireValue, shownLife.toIntOrNull(), chosenTimer, teams && teamsAllowed, house) },
             Modifier.fillMaxWidth(),
-            enabled = editable && life.toIntOrNull()?.let { it in 0..1_000_000 } == true && chosenTimer != null,
+            enabled = editable && shownLife.toIntOrNull()?.let { it in 0..1_000_000 } == true && chosenTimer != null,
         )
         if (!editable) {
             Text(

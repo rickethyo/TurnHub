@@ -310,6 +310,12 @@ bool Lobby::randomStarter(PlayerSeat &selected) {
   return true;
 }
 
+void Lobby::clearStarter() {
+  starterSelected_ = false;
+  starterModule_ = INVALID_ID;
+  starterSlot_ = 1;
+}
+
 bool Lobby::starterOrDefault(PlayerSeat &selected) const {
   if (selectedStarter(selected)) {
     return true;

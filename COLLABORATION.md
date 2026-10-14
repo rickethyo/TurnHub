@@ -39,6 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Round 1 (rules, starter) ready for review; round 2 in progress | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
 | TH-021 | Shared table authority design | Android, hosting design | UI integrated; common engine/authority staged | Owner / design implementation and device acceptance |
 | TH-020 | Star Commander game mode | Atlas, protocol, Android, stats | Implemented on `claude/master`; host and JVM tests pass | Owner / interpretations below, playtest G14 |
@@ -65,6 +66,22 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 - Next action / intended responder:
 
 Append replies under the same topic with date, author and reviewed SHA. Record a final outcome and links when resolved.
+
+## TH-023: Atlas parity with the standalone app
+
+- Date / author: 2026-10-14 / Claude. Baseline `master` 5a87a5b (#112).
+- Scope: port the standalone app's #109-#112 rules to Atlas so connected games
+  match. Round 1 (`claude/master`): official rules per mode with a House rules
+  unlock (`OfficialRules`/`applyOfficialRules` in `game_profile.h`, enforced by
+  `ConfigureGame`, Start and `GameEngine::start`), no Commander damage between
+  Two-Headed Giant teammates, a random starter when nobody is chosen, and
+  choosing the chosen player again clears it; the connected tablet lobby and
+  the phone's Game setup get the House rules switch. Round 2 (stacked branch):
+  Back to setup in the first three minutes, and games under a minute counted
+  only when the table confirms.
+- Host scenarios run with `randomStarterByDefault=false` so player 1 still
+  starts; `officialRulesAndStarter()` checks the random start.
+- Validation: see the PRs; host tests only, no hardware or device pass yet.
 
 ## TH-022: Native game-action sounds
 

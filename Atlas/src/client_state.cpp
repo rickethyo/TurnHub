@@ -39,6 +39,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
   changed |= update(settings_.startingLife, settings.startingLife);
   changed |= update(settings_.turnTimerMs, settings.turnTimerMs);
   changed |= update(settings_.twoHeadedGiant, settings.twoHeadedGiant);
+  changed |= update(settings_.houseRules, settings.houseRules);
   changed |= update(settings_.autoEliminateAtZeroLife, settings.autoEliminateAtZeroLife);
   // hostModuleId stays null: there is no table host (2026-09-25); the field
   // remains for client-contract compatibility.
@@ -169,6 +170,7 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   out += ",\"autoEliminateAtCommanderDamage\":"; out += settings_.autoEliminateAtCommanderDamage ? "true" : "false";
   out += ",\"poisonLimit\":"; out += String(settings_.poisonLimit);
   out += ",\"twoHeadedGiant\":"; out += settings_.twoHeadedGiant ? "true" : "false";
+  out += ",\"houseRules\":"; out += settings_.houseRules ? "true" : "false";
   out += "},\"sampledAtMs\":"; out += String(nowMs);
   out += ",\"gameElapsedMs\":"; out += String(game.gameElapsedMs(nowMs));
   out += ",\"turnElapsedMs\":"; out += String(game.currentTurnElapsedMs(nowMs));

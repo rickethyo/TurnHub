@@ -213,7 +213,7 @@ Any player seated at the table can set up and start the game. There is no table 
 
 1. Each player joins: choose Join game on a Sigil, or Join table in the Android app.
 
-2. Optionally choose who goes first: Next starter or Random start on a Sigil, or I go first in the Android app.
+2. Optionally choose who goes first: Next starter or Random start on a Sigil, or I go first in the Android app. If nobody is chosen, Atlas picks a random player when the game starts.
 
 3. Choose the game profile, starting life and turn timer on the Game tab in the Android app. Custom turn lengths accept 15 to 3600 seconds; choose Save game settings to apply.
 
@@ -231,13 +231,13 @@ Game profiles and their starting life:
 
 - Yu-Gi-Oh!: 8000
 
-- Custom starting life: any whole number from 0 to 1,000,000
+- Custom starting life: any whole number from 0 to 1,000,000 for Generic, Star Commander and Two-Headed Giant Commander, or with House rules on. Without House rules, Magic, Commander, Two-Headed Giant and Yu-Gi-Oh! keep their official starting life and poison limit; official Two-Headed Giant is two teams of two and a Yu-Gi-Oh! Duel is two players. Turn on House rules in Game setup, or in the tablet lobby, to change them.
 
 Changes to the game settings apply from the next game that starts.
 
 Two-Headed Giant (Magic and Commander): turn it on in Game setup for teams of two. Players 1 and 2 are a team, then 3 and 4, and so on; change the turn order in the lobby to change teams. It needs an even number of players, at least 4.
 
-- Teammates share one life total: 30 for Magic, 60 for Commander (you can change it). Either teammate can change it.
+- Teammates share one life total: 30 for Magic (official; House rules unlock it), 60 for Commander (you can change it). Teammates can't deal each other Commander damage. Either teammate can change it.
 
 - Teammates take their turn together. Both see “Your turn”, and either can pass, cancel the pass or claim the win.
 
@@ -493,7 +493,7 @@ In tablet mode one Android tablet or phone lies in the middle of the table and a
 
 ## Seating Players
 
-In the lobby, add everyone who is playing with **Add**. Type a new name to create an account for that player with no PIN, or pick a saved player. A saved player who keeps a PIN types it on the tablet, unless they turned on **Allow Sigil and tablet use without a PIN** in My account. The table preview stays visible while players join. Drag one player onto another seat, or tap two seats, to swap them; panels sit clockwise in number order. Tap First? next to a player to choose who goes first; otherwise player 1 starts. Clear all removes seated accounts through Atlas. Saved accounts remain available. Then choose the game, starting life and Two-Headed Giant, and tap **Start full-screen game**.
+In the lobby, add everyone who is playing with **Add**. Type a new name to create an account for that player with no PIN, or pick a saved player. A saved player who keeps a PIN types it on the tablet, unless they turned on **Allow Sigil and tablet use without a PIN** in My account. The table preview stays visible while players join. Drag one player onto another seat, or tap two seats, to swap them; panels sit clockwise in number order. Tap First? next to a player to choose who goes first, and tap it again to clear the choice; otherwise Atlas picks a random player. Clear all removes seated accounts through Atlas. Saved accounts remain available. Then choose the game, starting life and Two-Headed Giant, and tap **Start full-screen game**.
 
 Players seated by the tablet can still use their own Sigil or phone as well: a Sigil’s Join picker lists them as at the table, and a phone can sign in to the same player.
 

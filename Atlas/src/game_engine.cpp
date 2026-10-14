@@ -251,6 +251,8 @@ bool GameEngine::changeCommanderDamage(uint8_t recipient, uint8_t source, uint8_
   if (!commanderRules(settings_.profile) || to < 0 || from < 0 ||
       // Star Commander: an ally is never a source of Commander damage.
       starAllies(players_[to].playerNumber, players_[from].playerNumber) ||
+      // Two-Headed Giant: a teammate is never a source of Commander damage.
+      (twoHeadedGiant() && to != from && teammateIndex(to) == from) ||
       commander < 1 || commander > COMMANDERS_PER_PLAYER || delta == 0 ||
       delta < -LIFE_LIMIT || delta > LIFE_LIMIT) return false;
   const int64_t total = static_cast<int64_t>(commanderDamage_[to][from][commander - 1]) + delta;
@@ -346,7 +348,8 @@ bool GameEngine::start(
     const PlayerSeat &starter,
     uint32_t nowMs, const GameSettings &settings) {
   if (players == nullptr || playerCount < 2 || playerCount > MAX_PLAYERS || !validGameSettings(settings) ||
-      !validTeamTable(settings, playerCount) || !validStarTable(settings, playerCount)) {
+      !validTeamTable(settings, playerCount) || !validStarTable(settings, playerCount) ||
+      !followsOfficialRules(settings) || !validOfficialTable(settings, playerCount)) {
     return false;
   }
 
@@ -557,7 +560,8 @@ bool GameEngine::changePlayerCounter(uint8_t playerNumber, CounterKind kind, int
 
 bool GameEngine::setEliminationSettings(const GameSettings &settings) {
   if (!validGameSettings(settings) || settings.profile != settings_.profile || settings.startingLife != settings_.startingLife ||
-      settings.turnTimerMs != settings_.turnTimerMs || settings.twoHeadedGiant != settings_.twoHeadedGiant) return false;
+      settings.turnTimerMs != settings_.turnTimerMs || settings.twoHeadedGiant != settings_.twoHeadedGiant ||
+      settings.houseRules != settings_.houseRules || !followsOfficialRules(settings)) return false;
   settings_ = settings;
   return true;
 }

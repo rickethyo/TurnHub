@@ -173,6 +173,7 @@ interface AtlasSessionTransport : AvatarImageTransport {
         turnTimerMs: Long?,
         twoHeadedGiant: Boolean? = null,
         autoEliminateAtZeroLife: Boolean? = null,
+        houseRules: Boolean? = null,
     ): String? = unsupported()
 
     /** `POST /api/session/profile` with a new `name` and/or `pin`. */

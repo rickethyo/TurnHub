@@ -138,7 +138,8 @@ class GameEngine {
   // Damage recipient has taken from source's commander (1 or 2).
   int32_t commanderDamage(uint8_t recipient, uint8_t source, uint8_t commander) const;
   // Commander profiles only. Adjusts damage and the recipient's life together.
-  // Star Commander refuses damage between allies.
+  // Star Commander refuses damage between allies, Two-Headed Giant between
+  // teammates.
   bool changeCommanderDamage(uint8_t recipient, uint8_t source, uint8_t commander, int32_t delta);
 
   // --- Turns ---

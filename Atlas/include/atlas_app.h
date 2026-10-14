@@ -412,6 +412,9 @@ void cancelPresenceCode();
 // Admin setting (table_code_setting.h, off by default): while false, every
 // signed-in profile counts as verified at the table and no code is needed.
 extern bool tableCodeRequired;
+// With nobody chosen to go first, a game starts with a random player (as the
+// standalone app does). Host scenarios turn it off so player 1 starts.
+extern bool randomStarterByDefault;
 extern bool uploadApprovalRequired;
 bool presenceConfirmedFor(const String &profileId, uint32_t nowMs);
 // Time left for that profile, or 0.

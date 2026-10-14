@@ -147,7 +147,8 @@ bool configureGame(uint8_t controller, uint8_t slot,
       (settings.twoHeadedGiant ? TurnHub::GAME_FLAG_TWO_HEADED_GIANT : 0) |
       (settings.autoEliminateAtZeroLife ? 0 : TurnHub::GAME_FLAG_MANUAL_ELIMINATION) |
       (settings.autoEliminateAtPoisonLimit ? 0 : TurnHub::GAME_FLAG_MANUAL_POISON) |
-      (settings.autoEliminateAtCommanderDamage ? 0 : TurnHub::GAME_FLAG_MANUAL_COMMANDER);
+      (settings.autoEliminateAtCommanderDamage ? 0 : TurnHub::GAME_FLAG_MANUAL_COMMANDER) |
+      (settings.houseRules ? TurnHub::GAME_FLAG_HOUSE_RULES : 0);
   payload.poisonLimit = settings.poisonLimit;
   payload.value = settings.startingLife;
   payload.durationMs = settings.turnTimerMs;
