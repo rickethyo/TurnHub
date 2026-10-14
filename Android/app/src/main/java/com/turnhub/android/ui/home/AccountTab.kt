@@ -125,6 +125,7 @@ fun AccountTab(
         }
         AppearanceCard(theme, reduceMotion, actions)
         BrassCard { com.turnhub.android.ui.components.GameSoundControls() }
+        BrassCard { com.turnhub.android.ui.components.ReportBugButton() }
         BrassCard {
             Eyebrow("Atlas connection")
             uiState.tableSummary?.let {
