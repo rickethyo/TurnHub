@@ -80,6 +80,7 @@ import com.turnhub.android.protocol.TurnTimerPhase
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.MagicCountersEditor
 import com.turnhub.android.ui.components.CounterChips
+import com.turnhub.android.ui.components.counterChips
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
