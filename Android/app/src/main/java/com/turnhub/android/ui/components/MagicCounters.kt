@@ -49,9 +49,9 @@ fun magicStatus(c: PlayerCounters, initiative: Boolean): String = buildList {
 }.joinToString(" · ")
 
 /** One counter as a chip: a symbol and value, with its name unless [compact]. Words always ride along for TalkBack. */
-private data class CounterChip(val glyph: String, val value: String?, val label: String, val tone: Tone)
+internal data class CounterChip(val glyph: String, val value: String?, val label: String, val tone: Tone)
 
-private fun counterChips(c: PlayerCounters, initiative: Boolean, commander: Boolean, poisonLimit: Int): List<CounterChip> = buildList {
+internal fun counterChips(c: PlayerCounters, initiative: Boolean, commander: Boolean, poisonLimit: Int): List<CounterChip> = buildList {
     if (c.poison > 0) add(CounterChip("☠", "${c.poison}/$poisonLimit", "Poison", if (c.poison >= poisonLimit - 3) Tone.BAD else Tone.WARN))
     if (initiative) add(CounterChip("⚔", null, "Initiative", Tone.ACCENT))
     if (c.cityBlessing) add(CounterChip("✦", null, "City’s blessing", Tone.ACCENT))
