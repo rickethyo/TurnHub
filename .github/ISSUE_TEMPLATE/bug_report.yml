@@ -1,0 +1,44 @@
+name: Bug report
+description: Something in the TurnHub app or hardware didn't work as expected.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start a 4-player Commander game
+        2. Tap ...
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where
+      options:
+        - App without an Atlas
+        - App connected to an Atlas
+        - Atlas or Sigil hardware
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: From Play Store, About this app, or the app's settings.
+  - type: input
+    id: device
+    attributes:
+      label: Device and Android version
+      placeholder: Pixel 9, Android 17
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or video
+      description: Drag files here if you have them.
