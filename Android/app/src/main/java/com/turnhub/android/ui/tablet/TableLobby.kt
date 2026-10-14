@@ -24,6 +24,7 @@ import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.standalone.StandaloneGame
+import com.turnhub.android.standalone.officialRules
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.Eyebrow
 import com.turnhub.android.ui.components.ToneButton
@@ -45,6 +46,8 @@ internal data class TableLobbyActions(
     val start: () -> Unit,
     val background: ((TablePlayer) -> Unit)? = null,
     val canEditBackground: (TablePlayer) -> Boolean = { true },
+    /** House rules for official modes; null where the table can't change them (Atlas). */
+    val houseRules: ((Boolean) -> Unit)? = null,
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -66,6 +69,10 @@ internal fun TableLobby(
     val p = palette
     val players = summary.players.sortedBy { it.playerNumber }
     val settings = summary.settings
+    // Official modes keep the official values unless house rules are on (standalone only).
+    val officialMode = officialRules(settings.profile, settings.twoHeadedGiant)
+    val official = officialMode.takeIf { actions.houseRules != null }
+    val locked = official != null && !settings.houseRules
     Box(Modifier.fillMaxSize().safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -149,15 +156,6 @@ internal fun TableLobby(
                             colors = FilterChipDefaults.filterChipColors(selectedContainerColor = p.accentSoft))
                     }
                 }
-                var life by rememberSaveable(settings.startingLife) { mutableStateOf("${settings.startingLife}") }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(life, { life = it.filter(Char::isDigit).take(5) },
-                        label = { Text(if (settings.twoHeadedGiant) "Starting life per team" else "Starting life") },
-                        singleLine = true, enabled = settingsEnabled, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f))
-                    ToneButton("Set", { life.toIntOrNull()?.let { actions.settings(null, it, null) } },
-                        enabled = settingsEnabled && (life.toIntOrNull() ?: 0) > 0 && life != "${settings.startingLife}")
-                }
                 if (settings.profile.magicRules) {
                     GameModeChips(GameMode.of(settings.profile, settings.twoHeadedGiant), settingsEnabled) { mode ->
                         if (mode != GameMode.of(settings.profile, settings.twoHeadedGiant)) {
@@ -166,10 +164,34 @@ internal fun TableLobby(
                         }
                     }
                 }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(when {
+                        officialMode == null -> "Custom mode"
+                        locked || official == null -> "Official ${officialMode.name} rules"
+                        else -> "House rules"
+                    }, color = p.muted, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                    ModeRulesButton(settings.profile, settings.twoHeadedGiant)
+                }
+                var life by rememberSaveable(settings.startingLife) { mutableStateOf("${settings.startingLife}") }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(life, { life = it.filter(Char::isDigit).take(5) },
+                        label = { Text(if (settings.twoHeadedGiant) "Starting life per team" else "Starting life") },
+                        singleLine = true, enabled = settingsEnabled && !locked, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f))
+                    ToneButton("Set", { life.toIntOrNull()?.let { actions.settings(null, it, null) } },
+                        enabled = settingsEnabled && !locked && (life.toIntOrNull() ?: 0) > 0 && life != "${settings.startingLife}")
+                }
+                if (locked) Text("Official starting life. Turn on house rules to change it.", color = p.faint,
+                    style = MaterialTheme.typography.bodySmall)
+                if (official != null) actions.houseRules?.let { setHouseRules ->
+                    SetupSwitch("House rules", "Change the starting life, poison limit and player count. " +
+                        "The game no longer follows the official ${official.name} rules.", settings.houseRules, settingsEnabled, setHouseRules)
+                }
                 TurnTimerChips(settings.turnTimerMs, settingsEnabled, actions.timer)
                 SetupSwitch("Automatic elimination at zero life", null, settings.autoEliminateAtZeroLife, settingsEnabled, actions.zeroLife)
             }
-            StartTableButton(players.size, settings.twoHeadedGiant, enabled, settings.profile.starCommander, actions.start)
+            StartTableButton(players.size, settings.twoHeadedGiant, enabled, settings.profile.starCommander,
+                official?.players?.takeIf { locked }, actions.start)
             BrassCard { com.turnhub.android.ui.components.GameSoundControls() }
             BrassCard { com.turnhub.android.ui.components.ReportBugButton() }
             footer()

@@ -101,7 +101,9 @@ data class TableSummary(
 
     /** Whether [source] may deal [receiver] Commander damage: never between Star Commander allies. */
     fun commanderDamageAllowed(receiver: Int, source: Int): Boolean =
-        receiver != source && !(star && StarCommander.allied(receiver - 1, source - 1))
+        receiver != source && !(star && StarCommander.allied(receiver - 1, source - 1)) &&
+            // Commander damage is combat damage, and a Two-Headed Giant team never attacks itself (CR 805.10).
+            !(settings.twoHeadedGiant && (receiver - 1) / 2 == (source - 1) / 2)
 }
 
 /** A controller seat: handle + slot. How `/api/seats` names are matched to players. */

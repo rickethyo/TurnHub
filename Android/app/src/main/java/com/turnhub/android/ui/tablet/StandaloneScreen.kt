@@ -130,6 +130,7 @@ private fun Lobby(
             settings = table::configure,
             timer = table::setTurnTimer,
             zeroLife = table::setZeroLifeElimination,
+            houseRules = table::setHouseRules,
             start = table::start,
             background = { editingLocalId = game.players.getOrNull(it.playerNumber - 1)?.localId },
             canEditBackground = { player -> game.players.getOrNull(player.playerNumber - 1)?.localId in state.library.players.map { it.localId } },

@@ -115,10 +115,12 @@ fun CounterChips(
 
 @Composable
 fun MagicCountersEditor(counters: PlayerCounters, initiative: Boolean, commander: Boolean, enabled: Boolean = true,
+    /** False for a Two-Headed Giant player: the team's shared poison shows once, in [TeamPoisonRow]. */
+    showPoison: Boolean = true,
     onChange: (kind: String, value: Int, commander: Int) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        CounterRow("Poison", counters.poison, enabled, "☠", Tone.WARN) { onChange("poison", it, 1) }
+        if (showPoison) CounterRow("Poison", counters.poison, enabled, "☠", Tone.WARN) { onChange("poison", it, 1) }
         CounterRow("Energy", counters.energy, enabled, "⚡", Tone.INFO) { onChange("energy", it, 1) }
         CounterRow("Experience", counters.experience, enabled, "★", Tone.GOOD) { onChange("experience", it, 1) }
         ToneButton(if (initiative) "Release initiative" else "I have the initiative",
@@ -137,6 +139,11 @@ fun MagicCountersEditor(counters: PlayerCounters, initiative: Boolean, commander
         }
     }
 }
+
+/** A Two-Headed Giant team's poison: shared by both players (CR 810.10), so shown once. */
+@Composable
+fun TeamPoisonRow(poison: Int, enabled: Boolean, onChange: (Int) -> Unit) =
+    CounterRow("Team poison", poison, enabled, "☠", Tone.WARN, onChange)
 
 @Composable
 private fun CounterRow(label: String, value: Int, enabled: Boolean, glyph: String = "", tone: Tone = Tone.NEUTRAL, onDelta: (Int) -> Unit) {
@@ -177,9 +184,18 @@ private fun StepButton(text: String, description: String, enabled: Boolean, onCl
 }
 
 @Composable
-fun EliminationRulesEditor(settings: TableSettings, enabled: Boolean = true, onChange: (field: String, value: Int) -> Unit) {
+fun EliminationRulesEditor(settings: TableSettings, enabled: Boolean = true,
+    /** An official mode without house rules: the poison limit is the official one. */
+    limitsLocked: Boolean = false,
+    onChange: (field: String, value: Int) -> Unit) {
     RuleToggle("Zero life", "autoEliminateAtZeroLife", settings.autoEliminateAtZeroLife, enabled, onChange)
-    if (settings.profile.magicRules) {
+    if (settings.profile.magicRules && limitsLocked) {
+        RuleToggle("Poison limit", "autoEliminateAtPoisonLimit", settings.autoEliminateAtPoisonLimit, enabled, onChange)
+        Text("Official poison limit: ${settings.poisonLimit}${if (settings.twoHeadedGiant) ", shared by the team" else ""}.",
+            color = palette.muted, style = MaterialTheme.typography.bodySmall)
+        if (settings.profile.commanderRules)
+            RuleToggle("21 damage from one commander", "autoEliminateAtCommanderDamage", settings.autoEliminateAtCommanderDamage, enabled, onChange)
+    } else if (settings.profile.magicRules) {
         RuleToggle("Poison limit", "autoEliminateAtPoisonLimit", settings.autoEliminateAtPoisonLimit, enabled, onChange)
         var limit by remember(settings.poisonLimit) { mutableStateOf("${settings.poisonLimit}") }
         OutlinedTextField(limit, { limit = it }, label = { Text("Poison limit${if (settings.twoHeadedGiant) " (shared team total)" else ""}") },

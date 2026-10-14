@@ -79,6 +79,7 @@ import com.turnhub.android.protocol.TableState
 import com.turnhub.android.protocol.TurnTimerPhase
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.MagicCountersEditor
+import com.turnhub.android.ui.components.TeamPoisonRow
 import com.turnhub.android.ui.components.CounterChips
 import com.turnhub.android.ui.components.counterChips
 import androidx.compose.foundation.layout.heightIn
@@ -275,6 +276,9 @@ internal fun TabletTable(
 
     val units = tableUnits(summary)
     val turn = if (flipped) 180 else 0
+    // The standalone game keeps an official mode's limits unless house rules are on.
+    val limitsLocked = standalone && !summary.settings.houseRules &&
+        com.turnhub.android.standalone.officialRules(summary.settings.profile, summary.settings.twoHeadedGiant) != null
     BoxWithConstraints(Modifier.fillMaxSize().background(p.bg)) {
         val landscape = maxWidth >= maxHeight || units.size <= 2
         val plan = placements(units.size)
@@ -415,7 +419,7 @@ internal fun TabletTable(
                         Overlay("Player removal pending", "Confirm or cancel the removal on Atlas or the selecting Sigil.") {}
                     } else {
                         Overlay("Paused", "The clocks are stopped.") {
-                            EliminationRulesEditor(summary.settings, !isOffline && anySeat != null) { field, value ->
+                            EliminationRulesEditor(summary.settings, !isOffline && anySeat != null, limitsLocked) { field, value ->
                                 anySeat?.let { seat -> controls { setEliminationRule(seat, field, value) } }
                             }
                             if (summary.settings.profile.magicRules) {
@@ -467,6 +471,7 @@ internal fun TabletTable(
             else -> if (menuOpen) {
                 Overlay("Table", null, onDismiss = { menuOpen = false }) {
                     GameClockLine(summary)
+                    ModeRulesButton(summary.settings.profile, summary.settings.twoHeadedGiant)
                     com.turnhub.android.ui.components.GameSoundControls()
                     com.turnhub.android.ui.components.ReportBugButton()
                     if (summary.star) {
@@ -474,7 +479,7 @@ internal fun TabletTable(
                         StarMap(summary.starSeats())
                     }
                     TableToolsCard(summary.players.filter { !it.eliminated }.map { it.label }, reduceMotion) { haptics.tick() }
-                    EliminationRulesEditor(summary.settings, !isOffline && anySeat != null) { field, value ->
+                    EliminationRulesEditor(summary.settings, !isOffline && anySeat != null, limitsLocked) { field, value ->
                         anySeat?.let { seat -> controls { setEliminationRule(seat, field, value) } }
                     }
                     ToneButton("Pause", { menuOpen = false; send(activeSeat, "pause") }, Modifier.fillMaxWidth())
@@ -1084,26 +1089,32 @@ private fun PlayerMenuItems(
             ArmedButton("Claim the win", "Tap again to claim", Tone.GOOD) { onControl(actor.seat(), "win") }
         }
         if (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) {
+            val team = unit.members.size > 1
+            // A Two-Headed Giant team shares poison and leaves together (CR 810.10, 810.8b): one row, one button.
+            if (team && summary.settings.profile.magicRules) {
+                unit.members.firstOrNull { !it.eliminated }?.let { holder ->
+                    TeamPoisonRow(holder.counters.poison, true) { onCounter(holder, "poison", it, 1) }
+                }
+            }
             unit.members.filter { !it.eliminated }.forEach { member ->
                 if (summary.settings.profile.magicRules) {
-                    Text(if (unit.members.size > 1) "${member.label} counters and status" else "Counters and status", color = p.text)
+                    Text(if (team) "${member.label} counters and status" else "Counters and status", color = p.text)
                     MagicCountersEditor(member.counters, summary.initiativePlayerNumber == member.playerNumber,
-                        summary.settings.profile.commanderRules) { kind, value, commander -> onCounter(member, kind, value, commander) }
+                        summary.settings.profile.commanderRules, showPoison = !team) { kind, value, commander -> onCounter(member, kind, value, commander) }
                     ToneButton(
                         if (unit.members.size > 1) "${member.label}: I’m the monarch" else "I’m the monarch",
                         { onControl(member.seat(), "monarch") }, Modifier.fillMaxWidth(), tone = Tone.ACCENT,
                         enabled = member.playerNumber != summary.monarchPlayerNumber,
                     )
                 }
-                ArmedButton(
-                    if (unit.members.size > 1) "${member.label} concedes" else "Concede",
-                    "Tap again to concede",
-                    Tone.BAD,
-                ) { onControl(member.seat(), "concede") }
-                ArmedButton(
-                    if (unit.members.size > 1) "Eliminate ${member.label}" else "Eliminate",
-                    "Tap again to eliminate", Tone.BAD,
-                ) { onControl(member.seat(), "eliminate") }
+                if (!team) {
+                    ArmedButton("Concede", "Tap again to concede", Tone.BAD) { onControl(member.seat(), "concede") }
+                    ArmedButton("Eliminate", "Tap again to eliminate", Tone.BAD) { onControl(member.seat(), "eliminate") }
+                }
+            }
+            if (team) unit.members.firstOrNull { !it.eliminated }?.let { member ->
+                ArmedButton("Our team concedes", "Tap again: the whole team leaves", Tone.BAD) { onControl(member.seat(), "concede") }
+                ArmedButton("Eliminate this team", "Tap again to eliminate both players", Tone.BAD) { onControl(member.seat(), "eliminate") }
             }
         }
         if (summary.settings.profile.commanderRules) {

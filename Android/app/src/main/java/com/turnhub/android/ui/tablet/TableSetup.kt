@@ -112,13 +112,23 @@ internal fun GameModeChips(selected: GameMode, enabled: Boolean, onSelect: (Game
     Text(selected.detail, color = p.faint, style = MaterialTheme.typography.bodySmall)
 }
 
-/** The one big start button; a team game needs an even table of at least four, Star Commander exactly five. */
+/**
+ * The one big start button; a team game needs an even table of at least four, Star Commander
+ * exactly five, and an official mode with [exactPlayers] (two teams of two, a Duel) that many.
+ */
 @Composable
-internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, star: Boolean = false, onStart: () -> Unit) {
-    val ready = if (star) players == StarCommander.PLAYERS else players >= 2 && (!teams || (players >= 4 && players % 2 == 0))
+internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, star: Boolean = false,
+    exactPlayers: Int? = null, onStart: () -> Unit) {
+    val ready = when {
+        star -> players == StarCommander.PLAYERS
+        exactPlayers != null -> players == exactPlayers
+        else -> players >= 2 && (!teams || (players >= 4 && players % 2 == 0))
+    }
     AccentButton(
         when {
             star && !ready -> "Star Commander needs exactly five players."
+            exactPlayers != null && !ready && teams -> "Two-Headed Giant is two teams of two: add exactly four players"
+            exactPlayers != null && !ready -> "This game is for exactly $exactPlayers players"
             players < 2 -> "Add two players to start"
             !ready -> "Two-Headed Giant needs an even table of four or more"
             else -> "Start full-screen game"

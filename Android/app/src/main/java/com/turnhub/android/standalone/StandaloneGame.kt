@@ -66,6 +66,11 @@ data class StandaloneGame(
      * poison count and turn, and leaving together.
      */
     val twoHeadedGiant: Boolean = false,
+    /**
+     * Official modes ([officialRules]) keep the official starting life, poison
+     * limit and player count unless the table turns on house rules.
+     */
+    val houseRules: Boolean = false,
     val players: List<LocalPlayer> = emptyList(),
     /** Index into [players] of whose turn it is. */
     val active: Int? = null,
@@ -101,9 +106,18 @@ data class StandaloneGame(
     fun mates(index: Int): List<Int> =
         if (!twoHeadedGiant) listOf(index) else (index - index % 2).let { listOf(it, it + 1) }.filter { it in players.indices }
 
-    /** Two players, (Two-Headed Giant) an even table of at least four, or (Star Commander) exactly five. */
-    val canStart: Boolean get() = if (star) players.size == StarCommander.PLAYERS
-        else players.size >= 2 && (!twoHeadedGiant || (players.size >= 4 && players.size % 2 == 0))
+    /** The official rules this game follows; null for a custom mode or house rules. */
+    val locked: OfficialRules? get() = if (houseRules) null else officialRules(profile, twoHeadedGiant)
+
+    /**
+     * Two players, (Two-Headed Giant) an even table of at least four, or (Star Commander)
+     * exactly five; an official mode's exact count (two teams of two, a two-player Duel).
+     */
+    val canStart: Boolean get() = when {
+        star -> players.size == StarCommander.PLAYERS
+        locked?.players != null -> players.size == locked?.players
+        else -> players.size >= 2 && (!twoHeadedGiant || (players.size >= 4 && players.size % 2 == 0))
+    }
 
     // --- the lobby ------------------------------------------------------------------
 
@@ -147,7 +161,18 @@ data class StandaloneGame(
             twoHeadedGiant = teams,
             poisonLimit = if (teams) TEAM_POISON else poisonLimit.takeIf { twoHeadedGiant == teams } ?: SOLO_POISON,
             startingLife = (startingLife ?: defaultLife(profile, teams)).coerceIn(1, MAX_LIFE),
-        ).bump()
+        ).officialValues().bump()
+    }
+
+    /** Puts an official mode's starting life and poison limit back, unless house rules are on. */
+    private fun officialValues(): StandaloneGame = locked?.let { rules ->
+        copy(startingLife = rules.life, poisonLimit = rules.poison ?: poisonLimit)
+    } ?: this
+
+    /** House rules unlock an official mode's life and limits; turning them off restores the official values. */
+    fun setHouseRules(on: Boolean): StandaloneGame {
+        if (state != TableState.LOBBY || on == houseRules) return this
+        return copy(houseRules = on).officialValues().bump()
     }
 
     /** The game mode: Two-Headed Giant (Magic and Commander, not Star Commander) or standard; lobby only. */
@@ -157,11 +182,11 @@ data class StandaloneGame(
             twoHeadedGiant = on,
             startingLife = defaultLife(profile, on),
             poisonLimit = if (on) TEAM_POISON else SOLO_POISON,
-        ).bump()
+        ).officialValues().bump()
     }
 
     fun setStartingLife(life: Int): StandaloneGame {
-        if (state != TableState.LOBBY || life !in 1..MAX_LIFE) return this
+        if (state != TableState.LOBBY || life !in 1..MAX_LIFE || locked != null) return this
         return copy(startingLife = life).bump()
     }
 
@@ -222,6 +247,7 @@ data class StandaloneGame(
             poisonLimit = poisonLimit,
             turnTimerMs = turnTimerMs,
             twoHeadedGiant = twoHeadedGiant,
+            houseRules = houseRules,
             players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId) },
             revision = revision + 1,
         )
@@ -335,7 +361,7 @@ data class StandaloneGame(
             "autoEliminateAtZeroLife" -> copy(autoEliminateAtZeroLife = value == 1)
             "autoEliminateAtPoisonLimit" -> copy(autoEliminateAtPoisonLimit = value == 1)
             "autoEliminateAtCommanderDamage" -> copy(autoEliminateAtCommanderDamage = value == 1)
-            "poisonLimit" -> if (value in 1..MAX_LIFE) copy(poisonLimit = value) else return this
+            "poisonLimit" -> if (value in 1..MAX_LIFE && locked == null) copy(poisonLimit = value) else return this
             else -> return this
         }
         return next.bump().resolveEliminationRules(nowMs)
@@ -501,7 +527,7 @@ data class StandaloneGame(
             state = state,
             settings = TableSettings(profile, startingLife, autoEliminateAtZeroLife = autoEliminateAtZeroLife,
                 autoEliminateAtPoisonLimit = autoEliminateAtPoisonLimit, autoEliminateAtCommanderDamage = autoEliminateAtCommanderDamage, poisonLimit = poisonLimit,
-                turnTimerMs = turnTimerMs, twoHeadedGiant = twoHeadedGiant),
+                turnTimerMs = turnTimerMs, twoHeadedGiant = twoHeadedGiant, houseRules = houseRules),
             host = null,
             starterPlayerNumber = starter?.plus(1),
             activePlayerNumber = active?.plus(1),

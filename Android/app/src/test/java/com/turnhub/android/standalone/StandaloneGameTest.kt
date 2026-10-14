@@ -29,6 +29,15 @@ class StandaloneGameTest {
         .addPlayer("Cy")
         .start(nowMs = 1_000, gameId = "g1", random = firstSeat)
 
+    /** [threePlayers] with house rules, so the official Commander limits can change. */
+    private fun houseThree(): StandaloneGame = StandaloneGame()
+        .setFormat(GameProfile.MTG_COMMANDER)
+        .setHouseRules(true)
+        .addPlayer("Ana", "p-ana")
+        .addPlayer("Ben")
+        .addPlayer("Cy")
+        .start(nowMs = 1_000, gameId = "g1", random = firstSeat)
+
     private fun teams(): StandaloneGame = StandaloneGame()
         .setFormat(GameProfile.MTG_COMMANDER)
         .addPlayer("Ana").addPlayer("Ben").addPlayer("Cy").addPlayer("Dee")
@@ -167,7 +176,9 @@ class StandaloneGameTest {
         game = game.setEliminationRule("autoEliminateAtPoisonLimit", 0, 1_000).changeCounter(0, "poison", 12)
         assertTrue(!game.players[0].eliminated)
         assertTrue(game.togglePause(2_000).setEliminationRule("autoEliminateAtPoisonLimit", 1, 3_000).players[0].eliminated)
-        val custom = threePlayers().setEliminationRule("poisonLimit", 20, 1_000).changeCounter(0, "poison", 19)
+        val locked = threePlayers()
+        assertEquals(locked, locked.setEliminationRule("poisonLimit", 20, 1_000))
+        val custom = houseThree().setEliminationRule("poisonLimit", 20, 1_000).changeCounter(0, "poison", 19)
         assertTrue(!custom.players[0].eliminated)
         assertTrue(custom.setEliminationRule("poisonLimit", 19, 2_000).players[0].eliminated)
         val damage = threePlayers().setAutoEliminateAtZeroLife(false, 1_000)
@@ -181,7 +192,7 @@ class StandaloneGameTest {
 
     @Test
     fun `statuses transfer independently and counters tax and rules survive recovery`() {
-        val game = threePlayers().claimMonarch(0).changeCounter(1, "initiative", 1).changeCounter(2, "initiative", 1)
+        val game = houseThree().claimMonarch(0).changeCounter(1, "initiative", 1).changeCounter(2, "initiative", 1)
             .changeCounter(0, "city-blessing", 1).changeCounter(1, "city-blessing", 1)
             .changeCounter(0, "energy", 4).changeCounter(0, "energy", -1).changeCounter(0, "experience", 2)
             .changeCounter(0, "commander-casts", 2, 1).changeCounter(0, "commander-casts", 1, 2)

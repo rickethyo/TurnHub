@@ -198,6 +198,13 @@ everything implemented. Only the checks listed below are still open.
 
 ### Table, controllers and accessibility
 
+- **Official rules on Atlas** (*Planned*, owner, 2026-10-14): the standalone
+  app now keeps official modes (Magic, Commander, Two-Headed Giant, Yu-Gi-Oh!)
+  at their official life, poison limit and player count unless house rules are
+  on (`OfficialRules.kt`, Comprehensive Rules 2026-09-25). Atlas still accepts
+  any life, poison limit and even 2HG table, and records Commander damage
+  between 2HG teammates; give `GameEngine` the same house-rules setting and
+  validation, then pass `houseRules` to the shared lobby for connected play.
 - **Eliminated-controller release** (owner, 2026-10-09): permit release once
   all players on a Sigil are eliminated, preserving their match identities and
   results; then attach the hardware to another seated player. Needs seat-level

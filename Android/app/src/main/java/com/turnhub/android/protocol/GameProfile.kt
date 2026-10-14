@@ -53,6 +53,8 @@ data class TableSettings(
     val autoEliminateAtPoisonLimit: Boolean = false,
     val autoEliminateAtCommanderDamage: Boolean = false,
     val poisonLimit: Int = if (twoHeadedGiant) 15 else 10,
+    /** App-only (the standalone game): house rules unlock an official mode's life and limits. Atlas omits it. */
+    val houseRules: Boolean = false,
 ) {
     val turnTimerEnabled: Boolean get() = turnTimerMs > 0
 }
