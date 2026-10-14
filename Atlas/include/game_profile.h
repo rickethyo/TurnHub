@@ -130,10 +130,12 @@ inline bool teamsAllowed(GameProfile profile) {
 // An officially published mode's fixed setup (Magic: the Comprehensive Rules
 // of 2026-09-25; the app's OfficialRules.kt carries the rule numbers). Custom
 // modes (Generic, Star Commander, Two-Headed Giant Commander) have none.
+// A plain aggregate (no member initializers) so it brace-initializes under the
+// firmware's C++11.
 struct OfficialRules {
-  int32_t life = 0;
-  int32_t poisonLimit = 0;   // 0: the game has no poison (Yu-Gi-Oh!).
-  uint8_t players = 0;       // Exactly this many; 0 for any count.
+  int32_t life;
+  int32_t poisonLimit;   // 0: the game has no poison (Yu-Gi-Oh!).
+  uint8_t players;       // Exactly this many; 0 for any count.
 };
 inline bool officialRules(GameProfile profile, bool teams, OfficialRules &out) {
   if (profile == GameProfile::Magic && teams) { out = OfficialRules{TEAM_LIFE_MAGIC, 15, 4}; return true; }
@@ -149,7 +151,7 @@ inline bool lockedRules(const GameSettings &settings, OfficialRules &out) {
 // Puts an official mode's starting life and poison limit back, unless house
 // rules are on. Returns true when anything changed.
 inline bool applyOfficialRules(GameSettings &settings) {
-  OfficialRules rules;
+  OfficialRules rules{};
   if (!lockedRules(settings, rules)) return false;
   const bool changed = settings.startingLife != rules.life ||
       (rules.poisonLimit && settings.poisonLimit != rules.poisonLimit);
@@ -159,13 +161,13 @@ inline bool applyOfficialRules(GameSettings &settings) {
 }
 // The settings keep an official mode's values (always true with house rules).
 inline bool followsOfficialRules(const GameSettings &settings) {
-  OfficialRules rules;
+  OfficialRules rules{};
   return !lockedRules(settings, rules) || (settings.startingLife == rules.life &&
       (!rules.poisonLimit || settings.poisonLimit == rules.poisonLimit));
 }
 // An official mode's exact player count (two teams of two, a two-player Duel).
 inline bool validOfficialTable(const GameSettings &settings, uint8_t playerCount) {
-  OfficialRules rules;
+  OfficialRules rules{};
   return !lockedRules(settings, rules) || !rules.players || playerCount == rules.players;
 }
 inline bool validGameSettings(const GameSettings &settings) {
