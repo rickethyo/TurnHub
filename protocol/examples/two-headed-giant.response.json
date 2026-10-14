@@ -13,7 +13,8 @@
     "profile": "mtg",
     "startingLife": 30,
     "turnTimerMs": 0,
-    "twoHeadedGiant": true
+    "twoHeadedGiant": true,
+    "houseRules": false
   },
   "sampledAtMs": 4101,
   "gameElapsedMs": 100,

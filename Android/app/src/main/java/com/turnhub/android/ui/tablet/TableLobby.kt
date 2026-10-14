@@ -48,7 +48,7 @@ internal data class TableLobbyActions(
     val canEditBackground: (TablePlayer) -> Boolean = { true },
     /** Picks who goes first; null hides the choice. */
     val chooseStarter: ((TablePlayer) -> Unit)? = null,
-    /** House rules for official modes; null where the table can't change them (Atlas). */
+    /** House rules for official modes; null hides the choice. */
     val houseRules: ((Boolean) -> Unit)? = null,
 )
 
@@ -73,7 +73,7 @@ internal fun TableLobby(
     val p = palette
     val players = summary.players.sortedBy { it.playerNumber }
     val settings = summary.settings
-    // Official modes keep the official values unless house rules are on (standalone only).
+    // Official modes keep the official values unless house rules are on.
     val officialMode = officialRules(settings.profile, settings.twoHeadedGiant)
     val official = officialMode.takeIf { actions.houseRules != null }
     val locked = official != null && !settings.houseRules

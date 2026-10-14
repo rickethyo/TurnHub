@@ -675,13 +675,20 @@ static void gameProfilesAndLife() {
   assert(server.body.find("\"canEdit\":true")!=std::string::npos);
   // Any seated player may edit the next-game settings (no table host).
   assert(request("/api/game/settings",second,magic)==200);
-  for (const char *profile : {"generic","mtg","mtg_commander","yugioh"}) {
-    assert(request("/api/game/settings",first,{{"gameProfile",profile},{"startingLife","27"}})==200);
-    assert(request("/api/game/settings",first,{},HTTP_GET)==200);
-    assert(responseField("gameProfile")==profile);
-    GameSettings saved; assert(loadGameSettings(saved)==TurnHubStorage::Status::Ok);
-    assert(String(gameProfileKey(saved.profile))==profile && saved.startingLife==27);
+  // Official modes keep their official life unless house rules are on.
+  for (const char *house : {"0","1"}) {
+    for (const char *profile : {"generic","mtg","mtg_commander","yugioh"}) {
+      assert(request("/api/game/settings",first,{{"gameProfile",profile},{"startingLife","27"},{"houseRules",house}})==200);
+      assert(request("/api/game/settings",first,{},HTTP_GET)==200);
+      assert(responseField("gameProfile")==profile);
+      GameSettings saved; assert(loadGameSettings(saved)==TurnHubStorage::Status::Ok);
+      const int32_t official = String(profile)=="mtg" ? 20 : String(profile)=="mtg_commander" ? 40 : String(profile)=="yugioh" ? 8000 : 27;
+      assert(String(gameProfileKey(saved.profile))==profile && saved.houseRules==(house[0]=='1'));
+      assert(saved.startingLife==(house[0]=='1' ? 27 : official));
+    }
   }
+  assert(request("/api/game/settings",first,{{"houseRules","2"}})==400);
+  assert(request("/api/game/settings",first,{{"houseRules","0"}})==200 && !table().nextGameSettings.houseRules);
   assert(request("/api/game/settings",first,magic)==200);
   for (const char *invalid : {"", "-1", "1.5", "20abc", "1000001", "999999999999999"})
     assert(request("/api/game/settings",first,{{"gameProfile","mtg"},{"startingLife",invalid}})==400);
@@ -3554,6 +3561,7 @@ static void tableCodeOptional() {
 
   // The rest of this suite exercises the code path.
   tableCodeRequired=true;
+  randomStarterByDefault=false;  // Player 1 starts unless a scenario chooses; officialRulesAndStarter() checks random.
   for (const String &id:{adminId,playerId}) {
     ProfileFixture::profiles.erase(id.c_str()); TurnHubAccounts::accounts.erase(id.c_str());
   }
@@ -4124,6 +4132,7 @@ static void twoHeadedGiantEngine() {
   settings.profile = GameProfile::Magic;
   settings.startingLife = TEAM_LIFE_MAGIC;
   settings.twoHeadedGiant = true;
+  settings.poisonLimit = 15;
   assert(!engine.start(seats,3,seats[0],1000,settings));  // Odd table.
   assert(!engine.start(seats,2,seats[0],1000,settings));  // One team.
   GameSettings generic = settings; generic.profile = GameProfile::Generic;
@@ -4171,7 +4180,9 @@ static void twoHeadedGiantEngine() {
   assert(engine.isWinner(1) && engine.isWinner(2) && !engine.isWinner(3));
 
   // Three teams: the turn skips the starter's teammate, and an eliminated team
-  // leaves play going.
+  // leaves play going. Official Two-Headed Giant is two teams of two.
+  assert(!engine.start(seats,6,seats[1],1000,settings));
+  settings.houseRules = true;
   assert(engine.start(seats,6,seats[1],1000,settings) && engine.activePlayerNumber()==2);
   assert(engine.passTurn(0,2000) && engine.activePlayerNumber()==3);
   assert(engine.pause(2500) && engine.eliminatePlayer(3,2500,finished) && !finished);
@@ -4184,6 +4195,8 @@ static void twoHeadedGiantEngine() {
   assert(engine.start(seats,4,seats[0],1000,settings));
   assert(engine.changeCommanderDamage(3,1,1,21));
   assert(engine.lifeTotal(3)==39 && engine.lifeTotal(4)==39);
+  // A teammate is never a source of Commander damage.
+  assert(!engine.changeCommanderDamage(4,3,1,1) && !engine.recordCommanderHit(1,2,1,1) && engine.lifeTotal(1)==60);
   assert(engine.commanderDamage(3,1,1)==21 && engine.commanderDamage(4,1,1)==0);
   assert(engine.recordCommanderHit(4,2,1,5) && engine.lifeTotal(3)==34 && engine.undoCommanderHit(4));
   assert(engine.lifeTotal(3)==39);
@@ -4246,12 +4259,67 @@ static void twoHeadedGiantTable() {
   for (const String &id : ids) ProfileFixture::profiles.erase(id.c_str());
 }
 
+// Parity with the standalone app (2026-10-14): official modes keep official
+// life, poison and player counts unless house rules are on; nobody chosen to
+// go first means a random starter, and choosing the chosen player again clears it.
+static void officialRulesAndStarter() {
+  using namespace TurnHub;
+  enterEmptyLobby(); TurnHub::fixtureRadio=false;
+  String ids[6]; String tokens[6];
+  const char *names[6] = {"Rules A","Rules B","Rules C","Rules D","Rules E","Rules F"};
+  for (int i=0;i<6;++i) { tokens[i]=registerPhone(names[i],ids[i]); assert(request("/api/session/join",tokens[i])==200); }
+  // Two-Headed Giant: 30 life and 15 shared poison, two teams of two.
+  assert(request("/api/game/settings",tokens[0],{{"gameProfile","mtg"},{"twoHeadedGiant","1"},{"startingLife","50"},{"poisonLimit","9"}})==200);
+  assert(table().nextGameSettings.startingLife==30 && table().nextGameSettings.poisonLimit==15);
+  assert(request("/api/v1/state",tokens[0],{},HTTP_GET)==200 && server.body.find("\"houseRules\":false")!=std::string::npos);
+  assert(request("/api/control/start",tokens[0])==409 && server.body.find("two teams of two")!=std::string::npos);
+  // House rules unlock the life, the limit and the table size.
+  assert(request("/api/game/settings",tokens[0],{{"houseRules","1"},{"startingLife","50"},{"poisonLimit","9"}})==200);
+  assert(table().nextGameSettings.startingLife==50 && table().nextGameSettings.poisonLimit==9 && table().nextGameSettings.houseRules);
+  assert(request("/api/game/settings",tokens[0],{},HTTP_GET)==200 && server.body.find("\"houseRules\":true")!=std::string::npos);
+  // Turning them off puts the official values back.
+  assert(request("/api/game/settings",tokens[0],{{"houseRules","0"}})==200);
+  assert(table().nextGameSettings.startingLife==30 && table().nextGameSettings.poisonLimit==15);
+  // Yu-Gi-Oh!: a Duel is two players.
+  assert(request("/api/game/settings",tokens[0],{{"gameProfile","yugioh"},{"twoHeadedGiant","0"}})==200);
+  assert(table().nextGameSettings.startingLife==8000);
+  assert(request("/api/control/start",tokens[0])==409 && server.body.find("two players")!=std::string::npos);
+  // Commander: 40 life, poison limit fixed during play without house rules.
+  for (int i=2;i<6;++i) assert(request("/api/session/leave",tokens[i])==200);
+  assert(request("/api/game/settings",tokens[0],{{"gameProfile","mtg_commander"},{"startingLife","30"}})==200);
+  assert(table().nextGameSettings.startingLife==40 && table().nextGameSettings.poisonLimit==10);
+  // Nobody chosen: a random player starts. Choosing the chosen player again clears the choice.
+  PlayerSeat chosen;
+  assert(request("/api/control/starter",tokens[1])==200 && table().lobby.selectedStarter(chosen) && chosen.playerNumber==2);
+  assert(request("/api/control/starter",tokens[1])==200 && !table().lobby.selectedStarter(chosen));
+  randomStarterByDefault=true;
+  bool starters[3] = {};
+  for (int round=0; round<16; ++round) {
+    assert(request("/api/control/start",tokens[0])==200);
+    testNow+=3000; updateCountdown(testNow);
+    assert(table().hubState==HubState::Running && table().game.lifeTotal(1)==40);
+    starters[table().game.starterPlayerNumber()]=true;
+    if (round==0) {
+      assert(request("/api/game/settings",tokens[0],{{"poisonLimit","12"}})==409);
+      assert(request("/api/game/settings",tokens[0],{{"houseRules","1"}})==409);
+      assert(request("/api/game/settings",tokens[0],{{"autoEliminateAtPoisonLimit","0"}})==200);
+    }
+    assert(request("/api/control/concede",tokens[1])==200 && table().hubState==HubState::GameOver);
+    assert(request("/api/control/rematch",tokens[0])==200);
+  }
+  randomStarterByDefault=false;
+  assert(starters[1] && starters[2]);
+  assert(request("/api/control/reset",tokens[0])==200);
+  for (int i=0;i<6;++i) { assert(request("/api/session/logout",tokens[i])==200); ProfileFixture::profiles.erase(ids[i].c_str()); TurnHubAccounts::accounts.erase(ids[i].c_str()); }
+  table().nextGameSettings=GameSettings{};
+}
+
 static void twoHeadedGiantSigils() {
   using namespace TurnHub;
   using namespace TurnHubProtocol;
   freshLobby(4);
   table().nextGameSettings.profile=GameProfile::Magic; table().nextGameSettings.startingLife=30;
-  table().nextGameSettings.twoHeadedGiant=true;
+  table().nextGameSettings.twoHeadedGiant=true; table().nextGameSettings.poisonLimit=15;
   startFromHost();
   assert(table().game.activePlayerNumber()==1);
   // Both teammates' Sigils show the turn and offer Pass; the other team's don't.
@@ -4612,7 +4680,7 @@ static void magicCountersAndRules() {
   };
   assert(counter(a,"energy",1)==409 && counter("","poison",1)==401);
   assert(request("/api/game/settings",a,{{"gameProfile","mtg_commander"},{"startingLife","40"},{"twoHeadedGiant","0"},
-      {"autoEliminateAtZeroLife","0"},{"autoEliminateAtPoisonLimit","1"},{"autoEliminateAtCommanderDamage","1"},{"poisonLimit","10"}})==200);
+      {"autoEliminateAtZeroLife","0"},{"autoEliminateAtPoisonLimit","1"},{"autoEliminateAtCommanderDamage","1"},{"poisonLimit","10"},{"houseRules","1"}})==200);
   assert(request("/api/control/start",a)==200); testNow+=3000; updateCountdown(testNow);
   assert(counter(a,"fly",1)==400 && counter(a,"energy",-1)==409 && counter(a,"city-blessing",2)==400);
   assert(counter(a,"commander-casts",1,3)==400);
@@ -4650,7 +4718,7 @@ static void magicCountersAndRules() {
   for (const String *id : {&aId,&bId,&cId}) { ProfileFixture::profiles.erase(id->c_str()); TurnHubAccounts::accounts.erase(id->c_str()); }
   table().nextGameSettings=GameSettings{};
   PlayerSeat seats[4]; for (uint8_t i=0;i<4;++i) { seats[i].playerNumber=i+1; seats[i].controllerId=i; seats[i].slot=1; }
-  GameEngine engine; GameSettings settings; settings.profile=GameProfile::Magic; settings.twoHeadedGiant=true; settings.poisonLimit=15;
+  GameEngine engine; GameSettings settings; settings.profile=GameProfile::Magic; settings.twoHeadedGiant=true; settings.poisonLimit=15; settings.houseRules=true;
   assert(engine.start(seats,4,seats[0],testNow,settings));
   assert(engine.changePlayerCounter(1,CounterKind::Poison,14) && engine.countersForPlayer(2)->poison==14);
   assert(!engine.resolveEliminationRules(testNow));
@@ -4697,7 +4765,7 @@ static void magicMonarch() {
     ProfileFixture::profiles.erase(id->c_str()); TurnHubAccounts::accounts.erase(id->c_str());
   }
   PlayerSeat seats[4]; for (uint8_t i=0;i<4;++i) { seats[i].playerNumber=i+1; seats[i].controllerId=i; seats[i].slot=1; }
-  GameEngine engine; GameSettings settings;
+  GameEngine engine; GameSettings settings; settings.houseRules=true;
   for (GameProfile profile : {GameProfile::Generic, GameProfile::Yugioh}) {
     settings.profile=profile; assert(engine.start(seats,4,seats[0],testNow,settings)); assert(!engine.claimMonarch(1));
   }
@@ -4756,7 +4824,7 @@ static void zeroLifeAndExitReasons() {
 
   // A simultaneous check must not crown a player who also has nonpositive life.
   PlayerSeat players[4]; for (uint8_t i=0;i<4;++i) { players[i].playerNumber=i+1; players[i].controllerId=i; players[i].slot=1; }
-  GameEngine engine; GameSettings settings; settings.startingLife=20; settings.autoEliminateAtZeroLife=false;
+  GameEngine engine; GameSettings settings; settings.houseRules=true; settings.startingLife=20; settings.autoEliminateAtZeroLife=false;
   assert(engine.start(players,3,players[0],testNow,settings));
   for (uint8_t i=1;i<=3;++i) assert(engine.changeLife(i,-20));
   engine.setAutoEliminateAtZeroLife(true); assert(engine.resolveEliminationRules(testNow));
@@ -5137,6 +5205,7 @@ int main() {
   // These scenarios exercise the presence code; tableCodeOptional() covers
   // the default (off).
   tableCodeRequired=true;
+  randomStarterByDefault=false;  // Player 1 starts unless a scenario chooses; officialRulesAndStarter() checks random.
   sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
   observeClientState(); intents.setObserver(observeIntent);
@@ -5161,6 +5230,7 @@ int main() {
   gameProfilesAndLife(); std::cout<<"PASS game settings, own life, companion state, limits, rematch and authorization\n";
   twoHeadedGiantEngine(); std::cout<<"PASS Two-Headed Giant engine: team turns, shared life, requests, claims, elimination, Commander, recovery\n";
   twoHeadedGiantTable(); std::cout<<"PASS Two-Headed Giant table: settings, state, teammate pass and life, team concession\n";
+  officialRulesAndStarter(); std::cout<<"PASS official rules: fixed life, poison and table size, house rules unlock them, random or cleared starter\n";
   twoHeadedGiantSigils(); std::cout<<"PASS Two-Headed Giant Sigils: both teammates active, shared life, either cancels the pass\n";
   starCommanderRelationships(); std::cout<<"PASS Star Commander seats: allies and enemies for every seat, profile key and rule helpers\n";
   starCommanderEngine(); std::cout<<"PASS Star Commander engine: five players, ally damage refused, enemy victory, shared batch winners, draw, claims, recovery\n";

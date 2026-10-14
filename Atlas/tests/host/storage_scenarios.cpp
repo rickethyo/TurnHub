@@ -343,6 +343,7 @@ void gameSettingsRecords() {
       for(uint32_t timer : {TURN_TIMER_OFF,TURN_TIMER_MIN_MS,120000u,TURN_TIMER_MAX_MS}) {
     settings.profile=static_cast<GameProfile>(profile);settings.startingLife=life;settings.turnTimerMs=timer;
     settings.autoEliminateAtPoisonLimit = profile & 1; settings.autoEliminateAtCommanderDamage = profile & 2; settings.poisonLimit = 17;
+    settings.houseRules = true;  // Official modes would load their official life.
     assert(writeGameSettings(store,settings)==Status::Ok);
     assert(FakeNvs::blobs["gamecfg"].size()==15 && FakeNvs::blobs["gamecfg"][0]==3);
     NvsBlobStore reopened;assert(reopened.begin("turnhub")==Status::Ok);
@@ -351,6 +352,14 @@ void gameSettingsRecords() {
     const int before=FakeNvs::writes;
     assert(writeGameSettings(reopened,settings)==Status::Ok && FakeNvs::writes==before);
   }
+  // Without house rules an official mode loads its official life and poison limit.
+  settings=GameSettings{}; settings.profile=GameProfile::Magic; settings.startingLife=27; settings.poisonLimit=17;
+  assert(writeGameSettings(store,settings)==Status::Ok && FakeNvs::blobs["gamecfg"][10]==3);
+  assert(readGameSettings(store,settings)==Status::Ok && settings.startingLife==20 && settings.poisonLimit==10 && !settings.houseRules);
+  settings.houseRules=true; settings.startingLife=27;
+  assert(writeGameSettings(store,settings)==Status::Ok && FakeNvs::blobs["gamecfg"][10]==7);
+  assert(readGameSettings(store,settings)==Status::Ok && settings.startingLife==27 && settings.houseRules);
+  FakeNvs::blobs["gamecfg"][10]=8; assert(readGameSettings(store,settings)==Status::Corrupt);
   // Independent schema 2 image: Generic, 40 life, 90-second timer.
   FakeNvs::blobs["gamecfg"]={2,0,40,0,0,0,0x90,0x5f,0x01,0};
   assert(readGameSettings(store,settings)==Status::Ok && settings.turnTimerMs==90000);

@@ -201,10 +201,12 @@ class AtlasTablet(
         startingLife: Int?,
         twoHeadedGiant: Boolean?,
         turnTimerMs: Long? = null,
+        houseRules: Boolean? = null,
     ) {
         val fields = buildList {
             addAll(seat.fields)
             turnTimerMs?.let { add("turnTimerMs" to "$it") }
+            houseRules?.let { add("houseRules" to if (it) "1" else "0") }
             gameProfile?.let { add("gameProfile" to it) }
             startingLife?.let { add("startingLife" to "$it") }
             twoHeadedGiant?.let { add("twoHeadedGiant" to if (it) "1" else "0") }

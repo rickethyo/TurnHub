@@ -279,8 +279,8 @@ internal fun TabletTable(
 
     val units = tableUnits(summary)
     val turn = if (flipped) 180 else 0
-    // The standalone game keeps an official mode's limits unless house rules are on.
-    val limitsLocked = standalone && !summary.settings.houseRules &&
+    // Official modes keep their limits unless house rules are on (Atlas enforces the same).
+    val limitsLocked = !summary.settings.houseRules &&
         com.turnhub.android.standalone.officialRules(summary.settings.profile, summary.settings.twoHeadedGiant) != null
     BoxWithConstraints(Modifier.fillMaxSize().background(p.bg)) {
         val landscape = maxWidth >= maxHeight || units.size <= 2

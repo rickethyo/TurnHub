@@ -91,6 +91,7 @@ constexpr uint8_t PROFILE_BYTE_MANUAL_ELIMINATION = 0x40;
 
 constexpr uint32_t GAME_FLAG_MANUAL_POISON = 0x400;
 constexpr uint32_t GAME_FLAG_MANUAL_COMMANDER = 0x800;
+constexpr uint32_t GAME_FLAG_HOUSE_RULES = 0x1000;
 constexpr int32_t COMMANDER_DAMAGE_LIMIT = 21;
 enum class CounterKind : uint8_t { CommanderDamage, Poison, Energy, Experience, CommanderCast, CityBlessing, Initiative, Count };
 struct PlayerCounters {
@@ -117,10 +118,55 @@ struct GameSettings {
   bool autoEliminateAtPoisonLimit = true;
   bool autoEliminateAtCommanderDamage = true;
   int32_t poisonLimit = 10;
+  // Official modes (officialRules) keep their official starting life, poison
+  // limit and player count unless the table turns house rules on.
+  bool houseRules = false;
 };
 // Two-Headed Giant: Magic and Commander only (never Star Commander).
 inline bool teamsAllowed(GameProfile profile) {
   return profile == GameProfile::Magic || profile == GameProfile::Commander;
+}
+
+// An officially published mode's fixed setup (Magic: the Comprehensive Rules
+// of 2026-09-25; the app's OfficialRules.kt carries the rule numbers). Custom
+// modes (Generic, Star Commander, Two-Headed Giant Commander) have none.
+struct OfficialRules {
+  int32_t life = 0;
+  int32_t poisonLimit = 0;   // 0: the game has no poison (Yu-Gi-Oh!).
+  uint8_t players = 0;       // Exactly this many; 0 for any count.
+};
+inline bool officialRules(GameProfile profile, bool teams, OfficialRules &out) {
+  if (profile == GameProfile::Magic && teams) { out = OfficialRules{TEAM_LIFE_MAGIC, 15, 4}; return true; }
+  if (profile == GameProfile::Magic) { out = OfficialRules{20, 10, 0}; return true; }
+  if (profile == GameProfile::Commander && !teams) { out = OfficialRules{40, 10, 0}; return true; }
+  if (profile == GameProfile::Yugioh) { out = OfficialRules{8000, 0, 2}; return true; }
+  return false;
+}
+// The official rules these settings follow; false for a custom mode or house rules.
+inline bool lockedRules(const GameSettings &settings, OfficialRules &out) {
+  return !settings.houseRules && officialRules(settings.profile, settings.twoHeadedGiant, out);
+}
+// Puts an official mode's starting life and poison limit back, unless house
+// rules are on. Returns true when anything changed.
+inline bool applyOfficialRules(GameSettings &settings) {
+  OfficialRules rules;
+  if (!lockedRules(settings, rules)) return false;
+  const bool changed = settings.startingLife != rules.life ||
+      (rules.poisonLimit && settings.poisonLimit != rules.poisonLimit);
+  settings.startingLife = rules.life;
+  if (rules.poisonLimit) settings.poisonLimit = rules.poisonLimit;
+  return changed;
+}
+// The settings keep an official mode's values (always true with house rules).
+inline bool followsOfficialRules(const GameSettings &settings) {
+  OfficialRules rules;
+  return !lockedRules(settings, rules) || (settings.startingLife == rules.life &&
+      (!rules.poisonLimit || settings.poisonLimit == rules.poisonLimit));
+}
+// An official mode's exact player count (two teams of two, a two-player Duel).
+inline bool validOfficialTable(const GameSettings &settings, uint8_t playerCount) {
+  OfficialRules rules;
+  return !lockedRules(settings, rules) || !rules.players || playerCount == rules.players;
 }
 inline bool validGameSettings(const GameSettings &settings) {
   return settings.profile < GameProfile::Count &&
@@ -130,7 +176,7 @@ inline bool validGameSettings(const GameSettings &settings) {
 }
 inline bool sameGameSettings(const GameSettings &a, const GameSettings &b) {
   return a.profile == b.profile && a.startingLife == b.startingLife && a.turnTimerMs == b.turnTimerMs &&
-      a.twoHeadedGiant == b.twoHeadedGiant &&
+      a.twoHeadedGiant == b.twoHeadedGiant && a.houseRules == b.houseRules &&
       a.autoEliminateAtZeroLife == b.autoEliminateAtZeroLife &&
       a.autoEliminateAtPoisonLimit == b.autoEliminateAtPoisonLimit &&
       a.autoEliminateAtCommanderDamage == b.autoEliminateAtCommanderDamage && a.poisonLimit == b.poisonLimit;

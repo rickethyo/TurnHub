@@ -378,6 +378,10 @@
           "description": "Two-Headed Giant (mtg and mtg_commander only, never mtg_star_commander): teams of two neighbours in turn order (players 1+2, 3+4, ...) share one life total and one turn; either teammate may pass. startingLife is the team total. Absent from older firmware; treat as false.",
           "type": "boolean"
         },
+        "houseRules": {
+          "description": "Official modes (mtg 20 life/10 poison, mtg_commander 40/10, Two-Headed Giant mtg 30/15 with exactly 4 players, yugioh 8000 with exactly 2 players) keep those values unless house rules are on. Absent from older firmware; treat as false.",
+          "type": "boolean"
+        },
         "autoEliminateAtZeroLife": {
           "type": "boolean",
           "description": "Eliminate living players at zero or negative life; editable during play."
