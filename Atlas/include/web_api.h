@@ -35,6 +35,8 @@ enum class WebControl : uint8_t {
   // Turn order in the lobby; offered only by /api/tablet/control.
   MoveEarlier,
   MoveLater,
+  BackToSetup,
+  CountShortGame,
 };
 
 struct SeatSnapshot {

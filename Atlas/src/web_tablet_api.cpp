@@ -76,6 +76,8 @@ const TabletAction TABLET_ACTIONS[] = {
   {"cancel-start", WebControl::CancelStart},
   {"rematch", WebControl::Rematch},
   {"reset", WebControl::Reset},
+  {"back-to-setup", WebControl::BackToSetup},
+  {"count-game", WebControl::CountShortGame},
   {"move-earlier", WebControl::MoveEarlier},
   {"move-later", WebControl::MoveLater},
 };

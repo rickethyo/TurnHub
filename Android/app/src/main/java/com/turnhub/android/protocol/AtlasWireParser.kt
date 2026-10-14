@@ -103,6 +103,7 @@ object AtlasWireParser {
                         ageMs = nudge.uint32("ageMs"),
                     )
                 },
+                shortGameUncounted = root.optionalBoolean("shortGameUncounted"),
                 game = if (root.isAbsentOrNull("game")) 1 else root.int("game").also {
                     if (it !in 1..255) malformed("Invalid game number")
                 },

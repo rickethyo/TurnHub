@@ -400,7 +400,7 @@ One shared screen at the table acting for every seat. Engineering record:
    - `POST /api/tablet/settings`: the `/api/game/settings` fields.
    - `POST /api/tablet/control`: `action` = `pass`, `pause`, `concede`, `eliminate`, `win`,
      `confirm`, `deny`, `starter`, `start`, `cancel-start`, `rematch`,
-     `reset`, or (lobby) `move-earlier`/`move-later` for turn order; answers like `/api/control/*` (status, revision, optional
+     `reset`, `back-to-setup`, `count-game`, or (lobby) `move-earlier`/`move-later` for turn order; answers like `/api/control/*` (status, revision, optional
      `expectedRevision`).
 
 
@@ -530,6 +530,19 @@ teammate is never a source of Commander damage (409).
 
 With nobody chosen to go first, Atlas picks a random starter when the
 countdown ends. `starter` on the chosen player again clears the choice.
+
+### Back to setup and short games (2026-10-14)
+
+`POST /api/control/back-to-setup` (tablet action `back-to-setup`): a seated
+player, while running or paused and within the first three minutes of game
+time (pauses excluded), returns the table to the lobby with the same players
+and settings. Nothing is recorded; later it is 409.
+
+A match that ends within one minute of game time is kept out of profile
+statistics: state `shortGameUncounted` is true at game over until a seated
+player sends `POST /api/control/count-game` (tablet action `count-game`), which
+records it once. A rematch or reset leaves it uncounted. After a restart the
+finished match can no longer be counted, so it is never counted twice.
 
 `POST /api/game/settings` and `/api/tablet/settings` additionally accept
 `autoEliminateAtPoisonLimit`, `autoEliminateAtCommanderDamage` (0 or 1) and

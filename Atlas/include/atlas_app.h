@@ -148,6 +148,9 @@ struct GameTable {
   // Settings this table's next match starts with. The last ones saved
   // (game_settings_store) are every table's settings after a boot.
   TurnHub::GameSettings nextGameSettings;
+  // The finished match was short (SHORT_GAME_MS) and the table counted it, or
+  // it was restored after a restart (never counted twice).
+  bool shortGameCounted = false;
 };
 
 constexpr uint8_t MAX_GAME_TABLES = 2;
@@ -274,6 +277,10 @@ IntentResult handleStartIntent(const Intent &intent, void *);
 IntentResult handleCompleteStartIntent(const Intent &intent, void *);
 IntentResult handleCancelStartIntent(const Intent &intent, void *);
 IntentResult handleResetIntent(const Intent &intent, void *);
+IntentResult handleBackToSetupIntent(const Intent &intent, void *);
+IntentResult handleCountShortGameIntent(const Intent &intent, void *);
+// A finished match under SHORT_GAME_MS that nobody has counted yet.
+bool shortGameUncounted();
 IntentResult handleCancelPassIntent(const Intent &intent, void *);
 IntentResult handleEliminationIntent(const Intent &intent, void *);
 IntentResult handlePairRequestIntent(const Intent &intent, void *);

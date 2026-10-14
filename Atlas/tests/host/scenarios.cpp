@@ -4314,6 +4314,61 @@ static void officialRulesAndStarter() {
   table().nextGameSettings=GameSettings{};
 }
 
+// Parity with the standalone app (2026-10-14): Back to setup within three
+// minutes of game time records nothing; a match under a minute waits for the
+// table to count it.
+static void backToSetupAndShortGames() {
+  using namespace TurnHub;
+  enterEmptyLobby(); TurnHub::fixtureRadio=false;
+  String ids[2]; String tokens[2];
+  tokens[0]=registerPhone("Undo one",ids[0]); tokens[1]=registerPhone("Undo two",ids[1]);
+  for (const String &t : tokens) assert(request("/api/session/join",t)==200);
+  auto played = [&](int i) { return ProfileFixture::profiles[ids[i]].stats.gamesPlayed; };
+  auto start = [&]() {
+    assert(request("/api/control/start",tokens[0])==200); testNow+=3000; updateCountdown(testNow);
+    assert(table().hubState==HubState::Running);
+  };
+  TurnHubProfileStats::shortGameMinimumMs=SHORT_GAME_MS;
+  const int baseGames=completedGames;
+  assert(request("/api/control/back-to-setup",tokens[0])==409);  // Lobby.
+  start();
+  assert(request("/api/control/back-to-setup","")==401);
+  testNow+=UNDO_START_MS-1000; assert(request("/api/control/life",tokens[1],{{"delta","-3"}})==200);
+  assert(request("/api/control/back-to-setup",tokens[1])==200);
+  assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==2 && !table().game.hasPlayers());
+  assert(completedGames==baseGames && played(0)==0 && played(1)==0);
+  // Paused time doesn't count; past three minutes of play it is gone.
+  start();
+  assert(request("/api/control/pause",tokens[0])==200); testNow+=10*60000;
+  assert(request("/api/control/pause",tokens[0])==200);
+  assert(request("/api/tablet/control",tokens[0],{{"action","back-to-setup"}})!=200);  // Not a tablet.
+  testNow+=UNDO_START_MS+1;
+  assert(request("/api/control/back-to-setup",tokens[0])==409 && table().hubState==HubState::Running);
+  // A long game counts at once.
+  assert(request("/api/control/concede",tokens[1])==200 && table().hubState==HubState::GameOver);
+  assert(played(0)==1 && played(1)==1);
+  assert(request("/api/v1/state",tokens[0],{},HTTP_GET)==200 && server.body.find("\"shortGameUncounted\":false")!=std::string::npos);
+  assert(request("/api/control/count-game",tokens[0])==409);
+  // A game under a minute waits; the table counts it once.
+  assert(request("/api/control/rematch",tokens[0])==200); start();
+  testNow+=SHORT_GAME_MS-1;
+  assert(request("/api/control/concede",tokens[1])==200 && table().hubState==HubState::GameOver);
+  assert(completedGames==baseGames+2 && played(0)==1 && played(1)==1);
+  assert(request("/api/v1/state",tokens[0],{},HTTP_GET)==200 && server.body.find("\"shortGameUncounted\":true")!=std::string::npos);
+  assert(request("/api/control/count-game","")==401);
+  assert(request("/api/control/count-game",tokens[1])==200 && played(0)==2 && played(1)==2);
+  assert(ProfileFixture::profiles[ids[0]].stats.gamesWon==2);
+  assert(request("/api/control/count-game",tokens[0])==409 && played(0)==2);
+  assert(request("/api/v1/state",tokens[0],{},HTTP_GET)==200 && server.body.find("\"shortGameUncounted\":false")!=std::string::npos);
+  // Left uncounted, it never reaches the stats.
+  assert(request("/api/control/rematch",tokens[0])==200); start();
+  assert(request("/api/control/concede",tokens[1])==200 && shortGameUncounted());
+  assert(request("/api/control/rematch",tokens[0])==200 && !shortGameUncounted() && played(0)==2);
+  TurnHubProfileStats::shortGameMinimumMs=0;
+  enterEmptyLobby();
+  for (int i=0;i<2;++i) { assert(request("/api/session/logout",tokens[i])==200); ProfileFixture::profiles.erase(ids[i].c_str()); TurnHubAccounts::accounts.erase(ids[i].c_str()); }
+}
+
 static void twoHeadedGiantSigils() {
   using namespace TurnHub;
   using namespace TurnHubProtocol;
@@ -5205,6 +5260,7 @@ int main() {
   // These scenarios exercise the presence code; tableCodeOptional() covers
   // the default (off).
   tableCodeRequired=true;
+  TurnHubProfileStats::shortGameMinimumMs=0;  // Scenario games are short; backToSetupAndShortGames() checks the threshold.
   randomStarterByDefault=false;  // Player 1 starts unless a scenario chooses; officialRulesAndStarter() checks random.
   sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
@@ -5231,6 +5287,7 @@ int main() {
   twoHeadedGiantEngine(); std::cout<<"PASS Two-Headed Giant engine: team turns, shared life, requests, claims, elimination, Commander, recovery\n";
   twoHeadedGiantTable(); std::cout<<"PASS Two-Headed Giant table: settings, state, teammate pass and life, team concession\n";
   officialRulesAndStarter(); std::cout<<"PASS official rules: fixed life, poison and table size, house rules unlock them, random or cleared starter\n";
+  backToSetupAndShortGames(); std::cout<<"PASS back to setup in the first three minutes records nothing; short games wait for the table to count them\n";
   twoHeadedGiantSigils(); std::cout<<"PASS Two-Headed Giant Sigils: both teammates active, shared life, either cancels the pass\n";
   starCommanderRelationships(); std::cout<<"PASS Star Commander seats: allies and enemies for every seat, profile key and rule helpers\n";
   starCommanderEngine(); std::cout<<"PASS Star Commander engine: five players, ally damage refused, enemy victory, shared batch winners, draw, claims, recovery\n";

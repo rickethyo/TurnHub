@@ -131,6 +131,13 @@ enum class IntentType : uint8_t {
   ConfigureTableCode,
   ConfigureUploadApproval,
 
+  // A seated player, within UNDO_START_MS of game time: undo the start and go
+  // back to the lobby with the same players and settings. Nothing is recorded.
+  BackToSetup,
+  // A seated player, at game over: count a match that ended within
+  // SHORT_GAME_MS in the players' statistics after all.
+  CountShortGame,
+
   Count,
 };
 
@@ -297,6 +304,8 @@ inline const char *intentName(IntentType type) {
     case IntentType::SetPartner: return "SET_PARTNER";
     case IntentType::RemoveSeat: return "REMOVE_SEAT";
     case IntentType::ChooseTable: return "CHOOSE_TABLE";
+    case IntentType::BackToSetup: return "BACK_TO_SETUP";
+    case IntentType::CountShortGame: return "COUNT_SHORT_GAME";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

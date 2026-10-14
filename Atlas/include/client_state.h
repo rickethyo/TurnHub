@@ -15,6 +15,8 @@ struct ClientPending {
   uint32_t nudgeSeq = 0;
   uint8_t nudgeFrom = 0, nudgeTo = 0;
   uint32_t nudgeAtMs = 0;
+  // Game over within SHORT_GAME_MS and not counted yet (CountShortGame).
+  bool shortGameUncounted = false;
 };
 
 // The /api/v1/state projection (protocol/state-v0.1.schema.json). observe()
