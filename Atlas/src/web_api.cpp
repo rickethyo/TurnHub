@@ -260,6 +260,8 @@ const Route ROUTES[] = {
   {"/api/control/cancel-start", HTTP_POST, controlRoute<WebControl::CancelStart>},
   {"/api/control/rematch", HTTP_POST, controlRoute<WebControl::Rematch>},
   {"/api/control/reset", HTTP_POST, controlRoute<WebControl::Reset>},
+  {"/api/control/back-to-setup", HTTP_POST, controlRoute<WebControl::BackToSetup>},
+  {"/api/control/count-game", HTTP_POST, controlRoute<WebControl::CountShortGame>},
   {"/api/control/nudge", HTTP_POST, controlRoute<WebControl::Nudge>},
   // Tablet mode: one shared table screen acting for any seated player.
   {"/api/standalone/import", HTTP_POST, handleStandaloneImport},

@@ -29,6 +29,13 @@ loss condition; Commander damage totals alone do not trigger elimination.
   seated player may change the next game's settings in the lobby
   (`ConfigureGame`); a running match keeps what it captured at start, and a
   rematch starts fresh.
+- **Back to setup and short games** (2026-10-14; host tests only, *needs a
+  playtest*): within the first three minutes of game time (`UNDO_START_MS`)
+  any seated player can undo the start (`BackToSetup`): the lobby comes back
+  with the same players and settings and nothing is recorded. A match under a
+  minute (`SHORT_GAME_MS`) commits its finished checkpoint but its statistics
+  wait for `CountShortGame` (state `shortGameUncounted`); left uncounted, it
+  never reaches the statistics. The standalone app does the same.
 - **Who goes first:** any player can choose (`SelectStarter`); choosing the
   chosen player again clears it. With nobody chosen, Atlas picks a random
   player when the countdown ends, as the standalone app does (rematches too).

@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Round 1 (rules, starter) ready for review; round 2 in progress | Owner / flash, play and review |
+| TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
 | TH-021 | Shared table authority design | Android, hosting design | UI integrated; common engine/authority staged | Owner / design implementation and device acceptance |
 | TH-020 | Star Commander game mode | Atlas, protocol, Android, stats | Implemented on `claude/master`; host and JVM tests pass | Owner / interpretations below, playtest G14 |
@@ -81,6 +81,10 @@ Append replies under the same topic with date, author and reviewed SHA. Record a
   only when the table confirms.
 - Host scenarios run with `randomStarterByDefault=false` so player 1 still
   starts; `officialRulesAndStarter()` checks the random start.
+- Round 2 (`claude/atlas-standalone-parity-wmmxaj`, stacked on round 1):
+  `BackToSetup` and `CountShortGame` Intents (`back-to-setup`, `count-game`),
+  state `shortGameUncounted`; the bridge holds statistics for matches under
+  `SHORT_GAME_MS` (host scenarios set `shortGameMinimumMs=0`).
 - Validation: see the PRs; host tests only, no hardware or device pass yet.
 
 ## TH-022: Native game-action sounds

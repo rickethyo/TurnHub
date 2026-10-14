@@ -51,6 +51,8 @@ bool seatIntentForControl(WebControl control, IntentType &type) {
     case WebControl::CancelStart: type = IntentType::CancelStart; return true;
     case WebControl::Rematch: type = IntentType::Rematch; return true;
     case WebControl::Reset: type = IntentType::ResetGame; return true;
+    case WebControl::BackToSetup: type = IntentType::BackToSetup; return true;
+    case WebControl::CountShortGame: type = IntentType::CountShortGame; return true;
     case WebControl::Nudge: type = IntentType::NudgePlayer; return true;
     case WebControl::Join:
     case WebControl::Leave:

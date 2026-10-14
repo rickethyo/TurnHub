@@ -134,7 +134,9 @@ match, whatever the ending path. The bridge must **commit the finished-match
 checkpoint before** incrementing any profile statistics. A failed or uncertain
 checkpoint write skips statistics and logs
 `ATLAS|PROFILE_STATS|SKIPPED_CHECKPOINT|<status>`. Restoring a finished record
-never replays completion.
+never replays completion. A match under a minute of play commits its checkpoint and
+logs `SHORT_GAME_HELD`; its statistics wait for `CountShortGame` (GAMEPLAY.md)
+in the same boot, and a restored finished record can no longer be counted.
 
 This closed the power-cut double count (2026-09-26), but a cut **after** the
 checkpoint and during profile writes can still leave missing or partial

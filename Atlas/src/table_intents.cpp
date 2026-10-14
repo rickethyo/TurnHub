@@ -17,6 +17,7 @@
 #include "upload_approval.h"
 #include "wifi_password_store.h"
 #include "profile_store.h"
+#include "profile_stats_bridge.h"
 #include "sd_card.h"
 #include "serial_log.h"
 
@@ -178,6 +179,7 @@ void startGame() {
   }
 
   table().hubState = HubState::Running;
+  table().shortGameCounted = false;
   resetCountdown();
   clearDecisionState();
   leds.invalidateAll();
@@ -817,6 +819,49 @@ IntentResult handleResetIntent(const Intent &intent, void *) {
   }
   enterEmptyLobby(&intent);
   return IntentResult::accept();
+}
+
+// --- Back to setup / short games ------------------------------------------------------------
+
+// Parity with the standalone app: a wrong setup is undone within the first
+// three minutes of game time (pauses excluded), back to the lobby with the
+// same players and settings. The match never finished, so nothing is
+// recorded; the observer's checkpoint then clears the recovery record.
+IntentResult handleBackToSetupIntent(const Intent &intent, void *) {
+  IntentResult rejection;
+  if (!validTableActor(intent, rejection)) return rejection;
+  if (!seatedAtTable(intent.actor.controllerId)) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Only a player at the table can go back to setup");
+  }
+  if (table().hubState != HubState::Running && table().hubState != HubState::Paused) {
+    return IntentResult::reject(IntentStatus::InvalidState, "No match is in progress");
+  }
+  if (table().game.gameElapsedMs(millis()) > TurnHub::UNDO_START_MS) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Back to setup is only available for the first three minutes");
+  }
+  serialLog.print("ATLAS|GAME|BACK_TO_SETUP|MS|");
+  serialLog.println(table().game.gameElapsedMs(millis()));
+  enterRematchLobby();
+  return IntentResult::accept("Back to setup: same players and settings, nothing saved");
+}
+
+bool shortGameUncounted() {
+  return table().hubState == HubState::GameOver && !table().shortGameCounted &&
+      TurnHubProfileStats::heldShortGame(table().game);
+}
+
+IntentResult handleCountShortGameIntent(const Intent &intent, void *) {
+  IntentResult rejection;
+  if (!validTableActor(intent, rejection)) return rejection;
+  if (!seatedAtTable(intent.actor.controllerId)) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Only a player at the table can count this game");
+  }
+  if (!shortGameUncounted()) {
+    return IntentResult::reject(IntentStatus::InvalidState, "There is no short game to count");
+  }
+  table().shortGameCounted = true;
+  TurnHubProfileStats::countShortGame(table().game);
+  return IntentResult::accept("Game counted in history and stats");
 }
 
 IntentResult handleCancelPassIntent(const Intent &intent, void *) {

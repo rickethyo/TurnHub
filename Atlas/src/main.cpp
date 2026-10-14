@@ -188,6 +188,8 @@ void restoreInterruptedMatch() {
     // recovery. There is deliberately no "Discard" affordance yet -- see the
     // STAGED_CHANGES note on interrupted-match recovery.
     table().hubState = table().game.gameOver() ? HubState::GameOver : HubState::Paused;
+    // A short match may have been counted before the restart; never twice.
+    table().shortGameCounted = table().game.gameOver();
     leds.invalidateAll();
     serialLog.print("ATLAS|RECOVERY|OUTCOME|RESTORED|STATE|");
     serialLog.println(stateName(table().hubState));
@@ -218,6 +220,7 @@ void observeClientState() {
   pending.nudgeFrom = table().nudgeState.fromPlayer;
   pending.nudgeTo = table().nudgeState.toPlayer;
   pending.nudgeAtMs = table().nudgeState.atMs;
+  pending.shortGameUncounted = shortGameUncounted();
   table().clientState.observe(table().hubState, table().lobby, table().game, table().nextGameSettings, pending);
 }
 
@@ -333,6 +336,8 @@ bool configureIntentHandlers() {
       {IntentType::CompleteStart, handleCompleteStartIntent},
       {IntentType::Rematch, handleResetIntent},
       {IntentType::ResetGame, handleResetIntent},
+      {IntentType::BackToSetup, handleBackToSetupIntent},
+      {IntentType::CountShortGame, handleCountShortGameIntent},
       {IntentType::BeginElimination, handleEliminationIntent},
       {IntentType::CycleElimination, handleEliminationIntent},
       {IntentType::CancelElimination, handleEliminationIntent},

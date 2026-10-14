@@ -52,6 +52,12 @@ inline bool starEnemy(uint8_t a, uint8_t b) {
   return starEnemies(a, enemies) && (enemies[0] == b || enemies[1] == b);
 }
 
+// Parity with the standalone app (StandaloneGame.UNDO_START_MS, SHORT_GAME_MS):
+// Back to setup undoes a start within the first three minutes of game time,
+// and a match that ends within a minute waits for the table to count it.
+constexpr uint32_t UNDO_START_MS = 3 * 60000;
+constexpr uint32_t SHORT_GAME_MS = 60000;
+
 // Bound on starting life, life totals, life deltas and Commander damage.
 // Life totals may go negative down to -LIFE_LIMIT.
 constexpr int32_t LIFE_LIMIT = 1000000;

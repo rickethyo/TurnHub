@@ -193,9 +193,9 @@ internal fun TabletTable(
     standalone: Boolean = false,
     /** Shares the finished game with a picture of the table; null hides the button. */
     onShareResult: ((android.graphics.Bitmap) -> Unit)? = null,
-    /** The finished game was under a minute and isn't counted until [onCountGame] (standalone). */
-    shortGameUnsaved: Boolean = false,
-    onCountGame: () -> Unit = {},
+    /** The finished game was under a minute and isn't counted until [onCountGame]. */
+    shortGameUnsaved: Boolean = summary.shortGameUncounted,
+    onCountGame: () -> Unit = { summary.anySeat()?.let { seat -> controls { control(seat, "count-game") } } },
 ) {
     val p = palette
     val haptics = rememberHaptics()
@@ -435,7 +435,7 @@ internal fun TabletTable(
                             PausedMagicCounters(summary, !isOffline) { member, kind, value, commander ->
                                 controls { counter(member.seat(), kind, value, commander) }
                             }
-                            if (standalone) BackToSetup(summary) { send(anySeat, "back-to-setup") }
+                            BackToSetup(summary) { send(anySeat, "back-to-setup") }
                             AccentButton("Resume", { send(activeSeat, "pause") }, Modifier.fillMaxWidth())
                         }
                     }
@@ -493,7 +493,7 @@ internal fun TabletTable(
                     ToneButton("Pause", { menuOpen = false; send(activeSeat, "pause") }, Modifier.fillMaxWidth())
                     ToneButton("Turn panels around", { flipped = !flipped; menuOpen = false }, Modifier.fillMaxWidth())
                     ToneButton("Back to the app", { menuOpen = false; onClose() }, Modifier.fillMaxWidth())
-                    if (standalone) BackToSetup(summary) { menuOpen = false; send(anySeat, "back-to-setup") }
+                    BackToSetup(summary) { menuOpen = false; send(anySeat, "back-to-setup") }
                     if (standalone) {
                         ArmedButton("End without a winner", "Tap again to end the game", Tone.BAD) {
                             menuOpen = false

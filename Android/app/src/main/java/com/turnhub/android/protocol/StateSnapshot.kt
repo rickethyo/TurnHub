@@ -37,6 +37,8 @@ data class StateSnapshot(
     val initiativePlayer: Int? = null,
     val game: Int = 1,
     val games: List<VenueGame> = emptyList(),
+    /** Game over within a minute and not counted yet (`count-game`); absent from older firmware. */
+    val shortGameUncounted: Boolean = false,
     /** Every winner, first = [winnerPlayer]; several share a Star Commander victory. */
     val winnerPlayers: List<Int> = listOfNotNull(winnerPlayer),
 )

@@ -64,6 +64,8 @@ data class TableSummary(
      * enemies are out at once share the victory (a shared victory is never a draw).
      */
     val winnerPlayerNumbers: List<Int> = listOfNotNull(winnerPlayerNumber),
+    /** Atlas: the finished game lasted under a minute and isn't in stats until the table counts it. */
+    val shortGameUncounted: Boolean = false,
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding

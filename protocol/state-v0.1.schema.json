@@ -442,6 +442,10 @@
       "minimum": 0,
       "maximum": 4294967295
     },
+    "shortGameUncounted": {
+      "description": "GAME_OVER only: the match lasted under a minute of play and is not in profile statistics until a seated player sends count-game. Absent from older firmware; treat as false.",
+      "type": "boolean"
+    },
     "nudge": {
       "description": "The last nudge since Atlas booted (POST /api/control/nudge), or null. A client alerts the toPlayer when seq grows.",
       "type": [

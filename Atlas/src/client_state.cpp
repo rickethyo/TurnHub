@@ -71,6 +71,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
   changed |= update(pending_.nudgeFrom, pending.nudgeFrom);
   changed |= update(pending_.nudgeTo, pending.nudgeTo);
   changed |= update(pending_.nudgeAtMs, pending.nudgeAtMs);
+  changed |= update(pending_.shortGameUncounted, pending.shortGameUncounted);
   PlayerSeat seats[MAX_PLAYERS];
   const uint8_t count = inGame_ ? game.playerCount() : lobby.buildPlayers(seats, MAX_PLAYERS);
   changed |= update(count_, count);
@@ -197,6 +198,7 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   } else {
     out += "null";
   }
+  out += ",\"shortGameUncounted\":"; out += pending_.shortGameUncounted ? "true" : "false";
   out += ",\"players\":[";
   for (uint8_t i = 0; i < count_; ++i) {
     const auto &p = players_[i];
