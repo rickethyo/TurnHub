@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-022 | Native game-action sounds | Android | Active on `codex/master` | Codex / implementation and validation |
+| TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
 | TH-021 | Shared table authority design | Android, hosting design | UI integrated; common engine/authority staged | Owner / design implementation and device acceptance |
 | TH-020 | Star Commander game mode | Atlas, protocol, Android, stats | Implemented on `claude/master`; host and JVM tests pass | Owner / interpretations below, playtest G14 |
 | TH-019 | iOS foundation and development flow | iOS, contracts, CI | Active framework slice | Codex / scaffold and staged plan; owner / Apple device acceptance |
@@ -85,10 +85,13 @@ Append replies under the same topic with date, author and reviewed SHA. Record a
   screens, native SoundPool lifecycle cleanup, six original generated clips and
   saved sound/volume controls. Seven JVM regressions cover actual local actions,
   Atlas pending/committed passes, team/missed turns, replay suppression and epochs.
-- Validation: clip regeneration/format/duration/edge/clipping checks, manual
-  export consistency, documentation links and whitespace pass. Android JVM tests
-  and release compilation will run in the PR CI; no phone speaker, silent mode
-  or TalkBack acceptance is claimed.
+- Validation: [CI on `5549d06`](https://github.com/rickethyo/TurnHub/actions/runs/38492919879)
+  passes JVM tests and release bundle compilation, plus relevant host/manual/
+  design guards. Clip regeneration, mono PCM/duration/silent-edge/no-clipping,
+  manual export, documentation links and whitespace checks pass locally.
+  [PR #107](https://github.com/rickethyo/TurnHub/pull/107) is ready for review.
+  No physical speaker, silent/media-volume, lifecycle or TalkBack acceptance
+  is claimed. Next owner: review and device checks.
 
 ## TH-021: Unified table setup, tile backgrounds and authority design
 
