@@ -3561,7 +3561,6 @@ static void tableCodeOptional() {
 
   // The rest of this suite exercises the code path.
   tableCodeRequired=true;
-  randomStarterByDefault=false;  // Player 1 starts unless a scenario chooses; officialRulesAndStarter() checks random.
   for (const String &id:{adminId,playerId}) {
     ProfileFixture::profiles.erase(id.c_str()); TurnHubAccounts::accounts.erase(id.c_str());
   }
