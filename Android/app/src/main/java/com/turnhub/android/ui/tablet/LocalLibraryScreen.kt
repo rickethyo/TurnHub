@@ -27,7 +27,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.turnhub.android.domain.TableClock
 import com.turnhub.android.standalone.DeliveryStatus
 import com.turnhub.android.standalone.StandaloneState
 import com.turnhub.android.standalone.GameRecord
@@ -55,7 +54,6 @@ fun LocalLibraryScreen(
     table: com.turnhub.android.standalone.StandaloneTable? = null,
     canLink: Boolean = false,
     onLinkAccount: (String, String?, String) -> Unit = { _, _, _ -> },
-    onShareStats: (String) -> Unit = {},
     theme: com.turnhub.android.ui.theme.TurnHubThemeChoice = com.turnhub.android.ui.theme.TurnHubThemeChoice.AUTO,
     onThemeChosen: (com.turnhub.android.ui.theme.TurnHubThemeChoice) -> Unit = {},
 ) {
@@ -105,32 +103,13 @@ fun LocalLibraryScreen(
             item { Text("Local players", color = p.text, modifier = Modifier.semantics { heading() }) }
             if (state.library.players.isEmpty()) item { Text("Add players in Play on this device. No account is needed.", color = p.muted) }
             items(state.library.players, key = { "player-${it.localId}" }) { player ->
-                val stats = state.library.stats(player.localId)
-                val totals = stats.totals
+                val totals = state.library.totals(player.localId)
                 var open by rememberSaveable(player.localId) { mutableStateOf(false) }
-                BrassCard(Modifier.clickable(onClickLabel = if (open) "Hide statistics" else "Show statistics") { open = !open }) {
+                BrassCard(Modifier.clickable(onClickLabel = if (open) "Hide account settings" else "Show account settings") { open = !open }) {
                     Text(player.name, color = p.text)
                     val rate = if (totals.played > 0) " · ${totals.won * 100 / totals.played}% won" else ""
                     Text("${totals.played} played · ${totals.won} won · ${totals.draws} draws$rate", color = p.muted)
-                    if (open && totals.played > 0) {
-                        val f = TableClock::format
-                        Text("Went first ${stats.started} · knocked out ${stats.eliminated} · conceded ${stats.conceded}", color = p.muted)
-                        Text("${stats.turnsCompleted} turns · average ${f(stats.averageTurnMs)} · fastest ${f(stats.fastestTurnMs)} · longest ${f(stats.longestTurnMs)}", color = p.muted)
-                        Text("Average game ${f(stats.averageGameMs)}", color = p.muted)
-                        if (stats.starPlayed > 0) Text("Star Commander: ${stats.starPlayed} played · ${stats.starWon} won", color = p.muted)
-                        val full = state.library.profileStatistics(player.localId)
-                        Text("Total game time ${f(full.lifetime.totalGameMs)} · total turn time ${f(full.lifetime.totalTurnMs)}", color = p.muted)
-                        Text("Last game: ${full.lastGame.result} · ${f(full.lastGame.durationMs)} · ${full.lastGame.turns} turns", color = p.muted)
-                        Text("Last turn average ${f(full.lastGame.averageTurnMs)} · fastest ${f(full.lastGame.fastestTurnMs)} · longest ${f(full.lastGame.longestTurnMs)}", color = p.muted)
-                        ToneButton("Share statistics", { onShareStats("${player.name} · ${player.profileId}\n${full.winRate} win rate\n" +
-                            "${totals.played} played, ${totals.won} won, ${totals.draws} draws\nWent first ${stats.started}, eliminated ${stats.eliminated}, conceded ${stats.conceded}\n" +
-                            "${stats.turnsCompleted} turns, total ${f(full.lifetime.totalTurnMs)}, average ${f(stats.averageTurnMs)}, fastest ${f(stats.fastestTurnMs)}, longest ${f(stats.longestTurnMs)}\n" +
-                            "Games total ${f(full.lifetime.totalGameMs)}, average ${f(stats.averageGameMs)}\n" +
-                            (if (stats.starPlayed > 0) "Star Commander ${stats.starPlayed} played, ${stats.starWon} won\n" else "") + "Last result ${full.lastGame.result}, duration ${f(full.lastGame.durationMs)}, turns ${full.lastGame.turns}\n" +
-                            "Last turn average ${f(full.lastGame.averageTurnMs)}, fastest ${f(full.lastGame.fastestTurnMs)}, longest ${f(full.lastGame.longestTurnMs)}") })
-                    } else if (totals.played > 0) {
-                        Text("Tap for statistics", color = p.faint, style = MaterialTheme.typography.bodySmall)
-                    }
+                    if (!open && table != null) Text("Tap for account settings", color = p.faint, style = MaterialTheme.typography.bodySmall)
                     if (open && table != null) LocalAccountEditor(player, table, importState, canLink, onLinkAccount)
                 }
             }

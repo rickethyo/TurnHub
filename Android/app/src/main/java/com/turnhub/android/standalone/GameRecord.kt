@@ -48,6 +48,9 @@ data class GameRecord(
         index == w || (twoHeadedGiant && index / 2 == w / 2)
     }
 
+    /** Counted in history and stats without asking: long enough not to be a test game or a wrong setup. */
+    fun counted(minimumMs: Long = StandaloneGame.SHORT_GAME_MS): Boolean = durationMs >= minimumMs
+
     /** No winner at all. A shared victory is never a draw. */
     val draw: Boolean get() = winner == null && winners.isEmpty()
 

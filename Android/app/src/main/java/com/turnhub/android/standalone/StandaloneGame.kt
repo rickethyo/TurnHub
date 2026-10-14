@@ -66,6 +66,11 @@ data class StandaloneGame(
      * poison count and turn, and leaving together.
      */
     val twoHeadedGiant: Boolean = false,
+    /**
+     * Official modes ([officialRules]) keep the official starting life, poison
+     * limit and player count unless the table turns on house rules.
+     */
+    val houseRules: Boolean = false,
     val players: List<LocalPlayer> = emptyList(),
     /** Index into [players] of whose turn it is. */
     val active: Int? = null,
@@ -101,9 +106,18 @@ data class StandaloneGame(
     fun mates(index: Int): List<Int> =
         if (!twoHeadedGiant) listOf(index) else (index - index % 2).let { listOf(it, it + 1) }.filter { it in players.indices }
 
-    /** Two players, (Two-Headed Giant) an even table of at least four, or (Star Commander) exactly five. */
-    val canStart: Boolean get() = if (star) players.size == StarCommander.PLAYERS
-        else players.size >= 2 && (!twoHeadedGiant || (players.size >= 4 && players.size % 2 == 0))
+    /** The official rules this game follows; null for a custom mode or house rules. */
+    val locked: OfficialRules? get() = if (houseRules) null else officialRules(profile, twoHeadedGiant)
+
+    /**
+     * Two players, (Two-Headed Giant) an even table of at least four, or (Star Commander)
+     * exactly five; an official mode's exact count (two teams of two, a two-player Duel).
+     */
+    val canStart: Boolean get() = when {
+        star -> players.size == StarCommander.PLAYERS
+        locked?.players != null -> players.size == locked?.players
+        else -> players.size >= 2 && (!twoHeadedGiant || (players.size >= 4 && players.size % 2 == 0))
+    }
 
     // --- the lobby ------------------------------------------------------------------
 
@@ -117,13 +131,14 @@ data class StandaloneGame(
 
     fun removePlayer(index: Int): StandaloneGame {
         if (state != TableState.LOBBY || index !in players.indices) return this
-        return copy(players = players.filterIndexed { i, _ -> i != index }).bump()
+        val chosen = starter?.let { if (it == index) null else if (it > index) it - 1 else it }
+        return copy(players = players.filterIndexed { i, _ -> i != index }, starter = chosen).bump()
     }
 
     /** Clears the selected roster while retaining the lobby's game settings. */
     fun clearPlayers(): StandaloneGame {
         if (state != TableState.LOBBY || players.isEmpty()) return this
-        return copy(players = emptyList()).bump()
+        return copy(players = emptyList(), starter = null).bump()
     }
 
     /** Moves a player one place earlier ([by] = -1) or later (+1) in turn order. */
@@ -135,7 +150,19 @@ data class StandaloneGame(
         val list = players.toMutableList()
         list[a] = players[b]
         list[b] = players[a]
-        return copy(players = list).bump()
+        // The chosen starter is a person: they keep it in their new seat.
+        val chosen = when (starter) { a -> b; b -> a; else -> starter }
+        return copy(players = list, starter = chosen).bump()
+    }
+
+    /**
+     * In the lobby [starter] is the player chosen to go first (null: random).
+     * Choosing the same player again clears the choice. In Two-Headed Giant
+     * their team goes first.
+     */
+    fun chooseStarter(index: Int?): StandaloneGame {
+        if (state != TableState.LOBBY || (index != null && index !in players.indices)) return this
+        return copy(starter = if (index == starter) null else index).bump()
     }
 
     fun setFormat(profile: GameProfile, startingLife: Int? = null): StandaloneGame {
@@ -147,7 +174,18 @@ data class StandaloneGame(
             twoHeadedGiant = teams,
             poisonLimit = if (teams) TEAM_POISON else poisonLimit.takeIf { twoHeadedGiant == teams } ?: SOLO_POISON,
             startingLife = (startingLife ?: defaultLife(profile, teams)).coerceIn(1, MAX_LIFE),
-        ).bump()
+        ).officialValues().bump()
+    }
+
+    /** Puts an official mode's starting life and poison limit back, unless house rules are on. */
+    private fun officialValues(): StandaloneGame = locked?.let { rules ->
+        copy(startingLife = rules.life, poisonLimit = rules.poison ?: poisonLimit)
+    } ?: this
+
+    /** House rules unlock an official mode's life and limits; turning them off restores the official values. */
+    fun setHouseRules(on: Boolean): StandaloneGame {
+        if (state != TableState.LOBBY || on == houseRules) return this
+        return copy(houseRules = on).officialValues().bump()
     }
 
     /** The game mode: Two-Headed Giant (Magic and Commander, not Star Commander) or standard; lobby only. */
@@ -157,11 +195,11 @@ data class StandaloneGame(
             twoHeadedGiant = on,
             startingLife = defaultLife(profile, on),
             poisonLimit = if (on) TEAM_POISON else SOLO_POISON,
-        ).bump()
+        ).officialValues().bump()
     }
 
     fun setStartingLife(life: Int): StandaloneGame {
-        if (state != TableState.LOBBY || life !in 1..MAX_LIFE) return this
+        if (state != TableState.LOBBY || life !in 1..MAX_LIFE || locked != null) return this
         return copy(startingLife = life).bump()
     }
 
@@ -191,8 +229,14 @@ data class StandaloneGame(
     fun start(nowMs: Long, gameId: String, random: Random = Random.Default): StandaloneGame {
         if (state != TableState.LOBBY && state != TableState.GAME_OVER) return this
         if (!canStart) return this
-        // A team game starts with a team: its first player holds the turn for both.
-        val first = if (twoHeadedGiant) random.nextInt(players.size / 2) * 2 else random.nextInt(players.size)
+        // The lobby's chosen starter, else random (a rematch is random too). A team game
+        // starts with a team: its first player holds the turn for both.
+        val chosen = starter?.takeIf { state == TableState.LOBBY && it in players.indices }
+        val first = when {
+            chosen != null -> if (twoHeadedGiant) chosen - chosen % 2 else chosen
+            twoHeadedGiant -> random.nextInt(players.size / 2) * 2
+            else -> random.nextInt(players.size)
+        }
         return copy(
             gameId = gameId,
             state = TableState.RUNNING,
@@ -222,10 +266,18 @@ data class StandaloneGame(
             poisonLimit = poisonLimit,
             turnTimerMs = turnTimerMs,
             twoHeadedGiant = twoHeadedGiant,
+            houseRules = houseRules,
             players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId) },
             revision = revision + 1,
         )
     }
+
+    /**
+     * Undoes a start: within [UNDO_START_MS] of game time, back to the lobby with the
+     * same players and settings. Nothing is recorded, as the game never finished.
+     */
+    fun backToSetup(nowMs: Long): StandaloneGame =
+        if (!playing || gameElapsedMs(nowMs) > UNDO_START_MS) this else reset()
 
     // --- the table ------------------------------------------------------------------
 
@@ -335,7 +387,7 @@ data class StandaloneGame(
             "autoEliminateAtZeroLife" -> copy(autoEliminateAtZeroLife = value == 1)
             "autoEliminateAtPoisonLimit" -> copy(autoEliminateAtPoisonLimit = value == 1)
             "autoEliminateAtCommanderDamage" -> copy(autoEliminateAtCommanderDamage = value == 1)
-            "poisonLimit" -> if (value in 1..MAX_LIFE) copy(poisonLimit = value) else return this
+            "poisonLimit" -> if (value in 1..MAX_LIFE && locked == null) copy(poisonLimit = value) else return this
             else -> return this
         }
         return next.bump().resolveEliminationRules(nowMs)
@@ -501,7 +553,7 @@ data class StandaloneGame(
             state = state,
             settings = TableSettings(profile, startingLife, autoEliminateAtZeroLife = autoEliminateAtZeroLife,
                 autoEliminateAtPoisonLimit = autoEliminateAtPoisonLimit, autoEliminateAtCommanderDamage = autoEliminateAtCommanderDamage, poisonLimit = poisonLimit,
-                turnTimerMs = turnTimerMs, twoHeadedGiant = twoHeadedGiant),
+                turnTimerMs = turnTimerMs, twoHeadedGiant = twoHeadedGiant, houseRules = houseRules),
             host = null,
             starterPlayerNumber = starter?.plus(1),
             activePlayerNumber = active?.plus(1),
@@ -556,6 +608,11 @@ data class StandaloneGame(
             GameProfile.YUGIOH -> 8000
             else -> 20
         }
+
+        /** How long after the start Back to setup stays available. */
+        const val UNDO_START_MS = 3 * 60_000L
+        /** A finished game shorter than this isn't counted unless the table saves it (a test or a wrong setup). */
+        const val SHORT_GAME_MS = 60_000L
 
         private const val SOLO_POISON = 10
         private const val TEAM_POISON = 15

@@ -79,6 +79,7 @@ import com.turnhub.android.protocol.TableState
 import com.turnhub.android.protocol.TurnTimerPhase
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.MagicCountersEditor
+import com.turnhub.android.ui.components.TeamPoisonRow
 import com.turnhub.android.ui.components.CounterChips
 import com.turnhub.android.ui.components.counterChips
 import androidx.compose.foundation.layout.heightIn
@@ -90,6 +91,9 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
@@ -187,6 +191,11 @@ internal fun TabletTable(
     offline: Boolean = false,
     /** The standalone game (no Atlas): the menu has no tablet grant to hand back. */
     standalone: Boolean = false,
+    /** Shares the finished game with a picture of the table; null hides the button. */
+    onShareResult: ((android.graphics.Bitmap) -> Unit)? = null,
+    /** The finished game was under a minute and isn't counted until [onCountGame] (standalone). */
+    shortGameUnsaved: Boolean = false,
+    onCountGame: () -> Unit = {},
 ) {
     val p = palette
     val haptics = rememberHaptics()
@@ -270,6 +279,9 @@ internal fun TabletTable(
 
     val units = tableUnits(summary)
     val turn = if (flipped) 180 else 0
+    // The standalone game keeps an official mode's limits unless house rules are on.
+    val limitsLocked = standalone && !summary.settings.houseRules &&
+        com.turnhub.android.standalone.officialRules(summary.settings.profile, summary.settings.twoHeadedGiant) != null
     BoxWithConstraints(Modifier.fillMaxSize().background(p.bg)) {
         val landscape = maxWidth >= maxHeight || units.size <= 2
         val plan = placements(units.size)
@@ -312,35 +324,43 @@ internal fun TabletTable(
                 }
             }
         }
-        if (landscape) {
-            Column(Modifier.fillMaxSize().padding(4.dp)) {
-                if (plan.far.isNotEmpty()) {
+        // The panels and centre disc, recorded so a finished game can be shared as a picture
+        // (without the game-over card drawn over them).
+        val tableShot = rememberGraphicsLayer()
+        Box(Modifier.fillMaxSize().drawWithContent {
+            tableShot.record { this@drawWithContent.drawContent() }
+            drawLayer(tableShot)
+        }) {
+            if (landscape) {
+                Column(Modifier.fillMaxSize().padding(4.dp)) {
+                    if (plan.far.isNotEmpty()) {
+                        Row(Modifier.weight(1f).fillMaxWidth()) {
+                            plan.far.forEach { panel(it, 180, Modifier.weight(1f).fillMaxHeight()) }
+                        }
+                    }
                     Row(Modifier.weight(1f).fillMaxWidth()) {
-                        plan.far.forEach { panel(it, 180, Modifier.weight(1f).fillMaxHeight()) }
+                        plan.near.forEach { panel(it, 0, Modifier.weight(1f).fillMaxHeight()) }
                     }
                 }
-                Row(Modifier.weight(1f).fillMaxWidth()) {
-                    plan.near.forEach { panel(it, 0, Modifier.weight(1f).fillMaxHeight()) }
-                }
-            }
-        } else {
-            // Portrait: the long sides become columns; each fills from the bottom
-            // so turn order stays clockwise.
-            Row(Modifier.fillMaxSize().padding(4.dp)) {
-                if (plan.far.isNotEmpty()) {
+            } else {
+                // Portrait: the long sides become columns; each fills from the bottom
+                // so turn order stays clockwise.
+                Row(Modifier.fillMaxSize().padding(4.dp)) {
+                    if (plan.far.isNotEmpty()) {
+                        Column(Modifier.weight(1f).fillMaxHeight()) {
+                            plan.far.asReversed().forEach { panel(it, 90, Modifier.weight(1f).fillMaxWidth()) }
+                        }
+                    }
                     Column(Modifier.weight(1f).fillMaxHeight()) {
-                        plan.far.asReversed().forEach { panel(it, 90, Modifier.weight(1f).fillMaxWidth()) }
+                        plan.near.asReversed().forEach { panel(it, 270, Modifier.weight(1f).fillMaxWidth()) }
                     }
                 }
-                Column(Modifier.weight(1f).fillMaxHeight()) {
-                    plan.near.asReversed().forEach { panel(it, 270, Modifier.weight(1f).fillMaxWidth()) }
-                }
             }
-        }
 
-        Hub(summary, Modifier.align(Alignment.Center)) {
-            haptics.tick()
-            menuOpen = true
+            Hub(summary, Modifier.align(Alignment.Center)) {
+                haptics.tick()
+                menuOpen = true
+            }
         }
 
         val menuIndex = units.indexOfFirst { it.key == playerMenu }
@@ -402,7 +422,7 @@ internal fun TabletTable(
                         Overlay("Player removal pending", "Confirm or cancel the removal on Atlas or the selecting Sigil.") {}
                     } else {
                         Overlay("Paused", "The clocks are stopped.") {
-                            EliminationRulesEditor(summary.settings, !isOffline && anySeat != null) { field, value ->
+                            EliminationRulesEditor(summary.settings, !isOffline && anySeat != null, limitsLocked) { field, value ->
                                 anySeat?.let { seat -> controls { setEliminationRule(seat, field, value) } }
                             }
                             if (summary.settings.profile.magicRules) {
@@ -415,6 +435,7 @@ internal fun TabletTable(
                             PausedMagicCounters(summary, !isOffline) { member, kind, value, commander ->
                                 controls { counter(member.seat(), kind, value, commander) }
                             }
+                            if (standalone) BackToSetup(summary) { send(anySeat, "back-to-setup") }
                             AccentButton("Resume", { send(activeSeat, "pause") }, Modifier.fillMaxWidth())
                         }
                     }
@@ -440,6 +461,15 @@ internal fun TabletTable(
                     },
                 ) {
                     if (winners.isNotEmpty()) WinnerRow(winners.flatMap { it.members })
+                    if (shortGameUnsaved) {
+                        Text("This game lasted under a minute, so it isn't in history or stats.", color = p.muted)
+                        ToneButton("Count this game", onCountGame, Modifier.fillMaxWidth())
+                    }
+                    if (onShareResult != null) {
+                        ToneButton("Share result", {
+                            scope.launch { onShareResult(tableShot.toImageBitmap().asAndroidBitmap()) }
+                        }, Modifier.fillMaxWidth())
+                    }
                     OverlayButtons {
                         ToneButton("New players", { send(anySeat, "reset") }, Modifier.weight(1f))
                         AccentButton("Rematch", { send(anySeat, "rematch") }, Modifier.weight(1f))
@@ -449,6 +479,7 @@ internal fun TabletTable(
             else -> if (menuOpen) {
                 Overlay("Table", null, onDismiss = { menuOpen = false }) {
                     GameClockLine(summary)
+                    ModeRulesButton(summary.settings.profile, summary.settings.twoHeadedGiant)
                     com.turnhub.android.ui.components.GameSoundControls()
                     com.turnhub.android.ui.components.ReportBugButton()
                     if (summary.star) {
@@ -456,12 +487,13 @@ internal fun TabletTable(
                         StarMap(summary.starSeats())
                     }
                     TableToolsCard(summary.players.filter { !it.eliminated }.map { it.label }, reduceMotion) { haptics.tick() }
-                    EliminationRulesEditor(summary.settings, !isOffline && anySeat != null) { field, value ->
+                    EliminationRulesEditor(summary.settings, !isOffline && anySeat != null, limitsLocked) { field, value ->
                         anySeat?.let { seat -> controls { setEliminationRule(seat, field, value) } }
                     }
                     ToneButton("Pause", { menuOpen = false; send(activeSeat, "pause") }, Modifier.fillMaxWidth())
                     ToneButton("Turn panels around", { flipped = !flipped; menuOpen = false }, Modifier.fillMaxWidth())
                     ToneButton("Back to the app", { menuOpen = false; onClose() }, Modifier.fillMaxWidth())
+                    if (standalone) BackToSetup(summary) { menuOpen = false; send(anySeat, "back-to-setup") }
                     if (standalone) {
                         ArmedButton("End without a winner", "Tap again to end the game", Tone.BAD) {
                             menuOpen = false
@@ -559,6 +591,17 @@ private fun OverlayFrame(title: String, text: String?, onDismiss: (() -> Unit)?,
 private fun GameClockLine(summary: TableSummary) {
     val nowMs = rememberNowMs(ticking = summary.state == TableState.RUNNING, intervalMs = 500)
     Text("Game clock ${TableClock.format(TableClock.gameElapsedMs(summary, nowMs))}", color = palette.muted)
+}
+
+/** Undoes the start in the first minutes (a wrong setup): back to the lobby, nothing recorded. */
+@Composable
+private fun BackToSetup(summary: TableSummary, onConfirm: () -> Unit) {
+    val nowMs = rememberNowMs(ticking = summary.state == TableState.RUNNING, intervalMs = 1_000)
+    val left = com.turnhub.android.standalone.StandaloneGame.UNDO_START_MS - TableClock.gameElapsedMs(summary, nowMs)
+    if (left <= 0) return
+    ArmedButton("Back to setup (${TableClock.format(left)} left)", "Tap again: this game won't be saved", Tone.WARN, onConfirm)
+    Text("Returns to setup with the same players and settings. Available for the first three minutes.",
+        color = palette.muted, style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable
@@ -1066,26 +1109,32 @@ private fun PlayerMenuItems(
             ArmedButton("Claim the win", "Tap again to claim", Tone.GOOD) { onControl(actor.seat(), "win") }
         }
         if (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) {
+            val team = unit.members.size > 1
+            // A Two-Headed Giant team shares poison and leaves together (CR 810.10, 810.8b): one row, one button.
+            if (team && summary.settings.profile.magicRules) {
+                unit.members.firstOrNull { !it.eliminated }?.let { holder ->
+                    TeamPoisonRow(holder.counters.poison, true) { onCounter(holder, "poison", it, 1) }
+                }
+            }
             unit.members.filter { !it.eliminated }.forEach { member ->
                 if (summary.settings.profile.magicRules) {
-                    Text(if (unit.members.size > 1) "${member.label} counters and status" else "Counters and status", color = p.text)
+                    Text(if (team) "${member.label} counters and status" else "Counters and status", color = p.text)
                     MagicCountersEditor(member.counters, summary.initiativePlayerNumber == member.playerNumber,
-                        summary.settings.profile.commanderRules) { kind, value, commander -> onCounter(member, kind, value, commander) }
+                        summary.settings.profile.commanderRules, showPoison = !team) { kind, value, commander -> onCounter(member, kind, value, commander) }
                     ToneButton(
                         if (unit.members.size > 1) "${member.label}: I’m the monarch" else "I’m the monarch",
                         { onControl(member.seat(), "monarch") }, Modifier.fillMaxWidth(), tone = Tone.ACCENT,
                         enabled = member.playerNumber != summary.monarchPlayerNumber,
                     )
                 }
-                ArmedButton(
-                    if (unit.members.size > 1) "${member.label} concedes" else "Concede",
-                    "Tap again to concede",
-                    Tone.BAD,
-                ) { onControl(member.seat(), "concede") }
-                ArmedButton(
-                    if (unit.members.size > 1) "Eliminate ${member.label}" else "Eliminate",
-                    "Tap again to eliminate", Tone.BAD,
-                ) { onControl(member.seat(), "eliminate") }
+                if (!team) {
+                    ArmedButton("Concede", "Tap again to concede", Tone.BAD) { onControl(member.seat(), "concede") }
+                    ArmedButton("Eliminate", "Tap again to eliminate", Tone.BAD) { onControl(member.seat(), "eliminate") }
+                }
+            }
+            if (team) unit.members.firstOrNull { !it.eliminated }?.let { member ->
+                ArmedButton("Our team concedes", "Tap again: the whole team leaves", Tone.BAD) { onControl(member.seat(), "concede") }
+                ArmedButton("Eliminate this team", "Tap again to eliminate both players", Tone.BAD) { onControl(member.seat(), "eliminate") }
             }
         }
         if (summary.settings.profile.commanderRules) {

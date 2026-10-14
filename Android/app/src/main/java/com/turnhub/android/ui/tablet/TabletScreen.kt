@@ -336,6 +336,7 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
             timer = { ms -> seat?.let { actions.run { saveSettings(it, null, null, null, turnTimerMs = ms) } } },
             zeroLife = { on -> seat?.let { actions.run { setAutoEliminateAtZeroLife(it, on) } } },
             start = { seat?.let { actions.run { control(it, "start") } } },
+            chooseStarter = { player -> actions.run { control(player.seat(), "starter") } },
             background = onEditBackground,
             canEditBackground = canEditBackground,
         ),
@@ -345,6 +346,7 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
         canAdd = true,
         identityHint = "A new name gets an account without a PIN. Sigils can join too.",
         savedTitle = "Saved players",
+        starterHint = "Nobody chosen: player 1 goes first. Tap First? to choose.",
         headerActions = {
             TextButton(onClick = onClose) { Text("Back", color = p.muted) }
             TextButton(onClick = { confirmLeave = true }) { Text("Leave tablet mode", color = p.bad) }
