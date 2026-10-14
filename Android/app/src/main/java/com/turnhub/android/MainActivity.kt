@@ -57,6 +57,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.turnhub.android.ui.home.HomeViewModel
 import com.turnhub.android.ui.theme.TurnHubTheme
 import com.turnhub.android.ui.theme.palette
+import com.turnhub.android.domain.GameSoundPreferences
+import com.turnhub.android.ui.components.ProvideGameSounds
 
 /**
  * Single-Activity host for this milestone's one screen. A later milestone may
@@ -241,6 +243,7 @@ class MainActivity : ComponentActivity() {
     private val uiPrefs by lazy { getSharedPreferences("turnhub_ui", MODE_PRIVATE) }
     private var theme by mutableStateOf(TurnHubThemeChoice.AUTO)
     private var reduceMotion by mutableStateOf(false)
+    private var gameSounds by mutableStateOf(GameSoundPreferences())
     private var standalone by mutableStateOf(false)
     /** Off hides everything about connecting to an Atlas: the app is a phone-only game. */
     private var atlasEnabled by mutableStateOf(true)
@@ -249,6 +252,11 @@ class MainActivity : ComponentActivity() {
         atlasEnabled = on
         uiPrefs.edit().putBoolean("atlas_enabled", on).apply()
         if (!on) playOnDevice() else findTableOnLaunch(restart = true)
+    }
+    private fun chooseGameSounds(preferences: GameSoundPreferences) {
+        gameSounds = preferences
+        uiPrefs.edit().putBoolean("game_sounds", preferences.enabled)
+            .putInt("game_sound_volume", preferences.volume).apply()
     }
     private var localHistory by mutableStateOf(false)
 
@@ -352,6 +360,8 @@ class MainActivity : ComponentActivity() {
         homeViewModel.standalone = standaloneViewModel.table
         theme = TurnHubThemeChoice.fromKey(uiPrefs.getString("theme", null))
         reduceMotion = uiPrefs.getBoolean("reduceMotion", false)
+        gameSounds = GameSoundPreferences(uiPrefs.getBoolean("game_sounds", true),
+            uiPrefs.getInt("game_sound_volume", 50).coerceIn(0, 100))
         atlasEnabled = uiPrefs.getBoolean("atlas_enabled", true)
         // Phone-only users (Atlas off, or never set one up) open straight to their game.
         val continuingActivity = standaloneViewModel.entryInitialized
@@ -375,142 +385,144 @@ class MainActivity : ComponentActivity() {
             }
         }
         setContent {
-            TurnHubTheme(choice = theme) {
-                val dark = palette.dark
-                LaunchedEffect(dark) { matchSystemBars(dark) }
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
-                    val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
-                    val localState by standaloneViewModel.table.state.collectAsStateWithLifecycle()
-                    LaunchedEffect(standalone, localHistory) {
-                        homeViewModel.onPresentationForeground(!standalone && !localHistory && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
-                    }
-                    if (localHistory) {
-                        val importState by homeViewModel.localImport.collectAsStateWithLifecycle()
-                        com.turnhub.android.ui.tablet.LocalLibraryScreen(
-                            localState, onClose = { localHistory = false },
-                            canImport = uiState.connectionState == AtlasConnectionState.CONNECTED && uiState.player?.signedIn == true,
-                            importState = importState,
-                            onLoadProfiles = homeViewModel::onLoadLocalImportProfiles,
-                            onImport = homeViewModel::onImportLocalRecord,
-                            onCancelImport = { standaloneViewModel.table.cancelImport(it) },
-                            table = standaloneViewModel.table,
-                            canLink = uiState.connectionState == AtlasConnectionState.CONNECTED,
-                            onLinkAccount = homeViewModel::onLinkLocalAccount,
-                            onShareStats = ::shareStats,
-                            theme = theme, onThemeChosen = ::chooseTheme,
-                        )
-                    } else if (standalone) {
-                        StandaloneScreen(
-                            state = localState,
-                            table = standaloneViewModel.table,
+            ProvideGameSounds(gameSounds, ::chooseGameSounds) {
+                TurnHubTheme(choice = theme) {
+                    val dark = palette.dark
+                    LaunchedEffect(dark) { matchSystemBars(dark) }
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background,
+                    ) {
+                        val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
+                        val localState by standaloneViewModel.table.state.collectAsStateWithLifecycle()
+                        LaunchedEffect(standalone, localHistory) {
+                            homeViewModel.onPresentationForeground(!standalone && !localHistory && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+                        }
+                        if (localHistory) {
+                            val importState by homeViewModel.localImport.collectAsStateWithLifecycle()
+                            com.turnhub.android.ui.tablet.LocalLibraryScreen(
+                                localState, onClose = { localHistory = false },
+                                canImport = uiState.connectionState == AtlasConnectionState.CONNECTED && uiState.player?.signedIn == true,
+                                importState = importState,
+                                onLoadProfiles = homeViewModel::onLoadLocalImportProfiles,
+                                onImport = homeViewModel::onImportLocalRecord,
+                                onCancelImport = { standaloneViewModel.table.cancelImport(it) },
+                                table = standaloneViewModel.table,
+                                canLink = uiState.connectionState == AtlasConnectionState.CONNECTED,
+                                onLinkAccount = homeViewModel::onLinkLocalAccount,
+                                onShareStats = ::shareStats,
+                                theme = theme, onThemeChosen = ::chooseTheme,
+                            )
+                        } else if (standalone) {
+                            StandaloneScreen(
+                                state = localState,
+                                table = standaloneViewModel.table,
+                                reduceMotion = reduceMotion,
+                                onClose = {
+                                    if (!atlasEnabled) moveTaskToBack(true)
+                                    else {
+                                        standalone = false
+                                        homeViewModel.onAtlasOpened()
+                                        uiPrefs.edit().putBoolean("prefer_device_play", false).apply()
+                                    }
+                                },
+                                onHistory = { localHistory = true },
+                                atlasEnabled = atlasEnabled,
+                                onAtlasEnabled = ::chooseAtlasEnabled,
+                            )
+                        } else HomeScreen(
+                            localState = localState,
+                            localTable = standaloneViewModel.table,
+                            onFollowGame = homeViewModel::onFollowGame,
+                            onPlayStandalone = ::playOnDevice,
+                            onLocalHistory = { localHistory = true },
+                            hasLocalGame = localState.game.state == com.turnhub.android.protocol.TableState.RUNNING ||
+                                localState.game.state == com.turnhub.android.protocol.TableState.PAUSED,
+                            uiState = uiState,
+                            onEndpointChange = homeViewModel::onEndpointChanged,
+                            onConnectClick = ::connectToAtlas,
+                            onDisconnectClick = homeViewModel::onDisconnectClicked,
+                            onOpenAppSettings = ::openAppSettings,
+                            onWifiPasswordSubmit = homeViewModel::onWifiPasswordSubmitted,
+                            onUseCurrentWifi = homeViewModel::onUseCurrentWifi,
+                            onWifiPromptDismiss = homeViewModel::onWifiPromptDismissed,
+                            onTurnOnWifi = ::turnOnWifi,
+                            onWifiOffDismiss = homeViewModel::onWifiOffDismissed,
+                            discoveryActions = com.turnhub.android.ui.home.DiscoveryActions(
+                                onSearchAgain = { requestAtlas(AtlasAction.SEARCH) },
+                                onSetUpNewTable = { requestAtlas(AtlasAction.SETUP) },
+                            ),
+                            gameActions = GameActions(
+                                onControl = homeViewModel::onControl,
+                                onJoin = homeViewModel::onJoinClicked,
+                                onPlayFromPhone = homeViewModel::onPlayFromPhoneClicked,
+                                onChangeMyLife = homeViewModel::onChangeMyLife,
+                                onRequestLife = homeViewModel::onRequestLife,
+                                onRespondLife = homeViewModel::onRespondLife,
+                                onCommanderDamage = homeViewModel::onCommanderDamage,
+                                onPlayerCounter = homeViewModel::onPlayerCounter,
+                                onEliminationRule = homeViewModel::onEliminationRule,
+                                onSaveGameSettings = homeViewModel::onSaveGameSettings,
+                                onSetZeroLifeElimination = homeViewModel::onSetZeroLifeElimination,
+                            ),
+                            accountActions = AccountActions(
+                                onPlayFromPhone = homeViewModel::onPlayFromPhoneClicked,
+                                onSaveName = homeViewModel::onSaveName,
+                                onSavePin = homeViewModel::onSavePin,
+                                onLoadChoices = homeViewModel::onLoadChoices,
+                                onSavePolicy = homeViewModel::onSavePolicy,
+                                onClearPin = homeViewModel::onClearPin,
+                                onLoadStats = homeViewModel::onLoadStats,
+                                onShareStats = { homeViewModel.onExportStats(::shareStats) },
+                                onLoadPersonalization = homeViewModel::onLoadPersonalization,
+                                onSavePersonalization = homeViewModel::onSavePersonalization,
+                                onUploadAvatar = homeViewModel::onUploadAvatar,
+                                onRemoveAvatar = homeViewModel::onRemoveAvatar,
+                                onAccessibility = homeViewModel::onAccessibilityClicked,
+                                onSignOut = homeViewModel::onSignOutClicked,
+                                onThemeChosen = ::chooseTheme,
+                                onReduceMotion = ::chooseReduceMotion,
+                                onForgetSavedProfile = homeViewModel::onForgetSavedProfile,
+                            ),
+                            admin = homeViewModel.adminState.collectAsStateWithLifecycle().value,
+                            adminActions = com.turnhub.android.ui.home.AdminActions(
+                                onRefresh = homeViewModel::onAdminRefresh,
+                                onDeveloperRefresh = homeViewModel::onDeveloperRefresh,
+                                run = homeViewModel::onAdmin,
+                                onDismissMessage = homeViewModel::onAdminMessageDismissed,
+                                onDownloadLog = { homeViewModel.onDownloadLog(::shareLog) },
+                            ),
+                            theme = theme,
                             reduceMotion = reduceMotion,
-                            onClose = {
-                                if (!atlasEnabled) moveTaskToBack(true)
-                                else {
-                                    standalone = false
-                                    homeViewModel.onAtlasOpened()
-                                    uiPrefs.edit().putBoolean("prefer_device_play", false).apply()
-                                }
-                            },
-                            onHistory = { localHistory = true },
-                            atlasEnabled = atlasEnabled,
-                            onAtlasEnabled = ::chooseAtlasEnabled,
+                            onSignInSubmit = homeViewModel::onSignInSubmitted,
+                            onSignInDismiss = homeViewModel::onSignInDismissed,
+                            onCreateAccount = homeViewModel::onCreateAccountSubmitted,
+                            onAccessibilitySave = homeViewModel::onAccessibilitySaved,
+                            onAccessibilityDismiss = homeViewModel::onAccessibilityDismissed,
+                            setup = homeViewModel.setupState.collectAsStateWithLifecycle().value,
+                            updatesAvailable = homeViewModel.updatesAvailable.collectAsStateWithLifecycle().value,
+                            onOpenUpdates = homeViewModel::onUpdatesOpened,
+                            seatClaim = homeViewModel.seatClaim.collectAsStateWithLifecycle().value,
+                            seatActions = com.turnhub.android.ui.home.SeatActions(
+                                onClaim = homeViewModel::onClaimSeat,
+                                onDismiss = homeViewModel::onSeatClaimDismissed,
+                                onRefresh = { homeViewModel.onPlayersRefresh() },
+                            ),
+                            setupActions = com.turnhub.android.ui.setup.SetupActions(
+                                run = homeViewModel::onSetup,
+                                dismiss = homeViewModel::onSetupDismissed,
+                                close = homeViewModel::onSetupClosed,
+                            ),
+                            tablet = homeViewModel.tabletState.collectAsStateWithLifecycle().value,
+                            tabletActions = com.turnhub.android.ui.tablet.TabletActions(
+                                run = homeViewModel::onTablet,
+                                onDismissMessage = homeViewModel::onTabletMessageDismissed,
+                                onDismissPin = homeViewModel::onTabletPinDismissed,
+                                onDismissCode = homeViewModel::onTabletCodeDismissed,
+                                onSignIn = homeViewModel::onPlayFromPhoneClicked,
+                            ),
                         )
-                    } else HomeScreen(
-                        localState = localState,
-                        localTable = standaloneViewModel.table,
-                        onFollowGame = homeViewModel::onFollowGame,
-                        onPlayStandalone = ::playOnDevice,
-                        onLocalHistory = { localHistory = true },
-                        hasLocalGame = localState.game.state == com.turnhub.android.protocol.TableState.RUNNING ||
-                            localState.game.state == com.turnhub.android.protocol.TableState.PAUSED,
-                        uiState = uiState,
-                        onEndpointChange = homeViewModel::onEndpointChanged,
-                        onConnectClick = ::connectToAtlas,
-                        onDisconnectClick = homeViewModel::onDisconnectClicked,
-                        onOpenAppSettings = ::openAppSettings,
-                        onWifiPasswordSubmit = homeViewModel::onWifiPasswordSubmitted,
-                        onUseCurrentWifi = homeViewModel::onUseCurrentWifi,
-                        onWifiPromptDismiss = homeViewModel::onWifiPromptDismissed,
-                        onTurnOnWifi = ::turnOnWifi,
-                        onWifiOffDismiss = homeViewModel::onWifiOffDismissed,
-                        discoveryActions = com.turnhub.android.ui.home.DiscoveryActions(
-                            onSearchAgain = { requestAtlas(AtlasAction.SEARCH) },
-                            onSetUpNewTable = { requestAtlas(AtlasAction.SETUP) },
-                        ),
-                        gameActions = GameActions(
-                            onControl = homeViewModel::onControl,
-                            onJoin = homeViewModel::onJoinClicked,
-                            onPlayFromPhone = homeViewModel::onPlayFromPhoneClicked,
-                            onChangeMyLife = homeViewModel::onChangeMyLife,
-                            onRequestLife = homeViewModel::onRequestLife,
-                            onRespondLife = homeViewModel::onRespondLife,
-                            onCommanderDamage = homeViewModel::onCommanderDamage,
-                            onPlayerCounter = homeViewModel::onPlayerCounter,
-                            onEliminationRule = homeViewModel::onEliminationRule,
-                            onSaveGameSettings = homeViewModel::onSaveGameSettings,
-                            onSetZeroLifeElimination = homeViewModel::onSetZeroLifeElimination,
-                        ),
-                        accountActions = AccountActions(
-                            onPlayFromPhone = homeViewModel::onPlayFromPhoneClicked,
-                            onSaveName = homeViewModel::onSaveName,
-                            onSavePin = homeViewModel::onSavePin,
-                            onLoadChoices = homeViewModel::onLoadChoices,
-                            onSavePolicy = homeViewModel::onSavePolicy,
-                            onClearPin = homeViewModel::onClearPin,
-                            onLoadStats = homeViewModel::onLoadStats,
-                            onShareStats = { homeViewModel.onExportStats(::shareStats) },
-                            onLoadPersonalization = homeViewModel::onLoadPersonalization,
-                            onSavePersonalization = homeViewModel::onSavePersonalization,
-                            onUploadAvatar = homeViewModel::onUploadAvatar,
-                            onRemoveAvatar = homeViewModel::onRemoveAvatar,
-                            onAccessibility = homeViewModel::onAccessibilityClicked,
-                            onSignOut = homeViewModel::onSignOutClicked,
-                            onThemeChosen = ::chooseTheme,
-                            onReduceMotion = ::chooseReduceMotion,
-                            onForgetSavedProfile = homeViewModel::onForgetSavedProfile,
-                        ),
-                        admin = homeViewModel.adminState.collectAsStateWithLifecycle().value,
-                        adminActions = com.turnhub.android.ui.home.AdminActions(
-                            onRefresh = homeViewModel::onAdminRefresh,
-                            onDeveloperRefresh = homeViewModel::onDeveloperRefresh,
-                            run = homeViewModel::onAdmin,
-                            onDismissMessage = homeViewModel::onAdminMessageDismissed,
-                            onDownloadLog = { homeViewModel.onDownloadLog(::shareLog) },
-                        ),
-                        theme = theme,
-                        reduceMotion = reduceMotion,
-                        onSignInSubmit = homeViewModel::onSignInSubmitted,
-                        onSignInDismiss = homeViewModel::onSignInDismissed,
-                        onCreateAccount = homeViewModel::onCreateAccountSubmitted,
-                        onAccessibilitySave = homeViewModel::onAccessibilitySaved,
-                        onAccessibilityDismiss = homeViewModel::onAccessibilityDismissed,
-                        setup = homeViewModel.setupState.collectAsStateWithLifecycle().value,
-                        updatesAvailable = homeViewModel.updatesAvailable.collectAsStateWithLifecycle().value,
-                        onOpenUpdates = homeViewModel::onUpdatesOpened,
-                        seatClaim = homeViewModel.seatClaim.collectAsStateWithLifecycle().value,
-                        seatActions = com.turnhub.android.ui.home.SeatActions(
-                            onClaim = homeViewModel::onClaimSeat,
-                            onDismiss = homeViewModel::onSeatClaimDismissed,
-                            onRefresh = { homeViewModel.onPlayersRefresh() },
-                        ),
-                        setupActions = com.turnhub.android.ui.setup.SetupActions(
-                            run = homeViewModel::onSetup,
-                            dismiss = homeViewModel::onSetupDismissed,
-                            close = homeViewModel::onSetupClosed,
-                        ),
-                        tablet = homeViewModel.tabletState.collectAsStateWithLifecycle().value,
-                        tabletActions = com.turnhub.android.ui.tablet.TabletActions(
-                            run = homeViewModel::onTablet,
-                            onDismissMessage = homeViewModel::onTabletMessageDismissed,
-                            onDismissPin = homeViewModel::onTabletPinDismissed,
-                            onDismissCode = homeViewModel::onTabletCodeDismissed,
-                            onSignIn = homeViewModel::onPlayFromPhoneClicked,
-                        ),
-                    )
+                    }
                 }
             }
         }

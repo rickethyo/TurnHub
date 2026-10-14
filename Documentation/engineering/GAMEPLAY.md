@@ -266,6 +266,16 @@ phone players hear them, through `ATLAS_SPEAKER_MASK` to the board's speaker
 (none on master's board-less build; the Gen 1 chime synthesizer is on
 `legacy/gen1`), volume Off/Low/Medium/High (Admin, `ConfigureSpeaker`). Timer cues play once per turn.
 
+**Android game sounds.** Local and connected play use the same observer for
+confirmed start, pass/turn change, pause, resume, victory and draw, with one
+short cue per observed transition. Sound is presentation only: button presses,
+pending/cancelled/refused passes, repeated polls, first load, foreground return,
+rotation and reconnect catch-up do not produce game-action sounds. Native
+SoundPool plays original generated WAVs. Game sounds defaults on at 50%; its
+phone-only toggle and volume are available in table setup, the table menu and
+My account. Silent/vibrate mode and media volume still apply. Leaving the app
+stops a cue; the background turn notification remains a separate OS channel.
+
 **Text.** The app and Atlas screen show every state in words (time
 left, warning, time over, long turn, PASSING, pending requests).
 

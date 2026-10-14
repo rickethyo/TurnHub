@@ -1439,3 +1439,36 @@ management/invitations from TH-002 remain separate planned work.
   with no hardware to run on and change untested pairing code.
 - Codex: rebase or merge any open `Sigil/` display or TestHarness work onto
   `legacy/gen1` instead of master.
+
+
+## TH-021: Unified table setup, tile backgrounds and authority design
+
+
+- Owner: Codex on `codex/master`; baseline `211ae99`, implementation through
+  `2675c79`; [PR #106](https://github.com/rickethyo/TurnHub/pull/106).
+- Both setup screens now use `TableLobby`/`TableLobbyActions`. Live rendering
+  remains shared through `TabletTable`/`TableControls`. The zero/one-player
+  preview reserves two seats. Clear all changes the local selection in one
+  saved update; the connected adapter uses scoped Atlas unseat requests and
+  stops at the first refusal. Accounts, history and game settings remain intact.
+- Per-player tile backgrounds (default/solid/gradient/image) are saved under
+  local UUIDs separately from avatars and match records. Preview/live panels
+  share the decorative renderer. Connected tables use the phone's backgrounds
+  only through verified Atlas/profile links. Account locks and bounded image
+  cropping remain enforced. No gameplay contract or dependency change.
+- Owner requested a common engine with full phone authority, deferring to Atlas
+  while connected, and chose design of full takeover/reconciliation. The
+  [authority design](Documentation/engineering/TABLE_AUTHORITY.md) owns the
+  feature gate, portable C++ core extraction, checkpoints/journal, fenced
+  ownership, reconnect reconciliation and durable completion receipts.
+  Full-engine hosting and live authority transfers remain planned; current
+  connected offline behavior still queues life/Commander edits only.
+- Validation: [CI on `2675c79`](https://github.com/rickethyo/TurnHub/actions/runs/38483995794)
+  passes Android JVM tests and the release bundle build, plus relevant host
+  guards/manual/design checks. Documentation links, Word ZIP/XML, manual export
+  consistency and whitespace checks pass locally. The final documentation-only
+  follow-up updates the manual's Add label and this handoff, with `[skip ci]`.
+  No physical phone/Atlas, image-picker, TalkBack or text-scale acceptance is
+  claimed.
+- Next owner: PR review and device acceptance; shared-engine/authority work
+  follows the staged design separately.

@@ -197,6 +197,7 @@ fun HomeScreen(
         return
     }
     // Tablet mode: this device becomes the table's shared screen until closed.
+    com.turnhub.android.ui.components.GameSoundEffect(summary, available = !uiState.isOffline)
     var showTablet by rememberSaveable { mutableStateOf(false) }
     if (showTablet) {
         com.turnhub.android.ui.tablet.TabletScreen(
