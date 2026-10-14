@@ -13,7 +13,7 @@ import kotlin.random.Random
 class LocalAccountsTest {
     @Test fun `tile backgrounds persist by identity across swaps and clearing without changing avatars`() {
         val store = Store()
-        val table = StandaloneTable(store)
+        val table = StandaloneTable(store, shortGameMs = 0)
         table.addPlayer("Alex"); table.addPlayer("Alex")
         val players = table.state.value.library.players
         val background = TileBackground(TileBackgroundStyle.IMAGE, "#123ABC", Base64.getEncoder().encodeToString(byteArrayOf(1, 2)))
@@ -26,7 +26,7 @@ class LocalAccountsTest {
         assertEquals(background, summary.players[1].tileBackground)
         assertEquals("cat", summary.players[1].avatar?.key)
         table.clearPlayers()
-        val restored = StandaloneTable(store)
+        val restored = StandaloneTable(store, shortGameMs = 0)
         restored.selectPlayer(players[0].localId)
         assertEquals(prefs, restored.state.value.library.players[0].personalization)
         assertEquals(players[0].localId, restored.state.value.game.players.single().localId)
@@ -57,7 +57,7 @@ class LocalAccountsTest {
         assertTrue(runCatching { TileBackground(image = Base64.getEncoder().encodeToString(ByteArray(TileBackground.MAX_IMAGE_BYTES + 1))) }.isFailure)
         assertTrue(runCatching { LocalPersonalization.fromJson(JSONObject("""{"tileBackground":{"style":"unknown"}}""")) }.isFailure)
         val store = Store()
-        val table = StandaloneTable(store)
+        val table = StandaloneTable(store, shortGameMs = 0)
         table.createAccount("Alex")
         val player = table.state.value.library.players.single()
         store.fail = true
@@ -81,7 +81,7 @@ class LocalAccountsTest {
 
     @Test fun `offline accounts persist personalization and identities without sharing names`() {
         val store = Store()
-        val table = StandaloneTable(store)
+        val table = StandaloneTable(store, shortGameMs = 0)
         assertTrue(table.createAccount("Alex"))
         assertTrue(table.createAccount("Alex"))
         val players = table.state.value.library.players
@@ -89,7 +89,7 @@ class LocalAccountsTest {
         assertTrue(players.all { LocalProfileIds.valid(it.profileId) })
         val prefs = LocalPersonalization("#123ABC", "cat", Base64.getEncoder().encodeToString(byteArrayOf(1, 2)), true)
         assertTrue(table.saveAccount(players[0].localId, "New name", prefs))
-        val restored = StandaloneTable(store).state.value.library
+        val restored = StandaloneTable(store, shortGameMs = 0).state.value.library
         assertEquals("New name", restored.players[0].name)
         assertEquals(prefs, restored.players[0].personalization)
         assertEquals(players[0].profileId, restored.players[0].profileId)
@@ -99,8 +99,8 @@ class LocalAccountsTest {
     @Test fun `legacy UUID history gains stable compatible IDs once without losing results`() {
         val store = Store()
         store.library = """{"schema":1,"players":[{"localId":"old-uuid","name":"Alex"}],"history":[],"deliveries":[]}"""
-        val first = StandaloneTable(store).state.value.library.players.single()
-        val second = StandaloneTable(store).state.value.library.players.single()
+        val first = StandaloneTable(store, shortGameMs = 0).state.value.library.players.single()
+        val second = StandaloneTable(store, shortGameMs = 0).state.value.library.players.single()
         assertEquals("old-uuid", second.localId)
         assertEquals(first.profileId, second.profileId)
         assertEquals(2, JSONObject(store.library!!).getInt("schema"))
@@ -109,7 +109,7 @@ class LocalAccountsTest {
     @Test fun `automatic imports require verified links scoped to the destination not public ID collisions`() = runTest {
         val store = Store()
         var now = 0L
-        val table = StandaloneTable(store, wallClock = { now })
+        val table = StandaloneTable(store, wallClock = { now }, shortGameMs = 0)
         table.addPlayer("Alex"); table.addPlayer("Alex")
         val players = table.state.value.library.players
         table.start(); now = 100_000
@@ -129,7 +129,7 @@ class LocalAccountsTest {
         table.sendRecords("atlas-a") { com.turnhub.android.data.RawResponse(200,
             """{"ok":true,"duplicate":false,"credited":2,"unmatched":[]}""") }
         assertEquals(DeliveryStatus.IMPORTED, table.state.value.library.delivery(record.recordId).status)
-        assertEquals(record, StandaloneTable(store).state.value.library.history.single())
+        assertEquals(record, StandaloneTable(store, shortGameMs = 0).state.value.library.history.single())
         table.queueAutomaticImports("atlas-a", available)
         var requests = 0
         table.sendRecords("atlas-a") { requests++; null }
@@ -157,7 +157,7 @@ class LocalAccountsTest {
 
     @Test fun `failed account or link persistence leaves the prior facts untouched`() {
         val store = Store()
-        val table = StandaloneTable(store)
+        val table = StandaloneTable(store, shortGameMs = 0)
         table.createAccount("Ana")
         val before = table.state.value.library
         store.fail = true
@@ -168,13 +168,13 @@ class LocalAccountsTest {
 
     @Test fun `local account credentials preserve Atlas rules without storing plaintext and lock settings after restart`() {
         val store = Store()
-        val table = StandaloneTable(store)
+        val table = StandaloneTable(store, shortGameMs = 0)
         assertTrue(table.createAccount("Ana", LocalCredential.create("1234")))
         val player = table.state.value.library.players.single()
         assertFalse(store.library!!.contains("\"1234\""))
         assertTrue(player.credential!!.verifies("1234"))
         assertFalse(player.credential.verifies("9999"))
-        val restored = StandaloneTable(store)
+        val restored = StandaloneTable(store, shortGameMs = 0)
         assertFalse(restored.accountUnlocked(player.localId))
         assertFalse(restored.saveAccount(player.localId, "Changed", LocalPersonalization()))
         assertFalse(restored.unlockAccount(player.localId, "9999"))

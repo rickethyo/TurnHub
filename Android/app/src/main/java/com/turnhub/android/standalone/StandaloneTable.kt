@@ -68,6 +68,8 @@ class StandaloneTable(
     private val store: StandaloneStore,
     private val wallClock: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
+    /** Finished games shorter than this wait for [saveShortGame] instead of joining history. */
+    private val shortGameMs: Long = StandaloneGame.SHORT_GAME_MS,
 ) : TableControls {
     private val _state = MutableStateFlow(load())
     val state: StateFlow<StandaloneState> = _state.asStateFlow()
@@ -153,6 +155,17 @@ class StandaloneTable(
     }
     fun removePlayer(index: Int) = edit { it.removePlayer(index) }
     fun chooseStarter(index: Int?) = edit { it.chooseStarter(index) }
+
+    /** The finished game, when it was too short to count on its own and hasn't been saved. */
+    fun unsavedShortGame(): GameRecord? = _state.value.let { s ->
+        s.game.record()?.takeIf { !it.counted(shortGameMs) && s.library.history.none { r -> r.recordId == it.recordId } }
+    }
+
+    /** Counts a short finished game after all: it joins history and stats like any other. */
+    fun saveShortGame(): Boolean {
+        val record = unsavedShortGame() ?: return false
+        return publish(_state.value.copy(library = _state.value.library.withRecord(record)))
+    }
     fun clearPlayers() = edit { it.clearPlayers() }
     fun movePlayer(index: Int, by: Int) = edit { it.movePlayer(index, by) }
     fun swapPlayers(a: Int, b: Int) = edit { it.swapPlayers(a, b) }
@@ -254,6 +267,7 @@ class StandaloneTable(
                 "draw" -> game.endWithoutWinner(now)
                 "rematch" -> game.rematch(now, newId())
                 "reset" -> game.reset()
+                "back-to-setup" -> game.backToSetup(now)
                 else -> game
             }
         }
@@ -293,7 +307,7 @@ class StandaloneTable(
         val before = _state.value.game
         val after = change(before)
         if (after === before) return
-        val record = after.record()?.takeIf { before.state != TableState.GAME_OVER || before.gameId != after.gameId }
+        val record = after.record()?.takeIf { (before.state != TableState.GAME_OVER || before.gameId != after.gameId) && it.counted(shortGameMs) }
         val library = record?.let { _state.value.library.withRecord(it) } ?: _state.value.library
         publish(_state.value.copy(game = after, library = library))
     }
@@ -332,7 +346,7 @@ class StandaloneTable(
                 })
             }
             // Also covers a game that was completed before its old queue write reached storage.
-            game.record()?.let { library = library.withRecord(it) }
+            game.record()?.takeIf { it.counted(shortGameMs) }?.let { library = library.withRecord(it) }
             if (savedLibrary != null && JSONObject(savedLibrary).getInt("schema") == 1) {
                 check(store.saveSnapshot(gameToJson(game).toString(), library.toJson().toString())) { "Could not save upgraded accounts" }
             }

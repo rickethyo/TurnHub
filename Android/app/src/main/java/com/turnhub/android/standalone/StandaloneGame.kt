@@ -272,6 +272,13 @@ data class StandaloneGame(
         )
     }
 
+    /**
+     * Undoes a start: within [UNDO_START_MS] of game time, back to the lobby with the
+     * same players and settings. Nothing is recorded, as the game never finished.
+     */
+    fun backToSetup(nowMs: Long): StandaloneGame =
+        if (!playing || gameElapsedMs(nowMs) > UNDO_START_MS) this else reset()
+
     // --- the table ------------------------------------------------------------------
 
     fun pass(index: Int, nowMs: Long): StandaloneGame {
@@ -601,6 +608,11 @@ data class StandaloneGame(
             GameProfile.YUGIOH -> 8000
             else -> 20
         }
+
+        /** How long after the start Back to setup stays available. */
+        const val UNDO_START_MS = 3 * 60_000L
+        /** A finished game shorter than this isn't counted unless the table saves it (a test or a wrong setup). */
+        const val SHORT_GAME_MS = 60_000L
 
         private const val SOLO_POISON = 10
         private const val TEAM_POISON = 15

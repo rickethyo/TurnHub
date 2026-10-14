@@ -611,7 +611,7 @@ class HomeViewModelTest {
                 this.game = game; this.library = library; return true
             }
         }
-        val local = com.turnhub.android.standalone.StandaloneTable(store)
+        val local = com.turnhub.android.standalone.StandaloneTable(store, shortGameMs = 0)
         viewModel.standalone = local
         local.addPlayer("Ana"); local.addPlayer("Ben"); local.start()
         local.control(com.turnhub.android.data.TabletSeat(com.turnhub.android.standalone.StandaloneGame.seatHandle(0).id, 1), "draw")
@@ -640,7 +640,7 @@ class HomeViewModelTest {
             override fun loadRecords(): String? = null
             override fun saveSnapshot(game: String, library: String): Boolean { this.game = game; this.library = library; return true }
         }
-        val local = com.turnhub.android.standalone.StandaloneTable(store)
+        val local = com.turnhub.android.standalone.StandaloneTable(store, shortGameMs = 0)
         local.addPlayer("A"); local.addPlayer("B"); local.start()
         local.control(com.turnhub.android.data.TabletSeat(8, 1), "win")
         val players = local.state.value.library.players

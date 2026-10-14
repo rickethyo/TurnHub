@@ -193,6 +193,9 @@ internal fun TabletTable(
     standalone: Boolean = false,
     /** Shares the finished game with a picture of the table; null hides the button. */
     onShareResult: ((android.graphics.Bitmap) -> Unit)? = null,
+    /** The finished game was under a minute and isn't counted until [onCountGame] (standalone). */
+    shortGameUnsaved: Boolean = false,
+    onCountGame: () -> Unit = {},
 ) {
     val p = palette
     val haptics = rememberHaptics()
@@ -432,6 +435,7 @@ internal fun TabletTable(
                             PausedMagicCounters(summary, !isOffline) { member, kind, value, commander ->
                                 controls { counter(member.seat(), kind, value, commander) }
                             }
+                            if (standalone) BackToSetup(summary) { send(anySeat, "back-to-setup") }
                             AccentButton("Resume", { send(activeSeat, "pause") }, Modifier.fillMaxWidth())
                         }
                     }
@@ -457,6 +461,10 @@ internal fun TabletTable(
                     },
                 ) {
                     if (winners.isNotEmpty()) WinnerRow(winners.flatMap { it.members })
+                    if (shortGameUnsaved) {
+                        Text("This game lasted under a minute, so it isn't in history or stats.", color = p.muted)
+                        ToneButton("Count this game", onCountGame, Modifier.fillMaxWidth())
+                    }
                     if (onShareResult != null) {
                         ToneButton("Share result", {
                             scope.launch { onShareResult(tableShot.toImageBitmap().asAndroidBitmap()) }
@@ -485,6 +493,7 @@ internal fun TabletTable(
                     ToneButton("Pause", { menuOpen = false; send(activeSeat, "pause") }, Modifier.fillMaxWidth())
                     ToneButton("Turn panels around", { flipped = !flipped; menuOpen = false }, Modifier.fillMaxWidth())
                     ToneButton("Back to the app", { menuOpen = false; onClose() }, Modifier.fillMaxWidth())
+                    if (standalone) BackToSetup(summary) { menuOpen = false; send(anySeat, "back-to-setup") }
                     if (standalone) {
                         ArmedButton("End without a winner", "Tap again to end the game", Tone.BAD) {
                             menuOpen = false
@@ -582,6 +591,17 @@ private fun OverlayFrame(title: String, text: String?, onDismiss: (() -> Unit)?,
 private fun GameClockLine(summary: TableSummary) {
     val nowMs = rememberNowMs(ticking = summary.state == TableState.RUNNING, intervalMs = 500)
     Text("Game clock ${TableClock.format(TableClock.gameElapsedMs(summary, nowMs))}", color = palette.muted)
+}
+
+/** Undoes the start in the first minutes (a wrong setup): back to the lobby, nothing recorded. */
+@Composable
+private fun BackToSetup(summary: TableSummary, onConfirm: () -> Unit) {
+    val nowMs = rememberNowMs(ticking = summary.state == TableState.RUNNING, intervalMs = 1_000)
+    val left = com.turnhub.android.standalone.StandaloneGame.UNDO_START_MS - TableClock.gameElapsedMs(summary, nowMs)
+    if (left <= 0) return
+    ArmedButton("Back to setup (${TableClock.format(left)} left)", "Tap again: this game won't be saved", Tone.WARN, onConfirm)
+    Text("Returns to setup with the same players and settings. Available for the first three minutes.",
+        color = palette.muted, style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable

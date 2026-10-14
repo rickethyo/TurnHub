@@ -93,6 +93,8 @@ fun StandaloneScreen(
                     }
                     share
                 },
+                shortGameUnsaved = table.unsavedShortGame() != null,
+                onCountGame = { table.saveShortGame() },
             )
         }
     }

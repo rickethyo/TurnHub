@@ -205,6 +205,13 @@ everything implemented. Only the checks listed below are still open.
   any life, poison limit and even 2HG table, and records Commander damage
   between 2HG teammates; give `GameEngine` the same house-rules setting and
   validation, then pass `houseRules` to the shared lobby for connected play.
+- **Short games and undoing a start on Atlas** (*Planned*, owner, 2026-10-14):
+  the standalone app offers Back to setup for the first three minutes and
+  leaves games under a minute out of history until the table counts them
+  (`StandaloneGame.UNDO_START_MS`, `SHORT_GAME_MS`). Atlas still credits every
+  finished match through `profile_stats_bridge`; it needs the same threshold
+  and a confirm step before statistics, and the shared table menu the
+  undo-start action.
 - **Eliminated-controller release** (owner, 2026-10-09): permit release once
   all players on a Sigil are eliminated, preserving their match identities and
   results; then attach the hardware to another seated player. Needs seat-level

@@ -9,6 +9,7 @@ import com.turnhub.android.protocol.TurnTimer
 import com.turnhub.android.protocol.TurnTimerPhase
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -61,7 +62,7 @@ class StandaloneGameTest {
     @Test
     fun `clear players persists once and retains accounts and history for reselection`() = runTest {
         val store = MemoryStore()
-        val table = StandaloneTable(store)
+        val table = StandaloneTable(store, shortGameMs = 0)
         table.addPlayer("Ana")
         table.addPlayer("Ben")
         table.start()
@@ -77,7 +78,7 @@ class StandaloneGameTest {
         assertEquals(writes + 1, store.writes)
         assertEquals(game.clearPlayers(), table.state.value.game)
         assertEquals(library, table.state.value.library)
-        val restored = StandaloneTable(store)
+        val restored = StandaloneTable(store, shortGameMs = 0)
         assertEquals(table.state.value, restored.state.value)
         restored.selectPlayer(library.players.first().localId)
         assertEquals(library.players.first().localId, restored.state.value.game.players.single().localId)
@@ -396,7 +397,7 @@ class StandaloneGameTest {
         val store = MemoryStore()
         var clock = 1_000L
         var ids = 0
-        val table = StandaloneTable(store, { clock }, { "g${++ids}" })
+        val table = StandaloneTable(store, { clock }, { "g${++ids}" }, shortGameMs = 0)
         table.addPlayer("Ana")
         table.addPlayer("Ben")
         table.start()
@@ -409,7 +410,7 @@ class StandaloneGameTest {
         assertEquals(1, table.state.value.library.history.size)
 
         // A new table on the same store picks up where this one stopped.
-        val again = StandaloneTable(store, { clock }, { "g${++ids}" })
+        val again = StandaloneTable(store, { clock }, { "g${++ids}" }, shortGameMs = 0)
         assertEquals(table.state.value.game, again.state.value.game)
         assertEquals(table.state.value.library, again.state.value.library)
 
@@ -423,13 +424,13 @@ class StandaloneGameTest {
         again.sendRecords("THA-A") { RawResponse(200, "{\"ok\":true,\"duplicate\":false,\"credited\":2,\"unmatched\":[]}") }
         assertEquals(2, again.state.value.library.history.size)
         assertEquals(DeliveryStatus.IMPORTED, again.state.value.library.delivery(id).status)
-        assertEquals(again.state.value.library, StandaloneTable(store).state.value.library)
+        assertEquals(again.state.value.library, StandaloneTable(store, shortGameMs = 0).state.value.library)
     }
 
     @Test
     fun `same names are separate identities and saved picks reuse identity across matches`() = runTest {
         val store = MemoryStore()
-        val table = StandaloneTable(store)
+        val table = StandaloneTable(store, shortGameMs = 0)
         table.addPlayer("Ana")
         table.addPlayer("Ana")
         val ids = table.state.value.game.players.map { it.localId!! }
@@ -446,14 +447,49 @@ class StandaloneGameTest {
         table.removePlayer(0)
         table.selectPlayer(ids.first())
         assertEquals(ids.reversed(), table.state.value.game.players.map { it.localId })
-        val library = StandaloneTable(store).state.value.library
+        val library = StandaloneTable(store, shortGameMs = 0).state.value.library
         assertEquals(LocalTotals(2, 1, 1), library.totals(ids.first()))
         assertEquals(LocalTotals(2, 0, 1), library.totals(ids.last()))
     }
 
     @Test
+    fun `games under a minute wait to be saved and a start can be undone for three minutes`() = runTest {
+        var clock = 0L
+        val store = MemoryStore()
+        val table = StandaloneTable(store, { clock }, { "g$clock" })
+        table.addPlayer("Ana"); table.addPlayer("Ben"); table.chooseStarter(1)
+        val lobby = table.state.value.game
+        val seat = TabletSeat(StandaloneGame.seatHandle(0).id, 1)
+        table.start()
+        clock = 59_000
+        table.control(seat, "draw")
+        assertTrue(table.state.value.library.history.isEmpty())
+        assertNotNull(table.unsavedShortGame())
+        assertTrue(StandaloneTable(store, { clock }).state.value.library.history.isEmpty())
+        assertTrue(table.saveShortGame())
+        assertEquals(1, table.state.value.library.history.size)
+        assertNull(table.unsavedShortGame())
+        assertTrue(!table.saveShortGame())
+
+        table.control(seat, "rematch")
+        clock += StandaloneGame.UNDO_START_MS + 1
+        table.control(seat, "back-to-setup")
+        assertEquals(TableState.RUNNING, table.state.value.game.state)
+        table.control(seat, "pause")
+        table.control(seat, "draw")
+        assertEquals(2, table.state.value.library.history.size) // Over a minute: counted.
+        table.control(seat, "rematch")
+        clock += 30_000
+        table.control(seat, "back-to-setup")
+        val back = table.state.value.game
+        assertEquals(TableState.LOBBY, back.state)
+        assertEquals(lobby.players, back.players)
+        assertEquals(2, table.state.value.library.history.size)
+    }
+
+    @Test
     fun `history is not pruned at the former queue limit`() = runTest {
-        val table = StandaloneTable(MemoryStore())
+        val table = StandaloneTable(MemoryStore(), shortGameMs = 0)
         table.addPlayer("Ana")
         table.addPlayer("Ben")
         val seat = TabletSeat(StandaloneGame.seatHandle(0).id, 1)
@@ -470,7 +506,7 @@ class StandaloneGameTest {
     fun `legacy queue is retained without inventing player or Atlas links`() {
         val store = MemoryStore()
         store.records = org.json.JSONArray().put(threePlayers().claimWin(0, 2_000).record()!!.toJson()).toString()
-        val table = StandaloneTable(store)
+        val table = StandaloneTable(store, shortGameMs = 0)
         assertEquals(1, table.state.value.library.history.size)
         assertTrue(table.state.value.library.players.isEmpty())
         assertEquals(DeliveryStatus.NEEDS_LINKING, table.state.value.library.delivery("g1").status)
@@ -483,7 +519,7 @@ class StandaloneGameTest {
     fun `corrupt or future library is kept untouched and local edits fail closed`() {
         for (json in listOf("not json", "{\"schema\":99}")) {
             val store = MemoryStore().apply { library = json }
-            val table = StandaloneTable(store)
+            val table = StandaloneTable(store, shortGameMs = 0)
             assertTrue(table.state.value.storageProblem != null)
             table.addPlayer("Ana")
             assertEquals(json, store.library)
@@ -508,7 +544,7 @@ class StandaloneGameTest {
     @Test
     fun `delivery success rejection and transient failure preserve history and local totals`() = runTest {
         val store = MemoryStore()
-        val table = StandaloneTable(store)
+        val table = StandaloneTable(store, shortGameMs = 0)
         table.addPlayer("Ana"); table.addPlayer("Ben")
         val seat = TabletSeat(StandaloneGame.seatHandle(0).id, 1)
         repeat(3) {
@@ -524,7 +560,7 @@ class StandaloneGameTest {
             assertEquals("p-a", fields.toMap()["profile0"])
             answers.removeFirst()
         })
-        val library = StandaloneTable(store).state.value.library
+        val library = StandaloneTable(store, shortGameMs = 0).state.value.library
         assertEquals(history, library.history)
         assertEquals(listOf(DeliveryStatus.IMPORTED, DeliveryStatus.REJECTED, DeliveryStatus.PENDING),
             history.map { library.delivery(it.recordId).status })
@@ -539,7 +575,7 @@ class StandaloneGameTest {
     @Test
     fun `failed local writes report a problem and do not publish unsaved completion`() = runTest {
         val store = MemoryStore()
-        val table = StandaloneTable(store)
+        val table = StandaloneTable(store, shortGameMs = 0)
         table.addPlayer("Ana"); table.addPlayer("Ben"); table.start()
         val before = table.state.value.game
         val saved = store.library
@@ -553,7 +589,7 @@ class StandaloneGameTest {
 
     @Test
     fun `scope mapping and uncertain acknowledgements fail closed without matching names`() = runTest {
-        val table = StandaloneTable(MemoryStore())
+        val table = StandaloneTable(MemoryStore(), shortGameMs = 0)
         table.addPlayer("Ana"); table.addPlayer("Ana")
         val seat = TabletSeat(StandaloneGame.seatHandle(0).id, 1)
         table.start(); table.control(seat, "draw")
