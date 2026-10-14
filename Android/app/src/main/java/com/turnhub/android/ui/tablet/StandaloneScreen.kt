@@ -25,7 +25,11 @@ import com.turnhub.android.protocol.TableState
 import com.turnhub.android.standalone.StandaloneGame
 import com.turnhub.android.standalone.StandaloneState
 import com.turnhub.android.standalone.StandaloneTable
+import com.turnhub.android.standalone.shareSummary
 import com.turnhub.android.ui.components.ToneButton
+import com.turnhub.android.ui.components.displayName
+import com.turnhub.android.ui.components.shareGameResult
+import androidx.compose.ui.graphics.toArgb
 import com.turnhub.android.ui.components.rememberNowMs
 import com.turnhub.android.ui.components.tableBackground
 import com.turnhub.android.ui.theme.palette
@@ -44,6 +48,7 @@ fun StandaloneScreen(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     onHistory: () -> Unit = {},
+    onStats: () -> Unit = {},
     atlasEnabled: Boolean = true,
     onAtlasEnabled: (Boolean) -> Unit = {},
 ) {
@@ -51,6 +56,7 @@ fun StandaloneScreen(
     KeepScreenOn()
     BackHandler(onBack = onClose)
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val game = state.game
     val soundSummary = remember(game) { game.toSummary(0, 0) }
     com.turnhub.android.ui.components.GameSoundEffect(soundSummary, available = state.storageProblem == null)
@@ -62,7 +68,7 @@ fun StandaloneScreen(
                 TextButton(onClick = onClose) { Text("Back") }
             }
         } else if (game.state == TableState.LOBBY) {
-            Lobby(state, table, onClose, onHistory, atlasEnabled, onAtlasEnabled)
+            Lobby(state, table, onClose, onHistory, onStats, atlasEnabled, onAtlasEnabled)
         } else {
             Immersive()
             // The clocks tick on their own from the summary; it is rebuilt only when the game
@@ -80,6 +86,13 @@ fun StandaloneScreen(
                 reduceMotion = reduceMotion || state.library.players.any { it.personalization.reduceMotion },
                 onClose = onClose,
                 standalone = true,
+                onShareResult = game.record()?.let { record ->
+                    val text = record.shareSummary(record.profile.displayName())
+                    val share: (android.graphics.Bitmap) -> Unit = { picture ->
+                        scope.launch { shareGameResult(context, picture, text, p.bg.toArgb(), p.text.toArgb(), p.muted.toArgb()) }
+                    }
+                    share
+                },
             )
         }
     }
@@ -91,6 +104,7 @@ private fun Lobby(
     table: StandaloneTable,
     onClose: () -> Unit,
     onHistory: () -> Unit,
+    onStats: () -> Unit,
     atlasEnabled: Boolean,
     onAtlasEnabled: (Boolean) -> Unit,
 ) {
@@ -137,7 +151,10 @@ private fun Lobby(
             if (atlasEnabled) TextButton(onClick = onClose) { Text("Atlas", color = palette.muted) }
         },
         footer = {
-            ToneButton("Players and history", onHistory, Modifier.fillMaxWidth())
+            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
+                ToneButton("Stats", onStats, Modifier.weight(1f))
+                ToneButton("Players and history", onHistory, Modifier.weight(1f))
+            }
             TextButton(onClick = { onAtlasEnabled(!atlasEnabled) }, modifier = Modifier.fillMaxWidth()) {
                 Text(if (atlasEnabled) "TurnHub Atlas table: shown. Turn off if you play on this device only"
                     else "TurnHub Atlas table: hidden. Turn on to connect Sigils and a phone for every player",

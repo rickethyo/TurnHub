@@ -259,6 +259,7 @@ class MainActivity : ComponentActivity() {
             .putInt("game_sound_volume", preferences.volume).apply()
     }
     private var localHistory by mutableStateOf(false)
+    private var localStats by mutableStateOf(false)
 
     private fun playOnDevice() {
         homeViewModel.onDisconnectClicked()
@@ -269,6 +270,7 @@ class MainActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putBoolean("device_play_open", standalone)
         outState.putBoolean("local_history_open", localHistory)
+        outState.putBoolean("local_stats_open", localStats)
         outState.putString("atlas_action", pendingAtlasAction.name)
         super.onSaveInstanceState(outState)
     }
@@ -309,7 +311,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         turnNotifier.clear()
-        homeViewModel.onPresentationForeground(!standalone && !localHistory)
+        homeViewModel.onPresentationForeground(!standalone && !localHistory && !localStats)
     }
 
     override fun onStop() {
@@ -367,6 +369,7 @@ class MainActivity : ComponentActivity() {
         val continuingActivity = standaloneViewModel.entryInitialized
         standalone = !atlasEnabled || (if (continuingActivity) savedInstanceState?.getBoolean("device_play_open") ?: true else true)
         localHistory = continuingActivity && savedInstanceState?.getBoolean("local_history_open") == true
+        localStats = continuingActivity && savedInstanceState?.getBoolean("local_stats_open") == true
         standaloneViewModel.entryInitialized = true
         pendingAtlasAction = AtlasAction.entries.firstOrNull {
             it.name == savedInstanceState?.getString("atlas_action")
@@ -395,10 +398,13 @@ class MainActivity : ComponentActivity() {
                     ) {
                         val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
                         val localState by standaloneViewModel.table.state.collectAsStateWithLifecycle()
-                        LaunchedEffect(standalone, localHistory) {
-                            homeViewModel.onPresentationForeground(!standalone && !localHistory && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+                        LaunchedEffect(standalone, localHistory, localStats) {
+                            homeViewModel.onPresentationForeground(!standalone && !localHistory && !localStats && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
                         }
-                        if (localHistory) {
+                        if (localStats) {
+                            com.turnhub.android.ui.tablet.StatsScreen(localState, onClose = { localStats = false },
+                                onShareStats = ::shareStats)
+                        } else if (localHistory) {
                             val importState by homeViewModel.localImport.collectAsStateWithLifecycle()
                             com.turnhub.android.ui.tablet.LocalLibraryScreen(
                                 localState, onClose = { localHistory = false },
@@ -410,7 +416,6 @@ class MainActivity : ComponentActivity() {
                                 table = standaloneViewModel.table,
                                 canLink = uiState.connectionState == AtlasConnectionState.CONNECTED,
                                 onLinkAccount = homeViewModel::onLinkLocalAccount,
-                                onShareStats = ::shareStats,
                                 theme = theme, onThemeChosen = ::chooseTheme,
                             )
                         } else if (standalone) {
@@ -427,6 +432,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                 },
                                 onHistory = { localHistory = true },
+                                onStats = { localStats = true },
                                 atlasEnabled = atlasEnabled,
                                 onAtlasEnabled = ::chooseAtlasEnabled,
                             )

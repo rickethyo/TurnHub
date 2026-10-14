@@ -90,6 +90,9 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
@@ -187,6 +190,8 @@ internal fun TabletTable(
     offline: Boolean = false,
     /** The standalone game (no Atlas): the menu has no tablet grant to hand back. */
     standalone: Boolean = false,
+    /** Shares the finished game with a picture of the table; null hides the button. */
+    onShareResult: ((android.graphics.Bitmap) -> Unit)? = null,
 ) {
     val p = palette
     val haptics = rememberHaptics()
@@ -312,35 +317,43 @@ internal fun TabletTable(
                 }
             }
         }
-        if (landscape) {
-            Column(Modifier.fillMaxSize().padding(4.dp)) {
-                if (plan.far.isNotEmpty()) {
+        // The panels and centre disc, recorded so a finished game can be shared as a picture
+        // (without the game-over card drawn over them).
+        val tableShot = rememberGraphicsLayer()
+        Box(Modifier.fillMaxSize().drawWithContent {
+            tableShot.record { this@drawWithContent.drawContent() }
+            drawLayer(tableShot)
+        }) {
+            if (landscape) {
+                Column(Modifier.fillMaxSize().padding(4.dp)) {
+                    if (plan.far.isNotEmpty()) {
+                        Row(Modifier.weight(1f).fillMaxWidth()) {
+                            plan.far.forEach { panel(it, 180, Modifier.weight(1f).fillMaxHeight()) }
+                        }
+                    }
                     Row(Modifier.weight(1f).fillMaxWidth()) {
-                        plan.far.forEach { panel(it, 180, Modifier.weight(1f).fillMaxHeight()) }
+                        plan.near.forEach { panel(it, 0, Modifier.weight(1f).fillMaxHeight()) }
                     }
                 }
-                Row(Modifier.weight(1f).fillMaxWidth()) {
-                    plan.near.forEach { panel(it, 0, Modifier.weight(1f).fillMaxHeight()) }
-                }
-            }
-        } else {
-            // Portrait: the long sides become columns; each fills from the bottom
-            // so turn order stays clockwise.
-            Row(Modifier.fillMaxSize().padding(4.dp)) {
-                if (plan.far.isNotEmpty()) {
+            } else {
+                // Portrait: the long sides become columns; each fills from the bottom
+                // so turn order stays clockwise.
+                Row(Modifier.fillMaxSize().padding(4.dp)) {
+                    if (plan.far.isNotEmpty()) {
+                        Column(Modifier.weight(1f).fillMaxHeight()) {
+                            plan.far.asReversed().forEach { panel(it, 90, Modifier.weight(1f).fillMaxWidth()) }
+                        }
+                    }
                     Column(Modifier.weight(1f).fillMaxHeight()) {
-                        plan.far.asReversed().forEach { panel(it, 90, Modifier.weight(1f).fillMaxWidth()) }
+                        plan.near.asReversed().forEach { panel(it, 270, Modifier.weight(1f).fillMaxWidth()) }
                     }
                 }
-                Column(Modifier.weight(1f).fillMaxHeight()) {
-                    plan.near.asReversed().forEach { panel(it, 270, Modifier.weight(1f).fillMaxWidth()) }
-                }
             }
-        }
 
-        Hub(summary, Modifier.align(Alignment.Center)) {
-            haptics.tick()
-            menuOpen = true
+            Hub(summary, Modifier.align(Alignment.Center)) {
+                haptics.tick()
+                menuOpen = true
+            }
         }
 
         val menuIndex = units.indexOfFirst { it.key == playerMenu }
@@ -440,6 +453,11 @@ internal fun TabletTable(
                     },
                 ) {
                     if (winners.isNotEmpty()) WinnerRow(winners.flatMap { it.members })
+                    if (onShareResult != null) {
+                        ToneButton("Share result", {
+                            scope.launch { onShareResult(tableShot.toImageBitmap().asAndroidBitmap()) }
+                        }, Modifier.fillMaxWidth())
+                    }
                     OverlayButtons {
                         ToneButton("New players", { send(anySeat, "reset") }, Modifier.weight(1f))
                         AccentButton("Rematch", { send(anySeat, "rematch") }, Modifier.weight(1f))
