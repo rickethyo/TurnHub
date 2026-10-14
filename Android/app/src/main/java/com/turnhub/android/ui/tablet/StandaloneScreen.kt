@@ -131,6 +131,7 @@ private fun Lobby(
             timer = table::setTurnTimer,
             zeroLife = table::setZeroLifeElimination,
             houseRules = table::setHouseRules,
+            chooseStarter = { table.chooseStarter(it.playerNumber - 1) },
             start = table::start,
             background = { editingLocalId = game.players.getOrNull(it.playerNumber - 1)?.localId },
             canEditBackground = { player -> game.players.getOrNull(player.playerNumber - 1)?.localId in state.library.players.map { it.localId } },
@@ -141,6 +142,7 @@ private fun Lobby(
         canAdd = game.players.size < StandaloneGame.MAX_PLAYERS,
         identityHint = "Add creates a new player. Pick a saved player to keep their results together; equal names stay separate.",
         savedTitle = "Saved on this device",
+        starterHint = "Nobody chosen: a random player goes first. Tap First? to choose.",
         introduction = "This phone or tablet becomes the table: lay it in the middle and everyone plays on one screen. " +
             "It keeps life, Commander damage, counters, turns, the turn timer and the winner. " +
             "Your game is saved when you close the app.",

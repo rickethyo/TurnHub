@@ -131,13 +131,14 @@ data class StandaloneGame(
 
     fun removePlayer(index: Int): StandaloneGame {
         if (state != TableState.LOBBY || index !in players.indices) return this
-        return copy(players = players.filterIndexed { i, _ -> i != index }).bump()
+        val chosen = starter?.let { if (it == index) null else if (it > index) it - 1 else it }
+        return copy(players = players.filterIndexed { i, _ -> i != index }, starter = chosen).bump()
     }
 
     /** Clears the selected roster while retaining the lobby's game settings. */
     fun clearPlayers(): StandaloneGame {
         if (state != TableState.LOBBY || players.isEmpty()) return this
-        return copy(players = emptyList()).bump()
+        return copy(players = emptyList(), starter = null).bump()
     }
 
     /** Moves a player one place earlier ([by] = -1) or later (+1) in turn order. */
@@ -149,7 +150,19 @@ data class StandaloneGame(
         val list = players.toMutableList()
         list[a] = players[b]
         list[b] = players[a]
-        return copy(players = list).bump()
+        // The chosen starter is a person: they keep it in their new seat.
+        val chosen = when (starter) { a -> b; b -> a; else -> starter }
+        return copy(players = list, starter = chosen).bump()
+    }
+
+    /**
+     * In the lobby [starter] is the player chosen to go first (null: random).
+     * Choosing the same player again clears the choice. In Two-Headed Giant
+     * their team goes first.
+     */
+    fun chooseStarter(index: Int?): StandaloneGame {
+        if (state != TableState.LOBBY || (index != null && index !in players.indices)) return this
+        return copy(starter = if (index == starter) null else index).bump()
     }
 
     fun setFormat(profile: GameProfile, startingLife: Int? = null): StandaloneGame {
@@ -216,8 +229,14 @@ data class StandaloneGame(
     fun start(nowMs: Long, gameId: String, random: Random = Random.Default): StandaloneGame {
         if (state != TableState.LOBBY && state != TableState.GAME_OVER) return this
         if (!canStart) return this
-        // A team game starts with a team: its first player holds the turn for both.
-        val first = if (twoHeadedGiant) random.nextInt(players.size / 2) * 2 else random.nextInt(players.size)
+        // The lobby's chosen starter, else random (a rematch is random too). A team game
+        // starts with a team: its first player holds the turn for both.
+        val chosen = starter?.takeIf { state == TableState.LOBBY && it in players.indices }
+        val first = when {
+            chosen != null -> if (twoHeadedGiant) chosen - chosen % 2 else chosen
+            twoHeadedGiant -> random.nextInt(players.size / 2) * 2
+            else -> random.nextInt(players.size)
+        }
         return copy(
             gameId = gameId,
             state = TableState.RUNNING,

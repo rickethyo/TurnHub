@@ -152,6 +152,7 @@ class StandaloneTable(
         }
     }
     fun removePlayer(index: Int) = edit { it.removePlayer(index) }
+    fun chooseStarter(index: Int?) = edit { it.chooseStarter(index) }
     fun clearPlayers() = edit { it.clearPlayers() }
     fun movePlayer(index: Int, by: Int) = edit { it.movePlayer(index, by) }
     fun swapPlayers(a: Int, b: Int) = edit { it.swapPlayers(a, b) }

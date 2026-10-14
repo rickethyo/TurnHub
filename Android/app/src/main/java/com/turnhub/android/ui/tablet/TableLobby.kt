@@ -46,6 +46,8 @@ internal data class TableLobbyActions(
     val start: () -> Unit,
     val background: ((TablePlayer) -> Unit)? = null,
     val canEditBackground: (TablePlayer) -> Boolean = { true },
+    /** Picks who goes first; null hides the choice. */
+    val chooseStarter: ((TablePlayer) -> Unit)? = null,
     /** House rules for official modes; null where the table can't change them (Atlas). */
     val houseRules: ((Boolean) -> Unit)? = null,
 )
@@ -62,6 +64,8 @@ internal fun TableLobby(
     identityHint: String,
     savedTitle: String,
     introduction: String? = null,
+    /** Who goes first when nobody is chosen, in this table's words. */
+    starterHint: String = "Tap First? to choose who goes first.",
     headerActions: @Composable RowScope.() -> Unit = {},
     feedback: @Composable () -> Unit = {},
     footer: @Composable ColumnScope.() -> Unit = {},
@@ -110,6 +114,15 @@ internal fun TableLobby(
                         Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                         if (settings.twoHeadedGiant) Text("Team ${(player.playerNumber + 1) / 2}", color = p.muted,
                             style = MaterialTheme.typography.labelMedium)
+                        actions.chooseStarter?.let { choose ->
+                            val first = summary.starterPlayerNumber == player.playerNumber
+                            FilterChip(selected = first, onClick = { choose(player) }, enabled = enabled,
+                                label = { Text(if (first) "Goes first" else "First?") },
+                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = p.accentSoft),
+                                modifier = Modifier.semantics {
+                                    contentDescription = if (first) "${player.label} goes first. Tap to clear" else "Make ${player.label} go first"
+                                })
+                        }
                         if (player.controller.kind == ControllerHandle.Kind.PHYSICAL) Text("Sigil", color = p.muted,
                             style = MaterialTheme.typography.labelMedium)
                         actions.background?.takeIf { actions.canEditBackground(player) }?.let { edit ->
@@ -142,6 +155,10 @@ internal fun TableLobby(
                         }
                     }
                 }
+                if (actions.chooseStarter != null && players.size >= 2) Text(
+                    summary.players.firstOrNull { it.playerNumber == summary.starterPlayerNumber }?.let {
+                        "${it.label}${if (settings.twoHeadedGiant) "'s team" else ""} goes first. Tap First? on another player to change it."
+                    } ?: starterHint, color = p.muted, style = MaterialTheme.typography.bodySmall)
                 Text(identityHint, color = p.faint, style = MaterialTheme.typography.bodySmall)
             }
             BrassCard {

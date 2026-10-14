@@ -44,4 +44,17 @@ class OfficialRulesTest {
         val running = house.start(0, "g")
         assertSame(running, running.setHouseRules(false))
     }
+
+    @Test fun `a chosen starter goes first, follows swaps and removals, and a rematch is random`() {
+        val lobby = (1..4).fold(StandaloneGame().setFormat(GameProfile.MTG)) { g, i -> g.addPlayer("P$i") }.chooseStarter(2)
+        assertEquals(2, lobby.toSummary(0, 0).starterPlayerNumber?.minus(1))
+        assertEquals(2, lobby.start(0, "g").active)
+        assertEquals(0, lobby.swapPlayers(0, 2).starter)
+        assertEquals(1, lobby.removePlayer(0).starter)
+        assertNull(lobby.removePlayer(2).starter)
+        assertNull(lobby.chooseStarter(2).starter)
+        // Two-Headed Giant: the chosen player's team goes first.
+        assertEquals(2, lobby.chooseStarter(3).setTwoHeadedGiant(true).start(0, "g").active)
+        assertNull(lobby.clearPlayers().starter)
+    }
 }
