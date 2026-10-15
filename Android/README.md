@@ -2,13 +2,17 @@
 
 This directory holds the native TurnHub Android client.
 
-The full-screen table lobby and Atlas home header show the installed app
+The full-screen table lobby and the bottom of Settings show the installed app
 version and build number (for example, `TurnHub 0.1.0 · Build 123`). Debug
 packages also show `Debug`. The same label is available in the live table menu
 and bug-report card, so a saved game need not be ended to identify the app.
 
 The app uses the same **Game, Table, Players, History and Settings** navigation
-with or without Atlas. Table opens the shared full-screen view. Game shows local
+with or without Atlas, and tabs slide sideways as you move between them (no
+motion with reduce motion on). Table shows the game's table inside the app: the
+running or last game, or before a game a preview of the lobby's seats (two
+placeholder seats when nobody is seated) that can't be played. Full screen takes
+a started game over the whole screen. Game shows local
 setup or the same stage/life overview used for connected play; when Atlas is
 available, This device and Atlas select which game is shown. Players keeps local
 profiles available and adds Table and Me sections when connected. History keeps
@@ -64,7 +68,8 @@ them); native SoundPool adds no third-party runtime dependency.
 ### The one exception: the standalone tablet game
 
 Fresh launches open the shared Game tab; rotation restores the open screen.
-Saved local games remain available through Table. With Atlas discovery enabled,
+Saved local games remain available through Table, and starting a game opens
+it there. With Atlas discovery enabled,
 a once-per-launch probe checks the current network when a saved table and
 local-network permission already exist. It never joins Wi-Fi, prompts for
 permission, requests biometric sign-in or takes over navigation. Connect, retry

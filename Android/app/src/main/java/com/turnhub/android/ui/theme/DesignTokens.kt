@@ -178,6 +178,20 @@ object DesignTokens {
         val tabBar: Dp = 64.dp
     }
 
+    /** Named player swatches (playerColors): label to #RRGGBB, in picker order. */
+    val PlayerColors: List<Pair<String, String>> = listOf(
+        "Crimson" to "#EF5350",
+        "Ember" to "#FF9800",
+        "Gold" to "#FDD835",
+        "Leaf" to "#7CB342",
+        "Jade" to "#26A69A",
+        "Sky" to "#29B6F6",
+        "Sapphire" to "#5C6BC0",
+        "Violet" to "#AB47BC",
+        "Rose" to "#EC407A",
+        "Pearl" to "#ECEFF1",
+    )
+
     /** The shared icon set (design/icons), as vector drawables. */
     object Icons {
         @DrawableRes val alert: Int = R.drawable.ic_th_alert

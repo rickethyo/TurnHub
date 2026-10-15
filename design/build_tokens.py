@@ -197,6 +197,8 @@ def build_css(tokens, font_url: str = "../fonts/") -> str:
         shared.append(f"--spring-{name}:var(--ease-standard);")
     for name, px in tokens["layout"].items():
         shared.append(f"--{kebab(name)}:{px}px;")
+    for name, value in player_colors(tokens):
+        shared.append(f"--player-{kebab(name)}:{value.lower()};")
     out.append(":root{" + "".join(shared) + "}")
     # linear() springs where the browser has them; cubic-bezier otherwise.
     out.append("@supports (transition-timing-function:linear(0, 1)){:root{"
@@ -333,6 +335,11 @@ def camel(name: str) -> str:
     return head + "".join(w.capitalize() for w in rest)
 
 
+def player_colors(tokens) -> list[tuple[str, str]]:
+    """The named player swatches, in picker order."""
+    return [(name, value) for name, value in tokens["playerColors"].items() if not name.startswith("$")]
+
+
 def build_kotlin(tokens, icons, avatars) -> str:
     color_names = list(next(iter(tokens["themes"].values()))["color"].keys())
     for key, theme in tokens["themes"].items():
@@ -423,7 +430,11 @@ def build_kotlin(tokens, icons, avatars) -> str:
     o += ["    }", "", "    object Layout {"]
     for name, px in tokens["layout"].items():
         o.append(f"        val {name}: Dp = {px}.dp")
-    o += ["    }", "", "    /** The shared icon set (design/icons), as vector drawables. */", "    object Icons {"]
+    o += ["    }", "", "    /** Named player swatches (playerColors): label to #RRGGBB, in picker order. */",
+          "    val PlayerColors: List<Pair<String, String>> = listOf("]
+    for name, value in player_colors(tokens):
+        o.append(f'        "{name.capitalize()}" to "{value.upper()}",')
+    o += ["    )", "", "    /** The shared icon set (design/icons), as vector drawables. */", "    object Icons {"]
     for name in icons:
         o.append(f"        @DrawableRes val {camel(name)}: Int = R.drawable.{DRAWABLE_PREFIX}{kotlin_ident(name)}")
     o += ["    }", "",
@@ -464,7 +475,17 @@ def build_firmware(tokens):
         lines.append('    {"' + key + '", "' + theme["label"] + '", ' +
                      str(theme["ornament"] == "brass").lower() + ', ' +
                      str(theme["scheme"] == "light").lower() + ', ' + ', '.join(colors) + '},')
-    lines += ["  };", "  return values[valid(static_cast<uint8_t>(id)) ? static_cast<uint8_t>(id) : 0];", "}", "} // namespace TurnHubTheme", ""]
+    lines += ["  };", "  return values[valid(static_cast<uint8_t>(id)) ? static_cast<uint8_t>(id) : 0];", "}"]
+    swatches = player_colors(tokens)
+    lines += ["// Named player swatches (playerColors), RGB888 in picker order.",
+              "struct PlayerColor { const char *name; uint32_t rgb; };",
+              f"constexpr uint8_t PLAYER_COLOR_COUNT = {len(swatches)};",
+              "inline const PlayerColor &playerColor(uint8_t index) {",
+              "  static const PlayerColor values[] = {"]
+    for name, value in swatches:
+        lines.append(f'    {{"{name.capitalize()}", 0x{value.lstrip("#").upper()}}},')
+    lines += ["  };", "  return values[index < PLAYER_COLOR_COUNT ? index : 0];", "}",
+              "} // namespace TurnHubTheme", ""]
     return "\n".join(lines)
 
 

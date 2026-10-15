@@ -1,6 +1,15 @@
 package com.turnhub.android.ui.home
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.material3.Icon
 import androidx.compose.ui.draw.drawBehind
 import com.turnhub.android.ui.components.AtlasBatteryGauge
@@ -126,11 +135,12 @@ fun HomeScreen(
     seatActions: SeatActions = SeatActions(),
     tablet: com.turnhub.android.data.TabletState = com.turnhub.android.data.TabletState(),
     tabletActions: com.turnhub.android.ui.tablet.TabletActions = com.turnhub.android.ui.tablet.TabletActions(),
-    /** Opens the standalone tablet game, for a table with no Atlas. */
-    onPlayStandalone: () -> Unit = {},
     onFollowGame: (Int) -> Unit = {},
     onAtlasOpened: () -> Unit = {},
-    localGameContent: @Composable () -> Unit = {},
+    /** The device game's Game page; openTable switches to the Table tab. */
+    localGameContent: @Composable (openTable: () -> Unit) -> Unit = {},
+    /** The device game's table, in the Table tab; onSetUp returns to Game. */
+    localTableContent: @Composable (onSetUp: () -> Unit) -> Unit = {},
     localPlayersContent: @Composable () -> Unit = {},
     localHistoryContent: @Composable () -> Unit = {},
     atlasEnabled: Boolean = true,
@@ -216,8 +226,6 @@ fun HomeScreen(
             Column(Modifier.background(p.bg.copy(alpha = .92f))) {
                 BrandBar(uiState, running = summary?.state == TableState.RUNNING, reduceMotion = reduceMotion,
                     onManualClick = { showManual = true })
-                com.turnhub.android.ui.components.AppVersionLabel(
-                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp))
             }
         },
         bottomBar = {
@@ -237,9 +245,7 @@ fun HomeScreen(
                             selected = selected,
                             onClick = {
                                 if (!selected) haptics.tick()
-                                if (entry == HomeTab.TABLE) {
-                                    if (summary != null && atlasGame) showTablet = true else onPlayStandalone()
-                                } else tab = entry
+                                tab = entry
                             },
                             icon = {
                                 BadgedBox(badge = { if (entry == HomeTab.GAME && incomingRequest) Badge { Text("!") } }) {
@@ -287,12 +293,35 @@ fun HomeScreen(
                     }
                 }
             }
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-                pageState.SaveableStateProvider(tab.name) {
+            // Tabs push sideways in the bar's direction, like slides; none when motion is reduced.
+            AnimatedContent(
+                targetState = tab,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.TopCenter,
+                transitionSpec = {
+                    if (reduceMotion) {
+                        EnterTransition.None togetherWith ExitTransition.None
+                    } else {
+                        val forward = targetState.ordinal > initialState.ordinal
+                        val spec = tween<androidx.compose.ui.unit.IntOffset>(DesignTokens.Motion.BASE_MS)
+                        (slideInHorizontally(spec) { if (forward) it / 5 else -it / 5 } + fadeIn(tween(DesignTokens.Motion.BASE_MS))) togetherWith
+                            (slideOutHorizontally(spec) { if (forward) -it / 5 else it / 5 } + fadeOut(tween(DesignTokens.Motion.FAST_MS)))
+                    }
+                },
+                label = "tab",
+            ) { shown ->
+                pageState.SaveableStateProvider(shown.name) {
                     when {
-                        !setup.visible && tab == HomeTab.HISTORY -> localHistoryContent()
-                        !setup.visible && tab == HomeTab.PLAYERS && (summary == null || playersPage == "Device") -> localPlayersContent()
-                        !setup.visible && tab == HomeTab.GAME && (summary == null || !atlasGame) -> localGameContent()
+                        !setup.visible && shown == HomeTab.TABLE -> if (summary != null && atlasGame) {
+                            com.turnhub.android.ui.tablet.TablePreview(summary, reduceMotion) {
+                                Text("Atlas table", color = p.text, style = MaterialTheme.typography.titleMedium)
+                                Text("Use this device as the table's shared screen.", color = p.muted)
+                                AccentButton("Use as table screen", { showTablet = true }, Modifier.fillMaxWidth())
+                            }
+                        } else localTableContent { tab = HomeTab.GAME }
+                        !setup.visible && shown == HomeTab.HISTORY -> localHistoryContent()
+                        !setup.visible && shown == HomeTab.PLAYERS && (summary == null || playersPage == "Device") -> localPlayersContent()
+                        !setup.visible && shown == HomeTab.GAME && (summary == null || !atlasGame) -> localGameContent { tab = HomeTab.TABLE }
                         else -> Column(
                             Modifier.widthIn(max = 720.dp).fillMaxWidth()
                                 .verticalScroll(rememberScrollState()).padding(16.dp),
@@ -306,7 +335,7 @@ fun HomeScreen(
                             }
                             if (setup.visible) {
                                 SetupScreen(setup, setupActions)
-                            } else when (tab) {
+                            } else when (shown) {
                                 HomeTab.GAME -> if (summary != null) {
                                     GameSelector(summary, onFollowGame, enabled = !uiState.isOffline && uiState.player?.busy != true && seatClaim?.waiting != true)
                                     if (updatesAvailable > 0) UpdateAvailableCard(updatesAvailable, onOpenUpdates)
@@ -333,6 +362,7 @@ fun HomeScreen(
                                     }
                                     if (canDev) com.turnhub.android.ui.components.DisclosureCard("Developer") { DevTab(admin, adminActions) }
                                     BrassCard { com.turnhub.android.ui.components.ReportBugButton() }
+                                    com.turnhub.android.ui.components.AppVersionLabel(Modifier.fillMaxWidth())
                                 }
                                 HomeTab.HISTORY, HomeTab.TABLE -> Unit
                             }

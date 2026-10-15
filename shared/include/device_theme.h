@@ -15,4 +15,22 @@ inline const Palette &palette(Id id) {
   };
   return values[valid(static_cast<uint8_t>(id)) ? static_cast<uint8_t>(id) : 0];
 }
+// Named player swatches (playerColors), RGB888 in picker order.
+struct PlayerColor { const char *name; uint32_t rgb; };
+constexpr uint8_t PLAYER_COLOR_COUNT = 10;
+inline const PlayerColor &playerColor(uint8_t index) {
+  static const PlayerColor values[] = {
+    {"Crimson", 0xEF5350},
+    {"Ember", 0xFF9800},
+    {"Gold", 0xFDD835},
+    {"Leaf", 0x7CB342},
+    {"Jade", 0x26A69A},
+    {"Sky", 0x29B6F6},
+    {"Sapphire", 0x5C6BC0},
+    {"Violet", 0xAB47BC},
+    {"Rose", 0xEC407A},
+    {"Pearl", 0xECEFF1},
+  };
+  return values[index < PLAYER_COLOR_COUNT ? index : 0];
+}
 } // namespace TurnHubTheme

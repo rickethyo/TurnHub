@@ -418,10 +418,9 @@ class MainActivity : ComponentActivity() {
                             localTable = standaloneViewModel.table,
                             onFollowGame = homeViewModel::onFollowGame,
                             onAtlasOpened = homeViewModel::onAtlasOpened,
-                            onPlayStandalone = ::playOnDevice,
                             atlasEnabled = atlasEnabled,
                             onAtlasEnabled = ::chooseAtlasEnabled,
-                            localGameContent = {
+                            localGameContent = { openTable ->
                                 if (localState.storageProblem != null) {
                                     androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
                                         androidx.compose.material3.Text(localState.storageProblem!!)
@@ -429,15 +428,19 @@ class MainActivity : ComponentActivity() {
                                     }
                                 } else if (localState.game.state == com.turnhub.android.protocol.TableState.LOBBY) {
                                     com.turnhub.android.ui.tablet.StandaloneLobby(localState, standaloneViewModel.table,
-                                        embedded = true, onStarted = { standalone = true })
+                                        embedded = true, onStarted = openTable)
                                 } else {
                                     val game = localState.game
                                     val summary = androidx.compose.runtime.remember(game, localState.library.players) {
                                         game.toSummary(System.currentTimeMillis(), com.turnhub.android.domain.TableClock.nowMs(),
                                             localState.library.players.associate { it.localId to it.personalization })
                                     }
-                                    com.turnhub.android.ui.home.DeviceGameOverview(summary, reduceMotion, ::playOnDevice)
+                                    com.turnhub.android.ui.home.DeviceGameOverview(summary, reduceMotion, openTable)
                                 }
+                            },
+                            localTableContent = { onSetUp ->
+                                com.turnhub.android.ui.tablet.EmbeddedTable(localState, standaloneViewModel.table, reduceMotion,
+                                    onFullScreen = ::playOnDevice, onSetUp = onSetUp)
                             },
                             localPlayersContent = {
                                 com.turnhub.android.ui.tablet.LocalLibraryScreen(localState, onClose = {},

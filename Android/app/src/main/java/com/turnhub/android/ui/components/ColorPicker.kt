@@ -23,12 +23,8 @@ import androidx.compose.ui.unit.dp
 import com.turnhub.android.ui.theme.palette
 import java.util.Locale
 
-private val playerColors = listOf(
-    "Crimson" to "#EF5350", "Ember" to "#FF9800", "Gold" to "#FDD835",
-    "Leaf" to "#7CB342", "Jade" to "#26A69A", "Sky" to "#29B6F6",
-    "Sapphire" to "#5C6BC0", "Violet" to "#AB47BC", "Rose" to "#EC407A",
-    "Pearl" to "#ECEFF1",
-)
+/** The shared swatches from design/tokens.json (`playerColors`). */
+private val playerColors = com.turnhub.android.ui.theme.DesignTokens.PlayerColors
 
 internal fun playerColor(hex: String?, fallback: Color): Color =
     hex?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() } ?: fallback
