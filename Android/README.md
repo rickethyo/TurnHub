@@ -27,7 +27,8 @@ suggests card names as they type, and they can pick which printing's art); the
 name shows under theirs, on their commander-tax counter and in others' Commander
 damage, and its Scryfall art crop (credited to the artist,
 cached in `commander_art/`, off via Settings > Commander card art) fills their
-tile. When the device game is a Magic format, a Planes tab runs Planechase:
+tile. When the device game is a Magic format, its setup has a Planechase
+switch and a Planes tab runs Planechase:
 setup (TurnHub's shuffled deck, downloaded once from Scryfall into
 `files/planes/` with art cached in `plane_art/`, or the players' own cards),
 then the face-up plane with artist credit, the planar die with each roll's

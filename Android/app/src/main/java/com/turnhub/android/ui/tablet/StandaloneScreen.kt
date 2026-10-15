@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Alignment
@@ -168,7 +170,7 @@ fun EmbeddedTable(
             }
             when {
                 !lobby -> ToneButton("Full screen", onFullScreen)
-                game.canStart -> AccentButton("Start game", { table.start() })
+                game.canStart -> AccentButton("Start game", { table.start() }, Modifier.width(IntrinsicSize.Max))
                 else -> ToneButton("Set up players", onSetUp)
             }
         }
@@ -218,6 +220,8 @@ fun StandaloneLobby(
     table: StandaloneTable,
     embedded: Boolean = false,
     onStarted: () -> Unit = {},
+    /** Opens the Planes tab, where the planar deck is chosen; null hides the link. */
+    onOpenPlanes: (() -> Unit)? = null,
 ) {
     val game = state.game
     val summary = remember(game, state.library.players) {
@@ -258,5 +262,16 @@ fun StandaloneLobby(
         starterHint = "First player: random. Tap First? to choose.",
         introduction = "One screen. Many rivals. Your table.",
         embedded = embedded,
+        extraSettings = {
+            if (game.profile.magicRules) {
+                val planar = game.planechase
+                SetupSwitch("Planechase",
+                    if (!planar.enabled) "Plane cards and the planar die join the game."
+                    else if (planar.source == com.turnhub.android.standalone.PlanarDeckSource.PHYSICAL) "With your own plane cards."
+                    else "With TurnHub's planar deck.",
+                    planar.enabled, true, table::setPlanechase)
+                if (planar.enabled && onOpenPlanes != null) ToneButton("Planar deck and rules", onOpenPlanes, Modifier.fillMaxWidth())
+            }
+        },
     )
 }

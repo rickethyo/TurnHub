@@ -423,7 +423,7 @@ class MainActivity : ComponentActivity() {
                             onAtlasOpened = homeViewModel::onAtlasOpened,
                             atlasEnabled = atlasEnabled,
                             onAtlasEnabled = ::chooseAtlasEnabled,
-                            localGameContent = { openTable ->
+                            localGameContent = { openTable, openPlanes ->
                                 if (localState.storageProblem != null) {
                                     androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
                                         androidx.compose.material3.Text(localState.storageProblem!!)
@@ -431,7 +431,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                 } else if (localState.game.state == com.turnhub.android.protocol.TableState.LOBBY) {
                                     com.turnhub.android.ui.tablet.StandaloneLobby(localState, standaloneViewModel.table,
-                                        embedded = true, onStarted = openTable)
+                                        embedded = true, onStarted = openTable, onOpenPlanes = openPlanes)
                                 } else {
                                     val game = localState.game
                                     val summary = androidx.compose.runtime.remember(game, localState.library.players) {
