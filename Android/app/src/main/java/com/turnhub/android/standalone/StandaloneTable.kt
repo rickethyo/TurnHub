@@ -109,8 +109,38 @@ class StandaloneTable(
     fun setAccountCredential(localId: String, credential: LocalCredential): Boolean {
         if (!accountUnlocked(localId)) return false
         val before = _state.value
-        return publish(before.copy(library = before.library.copy(players = before.library.players.map {
+        val saved = publish(before.copy(library = before.library.copy(players = before.library.players.map {
             if (it.localId == localId) it.copy(credential = credential) else it })))
+        // Whoever just chose the PIN stays signed in to the account, as after createAccount.
+        if (saved) unlockedAccounts += localId
+        return saved
+    }
+
+    /** Removes the account's PIN or password, so its settings open without one. */
+    fun clearAccountCredential(localId: String): Boolean {
+        if (!accountUnlocked(localId)) return false
+        val before = _state.value
+        if (before.library.players.none { it.localId == localId && it.credential != null }) return false
+        return publish(before.copy(library = before.library.copy(players = before.library.players.map {
+            if (it.localId == localId) it.copy(credential = null) else it })))
+    }
+
+    /**
+     * Deletes a saved account from this phone. Finished games stay in history
+     * under the name played with; a game in progress keeps the account until it
+     * goes back to the lobby.
+     */
+    fun deleteAccount(localId: String): Boolean {
+        if (!accountUnlocked(localId)) return false
+        val before = _state.value
+        if (before.library.players.none { it.localId == localId }) return false
+        val game = before.game
+        if (game.state != TableState.LOBBY && game.players.any { it.localId == localId }) return false
+        var lobby = game
+        lobby.players.indexOfFirst { it.localId == localId }.takeIf { it >= 0 }?.let { lobby = lobby.removePlayer(it) }
+        val saved = publish(before.copy(game = lobby, library = before.library.copy(players = before.library.players.filterNot { it.localId == localId })))
+        if (saved) unlockedAccounts -= localId
+        return saved
     }
 
     // --- the lobby ------------------------------------------------------------------

@@ -173,6 +173,39 @@ class LocalAccountsTest {
         assertNotNull(table.state.value.storageProblem)
     }
 
+    @Test fun `setting a PIN keeps the account's settings open until the app restarts`() {
+        val store = Store()
+        val table = StandaloneTable(store)
+        // Players typed into the lobby get an account with no PIN; setting one used to lock it at once.
+        table.addPlayer("Ana")
+        val player = table.state.value.library.players.single()
+        assertTrue(table.setAccountCredential(player.localId, LocalCredential.create("1234")))
+        // The editor stays open, so the next change and a second PIN change both save.
+        assertTrue(table.accountUnlocked(player.localId))
+        assertTrue(table.saveAccount(player.localId, player.name, player.personalization.copy(avatar = "die")))
+        assertTrue(table.setAccountCredential(player.localId, LocalCredential.create("5678")))
+        assertFalse(StandaloneTable(store).accountUnlocked(player.localId))
+    }
+
+    @Test fun `a PIN can be removed and an account deleted, keeping its finished games`() = runTest {
+        val store = Store()
+        val table = StandaloneTable(store, shortGameMs = 0)
+        table.addPlayer("Ana"); table.addPlayer("Bo")
+        val ana = table.state.value.library.players.first { it.name == "Ana" }
+        assertTrue(table.setAccountCredential(ana.localId, LocalCredential.create("1234")))
+        assertTrue(table.clearAccountCredential(ana.localId))
+        assertNull(table.state.value.library.players.first { it.localId == ana.localId }.credential)
+        assertTrue(StandaloneTable(store).accountUnlocked(ana.localId))
+        // Not while Ana is playing.
+        table.start()
+        assertFalse(table.deleteAccount(ana.localId))
+        table.control(com.turnhub.android.data.TabletSeat(StandaloneGame.seatHandle(0).id, 1), "reset")
+        assertTrue(table.deleteAccount(ana.localId))
+        assertTrue(table.state.value.library.players.none { it.localId == ana.localId })
+        assertTrue(table.state.value.game.players.none { it.localId == ana.localId })
+        assertTrue(StandaloneTable(store).state.value.library.players.none { it.localId == ana.localId })
+    }
+
     @Test fun `local account credentials preserve Atlas rules without storing plaintext and lock settings after restart`() {
         val store = Store()
         val table = StandaloneTable(store, shortGameMs = 0)
