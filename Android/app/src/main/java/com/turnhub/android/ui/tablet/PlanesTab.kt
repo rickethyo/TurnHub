@@ -1,0 +1,318 @@
+package com.turnhub.android.ui.tablet
+
+import android.content.Context
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import com.turnhub.android.data.PlaneInfo
+import com.turnhub.android.data.ScryfallPlanes
+import com.turnhub.android.protocol.TableState
+import com.turnhub.android.standalone.PlanarCard
+import com.turnhub.android.standalone.PlanarDeckSource
+import com.turnhub.android.standalone.PlanarFace
+import com.turnhub.android.standalone.Planechase
+import com.turnhub.android.standalone.StandaloneState
+import com.turnhub.android.standalone.StandaloneTable
+import com.turnhub.android.ui.components.AccentButton
+import com.turnhub.android.ui.components.BrassCard
+import com.turnhub.android.ui.components.DisclosureCard
+import com.turnhub.android.ui.components.Tone
+import com.turnhub.android.ui.components.ToneButton
+import com.turnhub.android.ui.theme.palette
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.io.File
+
+/** The planes on this phone, downloaded from Scryfall once, and their decoded art; one copy for the app. */
+internal object PlaneLibrary {
+    private var source: ScryfallPlanes? = null
+    private val art = mutableStateMapOf<String, ImageBitmap>()
+    /** The downloaded cards by id; null until the saved list is read or downloaded. */
+    var cards by mutableStateOf<Map<String, PlaneInfo>?>(null)
+        private set
+    var downloading by mutableStateOf(false)
+        private set
+    var problem by mutableStateOf<String?>(null)
+        private set
+
+    fun source(context: Context): ScryfallPlanes = source ?: run {
+        val app = context.applicationContext
+        ScryfallPlanes(File(app.filesDir, "planes"), File(app.cacheDir, "plane_art"), scryfallUserAgent(app)).also { source = it }
+    }
+
+    /** What a digital deck is built from: every downloaded card, or nothing yet. */
+    fun pool(context: Context): List<PlanarCard> = known(context)?.values?.map { it.card }.orEmpty()
+
+    fun known(context: Context): Map<String, PlaneInfo>? = cards ?: source(context).saved()?.associateBy { it.id }?.also { cards = it }
+
+    suspend fun download(context: Context) {
+        if (downloading) return
+        downloading = true
+        problem = null
+        runCatching { source(context).download() }
+            .onSuccess { list -> cards = list.associateBy { it.id } }
+            .onFailure { problem = "Couldn't download the planes. Check the internet connection and try again." }
+        downloading = false
+    }
+
+    suspend fun art(context: Context, card: PlaneInfo): ImageBitmap? = art[card.id] ?: run {
+        val bytes = source(context).art(card) ?: return null
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() ?: return null
+        art[card.id] = bitmap
+        bitmap
+    }
+}
+
+/**
+ * The Planes tab (Magic games on this device): Planechase setup before a game,
+ * then the face-up plane, the planar die and the deck tools during one. It acts
+ * for the player whose turn it is; the engine is [Planechase].
+ */
+@Composable
+fun PlanesTab(state: StandaloneState, table: StandaloneTable) {
+    val context = LocalContext.current
+    val game = state.game
+    val planar = game.planechase
+    val playing = game.state == TableState.RUNNING || game.state == TableState.PAUSED
+    val cards = PlaneLibrary.cards
+    LaunchedEffect(Unit) { PlaneLibrary.known(context) }
+    // The first time Planechase is turned on with TurnHub's deck, the planes come down once.
+    LaunchedEffect(planar.enabled, planar.source) {
+        if (planar.enabled && planar.source == PlanarDeckSource.DIGITAL && PlaneLibrary.known(context) == null &&
+            PlaneLibrary.problem == null) PlaneLibrary.download(context)
+    }
+    Column(
+        Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        if (playing && planar.enabled) {
+            PlanarPlay(state, table, cards)
+        } else {
+            if (playing) BrassCard { Text("This game isn't using Planechase. Turn it on here before the next game.", color = palette.muted) }
+            PlanarSetup(state, table, cards)
+        }
+        PlanarCredit()
+    }
+}
+
+@Composable
+private fun PlanarSetup(state: StandaloneState, table: StandaloneTable, cards: Map<String, PlaneInfo>?) {
+    val p = palette
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val game = state.game
+    val planar = game.planechase
+    val lobby = game.state == TableState.LOBBY
+    BrassCard {
+        Text("Planechase", color = p.text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+        Text("Plane cards and the planar die join the game. TurnHub shuffles the planar deck, rolls the die and counts " +
+            "what each roll costs. Players still do what the cards say.", color = p.muted)
+        SetupSwitch("Play Planechase", if (lobby) null else "Change this in the lobby, before the game starts.",
+            planar.enabled, lobby, table::setPlanechase)
+        if (planar.enabled) {
+            Text("Planar deck", color = p.muted, style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(planar.source == PlanarDeckSource.DIGITAL, { table.setPlanarSource(PlanarDeckSource.DIGITAL) },
+                    label = { Text("TurnHub's deck") }, enabled = lobby)
+                FilterChip(planar.source == PlanarDeckSource.PHYSICAL, { table.setPlanarSource(PlanarDeckSource.PHYSICAL) },
+                    label = { Text("Our own cards") }, enabled = lobby)
+            }
+            if (planar.source == PlanarDeckSource.PHYSICAL) {
+                Text("Shuffle your planar deck and turn over the first plane. TurnHub rolls the die, counts the cost " +
+                    "and tells you when to turn over the next one.", color = p.muted)
+            } else {
+                SetupSwitch("Include phenomena", "Up to two for each player, as the official rules allow.",
+                    planar.phenomena, lobby, table::setPlanarPhenomena)
+                val planes = cards?.values?.count { !it.phenomenon } ?: 0
+                val phenomena = cards?.values?.count { it.phenomenon } ?: 0
+                when {
+                    PlaneLibrary.downloading -> Text("Downloading the planes…", color = p.muted,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                    cards == null -> {
+                        Text(PlaneLibrary.problem ?: "The planes aren't on this phone yet.", color = if (PlaneLibrary.problem != null) p.bad else p.muted)
+                        AccentButton("Download the planes", { scope.launch { PlaneLibrary.download(context) } }, Modifier.fillMaxWidth())
+                        Text("Without them, a game uses your own cards.", color = p.faint, style = MaterialTheme.typography.bodySmall)
+                    }
+                    else -> {
+                        Text("Every game shuffles all $planes planes" + if (planar.phenomena) " and some of the $phenomena phenomena." else ".", color = p.muted)
+                        ToneButton("Check for new planes", { scope.launch { PlaneLibrary.download(context) } }, Modifier.fillMaxWidth())
+                    }
+                }
+            }
+        }
+    }
+    DisclosureCard("Planechase rules") {
+        listOf(
+            "The planar die has six faces: one Planeswalker symbol, one chaos symbol and four blanks (901.3a).",
+            "During your main phase, with nothing on the stack, you may roll the planar die. Your first roll each turn costs {0}, then {1} more for each roll before it (901.9).",
+            "Chaos: the plane's chaos ability triggers (311.7). Planeswalk: the plane goes to the bottom of the deck and the next one turns face up (701.31).",
+            "A phenomenon happens once when it turns face up, then you planeswalk away from it (312.5, 704.6f).",
+            "The player whose turn it is controls the planes (901.6). This game uses one shared planar deck (901.15).",
+        ).forEach { Text("• $it", color = p.text, style = MaterialTheme.typography.bodyMedium) }
+    }
+}
+
+@Composable
+private fun PlanarPlay(state: StandaloneState, table: StandaloneTable, cards: Map<String, PlaneInfo>?) {
+    val p = palette
+    val game = state.game
+    val planar = game.planechase
+    val running = game.state == TableState.RUNNING
+    val controller = game.active?.let { game.players.getOrNull(it)?.name }
+    // Chaos and physical planeswalks show for a few seconds after they happen (not when the tab opens).
+    var seenChaos by remember { mutableStateOf(planar.chaos) }
+    var seenWalks by remember { mutableStateOf(planar.planeswalks) }
+    var chaosNow by remember { mutableStateOf(false) }
+    var walkNow by remember { mutableStateOf(false) }
+    LaunchedEffect(planar.chaos) {
+        if (planar.chaos > seenChaos) { chaosNow = true; delay(5_000); chaosNow = false }
+        seenChaos = planar.chaos
+    }
+    LaunchedEffect(planar.planeswalks) {
+        if (planar.planeswalks > seenWalks) { walkNow = true; delay(5_000); walkNow = false }
+        seenWalks = planar.planeswalks
+    }
+
+    Text(if (game.state == TableState.PAUSED) "Paused. Resume the game to roll or planeswalk."
+        else "${controller ?: "The active player"} controls the planes.", color = p.muted)
+
+    if (planar.physical) {
+        BrassCard(highlight = if (walkNow) p.accent else null) {
+            Text("Your own cards", color = p.text, style = MaterialTheme.typography.titleLarge)
+            Text(if (walkNow) "Planeswalk! Put the plane on the bottom and turn over the next one."
+                else "Keep the face-up plane where everyone can read it.", color = if (walkNow) p.text else p.muted,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+            PlaneCounters(planar.counters[Planechase.PHYSICAL_PLANE] ?: 0) { table.changePlaneCounter(Planechase.PHYSICAL_PLANE, it) }
+        }
+    } else {
+        planar.faceUp.forEach { card ->
+            PlaneCardView(cards?.get(card.id), card, planar.counters[card.id] ?: 0, chaosNow) { table.changePlaneCounter(card.id, it) }
+        }
+    }
+
+    BrassCard {
+        val roll = planar.lastRoll
+        if (roll != null) {
+            val who = game.players.getOrNull(roll.player)?.name ?: "Player ${roll.player + 1}"
+            Text(dieFace(roll.face), color = when (roll.face) {
+                PlanarFace.BLANK -> p.muted
+                PlanarFace.CHAOS -> p.warn
+                PlanarFace.PLANESWALK -> p.accent
+            }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite })
+            Text("$who rolled" + when {
+                roll.fromEffect -> " for a card's effect."
+                else -> ", paying {${roll.cost}}."
+            }, color = p.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        }
+        if (planar.phenomenonPending) {
+            AccentButton("Done: planeswalk away", table::resolvePhenomenon, Modifier.fillMaxWidth(), enabled = running)
+        } else {
+            val cost = game.active?.let { planar.cost(it) } ?: 0
+            AccentButton("Roll the planar die: {$cost}", { table.rollPlanarDie() }, Modifier.fillMaxWidth(), enabled = running)
+        }
+    }
+
+    DisclosureCard("When a card says so") {
+        ToneButton("Roll for a card (free)", { table.rollPlanarDie(fromEffect = true) }, Modifier.fillMaxWidth(),
+            enabled = running && !planar.phenomenonPending)
+        ToneButton("Planeswalk", table::planeswalk, Modifier.fillMaxWidth(), enabled = running)
+        ToneButton("Chaos ensues", table::chaosEnsues, Modifier.fillMaxWidth(), enabled = running && !planar.phenomenonPending)
+        if (!planar.physical) {
+            ToneButton("Put the top card on the bottom", table::planarTopToBottom, Modifier.fillMaxWidth(), enabled = running)
+        }
+    }
+}
+
+/** The die's faces in words, with a mark that isn't Wizards' symbol: never colour or a glyph alone. */
+private fun dieFace(face: PlanarFace): String = when (face) {
+    PlanarFace.BLANK -> "Blank"
+    PlanarFace.CHAOS -> "✷ Chaos"
+    PlanarFace.PLANESWALK -> "➜ Planeswalk"
+}
+
+@Composable
+private fun PlaneCardView(info: PlaneInfo?, card: PlanarCard, counters: Int, chaosNow: Boolean, onCounter: (Int) -> Unit) {
+    val p = palette
+    val context = LocalContext.current
+    BrassCard(highlight = if (chaosNow) p.warn else null) {
+        if (info == null) {
+            Text(if (card.phenomenon) "A phenomenon" else "A plane", color = p.text, style = MaterialTheme.typography.titleLarge)
+            Text("This card isn't on the phone any more. Download the planes again from setup.", color = p.muted)
+        } else {
+            val art by produceState<ImageBitmap?>(null, info.id) { value = PlaneLibrary.art(context, info) }
+            art?.let {
+                Image(it, contentDescription = null, contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f).clip(RoundedCornerShape(12.dp)))
+            }
+            Text(info.name, color = p.text, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() })
+            Text(info.typeLine, color = p.muted, style = MaterialTheme.typography.titleSmall)
+            if (chaosNow) Text("Chaos ensues!", color = p.warn, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+            info.text.split('\n').filter { it.isNotBlank() }.forEach { line ->
+                val chaos = line.contains("chaos ensues", ignoreCase = true)
+                Text(line, color = p.text, style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (chaos && chaosNow) FontWeight.Bold else FontWeight.Normal,
+                    modifier = if (chaos) Modifier.fillMaxWidth().background(p.surface2, RoundedCornerShape(8.dp)).padding(8.dp) else Modifier)
+            }
+            Text("Art by ${info.artist}. Card from Scryfall.", color = p.faint, style = MaterialTheme.typography.bodySmall)
+        }
+        if (!card.phenomenon) PlaneCounters(counters, onCounter)
+    }
+}
+
+@Composable
+private fun PlaneCounters(count: Int, onChange: (Int) -> Unit) {
+    val p = palette
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Counters on this plane", color = p.muted, modifier = Modifier.weight(1f))
+        ToneButton("−", { onChange(-1) }, enabled = count > 0)
+        Text("$count", color = p.text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        ToneButton("+", { onChange(1) }, tone = Tone.ACCENT)
+    }
+}
+
+@Composable
+private fun PlanarCredit() {
+    Text("Card names, text and art come from Scryfall and stay on this phone. TurnHub is unofficial Fan Content " +
+        "permitted under the Fan Content Policy. Not approved or endorsed by Wizards. Portions of the materials used " +
+        "are property of Wizards of the Coast. ©Wizards of the Coast LLC.",
+        color = palette.faint, style = MaterialTheme.typography.bodySmall)
+}

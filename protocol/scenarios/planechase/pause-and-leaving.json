@@ -1,0 +1,19 @@
+{
+  "description": "A paused game takes no rolls or deck moves but still takes counter corrections; when the active player leaves, the next player's turn starts with a free roll. A shared deck loses no cards.",
+  "rules": ["901.6", "901.15b"],
+  "setup": {
+    "profile": "mtg", "players": 3, "starter": 1,
+    "planechase": { "source": "digital", "deck": ["plane-a", "plane-b", "plane-c"], "phenomena": [] }
+  },
+  "steps": [
+    { "action": "start" },
+    { "action": "roll", "player": 1, "face": "blank", "expect": { "nextCost": { "1": 1 } } },
+    { "action": "pause" },
+    { "action": "roll", "player": 1, "face": "blank", "expect": { "changed": false } },
+    { "action": "planeswalk", "player": 1, "expect": { "changed": false } },
+    { "action": "counter", "player": 3, "card": "plane-a", "delta": 1, "expect": { "counters": { "plane-a": 1 } } },
+    { "action": "pause" },
+    { "action": "eliminate", "player": 1, "expect": { "active": 2, "nextCost": { "1": 0, "2": 0 }, "faceUp": ["plane-a"], "deck": ["plane-b", "plane-c"] } },
+    { "action": "roll", "player": 2, "face": "blank", "expect": { "lastRoll": { "player": 2, "face": "blank", "cost": 0 } } }
+  ]
+}

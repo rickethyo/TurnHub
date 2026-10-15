@@ -96,7 +96,10 @@ class MainActivity : ComponentActivity() {
     /** The standalone tablet game (no Atlas), kept across rotation. */
     private val standaloneViewModel: StandaloneViewModel by viewModels {
         viewModelFactory {
-            initializer { StandaloneViewModel(StandaloneTable(PreferencesStandaloneStore(applicationContext))) }
+            initializer {
+                StandaloneViewModel(StandaloneTable(PreferencesStandaloneStore(applicationContext),
+                    planarPool = { com.turnhub.android.ui.tablet.PlaneLibrary.pool(applicationContext) }))
+            }
         }
     }
 
@@ -450,6 +453,9 @@ class MainActivity : ComponentActivity() {
                                     importState = homeViewModel.localImport.collectAsStateWithLifecycle().value,
                                     onLoadProfiles = homeViewModel::onLoadLocalImportProfiles,
                                     onLinkAccount = homeViewModel::onLinkLocalAccount)
+                            },
+                            localPlanesContent = {
+                                com.turnhub.android.ui.tablet.PlanesTab(localState, standaloneViewModel.table)
                             },
                             localHistoryContent = {
                                 com.turnhub.android.ui.tablet.LocalLibraryScreen(localState, onClose = {},

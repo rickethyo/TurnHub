@@ -1,0 +1,19 @@
+{
+  "description": "Rolling the Planeswalker symbol planeswalks: the plane goes to the bottom with its counters, and the top card turns face up. Chaos only counts.",
+  "rules": ["901.8", "901.9b", "901.9c", "701.31b"],
+  "setup": {
+    "profile": "mtg", "players": 2, "starter": 1,
+    "planechase": { "source": "digital", "deck": ["plane-a", "plane-b", "plane-c"], "phenomena": [] }
+  },
+  "steps": [
+    { "action": "start", "expect": { "faceUp": ["plane-a"], "deck": ["plane-b", "plane-c"] } },
+    { "action": "counter", "player": 2, "card": "plane-a", "delta": 2, "expect": { "counters": { "plane-a": 2 } } },
+    { "action": "counter", "player": 2, "card": "plane-b", "delta": 1, "expect": { "changed": false } },
+    { "action": "roll", "player": 1, "face": "chaos", "expect": { "chaos": 1, "faceUp": ["plane-a"], "counters": { "plane-a": 2 } } },
+    { "action": "roll", "player": 1, "face": "planeswalk", "expect": { "planeswalks": 1, "faceUp": ["plane-b"], "deck": ["plane-c", "plane-a"], "counters": {}, "nextCost": { "1": 2 } } },
+    { "action": "chaosEnsues", "player": 1, "expect": { "chaos": 2 } },
+    { "action": "planeswalk", "player": 1, "expect": { "planeswalks": 2, "faceUp": ["plane-c"], "deck": ["plane-a", "plane-b"] } },
+    { "action": "topToBottom", "player": 1, "expect": { "faceUp": ["plane-c"], "deck": ["plane-b", "plane-a"] } },
+    { "action": "planeswalk", "player": 2, "expect": { "changed": false } }
+  ]
+}

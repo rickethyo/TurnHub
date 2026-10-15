@@ -1,0 +1,16 @@
+{
+  "description": "A phenomenon turned face up waits for the table to resolve it; nobody rolls until then; resolving it planeswalks away and it goes to the bottom.",
+  "rules": ["312.5", "704.6f", "901.11a"],
+  "setup": {
+    "profile": "mtg", "players": 2, "starter": 1,
+    "planechase": { "source": "digital", "deck": ["plane-a", "phen-x", "plane-b"], "phenomena": ["phen-x"] }
+  },
+  "steps": [
+    { "action": "start", "expect": { "faceUp": ["plane-a"], "deck": ["phen-x", "plane-b"] } },
+    { "action": "roll", "player": 1, "face": "planeswalk", "expect": { "faceUp": ["phen-x"], "deck": ["plane-b", "plane-a"], "phenomenonPending": true } },
+    { "action": "roll", "player": 1, "face": "blank", "expect": { "changed": false } },
+    { "action": "resolvePhenomenon", "player": 2, "expect": { "changed": false } },
+    { "action": "resolvePhenomenon", "player": 1, "expect": { "faceUp": ["plane-b"], "deck": ["plane-a", "phen-x"], "phenomenonPending": false, "planeswalks": 2 } },
+    { "action": "resolvePhenomenon", "player": 1, "expect": { "changed": false } }
+  ]
+}

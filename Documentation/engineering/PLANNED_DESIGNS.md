@@ -4,6 +4,118 @@ Agreed designs for features not built yet, with their feature gates. The
 short list of open work is [Staged Changes](STAGED_CHANGES.md); when one of
 these is built, move what is true into its topic document and delete it here.
 
+## Planechase on Atlas and the plane screen (*Planned*, owner 2026-10-15)
+
+The standalone app runs Planechase today ([Gameplay](GAMEPLAY.md#planechase)).
+The end goal goes further:
+
+- Planechase as complete as dedicated life-counter apps offer it.
+- On Atlas, a **second full-screen touch display for the planes**, working
+  together with the table screen.
+- Plane effects TurnHub can model happen automatically, with switches,
+  because cards change outcomes and no engine captures every edge case.
+
+**Automatic effects.** The catalogue tags each card at one of three levels:
+
+| Level | What happens | Example |
+|---|---|---|
+| Automatic | TurnHub changes life, poison or plane counters itself | Naar Isle's flame counter and life loss on its controller's turn |
+| Reminder | A prompt at the right moment, with Done | Littjara's token at upkeep |
+| Shown | Static abilities stay on screen | Bant's exalted |
+
+- **Effect data:** each effect is a trigger, a target and an action.
+  - Triggers: a turn begins (TurnHub's upkeep is the moment PASS hands the
+    turn over), a turn ends, planeswalk to or away, chaos, a roll or a blank.
+  - Targets: the planar controller, the active player, each player, each
+    opponent, the plane, or a player chosen on screen.
+  - Actions: change life or poison, by a fixed amount or the plane's
+    counters; change plane counters; planeswalk at a counter count.
+  - Damage and life loss stay distinct in the data.
+- **Switches:**
+  - Automation is on by default, a per-game switch changeable mid-game.
+  - "Pause this plane" turns automation off for one plane.
+  - Undo reverses each automatic change.
+  - With automation off, automatic effects show as reminders.
+- **Same path as a person:** automatic changes go through the same Intents
+  as a manual change, with the plane as the actor. Validation, automatic
+  eliminations, checkpoints and statistics behave as if a player had tapped
+  the button.
+
+**Card scripts.** A few cards move the deck or change the die, and are
+tagged in the catalogue with these primitives:
+
+| Primitive | Cards |
+|---|---|
+| Reveal until N planes, choose one on top | Interplanar Tunnel |
+| Reveal until N planes, all face up | Spatial Merging |
+| Add a plane without leaving | Norn's Seedcore |
+| Reveal top N, chaos on each | Pools of Becoming |
+| Reveal the top card, may bottom it | Stairs to Infinity |
+| Chaos on a revealed plane | The Fertile Lands of Saulvinia |
+| Blank rolls are chaos | Chaotic Aether |
+| Planeswalk rolls are chaos | Fixed Point in Time, No Way Out |
+| Reverse the turn order | Time Distortion |
+
+Several face-up planes planeswalk away together (901.11c). Grand Melee isn't
+supported.
+
+**Decks and setup.**
+
+- **Decks:** each player's own deck (901.3) alongside the shared deck,
+  including Two-Headed Giant (901.12a), with a player leaving taking their
+  cards (901.10).
+- **Building decks:** a deck builder with saved decks, by set or
+  hand-picked.
+- **Official limits:** a shared deck has at least min(40, 10 x players)
+  cards and at most 2 x players phenomena; an own deck has at least 10 cards
+  and at most 2 phenomena; names are unique. They are checked at Start.
+- **House rules** unlock smaller decks, more phenomena, free rolls and Un-
+  cards.
+
+**Atlas parity.** `PlanarState` in `GameEngine`, one per `GameTable`.
+
+- **Intents:**
+  - `ConfigurePlanechase`
+  - `RollPlanarDie`
+  - `Planeswalk`
+  - `ChaosEnsues`
+  - `ResolvePlanarCard`
+  - `ChangePlaneCounter`
+  - `PlanarDeckTool`
+  - `SetPlaneAutomation`
+  - `UndoPlaneEffect`
+- **State:** a `planechase` object in `/api/v1/state`, with form controls
+  under `/api/control/planar-*`.
+- **Checkpoint:** a schema bump; no migration.
+- **Randomness:** Fisher-Yates shuffles and a uniform die from `esp_random`,
+  injected so tests can script them.
+- **Tests:** the host suite runs the shared scenarios.
+- **Card names:** Atlas stores card IDs and names only; full text and art
+  stay on phones.
+
+**Two screens.** The plane screen is a separate LVGL view (`PlaneView`) built
+from the same snapshot as the table view. Both send Intents to the one engine.
+
+- **Simulator:** a second window, so the pair can be designed before
+  hardware exists.
+- **Hardware:** the S3 Atlas plan is one 480 x 320 SPI panel. A second panel
+  on the other free SPI host, with its own touch controller, needs a bench
+  check of frame buffer memory and flush time.
+- **Fallbacks:** a small display board fed from Atlas's state, or a connected
+  tablet running the same view.
+- **One screen:** an Atlas without the plane screen shows the plane in a
+  panel.
+
+**Idea, not decided.** A second phone or tablet as the plane screen for a
+standalone game, possibly paid.
+
+- **Linking:** the main device would serve the same state and controls
+  locally, joined by QR code or mDNS, with Nearby Connections as the Android
+  fallback.
+- **Conflicts:**
+  - It would need an exception to "multi-phone play requires Atlas".
+  - It must not charge for Wizards card content (Fan Content Policy).
+
 ## SD cards across several Atlases (*Planned*, owner 2026-09-25)
 
 A card records its owner Atlas. A card from another Atlas is offered as
