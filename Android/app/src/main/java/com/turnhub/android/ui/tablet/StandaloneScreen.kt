@@ -265,10 +265,12 @@ fun StandaloneLobby(
         extraSettings = {
             if (game.profile.magicRules) {
                 val planar = game.planechase
+                val digital = planar.source == com.turnhub.android.standalone.PlanarDeckSource.DIGITAL
+                PlanesDownloadWhenNeeded(planar)
                 SetupSwitch("Planechase",
                     if (!planar.enabled) "Plane cards and the planar die join the game."
-                    else if (planar.source == com.turnhub.android.standalone.PlanarDeckSource.PHYSICAL) "With your own plane cards."
-                    else "With TurnHub's planar deck.",
+                    else if (!digital) "With your own plane cards."
+                    else listOfNotNull("With TurnHub's planar deck.", planesDownloadNote()).joinToString(" "),
                     planar.enabled, true, table::setPlanechase)
                 if (planar.enabled && onOpenPlanes != null) ToneButton("Planar deck and rules", onOpenPlanes, Modifier.fillMaxWidth())
             }

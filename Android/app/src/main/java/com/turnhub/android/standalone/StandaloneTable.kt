@@ -213,6 +213,8 @@ class StandaloneTable(
         else Planechase.shuffledDeck(planarPool(), game.players.size, game.planechase.phenomena, planarRandom)
 
     fun setPlanechase(on: Boolean) = edit { it.setPlanechase(on) }
+    /** A digital game that started before the planes were downloaded switches to TurnHub's deck. */
+    fun dealPlanarDeck() = edit { it.dealPlanarDeck(Planechase.shuffledDeck(planarPool(), it.players.size, it.planechase.phenomena, planarRandom)) }
     fun setPlanarSource(source: PlanarDeckSource) = edit { it.setPlanarSource(source) }
     fun setPlanarPhenomena(on: Boolean) = edit { it.setPlanarPhenomena(on) }
 
