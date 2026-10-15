@@ -40,6 +40,8 @@ data class LocalPlayer(
     val demerits: Int = 0,
     val extensionsEarned: Int = 0,
     val extensionsUsed: Int = 0,
+    /** The commander this player brought, for the table's banter; shown, never scored. */
+    val commander: String? = null,
 )
 
 /**
@@ -275,7 +277,7 @@ data class StandaloneGame(
         return copy(
             gameId = gameId,
             state = TableState.RUNNING,
-            players = players.map { LocalPlayer(it.name, it.profileId, life = startingLife, localId = it.localId) },
+            players = players.map { LocalPlayer(it.name, it.profileId, life = startingLife, localId = it.localId, commander = it.commander) },
             active = first,
             starter = first,
             winner = null,
@@ -305,7 +307,7 @@ data class StandaloneGame(
             timerRules = timerRules,
             twoHeadedGiant = twoHeadedGiant,
             houseRules = houseRules,
-            players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId) },
+            players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId, commander = it.commander) },
             revision = revision + 1,
         )
     }
@@ -506,6 +508,26 @@ data class StandaloneGame(
         return start(nowMs, gameId, random)
     }
 
+    /**
+     * Sean Mode (Star Commander only): a rematch reseated so every player's two
+     * allies become their enemies. Taking every second seat (1, 3, 5, 2, 4) turns
+     * the star inside out: neighbours end up across it, and the players across
+     * it become the new neighbours.
+     */
+    fun seanModeRematch(nowMs: Long, gameId: String, random: Random = Random.Default): StandaloneGame {
+        if (state != TableState.GAME_OVER || !star || players.size != StarCommander.PLAYERS) return this
+        val reseated = SEAN_MODE_ORDER.map { players[it] }
+        return copy(players = reseated, starter = null).start(nowMs, gameId, random)
+    }
+
+    /** Names (or clears, when blank) the commander [index] is playing. */
+    fun setCommander(index: Int, name: String?): StandaloneGame {
+        if (index !in players.indices) return this
+        val clean = name?.trim()?.take(MAX_COMMANDER)?.takeIf { it.isNotEmpty() }
+        if (players[index].commander == clean) return this
+        return update(index) { it.copy(commander = clean) }
+    }
+
     private fun finish(winners: List<Int>, nowMs: Long): StandaloneGame = copy(
         state = TableState.GAME_OVER,
         winner = winners.firstOrNull(),
@@ -636,6 +658,7 @@ data class StandaloneGame(
                     counters = p.counters,
                     demerits = p.demerits,
                     extensionsAvailable = p.extensionsEarned - p.extensionsUsed,
+                    commander = p.commander,
                     life = if (state == TableState.LOBBY) null else p.life,
                     turnsCompleted = p.turnsCompleted.toLong(),
                     commanderDamage = p.commanderDamage.map { (source, damage) -> CommanderDamage(source + 1, damage) },
@@ -653,6 +676,9 @@ data class StandaloneGame(
     companion object {
         const val MAX_PLAYERS = 8
         const val MAX_NAME = 32
+        const val MAX_COMMANDER = 48
+        /** Every second seat of the star: today's allies sit across from each other. */
+        val SEAN_MODE_ORDER = listOf(0, 2, 4, 1, 3)
         const val MAX_LIFE = 99_999
         val TURN_TIMER_RANGE_MS = 15_000L..3_600_000L
         val TURN_TIMER_PRESETS_MS = listOf(0L, 60_000L, 120_000L, 180_000L, 300_000L, 600_000L)

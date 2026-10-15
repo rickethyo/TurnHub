@@ -21,7 +21,12 @@ seats (placeholder seats fill a short roster; two when nobody is seated). It
 plays like the real table but lives only in memory, so nothing on it is saved.
 Full screen takes a started game over the whole screen. Star Commander games can
 use the setup's star as the table layout (a per-device switch in the lobby and
-in the table menu's Sound & display), with each panel facing its player. Game shows local
+in the table menu's Sound & display), with each panel facing its player. In any
+Commander mode a player can optionally name their commander in the lobby; the
+name shows under theirs and its Scryfall art crop (credited to the artist,
+cached in `commander_art/`, off via Settings > Commander card art) fills their
+tile. A finished phone-hosted Star game also offers Sean Mode, a rematch that
+reseats the five players so allies become enemies. Game shows local
 setup or the same stage/life overview used for connected play; when Atlas is
 available, This device and Atlas select which game is shown. Players keeps local
 profiles available and adds Table and Me sections when connected. History keeps

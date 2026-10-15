@@ -353,6 +353,12 @@ fun HomeScreen(
                                 }
                                 HomeTab.SETTINGS -> {
                                     AppearanceCard(theme, reduceMotion, accountActions)
+                                    BrassCard {
+                                        val (artOn, setArt) = com.turnhub.android.ui.tablet.rememberCommanderArtEnabled()
+                                        com.turnhub.android.ui.tablet.SetupSwitch("Commander card art",
+                                            "When a player names their commander, its art fills their tile. The art comes from " +
+                                                "Scryfall; only the commander's name is sent.", artOn, true, setArt)
+                                    }
                                     BrassCard { com.turnhub.android.ui.components.GameSoundControls() }
                                     com.turnhub.android.ui.components.DisclosureCard("Atlas connection") {
                                         com.turnhub.android.ui.tablet.SetupSwitch("Discover Atlas", null, atlasEnabled, true, onAtlasEnabled)

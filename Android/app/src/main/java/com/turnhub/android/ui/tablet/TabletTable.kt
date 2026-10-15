@@ -59,6 +59,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -464,6 +465,10 @@ internal fun TabletTable(
                         ToneButton("New players", { send(anySeat, "reset") }, Modifier.weight(1f))
                         AccentButton("Rematch", { send(anySeat, "rematch") }, Modifier.weight(1f))
                     }
+                    // The Sean Mode easter egg: the same five, reseated so allies become enemies.
+                    if (standalone && summary.star) {
+                        ToneButton("Sean Mode: allies become enemies", { send(anySeat, "sean-mode") }, Modifier.fillMaxWidth())
+                    }
                 }
             }
             else -> Unit
@@ -639,6 +644,8 @@ private fun PlayerPanel(
     val out = unit.out
     val (small, big) = lifeSteps(summary.settings.profile)
     val name = unit.name
+    // The commanders a team or player named, shown under the name.
+    val commanders = unit.members.mapNotNull { it.commander }.takeIf { it.isNotEmpty() }?.joinToString(" & ")
     // The active panel's edge breathes slowly; steady when motion is reduced. The value is
     // read only while drawing, so the pulse redraws the edge without recomposing the panel.
     val glow = if (active && !reduceMotion) {
@@ -672,7 +679,7 @@ private fun PlayerPanel(
             unit.members.forEach { member ->
                 PlayerTileBackground(member.tileBackground,
                     com.turnhub.android.ui.components.playerColor(member.color, p.avatarColor(member.playerNumber)),
-                    Modifier.weight(1f).fillMaxHeight())
+                    Modifier.weight(1f).fillMaxHeight(), art = rememberCommanderArt(member.commander))
             }
         }
         val nameMax = maxWidth * .6f
@@ -707,15 +714,21 @@ private fun PlayerPanel(
             unit.members.forEach { member -> member.avatar?.let {
                 com.turnhub.android.ui.components.AvatarGlyph(it, p.text, 32.dp)
             } }
-            Text(name, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false).widthIn(max = nameMax))
+            Column(Modifier.weight(1f, fill = false).widthIn(max = nameMax)) {
+                Text(name, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                commanders?.let {
+                    Text(it, color = p.muted, style = MaterialTheme.typography.labelMedium, fontStyle = FontStyle.Italic,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
             if (active) Tag("Turn", p.active, p.onActive)
             if (out) Tag(if (unit.members.any { it.conceded }) "Conceded" else "Eliminated", p.bad, p.surface)
         }
 
         unit.members.firstOrNull { it.playerNumber == summary.monarchPlayerNumber }?.let { monarch ->
             MonarchBadge(if (unit.members.size > 1) monarch.label else null,
-                Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 52.dp))
+                Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = if (commanders != null) 70.dp else 52.dp))
         }
 
         Column(

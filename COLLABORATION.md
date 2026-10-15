@@ -589,3 +589,21 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   full-screen lobby keeps them; Settings drops its bug card.
 - Validation: tokens, docs and manual-asset checks pass locally; Gradle build
   and tests run in PR CI (no SDK here). Not yet seen on a device.
+
+## 2026-10-15 — Claude: commander names, card art and Sean Mode
+
+- Owner: Claude on `claude/project-thread-0cn2jn` (PR #117), owner request
+  before merging #117. Phone-hosted (standalone) play only for now.
+- Commander names: optional per player in every Commander mode
+  (`LocalPlayer.commander`, `TablePlayer.commander`, saved with the game,
+  carried through start, rematch and Sean Mode; 48 characters max).
+- Card art: `ScryfallCommanderArt` asks Scryfall's `/cards/named?fuzzy=` for the
+  name only, downloads the `art_crop` (front face for double-faced cards), sends
+  User-Agent and Accept, spaces requests and caches hits and misses by a hashed
+  name. Tiles show the art behind a scrim with "Art: <artist>" credit; Settings
+  > Commander card art turns it off. PRIVACY.md and DEPENDENCY_TRACKER.md
+  (YELLOW, release review) updated; owner chose to ship it in #117.
+- Sean Mode: a game-over button on finished five-player Star games;
+  `seanModeRematch` reseats [0,2,4,1,3] so every ally pair becomes enemies.
+- Validation: `SeanModeTest`, `ScryfallCommanderArtTest`; docs, tokens and
+  manual checks pass locally; Gradle in PR CI. Not yet seen on a device.

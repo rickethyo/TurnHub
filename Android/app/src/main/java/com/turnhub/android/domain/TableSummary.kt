@@ -142,6 +142,8 @@ data class TablePlayer(
     val tileBackground: TileBackground = TileBackground(),
     val demerits: Int = 0,
     val extensionsAvailable: Int = 0,
+    /** The commander this player named (phone-hosted games only). */
+    val commander: String? = null,
 )
 
 /**

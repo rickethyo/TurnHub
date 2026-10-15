@@ -1,6 +1,6 @@
 # TurnHub Privacy Policy
 
-Effective 14 October 2026. This policy covers the TurnHub Android app
+Effective 15 October 2026. This policy covers the TurnHub Android app
 (`com.turnhub.android`) and the TurnHub table hardware it controls.
 
 ## The short version
@@ -44,7 +44,8 @@ on one phone or tablet without an Atlas at all.
 - **Biometrics:** unlocks your saved sign-in, if you turn that on.
 - **Notifications and foreground service:** shows table status and keeps the
   connection to the Atlas while a game is running.
-- **Internet:** used only to download TurnHub firmware updates.
+- **Internet:** used to download TurnHub firmware updates and, if you name a
+  commander, to fetch that card's art (see below).
 
 ## Firmware updates
 
@@ -52,6 +53,16 @@ To check for and download firmware updates, the app requests public files from
 TurnHub's GitHub releases. GitHub receives the request (including your IP
 address) under [GitHub's privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement).
 No account or personal data is included.
+
+## Commander card art
+
+When a player names their commander in a Commander game, the app asks
+[Scryfall](https://scryfall.com) for that card's art and shows it on the
+player's tile. Only the commander name typed in is sent; Scryfall receives the
+request (including your IP address) under
+[Scryfall's privacy policy](https://scryfall.com/docs/privacy). The art is
+kept in the app's cache so each name is looked up once. Naming a commander is
+optional, and **Commander card art** in Settings turns the lookups off.
 
 ## Children
 
