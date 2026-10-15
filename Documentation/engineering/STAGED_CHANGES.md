@@ -211,6 +211,19 @@ everything implemented. Only the checks listed below are still open.
   Sean Mode rematch Intent before the app can offer them with Atlas. Device
   check of the art credit, scrim legibility and TalkBack still open.
 
+- **Planechase** (owner, 2026-10-15): the standalone round is built
+  ([Gameplay](GAMEPLAY.md#planechase)). Still open:
+  - The device check of the Planes tab, the download, art credit and
+    TalkBack.
+  - Round 2: own decks and Two-Headed Giant, the deck builder, official deck
+    limits and house rules, card scripts, and automatic effects with
+    switches and Undo.
+  - Round 3: Atlas parity, with the host suite running the shared scenarios.
+  - Round 4: the plane screen on the LVGL simulator, then a two-panel S3
+    bench check.
+
+  Design: [Planned Designs](PLANNED_DESIGNS.md#planechase-on-atlas-and-the-plane-screen-planned-owner-2026-10-15).
+
 - **Eliminated-controller release** (owner, 2026-10-09): permit release once
   all players on a Sigil are eliminated, preserving their match identities and
   results; then attach the hardware to another seated player. Needs seat-level

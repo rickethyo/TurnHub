@@ -92,6 +92,8 @@ import com.turnhub.android.ui.manual.ManualScreen
 private enum class HomeTab(val label: String, @DrawableRes val icon: Int) {
     GAME("Game", DesignTokens.Icons.timer),
     TABLE("Table", DesignTokens.Icons.hub),
+    /** Planechase for the device game; shown only while a Magic format is chosen. */
+    PLANES("Planes", DesignTokens.Icons.dice),
     PLAYERS("Players", DesignTokens.Icons.users),
     HISTORY("History", DesignTokens.Icons.clock),
     SETTINGS("Settings", DesignTokens.Icons.sliders),
@@ -144,6 +146,8 @@ fun HomeScreen(
     localTableContent: @Composable (onSetUp: () -> Unit) -> Unit = {},
     localPlayersContent: @Composable () -> Unit = {},
     localHistoryContent: @Composable () -> Unit = {},
+    /** The device game's Planechase setup and planes, in the Planes tab. */
+    localPlanesContent: @Composable () -> Unit = {},
     atlasEnabled: Boolean = true,
     onAtlasEnabled: (Boolean) -> Unit = {},
     localState: com.turnhub.android.standalone.StandaloneState = com.turnhub.android.standalone.StandaloneState(),
@@ -179,7 +183,10 @@ fun HomeScreen(
     val canSettings = info?.has(com.turnhub.android.protocol.AccountPermission.ADMIN) == true
     val canPeople = canSettings || info?.has(com.turnhub.android.protocol.AccountPermission.GAME_MASTER) == true
     val canDev = info?.has(com.turnhub.android.protocol.AccountPermission.DEVELOPER) == true
-    val tabs = HomeTab.entries
+    val planes = localState.game.profile.magicRules
+    val tabs = HomeTab.entries.filter { it != HomeTab.PLANES || planes }
+    // Leaving Magic hides the Planes tab; whoever was on it goes back to Game.
+    androidx.compose.runtime.LaunchedEffect(planes) { if (!planes && tab == HomeTab.PLANES) tab = HomeTab.GAME }
     var atlasGame by rememberSaveable { mutableStateOf(false) }
     var playersPage by rememberSaveable { mutableStateOf("Device") }
     val pageState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
@@ -321,6 +328,7 @@ fun HomeScreen(
                             }
                         } else localTableContent { tab = HomeTab.GAME }
                         !setup.visible && shown == HomeTab.HISTORY -> localHistoryContent()
+                        !setup.visible && shown == HomeTab.PLANES -> localPlanesContent()
                         !setup.visible && shown == HomeTab.PLAYERS && (summary == null || playersPage == "Device") -> localPlayersContent()
                         !setup.visible && shown == HomeTab.GAME && (summary == null || !atlasGame) -> localGameContent { tab = HomeTab.TABLE }
                         else -> Column(
@@ -370,7 +378,7 @@ fun HomeScreen(
                                     if (canDev) com.turnhub.android.ui.components.DisclosureCard("Developer") { DevTab(admin, adminActions) }
                                     com.turnhub.android.ui.components.AppVersionLabel(Modifier.fillMaxWidth())
                                 }
-                                HomeTab.HISTORY, HomeTab.TABLE -> Unit
+                                HomeTab.HISTORY, HomeTab.TABLE, HomeTab.PLANES -> Unit
                             }
                         }
                     }

@@ -108,6 +108,12 @@ Status vocabulary mirrors Atlas semantics:
 
 Transport adapters may map these onto HTTP status codes, BLE acknowledgements, tones, LEDs, or UI messages. The semantic result remains the same.
 
+## Shared rule scenarios
+
+[`scenarios/`](scenarios/README.md) holds game rules written as data: setup
+and actions in, expected state out, with all randomness scripted. Every engine
+that implements a rule runs the same files. Planechase is the first.
+
 ## Versioning rules
 
 1. `protocolVersion` describes the logical client contract, not the firmware version.

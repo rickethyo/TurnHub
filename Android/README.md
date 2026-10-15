@@ -22,10 +22,18 @@ plays like the real table but lives only in memory, so nothing on it is saved.
 Full screen takes a started game over the whole screen. Star Commander games can
 use the setup's star as the table layout (a per-device switch in the lobby and
 in the table menu's Sound & display), with each panel facing its player. In any
-Commander mode a player can optionally name their commander in the lobby; the
-name shows under theirs and its Scryfall art crop (credited to the artist,
+Commander mode a player can optionally name their commander in the lobby (Scryfall
+suggests card names as they type, and they can pick which printing's art); the
+name shows under theirs, on their commander-tax counter and in others' Commander
+damage, and its Scryfall art crop (credited to the artist,
 cached in `commander_art/`, off via Settings > Commander card art) fills their
-tile. A finished phone-hosted Star game also offers Sean Mode, a rematch that
+tile. When the device game is a Magic format, a Planes tab runs Planechase:
+setup (TurnHub's shuffled deck, downloaded once from Scryfall into
+`files/planes/` with art cached in `plane_art/`, or the players' own cards),
+then the face-up plane with artist credit, the planar die with each roll's
+cost, phenomena and counters. The engine is `standalone/Planechase.kt`, and
+`PlanechaseScenarioTest` runs the shared scenarios in
+`protocol/scenarios/planechase/`. A finished phone-hosted Star game also offers Sean Mode, a rematch that
 reseats the five players so allies become enemies. Game shows local
 setup or the same stage/life overview used for connected play; when Atlas is
 available, This device and Atlas select which game is shown. Players keeps local
@@ -167,7 +175,7 @@ merged back live. The rules above apply in full whenever Atlas is present.
   seats to swap them. **Clear all** empties the local selection in one saved
   update, preserving accounts, history and game settings.
 - Local accounts store an independent tile background: default, solid, gradient
-  or a cropped image (up to 512 × 512 pixels and 48 KiB). The lobby's Background
+  or a cropped image (up to 512 × 512 pixels and 48 KiB). The lobby's Tile color & photo
   button and account editor configure it. It follows the local UUID through
   swaps, clearing and new games; avatars and match records remain separate.
   Connected tables use this phone's background only through a verified link

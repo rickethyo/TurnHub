@@ -590,6 +590,25 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
 - Validation: tokens, docs and manual-asset checks pass locally; Gradle build
   and tests run in PR CI (no SDK here). Not yet seen on a device.
 
+## 2026-10-15 — Claude: Planechase, standalone round 1
+
+- Owner: Claude on `claude/master`. The design was approved by the owner on
+  2026-10-15 ([Planned Designs](Documentation/engineering/PLANNED_DESIGNS.md#planechase-on-atlas-and-the-plane-screen-planned-owner-2026-10-15)).
+- **Card content:** card data and art are fetched on the phone, never bundled.
+- **UI:** the owner asked for a Planes tab, shown only for Magic formats,
+  that keeps the existing UI unchanged.
+- **Engine:** `standalone/Planechase.kt` covers the shared deck, start, the
+  die and its cost, planeswalking, phenomena, counters and the card tools.
+  Its randomness is injected.
+- **Download:** `data/ScryfallPlanes.kt` downloads the cards.
+  `ui/tablet/PlanesTab.kt` holds the setup and play view.
+- **Shared rules:** the first scenarios are in `protocol/scenarios/planechase/`.
+  Codex or Atlas work should run these same files rather than port tests.
+- **Validation:** `PlanechaseScenarioTest`, `PlanechaseTest` and
+  `ScryfallPlanesTest` pass locally, compiled with the JVM against
+  org.json. Compose and Gradle run in PR CI, since this container has no
+  SDK. Not yet seen on a device.
+
 ## 2026-10-15 — Claude: commander names, card art and Sean Mode
 
 - Owner: Claude on `claude/project-thread-0cn2jn` (PR #117), owner request
@@ -607,3 +626,18 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   `seanModeRematch` reseats [0,2,4,1,3] so every ally pair becomes enemies.
 - Validation: `SeanModeTest`, `ScryfallCommanderArtTest`; docs, tokens and
   manual checks pass locally; Gradle in PR CI. Not yet seen on a device.
+
+## 2026-10-15 — Claude: commander picker, art printings and player menu merge
+
+- Owner: Claude on `claude/project-thread-0cn2jn` (restarted from master after
+  #117 merged). Owner feedback from a phone test of #117.
+- Commander picker (`CommanderPicker.kt`): Scryfall `/cards/autocomplete`
+  suggestions after a 300 ms pause, then `/cards/search?unique=art` printings
+  with art previews; the pick is saved as `commanderArt` (a Scryfall card ID,
+  validated as a UUID) and fetched via `/cards/{id}`. Off with the art switch.
+- Named commanders now appear in-game on the commander-tax counter and in the
+  Commander damage rows of everyone they can hit.
+- Player menu: Turn & tools and Counters & status are one card.
+- Lobby buttons say what they do: Name commander, Tile color & photo.
+- Validation: new `SeanModeTest` and `ScryfallCommanderArtTest` cases; docs,
+  tokens and manual checks local; Gradle in PR CI. Not yet seen on a device.

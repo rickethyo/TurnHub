@@ -1,0 +1,14 @@
+{
+  "description": "With the players' own cards TurnHub keeps no deck: rolls, costs and counters still work, and each planeswalk is counted so the table is told to turn over the next card.",
+  "rules": ["901.9", "701.31"],
+  "setup": {
+    "profile": "mtg_commander", "players": 2, "starter": 2,
+    "planechase": { "source": "physical", "deck": ["plane-a", "plane-b"], "phenomena": [] }
+  },
+  "steps": [
+    { "action": "start", "expect": { "active": 2, "faceUp": [], "deck": [] } },
+    { "action": "counter", "player": 1, "card": "physical", "delta": 3, "expect": { "counters": { "physical": 3 } } },
+    { "action": "roll", "player": 2, "face": "planeswalk", "expect": { "planeswalks": 1, "faceUp": [], "counters": {} } },
+    { "action": "resolvePhenomenon", "player": 2, "expect": { "changed": false } }
+  ]
+}

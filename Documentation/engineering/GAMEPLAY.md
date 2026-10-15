@@ -168,6 +168,54 @@ switch applies (`commanderRules()` / `magicRules()` in `game_profile.h`).
   Sigils get no new display text: the display packet has no free field, and
   master's Sigil is headless until LVGL.
 
+## Planechase
+
+*Implemented 2026-10-15 in the Android standalone game (owner request);
+JVM tests only, needs a playtest. Atlas, automatic plane effects and the plane
+screen are planned ([Planned Designs](PLANNED_DESIGNS.md#planechase-on-atlas-and-the-plane-screen-planned-owner-2026-10-15)).*
+The rules are the Comprehensive Rules' Planechase sections (901, 311, 312,
+701.31, 704.6f), and the shared scenarios in
+[`protocol/scenarios/planechase/`](../../protocol/scenarios/planechase) are
+the spec every engine runs.
+
+- **Setup.** Magic formats only (`Planechase` in `StandaloneGame`, lobby
+  switches in the app's Planes tab). Planechase can use **TurnHub's deck**
+  or **our own cards**.
+  - TurnHub's deck is the single shared planar deck option (901.15). It has
+    every downloaded plane, plus up to two phenomena per player when
+    phenomena are on.
+  - With our own cards, the players turn over their own planes and TurnHub
+    keeps no deck. A digital game started before any planes were downloaded
+    plays the same way.
+- **Start (901.5).** The deck is shuffled at start (and for a rematch). Cards
+  are turned over until a plane comes up, and phenomena go to the bottom.
+- **The die (901.3a, 901.9).** Only the active player rolls, or either player
+  of the active Two-Headed Giant team (901.12d). The die has one planeswalk
+  face, one chaos face and four blank faces.
+  - The cost is {0}, then {1} more per roll that player paid for this turn.
+  - A roll for a card's effect is free and doesn't count toward the cost.
+  - Costs reset whenever the turn changes, including when the active player
+    leaves.
+  - Main phase and empty stack are the table's to keep.
+- **Planeswalk (701.31b).** Every face-up card goes to the bottom, and the
+  top card turns face up. Counters on the old plane are cleared.
+- **Phenomena (704.6f).** A face-up phenomenon blocks rolls until the table
+  taps Done, which planeswalks away.
+- **Chaos.** A chaos roll, or Chaos ensues, highlights the plane's chaos
+  ability. TurnHub doesn't apply card effects.
+- **Card tools.** The planar controller (the active player) can planeswalk,
+  make chaos ensue and put the top card on the bottom for cards that say so.
+  Any living player can correct the counters on a face-up plane.
+- **Pause.** Rolls and deck moves wait while paused; counter corrections
+  don't.
+- **Persistence.** The whole planar state is saved with the local game (the
+  `planechase` object).
+- **Card data.** Names, rules text and `art_crop` art come from Scryfall,
+  downloaded on the phone the first time (`ScryfallPlanes`). The cards are
+  saved in app files, the art in the app cache, and nothing is bundled. Each
+  plane credits its artist, and the tab carries the Fan Content Policy
+  notice.
+
 ## Turns
 
 - **Pass** waits `PASS_GRACE_MS` (3 s) so it can be undone: the passer's

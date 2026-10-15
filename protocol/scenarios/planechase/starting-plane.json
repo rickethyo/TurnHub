@@ -1,0 +1,12 @@
+{
+  "description": "The starting player turns over cards until a plane comes up; phenomena go to the bottom and don't trigger.",
+  "rules": ["901.5"],
+  "setup": {
+    "profile": "mtg", "players": 3, "starter": 1,
+    "planechase": { "source": "digital", "deck": ["phen-x", "phen-y", "plane-a", "plane-b", "plane-c"], "phenomena": ["phen-x", "phen-y"] }
+  },
+  "steps": [
+    { "action": "start", "expect": { "active": 1, "faceUp": ["plane-a"], "deck": ["plane-b", "plane-c", "phen-x", "phen-y"],
+      "phenomenonPending": false, "planeswalks": 0, "nextCost": { "1": 0, "2": 0, "3": 0 } } }
+  ]
+}

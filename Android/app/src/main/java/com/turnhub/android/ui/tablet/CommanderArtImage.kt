@@ -22,16 +22,20 @@ internal class TileArt(val image: ImageBitmap, val cardName: String, val artist:
 private const val ART_PREF = "commander_art"
 
 /** One lookup service and one decoded copy per name for the whole app. */
-private object CommanderArtCache {
+internal object CommanderArtCache {
     var source: ScryfallCommanderArt? = null
     val decoded = mutableStateMapOf<String, TileArt>()
 
     fun source(context: Context): ScryfallCommanderArt = source ?: run {
         val app = context.applicationContext
-        val version = runCatching { app.packageManager.getPackageInfo(app.packageName, 0) }.getOrNull()
-        val agent = "TurnHub/${version?.versionName ?: "0"} (Android; build ${version?.let { PackageInfoCompat.getLongVersionCode(it) } ?: 0})"
-        ScryfallCommanderArt(File(app.cacheDir, "commander_art"), agent).also { source = it }
+        ScryfallCommanderArt(File(app.cacheDir, "commander_art"), scryfallUserAgent(app)).also { source = it }
     }
+}
+
+/** The User-Agent Scryfall asks every app to send: the app's name and version (commander art and planes). */
+internal fun scryfallUserAgent(app: Context): String {
+    val version = runCatching { app.packageManager.getPackageInfo(app.packageName, 0) }.getOrNull()
+    return "TurnHub/${version?.versionName ?: "0"} (Android; build ${version?.let { PackageInfoCompat.getLongVersionCode(it) } ?: 0})"
 }
 
 /** Whether named commanders show their card art (Settings; on unless turned off). */
@@ -45,14 +49,14 @@ internal fun rememberCommanderArtEnabled(): Pair<Boolean, (Boolean) -> Unit> {
 
 /** The art for a named commander, once Scryfall (or the cache) has it; null otherwise. */
 @Composable
-internal fun rememberCommanderArt(name: String?): TileArt? {
+internal fun rememberCommanderArt(name: String?, printing: String? = null): TileArt? {
     val context = LocalContext.current
     val enabled = rememberCommanderArtEnabled().first
     if (name.isNullOrBlank() || !enabled) return null
-    val key = ScryfallCommanderArt.cacheKey(name)
+    val key = ScryfallCommanderArt.cacheKey(if (printing == null) name else "$name#$printing")
     val art by produceState(CommanderArtCache.decoded[key], key) {
         if (value != null) return@produceState
-        val loaded = CommanderArtCache.source(context).art(name) ?: return@produceState
+        val loaded = CommanderArtCache.source(context).art(name, printing) ?: return@produceState
         val bitmap = BitmapFactory.decodeByteArray(loaded.jpeg, 0, loaded.jpeg.size) ?: return@produceState
         val tile = TileArt(bitmap.asImageBitmap(), loaded.cardName, loaded.artist)
         CommanderArtCache.decoded[key] = tile

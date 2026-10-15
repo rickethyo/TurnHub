@@ -679,7 +679,7 @@ private fun PlayerPanel(
             unit.members.forEach { member ->
                 PlayerTileBackground(member.tileBackground,
                     com.turnhub.android.ui.components.playerColor(member.color, p.avatarColor(member.playerNumber)),
-                    Modifier.weight(1f).fillMaxHeight(), art = rememberCommanderArt(member.commander))
+                    Modifier.weight(1f).fillMaxHeight(), art = rememberCommanderArt(member.commander, member.commanderArt))
             }
         }
         val nameMax = maxWidth * .6f
@@ -1111,7 +1111,10 @@ private fun PlayerMenuItems(
     offlineCommander: (Long, Int, Int) -> Int,
 ) {
     val p = palette
-    DisclosureCard("Turn & tools", initiallyExpanded = true) {
+    val playing = (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) && summary.settings.profile.magicRules
+    // One card for the turn, counters and status: the things a player reaches for most.
+    DisclosureCard(if (!playing) "Turn & tools" else if (unit.members.size > 1) "Turn, team counters & status" else "Turn, counters & status",
+        initiallyExpanded = true) {
         val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
         if (actor != null && summary.state == TableState.RUNNING) {
             ArmedButton("Claim the win", "Tap again to claim", Tone.GOOD) { onControl(actor.seat(), "win") }
@@ -1131,9 +1134,7 @@ private fun PlayerMenuItems(
             }
         }
         OpponentPicker(summary, unit.members.first().playerNumber)
-    }
-    if ((summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) && summary.settings.profile.magicRules) {
-        DisclosureCard(if (unit.members.size > 1) "Team counters & status" else "Counters & status") {
+        if (playing) {
             val team = unit.members.size > 1
             // A Two-Headed Giant team shares poison and leaves together (CR 810.10, 810.8b): one row, one button.
             if (team) {
@@ -1144,7 +1145,7 @@ private fun PlayerMenuItems(
             unit.members.filter { !it.eliminated }.forEach { member ->
                 if (team) Text("${member.label} counters and status", color = p.text)
                 MagicCountersEditor(member.counters, summary.initiativePlayerNumber == member.playerNumber,
-                    summary.settings.profile.commanderRules, showPoison = !team) { kind, value, commander -> onCounter(member, kind, value, commander) }
+                    summary.settings.profile.commanderRules, showPoison = !team, commanderName = member.commander) { kind, value, commander -> onCounter(member, kind, value, commander) }
                 ToneButton(
                     if (unit.members.size > 1) "${member.label}: I’m the monarch" else "I’m the monarch",
                     { onControl(member.seat(), "monarch") }, Modifier.fillMaxWidth(), tone = Tone.ACCENT,
@@ -1174,7 +1175,12 @@ private fun PlayerMenuItems(
                     val commanders = if (showPartner || valueOf(2) > 0) listOf(1, 2) else listOf(1)
                     commanders.forEach { c ->
                         val value = valueOf(c)
-                        val label = source.label + if (commanders.size > 1) " ($c)" else ""
+                        // A named commander says whose damage it is; a partner shows as (2).
+                        val label = source.label + when {
+                            source.commander != null && c == 1 -> " · ${source.commander}"
+                            commanders.size > 1 -> " ($c)"
+                            else -> ""
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(label, color = p.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             StepButton("−", "Remove 1 Commander damage from $label", value > 0) {

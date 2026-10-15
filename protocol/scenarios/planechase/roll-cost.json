@@ -1,0 +1,17 @@
+{
+  "description": "Each roll in a turn costs one more than the last; a roll from an effect is free and doesn't count; the cost resets when the turn passes; only the active player rolls.",
+  "rules": ["901.9", "901.9a"],
+  "setup": {
+    "profile": "mtg_commander", "players": 3, "starter": 1,
+    "planechase": { "source": "digital", "deck": ["plane-a", "plane-b", "plane-c"], "phenomena": [] }
+  },
+  "steps": [
+    { "action": "start", "expect": { "faceUp": ["plane-a"] } },
+    { "action": "roll", "player": 1, "face": "blank", "expect": { "lastRoll": { "player": 1, "face": "blank", "cost": 0 }, "nextCost": { "1": 1 }, "faceUp": ["plane-a"] } },
+    { "action": "roll", "player": 1, "face": "blank", "expect": { "lastRoll": { "player": 1, "face": "blank", "cost": 1 }, "nextCost": { "1": 2 } } },
+    { "action": "roll", "player": 1, "face": "blank", "fromEffect": true, "expect": { "lastRoll": { "player": 1, "face": "blank", "cost": 0 }, "nextCost": { "1": 2 } } },
+    { "action": "roll", "player": 2, "face": "blank", "expect": { "changed": false } },
+    { "action": "pass", "player": 1, "expect": { "active": 2, "nextCost": { "1": 0, "2": 0 } } },
+    { "action": "roll", "player": 2, "face": "blank", "expect": { "lastRoll": { "player": 2, "face": "blank", "cost": 0 }, "nextCost": { "2": 1 } } }
+  ]
+}

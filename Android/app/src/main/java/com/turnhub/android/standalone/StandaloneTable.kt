@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.update
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
+import kotlin.random.asKotlinRandom
 
 /** Owns the [StandaloneTable] for the Activity, so rotation keeps it. */
 class StandaloneViewModel(val table: StandaloneTable) : androidx.lifecycle.ViewModel() {
@@ -84,6 +85,10 @@ class StandaloneTable(
     private val newId: () -> String = { UUID.randomUUID().toString() },
     /** Finished games shorter than this wait for [saveShortGame] instead of joining history. */
     private val shortGameMs: Long = StandaloneGame.SHORT_GAME_MS,
+    /** The planes and phenomena a digital planar deck is built from (downloaded once; empty until then). */
+    private val planarPool: () -> List<PlanarCard> = { emptyList() },
+    /** Shuffles the planar deck and rolls the planar die. */
+    private val planarRandom: kotlin.random.Random = java.security.SecureRandom().asKotlinRandom(),
 ) : TableControls {
     private val _state = MutableStateFlow(load())
     val state: StateFlow<StandaloneState> = _state.asStateFlow()
@@ -198,7 +203,27 @@ class StandaloneTable(
         life?.let { next = next.setStartingLife(it) }
         next
     }
-    fun start() = edit { it.start(wallClock(), newId()) }
+    fun start() = edit { it.start(wallClock(), newId(), planarDeck = planarDeck(it)) }
+
+    // --- Planechase -----------------------------------------------------------------
+
+    /** A freshly shuffled digital deck for [game]; empty with physical cards or nothing downloaded. */
+    private fun planarDeck(game: StandaloneGame): List<PlanarCard> =
+        if (!game.planechase.enabled || game.planechase.source != PlanarDeckSource.DIGITAL) emptyList()
+        else Planechase.shuffledDeck(planarPool(), game.players.size, game.planechase.phenomena, planarRandom)
+
+    fun setPlanechase(on: Boolean) = edit { it.setPlanechase(on) }
+    fun setPlanarSource(source: PlanarDeckSource) = edit { it.setPlanarSource(source) }
+    fun setPlanarPhenomena(on: Boolean) = edit { it.setPlanarPhenomena(on) }
+
+    // The Planes tab is one shared screen: it acts for the player whose turn it is.
+    fun rollPlanarDie(fromEffect: Boolean = false) =
+        edit { g -> g.active?.let { g.rollPlanarDie(it, PlanarFace.roll(planarRandom), fromEffect) } ?: g }
+    fun planeswalk() = edit { g -> g.active?.let { g.planeswalk(it) } ?: g }
+    fun resolvePhenomenon() = edit { g -> g.active?.let { g.resolvePhenomenon(it) } ?: g }
+    fun chaosEnsues() = edit { g -> g.active?.let { g.chaosEnsues(it) } ?: g }
+    fun planarTopToBottom() = edit { g -> g.active?.let { g.planarTopToBottom(it) } ?: g }
+    fun changePlaneCounter(card: String, delta: Int) = edit { g -> g.active?.let { g.changePlaneCounter(it, card, delta) } ?: g }
 
     /** A pending/acknowledged payload cannot be silently redirected or remapped. */
     fun queueImport(recordId: String, atlasId: String, profileIds: List<String>, availableProfileIds: Set<String>): Boolean {
@@ -283,8 +308,8 @@ class StandaloneTable(
                 "monarch" -> game.claimMonarch(index)
                 "win" -> game.claimWin(index, now)
                 "draw" -> game.endWithoutWinner(now)
-                "rematch" -> game.rematch(now, newId())
-                "sean-mode" -> game.seanModeRematch(now, newId())
+                "rematch" -> game.rematch(now, newId(), planarDeck = planarDeck(game))
+                "sean-mode" -> game.seanModeRematch(now, newId(), planarDeck = planarDeck(game))
                 "reset" -> game.reset()
                 "back-to-setup" -> game.backToSetup(now)
                 else -> game
@@ -303,7 +328,7 @@ class StandaloneTable(
         edit { it.commanderDamage(StandaloneGame.indexOf(seat.moduleId), source - 1, commander, delta, wallClock()) }
 
     // A standalone game has no phones asking for life changes, and is never offline.
-    fun setCommander(index: Int, name: String?) { edit { it.setCommander(index, name) } }
+    fun setCommander(index: Int, name: String?, art: String? = null) { edit { it.setCommander(index, name, art) } }
     fun setZeroLifeElimination(enabled: Boolean) { edit { it.setAutoEliminateAtZeroLife(enabled, wallClock()) } }
 
     override suspend fun counter(seat: TabletSeat, kind: String, value: Int, commander: Int) =
@@ -406,6 +431,7 @@ class StandaloneTable(
             put("runningSinceMs", game.runningSinceMs ?: JSONObject.NULL)
             put("turnStartedAtElapsedMs", game.turnStartedAtElapsedMs)
             put("revision", game.revision)
+            put("planechase", game.planechase.toJson())
             put("players", JSONArray().apply {
                 game.players.forEach { p ->
                     put(JSONObject().apply {
@@ -428,6 +454,7 @@ class StandaloneTable(
                         put("fastestTurnMs", p.fastestTurnMs)
                         put("longestTurnMs", p.longestTurnMs)
                         put("commander", p.commander ?: JSONObject.NULL)
+                        put("commanderArt", p.commanderArt ?: JSONObject.NULL)
                         put("commanderDamage", JSONObject().apply {
                             p.commanderDamage.forEach { (source, damage) -> put("$source", JSONArray(damage)) }
                         })
@@ -469,6 +496,7 @@ class StandaloneTable(
                 runningSinceMs = json.optLongOrNull("runningSinceMs"),
                 turnStartedAtElapsedMs = json.getLong("turnStartedAtElapsedMs"),
                 revision = json.getLong("revision"),
+                planechase = json.optJSONObject("planechase")?.let { Planechase.fromJson(it) } ?: Planechase(),
                 players = (0 until players.length()).map { i ->
                     val p = players.getJSONObject(i)
                     val damage = p.getJSONObject("commanderDamage")
@@ -492,6 +520,7 @@ class StandaloneTable(
                         fastestTurnMs = p.optLong("fastestTurnMs"),
                         longestTurnMs = p.optLong("longestTurnMs"),
                         commander = p.optStringOrNull("commander"),
+                        commanderArt = p.optStringOrNull("commanderArt")?.takeIf { it.matches(StandaloneGame.PRINTING_ID) },
                         commanderDamage = damage.keys().asSequence().associate { key ->
                             val array = damage.getJSONArray(key)
                             key.toInt() to (0 until array.length()).map { array.getInt(it) }

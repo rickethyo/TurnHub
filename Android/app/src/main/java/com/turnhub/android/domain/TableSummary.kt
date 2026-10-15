@@ -144,6 +144,8 @@ data class TablePlayer(
     val extensionsAvailable: Int = 0,
     /** The commander this player named (phone-hosted games only). */
     val commander: String? = null,
+    /** The Scryfall printing whose art the commander shows; null for Scryfall's default. */
+    val commanderArt: String? = null,
 )
 
 /**

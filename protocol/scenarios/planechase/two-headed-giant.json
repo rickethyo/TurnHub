@@ -1,0 +1,16 @@
+{
+  "description": "In Two-Headed Giant both players of the active team may roll, each paying for their own rolls; the other team can't.",
+  "rules": ["901.12d"],
+  "setup": {
+    "profile": "mtg", "players": 4, "twoHeadedGiant": true, "starter": 1,
+    "planechase": { "source": "digital", "deck": ["plane-a", "plane-b"], "phenomena": [] }
+  },
+  "steps": [
+    { "action": "start", "expect": { "active": 1 } },
+    { "action": "roll", "player": 1, "face": "blank", "expect": { "nextCost": { "1": 1, "2": 0 } } },
+    { "action": "roll", "player": 2, "face": "blank", "expect": { "lastRoll": { "player": 2, "face": "blank", "cost": 0 }, "nextCost": { "1": 1, "2": 1 } } },
+    { "action": "roll", "player": 3, "face": "blank", "expect": { "changed": false } },
+    { "action": "pass", "player": 2, "expect": { "active": 3, "nextCost": { "1": 0, "2": 0, "3": 0, "4": 0 } } },
+    { "action": "roll", "player": 4, "face": "blank", "expect": { "nextCost": { "4": 1 } } }
+  ]
+}

@@ -42,6 +42,8 @@ data class LocalPlayer(
     val extensionsUsed: Int = 0,
     /** The commander this player brought, for the table's banter; shown, never scored. */
     val commander: String? = null,
+    /** The Scryfall printing whose art [commander] shows; null uses Scryfall's default printing. */
+    val commanderArt: String? = null,
 )
 
 /**
@@ -99,6 +101,8 @@ data class StandaloneGame(
     val runningSinceMs: Long? = null,
     /** Game time at which the current turn began. */
     val turnStartedAtElapsedMs: Long = 0,
+    /** Planechase: the planar deck, die and counters ([Planechase]); off unless the table turns it on. */
+    val planechase: Planechase = Planechase(),
     val revision: Long = 0,
 ) {
     fun gameElapsedMs(nowMs: Long): Long = elapsedMs + (runningSinceMs?.let { (nowMs - it).coerceAtLeast(0) } ?: 0)
@@ -183,6 +187,7 @@ data class StandaloneGame(
             twoHeadedGiant = teams,
             poisonLimit = if (teams) TEAM_POISON else poisonLimit.takeIf { twoHeadedGiant == teams } ?: SOLO_POISON,
             startingLife = (startingLife ?: defaultLife(profile, teams)).coerceIn(1, MAX_LIFE),
+            planechase = if (profile.magicRules) planechase else planechase.copy(enabled = false),
         ).officialValues().bump()
     }
 
@@ -263,7 +268,7 @@ data class StandaloneGame(
     }
 
     /** Starts a match with a random first player; needs two players. */
-    fun start(nowMs: Long, gameId: String, random: Random = Random.Default): StandaloneGame {
+    fun start(nowMs: Long, gameId: String, random: Random = Random.Default, planarDeck: List<PlanarCard> = emptyList()): StandaloneGame {
         if (state != TableState.LOBBY && state != TableState.GAME_OVER) return this
         if (!canStart) return this
         // The lobby's chosen starter, else random (a rematch is random too). A team game
@@ -277,7 +282,7 @@ data class StandaloneGame(
         return copy(
             gameId = gameId,
             state = TableState.RUNNING,
-            players = players.map { LocalPlayer(it.name, it.profileId, life = startingLife, localId = it.localId, commander = it.commander) },
+            players = players.map { LocalPlayer(it.name, it.profileId, life = startingLife, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt) },
             active = first,
             starter = first,
             winner = null,
@@ -290,6 +295,7 @@ data class StandaloneGame(
             turnStartedAtElapsedMs = 0,
             turnExtensionMs = 0,
             timeoutHandled = false,
+            planechase = if (planechase.enabled && magic) planechase.dealt(planarDeck) else planechase.cleared(),
         ).bump()
     }
 
@@ -307,7 +313,8 @@ data class StandaloneGame(
             timerRules = timerRules,
             twoHeadedGiant = twoHeadedGiant,
             houseRules = houseRules,
-            players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId, commander = it.commander) },
+            planechase = planechase.cleared(),
+            players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt) },
             revision = revision + 1,
         )
     }
@@ -355,6 +362,7 @@ data class StandaloneGame(
             turnStartedAtElapsedMs = now,
             turnExtensionMs = 0,
             timeoutHandled = false,
+            planechase = planechase.newTurn(),
         ).bump()
     }
 
@@ -462,7 +470,8 @@ data class StandaloneGame(
         game.decided()?.let { return game.finish(it, nowMs) }
         if (active in leaving) {
             val next = game.nextIn(leaving.last()) ?: return game
-            game = game.copy(active = next, turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false)
+            game = game.copy(active = next, turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false,
+                planechase = game.planechase.newTurn())
         }
         return game
     }
@@ -487,7 +496,8 @@ data class StandaloneGame(
         }).passStatuses(targets).bump()
         game.decided()?.let { return game.finish(it, nowMs) }
         if (active in targets) {
-            game = game.copy(active = game.nextIn(mates(active!!).last()), turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false)
+            game = game.copy(active = game.nextIn(mates(active!!).last()), turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false,
+                planechase = game.planechase.newTurn())
         }
         return game
     }
@@ -503,9 +513,9 @@ data class StandaloneGame(
     fun endWithoutWinner(nowMs: Long): StandaloneGame = if (!playing) this else finish(emptyList(), nowMs)
 
     /** The same players play again; a new [gameId] makes it a separate record. */
-    fun rematch(nowMs: Long, gameId: String, random: Random = Random.Default): StandaloneGame {
+    fun rematch(nowMs: Long, gameId: String, random: Random = Random.Default, planarDeck: List<PlanarCard> = emptyList()): StandaloneGame {
         if (state != TableState.GAME_OVER) return this
-        return start(nowMs, gameId, random)
+        return start(nowMs, gameId, random, planarDeck)
     }
 
     /**
@@ -514,18 +524,83 @@ data class StandaloneGame(
      * the star inside out: neighbours end up across it, and the players across
      * it become the new neighbours.
      */
-    fun seanModeRematch(nowMs: Long, gameId: String, random: Random = Random.Default): StandaloneGame {
+    fun seanModeRematch(nowMs: Long, gameId: String, random: Random = Random.Default, planarDeck: List<PlanarCard> = emptyList()): StandaloneGame {
         if (state != TableState.GAME_OVER || !star || players.size != StarCommander.PLAYERS) return this
         val reseated = SEAN_MODE_ORDER.map { players[it] }
-        return copy(players = reseated, starter = null).start(nowMs, gameId, random)
+        return copy(players = reseated, starter = null).start(nowMs, gameId, random, planarDeck)
     }
 
-    /** Names (or clears, when blank) the commander [index] is playing. */
-    fun setCommander(index: Int, name: String?): StandaloneGame {
+    // --- Planechase --------------------------------------------------------------------
+
+    /** Turns Planechase on or off for the next game (Magic formats; lobby only). */
+    fun setPlanechase(on: Boolean): StandaloneGame {
+        if (state != TableState.LOBBY || on == planechase.enabled || (on && !magic)) return this
+        return copy(planechase = planechase.copy(enabled = on)).bump()
+    }
+
+    /** A digital deck TurnHub shuffles, or the players' own cards; lobby only. */
+    fun setPlanarSource(source: PlanarDeckSource): StandaloneGame {
+        if (state != TableState.LOBBY || source == planechase.source) return this
+        return copy(planechase = planechase.copy(source = source)).bump()
+    }
+
+    /** Whether phenomena join the digital deck; lobby only. */
+    fun setPlanarPhenomena(on: Boolean): StandaloneGame {
+        if (state != TableState.LOBBY || on == planechase.phenomena) return this
+        return copy(planechase = planechase.copy(phenomena = on)).bump()
+    }
+
+    /**
+     * The planar controller (CR 901.6): the active player, and in Two-Headed
+     * Giant either player of the active team (their team's first seat is the
+     * controller, CR 901.12b; TurnHub lets both use the controls).
+     */
+    private fun planarTurn(index: Int): Boolean = planechase.enabled && state == TableState.RUNNING &&
+        active != null && index in mates(active) && players.getOrNull(index)?.eliminated == false
+
+    /**
+     * [index] rolls the planar die and got [face] (rolled by the caller). Only the
+     * active player(s) roll (CR 901.9, 901.12d); the main phase and an empty stack
+     * are for the table to keep. A pending phenomenon is resolved first.
+     */
+    fun rollPlanarDie(index: Int, face: PlanarFace, fromEffect: Boolean = false): StandaloneGame {
+        if (!planarTurn(index) || planechase.phenomenonPending) return this
+        return copy(planechase = planechase.roll(index, face, fromEffect)).bump()
+    }
+
+    /** The planar controller planeswalks because a card says so. */
+    fun planeswalk(index: Int): StandaloneGame =
+        if (!planarTurn(index)) this else copy(planechase = planechase.planeswalk()).bump()
+
+    /** The table has resolved the face-up phenomenon: planeswalk away from it (CR 704.6f). */
+    fun resolvePhenomenon(index: Int): StandaloneGame =
+        if (!planarTurn(index) || !planechase.phenomenonPending) this else copy(planechase = planechase.planeswalk()).bump()
+
+    /** A card says chaos ensues. */
+    fun chaosEnsues(index: Int): StandaloneGame =
+        if (!planarTurn(index) || planechase.phenomenonPending) this else copy(planechase = planechase.chaosEnsues()).bump()
+
+    /** A card puts the top of the planar deck on the bottom. */
+    fun planarTopToBottom(index: Int): StandaloneGame {
+        if (!planarTurn(index)) return this
+        val next = planechase.topToBottom()
+        return if (next === planechase) this else copy(planechase = next).bump()
+    }
+
+    /** Counters on a face-up plane, corrected by any living player, paused or not. */
+    fun changePlaneCounter(index: Int, card: String, delta: Int): StandaloneGame {
+        if (!playing || !planechase.enabled || players.getOrNull(index)?.eliminated != false) return this
+        val next = planechase.changeCounter(card, delta)
+        return if (next === planechase) this else copy(planechase = next).bump()
+    }
+
+    /** Names (or clears, when blank) the commander [index] is playing, with the printing whose art it shows. */
+    fun setCommander(index: Int, name: String?, art: String? = null): StandaloneGame {
         if (index !in players.indices) return this
         val clean = name?.trim()?.take(MAX_COMMANDER)?.takeIf { it.isNotEmpty() }
-        if (players[index].commander == clean) return this
-        return update(index) { it.copy(commander = clean) }
+        val printing = art?.takeIf { clean != null && it.matches(PRINTING_ID) }
+        if (players[index].commander == clean && players[index].commanderArt == printing) return this
+        return update(index) { it.copy(commander = clean, commanderArt = printing) }
     }
 
     private fun finish(winners: List<Int>, nowMs: Long): StandaloneGame = copy(
@@ -659,6 +734,7 @@ data class StandaloneGame(
                     demerits = p.demerits,
                     extensionsAvailable = p.extensionsEarned - p.extensionsUsed,
                     commander = p.commander,
+                    commanderArt = p.commanderArt,
                     life = if (state == TableState.LOBBY) null else p.life,
                     turnsCompleted = p.turnsCompleted.toLong(),
                     commanderDamage = p.commanderDamage.map { (source, damage) -> CommanderDamage(source + 1, damage) },
@@ -676,7 +752,9 @@ data class StandaloneGame(
     companion object {
         const val MAX_PLAYERS = 8
         const val MAX_NAME = 32
-        const val MAX_COMMANDER = 48
+        const val MAX_COMMANDER = 80
+        /** A Scryfall card ID (a UUID). */
+        val PRINTING_ID = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
         /** Every second seat of the star: today's allies sit across from each other. */
         val SEAN_MODE_ORDER = listOf(0, 2, 4, 1, 3)
         const val MAX_LIFE = 99_999
