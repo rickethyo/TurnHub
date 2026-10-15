@@ -22,7 +22,7 @@ internal class TileArt(val image: ImageBitmap, val cardName: String, val artist:
 private const val ART_PREF = "commander_art"
 
 /** One lookup service and one decoded copy per name for the whole app. */
-private object CommanderArtCache {
+internal object CommanderArtCache {
     var source: ScryfallCommanderArt? = null
     val decoded = mutableStateMapOf<String, TileArt>()
 
@@ -45,14 +45,14 @@ internal fun rememberCommanderArtEnabled(): Pair<Boolean, (Boolean) -> Unit> {
 
 /** The art for a named commander, once Scryfall (or the cache) has it; null otherwise. */
 @Composable
-internal fun rememberCommanderArt(name: String?): TileArt? {
+internal fun rememberCommanderArt(name: String?, printing: String? = null): TileArt? {
     val context = LocalContext.current
     val enabled = rememberCommanderArtEnabled().first
     if (name.isNullOrBlank() || !enabled) return null
-    val key = ScryfallCommanderArt.cacheKey(name)
+    val key = ScryfallCommanderArt.cacheKey(if (printing == null) name else "$name#$printing")
     val art by produceState(CommanderArtCache.decoded[key], key) {
         if (value != null) return@produceState
-        val loaded = CommanderArtCache.source(context).art(name) ?: return@produceState
+        val loaded = CommanderArtCache.source(context).art(name, printing) ?: return@produceState
         val bitmap = BitmapFactory.decodeByteArray(loaded.jpeg, 0, loaded.jpeg.size) ?: return@produceState
         val tile = TileArt(bitmap.asImageBitmap(), loaded.cardName, loaded.artist)
         CommanderArtCache.decoded[key] = tile

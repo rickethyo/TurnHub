@@ -55,7 +55,7 @@ internal data class TableLobbyActions(
     val houseRules: ((Boolean) -> Unit)? = null,
     val timerRules: ((com.turnhub.android.domain.LocalTimerRules) -> Unit)? = null,
     /** Names a player's commander in Commander modes (optional); null hides it. */
-    val commander: ((TablePlayer, String?) -> Unit)? = null,
+    val commander: ((TablePlayer, String?, String?) -> Unit)? = null,
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -120,7 +120,7 @@ internal fun TableLobby(
                 }, color = p.muted, style = MaterialTheme.typography.bodySmall)
                 var namingCommander by rememberSaveable { mutableStateOf<Int?>(null) }
                 players.firstOrNull { it.playerNumber == namingCommander }?.let { player ->
-                    actions.commander?.let { name -> CommanderNameDialog(player, { name(player, it); namingCommander = null }) { namingCommander = null } }
+                    actions.commander?.let { save -> CommanderPickerDialog(player, { name, art -> save(player, name, art); namingCommander = null }) { namingCommander = null } }
                 }
                 players.forEach { player ->
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -132,7 +132,7 @@ internal fun TableLobby(
                             Column(Modifier.weight(1f)) {
                                 Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge)
                                 player.commander?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
-                                rememberCommanderArt(player.commander)?.let { art ->
+                                rememberCommanderArt(player.commander, player.commanderArt)?.let { art ->
                                     Text("${art.cardName} · Art: ${art.artist} (Scryfall)", color = p.faint, style = MaterialTheme.typography.labelSmall)
                                 }
                             }
@@ -153,13 +153,13 @@ internal fun TableLobby(
                             }
                             if (settings.profile.commanderRules && actions.commander != null) {
                                 TextButton(onClick = { namingCommander = player.playerNumber }, enabled = enabled,
-                                    modifier = Modifier.semantics { contentDescription = "Commander for ${player.label}" }) {
-                                    Text(if (player.commander == null) "Commander" else "Change commander")
+                                    modifier = Modifier.semantics { contentDescription = "Name ${player.label}'s commander and pick its card art" }) {
+                                    Text(if (player.commander == null) "Name commander" else "Change commander")
                                 }
                             }
                             actions.background?.takeIf { actions.canEditBackground(player) }?.let { edit ->
                                 TextButton(onClick = { edit(player) }, enabled = enabled,
-                                    modifier = Modifier.semantics { contentDescription = "Tile background for ${player.label}" }) { Text("Background") }
+                                    modifier = Modifier.semantics { contentDescription = "Choose the color or photo behind ${player.label}'s tile" }) { Text("Tile color & photo") }
                             }
                             if (actions.canRemove(player)) IconButton(onClick = { actions.remove(player) }, enabled = enabled,
                                 modifier = Modifier.semantics { contentDescription = "Remove ${player.label}" }) {
@@ -262,25 +262,6 @@ internal fun TableLobby(
             footer()
         }
     }
-}
-
-/** Optional: the commander a player brought, shown on their panel and the star. */
-@Composable
-private fun CommanderNameDialog(player: TablePlayer, onSave: (String?) -> Unit, onDismiss: () -> Unit) {
-    var name by rememberSaveable { mutableStateOf(player.commander.orEmpty()) }
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("${player.label}'s commander") },
-        text = {
-            OutlinedTextField(name, { name = it.take(StandaloneGame.MAX_COMMANDER) }, label = { Text("Commander (optional)") },
-                singleLine = true, modifier = Modifier.fillMaxWidth())
-        },
-        confirmButton = { TextButton({ onSave(name.trim().ifEmpty { null }) }) { Text("Save") } },
-        dismissButton = {
-            if (player.commander != null) TextButton({ onSave(null) }) { Text("Clear") }
-            else TextButton(onDismiss) { Text("Cancel") }
-        },
-    )
 }
 
 internal data class LobbyModeSettings(val profile: GameProfile?, val life: Int?, val teams: Boolean)

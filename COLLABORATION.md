@@ -607,3 +607,18 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   `seanModeRematch` reseats [0,2,4,1,3] so every ally pair becomes enemies.
 - Validation: `SeanModeTest`, `ScryfallCommanderArtTest`; docs, tokens and
   manual checks pass locally; Gradle in PR CI. Not yet seen on a device.
+
+## 2026-10-15 — Claude: commander picker, art printings and player menu merge
+
+- Owner: Claude on `claude/project-thread-0cn2jn` (restarted from master after
+  #117 merged). Owner feedback from a phone test of #117.
+- Commander picker (`CommanderPicker.kt`): Scryfall `/cards/autocomplete`
+  suggestions after a 300 ms pause, then `/cards/search?unique=art` printings
+  with art previews; the pick is saved as `commanderArt` (a Scryfall card ID,
+  validated as a UUID) and fetched via `/cards/{id}`. Off with the art switch.
+- Named commanders now appear in-game on the commander-tax counter and in the
+  Commander damage rows of everyone they can hit.
+- Player menu: Turn & tools and Counters & status are one card.
+- Lobby buttons say what they do: Name commander, Tile color & photo.
+- Validation: new `SeanModeTest` and `ScryfallCommanderArtTest` cases; docs,
+  tokens and manual checks local; Gradle in PR CI. Not yet seen on a device.

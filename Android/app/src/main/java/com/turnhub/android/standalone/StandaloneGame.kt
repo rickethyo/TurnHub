@@ -42,6 +42,8 @@ data class LocalPlayer(
     val extensionsUsed: Int = 0,
     /** The commander this player brought, for the table's banter; shown, never scored. */
     val commander: String? = null,
+    /** The Scryfall printing whose art [commander] shows; null uses Scryfall's default printing. */
+    val commanderArt: String? = null,
 )
 
 /**
@@ -277,7 +279,7 @@ data class StandaloneGame(
         return copy(
             gameId = gameId,
             state = TableState.RUNNING,
-            players = players.map { LocalPlayer(it.name, it.profileId, life = startingLife, localId = it.localId, commander = it.commander) },
+            players = players.map { LocalPlayer(it.name, it.profileId, life = startingLife, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt) },
             active = first,
             starter = first,
             winner = null,
@@ -307,7 +309,7 @@ data class StandaloneGame(
             timerRules = timerRules,
             twoHeadedGiant = twoHeadedGiant,
             houseRules = houseRules,
-            players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId, commander = it.commander) },
+            players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt) },
             revision = revision + 1,
         )
     }
@@ -520,12 +522,13 @@ data class StandaloneGame(
         return copy(players = reseated, starter = null).start(nowMs, gameId, random)
     }
 
-    /** Names (or clears, when blank) the commander [index] is playing. */
-    fun setCommander(index: Int, name: String?): StandaloneGame {
+    /** Names (or clears, when blank) the commander [index] is playing, with the printing whose art it shows. */
+    fun setCommander(index: Int, name: String?, art: String? = null): StandaloneGame {
         if (index !in players.indices) return this
         val clean = name?.trim()?.take(MAX_COMMANDER)?.takeIf { it.isNotEmpty() }
-        if (players[index].commander == clean) return this
-        return update(index) { it.copy(commander = clean) }
+        val printing = art?.takeIf { clean != null && it.matches(PRINTING_ID) }
+        if (players[index].commander == clean && players[index].commanderArt == printing) return this
+        return update(index) { it.copy(commander = clean, commanderArt = printing) }
     }
 
     private fun finish(winners: List<Int>, nowMs: Long): StandaloneGame = copy(
@@ -659,6 +662,7 @@ data class StandaloneGame(
                     demerits = p.demerits,
                     extensionsAvailable = p.extensionsEarned - p.extensionsUsed,
                     commander = p.commander,
+                    commanderArt = p.commanderArt,
                     life = if (state == TableState.LOBBY) null else p.life,
                     turnsCompleted = p.turnsCompleted.toLong(),
                     commanderDamage = p.commanderDamage.map { (source, damage) -> CommanderDamage(source + 1, damage) },
@@ -676,7 +680,9 @@ data class StandaloneGame(
     companion object {
         const val MAX_PLAYERS = 8
         const val MAX_NAME = 32
-        const val MAX_COMMANDER = 48
+        const val MAX_COMMANDER = 80
+        /** A Scryfall card ID (a UUID). */
+        val PRINTING_ID = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
         /** Every second seat of the star: today's allies sit across from each other. */
         val SEAN_MODE_ORDER = listOf(0, 2, 4, 1, 3)
         const val MAX_LIFE = 99_999
