@@ -100,6 +100,27 @@ internal object PlaneLibrary {
 }
 
 /**
+ * Downloads the planes the first time a table plays Planechase with TurnHub's
+ * deck, from whichever screen turned it on (Game setup or the Planes tab).
+ */
+@Composable
+internal fun PlanesDownloadWhenNeeded(planar: Planechase) {
+    val context = LocalContext.current
+    LaunchedEffect(planar.enabled, planar.source) {
+        if (planar.enabled && planar.source == PlanarDeckSource.DIGITAL && PlaneLibrary.known(context) == null &&
+            PlaneLibrary.problem == null) PlaneLibrary.download(context)
+    }
+}
+
+/** How TurnHub's deck stands on this phone, in a few words for setup; null once it's here. */
+internal fun planesDownloadNote(): String? = when {
+    PlaneLibrary.downloading -> "Downloading the planes…"
+    PlaneLibrary.cards != null -> null
+    PlaneLibrary.problem != null -> "The planes didn't download. Retry in the Planes tab, or a game uses your own cards."
+    else -> "The planes download the first time. Until then, a game uses your own cards."
+}
+
+/**
  * The Planes tab (Magic games on this device): Planechase setup before a game,
  * then the face-up plane, the planar die and the deck tools during one. It acts
  * for the player whose turn it is; the engine is [Planechase].
@@ -112,11 +133,7 @@ fun PlanesTab(state: StandaloneState, table: StandaloneTable) {
     val playing = game.state == TableState.RUNNING || game.state == TableState.PAUSED
     val cards = PlaneLibrary.cards
     LaunchedEffect(Unit) { PlaneLibrary.known(context) }
-    // The first time Planechase is turned on with TurnHub's deck, the planes come down once.
-    LaunchedEffect(planar.enabled, planar.source) {
-        if (planar.enabled && planar.source == PlanarDeckSource.DIGITAL && PlaneLibrary.known(context) == null &&
-            PlaneLibrary.problem == null) PlaneLibrary.download(context)
-    }
+    PlanesDownloadWhenNeeded(planar)
     Column(
         Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -188,6 +205,22 @@ private fun PlanarSetup(state: StandaloneState, table: StandaloneTable, cards: M
     }
 }
 
+/** A digital game that started before the planes were on this phone: switch to TurnHub's deck once they are. */
+@Composable
+private fun LateDeck(table: StandaloneTable, cards: Map<String, PlaneInfo>?) {
+    val p = palette
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    Text("TurnHub's deck wasn't on this phone when the game started, so the table is using its own cards.", color = p.muted)
+    when {
+        cards != null && cards.values.any { !it.phenomenon } ->
+            AccentButton("Switch to TurnHub's deck", table::dealPlanarDeck, Modifier.fillMaxWidth())
+        PlaneLibrary.downloading -> Text("Downloading the planes…", color = p.muted,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        else -> ToneButton("Download the planes", { scope.launch { PlaneLibrary.download(context) } }, Modifier.fillMaxWidth())
+    }
+}
+
 @Composable
 private fun PlanarPlay(state: StandaloneState, table: StandaloneTable, cards: Map<String, PlaneInfo>?) {
     val p = palette
@@ -215,6 +248,7 @@ private fun PlanarPlay(state: StandaloneState, table: StandaloneTable, cards: Ma
     if (planar.physical) {
         BrassCard(highlight = if (walkNow) p.accent else null) {
             Text("Your own cards", color = p.text, style = MaterialTheme.typography.titleLarge)
+            if (planar.source == PlanarDeckSource.DIGITAL) LateDeck(table, cards)
             Text(if (walkNow) "Planeswalk! Put the plane on the bottom and turn over the next one."
                 else "Keep the face-up plane where everyone can read it.", color = if (walkNow) p.text else p.muted,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })

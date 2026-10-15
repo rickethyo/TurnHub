@@ -62,6 +62,18 @@ data class Planechase(
     }
 
     /**
+     * TurnHub's deck arrived after a digital game started without it (the table
+     * was using its own cards): [cards] are dealt as at the start of the game,
+     * and this turn's roll costs and the history carry over.
+     */
+    fun dealtLate(cards: List<PlanarCard>): Planechase {
+        if (source != PlanarDeckSource.DIGITAL || deck.isNotEmpty() || faceUp.isNotEmpty()) return this
+        val dealt = dealt(cards)
+        if (dealt.faceUp.isEmpty()) return this
+        return dealt.copy(rolls = rolls, lastRoll = lastRoll, planeswalks = planeswalks, chaos = chaos)
+    }
+
+    /**
      * Planeswalk (CR 701.31b): every face-up card goes to the bottom of the deck,
      * then the top card turns face up. Counters on the old cards go with them.
      */

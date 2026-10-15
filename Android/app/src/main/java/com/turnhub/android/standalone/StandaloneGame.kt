@@ -587,6 +587,13 @@ data class StandaloneGame(
         return if (next === planechase) this else copy(planechase = next).bump()
     }
 
+    /** Deals TurnHub's deck into a digital game that started before the planes were downloaded. */
+    fun dealPlanarDeck(deck: List<PlanarCard>): StandaloneGame {
+        if (!playing || !planechase.enabled) return this
+        val next = planechase.dealtLate(deck)
+        return if (next === planechase) this else copy(planechase = next).bump()
+    }
+
     /** Counters on a face-up plane, corrected by any living player, paused or not. */
     fun changePlaneCounter(index: Int, card: String, delta: Int): StandaloneGame {
         if (!playing || !planechase.enabled || players.getOrNull(index)?.eliminated != false) return this

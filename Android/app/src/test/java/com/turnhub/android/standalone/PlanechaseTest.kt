@@ -47,6 +47,26 @@ class PlanechaseTest {
         assertEquals(mapOf(Planechase.PHYSICAL_PLANE to 1), next.planechase.counters)
     }
 
+    @Test fun `TurnHub's deck can be dealt into a game that started without it`() {
+        val game = lobby().setPlanechase(true).start(0, "g", Random(1), emptyList())
+        val active = game.active!!
+        val rolled = game.rollPlanarDie(active, PlanarFace.BLANK).changePlaneCounter(active, Planechase.PHYSICAL_PLANE, 2)
+        val dealt = rolled.dealPlanarDeck(Planechase.shuffledDeck(pool, 4, true, Random(2)))
+        assertFalse(dealt.planechase.physical)
+        assertEquals(1, dealt.planechase.faceUp.size)
+        assertFalse(dealt.planechase.faceUp.single().phenomenon)
+        // This turn's roll cost carries over; the physical plane's counters go with it.
+        assertEquals(1, dealt.planechase.cost(active))
+        assertTrue(dealt.planechase.counters.isEmpty())
+        // Once dealt, or with the players' own cards chosen, there's nothing to deal.
+        assertTrue(dealt.dealPlanarDeck(pool) === dealt)
+        val own = lobby().setPlanechase(true).setPlanarSource(PlanarDeckSource.PHYSICAL).start(0, "g", Random(1), emptyList())
+        assertTrue(own.dealPlanarDeck(pool) === own)
+        // A lobby can't be dealt into.
+        val waiting = lobby().setPlanechase(true)
+        assertTrue(waiting.dealPlanarDeck(pool) === waiting)
+    }
+
     @Test fun `the shared deck has every plane and at most two phenomena per player`() {
         val deck = Planechase.shuffledDeck(pool, 3, phenomena = true, Random(7))
         assertEquals(50, deck.count { !it.phenomenon })
