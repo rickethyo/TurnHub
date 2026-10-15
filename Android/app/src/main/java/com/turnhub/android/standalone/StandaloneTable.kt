@@ -35,6 +35,20 @@ interface StandaloneStore {
     fun keepUnreadable(): Boolean = false
 }
 
+/** Holds one game in memory and saves nowhere: the Table tab's practice table. */
+class MemoryStandaloneStore(game: StandaloneGame, library: LocalLibrary) : StandaloneStore {
+    private var game = StandaloneTable.gameToJson(game).toString()
+    private var library = library.toJson().toString()
+    override fun loadGame(): String = game
+    override fun loadRecords(): String? = null
+    override fun loadLibrary(): String = library
+    override fun saveSnapshot(game: String, library: String): Boolean {
+        this.game = game
+        this.library = library
+        return true
+    }
+}
+
 class PreferencesStandaloneStore(context: Context) : StandaloneStore {
     private val prefs = context.applicationContext.getSharedPreferences("turnhub_standalone", Context.MODE_PRIVATE)
     override fun loadGame(): String? = prefs.getString("game", null)

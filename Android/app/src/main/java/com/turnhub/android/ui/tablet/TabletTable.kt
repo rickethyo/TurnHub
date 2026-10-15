@@ -108,6 +108,7 @@ import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.components.TurnHubHaptics
 import com.turnhub.android.ui.components.rememberHaptics
 import com.turnhub.android.ui.components.rememberNowMs
+import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.ui.theme.palette
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -210,6 +211,7 @@ internal fun TabletTable(
     // One player's menu at a time, full screen and turned to face that player.
     var playerMenu by remember { mutableStateOf<String?>(null) }
     var flipped by rememberSaveable { mutableStateOf(false) }
+    val starLayout = rememberStarLayout()
     var menuOpen by remember { mutableStateOf(false) }
     BackHandler(enabled = playerMenu != null || menuOpen) {
         playerMenu = null
@@ -285,9 +287,13 @@ internal fun TabletTable(
     BoxWithConstraints(Modifier.fillMaxSize().background(p.bg)) {
         val landscape = maxWidth >= maxHeight || units.size <= 2
         val plan = placements(units.size)
+        val star = starLayout.on && summary.settings.profile.starCommander && units.size == StarCommander.PLAYERS
         // The middle panel of a side with an odd count meets the centre disc at its inner (top) edge.
-        val underHub = listOf(plan.near, plan.far).filter { it.size % 2 == 1 }.map { it[it.size / 2] }.toSet()
+        val underHub = if (star) emptySet()
+            else listOf(plan.near, plan.far).filter { it.size % 2 == 1 }.map { it[it.size / 2] }.toSet()
         fun degreesOf(index: Int) = when {
+            // A player's full-screen menu turns to the nearest side of their star seat.
+            star -> Math.floorMod(Math.round(starSpot(index).degrees / 90f) * 90, 360)
             landscape -> if (index in plan.far) 180 else 0
             else -> if (index in plan.far) 90 else 270
         }
@@ -331,7 +337,9 @@ internal fun TabletTable(
             tableShot.record { this@drawWithContent.drawContent() }
             drawLayer(tableShot)
         }) {
-            if (landscape) {
+            if (star) {
+                StarTable(panel)
+            } else if (landscape) {
                 Column(Modifier.fillMaxSize().padding(4.dp)) {
                     if (plan.far.isNotEmpty()) {
                         Row(Modifier.weight(1f).fillMaxWidth()) {
@@ -485,6 +493,9 @@ internal fun TabletTable(
                     DisclosureCard("Sound & display") {
                         com.turnhub.android.ui.components.GameSoundControls()
                         ToneButton("Turn panels around", { flipped = !flipped; menuOpen = false }, Modifier.fillMaxWidth())
+                        if (summary.settings.profile.starCommander) {
+                            SetupSwitch("Star layout", STAR_LAYOUT_HINT, starLayout.on, true, starLayout.set)
+                        }
                     }
                     DisclosureCard("Help & app") {
                         com.turnhub.android.ui.components.ReportBugButton()

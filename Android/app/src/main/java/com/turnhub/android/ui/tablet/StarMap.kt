@@ -222,7 +222,7 @@ internal fun StarMap(seats: List<StarSeat>, modifier: Modifier = Modifier, onSwa
 }
 
 /** One relationship line: allies solid and thicker, enemies dashed. */
-private fun DrawScope.link(from: Offset, to: Offset, color: Color, ally: Boolean, alpha: Float) {
+internal fun DrawScope.link(from: Offset, to: Offset, color: Color, ally: Boolean, alpha: Float) {
     drawLine(
         color.copy(alpha = alpha),
         from,

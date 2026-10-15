@@ -40,3 +40,23 @@ fun ReportBugButton() {
             color = palette.muted, style = MaterialTheme.typography.bodySmall)
     }
 }
+
+/** Says what the bug button does and which version to mention, then opens the form. */
+@Composable
+fun BugReportDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Report a bug") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Opens the TurnHub bug form in your browser. Please mention this version and device:")
+                AppVersionLabel()
+                Text("${android.os.Build.MODEL}, Android ${android.os.Build.VERSION.RELEASE}",
+                    color = palette.muted, style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton({ onDismiss(); openBugReport(context) }) { Text("Open form") } },
+        dismissButton = { androidx.compose.material3.TextButton(onDismiss) { Text("Cancel") } },
+    )
+}

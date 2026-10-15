@@ -103,11 +103,19 @@ internal fun TableLobby(
                     val seats = summary.starSeats()
                     StarMap(seats, onSwap = { a, b -> if (enabled) actions.swap(a, b) })
                     StarRelationsList(seats)
+                    val starLayout = rememberStarLayout()
+                    SetupSwitch("Star layout at the table", STAR_LAYOUT_HINT, starLayout.on, true, starLayout.set)
                 } else {
                     SeatMap(players.map { it.label }, { a, b -> if (enabled) actions.swap(a, b) },
                         backgrounds = players.map { it.tileBackground }, colors = players.map { it.color },
                         teams = settings.twoHeadedGiant)
                 }
+                // How this mode's seating works, right under the map it explains.
+                Text(when {
+                    settings.profile.starCommander -> STAR_MAP_HINT
+                    settings.twoHeadedGiant -> TEAM_MAP_HINT
+                    else -> SEAT_MAP_HINT
+                }, color = p.muted, style = MaterialTheme.typography.bodySmall)
                 players.forEach { player ->
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -155,6 +163,7 @@ internal fun TableLobby(
                 }
                 if (savedPlayers.isNotEmpty()) {
                     Text(savedTitle, color = p.muted, style = MaterialTheme.typography.labelLarge)
+                    Text(identityHint, color = p.faint, style = MaterialTheme.typography.bodySmall)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         savedPlayers.forEach { player ->
                             SuggestionChip(onClick = { actions.select(player) }, label = {
@@ -226,15 +235,11 @@ internal fun TableLobby(
             }
             StartTableButton(players.size, settings.twoHeadedGiant, enabled, settings.profile.starCommander,
                 official?.players?.takeIf { locked }, actions.start)
-            DisclosureCard("Game sounds") { com.turnhub.android.ui.components.GameSoundControls() }
-            DisclosureCard("Table guide & feedback") {
-                Text(when {
-                    settings.profile.starCommander -> STAR_MAP_HINT
-                    settings.twoHeadedGiant -> TEAM_MAP_HINT
-                    else -> SEAT_MAP_HINT
-                }, color = p.muted)
-                Text(identityHint, color = p.muted)
-                com.turnhub.android.ui.components.ReportBugButton()
+            // In the app, sounds and bug reports live in Settings and the banner; the
+            // full-screen lobby has neither, so it keeps them at the bottom.
+            if (!embedded) {
+                DisclosureCard("Game sounds") { com.turnhub.android.ui.components.GameSoundControls() }
+                DisclosureCard("Feedback") { com.turnhub.android.ui.components.ReportBugButton() }
             }
             footer()
         }

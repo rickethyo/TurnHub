@@ -141,7 +141,7 @@ The chosen code is framed and marked “shown”. If an administrator has set th
 
 ## Using the Android App
 
-The TurnHub Android app is on Google Play through the prototype testing track. Game, Table, Players, History and Settings are available with or without Atlas. No Atlas, account or network permission is needed for local play. Table shows the game’s table inside the app, or a preview of the seats before a game starts; Full screen gives it the whole screen. Settings includes appearance, sound and Atlas connection. Atlas discovery stays in the background; Connect can join TurnHub-Atlas Wi-Fi using a saved or entered password.
+The TurnHub Android app is on Google Play through the prototype testing track. Game, Table, Players, History and Settings are available with or without Atlas. No Atlas, account or network permission is needed for local play. Table shows the game’s table inside the app. Before a game starts it is a practice table you can play freely; nothing on it is saved. Full screen gives a started game the whole screen. At the top of the app, the bug button reports a bug and the ? button opens this manual; long-press either to see its name. Settings includes appearance, sound and Atlas connection. Atlas discovery stays in the background; Connect can join TurnHub-Atlas Wi-Fi using a saved or entered password.
 
 Sign in with your PIN or password, or choose **New here? Create an account** on the sign-in sheet to make one: a name, and either a PIN (quick to enter on a Sigil) or a password. An account made without a PIN, for example by a tablet (section 17), asks you to choose one the first time you sign in from a phone; enter it twice. From then on it is checked as usual.
 
@@ -257,7 +257,7 @@ Star Commander (five players): choose Commander, then Star Commander under Game 
 
 - You win when both of your enemies are out, whoever took them out: eliminated, conceded, or out on life, poison or Commander damage. If one event takes out the enemies of two players, both share the victory and both get the win. A player who is already out can’t win.
 
-- Each player’s panel shows Enemies out 1/2; the table menu shows the star, and tapping a player highlights their allies and enemies. Claiming a win for an alternate win condition works as usual. Two-Headed Giant isn’t available in Star Commander.
+- Each player’s panel shows Enemies out 1/2; the table menu shows the star, and tapping a player highlights their allies and enemies. Claiming a win for an alternate win condition works as usual. Two-Headed Giant isn’t available in Star Commander. Turn on Star layout (in the lobby, or Sound & display in the table menu) to seat the game in the star itself, each panel facing its player; it suits a tablet or large screen.
 
 - Statistics count Star Commander games and wins separately as well as in the totals.
 
@@ -525,7 +525,7 @@ Game menu groups table tools, game rules, sound/display, help and finishing the 
 
 Local turn timers include a 10-minute preset. Optional timeout actions pass automatically, add a demerit, or do both. Earned extensions are optional: after a player’s first three turns, an early pass can earn one. The default is before 75% of the limit, with at most two earned per game. Each extension adds half the turn limit; a turn can use one extension, and extended or expired turns earn none. These policies apply to device-hosted games.
 
-Player colors use named swatches and a custom visual picker. Changes save immediately. Life controls put minus on the player’s left and plus on their right, including rotated panels. The home header and bug-report card show the app version and build.
+Player colors use named swatches and a custom visual picker. Changes save immediately. Life controls put minus on the player’s left and plus on their right, including rotated panels. The bug button at the top of the app shows the app version and build before it opens the bug form; Settings shows them too.
 
 - The table looks and works like tablet mode (section 17): life, Commander damage, passing, pause, concede, the turn timer, Two-Headed Giant, Star Commander and the winners. There are no phones or Sigils in this mode. Tap First? next to a player in setup to choose who goes first (their team, in Two-Headed Giant); otherwise a random player starts, and a rematch always picks at random. For the first three minutes, Back to setup in the table menu (or while paused) undoes the start: it returns to setup with the same players and settings and saves nothing. A game that ends within a minute isn't added to history or stats; tap Count this game on the game-over card to keep it. Official modes (Magic, Commander, Two-Headed Giant and Yu-Gi-Oh!) use their official starting life, poison limit and player count unless House rules is on in setup; official Two-Headed Giant is two teams of two. Two-Headed Giant Commander, Star Commander and Other are custom modes. In Two-Headed Giant the More menu shows the team's shared poison once and one Our team concedes button, because a team leaves together; teammates can't deal each other Commander damage. ? Rules, in setup and the table menu, summarizes the mode's rules and links to the official rules.
 
