@@ -119,6 +119,8 @@ fun CounterChips(
 fun MagicCountersEditor(counters: PlayerCounters, initiative: Boolean, commander: Boolean, enabled: Boolean = true,
     /** False for a Two-Headed Giant player: the team's shared poison shows once, in [TeamPoisonRow]. */
     showPoison: Boolean = true,
+    /** The commander the player named, used in place of "Commander 1". */
+    commanderName: String? = null,
     onChange: (kind: String, value: Int, commander: Int) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -132,7 +134,8 @@ fun MagicCountersEditor(counters: PlayerCounters, initiative: Boolean, commander
         if (commander) {
             Text("Casts from the command zone", color = palette.muted, style = MaterialTheme.typography.labelLarge)
             for (c in 1..2) {
-                CounterRow("Commander $c casts · next tax +${counters.commanderTax(c)}", counters.commanderCasts[c-1], enabled, "⌘") {
+                val which = if (c == 1 && commanderName != null) commanderName else "Commander $c"
+                CounterRow("$which casts · next tax +${counters.commanderTax(c)}", counters.commanderCasts[c-1], enabled, "⌘") {
                     onChange("commander-casts", it, c)
                 }
             }

@@ -62,7 +62,10 @@ player's tile. Only the commander name typed in is sent; Scryfall receives the
 request (including your IP address) under
 [Scryfall's privacy policy](https://scryfall.com/docs/privacy). The art is
 kept in the app's cache so each name is looked up once. Naming a commander is
-optional, and **Commander card art** in Settings turns the lookups off.
+optional, and **Commander card art** in Settings turns the lookups off. While
+you type a commander name, what you have typed so far is sent to Scryfall to
+suggest card names, and choosing a card lists its printings so you can pick the
+art.
 
 ## Planechase planes
 

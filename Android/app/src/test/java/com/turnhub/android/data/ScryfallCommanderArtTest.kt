@@ -75,4 +75,34 @@ class ScryfallCommanderArtTest {
         assertNull(art.art("not a card"))
         assertEquals(1, web.asked.size)
     }
+
+    @Test fun `suggests names as the player types`() = runBlocking {
+        val web = FakeWeb { card("""{"object":"catalog","data":["Kroxa, Titan of Death's Hunger","Kroxa and Kunoros"]}""") }
+        val art = ScryfallCommanderArt(folder.root, "t", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
+        assertEquals(listOf("Kroxa, Titan of Death's Hunger", "Kroxa and Kunoros"), art.suggest("Kro"))
+        assertEquals("https://api.scryfall.com/cards/autocomplete?q=Kro", web.asked.single())
+        assertEquals(emptyList<String>(), art.suggest("K"))
+        assertEquals(1, web.asked.size)
+    }
+
+    @Test fun `lists each art printing and fetches the one picked`() = runBlocking {
+        val id = "0b2b3b0a-1c2d-4e5f-8a9b-0c1d2e3f4a5b"
+        val web = FakeWeb { url ->
+            when {
+                url.contains("/cards/search") -> card("""{"data":[
+                    {"id":"$id","set_name":"Theros Beyond Death","artist":"Vincent Proce","image_uris":{"art_crop":"https://cards.scryfall.io/a.jpg"}},
+                    {"id":"bad","set_name":"Skipped","artist":"X","image_uris":{"art_crop":"https://cards.scryfall.io/b.jpg"}}]}""")
+                url.endsWith("/cards/$id") -> card("""{"name":"Kroxa, Titan of Death's Hunger","artist":"Vincent Proce",
+                    "image_uris":{"art_crop":"https://cards.scryfall.io/a.jpg"}}""")
+                else -> Reply(200, jpeg)
+            }
+        }
+        val art = ScryfallCommanderArt(folder.root, "t", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
+        val printings = art.printings("Kroxa, Titan of Death's Hunger")
+        assertEquals(listOf(id), printings.map { it.id })
+        assertEquals("Theros Beyond Death", printings.single().setName)
+        assertArrayEquals(jpeg, art.preview(printings.single()))
+        assertEquals("Vincent Proce", art.art("Kroxa, Titan of Death's Hunger", id)!!.artist)
+        assertEquals("https://api.scryfall.com/cards/$id", web.asked[2])
+    }
 }

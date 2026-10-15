@@ -22,8 +22,10 @@ plays like the real table but lives only in memory, so nothing on it is saved.
 Full screen takes a started game over the whole screen. Star Commander games can
 use the setup's star as the table layout (a per-device switch in the lobby and
 in the table menu's Sound & display), with each panel facing its player. In any
-Commander mode a player can optionally name their commander in the lobby; the
-name shows under theirs and its Scryfall art crop (credited to the artist,
+Commander mode a player can optionally name their commander in the lobby (Scryfall
+suggests card names as they type, and they can pick which printing's art); the
+name shows under theirs, on their commander-tax counter and in others' Commander
+damage, and its Scryfall art crop (credited to the artist,
 cached in `commander_art/`, off via Settings > Commander card art) fills their
 tile. When the device game is a Magic format, a Planes tab runs Planechase:
 setup (TurnHub's shuffled deck, downloaded once from Scryfall into
@@ -173,7 +175,7 @@ merged back live. The rules above apply in full whenever Atlas is present.
   seats to swap them. **Clear all** empties the local selection in one saved
   update, preserving accounts, history and game settings.
 - Local accounts store an independent tile background: default, solid, gradient
-  or a cropped image (up to 512 × 512 pixels and 48 KiB). The lobby's Background
+  or a cropped image (up to 512 × 512 pixels and 48 KiB). The lobby's Tile color & photo
   button and account editor configure it. It follows the local UUID through
   swaps, clearing and new games; avatars and match records remain separate.
   Connected tables use this phone's background only through a verified link

@@ -59,4 +59,16 @@ class SeanModeTest {
         val restored = StandaloneTable.gameFromJson(StandaloneTable.gameToJson(game))
         assertEquals(game.players.map { it.commander }, restored.players.map { it.commander })
     }
+
+    @Test fun `the chosen art printing is kept, carried and cleared with the name`() {
+        val art = "0b2b3b0a-1c2d-4e5f-8a9b-0c1d2e3f4a5b"
+        val game = finishedStar().setCommander(1, "Kroxa, Titan of Death's Hunger", art)
+        assertEquals(art, game.players[1].commanderArt)
+        assertEquals(art, game.toSummary(0, 0).players[1].commanderArt)
+        assertEquals(art, game.rematch(2_000, "g2").players[1].commanderArt)
+        assertEquals(art, StandaloneTable.gameFromJson(StandaloneTable.gameToJson(game)).players[1].commanderArt)
+        // Only Scryfall card IDs are kept, and never without a name.
+        assertNull(game.setCommander(1, "Kroxa", "../cards/x").players[1].commanderArt)
+        assertNull(game.setCommander(1, null, art).players[1].commanderArt)
+    }
 }

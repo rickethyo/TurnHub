@@ -59,12 +59,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 
-/** The User-Agent Scryfall asks every app to send: the app's name and version. */
-private fun planesUserAgent(app: Context): String {
-    val version = runCatching { app.packageManager.getPackageInfo(app.packageName, 0) }.getOrNull()
-    return "TurnHub/${version?.versionName ?: "0"} (Android; build ${version?.let { androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(it) } ?: 0})"
-}
-
 /** The planes on this phone, downloaded from Scryfall once, and their decoded art; one copy for the app. */
 internal object PlaneLibrary {
     private var source: ScryfallPlanes? = null
@@ -79,7 +73,7 @@ internal object PlaneLibrary {
 
     fun source(context: Context): ScryfallPlanes = source ?: run {
         val app = context.applicationContext
-        ScryfallPlanes(File(app.filesDir, "planes"), File(app.cacheDir, "plane_art"), planesUserAgent(app)).also { source = it }
+        ScryfallPlanes(File(app.filesDir, "planes"), File(app.cacheDir, "plane_art"), scryfallUserAgent(app)).also { source = it }
     }
 
     /** What a digital deck is built from: every downloaded card, or nothing yet. */

@@ -62,11 +62,11 @@ import kotlin.math.sin
 /** One Star Commander seat as the star map draws it; index in the list is the seat (turn order). */
 internal data class StarSeat(val name: String, val playerNumber: Int, val avatar: AvatarIcon? = null,
     val eliminated: Boolean = false, val color: String? = null, val background: TileBackground = TileBackground(),
-    val commander: String? = null)
+    val commander: String? = null, val commanderArt: String? = null)
 
 internal fun TableSummary.starSeats(): List<StarSeat> =
     players.sortedBy { it.playerNumber }.map {
-        StarSeat(it.label, it.playerNumber, it.avatar, it.eliminated, it.color, it.tileBackground, it.commander)
+        StarSeat(it.label, it.playerNumber, it.avatar, it.eliminated, it.color, it.tileBackground, it.commander, it.commanderArt)
     }
 
 /** "Allies: B, E · Enemies: C, D" for [seat], the same words the map's labels and legend use. */
@@ -190,7 +190,7 @@ internal fun StarMap(seats: List<StarSeat>, modifier: Modifier = Modifier, onSwa
                     ) {
                         val hue = playerColor(seat.color, p.avatarColor(seat.playerNumber))
                         PlayerTileBackground(seat.background, hue, Modifier.matchParentSize(),
-                            art = rememberCommanderArt(seat.commander), showCredit = false)
+                            art = rememberCommanderArt(seat.commander, seat.commanderArt), showCredit = false)
                         Column(Modifier.fillMaxWidth().padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(Modifier.alpha(if (seat.eliminated) .45f else 1f)) {
                                 PlayerAvatar(seat.name, seat.playerNumber, seat.avatar, size = 40.dp, color = hue)
