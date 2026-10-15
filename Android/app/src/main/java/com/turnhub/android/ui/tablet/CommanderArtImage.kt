@@ -28,14 +28,10 @@ private object CommanderArtCache {
 
     fun source(context: Context): ScryfallCommanderArt = source ?: run {
         val app = context.applicationContext
-        ScryfallCommanderArt(File(app.cacheDir, "commander_art"), scryfallUserAgent(app)).also { source = it }
+        val version = runCatching { app.packageManager.getPackageInfo(app.packageName, 0) }.getOrNull()
+        val agent = "TurnHub/${version?.versionName ?: "0"} (Android; build ${version?.let { PackageInfoCompat.getLongVersionCode(it) } ?: 0})"
+        ScryfallCommanderArt(File(app.cacheDir, "commander_art"), agent).also { source = it }
     }
-}
-
-/** The User-Agent Scryfall asks every app to send: the app's name and version. */
-internal fun scryfallUserAgent(app: Context): String {
-    val version = runCatching { app.packageManager.getPackageInfo(app.packageName, 0) }.getOrNull()
-    return "TurnHub/${version?.versionName ?: "0"} (Android; build ${version?.let { PackageInfoCompat.getLongVersionCode(it) } ?: 0})"
 }
 
 /** Whether named commanders show their card art (Settings; on unless turned off). */
