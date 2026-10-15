@@ -105,6 +105,13 @@ history keys and random eight-hex public IDs compatible with Atlas. Optional
 PINs/passwords use the same input rules as Atlas; only PBKDF2-HMAC-SHA256 verifiers
 (120,000 iterations, random 16-byte salts) are saved locally. They protect account
 settings after restart; shared-table play and local results remain available.
+Setting or changing one keeps the account's settings open until the app
+restarts, and it can be removed again. An account can be deleted from this
+phone (not while it's in a game in progress); its finished games stay in
+History under the name played with. Local accounts have no permissions: on a
+phone every player is equal, and Admin is only for an Atlas's administration
+(web portal) functions (owner decision 2026-10-15). Reduced motion applies to
+a table when one of its seated players has it on.
 Local name, color, preset/custom avatar, reduced motion and phone appearance work
 offline. Image decode/crop/compression and thumbnail generation run on Android.
 Player and tile colors use named swatches and a visual custom picker. Local color

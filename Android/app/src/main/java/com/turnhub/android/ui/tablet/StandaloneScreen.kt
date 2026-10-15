@@ -105,7 +105,9 @@ private fun LocalTable(state: StandaloneState, table: StandaloneTable, reduceMot
         tablet = TabletState(),
         controls = { block -> scope.launch { table.block() } },
         onDismissMessage = {},
-        reduceMotion = reduceMotion || state.library.players.any { it.personalization.reduceMotion },
+        // Only the players at this table: a saved player who isn't playing doesn't slow everyone else's table.
+        reduceMotion = reduceMotion || game.players.mapNotNull { it.localId }.toSet().let { seated ->
+            state.library.players.any { it.localId in seated && it.personalization.reduceMotion } },
         onClose = onClose,
         standalone = true,
         onShareResult = game.record()?.let { record ->
