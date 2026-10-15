@@ -173,6 +173,20 @@ class LocalAccountsTest {
         assertNotNull(table.state.value.storageProblem)
     }
 
+    @Test fun `setting a PIN keeps the account's settings open until the app restarts`() {
+        val store = Store()
+        val table = StandaloneTable(store)
+        // Players typed into the lobby get an account with no PIN; setting one used to lock it at once.
+        table.addPlayer("Ana")
+        val player = table.state.value.library.players.single()
+        assertTrue(table.setAccountCredential(player.localId, LocalCredential.create("1234")))
+        // The editor stays open, so the next change and a second PIN change both save.
+        assertTrue(table.accountUnlocked(player.localId))
+        assertTrue(table.saveAccount(player.localId, player.name, player.personalization.copy(avatar = "die")))
+        assertTrue(table.setAccountCredential(player.localId, LocalCredential.create("5678")))
+        assertFalse(StandaloneTable(store).accountUnlocked(player.localId))
+    }
+
     @Test fun `local account credentials preserve Atlas rules without storing plaintext and lock settings after restart`() {
         val store = Store()
         val table = StandaloneTable(store, shortGameMs = 0)

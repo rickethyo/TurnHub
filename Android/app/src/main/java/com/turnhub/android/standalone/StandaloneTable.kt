@@ -109,8 +109,11 @@ class StandaloneTable(
     fun setAccountCredential(localId: String, credential: LocalCredential): Boolean {
         if (!accountUnlocked(localId)) return false
         val before = _state.value
-        return publish(before.copy(library = before.library.copy(players = before.library.players.map {
+        val saved = publish(before.copy(library = before.library.copy(players = before.library.players.map {
             if (it.localId == localId) it.copy(credential = credential) else it })))
+        // Whoever just chose the PIN stays signed in to the account, as after createAccount.
+        if (saved) unlockedAccounts += localId
+        return saved
     }
 
     // --- the lobby ------------------------------------------------------------------
