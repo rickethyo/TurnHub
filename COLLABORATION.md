@@ -396,3 +396,154 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   No device or table testing yet (STAGED G14).
 - Codex: review welcome, especially the victory evaluator and the checkpoint
   schema 5 change.
+
+## 2026-10-14 — Codex: Android version visibility and polish pass
+
+- Owner: Codex on `codex/master`; baseline `7ecd884`. Clean startup, fetched
+  refs and fast-forwarded to accepted master; no open PRs found.
+- Scope: main-screen app version/build identity, responsive lobby controls,
+  clear saved-account identity, and source review of current Android polish.
+- Owner requests a few local passes before unnecessary CI. Keep this slice
+  local; defer push/PR and remote CI until the passes are ready to batch.
+- Implemented: installed-package version/build label in both lobby variants
+  and Atlas home; shared with bug-report cards/live table menu, with Debug
+  marking. Header actions and player controls wrap separately from names.
+  Saved-player chips, local account cards and manual import choices show IDs.
+  Local selection still uses the UUID; the public ID is presentation only.
+- Validation: final `:app:assembleDebug :app:lintDebug` passed; lint reports
+  zero errors, 44 warnings and four hints. APK metadata confirms version 0.1.0,
+  build 1, debuggable (local default; CI supplies its run number). Documentation
+  hygiene and `git diff --check` pass. No unit tests added for presentation-only
+  changes. No device is connected; visual, large-text and TalkBack acceptance
+  remains open. No push, PR, remote CI, installation or release.
+- Follow-up owner direction: implement the next polish pass locally. Keep the
+  app simple but full featured, with minimal explanatory copy and small touches
+  of flavor. Scope: Players/Games/Appearance navigation, on-demand creation and
+  details, Stats identity, browser failure feedback and quieter lobby copy.
+- Second pass implemented: persistent section navigation and independent scroll
+  positions; compact Add player dialog with optional credentials, frozen inputs
+  during saving and failure feedback; explicit account/settings expand controls;
+  summary-first game cards with details/import on demand. Team results show both
+  winners using the existing `GameRecord.won` rule. Stats shows account IDs and
+  an explicit details control. Missing browser now produces a visible message.
+- Lobby: shorter introduction and starter copy; sound controls and seating help
+  expand on demand; one bug-report entry in the guide; Atlas is a labeled switch.
+  Short flavor lines appear in the lobby, empty states and Stats, while action
+  labels remain literal. No gameplay, account authority or storage-format changes.
+- Second-pass validation: local debug APK and lint pass; all 14 focused tests
+  (`LocalAccountsTest`, `StatsSharingTest`, `TableLobbyTest`) pass. Documentation
+  hygiene and whitespace checks pass. Device list is still empty; no visual or
+  TalkBack verification claimed. Changes remain uncommitted for owner iteration;
+  no push, PR or CI run. Next step: owner views the app and requests adjustments.
+- Device follow-up: Pixel Fold is now authorized over USB. Installed Play app
+  is 0.1.0/build 330; APK certificate comparison confirms the local debug signer
+  cannot update it. Added opt-in `turnhub.preview=true` for a separate debug
+  package/label/version suffix and installed TurnHub Preview successfully.
+  Play app/data remains intact; preview data is independent. Device is locked;
+  requested owner unlock before UI inspection. No credentials entered.
+- Preview verification: preview APK has the separate package and label; install
+  and activity launch succeeded. Ordinary debug build/lint and release manifest
+  processing also pass with the property absent. Normal debug metadata still
+  identifies `com.turnhub.android`, TurnHub 0.1.0. Both packages remain installed.
+- Unlocked-device pass completed on the Pixel Fold outer display: inspected
+  lobby/version, Players, empty Games, Appearance and empty Stats. Created one
+  credential-free sample account named Preview Player via the dialog, verified
+  its ID in the list/lobby and confirmed the form/action fit above the keyboard.
+  Light and Graphite appearance render; the Appearance screen wraps at 200%
+  text size. Restored system font scale to 1.0 and app theme to Automatic.
+- Device finding/fix: the nested full-width Eyebrow consumed Clear all's width,
+  making the lobby header abnormally tall. Used Eyebrow's trailing action slot;
+  rebuilt/linted and installed preview build 2. Screenshot/UI-tree verification
+  confirms normal spacing, visible Clear all and Build 2. Account survives update.
+  Preview is left on its lobby; Play build 330 remains installed and untouched.
+  No AndroidRuntime errors in the inspected final preview process log. Full-game,
+  populated-history, Atlas, inner-display and TalkBack acceptance still pending.
+  APK and device captures: `D:\TurnHub\Private\TurnHub-builds\android-polish-2026-10-14`.
+- Owner follow-up: fix color selection and replace hex entry with visual picking;
+  put in-game minus left and plus right relative to each rotated player panel.
+  Added shared named swatches and custom color/intensity/brightness sliders.
+  Local colors save immediately with failure feedback; Atlas retains its explicit
+  save. Star previews now carry background/color (previously discarded), avatars
+  honor saved color, and team panels use each member's fallback color. Selecting
+  a color with an image active reveals the color while retaining the image.
+  Background dialog keeps Done visible. Existing hold-to-repeat behavior remains.
+- Initial preview build 3 and lint pass; 14 targeted tests pass, including added
+  assertions for persisted personalization reaching Star previews after a swap.
+  Phone check confirms swatches change the preview immediately and custom colors
+  apply.
+- Final preview build 4 installed on Pixel Fold; build/lint pass (0 errors,
+  44 warnings, 4 hints), docs/whitespace checks pass. Device confirms custom color
+  persists through update, Star preview uses it, spectrum sliders render and Done
+  stays visible. Restored Preview Player's original solid/default-color setting.
+  Brief five-player Star game: player-relative minus changes Koga 40->39 and plus
+  restores 39->40. Used Back to setup within three minutes; same roster/settings,
+  no game result saved. Final preview process has no AndroidRuntime errors.
+  No Play-app/data changes, push, PR or CI. Atlas-connected picker, image-to-color
+  transition and TalkBack behavior are code-reviewed but not device-tested.
+- Owner follow-up (same local polish slice): expand tools to random opponents and
+  all dice d4–d20; add 10-minute preset, optional timeout actions and earned
+  extensions. Owner selected 75% earning threshold. Implemented local rules:
+  overtime/default, auto-pass, demerit or both; earn after three personal turns,
+  max two earned/game by default (1–3 selectable), 75/100% threshold, half-limit
+  extension, at most one used per turn, no reward on extended/expired turns.
+  Team bank is shared. Rules/banks/handled timeout persist; history retains
+  demerits and extension uses. App-visible timer tick settles a reopened expired
+  turn once, without cascading skipped turns. Atlas remains authoritative for
+  connected games and does not expose these new local policies.
+- Opponent tool defaults to active player and allows choosing another seat;
+  excludes eliminated/self/team/Star allies by seat identity. Common dice have
+  direct buttons; More dice offers every remaining integer through d20.
+  Build 5 assemble/lint and standalone/tool/clock/lobby tests pass locally.
+  Owner has started a new game on the phone; preserve it during installation
+  and use only state-neutral table tools for this device pass.
+- Build 5 installed with ongoing game retained. On-device screenshots verify
+  common dice/More dice (all other d4–d20 integers), a d17 result and the opponent
+  picker choosing Ricky (seat 2) for Rocket (seat 4), a legal Star enemy. No game
+  controls changed during this pass. uiautomator could not reach idle in the
+  live menu, so final tool verification used direct screenshots rather than its
+  stale XML. Timer setup/live reward controls were not device-tested to avoid
+  disrupting the owner's game. 88 focused local tests passed (11 new timer
+  tests), lint 0 errors/44 warnings/4 hints; docs and whitespace checks pass.
+  New rules remain opt-in for the next phone-hosted game; no CI/push/PR.
+- 2026-10-15 owner review: unify link-like controls with buttons and separate
+  table-wide settings from per-player modifiers. Same Codex local polish scope
+  on codex/master; earlier uncommitted changes retained. Main menu sections now
+  group tools, game rules, seating/alliance view, sound/display, help/app and
+  finish controls, with pause/resume first. Title and Done remain fixed.
+  Elimination choices use switches, poison limit uses an Apply button, and
+  section headers use filled buttons with chevrons. Player More cards group
+  turn/tools, counters/status, Commander damage and leave actions. Opponent
+  picker moved into the relevant player's card; no separate player selector.
+  Removed duplicated personal modifiers from paused overlay; paused table keeps
+  More cards reachable and central Paused/Game menu offers resume. Compact
+  section padding and matching rounded button shapes verified on a phone-sized
+  API 37 emulator. Tested expand/scroll with fixed title/Done, pause/resume,
+  paused player More, opponent selection and updating a personal energy counter.
+  Preview build 6 assemble/lint passed; lint 0 errors/44 warnings/4 hints.
+  Seven focused TableTools/TabletLayout tests passed; docs and whitespace checks
+  passed. APK and screenshots saved under Private/TurnHub-builds/
+  android-polish-2026-10-14. Physical phone disconnected, so build 6 is not yet
+  installed there; owner's phone game untouched. No CI/push/PR.
+
+- 2026-10-15 Codex, owner-directed navigation parity follow-up on codex/master,
+  baseline 7ecd884 (origin/master unchanged). Same ongoing Android polish scope;
+  all prior local edits retained. Owner now requests a PR after validation.
+  Five shared destinations: Game, Table, Players, History, Settings. Table is an
+  always-available full-screen entry. Settings owns phone appearance/sounds;
+  Atlas adds account/table/admin capabilities without replacing the shell.
+  Feature gate: navigation is disposable Compose state; existing local/Atlas
+  authorities still validate their actions and own persistence. No protocol,
+  credential format or dependency changes. Labeled tabs and existing accessible
+  controls retained. Local play no longer disconnects an available Atlas.
+  GitHub connector reports no open PR; gh has no login, connector available.
+- Navigation validation: full local suite 308 tests/0 failures, preview build 7
+  assemble/lint successful (0 errors/42 warnings/4 hints). API 37 emulator
+  verifies all five entries, existing-game retention, shared stage/life overview,
+  Players/History, Statistics return, immediate Graphite/Automatic changes and
+  Table returning to the previous Settings tab. No AndroidRuntime errors in the
+  inspected log. No physical phone connected; Atlas-connected navigation and
+  TalkBack remain hardware acceptance checks. README and bundled help updated;
+  manual export/docs/whitespace checks pass. DOCX render attempted but unavailable
+  because LibreOffice is absent; manual page layout is not visually verified.
+  Owner authorized PR publication; publish this accumulated local polish as one
+  reviewable PR, with normal automatic checks and no redundant manual CI runs.

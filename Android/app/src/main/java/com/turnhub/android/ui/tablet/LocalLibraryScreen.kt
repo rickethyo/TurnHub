@@ -1,10 +1,13 @@
 package com.turnhub.android.ui.tablet
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -12,12 +15,22 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,8 +38,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.turnhub.android.data.ProfileSecret
+import com.turnhub.android.domain.TableClock
+import com.turnhub.android.standalone.LocalCredential
+import com.turnhub.android.standalone.StandaloneTable
 import com.turnhub.android.standalone.DeliveryStatus
 import com.turnhub.android.standalone.StandaloneState
 import com.turnhub.android.standalone.GameRecord
@@ -37,11 +59,17 @@ import com.turnhub.android.ui.components.displayName
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.tableBackground
 import com.turnhub.android.ui.theme.palette
+import com.turnhub.android.ui.components.DisclosureCard
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.launch
 
+enum class LibrarySection(val label: String) {
+    PLAYERS("Players"), GAMES("History")
+}
+
 /** Local facts and delivery states are presented separately, with text meaning. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LocalLibraryScreen(
     state: StandaloneState,
@@ -54,101 +82,203 @@ fun LocalLibraryScreen(
     table: com.turnhub.android.standalone.StandaloneTable? = null,
     canLink: Boolean = false,
     onLinkAccount: (String, String?, String) -> Unit = { _, _, _ -> },
-    theme: com.turnhub.android.ui.theme.TurnHubThemeChoice = com.turnhub.android.ui.theme.TurnHubThemeChoice.AUTO,
-    onThemeChosen: (com.turnhub.android.ui.theme.TurnHubThemeChoice) -> Unit = {},
+    embeddedSection: LibrarySection? = null,
+    onStats: () -> Unit = {},
 ) {
     val p = palette
-    BackHandler(onBack = onClose)
-    Box(Modifier.fillMaxSize().tableBackground(p).safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
-        LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            item {
-                Text("Accounts and history", color = p.text, style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.semantics { heading() })
-                TextButton(onClick = onClose) { Text("Back") }
-                Text("Results stay here after import. No games are removed automatically. Clearing app data or uninstalling removes them; backup/export is not available yet.", color = p.muted)
-                state.storageProblem?.let { Text(it, color = p.text) }
-                Text("Profiles, personalization and detailed results work offline. Link accounts once to import matching games automatically. Atlas verifies all imports; names never choose an account.", color = p.muted)
-                if (canLink) ToneButton("Load Atlas accounts", onLoadProfiles,
-                    enabled = !importState.busy && state.storageProblem == null)
-                
-                if (importState.busy) Text("Contacting Atlas…", color = p.muted)
-                importState.message?.let { Text(it, color = p.text) }
-                Text("Appearance", color = p.text)
-                com.turnhub.android.ui.theme.TurnHubThemeChoice.entries.forEach { choice ->
-                    TextButton({ onThemeChosen(choice) }) { Text("${if (theme == choice) "✓ " else ""}${choice.name.lowercase().replaceFirstChar { it.uppercase() }}") }
+    var section by rememberSaveable { mutableStateOf(LibrarySection.PLAYERS) }
+    var creatingAccount by rememberSaveable { mutableStateOf(false) }
+    val playersScroll = rememberLazyListState()
+    val gamesScroll = rememberLazyListState()
+    val shownSection = embeddedSection ?: section
+    BackHandler(enabled = embeddedSection == null, onBack = onClose)
+    if (creatingAccount && table != null) {
+        CreateLocalAccountDialog(table, state.storageProblem == null) { creatingAccount = false }
+    }
+    Box(Modifier.fillMaxSize().tableBackground(p).then(if (embeddedSection == null) Modifier.safeDrawingPadding() else Modifier), contentAlignment = Alignment.TopCenter) {
+        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth()) {
+            // Keep section navigation visible even with a long history or an open editor.
+            if (embeddedSection == null) Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Accounts and history", color = p.text, style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.weight(1f).semantics { heading() })
+                    TextButton(onClick = onClose) { Text("Back") }
                 }
-                if (table != null) {
-                    var name by rememberSaveable { mutableStateOf("") }
-                    var secret by androidx.compose.runtime.remember { mutableStateOf("") }
-                    var creating by androidx.compose.runtime.remember { mutableStateOf(false) }
-                    val scope = androidx.compose.runtime.rememberCoroutineScope()
-                    androidx.compose.material3.OutlinedTextField(name, { name = it.take(32) }, label = { Text("New account name") },
-                        singleLine = true, modifier = Modifier.fillMaxWidth())
-                    androidx.compose.material3.OutlinedTextField(secret, { secret = it.take(64) }, label = { Text("PIN or password (optional)") },
-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
-                    ToneButton(if (creating) "Creating account…" else "Create account", {
-                        scope.launch {
-                            creating = true
-                            val credential = if (secret.isEmpty()) null else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                                com.turnhub.android.standalone.LocalCredential.create(secret) }
-                            val saved = table.createAccount(name, credential)
-                            if (saved) { name = ""; secret = "" }; creating = false
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LibrarySection.entries.forEach { entry ->
+                        FilterChip(selected = section == entry, onClick = { section = entry },
+                            label = { Text(entry.label) },
+                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = p.accentSoft))
+                    }
+                }
+            }
+            LazyColumn(Modifier.weight(1f).fillMaxWidth(),
+                state = when (shownSection) {
+                    LibrarySection.PLAYERS -> playersScroll
+                    LibrarySection.GAMES -> gamesScroll
+                },
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                state.storageProblem?.let { problem ->
+                    item(key = "storage-problem") {
+                        Text(problem, color = p.warn, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                    }
+                }
+                if (importState.busy || importState.message != null) item(key = "atlas-feedback") {
+                    Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
+                        if (importState.busy) Text("Contacting Atlas…", color = p.muted)
+                        importState.message?.let { Text(it, color = p.text) }
+                    }
+                }
+                when (shownSection) {
+                    LibrarySection.PLAYERS -> {
+                        item(key = "player-actions") {
+                            if (table != null) ToneButton("Add player", { creatingAccount = true },
+                                Modifier.fillMaxWidth(), enabled = state.storageProblem == null)
+                            if (canLink) TextButton(onClick = onLoadProfiles,
+                                enabled = !importState.busy && state.storageProblem == null) { Text("Load Atlas accounts") }
                         }
-                    }, enabled = !creating && name.isNotBlank() && state.storageProblem == null &&
-                        (secret.isEmpty() || com.turnhub.android.data.ProfileSecret.isValid(secret)))
-                    Text("A PIN protects account settings on this device. Shared-table play remains available. Use a 4–8 digit PIN or an 8–64 byte password; Atlas import needs one.", color = p.muted)
-                }
-            }
-            item { Text("Local players", color = p.text, modifier = Modifier.semantics { heading() }) }
-            if (state.library.players.isEmpty()) item { Text("Add players in Play on this device. No account is needed.", color = p.muted) }
-            items(state.library.players, key = { "player-${it.localId}" }) { player ->
-                val totals = state.library.totals(player.localId)
-                var open by rememberSaveable(player.localId) { mutableStateOf(false) }
-                BrassCard(Modifier.clickable(onClickLabel = if (open) "Hide account settings" else "Show account settings") { open = !open }) {
-                    Text(player.name, color = p.text)
-                    val rate = if (totals.played > 0) " · ${totals.won * 100 / totals.played}% won" else ""
-                    Text("${totals.played} played · ${totals.won} won · ${totals.draws} draws$rate", color = p.muted)
-                    if (!open && table != null) Text("Tap for account settings", color = p.faint, style = MaterialTheme.typography.bodySmall)
-                    if (open && table != null) LocalAccountEditor(player, table, importState, canLink, onLinkAccount)
-                }
-            }
-            item { Text("Finished games", color = p.text, modifier = Modifier.semantics { heading() }) }
-            if (state.library.history.isEmpty()) item { Text("Finish a game to see its result here.", color = p.muted) }
-            items(state.library.history.asReversed(), key = { "match-${it.recordId}" }) { record ->
-                val delivery = state.library.delivery(record.recordId)
-                BrassCard {
-                    Text(DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(record.startedAtMs)), color = p.text)
-                    Text("${record.profile.displayName()}${if (record.twoHeadedGiant) " · Two-Headed Giant" else ""} · " +
-                        "${record.durationMs / 60_000} minutes · ${record.startingLife} starting life", color = p.muted)
-                    val names = record.winners.map { record.players[it].name }
-                    Text(when {
-                        names.isEmpty() -> "Draw / no winner"
-                        names.size == 1 -> "Winner: ${names.single()}"
-                        else -> "Shared victory: ${names.joinToString(", ")}"
-                    }, color = p.text)
-                    record.players.forEach { player ->
-                        Text("${player.name}: ${player.finalLife} life, ${player.turnsCompleted} completed turns" +
-                            if (player.outOrder != null) (if (player.conceded) ", conceded" else ", eliminated") else "", color = p.muted)
+                        if (state.library.players.isEmpty()) item(key = "no-players") {
+                            Text("Every table starts with a name.", color = p.muted)
+                        }
+                        items(state.library.players, key = { "player-${it.localId}" }) { player ->
+                            val totals = state.library.totals(player.localId)
+                            var open by rememberSaveable(player.localId) { mutableStateOf(false) }
+                            BrassCard {
+                                Column {
+                                    Text(player.name, color = p.text, style = MaterialTheme.typography.titleMedium)
+                                    Text("ID ${player.profileId}", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                                }
+                                Text("${totals.played} played · ${totals.won} won · ${totals.draws} draws", color = p.muted)
+                                if (table != null) {
+                                    ToneButton(if (open) "Close settings" else "Edit player", { open = !open }, Modifier.fillMaxWidth().semantics {
+                                        stateDescription = if (open) "Expanded" else "Collapsed"
+                                    })
+                                    if (open) LocalAccountEditor(player, table, importState, canLink, onLinkAccount)
+                                }
+                            }
+                        }
                     }
-                    val status = when (delivery.status) {
-                        DeliveryStatus.NEEDS_LINKING -> "Local result · Atlas import needs explicit linking"
-                        DeliveryStatus.PENDING -> "Atlas import pending"
-                        DeliveryStatus.IMPORTED -> "Imported to Atlas"
-                        DeliveryStatus.REJECTED -> "Atlas import needs attention"
+                    LibrarySection.GAMES -> {
+                        item(key = "statistics") { ToneButton("Statistics", onStats, Modifier.fillMaxWidth()) }
+                        if (state.library.history.isEmpty()) item(key = "no-games") {
+                            BrassCard {
+                                Text("No games yet", color = p.text, style = MaterialTheme.typography.titleMedium)
+                                Text("Finish a game to start your story.", color = p.muted)
+                            }
+                        }
+                        if (canImport) item(key = "load-import-accounts") {
+                            TextButton(onClick = onLoadProfiles, enabled = !importState.busy && state.storageProblem == null) {
+                                Text("Load Atlas accounts")
+                            }
+                        }
+                        items(state.library.history.asReversed(), key = { "match-${it.recordId}" }) { record ->
+                            val delivery = state.library.delivery(record.recordId)
+                            var open by rememberSaveable(record.recordId) { mutableStateOf(false) }
+                            val canReviewImport = canImport && importState.atlasId != null && state.storageProblem == null &&
+                                delivery.status != DeliveryStatus.IMPORTED
+                            BrassCard {
+                                val names = record.players.indices.filter(record::won).map { record.players[it].name }
+                                Text(when {
+                                    names.isEmpty() -> "Draw / no winner"
+                                    names.size == 1 -> "${names.single()} wins"
+                                    else -> "${names.joinToString(" & ")} win"
+                                }, color = p.text, style = MaterialTheme.typography.titleMedium)
+                                Text(DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(record.startedAtMs)),
+                                    color = p.muted, style = MaterialTheme.typography.bodySmall)
+                                Text("${record.profile.displayName()}${if (record.twoHeadedGiant) " · Two-Headed Giant" else ""} · " +
+                                    TableClock.format(record.durationMs), color = p.muted)
+                                Text(when (delivery.status) {
+                                    DeliveryStatus.NEEDS_LINKING -> "Saved on this device"
+                                    DeliveryStatus.PENDING -> "Atlas import pending"
+                                    DeliveryStatus.IMPORTED -> "Imported to Atlas"
+                                    DeliveryStatus.REJECTED -> "Atlas import needs attention"
+                                }, color = if (delivery.status == DeliveryStatus.REJECTED) p.warn else p.muted,
+                                    style = MaterialTheme.typography.labelMedium)
+                                ToneButton(if (open) "Hide details" else if (canReviewImport) "Details and import" else "Game details", { open = !open }, Modifier.fillMaxWidth().semantics {
+                                    stateDescription = if (open) "Expanded" else "Collapsed"
+                                })
+                                if (open) {
+                                    Text("${record.startingLife} starting life", color = p.muted)
+                                    record.players.forEachIndexed { index, player ->
+                                        Text("${index + 1}. ${player.name}: ${player.finalLife} life · ${player.turnsCompleted} turns" +
+                                            if (player.outOrder != null) (if (player.conceded) " · Conceded" else " · Eliminated") else "", color = p.text)
+                                        if (player.demerits > 0 || player.extensionsUsed > 0) {
+                                            Text("${player.demerits} demerits · ${player.extensionsUsed} extensions used", color = p.muted)
+                                        }
+                                    }
+                                    delivery.reason?.let { Text(it, color = p.muted) }
+                                    if (canReviewImport) MatchImportForm(record, delivery, importState, onImport, onCancelImport)
+                                }
+                            }
+                        }
+                        item(key = "saved-games-help") {
+                            DisclosureCard("About saved games") {
+                                Text("Results stay on this device, including after Atlas import. Clearing app data or uninstalling removes them. Backup is not available yet.", color = p.muted)
+                                Text("Link a player to an Atlas account in Edit player to import matching games automatically. Older games can be linked from Details and import.", color = p.muted)
+                            }
+                        }
                     }
-                    Text(status, color = p.text)
-                    
-                    delivery.reason?.let { Text(it, color = p.muted) }
-                    if (canImport && importState.atlasId != null && state.storageProblem == null &&
-                        delivery.status != DeliveryStatus.IMPORTED) {
-                        MatchImportForm(record, delivery, importState, onImport, onCancelImport)
-                    }
-                    
+
                 }
             }
         }
     }
+}
+
+@Composable
+private fun CreateLocalAccountDialog(table: StandaloneTable, storageAvailable: Boolean, onDismiss: () -> Unit) {
+    val p = palette
+    var name by rememberSaveable { mutableStateOf("") }
+    // Credentials never enter saved instance state.
+    var secret by remember { mutableStateOf("") }
+    var creating by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val validSecret = secret.isEmpty() || ProfileSecret.isValid(secret)
+    AlertDialog(
+        onDismissRequest = { if (!creating) onDismiss() },
+        containerColor = p.surface,
+        title = { Text("Add player") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) }, label = { Text("Name") },
+                    enabled = !creating, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(secret, { secret = it.take(ProfileSecret.MAX_CHARS) }, label = { Text("PIN or password (optional)") },
+                    enabled = !creating, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    visualTransformation = PasswordVisualTransformation(), isError = !validSecret,
+                    supportingText = {
+                        Text(if (validSecret) "Protects player settings. Play stays open to everyone."
+                            else "Use a 4–8 digit PIN or an 8–64 byte password.")
+                    })
+                error?.let { Text(it, color = p.warn, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+                if (!storageAvailable) Text("Storage is unavailable. Close this dialog to review the problem.", color = p.warn)
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = !creating && storageAvailable && name.isNotBlank() && validSecret, onClick = {
+                val submittedName = name.trim()
+                val submittedSecret = secret
+                creating = true
+                error = null
+                scope.launch {
+                    try {
+                        val credential = if (submittedSecret.isEmpty()) null else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            LocalCredential.create(submittedSecret)
+                        }
+                        if (table.createAccount(submittedName, credential)) {
+                            secret = ""
+                            onDismiss()
+                        } else error = "Could not save this player. Please try again."
+                    } finally {
+                        creating = false
+                    }
+                }
+            }) { Text(if (creating) "Saving…" else "Add player") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !creating) { Text("Cancel") } },
+    )
 }
 
 @Composable
@@ -186,11 +316,11 @@ private fun MatchImportForm(
         Box {
             val choice = destination.profiles.firstOrNull { it.profileId == selected[index] }
             TextButton(onClick = { expanded = true }, enabled = !destination.busy) {
-                Text(choice?.let { it.name } ?: "Choose Atlas profile for player ${index + 1}")
+                Text(choice?.let { "${it.name} · ${it.profileId}" } ?: "Choose Atlas profile for player ${index + 1}")
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 destination.profiles.forEach { profile ->
-                    DropdownMenuItem(text = { Text(profile.name) }, onClick = {
+                    DropdownMenuItem(text = { Text("${profile.name} · ${profile.profileId}") }, onClick = {
                         selected = selected.mapIndexed { i, old -> if (i == index) profile.profileId else old }
                         expanded = false
                     })

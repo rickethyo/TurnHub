@@ -74,6 +74,9 @@ class StandaloneTable(
     private val _state = MutableStateFlow(load())
     val state: StateFlow<StandaloneState> = _state.asStateFlow()
 
+    fun tick() { if (_state.value.storageProblem == null) edit { it.applyTurnTimeout(wallClock()) } }
+    fun setTimerRules(rules: com.turnhub.android.domain.LocalTimerRules) { edit { it.setTimerRules(rules) } }
+
     private val deliveryMutex = Mutex()
     private val unlockedAccounts = java.util.Collections.synchronizedSet(mutableSetOf<String>())
     fun accountUnlocked(localId: String): Boolean = _state.value.library.players.firstOrNull { it.localId == localId }
@@ -259,6 +262,7 @@ class StandaloneTable(
         edit { game ->
             when (action) {
                 "pass" -> game.pass(index, now)
+                "extend-turn" -> game.extendTurn(index, now)
                 "pause" -> game.togglePause(now)
                 "concede" -> game.concede(index, now)
                 "eliminate" -> game.eliminate(index, now)
@@ -373,6 +377,12 @@ class StandaloneTable(
             put("autoEliminateAtCommanderDamage", game.autoEliminateAtCommanderDamage)
             put("poisonLimit", game.poisonLimit)
             put("turnTimerMs", game.turnTimerMs)
+            put("timerRules", JSONObject().put("timeout", game.timerRules.timeout.name)
+                .put("earnExtensions", game.timerRules.earnExtensions)
+                .put("earnBeforePercent", game.timerRules.earnBeforePercent)
+                .put("maxEarnedPerGame", game.timerRules.maxEarnedPerGame))
+            put("turnExtensionMs", game.turnExtensionMs)
+            put("timeoutHandled", game.timeoutHandled)
             put("twoHeadedGiant", game.twoHeadedGiant)
             put("houseRules", game.houseRules)
             put("startedAtMs", game.startedAtMs)
@@ -395,6 +405,9 @@ class StandaloneTable(
                         })
                         put("outOrder", p.outOrder ?: JSONObject.NULL)
                         put("turnsCompleted", p.turnsCompleted)
+                        put("demerits", p.demerits)
+                        put("extensionsEarned", p.extensionsEarned)
+                        put("extensionsUsed", p.extensionsUsed)
                         put("turnMs", p.turnMs)
                         put("fastestTurnMs", p.fastestTurnMs)
                         put("longestTurnMs", p.longestTurnMs)
@@ -425,6 +438,13 @@ class StandaloneTable(
                 autoEliminateAtCommanderDamage = json.optBoolean("autoEliminateAtCommanderDamage", true),
                 poisonLimit = json.optInt("poisonLimit", 10),
                 turnTimerMs = json.optLong("turnTimerMs", 0),
+                timerRules = json.optJSONObject("timerRules")?.let { rules ->
+                    com.turnhub.android.domain.LocalTimerRules(
+                        com.turnhub.android.domain.TimeoutAction.valueOf(rules.getString("timeout")),
+                        rules.getBoolean("earnExtensions"), rules.getInt("earnBeforePercent"), rules.getInt("maxEarnedPerGame"))
+                } ?: com.turnhub.android.domain.LocalTimerRules(),
+                turnExtensionMs = json.optLong("turnExtensionMs"),
+                timeoutHandled = json.optBoolean("timeoutHandled"),
                 twoHeadedGiant = json.optBoolean("twoHeadedGiant"),
                 houseRules = json.optBoolean("houseRules"),
                 startedAtMs = json.getLong("startedAtMs"),
@@ -448,6 +468,9 @@ class StandaloneTable(
                         } ?: com.turnhub.android.protocol.PlayerCounters(),
                         outOrder = p.optIntOrNull("outOrder"),
                         turnsCompleted = p.getInt("turnsCompleted"),
+                        demerits = p.optInt("demerits"),
+                        extensionsEarned = p.optInt("extensionsEarned"),
+                        extensionsUsed = p.optInt("extensionsUsed"),
                         turnMs = p.optLong("turnMs"),
                         fastestTurnMs = p.optLong("fastestTurnMs"),
                         longestTurnMs = p.optLong("longestTurnMs"),

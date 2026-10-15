@@ -4,6 +4,7 @@ import com.turnhub.android.domain.ControllerHandle
 import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
+import com.turnhub.android.domain.LocalTimerRules
 import com.turnhub.android.protocol.CommanderDamage
 import com.turnhub.android.protocol.PlayerCounters
 import com.turnhub.android.protocol.GameProfile
@@ -36,6 +37,9 @@ data class LocalPlayer(
     /** Commander damage received, by source player index: one total per commander (1 and 2). */
     val commanderDamage: Map<Int, List<Int>> = emptyMap(),
     val localId: String? = null,
+    val demerits: Int = 0,
+    val extensionsEarned: Int = 0,
+    val extensionsUsed: Int = 0,
 )
 
 /**
@@ -58,8 +62,11 @@ data class StandaloneGame(
     val autoEliminateAtPoisonLimit: Boolean = true,
     val autoEliminateAtCommanderDamage: Boolean = true,
     val poisonLimit: Int = 10,
-    /** 0 = off; else the countdown each turn gets. As on Atlas, running out never passes the turn. */
+    /** 0 = off; else the base countdown each turn gets. */
     val turnTimerMs: Long = 0,
+    val timerRules: LocalTimerRules = LocalTimerRules(),
+    val turnExtensionMs: Long = 0,
+    val timeoutHandled: Boolean = false,
     /**
      * Two-Headed Giant (Magic and Commander), as on Atlas (GAMEPLAY.md): neighbours
      * in turn order (players 1+2, 3+4, ...) are teams sharing one life total,
@@ -209,6 +216,34 @@ data class StandaloneGame(
         return copy(turnTimerMs = ms).bump()
     }
 
+    fun setTimerRules(rules: LocalTimerRules): StandaloneGame =
+        if (state != TableState.LOBBY || timerRules == rules) this else copy(timerRules = rules).bump()
+
+    /** Settle only the current expired turn; returning to the app never skips a chain of turns. */
+    fun applyTurnTimeout(nowMs: Long): StandaloneGame {
+        val holder = active ?: return this
+        if (state != TableState.RUNNING || turnTimerMs <= 0 || timeoutHandled ||
+            gameElapsedMs(nowMs) - turnStartedAtElapsedMs < turnTimerMs + turnExtensionMs) return this
+        val team = mates(holder)
+        val settled = copy(timeoutHandled = true, players = players.mapIndexed { i, p ->
+            if (timerRules.timeout.demerit && i in team && !p.eliminated) p.copy(demerits = p.demerits + 1) else p
+        }).bump()
+        return if (timerRules.timeout.autoPass) settled.advanceTurn(nowMs, reward = false) else settled
+    }
+
+    /** One banked extension per turn, used before expiry; teammates share the bank. */
+    fun extendTurn(index: Int, nowMs: Long): StandaloneGame {
+        val holder = active ?: return this
+        val team = mates(holder)
+        val player = players[holder]
+        if (state != TableState.RUNNING || index !in team || turnTimerMs <= 0 || !timerRules.earnExtensions ||
+            turnExtensionMs != 0L || timeoutHandled || player.extensionsEarned <= player.extensionsUsed ||
+            gameElapsedMs(nowMs) - turnStartedAtElapsedMs >= turnTimerMs) return this
+        return copy(turnExtensionMs = turnTimerMs / 2, players = players.mapIndexed { i, p ->
+            if (i in team) p.copy(extensionsUsed = p.extensionsUsed + 1) else p
+        }).bump()
+    }
+
     /** The turn clock's phase, derived like Atlas's (GAMEPLAY.md "Turn timer"). */
     fun turnTimer(nowMs: Long): TurnTimer {
         if (active == null || !playing) return TurnTimer(TurnTimerPhase.NORMAL, null)
@@ -216,7 +251,7 @@ data class StandaloneGame(
         if (turnTimerMs <= 0) {
             return TurnTimer(if (turn >= LONG_TURN_MS) TurnTimerPhase.LONG_TURN else TurnTimerPhase.NORMAL, null)
         }
-        val remaining = (turnTimerMs - turn).coerceAtLeast(0)
+        val remaining = (turnTimerMs + turnExtensionMs - turn).coerceAtLeast(0)
         val phase = when {
             remaining == 0L -> TurnTimerPhase.EXPIRED
             remaining <= WARNING_MS -> TurnTimerPhase.WARNING
@@ -251,6 +286,8 @@ data class StandaloneGame(
             elapsedMs = 0,
             runningSinceMs = nowMs,
             turnStartedAtElapsedMs = 0,
+            turnExtensionMs = 0,
+            timeoutHandled = false,
         ).bump()
     }
 
@@ -265,6 +302,7 @@ data class StandaloneGame(
             autoEliminateAtCommanderDamage = autoEliminateAtCommanderDamage,
             poisonLimit = poisonLimit,
             turnTimerMs = turnTimerMs,
+            timerRules = timerRules,
             twoHeadedGiant = twoHeadedGiant,
             houseRules = houseRules,
             players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId) },
@@ -286,9 +324,21 @@ data class StandaloneGame(
         // Either teammate may pass the team's turn; it goes to the next team.
         val team = mates(holder)
         if (state != TableState.RUNNING || index !in team) return this
+        val settled = applyTurnTimeout(nowMs)
+        // A timeout may already have passed this turn; don't also pass the next one.
+        if (settled.active != active) return settled
+        return settled.advanceTurn(nowMs, reward = true)
+    }
+
+    private fun advanceTurn(nowMs: Long, reward: Boolean): StandaloneGame {
+        val holder = active ?: return this
+        val team = mates(holder)
         val next = nextIn(team.last()) ?: return this
         val now = gameElapsedMs(nowMs)
         val took = (now - turnStartedAtElapsedMs).coerceAtLeast(0)
+        val earn = reward && timerRules.earnExtensions && turnTimerMs > 0 && !timeoutHandled && turnExtensionMs == 0L &&
+            players[holder].turnsCompleted >= 3 && took < turnTimerMs * timerRules.earnBeforePercent / 100 &&
+            players[holder].extensionsEarned < timerRules.maxEarnedPerGame
         return copy(
             players = players.mapIndexed { i, p ->
                 if (i !in team || p.eliminated) p else p.copy(
@@ -296,10 +346,13 @@ data class StandaloneGame(
                     turnMs = p.turnMs + took,
                     fastestTurnMs = if (p.fastestTurnMs == 0L) took else minOf(p.fastestTurnMs, took),
                     longestTurnMs = maxOf(p.longestTurnMs, took),
+                    extensionsEarned = p.extensionsEarned + if (earn) 1 else 0,
                 )
             },
             active = next,
             turnStartedAtElapsedMs = now,
+            turnExtensionMs = 0,
+            timeoutHandled = false,
         ).bump()
     }
 
@@ -407,7 +460,7 @@ data class StandaloneGame(
         game.decided()?.let { return game.finish(it, nowMs) }
         if (active in leaving) {
             val next = game.nextIn(leaving.last()) ?: return game
-            game = game.copy(active = next, turnStartedAtElapsedMs = game.gameElapsedMs(nowMs))
+            game = game.copy(active = next, turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false)
         }
         return game
     }
@@ -432,7 +485,7 @@ data class StandaloneGame(
         }).passStatuses(targets).bump()
         game.decided()?.let { return game.finish(it, nowMs) }
         if (active in targets) {
-            game = game.copy(active = game.nextIn(mates(active!!).last()), turnStartedAtElapsedMs = game.gameElapsedMs(nowMs))
+            game = game.copy(active = game.nextIn(mates(active!!).last()), turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false)
         }
         return game
     }
@@ -531,6 +584,8 @@ data class StandaloneGame(
                     commanderDamageReceived = p.commanderDamage.values.sumOf { it.sum() },
                     counters = p.counters,
                     commanderBySource = p.commanderDamage,
+                    demerits = p.demerits,
+                    extensionsUsed = p.extensionsUsed,
                 )
             },
         )
@@ -565,6 +620,8 @@ data class StandaloneGame(
             gameElapsedMs = elapsed,
             turnElapsedMs = (elapsed - turnStartedAtElapsedMs).coerceAtLeast(0),
             turnTimer = turnTimer(nowMs),
+            localTimerRules = timerRules,
+            turnExtensionMs = turnExtensionMs,
             receivedAtMs = monoNowMs,
             players = players.mapIndexed { i, p ->
                 TablePlayer(
@@ -577,6 +634,8 @@ data class StandaloneGame(
                     eliminated = p.eliminated,
                     conceded = p.conceded,
                     counters = p.counters,
+                    demerits = p.demerits,
+                    extensionsAvailable = p.extensionsEarned - p.extensionsUsed,
                     life = if (state == TableState.LOBBY) null else p.life,
                     turnsCompleted = p.turnsCompleted.toLong(),
                     commanderDamage = p.commanderDamage.map { (source, damage) -> CommanderDamage(source + 1, damage) },
@@ -596,7 +655,7 @@ data class StandaloneGame(
         const val MAX_NAME = 32
         const val MAX_LIFE = 99_999
         val TURN_TIMER_RANGE_MS = 15_000L..3_600_000L
-        val TURN_TIMER_PRESETS_MS = listOf(0L, 60_000L, 120_000L, 180_000L, 300_000L)
+        val TURN_TIMER_PRESETS_MS = listOf(0L, 60_000L, 120_000L, 180_000L, 300_000L, 600_000L)
         private const val WARNING_MS = 10_000L
         private const val LONG_TURN_MS = 300_000L
 

@@ -37,7 +37,7 @@ object TableClock {
     /** How far the current turn has run past its timer; 0 when on time or untimed. */
     fun overtimeMs(summary: TableSummary, nowMs: Long): Long =
         if (!summary.settings.turnTimerEnabled) 0
-        else (turnElapsedMs(summary, nowMs) - summary.settings.turnTimerMs).coerceAtLeast(0)
+        else (turnElapsedMs(summary, nowMs) - summary.settings.turnTimerMs - summary.turnExtensionMs).coerceAtLeast(0)
 
     /** Remaining cancelable-pass grace; counts down, never below zero. */
     fun passGraceRemainingMs(summary: TableSummary, nowMs: Long): Long =

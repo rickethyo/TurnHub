@@ -33,6 +33,12 @@ everything implemented. Only the checks listed below are still open.
 
 ### Stability and diagnostics
 
+- **Android shared navigation acceptance:** verify Game/Table/Players/History/
+  Settings with a live Atlas, role-gated administration, disconnect/reconnect
+  and TalkBack. Local build 7 navigation was checked on an API 37 emulator;
+  the physical phone was unavailable. The updated V0.20 manual text/export
+  passes validation; page rendering awaits a host with LibreOffice.
+
 - **2026-10-09 play-note investigation:** source findings and proposed designs
   for all ten notes are in [the report](history/2026-10-09-play-note-investigation.md).
   Minor tablet overlay and signup scrolling fixes are staged on `codex/master`;

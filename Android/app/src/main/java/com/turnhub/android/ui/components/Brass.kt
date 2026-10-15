@@ -388,23 +388,26 @@ fun PlayerAvatar(
     icon: AvatarIcon?,
     modifier: Modifier = Modifier,
     size: Dp = 44.dp,
+    color: Color? = null,
 ) {
     val p = palette
+    val hue = color ?: p.avatarColor(playerNumber)
+    val ink = color?.let(::colorInk) ?: p.avatarText
     Box(
         modifier
             .size(size)
             .clip(CircleShape)
-            .background(avatarBrush(p.avatarColor(playerNumber)))
+            .background(avatarBrush(hue))
             .border(2.dp, p.lineStrong, CircleShape)
             .clearAndSetSemantics { },
         contentAlignment = Alignment.Center,
     ) {
         if (icon != null) {
-            AvatarGlyph(icon = icon, color = p.avatarText, size = size * .62f)
+            AvatarGlyph(icon = icon, color = ink, size = size * .62f)
         } else {
             Text(
                 initials(name),
-                color = p.avatarText,
+                color = ink,
                 style = MaterialTheme.typography.titleMedium.copy(fontSize = (size.value * .36f).sp),
             )
         }

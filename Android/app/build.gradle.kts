@@ -25,6 +25,7 @@ android {
         // number (-Pturnhub.versionCode); local builds keep 1 unless given one.
         versionCode = (findProperty("turnhub.versionCode") as String?)?.toInt() ?: 1
         versionName = "0.1.0"
+        manifestPlaceholders["appLabel"] = "@string/app_name"
     }
 
     // Play upload key for release bundles, read from the environment so the
@@ -44,6 +45,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Opt-in USB preview can coexist with the Play-signed installation.
+            if (providers.gradleProperty("turnhub.preview").orNull == "true") {
+                applicationIdSuffix = ".preview"
+                versionNameSuffix = "-preview"
+                manifestPlaceholders["appLabel"] = "TurnHub Preview"
+            }
+        }
         release {
             if (!uploadKeystore.isNullOrEmpty()) {
                 signingConfig = signingConfigs.getByName("upload")

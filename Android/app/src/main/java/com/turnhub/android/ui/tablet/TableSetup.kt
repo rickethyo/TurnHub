@@ -28,7 +28,7 @@ import com.turnhub.android.ui.theme.palette
 // Setup pieces both full-screen tables share, so the game is set up the same
 // way with or without Atlas.
 
-/** The turn timer presets: Off, 1, 2, 3 and 5 minutes (GAMEPLAY.md). */
+/** Shared turn timer durations. Timeout policy belongs to the game authority. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun TurnTimerChips(selectedMs: Long, enabled: Boolean, onSelect: (Long) -> Unit) {
@@ -45,8 +45,47 @@ internal fun TurnTimerChips(selectedMs: Long, enabled: Boolean, onSelect: (Long)
             )
         }
     }
-    Text("Running out never passes the turn: the clock counts the overtime until the player passes.",
-        color = p.faint, style = MaterialTheme.typography.bodySmall)
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun TimerRulesEditor(rules: com.turnhub.android.domain.LocalTimerRules, timerMs: Long,
+    enabled: Boolean, onChange: (com.turnhub.android.domain.LocalTimerRules) -> Unit) {
+    com.turnhub.android.ui.components.DisclosureCard("Timer rules") {
+        Text("When time runs out", color = palette.text)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.turnhub.android.domain.TimeoutAction.entries.forEach { action ->
+                FilterChip(rules.timeout == action, { onChange(rules.copy(timeout = action)) },
+                    label = { Text(action.label) }, enabled = enabled)
+            }
+        }
+        Text(when (rules.timeout) {
+            com.turnhub.android.domain.TimeoutAction.OVERTIME -> "Keep counting until the player passes."
+            com.turnhub.android.domain.TimeoutAction.PASS -> "Pass to the next player at the limit."
+            com.turnhub.android.domain.TimeoutAction.DEMERIT -> "Add one demerit, then keep counting."
+            com.turnhub.android.domain.TimeoutAction.PASS_AND_DEMERIT -> "Add one demerit and pass the turn."
+        }, color = palette.muted, style = MaterialTheme.typography.bodySmall)
+        SetupSwitch("Earn extensions", null, rules.earnExtensions, enabled) { onChange(rules.copy(earnExtensions = it)) }
+        if (rules.earnExtensions) {
+            Text("Pass before", color = palette.muted)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(75, 100).forEach { percent ->
+                    FilterChip(rules.earnBeforePercent == percent, { onChange(rules.copy(earnBeforePercent = percent)) },
+                        label = { Text("$percent% of the limit") }, enabled = enabled)
+                }
+            }
+            Text("Maximum earned per game", color = palette.muted)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                (1..3).forEach { count ->
+                    FilterChip(rules.maxEarnedPerGame == count, { onChange(rules.copy(maxEarnedPerGame = count)) },
+                        label = { Text("$count") }, enabled = enabled)
+                }
+            }
+            Text("Earn from your fourth turn. Each adds ${com.turnhub.android.domain.TableClock.format(timerMs / 2)}. " +
+                "Use one per turn, before time runs out. Extended turns don’t earn another.",
+                color = palette.muted, style = MaterialTheme.typography.bodySmall)
+        }
+    }
 }
 
 /** A labelled switch row; the whole row toggles. */

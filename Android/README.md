@@ -2,9 +2,28 @@
 
 This directory holds the native TurnHub Android client.
 
+The full-screen table lobby and Atlas home header show the installed app
+version and build number (for example, `TurnHub 0.1.0 · Build 123`). Debug
+packages also show `Debug`. The same label is available in the live table menu
+and bug-report card, so a saved game need not be ended to identify the app.
+
+The app uses the same **Game, Table, Players, History and Settings** navigation
+with or without Atlas. Table opens the shared full-screen view. Game shows local
+setup or the same stage/life overview used for connected play; when Atlas is
+available, This device and Atlas select which game is shown. Players keeps local
+profiles available and adds Table and Me sections when connected. History keeps
+local results and Atlas import controls. Settings contains appearance, reduced
+motion, sound and Atlas connection; authorized administration and developer
+controls appear there when available. Navigation and scroll positions survive
+visits to the full-screen table and statistics.
+
+Add player opens a compact dialog; player settings and individual game details
+expand on request. Account IDs distinguish equal names. Controls use direct
+labels, with brief flavor text in introductions and empty states.
+
 The Android app is a controller and presentation client. It is not a second TurnHub game engine, with one exception: the standalone tablet game below.
 
-Product direction (owner, 2026-10-13): the app is a full, general-purpose game app on its own; a physical Atlas unlocks extras (Sigils, a phone for every player, shared profiles and table-wide statistics, the Atlas screen and speaker, administration). Multi-phone play needs an Atlas. Phone-only play leads with the full-screen table. The standalone game is therefore a supported engine for games with no Atlas, but it still never merges into, copies or changes a game Atlas runs.
+Product direction (owner, 2026-10-13): the app is a full, general-purpose game app on its own; a physical Atlas unlocks extras (Sigils, a phone for every player, shared profiles and table-wide statistics, the Atlas screen and speaker, administration). Multi-phone play needs an Atlas. Both modes use the same navigation and shared table presentation. The standalone game is therefore a supported engine for games with no Atlas, but it still never merges into, copies or changes a game Atlas runs.
 
 ## Hard architecture rule
 
@@ -36,7 +55,7 @@ quiet. Cues stop when the app leaves the foreground; the existing background
 turn notification remains separate.
 
 **Game sounds** and **Sound volume** are phone-only preferences available in
-both table setup screens, the live table menu and My account. Default: on at
+both table setup screens, the live table menu and Settings. Default: on at
 50%. Phone silent/vibrate mode and media volume still apply. Sound supplements
 the visible state and existing haptics, and never changes a game. Original WAV
 assets come from `tools/generate_game_sounds.py` (stdlib; `--check` validates
@@ -44,23 +63,27 @@ them); native SoundPool adds no third-party runtime dependency.
 
 ### The one exception: the standalone tablet game
 
-The app always opens to the local full-screen table or its saved game on a
-fresh launch. Rotation restores the open screen. Saved Atlas preferences never
-replace local play with a connection screen. With Atlas enabled, a once-per-launch
-probe checks the current network when a saved table and local-network permission
-already exist. It never joins Wi-Fi, prompts for permission, requests biometric
-sign-in or takes over navigation. The lobby's Atlas button explicitly opens
-connected play; Connect, retry and setup can join Wi-Fi and request permission.
-Turning Atlas off disconnects it. Entering local play from a connected screen
-also cancels pending joins/probes and releases the network.
+Fresh launches open the shared Game tab; rotation restores the open screen.
+Saved local games remain available through Table. With Atlas discovery enabled,
+a once-per-launch probe checks the current network when a saved table and
+local-network permission already exist. It never joins Wi-Fi, prompts for
+permission, requests biometric sign-in or takes over navigation. Connect, retry
+and setup in Settings > Atlas connection can join Wi-Fi and request permission.
+Turning discovery off disconnects Atlas. Opening a local table keeps an existing
+Atlas connection available; the two games remain independent.
 
-Accounts and history is available without Atlas. Accounts have independent UUID
+Players and History are available without Atlas. Accounts have independent UUID
 history keys and random eight-hex public IDs compatible with Atlas. Optional
 PINs/passwords use the same input rules as Atlas; only PBKDF2-HMAC-SHA256 verifiers
 (120,000 iterations, random 16-byte salts) are saved locally. They protect account
 settings after restart; shared-table play and local results remain available.
 Local name, color, preset/custom avatar, reduced motion and phone appearance work
 offline. Image decode/crop/compression and thumbnail generation run on Android.
+Player and tile colors use named swatches and a visual custom picker. Local color
+choices save immediately and appear in the lobby, including Star Commander.
+Choosing a tile color while using an image switches to a solid background and
+keeps the image available. In-game life controls use minus on the player's left
+and plus on their right; holding either side applies larger steps.
 The local library retains detailed lifetime/last-game statistics and final
 counter/Commander details even if the phone never connects. Statistics can be
 shared as text. Version-1 UUIDs and retained records upgrade without name guessing.
@@ -83,10 +106,33 @@ Atlas's 64-receipt deduplication window or make its statistics transaction atomi
 With **no Atlas at the table**, the **full-screen table**
 runs the game on the device itself: life, Commander damage, counters,
 Monarch/Initiative, turns, pause, concede, the winner and the turn timer
-(`standalone/StandaloneGame.kt`). The timer follows Atlas's rules
-(GAMEPLAY.md "Turn timer"): lobby presets Off/1/2/3/5 min, warning at 10 s,
-expiry shows the overtime and never passes the turn, and Long turn at 5 min
-when off. Device players and history shows per-player statistics derived from
+(`standalone/StandaloneGame.kt`). Timer presets are Off/1/2/3/5/10 min, with a
+warning at 10 seconds and a Long turn indicator after five minutes when off.
+Overtime is the default. **Timer rules** can instead auto-pass, add one demerit
+per expired turn, or do both. Optional extensions start empty: passing before
+75% (or 100%) of the original limit, from your fourth personal turn onward,
+earns one. The default cap is two earned per game (configurable 1–3), including
+ones already spent. One extension can be spent before expiry per turn, adding
+half the limit; extended turns cannot earn another. Teams share their bank and
+demerits. Pausing freezes the clock. Timeout actions run while the app is visible;
+on reopening, an expired turn is settled once and an auto-passed next turn gets
+a fresh clock. Banks, demerits and timer settings survive app restart. Demerits
+and extensions used remain in local game details and shared summaries; they
+are not imported into Atlas statistics. Atlas-connected games keep Atlas's rules.
+
+The central **Game menu** groups table tools, game rules, seating/alliance views,
+sound/display, help and finishing the game. Pause/resume stays at the top; the
+title and Done button stay visible while sections scroll. Tools offer d4 through
+d20 (common dice directly, others under **More dice**), a coin and a random player.
+Elimination rules use on/off switches and an explicit button to apply a new limit.
+
+Each player's **More** card holds turn actions/extensions, counters/status,
+Commander damage and concede/eliminate controls. **Pick an opponent** uses that
+card's player, excluding self, eliminated players, teammates and Star Commander
+allies. Player cards remain available while paused; the central hub displays
+**Paused**, and the Game menu provides Resume.
+
+History > Statistics shows per-player statistics derived from
 local records (went first, eliminations, concessions, turn and game times). It is a separate
 game, never a copy of or a change to a game Atlas is running, so nothing is
 merged back live. The rules above apply in full whenever Atlas is present.
@@ -112,8 +158,7 @@ merged back live. The rules above apply in full whenever Atlas is present.
   adapters own validation and persistence. Complete common-engine hosting,
   automatic phone takeover and reconnect reconciliation remain a
   [design](../Documentation/engineering/TABLE_AUTHORITY.md).
-- **Device players and history** opens from Home (connected or disconnected),
-  and the local lobby. It shows results and detailed statistics derived
+- **History** is available in both modes. It shows results and detailed statistics derived
   only from retained local matches by local ID, without combining Atlas totals.
 - The versioned local library owns roster, history and independent delivery
   metadata. Active game/library writes share one preference transaction. Every
@@ -276,26 +321,11 @@ The app talks to a physical Atlas over its HTTP API; production always uses
 `HttpAtlasRepository`. It shows the live table, gives a signed-in player personal and shared-tablet game controls, runs first-run setup, and installs firmware
 updates on Atlas and the Sigils.
 
-1. Open the app. It asks for "Nearby devices" (local network, Android 17),
-   then rejoins the saved table by itself (`HomeViewModel.onAppStarted`):
-   Android remembers its approval, so this is silent when the table is
-   there. *Verified* on the Pixel Fold, 2026-09-30: a cold start opens the
-   live lobby with no taps.
-   - While it connects, the app shows the game screen (tabs, a "Your table"
-     status line and player-card placeholders, with Play on this device
-     instead; the full-screen table since 2026-10-13) rather than the connect screen. After 15 s
-     (`HomeViewModel.LAUNCH_WAIT_MS`), or as soon as the table isn't found or
-     an error appears, the connect screen takes over (*Implemented*
-     2026-10-12; device acceptance pending).
-   - The saved table doesn't answer: "Couldn't reach your table" with Try
-     again and Set up a new table (a factory-reset Atlas).
-   - A phone that never joined a table leads with Set up a new table, which
-     joins with the printed default; first-run setup then opens.
-   - No Wi-Fi scan. Spotting tables in range was tried first
-     (NEARBY_WIFI_DEVICES, `neverForLocation`), but on this Android scan
-     results need location permission (`WifiService`: "has no location
-     permission", zero results), and the owner chose not to ask for location
-     (2026-09-30).
+1. Open the app to the shared Game tab. Atlas discovery stays in the background.
+   Settings > Atlas connection provides Connect, retry and setup actions.
+   Android 17 requests Nearby devices permission only after an explicit Atlas
+   action. A saved table that cannot be reached shows retry/setup controls there;
+   it does not replace local play. The app does not scan for nearby Wi-Fi networks.
    Connect still works as before. The address defaults to
    `http://192.168.4.1` and is under Advanced. For that address the app
    first joins Atlas's Wi-Fi itself (see "Targeted Wi-Fi" below); other

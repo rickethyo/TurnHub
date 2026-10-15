@@ -23,7 +23,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -200,18 +202,22 @@ fun EliminationRulesEditor(settings: TableSettings, enabled: Boolean = true,
         var limit by remember(settings.poisonLimit) { mutableStateOf("${settings.poisonLimit}") }
         OutlinedTextField(limit, { limit = it }, label = { Text("Poison limit${if (settings.twoHeadedGiant) " (shared team total)" else ""}") },
             singleLine = true, enabled = enabled, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-        TextButton({ limit.toIntOrNull()?.let { onChange("poisonLimit", it) } },
-            enabled = enabled && limit.toIntOrNull()?.let { it in 1..1_000_000 && it != settings.poisonLimit } == true) { Text("Apply poison limit") }
+        ToneButton("Apply poison limit", { limit.toIntOrNull()?.let { onChange("poisonLimit", it) } }, Modifier.fillMaxWidth(),
+            enabled = enabled && limit.toIntOrNull()?.let { it in 1..1_000_000 && it != settings.poisonLimit } == true)
         if (settings.profile.commanderRules)
             RuleToggle("21 damage from one commander", "autoEliminateAtCommanderDamage", settings.autoEliminateAtCommanderDamage, enabled, onChange)
     }
-    Text("Automatic elimination applies immediately when enabled or a limit changes. Disable the relevant rule before a card changes the loss condition.",
+    Text("Changes apply immediately. Turn a rule off when a card prevents that loss condition.",
         color = palette.muted, style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable
 private fun RuleToggle(label: String, field: String, checked: Boolean, enabled: Boolean, onChange: (String, Int) -> Unit) {
-    TextButton({ onChange(field, if (checked) 0 else 1) }, enabled = enabled) {
-        Text("Automatic elimination — $label: ${if (checked) "On" else "Off"}")
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp)
+        .toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = { onChange(field, if (it) 1 else 0) })
+        .padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Eliminate at $label", color = palette.text, modifier = Modifier.weight(1f))
+        Switch(checked, onCheckedChange = null, enabled = enabled)
     }
 }

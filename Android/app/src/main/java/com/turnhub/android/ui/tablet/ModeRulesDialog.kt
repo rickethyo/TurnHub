@@ -28,9 +28,8 @@ import com.turnhub.android.ui.theme.palette
 internal fun ModeRulesButton(profile: GameProfile, teams: Boolean, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
     val rules = modeRules(profile, teams)
-    TextButton({ open = true }, modifier.semantics { contentDescription = "Rules for ${rules.title}" }) {
-        Text("? Rules", color = palette.text)
-    }
+    com.turnhub.android.ui.components.ToneButton("Rules", { open = true },
+        modifier.semantics { contentDescription = "Rules for ${rules.title}" })
     if (open) ModeRulesDialog(profile, teams) { open = false }
 }
 

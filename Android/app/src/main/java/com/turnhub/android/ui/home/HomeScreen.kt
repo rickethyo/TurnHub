@@ -1,14 +1,6 @@
 package com.turnhub.android.ui.home
 
 import androidx.annotation.DrawableRes
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.material3.Icon
 import androidx.compose.ui.draw.drawBehind
 import com.turnhub.android.ui.components.AtlasBatteryGauge
@@ -21,20 +13,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -95,16 +81,15 @@ import com.turnhub.android.ui.manual.ManualScreen
 
 private enum class HomeTab(val label: String, @DrawableRes val icon: Int) {
     GAME("Game", DesignTokens.Icons.timer),
+    TABLE("Table", DesignTokens.Icons.hub),
     PLAYERS("Players", DesignTokens.Icons.users),
-    ACCOUNT("Me", DesignTokens.Icons.user),
+    HISTORY("History", DesignTokens.Icons.clock),
     SETTINGS("Settings", DesignTokens.Icons.sliders),
-    DEV("Developer", DesignTokens.Icons.signal),
 }
 
 /**
- * The app: a connect screen until Atlas answers, then the portal's Game,
- * Players and My Account tabs. A pure function of [uiState] plus callbacks;
- * Atlas decides every outcome.
+ * One navigation shell for device play and Atlas capabilities.
+ * Each authority retains its own game state and action callbacks.
  */
 @Composable
 fun HomeScreen(
@@ -143,9 +128,13 @@ fun HomeScreen(
     tabletActions: com.turnhub.android.ui.tablet.TabletActions = com.turnhub.android.ui.tablet.TabletActions(),
     /** Opens the standalone tablet game, for a table with no Atlas. */
     onPlayStandalone: () -> Unit = {},
-    hasLocalGame: Boolean = false,
     onFollowGame: (Int) -> Unit = {},
-    onLocalHistory: () -> Unit = {},
+    onAtlasOpened: () -> Unit = {},
+    localGameContent: @Composable () -> Unit = {},
+    localPlayersContent: @Composable () -> Unit = {},
+    localHistoryContent: @Composable () -> Unit = {},
+    atlasEnabled: Boolean = true,
+    onAtlasEnabled: (Boolean) -> Unit = {},
     localState: com.turnhub.android.standalone.StandaloneState = com.turnhub.android.standalone.StandaloneState(),
     localTable: com.turnhub.android.standalone.StandaloneTable? = null,
 ) {
@@ -179,14 +168,11 @@ fun HomeScreen(
     val canSettings = info?.has(com.turnhub.android.protocol.AccountPermission.ADMIN) == true
     val canPeople = canSettings || info?.has(com.turnhub.android.protocol.AccountPermission.GAME_MASTER) == true
     val canDev = info?.has(com.turnhub.android.protocol.AccountPermission.DEVELOPER) == true
-    val tabs = HomeTab.entries.filter {
-        when (it) {
-            HomeTab.SETTINGS -> canSettings
-            HomeTab.DEV -> canDev
-            else -> true
-        }
-    }
-    if (tab !in tabs) tab = HomeTab.GAME
+    val tabs = HomeTab.entries
+    var atlasGame by rememberSaveable { mutableStateOf(false) }
+    var playersPage by rememberSaveable { mutableStateOf("Device") }
+    val pageState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+    androidx.activity.compose.BackHandler(enabled = tab != HomeTab.GAME && !setup.visible) { tab = HomeTab.GAME }
     // Presence also says whether Atlas still needs its first Admin.
     androidx.compose.runtime.LaunchedEffect(info?.profileId) { if (info != null) adminActions.onRefresh() }
     val incomingRequest = me?.lifeRequest?.let { it.state == LifeRequestState.PENDING && it.target == me.playerNumber } == true
@@ -227,11 +213,15 @@ fun HomeScreen(
         modifier = modifier.tableBackground(p),
         containerColor = Color.Transparent,
         topBar = {
-            BrandBar(uiState, running = summary?.state == TableState.RUNNING, reduceMotion = reduceMotion,
-                onManualClick = { showManual = true })
+            Column(Modifier.background(p.bg.copy(alpha = .92f))) {
+                BrandBar(uiState, running = summary?.state == TableState.RUNNING, reduceMotion = reduceMotion,
+                    onManualClick = { showManual = true })
+                com.turnhub.android.ui.components.AppVersionLabel(
+                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp))
+            }
         },
         bottomBar = {
-            if (summary != null && !setup.visible) {
+            if (!setup.visible) {
                 // A translucent bar over the content with a hairline top edge,
                 // drawn behind the gesture area (edge-to-edge).
                 NavigationBar(
@@ -247,7 +237,9 @@ fun HomeScreen(
                             selected = selected,
                             onClick = {
                                 if (!selected) haptics.tick()
-                                tab = entry
+                                if (entry == HomeTab.TABLE) {
+                                    if (summary != null && atlasGame) showTablet = true else onPlayStandalone()
+                                } else tab = entry
                             },
                             icon = {
                                 BadgedBox(badge = { if (entry == HomeTab.GAME && incomingRequest) Badge { Text("!") } }) {
@@ -281,83 +273,72 @@ fun HomeScreen(
         )
         val labels = summary?.players?.associate { it.playerNumber to it.label }.orEmpty()
         val labelFor: (Int) -> String = { number -> labels[number] ?: "Player $number" }
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentAlignment = Alignment.TopCenter,
-        ) {
-            Column(
-                Modifier
-                    .widthIn(max = 720.dp)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                // Atlas dropping out is expected while an update installs; the update step explains it.
-                val installing = setup.visible && setup.updates is com.turnhub.android.data.UpdatesState.Installing
-                val lastKnown = summary?.takeIf { uiState.isOffline && !installing }
-                if (lastKnown != null) {
-                    com.turnhub.android.ui.components.OfflineBanner(lastKnown.receivedAtMs, Modifier.fillMaxWidth())
-                } else uiState.errorMessage?.takeUnless { installing }?.let {
-                    ErrorCard(it, uiState.errorDetail, uiState.isRetrying, onOpenAppSettings.takeIf { uiState.offerAppSettings })
+        Column(Modifier.fillMaxSize().padding(innerPadding)) {
+            if (!setup.visible && tab == HomeTab.GAME && summary != null) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.FilterChip(!atlasGame, { atlasGame = false }, label = { Text("This device") })
+                    androidx.compose.material3.FilterChip(atlasGame, { atlasGame = true; onAtlasOpened() }, label = { Text("Atlas") })
                 }
-                ToneButton("Device players and history", onLocalHistory, Modifier.fillMaxWidth())
-                if (setup.visible) {
-                    SetupScreen(setup, setupActions)
-                } else if (summary == null) {
-                    BrassCard(highlight = p.accent) {
-                        Eyebrow("Full-screen table")
-                        Text("Lay this phone or tablet on the table: life, Commander damage, turns, the turn timer and results on one screen.", color = p.text)
-                        Text("No Atlas, account or network needed. Your game stays on this device when you close the app.",
-                            color = p.muted, style = MaterialTheme.typography.bodySmall)
-                        AccentButton(if (hasLocalGame) "Resume full-screen game" else "Open full-screen table", onPlayStandalone,
-                            Modifier.fillMaxWidth().heightIn(min = 56.dp))
+            }
+            if (!setup.visible && tab == HomeTab.PLAYERS && summary != null) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Device", "Table", "Me").forEach { page ->
+                        androidx.compose.material3.FilterChip(playersPage == page, { playersPage = page; if (page != "Device") onAtlasOpened() }, label = { Text(page) })
                     }
-                    ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
-                } else {
-                    GameSelector(summary, onFollowGame, enabled = !uiState.isOffline && uiState.player?.busy != true && seatClaim?.waiting != true)
-                    if (updatesAvailable > 0) UpdateAvailableCard(updatesAvailable, onOpenUpdates)
-                    // A short fade and rise between tabs; none when motion is reduced.
-                    AnimatedContent(
-                        targetState = tab,
-                        transitionSpec = {
-                            if (reduceMotion) {
-                                EnterTransition.None togetherWith ExitTransition.None
-                            } else {
-                                (fadeIn(tween(DesignTokens.Motion.BASE_MS)) +
-                                    slideInVertically(tween(DesignTokens.Motion.BASE_MS)) { it / 40 }) togetherWith
-                                    fadeOut(tween(DesignTokens.Motion.INSTANT_MS))
+                }
+            }
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                pageState.SaveableStateProvider(tab.name) {
+                    when {
+                        !setup.visible && tab == HomeTab.HISTORY -> localHistoryContent()
+                        !setup.visible && tab == HomeTab.PLAYERS && (summary == null || playersPage == "Device") -> localPlayersContent()
+                        !setup.visible && tab == HomeTab.GAME && (summary == null || !atlasGame) -> localGameContent()
+                        else -> Column(
+                            Modifier.widthIn(max = 720.dp).fillMaxWidth()
+                                .verticalScroll(rememberScrollState()).padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            val installing = setup.visible && setup.updates is com.turnhub.android.data.UpdatesState.Installing
+                            if (uiState.isOffline && summary != null && !installing) {
+                                com.turnhub.android.ui.components.OfflineBanner(summary.receivedAtMs, Modifier.fillMaxWidth())
+                            } else uiState.errorMessage?.takeUnless { installing }?.let {
+                                ErrorCard(it, uiState.errorDetail, uiState.isRetrying, onOpenAppSettings.takeIf { uiState.offerAppSettings })
                             }
-                        },
-                        label = "tab",
-                    ) { shown ->
-                        androidx.compose.runtime.key(summary.atlasId, summary.bootId, summary.game) {
-                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            when (shown) {
-                                HomeTab.GAME -> GameTab(uiState, summary, nowMs, reduceMotion, gameActions.copy(onOpenTablet = { showTablet = true }), labelFor)
-                                HomeTab.PLAYERS -> PlayersTab(summary, me?.playerNumber, nowMs, labelFor, uiState.endpointText, seatClaim, seatActions, admin.devices, uiState.player?.signedIn == true && !uiState.isOffline) {
-                                    if (canPeople) PeopleCard(info, admin, uiState.avatars, adminActions)
+                            if (setup.visible) {
+                                SetupScreen(setup, setupActions)
+                            } else when (tab) {
+                                HomeTab.GAME -> if (summary != null) {
+                                    GameSelector(summary, onFollowGame, enabled = !uiState.isOffline && uiState.player?.busy != true && seatClaim?.waiting != true)
+                                    if (updatesAvailable > 0) UpdateAvailableCard(updatesAvailable, onOpenUpdates)
+                                    GameTab(uiState, summary, nowMs, reduceMotion, gameActions.copy(onOpenTablet = { showTablet = true }), labelFor)
                                 }
-                                HomeTab.ACCOUNT -> {
-                                    if (admin.presence?.setup == true) AdminSetupCard(adminActions)
-                                    AccountTab(uiState, theme, reduceMotion, accountActions.copy(onDisconnect = onDisconnectClick))
+                                HomeTab.PLAYERS -> if (summary != null) {
+                                    if (playersPage == "Me") {
+                                        if (admin.presence?.setup == true) AdminSetupCard(adminActions)
+                                        AccountTab(uiState, reduceMotion, accountActions)
+                                    } else PlayersTab(summary, me?.playerNumber, nowMs, labelFor, uiState.endpointText, seatClaim, seatActions, admin.devices,
+                                        uiState.player?.signedIn == true && !uiState.isOffline) {
+                                        if (canPeople) PeopleCard(info, admin, uiState.avatars, adminActions)
+                                    }
                                 }
-                                HomeTab.SETTINGS -> info?.let { SettingsTab(it, admin, adminActions, onShowPeople = { tab = HomeTab.PLAYERS }) }
-                                HomeTab.DEV -> DevTab(admin, adminActions)
+                                HomeTab.SETTINGS -> {
+                                    AppearanceCard(theme, reduceMotion, accountActions)
+                                    BrassCard { com.turnhub.android.ui.components.GameSoundControls() }
+                                    com.turnhub.android.ui.components.DisclosureCard("Atlas connection") {
+                                        com.turnhub.android.ui.tablet.SetupSwitch("Discover Atlas", null, atlasEnabled, true, onAtlasEnabled)
+                                        if (atlasEnabled) ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
+                                    }
+                                    if (canSettings && info != null) com.turnhub.android.ui.components.DisclosureCard("Table administration") {
+                                        SettingsTab(info, admin, adminActions, onShowPeople = { playersPage = "Table"; tab = HomeTab.PLAYERS })
+                                    }
+                                    if (canDev) com.turnhub.android.ui.components.DisclosureCard("Developer") { DevTab(admin, adminActions) }
+                                    BrassCard { com.turnhub.android.ui.components.ReportBugButton() }
+                                }
+                                HomeTab.HISTORY, HomeTab.TABLE -> Unit
                             }
-                        }
                         }
                     }
                 }
-                Text(
-                    "Play locally on this device or connect to Atlas. No cloud connection is required for play.",
-                    color = p.faint,
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                )
             }
         }
     }
@@ -449,7 +430,7 @@ private fun ConnectionPill(uiState: HomeUiState) {
         uiState.isRetrying -> "Retrying" to p.warn
         uiState.connectionState == AtlasConnectionState.CONNECTED -> "Connected" to p.good
         uiState.connectionState == AtlasConnectionState.CONNECTING -> "Connecting" to p.warn
-        else -> "Offline" to p.bad
+        else -> "On device" to p.muted
     }
     val pill = RoundedCornerShape(99.dp)
     Row(
@@ -497,9 +478,9 @@ private fun ConnectCard(
         uiState.discovery == Discovery.Searching -> "Looking for your table" to "Rejoining your table's Wi-Fi…"
         uiState.discovery == Discovery.NotFound -> "Couldn't reach your table" to
             "Check that Atlas is switched on and close by. If it was factory reset, set it up again."
+        uiState.connectionState == AtlasConnectionState.CONNECTED -> "Atlas connected" to "Sigils, shared profiles and table controls are ready."
         !uiState.hasSavedTable -> "Connect to Atlas" to
-            "Setting up a new table takes a few minutes: an account, a code from the Atlas screen, your " +
-            "Sigils and a Wi-Fi password. Joining a table someone already set up? Connect to it instead."
+            "Add Sigils, shared profiles and connected play."
         else -> "Join your table" to "TurnHub joins the Atlas Wi-Fi for you, then shows the live table."
     }
     BrassCard {

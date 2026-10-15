@@ -31,7 +31,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -103,6 +102,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import com.turnhub.android.ui.components.EliminationRulesEditor
 import com.turnhub.android.ui.components.MonarchBadge
 import com.turnhub.android.ui.components.BrassCard
+import com.turnhub.android.ui.components.DisclosureCard
 import com.turnhub.android.ui.components.Tone
 import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.components.TurnHubHaptics
@@ -420,24 +420,6 @@ internal fun TabletTable(
                 if (summary.pending.winClaimPlayer == null && summary.pending.winConfirmationPlayer == null) {
                     if (summary.pending.eliminationTargetPlayer != null) {
                         Overlay("Player removal pending", "Confirm or cancel the removal on Atlas or the selecting Sigil.") {}
-                    } else {
-                        Overlay("Paused", "The clocks are stopped.") {
-                            EliminationRulesEditor(summary.settings, !isOffline && anySeat != null, limitsLocked) { field, value ->
-                                anySeat?.let { seat -> controls { setEliminationRule(seat, field, value) } }
-                            }
-                            if (summary.settings.profile.magicRules) {
-                                summary.players.filter { !it.eliminated }.forEach { member ->
-                                    ToneButton("${member.label}: I’m the monarch", { send(member.seat(), "monarch") },
-                                        Modifier.fillMaxWidth(), tone = Tone.ACCENT,
-                                        enabled = !isOffline && member.playerNumber != summary.monarchPlayerNumber)
-                                }
-                            }
-                            PausedMagicCounters(summary, !isOffline) { member, kind, value, commander ->
-                                controls { counter(member.seat(), kind, value, commander) }
-                            }
-                            BackToSetup(summary) { send(anySeat, "back-to-setup") }
-                            AccentButton("Resume", { send(activeSeat, "pause") }, Modifier.fillMaxWidth())
-                        }
                     }
                 }
             }
@@ -476,43 +458,58 @@ internal fun TabletTable(
                     }
                 }
             }
-            else -> if (menuOpen) {
-                Overlay("Table", null, onDismiss = { menuOpen = false }) {
+            else -> Unit
+        }
+        if (menuOpen && (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) &&
+            summary.pending.winClaimPlayer == null && summary.pending.winConfirmationPlayer == null &&
+            summary.pending.eliminationTargetPlayer == null) {
+                Overlay("Game menu", null, onDismiss = { menuOpen = false }) {
                     GameClockLine(summary)
-                    ModeRulesButton(summary.settings.profile, summary.settings.twoHeadedGiant)
-                    com.turnhub.android.ui.components.GameSoundControls()
-                    com.turnhub.android.ui.components.ReportBugButton()
-                    if (summary.star) {
-                        // Live: eliminated players are struck through; tap one to see their allies and enemies.
-                        StarMap(summary.starSeats())
+                    val paused = summary.state == TableState.PAUSED
+                    AccentButton(if (paused) "Resume game" else "Pause game", {
+                        menuOpen = false; send(activeSeat, "pause")
+                    }, Modifier.fillMaxWidth(), enabled = !isOffline && activeSeat != null)
+                    DisclosureCard("Table tools") {
+                        TableToolsCard(summary, reduceMotion) { haptics.tick() }
                     }
-                    TableToolsCard(summary.players.filter { !it.eliminated }.map { it.label }, reduceMotion) { haptics.tick() }
-                    EliminationRulesEditor(summary.settings, !isOffline && anySeat != null, limitsLocked) { field, value ->
-                        anySeat?.let { seat -> controls { setEliminationRule(seat, field, value) } }
-                    }
-                    ToneButton("Pause", { menuOpen = false; send(activeSeat, "pause") }, Modifier.fillMaxWidth())
-                    ToneButton("Turn panels around", { flipped = !flipped; menuOpen = false }, Modifier.fillMaxWidth())
-                    ToneButton("Back to the app", { menuOpen = false; onClose() }, Modifier.fillMaxWidth())
-                    BackToSetup(summary) { menuOpen = false; send(anySeat, "back-to-setup") }
-                    if (standalone) {
-                        ArmedButton("End without a winner", "Tap again to end the game", Tone.BAD) {
-                            menuOpen = false
-                            send(anySeat, "draw")
+                    DisclosureCard("Game rules") {
+                        ModeRulesButton(summary.settings.profile, summary.settings.twoHeadedGiant, Modifier.fillMaxWidth())
+                        Text("Automatic elimination", color = p.muted, style = MaterialTheme.typography.titleSmall)
+                        EliminationRulesEditor(summary.settings, !isOffline && anySeat != null, limitsLocked) { field, value ->
+                            anySeat?.let { seat -> controls { setEliminationRule(seat, field, value) } }
                         }
-                    } else {
-                        ToneButton("Leave tablet mode", {
-                            menuOpen = false
-                            if (isOffline) {
-                                controls { refuseOffline() }
-                            } else {
-                                controls { this.disable() }
-                                onClose()
-                            }
-                        }, Modifier.fillMaxWidth(), tone = Tone.BAD)
                     }
-                    AccentButton("Close", { menuOpen = false }, Modifier.fillMaxWidth())
+                    if (summary.star) {
+                        DisclosureCard("Seating & alliances") { StarMap(summary.starSeats()) }
+                    }
+                    DisclosureCard("Sound & display") {
+                        com.turnhub.android.ui.components.GameSoundControls()
+                        ToneButton("Turn panels around", { flipped = !flipped; menuOpen = false }, Modifier.fillMaxWidth())
+                    }
+                    DisclosureCard("Help & app") {
+                        com.turnhub.android.ui.components.ReportBugButton()
+                        ToneButton("Back to the app", { menuOpen = false; onClose() }, Modifier.fillMaxWidth())
+                    }
+                    DisclosureCard("Finish game") {
+                        BackToSetup(summary) { menuOpen = false; send(anySeat, "back-to-setup") }
+                        if (standalone) {
+                            ArmedButton("End without a winner", "Tap again to end the game", Tone.BAD) {
+                                menuOpen = false
+                                send(anySeat, "draw")
+                            }
+                        } else {
+                            ToneButton("Leave tablet mode", {
+                                menuOpen = false
+                                if (isOffline) {
+                                    controls { refuseOffline() }
+                                } else {
+                                    controls { this.disable() }
+                                    onClose()
+                                }
+                            }, Modifier.fillMaxWidth(), tone = Tone.BAD)
+                        }
+                    }
                 }
-            }
         }
     }
 }
@@ -550,8 +547,9 @@ private fun Hub(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(clock, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text("Menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
+        Text(if (summary.state == TableState.PAUSED) "Paused" else clock, color = p.text,
+            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text("Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -571,7 +569,7 @@ private fun OverlayButtons(content: @Composable RowScope.() -> Unit) =
 @Composable
 private fun OverlayFrame(title: String, text: String?, onDismiss: (() -> Unit)?, content: @Composable () -> Unit) {
     val p = palette
-    Box(
+    BoxWithConstraints(
         Modifier
             .fillMaxSize()
             .background(p.scrim)
@@ -579,10 +577,13 @@ private fun OverlayFrame(title: String, text: String?, onDismiss: (() -> Unit)?,
             .pointerInput(onDismiss) { detectTapGestures { onDismiss?.invoke() } },
         contentAlignment = Alignment.Center,
     ) {
-        BrassCard(Modifier.widthIn(max = 380.dp).padding(16.dp).verticalScroll(rememberScrollState()).pointerInput(Unit) { detectTapGestures { } }) {
+        BrassCard(Modifier.widthIn(max = 440.dp).padding(16.dp).heightIn(max = (maxHeight - 32.dp).coerceAtLeast(120.dp))
+            .pointerInput(Unit) { detectTapGestures { } }) {
             Text(title, color = p.text, style = MaterialTheme.typography.headlineSmall)
             text?.let { Text(it, color = p.muted) }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+            onDismiss?.let { ToneButton("Done", it, Modifier.fillMaxWidth()) }
         }
     }
 }
@@ -602,25 +603,6 @@ private fun BackToSetup(summary: TableSummary, onConfirm: () -> Unit) {
     ArmedButton("Back to setup (${TableClock.format(left)} left)", "Tap again: this game won't be saved", Tone.WARN, onConfirm)
     Text("Returns to setup with the same players and settings. Available for the first three minutes.",
         color = palette.muted, style = MaterialTheme.typography.bodySmall)
-}
-
-@Composable
-private fun PausedMagicCounters(summary: TableSummary, enabled: Boolean, onCounter: (TablePlayer, String, Int, Int) -> Unit) {
-    if (!summary.settings.profile.magicRules) return
-    var selected by remember { mutableStateOf<Int?>(null) }
-    var expanded by remember { mutableStateOf(false) }
-    val living = summary.players.filter { !it.eliminated }
-    val player = living.firstOrNull { it.playerNumber == selected } ?: living.firstOrNull() ?: return
-    Box {
-        TextButton({ expanded = true }) { Text("Counters: ${player.label}") }
-        androidx.compose.material3.DropdownMenu(expanded, { expanded = false }) {
-            living.forEach { member ->
-                androidx.compose.material3.DropdownMenuItem(text = { Text(member.label) }, onClick = { selected = member.playerNumber; expanded = false })
-            }
-        }
-    }
-    MagicCountersEditor(player.counters, summary.initiativePlayerNumber == player.playerNumber,
-        summary.settings.profile.commanderRules, enabled) { kind, value, commander -> onCounter(player, kind, value, commander) }
 }
 
 @Composable
@@ -677,7 +659,9 @@ private fun PlayerPanel(
         // Team panels share space; each player's chosen background gets an equal share.
         Row(Modifier.fillMaxSize()) {
             unit.members.forEach { member ->
-                PlayerTileBackground(member.tileBackground, hue, Modifier.weight(1f).fillMaxHeight())
+                PlayerTileBackground(member.tileBackground,
+                    com.turnhub.android.ui.components.playerColor(member.color, p.avatarColor(member.playerNumber)),
+                    Modifier.weight(1f).fillMaxHeight())
             }
         }
         val nameMax = maxWidth * .6f
@@ -688,7 +672,8 @@ private fun PlayerPanel(
         val between = (maxHeight.value - if (compact) 104f else 120f).coerceAtLeast(24f)
         // Room for the lines under the number, so a short panel shrinks the number instead of
         // squashing those lines to slivers.
-        val linesBelow = (if (summary.star) 22f else 0f) +
+        val demerits = unit.members.first().demerits
+        val linesBelow = (if (demerits > 0) 22f else 0f) + (if (summary.star) 22f else 0f) +
             (if (summary.settings.profile.magicRules) unit.members.count { m -> counterChips(m.counters, summary.initiativePlayerNumber == m.playerNumber,
                 summary.settings.profile.commanderRules, summary.settings.poisonLimit).isNotEmpty() } * 30f else 0f) +
             (if (summary.settings.profile.commanderRules && unit.members.any { m -> m.commanderDamage.any { d -> d.damage.any { it > 0 } } }) 26f else 0f)
@@ -696,9 +681,9 @@ private fun PlayerPanel(
             minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f,
             (between - linesBelow) * .8f,
         ).coerceIn(24f, 160f)
-        Column(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
-            HoldHalf("+", "$name: add $small life", !out, { onBump(small) }, { onBump(big) }, Alignment.CenterEnd, Modifier.weight(1f).fillMaxWidth())
-            HoldHalf("−", "$name: subtract $small life", !out, { onBump(-small) }, { onBump(-big) }, Alignment.CenterEnd, Modifier.weight(1f).fillMaxWidth())
+        Row(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
+            HoldHalf("−", "$name: subtract $small life", !out, { onBump(-small) }, { onBump(-big) }, Alignment.CenterStart, Modifier.weight(1f).fillMaxHeight())
+            HoldHalf("+", "$name: add $small life", !out, { onBump(small) }, { onBump(big) }, Alignment.CenterEnd, Modifier.weight(1f).fillMaxHeight())
         }
 
         Row(
@@ -747,6 +732,7 @@ private fun PlayerPanel(
                 }
             }
             CommanderSummary(unit, summary, offlineCommander)
+            if (demerits > 0) Text("Demerits · $demerits", color = p.text, style = MaterialTheme.typography.labelMedium)
             StarProgressLine(unit, summary, panelWidth)
             if (summary.settings.profile.magicRules) {
                 unit.members.forEach { member ->
@@ -763,8 +749,7 @@ private fun PlayerPanel(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             MenuButton(name, compact, onOpenMenu)
-            // A short panel keeps the bar to its start side, so the far end of the subtract half
-            // (where its − sits) stays clear to tap.
+            // Keep the bottom actions compact so the life controls remain easy to reach.
             if (compact && active) TurnClock(summary)
             val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
             val canPass = actor != null && !out && summary.state == TableState.RUNNING
@@ -799,14 +784,14 @@ private fun MenuButton(name: String, compact: Boolean, onOpen: () -> Unit) {
             .clip(shape)
             .background(p.surface.copy(alpha = .85f))
             .border(1.dp, p.lineStrong, shape)
-            .clickable(onClickLabel = "Open $name's menu", role = Role.Button, onClick = onOpen)
+            .clickable(onClickLabel = "More for $name", role = Role.Button, onClick = onOpen)
             .padding(horizontal = if (compact) 14.dp else 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text("☰", color = p.text, fontSize = 18.sp)
         // A short panel keeps just the icon; its spoken label still says Menu.
-        if (!compact) Text("Menu", color = p.text, fontWeight = FontWeight.SemiBold)
+        if (!compact) Text("More", color = p.text, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -1102,42 +1087,50 @@ private fun PlayerMenuItems(
     offlineCommander: (Long, Int, Int) -> Int,
 ) {
     val p = palette
-    run {
-        // Claim the win and concede first, so a long Commander list never hides them.
+    DisclosureCard("Turn & tools", initiallyExpanded = true) {
         val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
         if (actor != null && summary.state == TableState.RUNNING) {
             ArmedButton("Claim the win", "Tap again to claim", Tone.GOOD) { onControl(actor.seat(), "win") }
         }
-        if (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) {
+        val rules = summary.localTimerRules
+        if (rules != null && summary.settings.turnTimerEnabled) {
+            val holder = actor ?: unit.members.first()
+            if (rules.timeout.demerit) Text("Demerits · ${holder.demerits}", color = p.muted)
+            if (rules.earnExtensions) {
+                Text("Extensions · ${holder.extensionsAvailable} available", color = p.muted)
+                val now = rememberNowMs(ticking = summary.state == TableState.RUNNING, intervalMs = 500)
+                ToneButton("Extend +${TableClock.format(summary.settings.turnTimerMs / 2)}", {
+                    onControl(holder.seat(), "extend-turn")
+                }, Modifier.fillMaxWidth(), enabled = actor != null && summary.state == TableState.RUNNING &&
+                    holder.extensionsAvailable > 0 && summary.turnExtensionMs == 0L &&
+                    (TableClock.turnRemainingMs(summary, now) ?: 0) > 0)
+            }
+        }
+        OpponentPicker(summary, unit.members.first().playerNumber)
+    }
+    if ((summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) && summary.settings.profile.magicRules) {
+        DisclosureCard(if (unit.members.size > 1) "Team counters & status" else "Counters & status") {
             val team = unit.members.size > 1
             // A Two-Headed Giant team shares poison and leaves together (CR 810.10, 810.8b): one row, one button.
-            if (team && summary.settings.profile.magicRules) {
+            if (team) {
                 unit.members.firstOrNull { !it.eliminated }?.let { holder ->
                     TeamPoisonRow(holder.counters.poison, true) { onCounter(holder, "poison", it, 1) }
                 }
             }
             unit.members.filter { !it.eliminated }.forEach { member ->
-                if (summary.settings.profile.magicRules) {
-                    Text(if (team) "${member.label} counters and status" else "Counters and status", color = p.text)
-                    MagicCountersEditor(member.counters, summary.initiativePlayerNumber == member.playerNumber,
-                        summary.settings.profile.commanderRules, showPoison = !team) { kind, value, commander -> onCounter(member, kind, value, commander) }
-                    ToneButton(
-                        if (unit.members.size > 1) "${member.label}: I’m the monarch" else "I’m the monarch",
-                        { onControl(member.seat(), "monarch") }, Modifier.fillMaxWidth(), tone = Tone.ACCENT,
-                        enabled = member.playerNumber != summary.monarchPlayerNumber,
-                    )
-                }
-                if (!team) {
-                    ArmedButton("Concede", "Tap again to concede", Tone.BAD) { onControl(member.seat(), "concede") }
-                    ArmedButton("Eliminate", "Tap again to eliminate", Tone.BAD) { onControl(member.seat(), "eliminate") }
-                }
-            }
-            if (team) unit.members.firstOrNull { !it.eliminated }?.let { member ->
-                ArmedButton("Our team concedes", "Tap again: the whole team leaves", Tone.BAD) { onControl(member.seat(), "concede") }
-                ArmedButton("Eliminate this team", "Tap again to eliminate both players", Tone.BAD) { onControl(member.seat(), "eliminate") }
+                if (team) Text("${member.label} counters and status", color = p.text)
+                MagicCountersEditor(member.counters, summary.initiativePlayerNumber == member.playerNumber,
+                    summary.settings.profile.commanderRules, showPoison = !team) { kind, value, commander -> onCounter(member, kind, value, commander) }
+                ToneButton(
+                    if (unit.members.size > 1) "${member.label}: I’m the monarch" else "I’m the monarch",
+                    { onControl(member.seat(), "monarch") }, Modifier.fillMaxWidth(), tone = Tone.ACCENT,
+                    enabled = member.playerNumber != summary.monarchPlayerNumber,
+                )
             }
         }
-        if (summary.settings.profile.commanderRules) {
+    }
+    if (summary.settings.profile.commanderRules) {
+        DisclosureCard("Commander damage") {
             unit.members.filter { !it.eliminated }.forEach { member ->
                 Text(
                     if (unit.members.size > 1) "Commander damage to ${member.label}" else "Commander damage received",
@@ -1176,9 +1169,22 @@ private fun PlayerMenuItems(
                         }
                     }
                 }
-                TextButton(onClick = {
+                SetupSwitch("Partner commanders", null, showPartner, true) {
                     if (showPartner) partners.remove(member.playerNumber) else partners.add(member.playerNumber)
-                }) { Text(if (showPartner) "Hide partner commanders" else "Partner commanders", color = p.muted) }
+                }
+            }
+        }
+    }
+    if (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) {
+        unit.members.firstOrNull { !it.eliminated }?.let { member ->
+            DisclosureCard("Leave game") {
+                val team = unit.members.size > 1
+                ArmedButton(if (team) "Our team concedes" else "Concede", "Tap again to concede", Tone.BAD) {
+                    onControl(member.seat(), "concede")
+                }
+                ArmedButton(if (team) "Eliminate this team" else "Eliminate", "Tap again to eliminate", Tone.BAD) {
+                    onControl(member.seat(), "eliminate")
+                }
             }
         }
     }

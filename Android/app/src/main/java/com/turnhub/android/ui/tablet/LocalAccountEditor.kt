@@ -12,6 +12,8 @@ import com.turnhub.android.data.ProfileSecret
 import com.turnhub.android.standalone.*
 import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.components.PlayerAvatar
+import com.turnhub.android.ui.components.ColorPicker
+import com.turnhub.android.ui.components.playerColor
 import com.turnhub.android.ui.home.AvatarUploadControls
 import com.turnhub.android.ui.theme.palette
 import java.util.Base64
@@ -45,18 +47,20 @@ fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destina
         return
     }
     var name by rememberSaveable(player.localId, player.name) { mutableStateOf(player.name) }
-    var color by rememberSaveable(player.localId, player.personalization.color) { mutableStateOf(player.personalization.color.orEmpty()) }
+    var saveError by remember(player.localId) { mutableStateOf(false) }
     val prefs = player.personalization
     val icon = remember(prefs) { prefs.icon() }
-    PlayerAvatar(player.name, 1, icon, size = 56.dp)
+    PlayerAvatar(player.name, 1, icon, size = 56.dp, color = playerColor(prefs.color, palette.avatarColor(1)))
     Text("Account ID ${player.profileId}", color = palette.muted)
     OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) }, label = { Text("Display name") },
         singleLine = true, modifier = Modifier.fillMaxWidth())
-    OutlinedTextField(color, { color = it.take(7) }, label = { Text("Player color (#RRGGBB, or blank for default)") },
-        singleLine = true, modifier = Modifier.fillMaxWidth())
-    ToneButton("Save account", { table.saveAccount(player.localId, name,
-        prefs.copy(color = color.ifBlank { null })) }, enabled = name.isNotBlank() &&
-        (color.isBlank() || color.matches(Regex("#[0-9a-fA-F]{6}"))))
+    ToneButton("Save name", { saveError = !table.saveAccount(player.localId, name, prefs) },
+        enabled = name.isNotBlank() && name.trim() != player.name)
+    Text("Player color", color = palette.text)
+    ColorPicker(prefs.color, { chosen ->
+        saveError = !table.saveAccount(player.localId, player.name, prefs.copy(color = chosen))
+    }, palette.avatarColor(1))
+    if (saveError) Text("Couldn’t save. Try again.", color = palette.warn)
     var newSecret by remember(player.localId) { mutableStateOf("") }
     OutlinedTextField(newSecret, { newSecret = it.take(ProfileSecret.MAX_CHARS) }, label = { Text("Set or change PIN or password") },
         visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())

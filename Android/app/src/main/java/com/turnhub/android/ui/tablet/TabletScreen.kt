@@ -347,7 +347,7 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
         canAdd = true,
         identityHint = "A new name gets an account without a PIN. Sigils can join too.",
         savedTitle = "Saved players",
-        starterHint = "Nobody chosen: Atlas picks who goes first at random. Tap First? to choose.",
+        starterHint = "First player: random. Tap First? to choose.",
         headerActions = {
             TextButton(onClick = onClose) { Text("Back", color = p.muted) }
             TextButton(onClick = { confirmLeave = true }) { Text("Leave tablet mode", color = p.bad) }

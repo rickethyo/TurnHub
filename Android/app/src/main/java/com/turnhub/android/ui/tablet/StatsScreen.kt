@@ -1,9 +1,9 @@
 package com.turnhub.android.ui.tablet
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.domain.TableClock
@@ -57,20 +58,27 @@ fun StatsScreen(
                 Text("Stats", color = p.text, style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.semantics { heading() })
                 TextButton(onClick = onClose) { Text("Back") }
-                Text("Results from games finished on this device, most wins first. Tap a player for details.", color = p.muted)
+                Text("Every table has its legends.", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                Text("On this device · Most wins first", color = p.muted, style = MaterialTheme.typography.labelMedium)
             }
             if (rows.isEmpty()) item { Text("Finish a game with saved players to see stats here.", color = p.muted) }
             itemsIndexed(rows, key = { _, row -> row.player.localId }) { index, row ->
                 val stats = row.stats
                 val totals = stats.totals
                 var open by rememberSaveable(row.player.localId) { mutableStateOf(false) }
-                BrassCard(Modifier.clickable(onClickLabel = if (open) "Hide details" else "Show details") { open = !open }) {
+                BrassCard {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(ordinal(index + 1), color = p.muted)
-                        Text(row.player.name, color = p.text, fontWeight = FontWeight.SemiBold)
+                        Column(Modifier.weight(1f)) {
+                            Text(row.player.name, color = p.text, fontWeight = FontWeight.SemiBold)
+                            Text("ID ${row.player.profileId}", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                     Text("${totals.won} wins · ${totals.played} played · ${row.winPercent}% won" +
                         if (totals.draws > 0) " · ${totals.draws} draws" else "", color = p.muted)
+                    TextButton(onClick = { open = !open }, modifier = Modifier.semantics {
+                        stateDescription = if (open) "Expanded" else "Collapsed"
+                    }) { Text(if (open) "Hide details" else "View details") }
                     if (open) {
                         val f = TableClock::format
                         Text("Went first ${stats.started} · knocked out ${stats.eliminated} · conceded ${stats.conceded}", color = p.muted)

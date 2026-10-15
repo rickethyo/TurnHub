@@ -48,8 +48,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.domain.TableSummary
+import com.turnhub.android.domain.TileBackground
 import com.turnhub.android.protocol.AvatarIcon
 import com.turnhub.android.ui.components.PlayerAvatar
+import com.turnhub.android.ui.components.playerColor
 import com.turnhub.android.ui.theme.palette
 import kotlin.math.PI
 import kotlin.math.cos
@@ -57,10 +59,13 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /** One Star Commander seat as the star map draws it; index in the list is the seat (turn order). */
-internal data class StarSeat(val name: String, val playerNumber: Int, val avatar: AvatarIcon? = null, val eliminated: Boolean = false)
+internal data class StarSeat(val name: String, val playerNumber: Int, val avatar: AvatarIcon? = null,
+    val eliminated: Boolean = false, val color: String? = null, val background: TileBackground = TileBackground())
 
 internal fun TableSummary.starSeats(): List<StarSeat> =
-    players.sortedBy { it.playerNumber }.map { StarSeat(it.label, it.playerNumber, it.avatar, it.eliminated) }
+    players.sortedBy { it.playerNumber }.map {
+        StarSeat(it.label, it.playerNumber, it.avatar, it.eliminated, it.color, it.tileBackground)
+    }
 
 /** "Allies: B, E · Enemies: C, D" for [seat], the same words the map's labels and legend use. */
 internal fun starRelations(seats: List<StarSeat>, seat: Int): String {
@@ -159,7 +164,7 @@ internal fun StarMap(seats: List<StarSeat>, modifier: Modifier = Modifier, onSwa
                         }
                     }
                     val selected = focus == i
-                    Column(
+                    Box(
                         Modifier
                             .offset(x.dp, y.dp)
                             .width(node)
@@ -180,22 +185,24 @@ internal fun StarMap(seats: List<StarSeat>, modifier: Modifier = Modifier, onSwa
                                     }
                                 }
                             }
-                            .padding(4.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Box(Modifier.alpha(if (seat.eliminated) .45f else 1f)) {
-                            PlayerAvatar(seat.name, seat.playerNumber, seat.avatar, size = 40.dp)
+                        val hue = playerColor(seat.color, p.avatarColor(seat.playerNumber))
+                        PlayerTileBackground(seat.background, hue, Modifier.matchParentSize())
+                        Column(Modifier.fillMaxWidth().padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(Modifier.alpha(if (seat.eliminated) .45f else 1f)) {
+                                PlayerAvatar(seat.name, seat.playerNumber, seat.avatar, size = 40.dp, color = hue)
+                            }
+                            Text(
+                                seat.name, color = p.text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                                textDecoration = if (seat.eliminated) TextDecoration.LineThrough else null,
+                            )
+                            Text(
+                                listOfNotNull("Seat ${i + 1}", relation, "out".takeIf { seat.eliminated }).joinToString(" · "),
+                                color = when (relation) { "Ally" -> p.text; "Enemy" -> p.bad; else -> p.muted },
+                                style = MaterialTheme.typography.labelSmall, maxLines = 1,
+                            )
                         }
-                        Text(
-                            seat.name, color = p.text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                            textDecoration = if (seat.eliminated) TextDecoration.LineThrough else null,
-                        )
-                        Text(
-                            listOfNotNull("Seat ${i + 1}", relation, "out".takeIf { seat.eliminated }).joinToString(" · "),
-                            color = when (relation) { "Ally" -> p.text; "Enemy" -> p.bad; else -> p.muted },
-                            style = MaterialTheme.typography.labelSmall, maxLines = 1,
-                        )
                     }
                 }
             }

@@ -221,6 +221,19 @@ fun GameTab(
     }
 }
 
+/** Device games use the same stage and life overview as connected games. */
+@Composable
+fun DeviceGameOverview(summary: TableSummary, reduceMotion: Boolean, onOpenTable: () -> Unit) {
+    val now = com.turnhub.android.ui.components.rememberNowMs(ticking = summary.state == TableState.RUNNING)
+    val labelFor: (Int) -> String = { number -> summary.players.firstOrNull { it.playerNumber == number }?.label ?: "Player $number" }
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        StageCard(summary, null, now, labelFor, reduceMotion)
+        AccentButton("Open table", onOpenTable, Modifier.fillMaxWidth())
+        LifeCard(summary, null, now, labelFor, GameActions(), busy = false, reduceMotion = reduceMotion)
+    }
+}
+
 // --- Stage --------------------------------------------------------------------
 
 /** How long a nudge stays on the nudged player's screen. */
@@ -1061,7 +1074,8 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
     var profile by remember(current.profile) { mutableStateOf(current.profile) }
     var life by remember(current.startingLife) { mutableStateOf(current.startingLife.toString()) }
     val presets = info?.turnTimerPresetsMs?.takeIf { it.isNotEmpty() } ?: listOf(0L, 60_000L, 90_000L, 120_000L, 180_000L)
-    val timerOptions = (listOf(0L) + presets).distinct().let { if (current.turnTimerMs in it) it else it + current.turnTimerMs }
+    val tenMinutes = listOf(600_000L).filter { it in (info?.turnTimerMinMs ?: 15_000)..(info?.turnTimerMaxMs ?: 3_600_000) }
+    val timerOptions = (listOf(0L) + presets + tenMinutes).distinct().sorted().let { if (current.turnTimerMs in it) it else it + current.turnTimerMs }
     var timer by remember(current.turnTimerMs) { mutableStateOf(current.turnTimerMs) }
     var custom by remember(current.turnTimerMs) { mutableStateOf(false) }
     var seconds by remember(current.turnTimerMs) { mutableStateOf((current.turnTimerMs / 1000).takeIf { it > 0 }?.toString() ?: "90") }

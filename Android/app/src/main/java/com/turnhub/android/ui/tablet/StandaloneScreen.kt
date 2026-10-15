@@ -4,10 +4,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,7 +24,6 @@ import com.turnhub.android.standalone.StandaloneGame
 import com.turnhub.android.standalone.StandaloneState
 import com.turnhub.android.standalone.StandaloneTable
 import com.turnhub.android.standalone.shareSummary
-import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.components.displayName
 import com.turnhub.android.ui.components.shareGameResult
 import androidx.compose.ui.graphics.toArgb
@@ -47,10 +44,6 @@ fun StandaloneScreen(
     reduceMotion: Boolean,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
-    onHistory: () -> Unit = {},
-    onStats: () -> Unit = {},
-    atlasEnabled: Boolean = true,
-    onAtlasEnabled: (Boolean) -> Unit = {},
 ) {
     val p = palette
     KeepScreenOn()
@@ -68,7 +61,7 @@ fun StandaloneScreen(
                 TextButton(onClick = onClose) { Text("Back") }
             }
         } else if (game.state == TableState.LOBBY) {
-            Lobby(state, table, onClose, onHistory, onStats, atlasEnabled, onAtlasEnabled)
+            StandaloneLobby(state, table)
         } else {
             Immersive()
             // The clocks tick on their own from the summary; it is rebuilt only when the game
@@ -101,14 +94,11 @@ fun StandaloneScreen(
 }
 
 @Composable
-private fun Lobby(
+fun StandaloneLobby(
     state: StandaloneState,
     table: StandaloneTable,
-    onClose: () -> Unit,
-    onHistory: () -> Unit,
-    onStats: () -> Unit,
-    atlasEnabled: Boolean,
-    onAtlasEnabled: (Boolean) -> Unit,
+    embedded: Boolean = false,
+    onStarted: () -> Unit = {},
 ) {
     val game = state.game
     val summary = remember(game, state.library.players) {
@@ -131,40 +121,22 @@ private fun Lobby(
             swap = table::swapPlayers,
             settings = table::configure,
             timer = table::setTurnTimer,
+            timerRules = table::setTimerRules,
             zeroLife = table::setZeroLifeElimination,
             houseRules = table::setHouseRules,
             chooseStarter = { table.chooseStarter(it.playerNumber - 1) },
-            start = table::start,
+            start = { table.start(); onStarted() },
             background = { editingLocalId = game.players.getOrNull(it.playerNumber - 1)?.localId },
             canEditBackground = { player -> game.players.getOrNull(player.playerNumber - 1)?.localId in state.library.players.map { it.localId } },
         ),
-        savedPlayers = state.library.players.filter { it.localId !in seated }.map { LobbySavedPlayer(it.localId, it.name) },
+        savedPlayers = state.library.players.filter { it.localId !in seated }.map { LobbySavedPlayer(it.localId, it.name, it.profileId) },
         enabled = true,
         settingsEnabled = true,
         canAdd = game.players.size < StandaloneGame.MAX_PLAYERS,
-        identityHint = "Add creates a new player. Pick a saved player to keep their results together; equal names stay separate.",
+        identityHint = "Choose a saved player to keep their results together. Matching names can have different account IDs.",
         savedTitle = "Saved on this device",
-        starterHint = "Nobody chosen: a random player goes first. Tap First? to choose.",
-        introduction = "This phone or tablet becomes the table: lay it in the middle and everyone plays on one screen. " +
-            "It keeps life, Commander damage, counters, turns, the turn timer and the winner. " +
-            "Your game is saved when you close the app.",
-        headerActions = {
-            val context = androidx.compose.ui.platform.LocalContext.current
-            TextButton(onClick = { com.turnhub.android.ui.components.openBugReport(context) }) {
-                Text("Report a bug", color = palette.muted)
-            }
-            if (atlasEnabled) TextButton(onClick = onClose) { Text("Atlas", color = palette.muted) }
-        },
-        footer = {
-            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
-                ToneButton("Stats", onStats, Modifier.weight(1f))
-                ToneButton("Players and history", onHistory, Modifier.weight(1f))
-            }
-            TextButton(onClick = { onAtlasEnabled(!atlasEnabled) }, modifier = Modifier.fillMaxWidth()) {
-                Text(if (atlasEnabled) "TurnHub Atlas table: shown. Turn off if you play on this device only"
-                    else "TurnHub Atlas table: hidden. Turn on to connect Sigils and a phone for every player",
-                    color = palette.faint, style = MaterialTheme.typography.bodySmall)
-            }
-        },
+        starterHint = "First player: random. Tap First? to choose.",
+        introduction = "One screen. Many rivals. Your table.",
+        embedded = embedded,
     )
 }

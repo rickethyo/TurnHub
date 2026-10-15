@@ -41,6 +41,8 @@ data class GameRecord(
         val conceded: Boolean = false,
         val counters: com.turnhub.android.protocol.PlayerCounters = com.turnhub.android.protocol.PlayerCounters(),
         val commanderBySource: Map<Int, List<Int>> = emptyMap(),
+        val demerits: Int = 0,
+        val extensionsUsed: Int = 0,
     )
 
     /** Whether player [index] won: any winner, or (Two-Headed Giant) the winner's teammate. */
@@ -72,6 +74,8 @@ data class GameRecord(
                     put("localId", p.localId ?: JSONObject.NULL)
                     put("finalLife", p.finalLife)
                     put("turnsCompleted", p.turnsCompleted)
+                    put("demerits", p.demerits)
+                    put("extensionsUsed", p.extensionsUsed)
                     put("turnMs", p.turnMs)
                     put("fastestTurnMs", p.fastestTurnMs)
                     put("longestTurnMs", p.longestTurnMs)
@@ -136,6 +140,8 @@ data class GameRecord(
                     val p = players.getJSONObject(i)
                     Player(
                         name = p.getString("name"),
+                        demerits = p.optInt("demerits"),
+                        extensionsUsed = p.optInt("extensionsUsed"),
                         localId = p.optStringOrNull("localId"),
                         profileId = p.optStringOrNull("profileId"),
                         finalLife = p.getInt("finalLife"),

@@ -63,6 +63,8 @@ fun GameRecord.shareSummary(formatName: String): String {
                 else -> null
             }
             append("${p.name}: ${p.finalLife} life · ${p.turnsCompleted} turns")
+            if (p.demerits > 0) append(" · ${p.demerits} demerits")
+            if (p.extensionsUsed > 0) append(" · ${p.extensionsUsed} extensions used")
             if (place != null) append(" · $place")
             appendLine()
         }

@@ -66,6 +66,8 @@ data class TableSummary(
     val winnerPlayerNumbers: List<Int> = listOfNotNull(winnerPlayerNumber),
     /** Atlas: the finished game lasted under a minute and isn't in stats until the table counts it. */
     val shortGameUncounted: Boolean = false,
+    val localTimerRules: LocalTimerRules? = null,
+    val turnExtensionMs: Long = 0,
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding
@@ -138,6 +140,8 @@ data class TablePlayer(
     /** Disposable local presentation; never a game-state field. */
     val color: String? = null,
     val tileBackground: TileBackground = TileBackground(),
+    val demerits: Int = 0,
+    val extensionsAvailable: Int = 0,
 )
 
 /**

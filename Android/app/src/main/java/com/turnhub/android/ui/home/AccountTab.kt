@@ -3,7 +3,6 @@ package com.turnhub.android.ui.home
 import com.turnhub.android.data.ProfileSecret
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,11 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -51,7 +46,6 @@ import com.turnhub.android.ui.components.avatarBrush
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.Eyebrow
 import com.turnhub.android.ui.components.PlayerAvatar
-import com.turnhub.android.ui.components.StatusRow
 import com.turnhub.android.ui.components.Tone
 import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.theme.TurnHubPalette
@@ -82,15 +76,9 @@ data class AccountActions(
     val onForgetSavedProfile: () -> Unit = {},
 )
 
-/** Sigil light colors to pick from (the portal offers a free color picker; these cover the wheel). */
-private val JEWEL_COLORS = listOf(
-    "#ff3b30", "#ff8800", "#ffd400", "#7ed957", "#00c8c8", "#1e90ff", "#6a5cff", "#c04dff", "#ff4fa3", "#ffffff",
-)
-
 @Composable
 fun AccountTab(
     uiState: HomeUiState,
-    theme: TurnHubThemeChoice,
     reduceMotion: Boolean,
     actions: AccountActions,
 ) {
@@ -123,19 +111,7 @@ fun AccountTab(
                 ToneButton("Sigil accessibility…", actions.onAccessibility, Modifier.fillMaxWidth(), tone = Tone.INFO)
             }
         }
-        AppearanceCard(theme, reduceMotion, actions)
-        BrassCard { com.turnhub.android.ui.components.GameSoundControls() }
-        BrassCard { com.turnhub.android.ui.components.ReportBugButton() }
-        BrassCard {
-            Eyebrow("Atlas connection")
-            uiState.tableSummary?.let {
-                StatusRow("Atlas", it.atlasId)
-                StatusRow("Firmware", it.firmwareVersion)
-            }
-            StatusRow("Address", uiState.endpointText)
-            StatusRow("Connection", uiState.connectionState.name.lowercase().replaceFirstChar { it.uppercase() })
-            ToneButton("Disconnect", actions.onDisconnect, Modifier.fillMaxWidth(), tone = Tone.WARN)
-        }
+
     }
 }
 
@@ -293,24 +269,7 @@ private fun PersonalizationCard(uiState: HomeUiState, actions: AccountActions) {
         AvatarUploadControls(current, uiState.player?.busy == true, actions.onUploadAvatar, actions.onRemoveAvatar)
         ToneButton("Refresh image approval", actions.onLoadPersonalization, enabled = uiState.player?.busy != true)
         Text("Sigil light color", color = p.text, style = MaterialTheme.typography.titleSmall)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            JEWEL_COLORS.forEach { hex ->
-                val selected = colorDraft.equals(hex, ignoreCase = true)
-                Box(
-                    Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color(android.graphics.Color.parseColor(hex)))
-                        .border(if (selected) 3.dp else 1.dp, if (selected) p.accentHi else p.lineStrong, CircleShape)
-                        .selectable(selected = selected, role = Role.RadioButton) { colorDraft = hex }
-                        .semantics { contentDescription = "Color $hex" },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (selected) Text("✓", color = Color.Black)
-                }
-            }
-        }
-        ToneButton("Standard colors", { colorDraft = null }, enabled = colorDraft != null)
+        com.turnhub.android.ui.components.ColorPicker(colorDraft, { colorDraft = it }, p.avatarColor(1))
         Text(
             "Your Sigil's ring glows in this color while you wait in the lobby and between turns. Turns, pauses, " +
                 "warnings and wins keep their usual colors.",
@@ -379,16 +338,10 @@ private fun AutomaticSignIn(uiState: HomeUiState, actions: AccountActions) {
 }
 
 @Composable
-private fun AppearanceCard(theme: TurnHubThemeChoice, reduceMotion: Boolean, actions: AccountActions) {
+internal fun AppearanceCard(theme: TurnHubThemeChoice, reduceMotion: Boolean, actions: AccountActions) {
     val p = palette
-    // Chosen here, applied and stored only by Save.
-    var themeDraft by remember(theme) { mutableStateOf(theme) }
-    var motionDraft by remember(reduceMotion) { mutableStateOf(reduceMotion) }
-    var savedNote by remember { mutableStateOf(false) }
-    val dirty = themeDraft != theme || motionDraft != reduceMotion
     BrassCard {
         Eyebrow("Appearance")
-        Text("Themes change only how this phone looks. They never change the game.", color = p.muted, style = MaterialTheme.typography.bodySmall)
         TurnHubThemeChoice.entries.forEach { choice ->
             // Automatic shows both themes it switches between.
             val swatch = choice.token?.let { theme ->
@@ -399,16 +352,15 @@ private fun AppearanceCard(theme: TurnHubThemeChoice, reduceMotion: Boolean, act
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(p.inset)
-                    .border(if (choice == themeDraft) 2.dp else 1.dp, if (choice == themeDraft) p.accent else p.line, RoundedCornerShape(14.dp))
-                    .selectable(selected = choice == themeDraft, role = Role.RadioButton) { themeDraft = choice; savedNote = false }
+                    .border(if (choice == theme) 2.dp else 1.dp, if (choice == theme) p.accent else p.line, RoundedCornerShape(14.dp))
+                    .selectable(selected = choice == theme, role = Role.RadioButton) { actions.onThemeChosen(choice) }
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                RadioButton(selected = choice == themeDraft, onClick = null)
+                RadioButton(selected = choice == theme, onClick = null)
                 Column(Modifier.weight(1f)) {
                     Text(choice.label, color = p.text, style = MaterialTheme.typography.titleSmall)
-                    Text(choice.blurb, color = p.muted, style = MaterialTheme.typography.bodySmall)
                 }
                 Row(Modifier.clip(RoundedCornerShape(6.dp)).border(1.dp, p.lineStrong, RoundedCornerShape(6.dp))) {
                     swatch.forEach {
@@ -420,33 +372,15 @@ private fun AppearanceCard(theme: TurnHubThemeChoice, reduceMotion: Boolean, act
         Row(
             Modifier
                 .fillMaxWidth()
-                .toggleable(value = motionDraft, role = Role.Switch, onValueChange = { motionDraft = it; savedNote = false })
+                .toggleable(value = reduceMotion, role = Role.Switch, onValueChange = actions.onReduceMotion)
                 .padding(vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
                 Text("Reduce motion", color = p.text, style = MaterialTheme.typography.titleSmall)
-                Text("Stops the turning gear and gauge sweeps in this app.", color = p.muted, style = MaterialTheme.typography.bodySmall)
             }
-            Switch(checked = motionDraft, onCheckedChange = null)
+            Switch(checked = reduceMotion, onCheckedChange = null)
         }
-        AccentButton(
-            if (dirty) "Save appearance" else "Appearance saved",
-            {
-                actions.onThemeChosen(themeDraft)
-                actions.onReduceMotion(motionDraft)
-                savedNote = true
-            },
-            Modifier.fillMaxWidth(),
-            enabled = dirty,
-        )
-        if (savedNote && !dirty) {
-            Text(
-                "Saved on this phone.",
-                color = p.good,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-            )
-        }
+        Text(theme.blurb, color = p.muted, style = MaterialTheme.typography.bodySmall)
     }
 }

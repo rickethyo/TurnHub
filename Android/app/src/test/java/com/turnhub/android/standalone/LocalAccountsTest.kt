@@ -3,6 +3,7 @@ package com.turnhub.android.standalone
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.domain.TileBackground
 import com.turnhub.android.domain.TileBackgroundStyle
+import com.turnhub.android.ui.tablet.starSeats
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -17,7 +18,7 @@ class LocalAccountsTest {
         table.addPlayer("Alex"); table.addPlayer("Alex")
         val players = table.state.value.library.players
         val background = TileBackground(TileBackgroundStyle.IMAGE, "#123ABC", Base64.getEncoder().encodeToString(byteArrayOf(1, 2)))
-        val prefs = LocalPersonalization(avatar = "cat", tileBackground = background)
+        val prefs = LocalPersonalization(color = "#26A69A", avatar = "cat", tileBackground = background)
         assertTrue(table.saveAccount(players[0].localId, players[0].name, prefs))
         table.swapPlayers(0, 1)
         val state = table.state.value
@@ -25,6 +26,12 @@ class LocalAccountsTest {
         assertEquals(TileBackground(), summary.players[0].tileBackground)
         assertEquals(background, summary.players[1].tileBackground)
         assertEquals("cat", summary.players[1].avatar?.key)
+        assertEquals(prefs.color, summary.players[1].color)
+        // Star previews must carry the same personalization as ordinary seats and live panels.
+        val starSeat = summary.starSeats()[1]
+        assertEquals(background, starSeat.background)
+        assertEquals(prefs.color, starSeat.color)
+        assertEquals("cat", starSeat.avatar?.key)
         table.clearPlayers()
         val restored = StandaloneTable(store, shortGameMs = 0)
         restored.selectPlayer(players[0].localId)

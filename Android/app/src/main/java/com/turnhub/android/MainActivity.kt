@@ -245,31 +245,27 @@ class MainActivity : ComponentActivity() {
     private var reduceMotion by mutableStateOf(false)
     private var gameSounds by mutableStateOf(GameSoundPreferences())
     private var standalone by mutableStateOf(false)
-    /** Off hides everything about connecting to an Atlas: the app is a phone-only game. */
+    /** Discovery preference; the same app navigation remains available either way. */
     private var atlasEnabled by mutableStateOf(true)
 
     private fun chooseAtlasEnabled(on: Boolean) {
         atlasEnabled = on
         uiPrefs.edit().putBoolean("atlas_enabled", on).apply()
-        if (!on) playOnDevice() else findTableOnLaunch(restart = true)
+        if (!on) homeViewModel.onDisconnectClicked() else findTableOnLaunch(restart = true)
     }
     private fun chooseGameSounds(preferences: GameSoundPreferences) {
         gameSounds = preferences
         uiPrefs.edit().putBoolean("game_sounds", preferences.enabled)
             .putInt("game_sound_volume", preferences.volume).apply()
     }
-    private var localHistory by mutableStateOf(false)
     private var localStats by mutableStateOf(false)
 
     private fun playOnDevice() {
-        homeViewModel.onDisconnectClicked()
-        uiPrefs.edit().putBoolean("prefer_device_play", true).apply()
         standalone = true
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putBoolean("device_play_open", standalone)
-        outState.putBoolean("local_history_open", localHistory)
         outState.putBoolean("local_stats_open", localStats)
         outState.putString("atlas_action", pendingAtlasAction.name)
         super.onSaveInstanceState(outState)
@@ -311,7 +307,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         turnNotifier.clear()
-        homeViewModel.onPresentationForeground(!standalone && !localHistory && !localStats)
+        homeViewModel.onPresentationForeground(!standalone && !localStats)
     }
 
     override fun onStop() {
@@ -360,15 +356,22 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         homeViewModel.standalone = standaloneViewModel.table
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (true) {
+                    standaloneViewModel.table.tick()
+                    kotlinx.coroutines.delay(250)
+                }
+            }
+        }
         theme = TurnHubThemeChoice.fromKey(uiPrefs.getString("theme", null))
         reduceMotion = uiPrefs.getBoolean("reduceMotion", false)
         gameSounds = GameSoundPreferences(uiPrefs.getBoolean("game_sounds", true),
             uiPrefs.getInt("game_sound_volume", 50).coerceIn(0, 100))
         atlasEnabled = uiPrefs.getBoolean("atlas_enabled", true)
-        // Phone-only users (Atlas off, or never set one up) open straight to their game.
+        // Fresh launches use the shared shell; rotation restores full-screen play.
         val continuingActivity = standaloneViewModel.entryInitialized
-        standalone = !atlasEnabled || (if (continuingActivity) savedInstanceState?.getBoolean("device_play_open") ?: true else true)
-        localHistory = continuingActivity && savedInstanceState?.getBoolean("local_history_open") == true
+        standalone = continuingActivity && savedInstanceState?.getBoolean("device_play_open") == true
         localStats = continuingActivity && savedInstanceState?.getBoolean("local_stats_open") == true
         standaloneViewModel.entryInitialized = true
         pendingAtlasAction = AtlasAction.entries.firstOrNull {
@@ -398,52 +401,64 @@ class MainActivity : ComponentActivity() {
                     ) {
                         val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
                         val localState by standaloneViewModel.table.state.collectAsStateWithLifecycle()
-                        LaunchedEffect(standalone, localHistory, localStats) {
-                            homeViewModel.onPresentationForeground(!standalone && !localHistory && !localStats && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+                        LaunchedEffect(standalone, localStats) {
+                            homeViewModel.onPresentationForeground(!standalone && !localStats && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
                         }
+                        val shellState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
                         if (localStats) {
                             com.turnhub.android.ui.tablet.StatsScreen(localState, onClose = { localStats = false },
                                 onShareStats = ::shareStats)
-                        } else if (localHistory) {
-                            val importState by homeViewModel.localImport.collectAsStateWithLifecycle()
-                            com.turnhub.android.ui.tablet.LocalLibraryScreen(
-                                localState, onClose = { localHistory = false },
-                                canImport = uiState.connectionState == AtlasConnectionState.CONNECTED && uiState.player?.signedIn == true,
-                                importState = importState,
-                                onLoadProfiles = homeViewModel::onLoadLocalImportProfiles,
-                                onImport = homeViewModel::onImportLocalRecord,
-                                onCancelImport = { standaloneViewModel.table.cancelImport(it) },
-                                table = standaloneViewModel.table,
-                                canLink = uiState.connectionState == AtlasConnectionState.CONNECTED,
-                                onLinkAccount = homeViewModel::onLinkLocalAccount,
-                                theme = theme, onThemeChosen = ::chooseTheme,
-                            )
                         } else if (standalone) {
                             StandaloneScreen(
-                                state = localState,
-                                table = standaloneViewModel.table,
-                                reduceMotion = reduceMotion,
-                                onClose = {
-                                    if (!atlasEnabled) moveTaskToBack(true)
-                                    else {
-                                        standalone = false
-                                        homeViewModel.onAtlasOpened()
-                                        uiPrefs.edit().putBoolean("prefer_device_play", false).apply()
-                                    }
-                                },
-                                onHistory = { localHistory = true },
-                                onStats = { localStats = true },
-                                atlasEnabled = atlasEnabled,
-                                onAtlasEnabled = ::chooseAtlasEnabled,
+                                state = localState, table = standaloneViewModel.table, reduceMotion = reduceMotion,
+                                onClose = { standalone = false },
                             )
-                        } else HomeScreen(
+                        } else shellState.SaveableStateProvider("home") { HomeScreen(
                             localState = localState,
                             localTable = standaloneViewModel.table,
                             onFollowGame = homeViewModel::onFollowGame,
+                            onAtlasOpened = homeViewModel::onAtlasOpened,
                             onPlayStandalone = ::playOnDevice,
-                            onLocalHistory = { localHistory = true },
-                            hasLocalGame = localState.game.state == com.turnhub.android.protocol.TableState.RUNNING ||
-                                localState.game.state == com.turnhub.android.protocol.TableState.PAUSED,
+                            atlasEnabled = atlasEnabled,
+                            onAtlasEnabled = ::chooseAtlasEnabled,
+                            localGameContent = {
+                                if (localState.storageProblem != null) {
+                                    androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                                        androidx.compose.material3.Text(localState.storageProblem!!)
+                                        com.turnhub.android.ui.components.ToneButton("Keep old data aside and start fresh", { standaloneViewModel.table.startFresh() })
+                                    }
+                                } else if (localState.game.state == com.turnhub.android.protocol.TableState.LOBBY) {
+                                    com.turnhub.android.ui.tablet.StandaloneLobby(localState, standaloneViewModel.table,
+                                        embedded = true, onStarted = { standalone = true })
+                                } else {
+                                    val game = localState.game
+                                    val summary = androidx.compose.runtime.remember(game, localState.library.players) {
+                                        game.toSummary(System.currentTimeMillis(), com.turnhub.android.domain.TableClock.nowMs(),
+                                            localState.library.players.associate { it.localId to it.personalization })
+                                    }
+                                    com.turnhub.android.ui.home.DeviceGameOverview(summary, reduceMotion, ::playOnDevice)
+                                }
+                            },
+                            localPlayersContent = {
+                                com.turnhub.android.ui.tablet.LocalLibraryScreen(localState, onClose = {},
+                                    embeddedSection = com.turnhub.android.ui.tablet.LibrarySection.PLAYERS,
+                                    table = standaloneViewModel.table,
+                                    canLink = uiState.connectionState == AtlasConnectionState.CONNECTED,
+                                    importState = homeViewModel.localImport.collectAsStateWithLifecycle().value,
+                                    onLoadProfiles = homeViewModel::onLoadLocalImportProfiles,
+                                    onLinkAccount = homeViewModel::onLinkLocalAccount)
+                            },
+                            localHistoryContent = {
+                                com.turnhub.android.ui.tablet.LocalLibraryScreen(localState, onClose = {},
+                                    embeddedSection = com.turnhub.android.ui.tablet.LibrarySection.GAMES,
+                                    table = standaloneViewModel.table,
+                                    canImport = uiState.connectionState == AtlasConnectionState.CONNECTED && uiState.player?.signedIn == true,
+                                    importState = homeViewModel.localImport.collectAsStateWithLifecycle().value,
+                                    onLoadProfiles = homeViewModel::onLoadLocalImportProfiles,
+                                    onImport = homeViewModel::onImportLocalRecord,
+                                    onCancelImport = { standaloneViewModel.table.cancelImport(it) },
+                                    onStats = { localStats = true })
+                            },
                             uiState = uiState,
                             onEndpointChange = homeViewModel::onEndpointChanged,
                             onConnectClick = ::connectToAtlas,
@@ -527,7 +542,7 @@ class MainActivity : ComponentActivity() {
                                 onDismissCode = homeViewModel::onTabletCodeDismissed,
                                 onSignIn = homeViewModel::onPlayFromPhoneClicked,
                             ),
-                        )
+                        ) }
                     }
                 }
             }
