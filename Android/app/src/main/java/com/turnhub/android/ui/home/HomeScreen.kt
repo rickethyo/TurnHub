@@ -140,8 +140,8 @@ fun HomeScreen(
     tabletActions: com.turnhub.android.ui.tablet.TabletActions = com.turnhub.android.ui.tablet.TabletActions(),
     onFollowGame: (Int) -> Unit = {},
     onAtlasOpened: () -> Unit = {},
-    /** The device game's Game page; openTable switches to the Table tab. */
-    localGameContent: @Composable (openTable: () -> Unit) -> Unit = {},
+    /** The device game's Game page; openTable switches to the Table tab, openPlanes to the Planes tab. */
+    localGameContent: @Composable (openTable: () -> Unit, openPlanes: () -> Unit) -> Unit = { _, _ -> },
     /** The device game's table, in the Table tab; onSetUp returns to Game. */
     localTableContent: @Composable (onSetUp: () -> Unit) -> Unit = {},
     localPlayersContent: @Composable () -> Unit = {},
@@ -330,7 +330,7 @@ fun HomeScreen(
                         !setup.visible && shown == HomeTab.HISTORY -> localHistoryContent()
                         !setup.visible && shown == HomeTab.PLANES -> localPlanesContent()
                         !setup.visible && shown == HomeTab.PLAYERS && (summary == null || playersPage == "Device") -> localPlayersContent()
-                        !setup.visible && shown == HomeTab.GAME && (summary == null || !atlasGame) -> localGameContent { tab = HomeTab.TABLE }
+                        !setup.visible && shown == HomeTab.GAME && (summary == null || !atlasGame) -> localGameContent({ tab = HomeTab.TABLE }, { tab = HomeTab.PLANES })
                         else -> Column(
                             Modifier.widthIn(max = 720.dp).fillMaxWidth()
                                 .verticalScroll(rememberScrollState()).padding(16.dp),

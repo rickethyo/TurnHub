@@ -76,6 +76,8 @@ internal fun TableLobby(
     feedback: @Composable () -> Unit = {},
     footer: @Composable ColumnScope.() -> Unit = {},
     embedded: Boolean = false,
+    /** Extra game options under the standard ones (the device game's Planechase switch). */
+    extraSettings: @Composable () -> Unit = {},
 ) {
     val p = palette
     val players = summary.players.sortedBy { it.playerNumber }
@@ -250,6 +252,7 @@ internal fun TableLobby(
                     else Text("At the limit, Atlas keeps counting overtime.", color = p.muted, style = MaterialTheme.typography.bodySmall)
                 }
                 SetupSwitch("Automatic elimination at zero life", null, settings.autoEliminateAtZeroLife, settingsEnabled, actions.zeroLife)
+                extraSettings()
             }
             StartTableButton(players.size, settings.twoHeadedGiant, enabled, settings.profile.starCommander,
                 official?.players?.takeIf { locked }, actions.start)

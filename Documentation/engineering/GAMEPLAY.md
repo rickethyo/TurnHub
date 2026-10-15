@@ -178,8 +178,9 @@ The rules are the Comprehensive Rules' Planechase sections (901, 311, 312,
 [`protocol/scenarios/planechase/`](../../protocol/scenarios/planechase) are
 the spec every engine runs.
 
-- **Setup.** Magic formats only (`Planechase` in `StandaloneGame`, lobby
-  switches in the app's Planes tab). Planechase can use **TurnHub's deck**
+- **Setup.** Magic formats only (`Planechase` in `StandaloneGame`, the on/off
+  switch sits with the other game options on the app's Game tab, which links
+  to the deck options in the Planes tab). Planechase can use **TurnHub's deck**
   or **our own cards**.
   - TurnHub's deck is the single shared planar deck option (901.15). It has
     every downloaded plane, plus up to two phenomena per player when
