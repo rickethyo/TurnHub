@@ -567,3 +567,43 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
 - Validation: design token, docs and manual-asset checks pass locally. The
   container has no Android SDK, so Gradle build/tests run in PR CI. No device
   test yet; round 2 (turn-pass transition and gloss pass) follows owner review.
+
+## 2026-10-15 — Claude: Android practice table, Star layout and screen regrouping
+
+- Owner: Claude on `claude/project-thread-0cn2jn`, baseline `a51779e` (#116).
+  Owner feedback after a phone test of #116, round 2 of 2.
+- Table tab before a game is a practice table: a `StandaloneTable` over
+  `MemoryStandaloneStore`, seeded from the lobby (placeholder seats to a
+  startable roster), playable and never saved. It restarts when the lobby
+  changes or the practice game returns to setup.
+- Star layout: a per-device switch (`turnhub_ui` `star_table_layout`) in the
+  Star lobby and the table menu seats Star Commander in the setup's star, each
+  square panel turned toward its edge with faint ally/enemy lines. Only Star
+  differs from setup; other modes' setup map already matches the table.
+- Banner: icon-only bug and `?` buttons (TalkBack names, long-press toast). The
+  bug button opens an explaining dialog with version/device before the form.
+  New `bug` icon in `design/icons`.
+- Regrouping: the mode's seating explanation sits under the seat map; the
+  saved-player identity hint sits under the saved players; the in-app lobby
+  drops its sounds and bug sections (Settings and the banner own them), the
+  full-screen lobby keeps them; Settings drops its bug card.
+- Validation: tokens, docs and manual-asset checks pass locally; Gradle build
+  and tests run in PR CI (no SDK here). Not yet seen on a device.
+
+## 2026-10-15 — Claude: commander names, card art and Sean Mode
+
+- Owner: Claude on `claude/project-thread-0cn2jn` (PR #117), owner request
+  before merging #117. Phone-hosted (standalone) play only for now.
+- Commander names: optional per player in every Commander mode
+  (`LocalPlayer.commander`, `TablePlayer.commander`, saved with the game,
+  carried through start, rematch and Sean Mode; 48 characters max).
+- Card art: `ScryfallCommanderArt` asks Scryfall's `/cards/named?fuzzy=` for the
+  name only, downloads the `art_crop` (front face for double-faced cards), sends
+  User-Agent and Accept, spaces requests and caches hits and misses by a hashed
+  name. Tiles show the art behind a scrim with "Art: <artist>" credit; Settings
+  > Commander card art turns it off. PRIVACY.md and DEPENDENCY_TRACKER.md
+  (YELLOW, release review) updated; owner chose to ship it in #117.
+- Sean Mode: a game-over button on finished five-player Star games;
+  `seanModeRematch` reseats [0,2,4,1,3] so every ally pair becomes enemies.
+- Validation: `SeanModeTest`, `ScryfallCommanderArtTest`; docs, tokens and
+  manual checks pass locally; Gradle in PR CI. Not yet seen on a device.

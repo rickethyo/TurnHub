@@ -2,17 +2,31 @@
 
 This directory holds the native TurnHub Android client.
 
-The full-screen table lobby and the bottom of Settings show the installed app
-version and build number (for example, `TurnHub 0.1.0 · Build 123`). Debug
-packages also show `Debug`. The same label is available in the live table menu
-and bug-report card, so a saved game need not be ended to identify the app.
+The full-screen table lobby, the bottom of Settings and the banner's bug button
+show the installed app version and build number (for example,
+`TurnHub 0.1.0 · Build 123`). Debug packages also show `Debug`. The same label
+is available in the live table menu, so a saved game need not be ended to
+identify the app.
+
+The banner holds two small unlabeled buttons beside the connection pill: a bug
+(Report a bug: a dialog says what it does and which version to mention, then
+opens the form) and `?` (User manual). TalkBack reads their names, and a long
+press shows them.
 
 The app uses the same **Game, Table, Players, History and Settings** navigation
 with or without Atlas, and tabs slide sideways as you move between them (no
 motion with reduce motion on). Table shows the game's table inside the app: the
-running or last game, or before a game a preview of the lobby's seats (two
-placeholder seats when nobody is seated) that can't be played. Full screen takes
-a started game over the whole screen. Game shows local
+running or last game, or before a game a practice table built from the lobby's
+seats (placeholder seats fill a short roster; two when nobody is seated). It
+plays like the real table but lives only in memory, so nothing on it is saved.
+Full screen takes a started game over the whole screen. Star Commander games can
+use the setup's star as the table layout (a per-device switch in the lobby and
+in the table menu's Sound & display), with each panel facing its player. In any
+Commander mode a player can optionally name their commander in the lobby; the
+name shows under theirs and its Scryfall art crop (credited to the artist,
+cached in `commander_art/`, off via Settings > Commander card art) fills their
+tile. A finished phone-hosted Star game also offers Sean Mode, a rematch that
+reseats the five players so allies become enemies. Game shows local
 setup or the same stage/life overview used for connected play; when Atlas is
 available, This device and Atlas select which game is shown. Players keeps local
 profiles available and adds Table and Me sections when connected. History keeps

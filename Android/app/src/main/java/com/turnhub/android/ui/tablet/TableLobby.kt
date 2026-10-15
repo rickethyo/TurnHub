@@ -54,6 +54,8 @@ internal data class TableLobbyActions(
     /** House rules for official modes; null hides the choice. */
     val houseRules: ((Boolean) -> Unit)? = null,
     val timerRules: ((com.turnhub.android.domain.LocalTimerRules) -> Unit)? = null,
+    /** Names a player's commander in Commander modes (optional); null hides it. */
+    val commander: ((TablePlayer, String?) -> Unit)? = null,
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -103,10 +105,22 @@ internal fun TableLobby(
                     val seats = summary.starSeats()
                     StarMap(seats, onSwap = { a, b -> if (enabled) actions.swap(a, b) })
                     StarRelationsList(seats)
+                    val starLayout = rememberStarLayout()
+                    SetupSwitch("Star layout at the table", STAR_LAYOUT_HINT, starLayout.on, true, starLayout.set)
                 } else {
                     SeatMap(players.map { it.label }, { a, b -> if (enabled) actions.swap(a, b) },
                         backgrounds = players.map { it.tileBackground }, colors = players.map { it.color },
                         teams = settings.twoHeadedGiant)
+                }
+                // How this mode's seating works, right under the map it explains.
+                Text(when {
+                    settings.profile.starCommander -> STAR_MAP_HINT
+                    settings.twoHeadedGiant -> TEAM_MAP_HINT
+                    else -> SEAT_MAP_HINT
+                }, color = p.muted, style = MaterialTheme.typography.bodySmall)
+                var namingCommander by rememberSaveable { mutableStateOf<Int?>(null) }
+                players.firstOrNull { it.playerNumber == namingCommander }?.let { player ->
+                    actions.commander?.let { name -> CommanderNameDialog(player, { name(player, it); namingCommander = null }) { namingCommander = null } }
                 }
                 players.forEach { player ->
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -115,7 +129,13 @@ internal fun TableLobby(
                             Box(Modifier.size(30.dp).background(hue, CircleShape), contentAlignment = Alignment.Center) {
                                 Text("${player.playerNumber}", color = com.turnhub.android.ui.components.colorInk(hue), style = MaterialTheme.typography.labelLarge)
                             }
-                            Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                            Column(Modifier.weight(1f)) {
+                                Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                                player.commander?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
+                                rememberCommanderArt(player.commander)?.let { art ->
+                                    Text("${art.cardName} · Art: ${art.artist} (Scryfall)", color = p.faint, style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
                             if (settings.twoHeadedGiant) Text("Team ${(player.playerNumber + 1) / 2}", color = p.muted,
                                 style = MaterialTheme.typography.labelMedium)
                             if (player.controller.kind == ControllerHandle.Kind.PHYSICAL) Text("Sigil", color = p.muted,
@@ -130,6 +150,12 @@ internal fun TableLobby(
                                     modifier = Modifier.semantics {
                                         contentDescription = if (first) "${player.label} goes first. Tap to clear" else "Make ${player.label} go first"
                                     })
+                            }
+                            if (settings.profile.commanderRules && actions.commander != null) {
+                                TextButton(onClick = { namingCommander = player.playerNumber }, enabled = enabled,
+                                    modifier = Modifier.semantics { contentDescription = "Commander for ${player.label}" }) {
+                                    Text(if (player.commander == null) "Commander" else "Change commander")
+                                }
                             }
                             actions.background?.takeIf { actions.canEditBackground(player) }?.let { edit ->
                                 TextButton(onClick = { edit(player) }, enabled = enabled,
@@ -155,6 +181,7 @@ internal fun TableLobby(
                 }
                 if (savedPlayers.isNotEmpty()) {
                     Text(savedTitle, color = p.muted, style = MaterialTheme.typography.labelLarge)
+                    Text(identityHint, color = p.faint, style = MaterialTheme.typography.bodySmall)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         savedPlayers.forEach { player ->
                             SuggestionChip(onClick = { actions.select(player) }, label = {
@@ -226,19 +253,34 @@ internal fun TableLobby(
             }
             StartTableButton(players.size, settings.twoHeadedGiant, enabled, settings.profile.starCommander,
                 official?.players?.takeIf { locked }, actions.start)
-            DisclosureCard("Game sounds") { com.turnhub.android.ui.components.GameSoundControls() }
-            DisclosureCard("Table guide & feedback") {
-                Text(when {
-                    settings.profile.starCommander -> STAR_MAP_HINT
-                    settings.twoHeadedGiant -> TEAM_MAP_HINT
-                    else -> SEAT_MAP_HINT
-                }, color = p.muted)
-                Text(identityHint, color = p.muted)
-                com.turnhub.android.ui.components.ReportBugButton()
+            // In the app, sounds and bug reports live in Settings and the banner; the
+            // full-screen lobby has neither, so it keeps them at the bottom.
+            if (!embedded) {
+                DisclosureCard("Game sounds") { com.turnhub.android.ui.components.GameSoundControls() }
+                DisclosureCard("Feedback") { com.turnhub.android.ui.components.ReportBugButton() }
             }
             footer()
         }
     }
+}
+
+/** Optional: the commander a player brought, shown on their panel and the star. */
+@Composable
+private fun CommanderNameDialog(player: TablePlayer, onSave: (String?) -> Unit, onDismiss: () -> Unit) {
+    var name by rememberSaveable { mutableStateOf(player.commander.orEmpty()) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("${player.label}'s commander") },
+        text = {
+            OutlinedTextField(name, { name = it.take(StandaloneGame.MAX_COMMANDER) }, label = { Text("Commander (optional)") },
+                singleLine = true, modifier = Modifier.fillMaxWidth())
+        },
+        confirmButton = { TextButton({ onSave(name.trim().ifEmpty { null }) }) { Text("Save") } },
+        dismissButton = {
+            if (player.commander != null) TextButton({ onSave(null) }) { Text("Clear") }
+            else TextButton(onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 internal data class LobbyModeSettings(val profile: GameProfile?, val life: Int?, val teams: Boolean)

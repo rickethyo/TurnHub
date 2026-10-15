@@ -204,6 +204,13 @@ everything implemented. Only the checks listed below are still open.
 
 ### Table, controllers and accessibility
 
+- **Commander names, card art and Sean Mode on Atlas** (owner, 2026-10-15):
+  the Android phone-hosted table has optional commander names with Scryfall
+  art and the Star Commander Sean Mode rematch. Atlas games need a profile or
+  participant commander field in `/api/v1/state`, an Intent to set it and a
+  Sean Mode rematch Intent before the app can offer them with Atlas. Device
+  check of the art credit, scrim legibility and TalkBack still open.
+
 - **Eliminated-controller release** (owner, 2026-10-09): permit release once
   all players on a Sigil are eliminated, preserving their match identities and
   results; then attach the hardware to another seated player. Needs seat-level

@@ -198,6 +198,7 @@ object DesignTokens {
         @DrawableRes val battery: Int = R.drawable.ic_th_battery
         @DrawableRes val bell: Int = R.drawable.ic_th_bell
         @DrawableRes val book: Int = R.drawable.ic_th_book
+        @DrawableRes val bug: Int = R.drawable.ic_th_bug
         @DrawableRes val chart: Int = R.drawable.ic_th_chart
         @DrawableRes val check: Int = R.drawable.ic_th_check
         @DrawableRes val chevronDown: Int = R.drawable.ic_th_chevron_down

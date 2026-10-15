@@ -19,6 +19,7 @@ import com.turnhub.android.ui.theme.DesignTokens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -352,6 +353,12 @@ fun HomeScreen(
                                 }
                                 HomeTab.SETTINGS -> {
                                     AppearanceCard(theme, reduceMotion, accountActions)
+                                    BrassCard {
+                                        val (artOn, setArt) = com.turnhub.android.ui.tablet.rememberCommanderArtEnabled()
+                                        com.turnhub.android.ui.tablet.SetupSwitch("Commander card art",
+                                            "When a player names their commander, its art fills their tile. The art comes from " +
+                                                "Scryfall; only the commander's name is sent.", artOn, true, setArt)
+                                    }
                                     BrassCard { com.turnhub.android.ui.components.GameSoundControls() }
                                     com.turnhub.android.ui.components.DisclosureCard("Atlas connection") {
                                         com.turnhub.android.ui.tablet.SetupSwitch("Discover Atlas", null, atlasEnabled, true, onAtlasEnabled)
@@ -361,7 +368,6 @@ fun HomeScreen(
                                         SettingsTab(info, admin, adminActions, onShowPeople = { playersPage = "Table"; tab = HomeTab.PLAYERS })
                                     }
                                     if (canDev) com.turnhub.android.ui.components.DisclosureCard("Developer") { DevTab(admin, adminActions) }
-                                    BrassCard { com.turnhub.android.ui.components.ReportBugButton() }
                                     com.turnhub.android.ui.components.AppVersionLabel(Modifier.fillMaxWidth())
                                 }
                                 HomeTab.HISTORY, HomeTab.TABLE -> Unit
@@ -401,7 +407,10 @@ private fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boole
             }
         }
         ConnectionPill(uiState)
-        ManualButton(onManualClick)
+        Row {
+            BugReportButton()
+            ManualButton(onManualClick)
+        }
     }
 }
 
@@ -424,16 +433,23 @@ private fun UpdateAvailableCard(devices: Int, onOpenUpdates: () -> Unit) {
     }
 }
 
-/** A round "?" that opens the user manual; TalkBack reads it as "User manual". */
+/**
+ * A small round banner button with no visible label: TalkBack reads [label],
+ * and a long press shows it, so the icon is never the only explanation.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun ManualButton(onClick: () -> Unit) {
+private fun BannerButton(label: String, onClick: () -> Unit, icon: @Composable () -> Unit) {
     val p = palette
+    val context = androidx.compose.ui.platform.LocalContext.current
     Box(
         Modifier
-            .size(48.dp)
+            .size(44.dp)
             .clip(CircleShape)
-            .clickable(role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = "User manual" },
+            .combinedClickable(role = Role.Button, onClickLabel = label, onClick = onClick, onLongClick = {
+                android.widget.Toast.makeText(context, label, android.widget.Toast.LENGTH_SHORT).show()
+            })
+            .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
         Box(
@@ -443,12 +459,31 @@ private fun ManualButton(onClick: () -> Unit) {
                 .background(p.inset)
                 .border(1.dp, p.line, CircleShape),
             contentAlignment = Alignment.Center,
-        ) {
-            Text("?", color = if (p.dark) p.accentHi else p.accent,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.clearAndSetSemantics { })
-        }
+        ) { icon() }
     }
+}
+
+/** "?" opens the user manual. */
+@Composable
+private fun ManualButton(onClick: () -> Unit) {
+    val p = palette
+    BannerButton("User manual", onClick) {
+        Text("?", color = if (p.dark) p.accentHi else p.accent,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            modifier = Modifier.clearAndSetSemantics { })
+    }
+}
+
+/** The bug icon explains itself, then opens the alpha bug form with the version to mention. */
+@Composable
+private fun BugReportButton() {
+    val p = palette
+    var asking by rememberSaveable { mutableStateOf(false) }
+    BannerButton("Report a bug", { asking = true }) {
+        Icon(painterResource(DesignTokens.Icons.bug), contentDescription = null, modifier = Modifier.size(18.dp),
+            tint = if (p.dark) p.accentHi else p.accent)
+    }
+    if (asking) com.turnhub.android.ui.components.BugReportDialog(onDismiss = { asking = false })
 }
 
 @Composable

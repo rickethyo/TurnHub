@@ -35,6 +35,20 @@ interface StandaloneStore {
     fun keepUnreadable(): Boolean = false
 }
 
+/** Holds one game in memory and saves nowhere: the Table tab's practice table. */
+class MemoryStandaloneStore(game: StandaloneGame, library: LocalLibrary) : StandaloneStore {
+    private var game = StandaloneTable.gameToJson(game).toString()
+    private var library = library.toJson().toString()
+    override fun loadGame(): String = game
+    override fun loadRecords(): String? = null
+    override fun loadLibrary(): String = library
+    override fun saveSnapshot(game: String, library: String): Boolean {
+        this.game = game
+        this.library = library
+        return true
+    }
+}
+
 class PreferencesStandaloneStore(context: Context) : StandaloneStore {
     private val prefs = context.applicationContext.getSharedPreferences("turnhub_standalone", Context.MODE_PRIVATE)
     override fun loadGame(): String? = prefs.getString("game", null)
@@ -270,6 +284,7 @@ class StandaloneTable(
                 "win" -> game.claimWin(index, now)
                 "draw" -> game.endWithoutWinner(now)
                 "rematch" -> game.rematch(now, newId())
+                "sean-mode" -> game.seanModeRematch(now, newId())
                 "reset" -> game.reset()
                 "back-to-setup" -> game.backToSetup(now)
                 else -> game
@@ -288,6 +303,7 @@ class StandaloneTable(
         edit { it.commanderDamage(StandaloneGame.indexOf(seat.moduleId), source - 1, commander, delta, wallClock()) }
 
     // A standalone game has no phones asking for life changes, and is never offline.
+    fun setCommander(index: Int, name: String?) { edit { it.setCommander(index, name) } }
     fun setZeroLifeElimination(enabled: Boolean) { edit { it.setAutoEliminateAtZeroLife(enabled, wallClock()) } }
 
     override suspend fun counter(seat: TabletSeat, kind: String, value: Int, commander: Int) =
@@ -411,6 +427,7 @@ class StandaloneTable(
                         put("turnMs", p.turnMs)
                         put("fastestTurnMs", p.fastestTurnMs)
                         put("longestTurnMs", p.longestTurnMs)
+                        put("commander", p.commander ?: JSONObject.NULL)
                         put("commanderDamage", JSONObject().apply {
                             p.commanderDamage.forEach { (source, damage) -> put("$source", JSONArray(damage)) }
                         })
@@ -474,6 +491,7 @@ class StandaloneTable(
                         turnMs = p.optLong("turnMs"),
                         fastestTurnMs = p.optLong("fastestTurnMs"),
                         longestTurnMs = p.optLong("longestTurnMs"),
+                        commander = p.optStringOrNull("commander"),
                         commanderDamage = damage.keys().asSequence().associate { key ->
                             val array = damage.getJSONArray(key)
                             key.toInt() to (0 until array.length()).map { array.getInt(it) }

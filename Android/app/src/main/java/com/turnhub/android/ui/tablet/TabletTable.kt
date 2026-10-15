@@ -59,6 +59,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -108,6 +109,7 @@ import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.components.TurnHubHaptics
 import com.turnhub.android.ui.components.rememberHaptics
 import com.turnhub.android.ui.components.rememberNowMs
+import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.ui.theme.palette
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -210,6 +212,7 @@ internal fun TabletTable(
     // One player's menu at a time, full screen and turned to face that player.
     var playerMenu by remember { mutableStateOf<String?>(null) }
     var flipped by rememberSaveable { mutableStateOf(false) }
+    val starLayout = rememberStarLayout()
     var menuOpen by remember { mutableStateOf(false) }
     BackHandler(enabled = playerMenu != null || menuOpen) {
         playerMenu = null
@@ -285,9 +288,13 @@ internal fun TabletTable(
     BoxWithConstraints(Modifier.fillMaxSize().background(p.bg)) {
         val landscape = maxWidth >= maxHeight || units.size <= 2
         val plan = placements(units.size)
+        val star = starLayout.on && summary.settings.profile.starCommander && units.size == StarCommander.PLAYERS
         // The middle panel of a side with an odd count meets the centre disc at its inner (top) edge.
-        val underHub = listOf(plan.near, plan.far).filter { it.size % 2 == 1 }.map { it[it.size / 2] }.toSet()
+        val underHub = if (star) emptySet()
+            else listOf(plan.near, plan.far).filter { it.size % 2 == 1 }.map { it[it.size / 2] }.toSet()
         fun degreesOf(index: Int) = when {
+            // A player's full-screen menu turns to the nearest side of their star seat.
+            star -> Math.floorMod(Math.round(starSpot(index).degrees / 90f) * 90, 360)
             landscape -> if (index in plan.far) 180 else 0
             else -> if (index in plan.far) 90 else 270
         }
@@ -331,7 +338,9 @@ internal fun TabletTable(
             tableShot.record { this@drawWithContent.drawContent() }
             drawLayer(tableShot)
         }) {
-            if (landscape) {
+            if (star) {
+                StarTable(panel)
+            } else if (landscape) {
                 Column(Modifier.fillMaxSize().padding(4.dp)) {
                     if (plan.far.isNotEmpty()) {
                         Row(Modifier.weight(1f).fillMaxWidth()) {
@@ -456,6 +465,10 @@ internal fun TabletTable(
                         ToneButton("New players", { send(anySeat, "reset") }, Modifier.weight(1f))
                         AccentButton("Rematch", { send(anySeat, "rematch") }, Modifier.weight(1f))
                     }
+                    // The Sean Mode easter egg: the same five, reseated so allies become enemies.
+                    if (standalone && summary.star) {
+                        ToneButton("Sean Mode: allies become enemies", { send(anySeat, "sean-mode") }, Modifier.fillMaxWidth())
+                    }
                 }
             }
             else -> Unit
@@ -485,6 +498,9 @@ internal fun TabletTable(
                     DisclosureCard("Sound & display") {
                         com.turnhub.android.ui.components.GameSoundControls()
                         ToneButton("Turn panels around", { flipped = !flipped; menuOpen = false }, Modifier.fillMaxWidth())
+                        if (summary.settings.profile.starCommander) {
+                            SetupSwitch("Star layout", STAR_LAYOUT_HINT, starLayout.on, true, starLayout.set)
+                        }
                     }
                     DisclosureCard("Help & app") {
                         com.turnhub.android.ui.components.ReportBugButton()
@@ -628,6 +644,8 @@ private fun PlayerPanel(
     val out = unit.out
     val (small, big) = lifeSteps(summary.settings.profile)
     val name = unit.name
+    // The commanders a team or player named, shown under the name.
+    val commanders = unit.members.mapNotNull { it.commander }.takeIf { it.isNotEmpty() }?.joinToString(" & ")
     // The active panel's edge breathes slowly; steady when motion is reduced. The value is
     // read only while drawing, so the pulse redraws the edge without recomposing the panel.
     val glow = if (active && !reduceMotion) {
@@ -661,7 +679,7 @@ private fun PlayerPanel(
             unit.members.forEach { member ->
                 PlayerTileBackground(member.tileBackground,
                     com.turnhub.android.ui.components.playerColor(member.color, p.avatarColor(member.playerNumber)),
-                    Modifier.weight(1f).fillMaxHeight())
+                    Modifier.weight(1f).fillMaxHeight(), art = rememberCommanderArt(member.commander))
             }
         }
         val nameMax = maxWidth * .6f
@@ -696,15 +714,21 @@ private fun PlayerPanel(
             unit.members.forEach { member -> member.avatar?.let {
                 com.turnhub.android.ui.components.AvatarGlyph(it, p.text, 32.dp)
             } }
-            Text(name, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false).widthIn(max = nameMax))
+            Column(Modifier.weight(1f, fill = false).widthIn(max = nameMax)) {
+                Text(name, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                commanders?.let {
+                    Text(it, color = p.muted, style = MaterialTheme.typography.labelMedium, fontStyle = FontStyle.Italic,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
             if (active) Tag("Turn", p.active, p.onActive)
             if (out) Tag(if (unit.members.any { it.conceded }) "Conceded" else "Eliminated", p.bad, p.surface)
         }
 
         unit.members.firstOrNull { it.playerNumber == summary.monarchPlayerNumber }?.let { monarch ->
             MonarchBadge(if (unit.members.size > 1) monarch.label else null,
-                Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 52.dp))
+                Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = if (commanders != null) 70.dp else 52.dp))
         }
 
         Column(

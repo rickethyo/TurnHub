@@ -2,6 +2,8 @@ package com.turnhub.android.ui.tablet
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -118,8 +120,8 @@ private fun LocalTable(state: StandaloneState, table: StandaloneTable, reduceMot
 
 /**
  * The Table tab: the device game's table inside the app, with the tab bar still
- * there. Before a game starts it previews the table from the lobby's players
- * (placeholder seats fill a short roster); nothing on the preview can be played.
+ * there. Before a game starts it is a practice table built from the lobby's
+ * players (placeholder seats fill a short roster): fully playable, never saved.
  */
 @Composable
 fun EmbeddedTable(
@@ -136,41 +138,44 @@ fun EmbeddedTable(
         Column(modifier.padding(24.dp)) { Text(state.storageProblem, color = p.text) }
         return
     }
-    val sound = remember(game) { game.toSummary(0, 0) }
-    com.turnhub.android.ui.components.GameSoundEffect(sound, available = game.state != TableState.LOBBY)
+    val lobby = game.state == TableState.LOBBY
+    // A new practice table whenever the lobby changes, or the practice game returns to setup.
+    var practiceRound by rememberSaveable { mutableStateOf(0) }
+    val practice = remember(lobby, game.players, game.profile, game.twoHeadedGiant, game.startingLife, practiceRound) {
+        if (lobby) practiceTable(game, state.library) else null
+    }
+    val practiceState = practice?.state?.collectAsState()?.value
+    androidx.compose.runtime.LaunchedEffect(practiceState?.game?.state) {
+        if (practiceState?.game?.state == TableState.LOBBY) practiceRound++
+    }
+    val shown = practiceState ?: state
+    val sound = remember(shown.game) { shown.game.toSummary(0, 0) }
+    com.turnhub.android.ui.components.GameSoundEffect(sound, available = shown.game.state != TableState.LOBBY)
     Column(modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                when (game.state) {
-                    TableState.LOBBY -> "Preview"
-                    TableState.GAME_OVER -> "Last game"
-                    TableState.PAUSED -> "Paused"
-                    else -> "Live game"
-                },
-                color = p.muted, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f),
-            )
-            ToneButton("Full screen", onFullScreen, enabled = game.state != TableState.LOBBY)
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    when (game.state) {
+                        TableState.LOBBY -> "Practice table"
+                        TableState.GAME_OVER -> "Last game"
+                        TableState.PAUSED -> "Paused"
+                        else -> "Live game"
+                    },
+                    color = p.text, style = MaterialTheme.typography.titleSmall,
+                )
+                if (lobby) Text("Try anything. Nothing here is saved.", color = p.muted, style = MaterialTheme.typography.bodySmall)
+            }
+            when {
+                !lobby -> ToneButton("Full screen", onFullScreen)
+                game.canStart -> AccentButton("Start game", { table.start() })
+                else -> ToneButton("Set up players", onSetUp)
+            }
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (game.state == TableState.LOBBY) {
-                val preview = remember(game, state.library.players) {
-                    game.preview().toSummary(0, 0, state.library.players.associate { it.localId to it.personalization })
-                }
-                TablePreview(preview, reduceMotion) {
-                    Text("Your table", color = p.text, style = MaterialTheme.typography.titleMedium)
-                    if (game.canStart) {
-                        Text("Everyone's seated. Start when you're ready.", color = p.muted)
-                        AccentButton("Start game", { table.start() }, Modifier.fillMaxWidth())
-                    } else {
-                        Text("Seat your players in Game to set up this table.", color = p.muted)
-                        AccentButton("Set up players", onSetUp, Modifier.fillMaxWidth())
-                    }
-                }
-            } else {
-                if (game.state == TableState.RUNNING) KeepScreenOn()
-                LocalTable(state, table, reduceMotion, onSetUp)
-            }
+            if (shown.game.state == TableState.RUNNING) KeepScreenOn()
+            if (practice != null) LocalTable(shown, practice, reduceMotion, onSetUp)
+            else LocalTable(state, table, reduceMotion, onSetUp)
         }
     }
 }
@@ -193,14 +198,19 @@ internal fun TablePreview(summary: TableSummary, reduceMotion: Boolean, card: @C
     }
 }
 
-/** The lobby as a table: a short roster gets placeholder seats, then a paused start. */
-internal fun StandaloneGame.preview(): StandaloneGame {
+/** The lobby as a table: a short roster gets placeholder seats, then a started game. */
+internal fun StandaloneGame.preview(paused: Boolean = true): StandaloneGame {
     var seats = this
     while (!seats.canStart && seats.players.size < StandaloneGame.MAX_PLAYERS) {
         seats = seats.copy(players = seats.players + LocalPlayer("Player ${seats.players.size + 1}"))
     }
-    return seats.start(0, "preview", kotlin.random.Random(0)).togglePause(0)
+    val started = seats.start(System.currentTimeMillis(), "practice", kotlin.random.Random(0))
+    return if (paused) started.togglePause(System.currentTimeMillis()) else started
 }
+
+/** A playable copy of the lobby's table that lives only in memory. */
+internal fun practiceTable(game: StandaloneGame, library: com.turnhub.android.standalone.LocalLibrary): StandaloneTable =
+    StandaloneTable(com.turnhub.android.standalone.MemoryStandaloneStore(game.preview(paused = false), library))
 
 @Composable
 fun StandaloneLobby(
@@ -231,6 +241,7 @@ fun StandaloneLobby(
             settings = table::configure,
             timer = table::setTurnTimer,
             timerRules = table::setTimerRules,
+            commander = { player, name -> table.setCommander(player.playerNumber - 1, name) },
             zeroLife = table::setZeroLifeElimination,
             houseRules = table::setHouseRules,
             chooseStarter = { table.chooseStarter(it.playerNumber - 1) },
