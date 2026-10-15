@@ -141,7 +141,7 @@ The chosen code is framed and marked “shown”. If an administrator has set th
 
 ## Using the Android App
 
-The TurnHub Android app is on Google Play through the prototype testing track. Game, Table, Players, History and Settings are available with or without Atlas. No Atlas, account or network permission is needed for local play. Table opens the full-screen view. Settings includes appearance, sound and Atlas connection. Atlas discovery stays in the background; Connect can join TurnHub-Atlas Wi-Fi using a saved or entered password.
+The TurnHub Android app is on Google Play through the prototype testing track. Game, Table, Players, History and Settings are available with or without Atlas. No Atlas, account or network permission is needed for local play. Table shows the game’s table inside the app, or a preview of the seats before a game starts; Full screen gives it the whole screen. Settings includes appearance, sound and Atlas connection. Atlas discovery stays in the background; Connect can join TurnHub-Atlas Wi-Fi using a saved or entered password.
 
 Sign in with your PIN or password, or choose **New here? Create an account** on the sign-in sheet to make one: a name, and either a PIN (quick to enter on a Sigil) or a password. An account made without a PIN, for example by a tablet (section 17), asks you to choose one the first time you sign in from a phone; enter it twice. From then on it is checked as usual.
 
@@ -511,7 +511,7 @@ If Atlas stops answering during a game, the panels keep taking life and Commande
 
 # 18. Playing Without Atlas
 
-The Android app opens to Game on a fresh launch. Add players and start, or open a saved game from Table. These same tabs remain available when Atlas connects. Game lets you choose This device or Atlas; Players adds Table and Me sections, and Settings adds authorized table administration. Turning off Atlas discovery disconnects it. Local games and Atlas games remain independent.
+The Android app opens to Game on a fresh launch. Add players and start; the game opens in Table, and Full screen gives it the whole screen. These same tabs remain available when Atlas connects. Game lets you choose This device or Atlas; Players adds Table and Me sections, and Settings adds authorized table administration. Turning off Atlas discovery disconnects it. Local games and Atlas games remain independent.
 
 - Type a name in the lobby to create a reusable local player, or select a saved player. Players also lets you create accounts without starting a game. Every account has a stable local identity and an eight-character hexadecimal account ID. Equal names remain separate. A PIN or password is optional for local account settings; use a 4–8 digit PIN or an 8–64 byte password. Shared-table play remains available without signing in. PIN-protected account settings need unlocking after the app restarts.
 

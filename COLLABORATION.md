@@ -547,3 +547,23 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   because LibreOffice is absent; manual page layout is not visually verified.
   Owner authorized PR publication; publish this accumulated local polish as one
   reviewable PR, with normal automatic checks and no redundant manual CI runs.
+
+## 2026-10-15 — Claude: Android Table tab, tab motion and shared player colors
+
+- Owner: Claude on `claude/project-thread-0cn2jn`, baseline `d12aa1b`. Owner
+  reviewed Codex's navigation pass and asked for round 1 of 2: Table stays
+  inside the app instead of taking over the screen, the header version label
+  goes, tab transitions return, and player colors move into design tokens.
+- Table tab: the running or last device game on the shared table screen with
+  the tab bar kept; before a game it previews the lobby's seats (placeholders up
+  to a startable roster, paused, touches and TalkBack blocked) with Start game
+  or Set up players. Full screen is an explicit button. Starting from the Game
+  lobby opens Table. With Atlas selected, Table previews the Atlas game and
+  offers the existing tablet-mode grant.
+- Tabs slide sideways in bar order with a fade (BASE/FAST motion tokens); none
+  with reduce motion. Version label moved to the bottom of Settings.
+- `playerColors` in `design/tokens.json` generates `DesignTokens.PlayerColors`,
+  `--player-<name>` CSS and `TurnHubTheme::playerColor()` in `device_theme.h`.
+- Validation: design token, docs and manual-asset checks pass locally. The
+  container has no Android SDK, so Gradle build/tests run in PR CI. No device
+  test yet; round 2 (turn-pass transition and gloss pass) follows owner review.

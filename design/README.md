@@ -54,6 +54,14 @@ composited over the theme background first). Status colors must reach 4.5:1 on
 `surface1` because they are also used as text. Color never carries meaning
 alone: every status pill and tile state also has words.
 
+## Player colors
+
+`playerColors` holds the named swatches a player can pick (Crimson to Pearl), in
+picker order and the same on every theme. The build emits them as
+`DesignTokens.PlayerColors` (Android), `--player-<name>` (CSS) and
+`TurnHubTheme::playerColor()` in `shared/include/device_theme.h` (Atlas, Sigil
+and LVGL screens). Text on a swatch is black or white by luminance.
+
 ## Type
 
 Inter (text and UI) for every theme; Brass swaps the display role to Cinzel.
