@@ -32,7 +32,7 @@ class UserManualTest {
             """.trimIndent(),
         )
 
-        assertEquals("TurnHub App Manual", manual.title)
+        assertEquals("TurnHub User Manual", manual.title)
         assertEquals("Prototype Edition v9", manual.edition)
         assertEquals(
             listOf(
