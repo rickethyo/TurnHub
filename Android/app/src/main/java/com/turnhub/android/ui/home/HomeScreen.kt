@@ -233,12 +233,30 @@ fun HomeScreen(
         return
     }
 
+    // A saved/background Atlas connection must not label a device game as Atlas play.
+    val reportFromAtlas = summary != null && (setup.visible ||
+        (tab in listOf(HomeTab.GAME, HomeTab.TABLE) && atlasGame) ||
+        (tab == HomeTab.PLAYERS && playersPage != "Device"))
+    val reportContext = if (reportFromAtlas && summary != null) {
+        com.turnhub.android.ui.components.tableBugReportContext(summary,
+            if (setup.visible) "Atlas setup" else tab.label)
+    } else {
+        val deviceGame = tab != HomeTab.SETTINGS && !setup.visible
+        com.turnhub.android.ui.components.BugReportContext(
+            mode = if (deviceGame) com.turnhub.android.ui.components.BugReportMode.ON_DEVICE else null,
+            screen = tab.label,
+            gameFormat = localState.game.profile.wireValue.takeIf { deviceGame },
+            gameState = localState.game.state.name.takeIf { deviceGame },
+        )
+    }
+
     Scaffold(
         modifier = modifier.tableBackground(p),
         containerColor = Color.Transparent,
         topBar = {
             Column(Modifier.background(p.bg.copy(alpha = .92f))) {
                 BrandBar(uiState, running = summary?.state == TableState.RUNNING, reduceMotion = reduceMotion,
+                    report = reportContext,
                     onManualClick = { showManual = true })
             }
         },
@@ -395,7 +413,8 @@ fun HomeScreen(
 }
 
 @Composable
-private fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boolean, onManualClick: () -> Unit) {
+private fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boolean,
+    report: com.turnhub.android.ui.components.BugReportContext, onManualClick: () -> Unit) {
     val p = palette
     Row(
         Modifier
@@ -422,7 +441,7 @@ private fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boole
         }
         ConnectionPill(uiState)
         Row {
-            BugReportButton()
+            BugReportButton(report)
             ManualButton(onManualClick)
         }
     }
@@ -488,16 +507,16 @@ private fun ManualButton(onClick: () -> Unit) {
     }
 }
 
-/** The bug icon explains itself, then opens the alpha bug form with the version to mention. */
+/** The bug icon explains itself, then opens the alpha bug form with editable diagnostics. */
 @Composable
-private fun BugReportButton() {
+private fun BugReportButton(report: com.turnhub.android.ui.components.BugReportContext) {
     val p = palette
     var asking by rememberSaveable { mutableStateOf(false) }
     BannerButton("Report a bug", { asking = true }) {
         Icon(painterResource(DesignTokens.Icons.bug), contentDescription = null, modifier = Modifier.size(18.dp),
             tint = if (p.dark) p.accentHi else p.accent)
     }
-    if (asking) com.turnhub.android.ui.components.BugReportDialog(onDismiss = { asking = false })
+    if (asking) com.turnhub.android.ui.components.BugReportDialog(onDismiss = { asking = false }, report = report)
 }
 
 @Composable

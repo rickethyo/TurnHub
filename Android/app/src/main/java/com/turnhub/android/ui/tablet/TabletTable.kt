@@ -521,7 +521,8 @@ internal fun TabletTable(
                         }
                     }
                     DisclosureCard("Help & app") {
-                        com.turnhub.android.ui.components.ReportBugButton()
+                        com.turnhub.android.ui.components.ReportBugButton(
+                            com.turnhub.android.ui.components.tableBugReportContext(summary, "Full-screen table"))
                         ToneButton("Back to the app", { menuOpen = false; onClose() }, Modifier.fillMaxWidth())
                     }
                     DisclosureCard("Finish game") {
