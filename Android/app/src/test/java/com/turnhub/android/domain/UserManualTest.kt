@@ -32,7 +32,7 @@ class UserManualTest {
             """.trimIndent(),
         )
 
-        assertEquals("TurnHub User Manual", manual.title)
+        assertEquals("TurnHub App Manual", manual.title)
         assertEquals("Prototype Edition v9", manual.edition)
         assertEquals(
             listOf(
@@ -66,7 +66,7 @@ class UserManualTest {
             .first { it.isFile }
         val manual = UserManual.parse(asset.readText())
 
-        assertEquals("TurnHub User Manual", manual.title)
+        assertEquals("TurnHub App Manual", manual.title)
         assertTrue(manual.chapters.size >= 20)
         assertTrue(manual.chapters.first().second.startsWith("1. "))
         assertTrue(manual.blocks.none { block ->
