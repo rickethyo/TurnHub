@@ -91,9 +91,9 @@ import com.turnhub.android.ui.manual.ManualScreen
 
 private enum class HomeTab(val label: String, @DrawableRes val icon: Int) {
     GAME("Game", DesignTokens.Icons.timer),
-    TABLE("Table", DesignTokens.Icons.hub),
+    TABLE("Table", DesignTokens.Icons.table),
     /** Planechase for the device game; shown only while a Magic format is chosen. */
-    PLANES("Planes", DesignTokens.Icons.dice),
+    PLANES("Planes", DesignTokens.Icons.cards),
     PLAYERS("Players", DesignTokens.Icons.users),
     HISTORY("History", DesignTokens.Icons.clock),
     SETTINGS("Settings", DesignTokens.Icons.sliders),

@@ -100,8 +100,8 @@ internal object PlaneLibrary {
 }
 
 /**
- * Downloads the planes the first time a table plays Planechase with TurnHub's
- * deck, from whichever screen turned it on (Game setup or the Planes tab).
+ * Downloads the planes the first time a table plays Planechase with the
+ * digital deck, from whichever screen turned it on (Game setup or the Planes tab).
  */
 @Composable
 internal fun PlanesDownloadWhenNeeded(planar: Planechase) {
@@ -112,7 +112,7 @@ internal fun PlanesDownloadWhenNeeded(planar: Planechase) {
     }
 }
 
-/** How TurnHub's deck stands on this phone, in a few words for setup; null once it's here. */
+/** How the digital deck stands on this phone, in a few words for setup; null once it's here. */
 internal fun planesDownloadNote(): String? = when {
     PlaneLibrary.downloading -> "Downloading the planes…"
     PlaneLibrary.cards != null -> null
@@ -166,9 +166,9 @@ private fun PlanarSetup(state: StandaloneState, table: StandaloneTable, cards: M
             Text("Planar deck", color = p.muted, style = MaterialTheme.typography.titleSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(planar.source == PlanarDeckSource.DIGITAL, { table.setPlanarSource(PlanarDeckSource.DIGITAL) },
-                    label = { Text("TurnHub's deck") }, enabled = lobby)
+                    label = { Text("Digital deck") }, enabled = lobby)
                 FilterChip(planar.source == PlanarDeckSource.PHYSICAL, { table.setPlanarSource(PlanarDeckSource.PHYSICAL) },
-                    label = { Text("Our own cards") }, enabled = lobby)
+                    label = { Text("Physical cards") }, enabled = lobby)
             }
             if (planar.source == PlanarDeckSource.PHYSICAL) {
                 Text("Shuffle your planar deck and turn over the first plane. TurnHub rolls the die, counts the cost " +
@@ -205,16 +205,16 @@ private fun PlanarSetup(state: StandaloneState, table: StandaloneTable, cards: M
     }
 }
 
-/** A digital game that started before the planes were on this phone: switch to TurnHub's deck once they are. */
+/** A digital game that started before the planes were on this phone: switch to the digital deck once they are. */
 @Composable
 private fun LateDeck(table: StandaloneTable, cards: Map<String, PlaneInfo>?) {
     val p = palette
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    Text("TurnHub's deck wasn't on this phone when the game started, so the table is using its own cards.", color = p.muted)
+    Text("The digital deck wasn't on this phone when the game started, so the table is using its own cards.", color = p.muted)
     when {
         cards != null && cards.values.any { !it.phenomenon } ->
-            AccentButton("Switch to TurnHub's deck", table::dealPlanarDeck, Modifier.fillMaxWidth())
+            AccentButton("Switch to digital deck", table::dealPlanarDeck, Modifier.fillMaxWidth())
         PlaneLibrary.downloading -> Text("Downloading the planes…", color = p.muted,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
         else -> ToneButton("Download the planes", { scope.launch { PlaneLibrary.download(context) } }, Modifier.fillMaxWidth())

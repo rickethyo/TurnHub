@@ -180,15 +180,15 @@ the spec every engine runs.
 
 - **Setup.** Magic formats only (`Planechase` in `StandaloneGame`, the on/off
   switch sits with the other game options on the app's Game tab, which links
-  to the deck options in the Planes tab). Planechase can use **TurnHub's deck**
-  or **our own cards**.
-  - TurnHub's deck is the single shared planar deck option (901.15). It has
+  to the deck options in the Planes tab). Planechase can use **Digital deck**
+  or **Physical cards**.
+  - The digital deck is the single shared planar deck option (901.15). It has
     every downloaded plane, plus up to two phenomena per player when
     phenomena are on.
-  - With our own cards, the players turn over their own planes and TurnHub
+  - With physical cards, the players turn over their own planes and TurnHub
     keeps no deck. A digital game started before any planes were downloaded
     plays the same way until the planes arrive; then the Planes tab offers
-    to switch to TurnHub's deck mid-game (`dealtLate`: dealt as at the start,
+    to switch to the digital deck mid-game (`dealtLate`: dealt as at the start,
     keeping this turn's roll costs).
 - **Start (901.5).** The deck is shuffled at start (and for a rematch). Cards
   are turned over until a plane comes up, and phenomena go to the bottom.
@@ -214,7 +214,7 @@ the spec every engine runs.
 - **Persistence.** The whole planar state is saved with the local game (the
   `planechase` object).
 - **Card data.** Names, rules text and `art_crop` art come from Scryfall,
-  downloaded on the phone the first time Planechase is on with TurnHub's
+  downloaded on the phone the first time Planechase is on with the digital
   deck, from Game setup or the Planes tab (`ScryfallPlanes`). The cards are
   saved in app files, the art in the app cache, and nothing is bundled. Each
   plane credits its artist, and the tab carries the Fan Content Policy

@@ -892,7 +892,7 @@ private fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHap
     val scope = rememberCoroutineScope()
     var holding by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(14.dp)
-    val label = if (passing) "Passing… tap to keep" else "Hold to pass"
+    val label = if (passing) "Passing… tap to keep" else "Pass"
     Box(
         modifier
             .clip(shape)

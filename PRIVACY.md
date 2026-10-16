@@ -69,7 +69,7 @@ art.
 
 ## Planechase planes
 
-When a player turns on Planechase with TurnHub's deck, the app downloads the
+When a player turns on Planechase with the digital deck, the app downloads the
 list of planes and phenomena (names, rules text and art) from
 [Scryfall](https://scryfall.com) once, and each face-up plane's art when it
 is first shown. Nothing about the players is sent; Scryfall receives the

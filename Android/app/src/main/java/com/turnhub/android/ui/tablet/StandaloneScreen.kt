@@ -272,7 +272,7 @@ fun StandaloneLobby(
                 SetupSwitch("Planechase",
                     if (!planar.enabled) "Plane cards and the planar die join the game."
                     else if (!digital) "With your own plane cards."
-                    else listOfNotNull("With TurnHub's planar deck.", planesDownloadNote()).joinToString(" "),
+                    else listOfNotNull("With the digital planar deck.", planesDownloadNote()).joinToString(" "),
                     planar.enabled, true, table::setPlanechase)
                 if (planar.enabled && onOpenPlanes != null) ToneButton("Planar deck and rules", onOpenPlanes, Modifier.fillMaxWidth())
             }

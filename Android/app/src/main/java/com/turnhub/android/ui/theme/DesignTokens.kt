@@ -199,6 +199,7 @@ object DesignTokens {
         @DrawableRes val bell: Int = R.drawable.ic_th_bell
         @DrawableRes val book: Int = R.drawable.ic_th_book
         @DrawableRes val bug: Int = R.drawable.ic_th_bug
+        @DrawableRes val cards: Int = R.drawable.ic_th_cards
         @DrawableRes val chart: Int = R.drawable.ic_th_chart
         @DrawableRes val check: Int = R.drawable.ic_th_check
         @DrawableRes val chevronDown: Int = R.drawable.ic_th_chevron_down
@@ -240,6 +241,7 @@ object DesignTokens {
         @DrawableRes val sparkle: Int = R.drawable.ic_th_sparkle
         @DrawableRes val sun: Int = R.drawable.ic_th_sun
         @DrawableRes val swap: Int = R.drawable.ic_th_swap
+        @DrawableRes val table: Int = R.drawable.ic_th_table
         @DrawableRes val timer: Int = R.drawable.ic_th_timer
         @DrawableRes val trash: Int = R.drawable.ic_th_trash
         @DrawableRes val unlock: Int = R.drawable.ic_th_unlock

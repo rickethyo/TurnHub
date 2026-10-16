@@ -641,3 +641,24 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
 - Lobby buttons say what they do: Name commander, Tile color & photo.
 - Validation: new `SeanModeTest` and `ScryfallCommanderArtTest` cases; docs,
   tokens and manual checks local; Gradle in PR CI. Not yet seen on a device.
+
+## 2026-10-15 — Codex: build 356 phone review
+
+- Owner / branch: Codex, `codex/master`; clean baseline `b4bfaa2`, fetched
+  accepted master; no open PRs or overlapping active scope found.
+- Scope: inspect installed build 356 on the USB Pixel Fold; Digital deck /
+  Physical cards copy, Pass caption retaining hold, literal table/card icons.
+  Presentation only: existing authorities, actions, persistence and contracts
+  stay the same; labeled navigation/accessibility actions remain. No dependency.
+- Collection filtering is accepted future work; custom card selection is a
+  proposed extension. STAGED_CHANGES owns the requirements and data concern.
+- Device: Play versionCode 356, versionName 0.1.0; Planes setup inspected.
+  Captures: Private/TurnHub-builds/review-356 (outside Git).
+- Validation: preview debug assemble and lint pass (0 errors, 42 warnings,
+  4 hints); tokens, documentation links, manual export and whitespace checks
+  pass. No new tests for caption/vector changes; hold/action code unchanged.
+  DOCX render attempted; bundled runtime cannot find LibreOffice, so no page
+  layout verification claimed. No manual deliverable published.
+- Also viewed build 356 practice table: large totals, relative +/- controls and
+  existing pass caption. Returned to Planes; no real game or account changes.
+  New artwork/copy compiled locally; not installed on the phone.
