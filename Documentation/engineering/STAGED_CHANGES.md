@@ -31,19 +31,6 @@ everything implemented. Only the checks listed below are still open.
 
 ## Open work
 
-### Planar deck selection
-
-- **Owner request, 2026-10-15:** filter the digital planar library by release /
-  collection, including Planechase Anthology, and use the chosen pool for play.
-  Proposed extension: browse card previews, select individual cards and save a
-  custom deck. Keep All planes as a simple default and selection before a game.
-  Current download deduplicates cards (`unique=cards`); one `setName` per card
-  cannot establish membership in every reprint collection. Obtain actual release
-  membership before implementing collection filters. Selection must persist
-  locally and the standalone engine must validate/deal the chosen pool, including
-  phenomena handling; preserve active-game decks and offline play.
-
-
 ### Stability and diagnostics
 
 - **Android shared navigation acceptance:** verify Game/Table/Players/History/

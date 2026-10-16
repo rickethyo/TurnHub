@@ -94,6 +94,8 @@ internal object PlaneLibrary {
     suspend fun art(context: Context, card: PlaneInfo): ImageBitmap? = art[card.id] ?: run {
         val bytes = source(context).art(card) ?: return null
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() ?: return null
+        // Browsing a whole collection must not retain every decoded image in RAM.
+        if (art.size >= 12) art.keys.firstOrNull()?.let { art.remove(it) }
         art[card.id] = bitmap
         bitmap
     }
@@ -176,8 +178,10 @@ private fun PlanarSetup(state: StandaloneState, table: StandaloneTable, cards: M
             } else {
                 SetupSwitch("Include phenomena", "Up to two for each player, as the official rules allow.",
                     planar.phenomena, lobby, table::setPlanarPhenomena)
-                val planes = cards?.values?.count { !it.phenomenon } ?: 0
-                val phenomena = cards?.values?.count { it.phenomenon } ?: 0
+                if (cards != null) PlanarDeckPicker(state, table, cards.values.toList(), lobby)
+                val selected = cards?.values?.filter { planar.selection.cardIds == null || it.id in planar.selection.cardIds.orEmpty() }
+                val planes = selected?.count { !it.phenomenon } ?: 0
+                val phenomena = selected?.count { it.phenomenon } ?: 0
                 when {
                     PlaneLibrary.downloading -> Text("Downloading the planes…", color = p.muted,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
@@ -187,8 +191,8 @@ private fun PlanarSetup(state: StandaloneState, table: StandaloneTable, cards: M
                         Text("Without them, a game uses your own cards.", color = p.faint, style = MaterialTheme.typography.bodySmall)
                     }
                     else -> {
-                        Text("Every game shuffles all $planes planes" + if (planar.phenomena) " and some of the $phenomena phenomena." else ".", color = p.muted)
-                        ToneButton("Check for new planes", { scope.launch { PlaneLibrary.download(context) } }, Modifier.fillMaxWidth())
+                        Text("Every game shuffles $planes selected planes" + if (planar.phenomena) " and some of the $phenomena phenomena." else ".", color = p.muted)
+                        ToneButton("Refresh library", { scope.launch { PlaneLibrary.download(context) } }, Modifier.fillMaxWidth())
                     }
                 }
             }

@@ -23,6 +23,8 @@ data class PlaneInfo(
     val artist: String,
     val artCrop: String,
     val setName: String,
+    /** Every release containing this card, merged across printings. Empty in an old cache. */
+    val collections: Set<String> = emptySet(),
 ) {
     val phenomenon: Boolean get() = typeLine.trim().lowercase().startsWith("phenomenon")
     val card: PlanarCard get() = PlanarCard(id, phenomenon)
@@ -59,16 +61,26 @@ class ScryfallPlanes(
     /** Fetches every paper plane and phenomenon (Un- cards left out) and replaces the saved list. */
     suspend fun download(): List<PlaneInfo> = withContext(ioDispatcher) {
         gate.withLock {
-            val cards = mutableListOf<PlaneInfo>()
-            var page: String? = "$baseUrl/cards/search?unique=cards&order=name&q=" + URLEncoder.encode(QUERY, "UTF-8")
+            val printings = mutableListOf<PlaneInfo>()
+            val previous = saved().orEmpty().associateBy { it.name }
+            var page: String? = "$baseUrl/cards/search?unique=prints&order=name&q=" + URLEncoder.encode(QUERY, "UTF-8")
             var pages = 0
             while (page != null) {
                 if (++pages > MAX_PAGES) throw IOException("Scryfall returned too many pages")
                 val json = JSONObject(http.fetch(page, MAX_JSON_BYTES).toString(Charsets.UTF_8))
                 val data = json.getJSONArray("data")
-                for (i in 0 until data.length()) parse(data.getJSONObject(i))?.let { cards += it }
-                page = json.optString("next_page").takeIf { json.optBoolean("has_more") && it.startsWith(baseUrl) }
+                for (i in 0 until data.length()) parse(data.getJSONObject(i))?.let { printings += it }
+                page = if (json.optBoolean("has_more")) json.getString("next_page").also {
+                    if (!it.startsWith("$baseUrl/")) throw IOException("Invalid next page")
+                } else null
                 delay(ScryfallHttp.REQUEST_SPACING_MS)
+            }
+            val cards = printings.groupBy { it.name }.map { (name, copies) ->
+                // Preserve the old printing and art while adding complete release membership.
+                val old = previous[name]
+                val representative = copies.firstOrNull { it.id == old?.id }
+                    ?: old?.copy(text = copies.first().text, typeLine = copies.first().typeLine) ?: copies.first()
+                representative.copy(collections = copies.map { it.setName }.filter { it.isNotBlank() }.toSet())
             }
             if (cards.none { !it.phenomenon }) throw IOException("Scryfall returned no planes")
             dataDir.mkdirs()
@@ -97,7 +109,7 @@ class ScryfallPlanes(
         val id = json.optString("id")
         if (id.isBlank() || !crop.startsWith("https://")) return null
         return PlaneInfo(id, json.optString("name"), json.optString("type_line"), json.optString("oracle_text"),
-            json.optString("artist"), crop, json.optString("set_name"))
+            json.optString("artist"), crop, json.optString("set_name"), setOf(json.optString("set_name")))
     }
 
     companion object {
@@ -108,9 +120,10 @@ class ScryfallPlanes(
         private const val MAX_ART_BYTES = 2 * 1024 * 1024
 
         private fun toJson(card: PlaneInfo) = JSONObject().put("id", card.id).put("name", card.name).put("typeLine", card.typeLine)
-            .put("text", card.text).put("artist", card.artist).put("artCrop", card.artCrop).put("setName", card.setName)
+            .put("text", card.text).put("artist", card.artist).put("artCrop", card.artCrop).put("setName", card.setName).put("collections", JSONArray(card.collections.sorted()))
 
         private fun fromJson(json: JSONObject) = PlaneInfo(json.getString("id"), json.getString("name"), json.getString("typeLine"),
-            json.getString("text"), json.getString("artist"), json.getString("artCrop"), json.getString("setName"))
+            json.getString("text"), json.getString("artist"), json.getString("artCrop"), json.getString("setName"),
+            json.optJSONArray("collections")?.let { a -> (0 until a.length()).map { a.getString(it) }.toSet() }.orEmpty())
     }
 }

@@ -544,6 +544,11 @@ data class StandaloneGame(
         return copy(planechase = planechase.copy(source = source)).bump()
     }
 
+    fun setPlanarSelection(selection: PlanarSelection): StandaloneGame {
+        if (state != TableState.LOBBY || !selection.valid() || selection == planechase.selection) return this
+        return copy(planechase = planechase.copy(selection = selection)).bump()
+    }
+
     /** Whether phenomena join the digital deck; lobby only. */
     fun setPlanarPhenomena(on: Boolean): StandaloneGame {
         if (state != TableState.LOBBY || on == planechase.phenomena) return this

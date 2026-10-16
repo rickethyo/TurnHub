@@ -662,3 +662,42 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
 - Also viewed build 356 practice table: large totals, relative +/- controls and
   existing pass caption. Returned to Planes; no real game or account changes.
   New artwork/copy compiled locally; not installed on the phone.
+
+### 2026-10-15 — Codex: planar collections and custom decks
+
+- Owner authorized implementation after build 356 review. Baseline `ef66920`
+  on `codex/master`; PR #123 open, accepted master merged (already current).
+- Feature gate: standalone domain owns deck choices; `setPlanarSelection` and
+  save/delete preset operations validate lobby state, nonempty known plane pool,
+  unique IDs and bounded names. Choice is a game snapshot, presets belong to
+  LocalLibrary; PreferencesStandaloneStore persists both together. Compose
+  renders labeled pickers, searchable checkboxes and card previews with text.
+  No Atlas/protocol changes, new dependency or card data bundled. Scryfall
+  search downloads all printings and merges release membership into one card;
+  retain saved representative IDs on refresh. Existing request pacing/cache apply.
+- Scope: All planes, release/Anthology collection, saved custom decks and
+  browsing/preview; choices are applied before shuffling for start/rematch/late
+  deal. In-play choices are frozen and presets cannot mutate the dealt game.
+- Implemented: all-printings release membership with stable representative IDs
+  and refreshed rules text; lobby-only collection/custom choices, saved named
+  presets, search/selection filters and a scrolling art/text card browser.
+  Selection snapshots survive reset, resume and rematch; unavailable selected
+  cards block dealing instead of silently substituting All planes.
+- Validation: final preview build 11 assemble/lint and the complete 345-test
+  JVM suite pass (0 failures, 0 errors, 0 skipped). Lint: 0 errors, 44 warnings,
+  7 hints. Tokens, docs, manual export and whitespace checks pass. New tests
+  cover merged membership/identity/rules refresh, pagination failure, choice
+  persistence/dealing, in-game guards, missing/invalid pools, preset replacement/
+  deletion/limits, malformed JSON and failed persistence.
+- Pixel Fold over authorized wireless ADB: Preview build 11 installed separately
+  from Play build 356. Loaded the real catalogue (272 printings, eight releases),
+  selected Anthology (78 planes/8 phenomena), searched Bant and opened its
+  credited art/rules preview. Fixed keyboard clipping by scrolling fields and
+  results together with fixed Save/Cancel. Verified both above the keyboard.
+  Saved a 77-plane custom pool and reopened the process with preset/choice intact;
+  deleted the test preset and restored the full Anthology collection. No real
+  game, Play app or account changes. App remains in Preview's Planes setup.
+- Decoded art cache bounded to 12 entries; disk cache remains reusable offline.
+  No physical full-match/Atlas/TalkBack or inner-display acceptance claimed.
+  Manual text/export synchronized; renderer again cannot find LibreOffice, so
+  DOCX page layout remains unverified. PR #123 carries the combined scope.

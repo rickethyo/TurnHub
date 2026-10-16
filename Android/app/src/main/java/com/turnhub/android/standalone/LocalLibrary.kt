@@ -47,6 +47,7 @@ data class LocalLibrary(
     val players: List<SavedLocalPlayer> = emptyList(),
     val history: List<GameRecord> = emptyList(),
     val deliveries: List<MatchDelivery> = emptyList(),
+    val planarDecks: List<PlanarSelection> = emptyList(),
 ) {
     /** Only a verified destination link joins local decoration to a connected player. */
     fun linkedPlayer(atlasId: String, profileId: String?): SavedLocalPlayer? =
@@ -145,6 +146,7 @@ data class LocalLibrary(
                     .put("atlasId", it.atlasId).put("profileId", it.profileId)) } })
                 .put("credential", p.credential?.let { JSONObject().put("salt", it.salt).put("hash", it.hash) } ?: JSONObject.NULL)) }
         })
+        put("planarDecks", JSONArray().apply { planarDecks.forEach { put(it.toJson()) } })
         put("history", JSONArray().apply { history.forEach { put(it.toJson()) } })
         put("deliveries", JSONArray().apply {
             deliveries.forEach { d -> put(JSONObject().apply {
@@ -164,7 +166,9 @@ data class LocalLibrary(
             val players = json.getJSONArray("players")
             val history = json.getJSONArray("history")
             val deliveries = json.getJSONArray("deliveries")
+            val decks = json.optJSONArray("planarDecks") ?: JSONArray()
             return LocalLibrary(
+                planarDecks = (0 until decks.length()).map { PlanarSelection.fromJson(decks.getJSONObject(it)) },
                 players = (0 until players.length()).map { i -> players.getJSONObject(i).let {
                     val links = it.optJSONArray("links") ?: JSONArray()
                     SavedLocalPlayer(it.getString("localId"), it.getString("name"),
@@ -184,6 +188,8 @@ data class LocalLibrary(
                         (0 until ids.length()).map { ids.getString(it) })
                 } },
             ).also { library ->
+                require(library.planarDecks.size <= 20 && library.planarDecks.all { it.cardIds != null })
+                require(library.planarDecks.map { it.name }.distinct().size == library.planarDecks.size)
                 require(library.players.all { it.localId.isNotBlank() && it.name.isNotBlank() })
                 require(library.players.map { it.localId }.distinct().size == library.players.size)
                 require(library.players.map { it.profileId }.distinct().size == library.players.size)

@@ -21,6 +21,7 @@ data class Planechase(
     val source: PlanarDeckSource = PlanarDeckSource.DIGITAL,
     /** Phenomena join the digital deck (at most two per player, CR 901.15a). */
     val phenomena: Boolean = true,
+    val selection: PlanarSelection = PlanarSelection(),
     /** The single communal planar deck (CR 901.15), top card first; face down. */
     val deck: List<PlanarCard> = emptyList(),
     /** Face-up planes or one phenomenon; empty with physical cards. */
@@ -53,7 +54,7 @@ data class Planechase(
      * bottom, and nothing triggers. Physical cards keep no deck.
      */
     fun dealt(cards: List<PlanarCard>): Planechase {
-        val fresh = Planechase(enabled = enabled, source = source, phenomena = phenomena)
+        val fresh = Planechase(enabled = enabled, source = source, phenomena = phenomena, selection = selection)
         if (source == PlanarDeckSource.PHYSICAL) return fresh
         var deck = cards.distinctBy { it.id }
         if (deck.none { !it.phenomenon }) return fresh.copy(deck = deck)
@@ -121,10 +122,11 @@ data class Planechase(
     fun newTurn(): Planechase = if (rolls.isEmpty()) this else copy(rolls = emptyMap())
 
     /** Back to the lobby: the table keeps its choices, the cards go back in the box. */
-    fun cleared(): Planechase = Planechase(enabled = enabled, source = source, phenomena = phenomena)
+    fun cleared(): Planechase = Planechase(enabled = enabled, source = source, phenomena = phenomena, selection = selection)
 
     /** Saved with the local game, so a closed app resumes the same deck. */
     fun toJson(): JSONObject = JSONObject().apply {
+        put("selection", selection.toJson())
         put("enabled", enabled)
         put("source", source.wireValue)
         put("phenomena", phenomena)
@@ -149,6 +151,7 @@ data class Planechase(
             val counters = json.getJSONObject("counters")
             val rolls = json.getJSONObject("rolls")
             return Planechase(
+                selection = json.optJSONObject("selection")?.let(PlanarSelection::fromJson) ?: PlanarSelection(),
                 enabled = json.getBoolean("enabled"),
                 source = PlanarDeckSource.fromWire(json.getString("source")) ?: error("Unsupported planar deck source"),
                 phenomena = json.getBoolean("phenomena"),

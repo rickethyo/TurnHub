@@ -1015,3 +1015,12 @@ Atlas compared with the last recorded build: -10,424 B static RAM /
 ASan/UBSan; the adapter audit, client contract, tokens, portal, manual export,
 sync and documentation checks passed. Board-less builds are compile targets
 only, not hardware acceptance.
+
+### 2026-10-15 / Android planar library selection
+
+Phone-hosted Planechase gains release membership, saved pool snapshots and
+custom deck browsing. No firmware version, protocol or runtime dependency
+change. Local preview build 11 APK: 16,605,945 bytes (debug, unshrunk; not a
+release-download or installed-size estimate). Decoded planar art retains at
+most 12 cached images while browsing; persisted catalogue and image cache
+remain on the phone.

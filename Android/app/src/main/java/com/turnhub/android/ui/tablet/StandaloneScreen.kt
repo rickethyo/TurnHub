@@ -35,6 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.data.TabletState
 import com.turnhub.android.domain.TableClock
@@ -251,7 +252,7 @@ fun StandaloneLobby(
             zeroLife = table::setZeroLifeElimination,
             houseRules = table::setHouseRules,
             chooseStarter = { table.chooseStarter(it.playerNumber - 1) },
-            start = { table.start(); onStarted() },
+            start = { table.start(); if (table.state.value.game.state == TableState.RUNNING) onStarted() },
             background = { editingLocalId = game.players.getOrNull(it.playerNumber - 1)?.localId },
             canEditBackground = { player -> game.players.getOrNull(player.playerNumber - 1)?.localId in state.library.players.map { it.localId } },
         ),
@@ -272,8 +273,10 @@ fun StandaloneLobby(
                 SetupSwitch("Planechase",
                     if (!planar.enabled) "Plane cards and the planar die join the game."
                     else if (!digital) "With your own plane cards."
-                    else listOfNotNull("With the digital planar deck.", planesDownloadNote()).joinToString(" "),
+                    else listOfNotNull("Digital deck: ${planar.selection.name}.", planesDownloadNote()).joinToString(" "),
                     planar.enabled, true, table::setPlanechase)
+                if (planar.enabled && digital && !planar.selection.available(PlaneLibrary.pool(LocalContext.current)))
+                    Text("Selected cards aren't downloaded. Open Planes to refresh the library or choose another deck.", color = palette.bad)
                 if (planar.enabled && onOpenPlanes != null) ToneButton("Planar deck and rules", onOpenPlanes, Modifier.fillMaxWidth())
             }
         },

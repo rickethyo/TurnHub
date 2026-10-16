@@ -233,18 +233,42 @@ class StandaloneTable(
         life?.let { next = next.setStartingLife(it) }
         next
     }
-    fun start() = edit { it.start(wallClock(), newId(), planarDeck = planarDeck(it)) }
+    fun start() = edit { if (planarSelectionReady(it)) it.start(wallClock(), newId(), planarDeck = planarDeck(it)) else it }
 
     // --- Planechase -----------------------------------------------------------------
 
     /** A freshly shuffled digital deck for [game]; empty with physical cards or nothing downloaded. */
     private fun planarDeck(game: StandaloneGame): List<PlanarCard> =
         if (!game.planechase.enabled || game.planechase.source != PlanarDeckSource.DIGITAL) emptyList()
-        else Planechase.shuffledDeck(planarPool(), game.players.size, game.planechase.phenomena, planarRandom)
+        else Planechase.shuffledDeck(game.planechase.selection.pool(planarPool()), game.players.size, game.planechase.phenomena, planarRandom)
+
+    private fun planarSelectionReady(game: StandaloneGame): Boolean = !game.planechase.enabled ||
+        game.planechase.source == PlanarDeckSource.PHYSICAL || game.planechase.selection.available(planarPool())
+
+    fun setPlanarSelection(selection: PlanarSelection): Boolean {
+        val before = _state.value
+        if (before.game.state != TableState.LOBBY || !selection.valid() || !selection.available(planarPool())) return false
+        return publish(before.copy(game = before.game.setPlanarSelection(selection)))
+    }
+
+    fun savePlanarDeck(selection: PlanarSelection): Boolean {
+        val before = _state.value
+        if (before.game.state != TableState.LOBBY || selection.cardIds == null || !selection.valid() ||
+            !selection.available(planarPool())) return false
+        val decks = before.library.planarDecks.filterNot { it.name == selection.name } + selection
+        if (decks.size > 20) return false
+        return publish(before.copy(game = before.game.setPlanarSelection(selection), library = before.library.copy(planarDecks = decks)))
+    }
+
+    fun deletePlanarDeck(name: String): Boolean {
+        val before = _state.value
+        if (before.game.state != TableState.LOBBY) return false
+        return publish(before.copy(library = before.library.copy(planarDecks = before.library.planarDecks.filterNot { it.name == name })))
+    }
 
     fun setPlanechase(on: Boolean) = edit { it.setPlanechase(on) }
     /** A digital game that started before the planes were downloaded switches to TurnHub's deck. */
-    fun dealPlanarDeck() = edit { it.dealPlanarDeck(Planechase.shuffledDeck(planarPool(), it.players.size, it.planechase.phenomena, planarRandom)) }
+    fun dealPlanarDeck() = edit { if (planarSelectionReady(it)) it.dealPlanarDeck(planarDeck(it)) else it }
     fun setPlanarSource(source: PlanarDeckSource) = edit { it.setPlanarSource(source) }
     fun setPlanarPhenomena(on: Boolean) = edit { it.setPlanarPhenomena(on) }
 
@@ -340,8 +364,8 @@ class StandaloneTable(
                 "monarch" -> game.claimMonarch(index)
                 "win" -> game.claimWin(index, now)
                 "draw" -> game.endWithoutWinner(now)
-                "rematch" -> game.rematch(now, newId(), planarDeck = planarDeck(game))
-                "sean-mode" -> game.seanModeRematch(now, newId(), planarDeck = planarDeck(game))
+                "rematch" -> if (planarSelectionReady(game)) game.rematch(now, newId(), planarDeck = planarDeck(game)) else game
+                "sean-mode" -> if (planarSelectionReady(game)) game.seanModeRematch(now, newId(), planarDeck = planarDeck(game)) else game
                 "reset" -> game.reset()
                 "back-to-setup" -> game.backToSetup(now)
                 else -> game

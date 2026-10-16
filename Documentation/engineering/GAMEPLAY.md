@@ -182,9 +182,20 @@ the spec every engine runs.
   switch sits with the other game options on the app's Game tab, which links
   to the deck options in the Planes tab). Planechase can use **Digital deck**
   or **Physical cards**.
-  - The digital deck is the single shared planar deck option (901.15). It has
-    every downloaded plane, plus up to two phenomena per player when
-    phenomena are on.
+  - The digital deck is the single shared planar deck option (901.15). Choose
+    All planes, a release collection (including Planechase Anthology), or a
+    named custom deck. The chosen pool contributes every selected plane and
+    up to two selected phenomena per player when phenomena are on.
+  - Browse & build searches names, types and rules text; collection and
+    selected-only filters narrow the list. Checkboxes and Add/Remove shown
+    build a pool; Preview shows art, rules and Previous/Next card controls.
+    Save & use deck keeps up to 20 named presets locally; saving the same name
+    replaces that preset. Delete removes only the preset, preserving the
+    current copied choice. At least one known plane is required; small decks
+    are supported for casual play, without certifying tournament legality.
+    Choices are lobby-only. Missing selected cards block start/rematch until
+    the library is refreshed or the pool changed; an All planes game can
+    still start without downloads using physical cards.
   - With physical cards, the players turn over their own planes and TurnHub
     keeps no deck. A digital game started before any planes were downloaded
     plays the same way until the planes arrive; then the Planes tab offers
@@ -212,13 +223,25 @@ the spec every engine runs.
 - **Pause.** Rolls and deck moves wait while paused; counter corrections
   don't.
 - **Persistence.** The whole planar state is saved with the local game (the
-  `planechase` object).
+  `planechase` object), including the selection snapshot. Saved presets live
+  in LocalLibrary (`planarDecks`); deleting or replacing a preset cannot
+  change a running deck. Start, rematch and late dealing use the copied pool.
 - **Card data.** Names, rules text and `art_crop` art come from Scryfall,
   downloaded on the phone the first time Planechase is on with the digital
-  deck, from Game setup or the Planes tab (`ScryfallPlanes`). The cards are
+  deck, from Game setup or the Planes tab (`ScryfallPlanes`). All paper printings
+  are downloaded to merge release membership into one entry per card name;
+  refresh preserves cached representative IDs and art so saved choices remain
+  valid. Older catalogues remain playable; Refresh library loads collections.
+  Failed/incomplete downloads preserve the catalogue. The cards are
   saved in app files, the art in the app cache, and nothing is bundled. Each
   plane credits its artist, and the tab carries the Fan Content Policy
   notice.
+
+The standalone domain owns choices and validates `setPlanarSelection` and
+save/delete preset requests; PreferencesStandaloneStore saves game and library
+together. Compose renders labeled selectors, checkboxes and text/art previews.
+Atlas state and contracts are unchanged. This uses the existing Scryfall client
+and caching, with no new dependency; browsing can download uncached preview art.
 
 ## Turns
 
