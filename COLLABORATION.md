@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Active | Codex / preview, prefill implementation and validation |
+| TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
 | TH-021 | Shared table authority design | Android, hosting design | UI integrated; common engine/authority staged | Owner / design implementation and device acceptance |
@@ -103,10 +103,17 @@ Append replies under the same topic with date, author and reviewed SHA. Record a
   tests, including corrected update masks with required item-kind definitions.
   Six Android regressions cover URL encoding/field injection, installed-build
   values, phone/tablet boundary, missing metadata and local/connected context.
-  Android SDK/Gradle are absent locally; Android JVM/build validation runs in
-  this slice's PR CI. Native device/browser-prefill and attachment acceptance
-  remain owner checks; no synthetic report will be submitted.
-- Implementation commit and PR: pending; no release or merge is authorized.
+  [CI on `28c4d16`](https://github.com/rickethyo/TurnHub/actions/runs/38853372433)
+  passed the full Android JVM suite and release bundle compilation, together
+  with the relevant documentation/design/adapter guards. Native device/browser
+  prefill and attachment acceptance remain owner checks; no synthetic report
+  was submitted. The local workspace has no Android SDK; no local Android
+  build or device test is claimed.
+- Implementation: `28c4d16`, [PR #124](https://github.com/rickethyo/TurnHub/pull/124).
+  This handoff-only documentation follow-up does not change tested app code.
+  Next owner: review and install a new app build to check Google sign-in,
+  displayed prefilled values (including a tablet/foldable), field edits and
+  attachment submission. No release or merge was authorized.
 
 ## TH-023: Atlas parity with the standalone app
 

@@ -1,6 +1,6 @@
 # TurnHub Privacy Policy
 
-Effective 15 October 2026. This policy covers the TurnHub Android app
+Effective 16 October 2026. This policy covers the TurnHub Android app
 (`com.turnhub.android`) and the TurnHub table hardware it controls.
 
 ## The short version
