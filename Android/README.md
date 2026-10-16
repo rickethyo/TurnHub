@@ -27,7 +27,10 @@ suggests card names as they type, and they can pick which printing's art); the
 name shows under theirs, on their commander-tax counter and in others' Commander
 damage, and its Scryfall art crop (credited to the artist,
 cached in `commander_art/`, off via Settings > Commander card art) fills their
-tile. When the device game is a Magic format, its setup has a Planechase
+tile. In the other Magic formats the same picker chooses a tile card that is
+never called a commander, and in every Magic format **Random card** draws one
+from Scryfall; a random card is tile art only, so Commander menus don't name it.
+When the device game is a Magic format, its setup has a Planechase
 switch and a Planes tab runs Planechase. Choose all planes, a release collection
 (including Anthology), or browse cards and save a named custom deck. Search,
 collection and selected-only filters, checkboxes, and Previous/Next previews

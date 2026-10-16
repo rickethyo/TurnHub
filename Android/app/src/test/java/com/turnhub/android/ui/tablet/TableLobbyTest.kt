@@ -19,4 +19,21 @@ class TableLobbyTest {
         assertEquals(GameMode.entries, GameMode.availableFor(GameProfile.MTG_STAR_COMMANDER))
         assertEquals("Standard", FORMATS.single { it.profile == GameProfile.MTG }.label)
     }
+
+    @Test fun `tile cards show in every magic format but are named as commanders only in commander`() {
+        val lobby = com.turnhub.android.standalone.StandaloneGame().setFormat(GameProfile.MTG_COMMANDER)
+            .addPlayer("A").addPlayer("B").addPlayer("C").addPlayer("D").setCommander(0, "Atraxa")
+        assertEquals("Atraxa", lobby.toSummary(0, 0).players[0].namedCommander)
+        val teams = lobby.setFormat(GameProfile.MTG).setTwoHeadedGiant(true).toSummary(0, 0).players[0]
+        assertEquals("Atraxa", teams.commander)
+        assertEquals(null, teams.namedCommander)
+        assertEquals(null, lobby.setFormat(GameProfile.YUGIOH).toSummary(0, 0).players[0].commander)
+
+        // A random card in Commander is only tile art, and survives saving as such.
+        val random = lobby.setCommander(1, "Llanowar Elves", cardOnly = true)
+        val restored = com.turnhub.android.standalone.StandaloneTable.gameFromJson(
+            com.turnhub.android.standalone.StandaloneTable.gameToJson(random)).toSummary(0, 0).players[1]
+        assertEquals("Llanowar Elves", restored.commander)
+        assertEquals(null, restored.namedCommander)
+    }
 }

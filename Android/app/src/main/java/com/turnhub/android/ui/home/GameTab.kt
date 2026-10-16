@@ -190,8 +190,8 @@ fun GameTab(
                     MagicCountersEditor(me.counters, summary.initiativePlayerNumber == me.playerNumber,
                         summary.settings.profile.commanderRules,
                         enabled = !me.eliminated && uiState.player?.busy != true && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null,
-                        commanderName = me.commander,
-                        commanderRarity = com.turnhub.android.ui.tablet.rememberCommanderArt(me.commander, me.commanderArt)?.rarity,
+                        commanderName = me.namedCommander,
+                        commanderRarity = com.turnhub.android.ui.tablet.rememberCommanderArt(me.namedCommander, me.commanderArt)?.rarity,
                         onChange = actions.onPlayerCounter)
                 }
             }
@@ -453,7 +453,7 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
             if (summary.settings.profile.magicRules) {
                 CounterChips(me.counters, summary.initiativePlayerNumber == me.playerNumber,
                     summary.settings.profile.commanderRules, summary.settings.poisonLimit,
-                    commanderRarity = com.turnhub.android.ui.tablet.rememberCommanderArt(me.commander, me.commanderArt)?.rarity)
+                    commanderRarity = com.turnhub.android.ui.tablet.rememberCommanderArt(me.namedCommander, me.commanderArt)?.rarity)
             }
         }
         panel?.feedback?.let { feedback ->

@@ -96,6 +96,22 @@ class ScryfallCommanderArt(
         }
     }
 
+    /** A random paper card's name and printing for a tile; null offline. Nothing the player typed is sent. */
+    suspend fun random(): Pair<String, String>? = withContext(ioDispatcher) {
+        gate.withLock {
+            val found = runCatching {
+                val query = "game:paper -type:token"
+                val card = JSONObject(http.fetch("$baseUrl/cards/random?q=" + URLEncoder.encode(query, "UTF-8"), MAX_JSON_BYTES)
+                    .toString(Charsets.UTF_8))
+                val id = card.optString("id")
+                val name = card.optString("name")
+                if (name.isBlank() || !id.matches(PRINTING_ID) || frontFace(card) == null) null else name to id
+            }.getOrNull()
+            delay(ScryfallHttp.REQUEST_SPACING_MS)
+            found
+        }
+    }
+
     /** A printing's art crop for the picker, cached like tile art; null offline. */
     suspend fun preview(printing: CommanderPrinting): ByteArray? = withContext(ioDispatcher) {
         val file = File(cacheDir, cacheKey("preview#${printing.id}") + ".jpg")

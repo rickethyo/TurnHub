@@ -54,8 +54,11 @@ internal data class TableLobbyActions(
     /** House rules for official modes; null hides the choice. */
     val houseRules: ((Boolean) -> Unit)? = null,
     val timerRules: ((com.turnhub.android.domain.LocalTimerRules) -> Unit)? = null,
-    /** Names a player's commander in Commander modes (optional); null hides it. */
-    val commander: ((TablePlayer, String?, String?) -> Unit)? = null,
+    /**
+     * Picks a player's tile card in Magic formats, named as their commander in Commander modes
+     * unless `cardOnly` (optional); null hides it.
+     */
+    val commander: ((player: TablePlayer, name: String?, printing: String?, cardOnly: Boolean) -> Unit)? = null,
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -124,7 +127,8 @@ internal fun TableLobby(
                 }, color = p.muted, style = MaterialTheme.typography.bodySmall)
                 var namingCommander by rememberSaveable { mutableStateOf<Int?>(null) }
                 players.firstOrNull { it.playerNumber == namingCommander }?.let { player ->
-                    actions.commander?.let { save -> CommanderPickerDialog(player, { name, art -> save(player, name, art); namingCommander = null }) { namingCommander = null } }
+                    actions.commander?.let { save -> CommanderPickerDialog(player, settings.profile.commanderRules,
+                        { name, art, cardOnly -> save(player, name, art, cardOnly); namingCommander = null }) { namingCommander = null } }
                 }
                 players.forEach { player ->
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -135,7 +139,7 @@ internal fun TableLobby(
                             }
                             Column(Modifier.weight(1f)) {
                                 Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge)
-                                player.commander?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
+                                player.namedCommander?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
                                 rememberCommanderArt(player.commander, player.commanderArt)?.let { art ->
                                     Text("${art.cardName} · Art: ${art.artist} (Scryfall)", color = p.faint, style = MaterialTheme.typography.labelSmall)
                                 }
@@ -155,10 +159,18 @@ internal fun TableLobby(
                                         contentDescription = if (first) "${player.label} goes first. Tap to clear" else "Make ${player.label} go first"
                                     })
                             }
-                            if (settings.profile.commanderRules && actions.commander != null) {
+                            if (settings.profile.magicRules && actions.commander != null) {
+                                val commanderRules = settings.profile.commanderRules
                                 TextButton(onClick = { namingCommander = player.playerNumber }, enabled = enabled,
-                                    modifier = Modifier.semantics { contentDescription = "Name ${player.label}'s commander and pick its card art" }) {
-                                    Text(if (player.commander == null) "Name commander" else "Change commander")
+                                    modifier = Modifier.semantics {
+                                        contentDescription = if (commanderRules) "Name ${player.label}'s commander or pick a card for their tile"
+                                        else "Pick a card for ${player.label}'s tile"
+                                    }) {
+                                    Text(when {
+                                        player.commander == null -> if (commanderRules) "Name commander" else "Choose tile card"
+                                        player.namedCommander != null -> "Change commander"
+                                        else -> "Change tile card"
+                                    })
                                 }
                             }
                             actions.background?.takeIf { actions.canEditBackground(player) }?.let { edit ->

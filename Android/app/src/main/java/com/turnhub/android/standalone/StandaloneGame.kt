@@ -47,6 +47,8 @@ data class LocalPlayer(
     val commander: String? = null,
     /** The Scryfall printing whose art [commander] shows; null uses Scryfall's default printing. */
     val commanderArt: String? = null,
+    /** [commander] is a card for the tile only (picked outside Commander, or at random), not a commander. */
+    val cardOnly: Boolean = false,
     /** Pokémon and Lorcana: this turn's once-per-turn actions; Pokémon's Special Conditions. */
     val turn: TurnStatus = TurnStatus(),
 )
@@ -294,7 +296,7 @@ data class StandaloneGame(
             gameId = gameId,
             state = TableState.RUNNING,
             // Lorcana counts lore up from 0 to [startingLife].
-            players = players.map { LocalPlayer(it.name, it.profileId, life = if (lorcana) 0 else startingLife, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt) },
+            players = players.map { LocalPlayer(it.name, it.profileId, life = if (lorcana) 0 else startingLife, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt, cardOnly = it.cardOnly) },
             active = first,
             starter = first,
             winner = null,
@@ -327,7 +329,7 @@ data class StandaloneGame(
             twoHeadedGiant = twoHeadedGiant,
             houseRules = houseRules,
             planechase = planechase.cleared(),
-            players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt) },
+            players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt, cardOnly = it.cardOnly) },
             revision = revision + 1,
         )
     }
@@ -704,13 +706,17 @@ data class StandaloneGame(
         return if (next === planechase) this else copy(planechase = next).bump()
     }
 
-    /** Names (or clears, when blank) the commander [index] is playing, with the printing whose art it shows. */
-    fun setCommander(index: Int, name: String?, art: String? = null): StandaloneGame {
+    /**
+     * Names (or clears, when blank) the commander [index] is playing, with the printing whose
+     * art it shows; with [cardOnly], the card is only their tile's art and is never named as a commander.
+     */
+    fun setCommander(index: Int, name: String?, art: String? = null, cardOnly: Boolean = false): StandaloneGame {
         if (index !in players.indices) return this
         val clean = name?.trim()?.take(MAX_COMMANDER)?.takeIf { it.isNotEmpty() }
         val printing = art?.takeIf { clean != null && it.matches(PRINTING_ID) }
-        if (players[index].commander == clean && players[index].commanderArt == printing) return this
-        return update(index) { it.copy(commander = clean, commanderArt = printing) }
+        val only = cardOnly && clean != null
+        if (players[index].commander == clean && players[index].commanderArt == printing && players[index].cardOnly == only) return this
+        return update(index) { it.copy(commander = clean, commanderArt = printing, cardOnly = only) }
     }
 
     private fun finish(winners: List<Int>, nowMs: Long): StandaloneGame = copy(
@@ -843,8 +849,11 @@ data class StandaloneGame(
                     counters = p.counters,
                     demerits = p.demerits,
                     extensionsAvailable = p.extensionsEarned - p.extensionsUsed,
-                    commander = p.commander,
-                    commanderArt = p.commanderArt,
+                    // Every Magic format can show a card on the tile; only Commander formats call
+                    // it a commander, and never a card picked only for its art.
+                    commander = p.commander.takeIf { profile.magicRules },
+                    commanderArt = p.commanderArt.takeIf { profile.magicRules },
+                    cardOnly = p.cardOnly || !profile.commanderRules,
                     turn = p.turn,
                     life = if (state == TableState.LOBBY) null else p.life,
                     turnsCompleted = p.turnsCompleted.toLong(),

@@ -387,7 +387,7 @@ class StandaloneTable(
         edit { it.commanderDamage(StandaloneGame.indexOf(seat.moduleId), source - 1, commander, delta, wallClock()) }
 
     // A standalone game has no phones asking for life changes, and is never offline.
-    fun setCommander(index: Int, name: String?, art: String? = null) { edit { it.setCommander(index, name, art) } }
+    fun setCommander(index: Int, name: String?, art: String? = null, cardOnly: Boolean = false) { edit { it.setCommander(index, name, art, cardOnly) } }
     fun setZeroLifeElimination(enabled: Boolean) { edit { it.setAutoEliminateAtZeroLife(enabled, wallClock()) } }
 
     override suspend fun counter(seat: TabletSeat, kind: String, value: Int, commander: Int) =
@@ -515,6 +515,7 @@ class StandaloneTable(
                         put("longestTurnMs", p.longestTurnMs)
                         put("commander", p.commander ?: JSONObject.NULL)
                         put("commanderArt", p.commanderArt ?: JSONObject.NULL)
+                        put("cardOnly", p.cardOnly)
                         put("turn", JSONObject()
                             .put("actions", JSONArray(p.turn.turnActions.map { it.name }))
                             .put("conditions", JSONArray(p.turn.conditions.map { it.name })))
@@ -585,6 +586,7 @@ class StandaloneTable(
                         longestTurnMs = p.optLong("longestTurnMs"),
                         commander = p.optStringOrNull("commander"),
                         commanderArt = p.optStringOrNull("commanderArt")?.takeIf { it.matches(StandaloneGame.PRINTING_ID) },
+                        cardOnly = p.optBoolean("cardOnly"),
                         // Pokémon games saved before Lorcana kept this under "pokemon".
                         turn = (p.optJSONObject("turn") ?: p.optJSONObject("pokemon"))?.let { pk ->
                             fun <E : Enum<E>> names(key: String, values: List<E>): Set<E> = pk.optJSONArray(key)?.let { a ->

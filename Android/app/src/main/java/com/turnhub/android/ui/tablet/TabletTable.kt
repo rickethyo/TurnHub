@@ -682,7 +682,7 @@ private fun PlayerPanel(
     val (small, big) = lifeSteps(summary.settings.profile)
     val name = unit.name
     // The commanders a team or player named, shown under the name.
-    val commanders = unit.members.mapNotNull { it.commander }.takeIf { it.isNotEmpty() }?.joinToString(" & ")
+    val commanders = unit.members.mapNotNull { it.namedCommander }.takeIf { it.isNotEmpty() }?.joinToString(" & ")
     // The active panel's edge breathes slowly; steady when motion is reduced. The value is
     // read only while drawing, so the pulse redraws the edge without recomposing the panel.
     val glow = if (active && !reduceMotion) {
@@ -809,7 +809,7 @@ private fun PlayerPanel(
                 unit.members.forEach { member ->
                     CounterChips(member.counters, summary.initiativePlayerNumber == member.playerNumber,
                         summary.settings.profile.commanderRules, summary.settings.poisonLimit,
-                        Modifier.padding(top = 4.dp), compact = true, commanderRarity = rememberCommanderArt(member.commander, member.commanderArt)?.rarity)
+                        Modifier.padding(top = 4.dp), compact = true, commanderRarity = rememberCommanderArt(member.namedCommander, member.commanderArt)?.rarity)
                 }
             }
         }
@@ -1231,7 +1231,7 @@ private fun PlayerMenuItems(
                 if (team) Text("${member.label} counters and status", color = p.text)
                 MagicCountersEditor(member.counters, summary.initiativePlayerNumber == member.playerNumber,
                     summary.settings.profile.commanderRules, showPoison = !team, commanderName = member.commander,
-                    commanderRarity = rememberCommanderArt(member.commander, member.commanderArt)?.rarity,
+                    commanderRarity = rememberCommanderArt(member.namedCommander, member.commanderArt)?.rarity,
                     partnerEnabled = member.playerNumber in partners,
                     onPartnerChange = { on -> if (on) partners.add(member.playerNumber) else partners.remove(member.playerNumber) }) { kind, value, commander -> onCounter(member, kind, value, commander) }
                 ToneButton(
@@ -1269,7 +1269,7 @@ private fun PlayerMenuItems(
                         val value = valueOf(c)
                         // A named commander says whose damage it is; a partner shows as (2).
                         val label = source.label + when {
-                            source.commander != null && c == 1 -> " · ${source.commander}"
+                            source.namedCommander != null && c == 1 -> " · ${source.namedCommander}"
                             commanders.size > 1 -> " ($c)"
                             else -> ""
                         }
