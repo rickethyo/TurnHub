@@ -178,6 +178,18 @@ UI/background changes are integrated through PR #106. The [authority design](Doc
   Documentation hygiene and `git diff --check` pass. No app tests or physical
   acceptance run for this documentation-only change. Next owner: review the
   plan, then select the Android build and perform the recorded acceptance work.
+- 2026-10-16 / Codex follow-up: owner also requests a general refresh and
+  removal of completed, unnecessary or minor backlog entries. Same branch;
+  follow-up baseline `accf846`. Audit STAGED_CHANGES.md against current Android,
+  gameplay/accounts references and S3 hardware scope. Consolidate acceptance
+  checks, remove completed implementation narratives and obsolete Gen 1 work,
+  and retain substantive unresolved features and device evidence requirements.
+  Result: consolidated Android acceptance and controller/hardware work; removed
+  obsolete branch/version narratives, completed local editing/background/deck
+  work and legacy-only checks. Preserved unresolved statistics, storage,
+  authority, parity and physical acceptance requirements. Documentation hygiene
+  and whitespace checks pass; no app/firmware behavior changed or device checks
+  claimed. This follows the same reviewable Android/iOS planning slice.
 
 - Date / owner: 2026-10-13 / Codex on `codex/master`; accepted baseline
   `9fa32bbd83824c2905b6be31524125b2e6239030`. Clean checkout, fetched master
