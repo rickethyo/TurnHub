@@ -468,3 +468,9 @@ its recorded total. This disclosure also exposes partner damage rows and is
 retained across closing/reopening the menu. Existing nonzero received partner
 damage remains visible for corrections. Cast rows and tax chips use an original
 commander-card icon; set/rarity symbols are not extracted for UI artwork.
+The named commander's selected printing supplies its rarity colour (common grey,
+uncommon silver, rare gold, mythic orange), with theme-specific contrasting
+colours. Known rarity is also spoken by accessibility labels. Unknown rarity and
+unnamed partner icons use neutral ink. The existing Commander card art preference
+controls metadata lookup; old cached art refreshes metadata once and retains its
+image, with offline fallback to neutral until rarity is available.

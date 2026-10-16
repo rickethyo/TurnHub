@@ -82,6 +82,7 @@ fun CounterChips(
     poisonLimit: Int,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
+    commanderRarity: String? = null,
 ) {
     val chips = counterChips(counters, initiative, commander, poisonLimit)
     if (chips.isEmpty()) return
@@ -101,12 +102,12 @@ fun CounterChips(
                     .border(1.dp, color.copy(alpha = .35f), shape)
                     .padding(horizontal = if (compact) 7.dp else 10.dp, vertical = if (compact) 3.dp else 6.dp)
                     .semantics(mergeDescendants = true) {
-                        contentDescription = chip.label + (chip.value?.let { " $it" } ?: "")
+                        contentDescription = chip.label + (chip.value?.let { " $it" } ?: "") + if (chip.icon != null && commanderRarity != null && chip.label == "Commander 1 tax") ", $commanderRarity" else ""
                     },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                if (chip.icon != null) Icon(painterResource(chip.icon), contentDescription = null, tint = color, modifier = Modifier.size(if (compact) 16.dp else 22.dp))
+                if (chip.icon != null) Icon(painterResource(chip.icon), contentDescription = null, tint = commanderIconColor(commanderRarity.takeIf { chip.label == "Commander 1 tax" }), modifier = Modifier.size(if (compact) 16.dp else 22.dp))
                 else Text(chip.glyph, color = color, style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleMedium)
                 chip.value?.let {
                     Text(it, color = color, style = (if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleMedium)
@@ -126,6 +127,7 @@ fun MagicCountersEditor(counters: PlayerCounters, initiative: Boolean, commander
     showPoison: Boolean = true,
     /** The commander the player named, used in place of "Commander 1". */
     commanderName: String? = null,
+    commanderRarity: String? = null,
     partnerEnabled: Boolean? = null,
     onPartnerChange: ((Boolean) -> Unit)? = null,
     onChange: (kind: String, value: Int, commander: Int) -> Unit,
@@ -151,7 +153,7 @@ fun MagicCountersEditor(counters: PlayerCounters, initiative: Boolean, commander
             Text("Casts from the command zone", color = palette.muted, style = MaterialTheme.typography.labelLarge)
             for (c in 1..if (partner) 2 else 1) {
                 val which = if (c == 1 && commanderName != null) commanderName else "Commander $c"
-                CounterRow("$which casts · next tax +${counters.commanderTax(c)}", counters.commanderCasts[c-1], enabled, icon = DesignTokens.Icons.commander) {
+                CounterRow("$which casts · next tax +${counters.commanderTax(c)}", counters.commanderCasts[c-1], enabled, icon = DesignTokens.Icons.commander, iconRarity = commanderRarity.takeIf { c == 1 }) {
                     onChange("commander-casts", it, c)
                 }
             }
@@ -167,7 +169,7 @@ fun TeamPoisonRow(poison: Int, enabled: Boolean, onChange: (Int) -> Unit) =
     CounterRow("Team poison", poison, enabled, "☠", Tone.WARN, onDelta = onChange)
 
 @Composable
-private fun CounterRow(label: String, value: Int, enabled: Boolean, glyph: String = "", tone: Tone = Tone.NEUTRAL, icon: Int? = null, onDelta: (Int) -> Unit) {
+private fun CounterRow(label: String, value: Int, enabled: Boolean, glyph: String = "", tone: Tone = Tone.NEUTRAL, icon: Int? = null, iconRarity: String? = null, onDelta: (Int) -> Unit) {
     val p = palette
     val color = if (tone == Tone.NEUTRAL) p.text else toneColor(tone)
     Row(
@@ -179,7 +181,7 @@ private fun CounterRow(label: String, value: Int, enabled: Boolean, glyph: Strin
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (icon != null) Icon(painterResource(icon), contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
+        if (icon != null) Icon(painterResource(icon), contentDescription = iconRarity?.let { "$it rarity" }, tint = commanderIconColor(iconRarity), modifier = Modifier.size(22.dp))
         else if (glyph.isNotEmpty()) Text(glyph, color = color, style = MaterialTheme.typography.titleMedium)
         Text(label, color = p.text, modifier = Modifier.weight(1f))
         StepButton("−", "Subtract one $label", enabled && value > 0) { onDelta(-1) }
@@ -240,4 +242,14 @@ private fun RuleToggle(label: String, field: String, checked: Boolean, enabled: 
         Text("Eliminate at $label", color = palette.text, modifier = Modifier.weight(1f))
         Switch(checked, onCheckedChange = null, enabled = enabled)
     }
+}
+
+/** Rarity colours apply only to original artwork; unknown values use normal ink. */
+@Composable
+private fun commanderIconColor(rarity: String?) = when (rarity) {
+    "common" -> palette.rarityCommon
+    "uncommon" -> palette.rarityUncommon
+    "rare" -> palette.rarityRare
+    "mythic" -> palette.rarityMythic
+    else -> palette.text
 }

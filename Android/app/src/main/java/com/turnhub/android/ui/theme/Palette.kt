@@ -41,6 +41,10 @@ enum class TurnHubThemeChoice(val key: String, val label: String, val blurb: Str
 @Immutable
 data class TurnHubPalette(
     val dark: Boolean,
+    val rarityCommon: Color,
+    val rarityUncommon: Color,
+    val rarityRare: Color,
+    val rarityMythic: Color,
     val bg: Color,
     val glowA: Color,
     val glowB: Color,
@@ -98,6 +102,8 @@ data class TurnHubPalette(
             val contrast = theme == TokenTheme.CONTRAST
             return TurnHubPalette(
                 dark = theme.dark,
+                rarityCommon = c.rarityCommon, rarityUncommon = c.rarityUncommon,
+                rarityRare = c.rarityRare, rarityMythic = c.rarityMythic,
                 bg = c.bg, glowA = c.glowA, glowB = c.glowB,
                 surface = c.surface1, surface2 = c.surface2, surface3 = c.surface3,
                 inset = if (theme.dark) c.bg else c.surface2,

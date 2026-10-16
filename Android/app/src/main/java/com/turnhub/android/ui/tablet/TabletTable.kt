@@ -770,7 +770,7 @@ private fun PlayerPanel(
                 unit.members.forEach { member ->
                     CounterChips(member.counters, summary.initiativePlayerNumber == member.playerNumber,
                         summary.settings.profile.commanderRules, summary.settings.poisonLimit,
-                        Modifier.padding(top = 4.dp), compact = true)
+                        Modifier.padding(top = 4.dp), compact = true, commanderRarity = rememberCommanderArt(member.commander, member.commanderArt)?.rarity)
                 }
             }
         }
@@ -1154,6 +1154,7 @@ private fun PlayerMenuItems(
                 if (team) Text("${member.label} counters and status", color = p.text)
                 MagicCountersEditor(member.counters, summary.initiativePlayerNumber == member.playerNumber,
                     summary.settings.profile.commanderRules, showPoison = !team, commanderName = member.commander,
+                    commanderRarity = rememberCommanderArt(member.commander, member.commanderArt)?.rarity,
                     partnerEnabled = member.playerNumber in partners,
                     onPartnerChange = { on -> if (on) partners.add(member.playerNumber) else partners.remove(member.playerNumber) }) { kind, value, commander -> onCounter(member, kind, value, commander) }
                 ToneButton(

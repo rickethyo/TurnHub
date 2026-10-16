@@ -503,7 +503,7 @@ Players seated by the tablet can still use their own Sigil or phone as well: a S
 
 - The player whose turn it is holds **Pass**. While it says **Passing… tap to keep**, a tap undoes the pass.
 
-- **More on a panel holds Claim the win, Concede and Eliminate (tap again to confirm), and Commander damage received from each opponent, with partner commanders when needed. Turn on Partner commanders beside the cast counters to show Commander 2 casts and partner damage controls. Turning it off hides the second cast row without clearing its total. Tap the middle table control to change Automatic elimination at zero life during play; the paused screen also offers this setting.**
+- **More on a panel holds Claim the win, Concede and Eliminate (tap again to confirm), and Commander damage received from each opponent, with partner commanders when needed. Turn on Partner commanders beside the cast counters to show Commander 2 casts and partner damage controls. Turning it off hides the second cast row without clearing its total. The original commander-card icon uses the named commander printing’s rarity colour: common grey, uncommon silver, rare gold or mythic orange. Unavailable rarity uses the normal text colour; assistive labels include known rarity. Commander card art in Settings also controls its lookup. Tap the middle table control to change Automatic elimination at zero life during play; the paused screen also offers this setting.**
 
 - **Menu** in the middle of the table holds **Pause**, **Turn panels around**, **End without a winner** (a draw) and **Leave tablet mode**. After the game choose **Rematch** or **New players**.
 

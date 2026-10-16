@@ -727,3 +727,30 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   the prior 345-test engine suite remains the last unit-test run.
 - Manual source/export synchronized. DOCX renderer attempted and unavailable
   because LibreOffice is absent; page layout remains unverified.
+
+### 2026-10-15 — Codex: commander rarity colour and phone check
+
+- Owner requests colouring the original commander icon by the named card's
+  rarity. Baseline `e45c562`, same PR #123. Existing Scryfall art metadata/cache
+  owns rarity for the selected printing; no gameplay/protocol state added.
+  Theme tokens own contrasting icon colours; text/TalkBack retain rarity names.
+  Unknown rarity and unnamed partner use neutral ink; art-off makes no requests.
+- Phone check: accidental menu tap hit Koga life (40 to 41); corrected and
+  screenshot confirms 40 again. No passes/turn controls used. New icon and
+  hidden Commander 2 row visually confirmed before rarity follow-up.
+- Implemented rarity from selected-printing metadata into decoded art and both
+  cast rows/tax chips. Shared rarity colour tokens cover four themes and enforce
+  3:1 icon contrast on surface2. Unknown rarity/unnamed partners stay neutral;
+  art-disabled follows the existing no-lookup preference. Older cached images
+  refresh metadata without fetching their image again, and survive offline.
+- Validation: Preview build 13 assemble/lint pass (0 errors, 44 warnings,
+  7 hints); seven commander-art tests pass, including selected rarity/cache
+  reload, old-cache refresh and offline fallback. Tokens, manual export, docs
+  and whitespace checks pass. Manual render attempted, but LibreOffice absent;
+  page layout still unverified. No new third-party dependencies or endpoints.
+- Device: Partner off/on/close/reopen confirmed on Pixel Fold; returned it to
+  off. Preview 13 installed preserving the ongoing game. Screenshot verifies
+  Teferi's Care icon uses its selected printing's silver/uncommon colour and
+  Commander 2 remains hidden. Koga confirmed back at 40 after the accidental
+  +1 was corrected; no pass, timer or other counter actions. App left showing
+  the corrected menu. Captures outside Git in Private/TurnHub-builds/review-356.
