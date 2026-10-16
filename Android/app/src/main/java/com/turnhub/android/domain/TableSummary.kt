@@ -68,6 +68,8 @@ data class TableSummary(
     val shortGameUncounted: Boolean = false,
     val localTimerRules: LocalTimerRules? = null,
     val turnExtensionMs: Long = 0,
+    /** Pokémon (phone-hosted games): what the last Pokémon Checkup did, until the table dismisses it. */
+    val pokemonCheckup: List<String> = emptyList(),
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding
@@ -146,6 +148,8 @@ data class TablePlayer(
     val commander: String? = null,
     /** The Scryfall printing whose art the commander shows; null for Scryfall's default. */
     val commanderArt: String? = null,
+    /** Pokémon (phone-hosted games): this turn's actions and the Active Pokémon's Special Conditions. */
+    val pokemon: PokemonStatus = PokemonStatus(),
 )
 
 /**

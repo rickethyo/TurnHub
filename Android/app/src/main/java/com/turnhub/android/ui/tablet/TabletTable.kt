@@ -156,7 +156,12 @@ internal fun placements(count: Int): Placement {
 
 /** Life steps per tap and per held repeat: Yu-Gi-Oh! counts in hundreds. */
 internal fun lifeSteps(profile: GameProfile): Pair<Int, Int> =
-    if (profile == GameProfile.YUGIOH) 100 to 1000 else 1 to 5
+    when (profile) {
+        GameProfile.YUGIOH -> 100 to 1000
+        // Pokémon counts Prize cards, one at a time.
+        GameProfile.POKEMON -> 1 to 1
+        else -> 1 to 5
+    }
 
 /**
  * Lays the content out for a panel turned by [degrees] (a multiple of 90) and
@@ -336,6 +341,10 @@ internal fun TabletTable(
                         },
                         onBump = { bump(unit, it) },
                         onControl = { seat, action -> send(seat, action) },
+                        onPokemon = { member, kind, value ->
+                            haptics.tick()
+                            controls { counter(member.seat(), kind, value, 1) }
+                        },
                         onRespond = { seat, id, accept ->
                             if (isOffline) controls { refuseOffline() }
                             else controls { this.respondLife(seat, id, accept) }
@@ -490,6 +499,12 @@ internal fun TabletTable(
                 }
             }
             else -> Unit
+        }
+        if (summary.pokemonCheckup.isNotEmpty() && summary.state == TableState.RUNNING && !menuOpen && playerMenu == null) {
+            Overlay("Pokémon Checkup", "Between turns. A card that changes these effects still applies.",
+                onDismiss = { send(anySeat, "checkup-done") }) {
+                PokemonCheckupLines(summary.pokemonCheckup)
+            }
         }
         if (menuOpen && (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) &&
             summary.pending.winClaimPlayer == null && summary.pending.winConfirmationPlayer == null &&
@@ -650,6 +665,8 @@ private fun PlayerPanel(
     onPlanarRoll: (() -> Unit)?,
     onBump: (Int) -> Unit,
     onControl: (TabletSeat, String) -> Unit,
+    /** Pokémon: marks a once-per-turn action or Special Condition (see [PokemonPanelLines]). */
+    onPokemon: (TablePlayer, String, Int) -> Unit,
     onRespond: (TabletSeat, Long, Boolean) -> Unit,
     offlineCommander: (Long, Int, Int) -> Int,
     haptics: TurnHubHaptics,
@@ -707,12 +724,14 @@ private fun PlayerPanel(
         // Short panels (five or six on a phone) put Menu and Hold to pass beside each other in a
         // slim bottom bar, and the number is sized to the room between it and the name.
         val compact = maxHeight < 260.dp
+        val pokemon = summary.settings.profile.pokemon
+        val pokemonHeight = if (pokemon) pokemonPanelHeight(unit, summary, maxWidth < 420.dp) else 0f
         val planarCompact = compact && active && !out && onPlanarRoll != null && maxWidth < 300.dp
-        val between = (maxHeight.value - if (planarCompact) 160f else if (compact) 104f else 120f).coerceAtLeast(24f)
+        val between = (maxHeight.value - pokemonHeight - if (planarCompact) 160f else if (compact) 104f else 120f).coerceAtLeast(24f)
         // Room for the lines under the number, so a short panel shrinks the number instead of
         // squashing those lines to slivers.
         val demerits = unit.members.first().demerits
-        val linesBelow = (if (demerits > 0) 22f else 0f) + (if (summary.star) 22f else 0f) +
+        val linesBelow = (if (demerits > 0) 22f else 0f) + (if (summary.star) 22f else 0f) + (if (pokemon) 20f else 0f) +
             (if (summary.settings.profile.magicRules) unit.members.count { m -> counterChips(m.counters, summary.initiativePlayerNumber == m.playerNumber,
                 summary.settings.profile.commanderRules, summary.settings.poisonLimit).isNotEmpty() } * 30f else 0f) +
             (if (summary.settings.profile.commanderRules && unit.members.any { m -> m.commanderDamage.any { d -> d.damage.any { it > 0 } } }) 26f else 0f)
@@ -721,8 +740,10 @@ private fun PlayerPanel(
             (between - linesBelow) * .8f,
         ).coerceIn(24f, 160f)
         Row(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
-            HoldHalf("−", "$name: subtract $small life", !out, { onBump(-small) }, { onBump(-big) }, Alignment.CenterStart, Modifier.weight(1f).fillMaxHeight())
-            HoldHalf("+", "$name: add $small life", !out, { onBump(small) }, { onBump(big) }, Alignment.CenterEnd, Modifier.weight(1f).fillMaxHeight())
+            HoldHalf("−", if (pokemon) "$name: take a Prize card" else "$name: subtract $small life", !out,
+                { onBump(-small) }, { onBump(-big) }, Alignment.CenterStart, Modifier.weight(1f).fillMaxHeight())
+            HoldHalf("+", if (pokemon) "$name: put a Prize card back" else "$name: add $small life", !out,
+                { onBump(small) }, { onBump(big) }, Alignment.CenterEnd, Modifier.weight(1f).fillMaxHeight())
         }
 
         Row(
@@ -753,10 +774,10 @@ private fun PlayerPanel(
         }
 
         Column(
-            Modifier.align(Alignment.Center).padding(top = 44.dp, bottom = if (compact) 56.dp else 64.dp)
+            Modifier.align(Alignment.Center).padding(top = 44.dp, bottom = (if (compact) 56f else 64f).dp + pokemonHeight.dp)
                 .alpha(if (out) .45f else 1f)
                 .clearAndSetSemantics {
-                    contentDescription = "$name, life $life"
+                    contentDescription = if (pokemon) "$name, $life Prize cards left" else "$name, life $life"
                     liveRegion = LiveRegionMode.Polite
                 },
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -776,6 +797,7 @@ private fun PlayerPanel(
                             .padding(horizontal = 10.dp, vertical = 1.dp))
                 }
             }
+            if (pokemon) Text(if (life == 1) "prize left" else "prizes left", color = p.muted, style = MaterialTheme.typography.labelLarge)
             CommanderSummary(unit, summary, offlineCommander)
             if (demerits > 0) Text("Demerits · $demerits", color = p.text, style = MaterialTheme.typography.labelMedium)
             StarProgressLine(unit, summary, panelWidth)
@@ -786,6 +808,12 @@ private fun PlayerPanel(
                         Modifier.padding(top = 4.dp), compact = true, commanderRarity = rememberCommanderArt(member.commander, member.commanderArt)?.rarity)
                 }
             }
+        }
+
+        if (pokemon && !out) {
+            PokemonPanelLines(unit, summary, onPokemon,
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp)
+                    .padding(bottom = if (compact) 56.dp else 64.dp))
         }
 
         Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
@@ -1210,6 +1238,10 @@ private fun PlayerMenuItems(
             }
         }
     }
+    if (summary.settings.profile.pokemon) {
+        PokemonMenuItems(unit, summary, { member, kind, value -> onCounter(member, kind, value, 1) },
+            { member -> onControl(member.seat(), "win") })
+    }
     if (summary.settings.profile.commanderRules) {
         DisclosureCard("Commander damage") {
             unit.members.filter { !it.eliminated }.forEach { member ->
@@ -1292,7 +1324,7 @@ private fun StepButton(glyph: String, label: String, enabled: Boolean, onClick: 
 
 /** A decisive button: the first tap arms it for three seconds, the second acts. */
 @Composable
-private fun ArmedButton(label: String, armedLabel: String, tone: Tone, onConfirm: () -> Unit) {
+internal fun ArmedButton(label: String, armedLabel: String, tone: Tone, onConfirm: () -> Unit) {
     var armed by remember { mutableStateOf(false) }
     LaunchedEffect(armed) {
         if (armed) {

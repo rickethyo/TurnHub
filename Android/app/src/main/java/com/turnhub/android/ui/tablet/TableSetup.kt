@@ -186,10 +186,11 @@ internal const val SEAT_MAP_HINT = "This is how the table will look. Drag a play
 internal const val TEAM_MAP_HINT = "Each outlined panel is a team: players 1 and 2, then 3 and 4, and so on. " +
     "Teammates share one panel, life total and turn. Drag a player onto another seat to swap them, or tap two seats."
 
-/** Formats offered in the shared lobby. */
+/** Formats offered in the shared lobby; Atlas runs those that are [GameProfile.atlasSupported]. */
 internal val FORMATS = listOf(
     Triple(GameProfile.MTG_COMMANDER, "Commander", 40),
     Triple(GameProfile.MTG, "Magic", 20),
     Triple(GameProfile.YUGIOH, "Yu-Gi-Oh!", 8000),
+    Triple(GameProfile.POKEMON, "Pokémon", 6),
     Triple(GameProfile.GENERIC, "Other", 20),
 )

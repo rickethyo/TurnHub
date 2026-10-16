@@ -1098,13 +1098,14 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
         GameProfile.MTG_COMMANDER -> if (withTeams) "60" else "40"
         GameProfile.MTG_STAR_COMMANDER -> "40"
         GameProfile.YUGIOH -> "8000"
+        GameProfile.POKEMON -> "6"
         GameProfile.GENERIC -> life
     }
     BrassCard {
         Eyebrow("Game setup")
         ChoiceDropdown(
             label = "Game profile",
-            options = GameProfile.entries.map { it to it.displayName() },
+            options = GameProfile.entries.filter { it.atlasSupported }.map { it to it.displayName() },
             selected = profile,
             onSelect = {
                 profile = it

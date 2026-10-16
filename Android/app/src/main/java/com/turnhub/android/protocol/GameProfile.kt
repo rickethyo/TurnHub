@@ -17,6 +17,11 @@ enum class GameProfile(val wireValue: String) {
      */
     MTG_STAR_COMMANDER("mtg_star_commander"),
     YUGIOH("yugioh"),
+    /**
+     * Pokémon TCG: each player counts the Prize cards they have left, from 6;
+     * taking the last one wins. Phone-hosted games only: Atlas doesn't know it yet.
+     */
+    POKEMON("pokemon"),
     ;
 
     /** Commander rules (Commander damage, commander casts, 40 life): Commander and Star Commander. */
@@ -26,6 +31,12 @@ enum class GameProfile(val wireValue: String) {
     val magicRules: Boolean get() = this == MTG || commanderRules
 
     val starCommander: Boolean get() = this == MTG_STAR_COMMANDER
+
+    /** Prizes instead of life (see [POKEMON]). */
+    val pokemon: Boolean get() = this == POKEMON
+
+    /** Atlas runs and imports this format; the others are phone-hosted only. */
+    val atlasSupported: Boolean get() = this != POKEMON
 
     companion object {
         fun fromWire(value: String): GameProfile? = entries.firstOrNull { it.wireValue == value }

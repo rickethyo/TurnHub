@@ -14,6 +14,7 @@ loss condition; Commander damage totals alone do not trigger elimination.
 | Commander | 40, plus Commander damage |
 | Star Commander | 40, Commander rules for exactly five players (below) |
 | Yu-Gi-Oh! | 8000, counted in hundreds on every client |
+| Pokémon (phone only) | 6 Prize cards left; the app game only (below) |
 
 - **Official rules** (2026-10-14, owner request; host tests only, *needs a
   playtest*): Magic (20 life, 10 poison), Commander (40, 10), Two-Headed Giant
@@ -25,6 +26,19 @@ loss condition; Commander damage totals alone do not trigger elimination.
   change, and refuses Start on the wrong table size (`validOfficialTable`).
   Custom modes (Generic, Star Commander, Two-Headed Giant Commander) stay
   editable. The standalone app follows the same table (`OfficialRules.kt`).
+- **Pokémon** (2026-10-16, owner request; JVM tests only, *needs a
+  playtest*): phone-hosted games only. Atlas doesn't run or import the format
+  (`GameProfile.atlasSupported`), so its games stay on the device. The panel
+  number is the Prize cards a player has left (6, exactly two players unless
+  house rules are on). Taking the last one wins at once. No one is eliminated
+  at zero, and the other two ways to win are buttons in the player's menu.
+  The active panel ticks off the once-per-turn actions (Energy, Supporter,
+  Stadium, Retreat), which reset on every pass. The starter's first turn says
+  no attack and no Supporter. Special Conditions are set in the menu (Asleep,
+  Confused and Paralyzed replace each other). On pass a Pokémon Checkup card
+  lists Poisoned and Burned damage for the players to place, flips the Burned
+  and Asleep coins (heads removes them) and ends Paralyzed for the player whose
+  turn ended (`StandaloneGame.pokemonCheckup`). Rules text in `OfficialRules.kt`.
 - Custom starting life 0 to 1,000,000 (custom modes or house rules). Any
   seated player may change the next game's settings in the lobby
   (`ConfigureGame`); a running match keeps what it captured at start, and a

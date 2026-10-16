@@ -285,6 +285,8 @@ class StandaloneTable(
     fun queueImport(recordId: String, atlasId: String, profileIds: List<String>, availableProfileIds: Set<String>): Boolean {
         val before = _state.value
         val record = before.library.history.firstOrNull { it.recordId == recordId } ?: return false
+        // Atlas can't import a format it doesn't run (Pokémon): those games stay on this device.
+        if (!record.profile.atlasSupported) return false
         if (atlasId.isBlank() || profileIds.size != record.players.size ||
             profileIds.any { it.isBlank() || it !in availableProfileIds } ||
             profileIds.distinct().size != profileIds.size) return false
@@ -368,6 +370,7 @@ class StandaloneTable(
                 "sean-mode" -> if (planarSelectionReady(game)) game.seanModeRematch(now, newId(), planarDeck = planarDeck(game)) else game
                 "reset" -> game.reset()
                 "back-to-setup" -> game.backToSetup(now)
+                "checkup-done" -> game.dismissCheckup()
                 else -> game
             }
         }
@@ -488,6 +491,7 @@ class StandaloneTable(
             put("turnStartedAtElapsedMs", game.turnStartedAtElapsedMs)
             put("revision", game.revision)
             put("planechase", game.planechase.toJson())
+            put("pokemonCheckup", JSONArray(game.pokemonCheckup))
             put("players", JSONArray().apply {
                 game.players.forEach { p ->
                     put(JSONObject().apply {
@@ -511,6 +515,9 @@ class StandaloneTable(
                         put("longestTurnMs", p.longestTurnMs)
                         put("commander", p.commander ?: JSONObject.NULL)
                         put("commanderArt", p.commanderArt ?: JSONObject.NULL)
+                        put("pokemon", JSONObject()
+                            .put("actions", JSONArray(p.pokemon.turnActions.map { it.name }))
+                            .put("conditions", JSONArray(p.pokemon.conditions.map { it.name })))
                         put("commanderDamage", JSONObject().apply {
                             p.commanderDamage.forEach { (source, damage) -> put("$source", JSONArray(damage)) }
                         })
@@ -553,6 +560,7 @@ class StandaloneTable(
                 turnStartedAtElapsedMs = json.getLong("turnStartedAtElapsedMs"),
                 revision = json.getLong("revision"),
                 planechase = json.optJSONObject("planechase")?.let { Planechase.fromJson(it) } ?: Planechase(),
+                pokemonCheckup = json.optJSONArray("pokemonCheckup")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(),
                 players = (0 until players.length()).map { i ->
                     val p = players.getJSONObject(i)
                     val damage = p.getJSONObject("commanderDamage")
@@ -577,6 +585,14 @@ class StandaloneTable(
                         longestTurnMs = p.optLong("longestTurnMs"),
                         commander = p.optStringOrNull("commander"),
                         commanderArt = p.optStringOrNull("commanderArt")?.takeIf { it.matches(StandaloneGame.PRINTING_ID) },
+                        pokemon = p.optJSONObject("pokemon")?.let { pk ->
+                            fun <E : Enum<E>> names(key: String, values: List<E>): Set<E> = pk.optJSONArray(key)?.let { a ->
+                                (0 until a.length()).mapNotNull { i -> values.firstOrNull { it.name == a.getString(i) } }.toSet()
+                            }.orEmpty()
+                            com.turnhub.android.domain.PokemonStatus(
+                                names("actions", com.turnhub.android.domain.PokemonAction.entries),
+                                names("conditions", com.turnhub.android.domain.SpecialCondition.entries))
+                        } ?: com.turnhub.android.domain.PokemonStatus(),
                         commanderDamage = damage.keys().asSequence().associate { key ->
                             val array = damage.getJSONArray(key)
                             key.toInt() to (0 until array.length()).map { array.getInt(it) }

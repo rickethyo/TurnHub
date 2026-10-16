@@ -305,6 +305,7 @@ fun StandaloneLobby(
         starterHint = "First player: random. Tap First? to choose.",
         introduction = "One screen. Many rivals. Your table.",
         embedded = embedded,
+        phoneHosted = true,
         extraSettings = {
             if (game.profile.magicRules) {
                 val planar = game.planechase
