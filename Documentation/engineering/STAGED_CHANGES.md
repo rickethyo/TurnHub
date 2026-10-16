@@ -6,8 +6,8 @@ lasting fact into its topic document and delete the line here; git keeps the
 old entries. Longer designs for planned features are in
 [Planned Designs](PLANNED_DESIGNS.md).
 
-Owner, 2026-10-02: playtesting and bench testing have verified nearly
-everything implemented. Only the checks listed below are still open.
+Implementation and acceptance are tracked separately below. Builds and host/JVM
+tests do not close physical-device, accessibility or lifecycle checks.
 
 ## Standing decisions
 
@@ -30,6 +30,31 @@ everything implemented. Only the checks listed below are still open.
   `CAPABILITY_DISPLAY_OLED` and `TURNHUB_OTA_RETIRED`.
 
 ## Open work
+
+### Android stabilization before the iOS port
+
+- **Stable Android reference for iOS** (owner, 2026-10-16): Android has the
+  core product experience implemented: shared navigation, standalone setup and
+  gameplay, local accounts/customization, recovery/history/statistics,
+  Planechase and Atlas-connected play. It is ready for a focused stabilization
+  pass; the open device checks below mean it is not yet an accepted porting
+  baseline. Prioritize reliability and settled flows before expanding the iOS
+  implementation beyond its existing foundation.
+- **Acceptance gate:** select and record an Android build/commit and intended
+  initial iOS feature set. Play complete offline and Atlas-connected games on
+  physical devices; verify game/account/history recovery after rotation,
+  backgrounding, process death and relaunch. Exercise multi-phone play,
+  disconnect/reconnect, verified account linking and history delivery, including
+  uncertain/rejected results. Check phone/foldable/tablet layouts, large text,
+  TalkBack, pending decisions and sound behavior. Use the detailed checks in
+  this document, record device/build evidence and fix blocking defects before
+  the owner accepts the reference baseline. These checks remain open.
+- **Scope of the gate:** stabilize core gameplay, navigation, identity and
+  recovery. Export/backup, richer statistics, future common-engine/phone
+  takeover work and hardware administration expansion can remain later work;
+  completing the entire Android backlog is not required. Once accepted, record
+  the baseline and port that bounded experience into native Swift/SwiftUI,
+  adapting platform interactions and layouts while preserving behavior.
 
 ### Stability and diagnostics
 
@@ -78,13 +103,16 @@ everything implemented. Only the checks listed below are still open.
 
 ### iOS app
 
-- **Native iPhone/iPad app** (*Foundation implemented; gameplay planned*, owner,
-  2026-10-13; TH-019): SwiftUI shell, a Foundation-only core package, metadata/
-  endpoint contract tests and unsigned simulator CI. The
-  [development framework](IOS_DEVELOPMENT.md) owns the architecture, milestone
-  sequence and acceptance criteria. Next: standalone lobby, then full local
-  gameplay and recovery/history; Atlas connection and shared-table controls
-  follow. [Build and source layout](../../iOS/README.md). Physical iPhone/iPad,
+- **Native iPhone/iPad port** (*Foundation implemented; port awaits Android
+  stabilization*, owner, 2026-10-16; TH-019): SwiftUI shell, a Foundation-only
+  core package, metadata/endpoint contract tests and unsigned simulator CI
+  exist; gameplay, persistence and HTTP transport do not. The Android
+  stabilization gate above comes first. Use the accepted Android experience as
+  the reference for features, flows and behavior. The
+  [development framework](IOS_DEVELOPMENT.md) owns the native architecture and
+  implementation sequence within the accepted scope: standalone lobby, local
+  gameplay and recovery/history, then Atlas connection/shared-table controls.
+  [Build and source layout](../../iOS/README.md). Physical iPhone/iPad,
   VoiceOver and lifecycle acceptance remain open. Signing and distribution
   are later owner decisions.
 

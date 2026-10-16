@@ -6,6 +6,15 @@ Sigils, connected profiles/statistics and table administration. Multiple phones
 playing one shared game require Atlas. This follows the product direction in
 [Android/README.md](../../Android/README.md).
 
+**Sequencing** (owner, 2026-10-16): stabilize Android first, then port the
+accepted Android feature set, flows and behavior into native Swift/SwiftUI.
+The [Android stabilization gate](STAGED_CHANGES.md#android-stabilization-before-the-ios-port)
+owns baseline acceptance and the evidence still required. Keep the existing
+iOS foundation in place while that gate is open. The milestones below describe
+how to implement the accepted port scope after the gate passes; they are not
+an independent product roadmap. Adapt platform interactions and layouts for
+iPhone/iPad while preserving the established behavior.
+
 **Current implementation:** a SwiftUI development landing screen, the
 `TurnHubCore` local Swift package, Atlas metadata decoding/compatibility checks,
 endpoint validation, unit tests and unsigned simulator build CI.
