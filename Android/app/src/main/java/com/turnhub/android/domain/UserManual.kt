@@ -2,8 +2,8 @@ package com.turnhub.android.domain
 
 /**
  * The user manual shipped inside the app (assets/manual.md), so it reads
- * offline and before any Atlas is reachable. The asset is generated from the
- * newest "Documentation/User Manual" .docx by Android/tools/export_manual.py;
+ * offline and before any Atlas is reachable. The asset is generated from
+ * newest App and Hardware manuals (.docx) by Android/tools/export_manual.py;
  * this parser reads only the Markdown subset that script writes.
  */
 data class UserManual(val title: String, val edition: String?, val blocks: List<Block>) {

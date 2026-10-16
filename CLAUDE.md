@@ -38,7 +38,7 @@ TurnHub is a local-first tabletop game-management system (turn timer, lobby, lif
 
 Earlier Python/Raspberry Pi generations are deliberately **not in this repo**; they survive only as history in `Documentation/engineering/history/GENERATION_HISTORY.md`. Don't reintroduce references to a `Controller/` directory, or its tooling (root `requirements.txt`, the Visual Studio Python project, the pySerial dependency).
 
-`Documentation/User Manual/*.docx` is the user-facing manual. When a user-visible timing or behavior changes (e.g. the 60 s pairing window, the 15 s life-change approval `LIFE_APPROVAL_MS`), keep the code, its UI/API messages, the engineering docs and the manual in agreement.
+`Documentation/User Manual/` holds the user-facing manuals: the App Manual (app, tablet mode, admin portal) and the Hardware Manual (Atlas and Sigils). When a user-visible timing or behavior changes (e.g. the 60 s pairing window, the 15 s life-change approval `LIFE_APPROVAL_MS`), keep the code, its UI/API messages, the engineering docs and the manual in agreement.
 
 The owner also uses GitHub Desktop, which can switch branches and auto-stash uncommitted work as `!!GitHub_Desktop<branch>`. If files suddenly revert mid-session, check `git branch --show-current` and `git stash list` before redoing anything.
 

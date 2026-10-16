@@ -6,58 +6,72 @@ lasting fact into its topic document and delete the line here; git keeps the
 old entries. Longer designs for planned features are in
 [Planned Designs](PLANNED_DESIGNS.md).
 
-Owner, 2026-10-02: playtesting and bench testing have verified nearly
-everything implemented. Only the checks listed below are still open.
+Implementation and acceptance are tracked separately below. Builds and host/JVM
+tests do not close physical-device, accessibility or lifecycle checks.
 
-## Standing decisions
+## Track and scope
 
-- **No compatibility before release** (owner, 2026-09-30): reflash every
-  board together, no saved-data migrations, a changed layout means a factory
-  reset (`CLAUDE.md`). For release, the version rules in
-  [Firmware Updates](FIRMWARE_UPDATES.md) come back first.
-- **The OLED Sigil leads** (owner, 2026-09-28): new Sigil UI lands on the OLED
-  first; the e-ink follows and may drop extras that cost it full refreshes.
-- **No turn timer on e-ink**; try it on a future LCD Sigil.
-- **Test harness retired** (2026-10-05); moved off master with the rest of Gen 1.
-- **Gen 1 split** (owner, 2026-10-13): the Gen 1 ESP32 Atlas/Sigil firmware,
-  harness, Sigil v1 PCB, enclosures, flash/board-setup scripts and firmware
-  release workflow live on `legacy/gen1`, a one-way branch for fixing Gen 1
-  bugs in place. Master is the LVGL/S3 track with one `sigil` build
-  (headless behind `sigil_display.h`, pins in `sigil_board.h`) and a
-  board-less Atlas (`atlas_board_none.cpp`); the spare path is gone. Still on
-  master until `atlas-s3`/`sigil-s3` land, because the Android update flow
-  reads them: the OTA product names (`sigil-eink`, `sigil-oled`),
-  `CAPABILITY_DISPLAY_OLED` and `TURNHUB_OTA_RETIRED`.
+Master is the S3/LVGL track; current-generation hardware fixes belong on
+`legacy/gen1`. See [Agent workflow](AGENT_WORKFLOW.md) for branch rules and
+[the S3 hardware plan](hardware/ESP32_S3_REFRESH.md) for target status.
+Pre-release compatibility policy belongs in `CLAUDE.md` and
+[Firmware Updates](FIRMWARE_UPDATES.md).
 
 ## Open work
 
+### Android stabilization before the iOS port
+
+- **Stable Android reference for iOS** (owner, 2026-10-16): Android has the
+  core product experience implemented: shared navigation, standalone setup and
+  gameplay, local accounts/customization, recovery/history/statistics,
+  Planechase and Atlas-connected play. It is ready for a focused stabilization
+  pass; the open device checks below mean it is not yet an accepted porting
+  baseline. Prioritize reliability and settled flows before expanding the iOS
+  implementation beyond its existing foundation.
+- **Acceptance gate:** select and record an Android build/commit and intended
+  initial iOS feature set. Play complete offline and Atlas-connected games on
+  physical devices; verify game/account/history recovery after rotation,
+  backgrounding, process death and relaunch. Exercise multi-phone play,
+  disconnect/reconnect, verified account linking and history delivery, including
+  uncertain/rejected results. Check phone/foldable/tablet layouts, large text,
+  TalkBack, pending decisions and sound behavior. Use the detailed checks in
+  this document, record device/build evidence and fix blocking defects before
+  the owner accepts the reference baseline. These checks remain open.
+- **Scope of the gate:** stabilize core gameplay, navigation, identity and
+  recovery. Export/backup, richer statistics, future common-engine/phone
+  takeover work and hardware administration expansion can remain later work;
+  completing the entire Android backlog is not required. Once accepted, record
+  the baseline and port that bounded experience into native Swift/SwiftUI,
+  adapting platform interactions and layouts while preserving behavior.
+
 ### Stability and diagnostics
 
-- **Android shared navigation acceptance:** verify Game/Table/Players/History/
-  Settings with a live Atlas, role-gated administration, disconnect/reconnect
-  and TalkBack. Local build 7 navigation was checked on an API 37 emulator;
-  the physical phone was unavailable. The updated V0.20 manual text/export
-  passes validation; page rendering awaits a host with LibreOffice.
-
-- **2026-10-09 play-note investigation:** source findings and proposed designs
-  for all ten notes are in [the report](history/2026-10-09-play-note-investigation.md).
-  Minor tablet overlay and signup scrolling fixes are staged on `codex/master`;
-  the former browser verification passed; Android build and device acceptance are tracked in TH-013.
-- **Multi-phone stability** (in progress): bench the Atlas 0.6.7+ build with
-  unchanged polling, then the wider matrix. Android now reduces unseen-table
-  polling and redundant metadata/settings reads (TH-018); CPU/heap/SD/radio
-  effects remain unmeasured. Steps in [Diagnostics](DIAGNOSTICS.md).
-- **Phone-owned accounts and background discovery acceptance (TH-018):** test
-  cold launch with saved Atlas preferences, process recreation/rotation, no
-  permission/Wi-Fi/biometric prompt from the probe, local PIN settings, images
-  and verbose history without an Atlas. Test new-account ID preservation on
-  Atlas 0.7.15+, verified merge into existing/pinless accounts, approval/cardless
-  behavior, automatic imports after reconnect and retained partial/rejected
-  results. Current Gen 1 firmware remains on `legacy/gen1`; master firmware
-  builds are board-less. Manual V0.19 content/export passed; visual rendering
-  awaits a host with LibreOffice.
-- **Open bug, not reproduced:** Atlas stuck on the pause screen during a
-  harness soak (2026-09-28).
+- **Android device acceptance:** complete the stabilization gate above. Include
+  shared navigation and role-gated administration; signup with the keyboard on
+  foldables/tablets; reachable Confirm/Deny during paused win claims; zero-life
+  elimination versus concession; shared-tablet re-entry, simultaneous personal
+  sign-in and signed-out exit/reconnect. Verify foreground sounds against
+  silent/vibrate/media volume, mute, rapid actions and lifecycle transitions.
+- **Accounts, discovery and delivery:** verify cold launch with saved Atlas
+  preferences never prompts for permission, Wi-Fi or biometric sign-in from
+  background discovery. Exercise local PIN changes/removal, account editing/
+  deletion, artwork and retained history offline; verified Atlas links,
+  new-account public-ID preservation, approval/cardless behavior, automatic
+  imports after reconnect and retained partial/rejected results. See
+  [Android behavior](../../Android/README.md).
+- **Recent Android flows:** playtest the cancellable start countdown, practice
+  table, commander names/printing art, Star layout/Sean Mode and Planechase
+  download/deck selection/offline recovery. Check art credits, legibility,
+  missing assets and TalkBack. Verify bug-report prefilled values and editable
+  form/attachment submission on phone and tablet without automatic submission.
+- **Multi-phone stability:** run C06 below; measure CPU/heap/SD/radio behavior
+  with current polling and visibility optimizations. S3/second-radio changes
+  are not a demonstrated fix. Procedures: [Diagnostics](DIAGNOSTICS.md).
+- **Pause-screen stall:** the 2026-09-28 soak report remains unreproduced.
+  Carry the scenario into the current stability matrix; historical evidence is
+  in [the play-note investigation](history/2026-10-09-play-note-investigation.md).
+- **Manual acceptance:** visually verify the current exported manual and run
+  the unfamiliar-user setup/play check F02 below.
 
 ### Statistics and history
 
@@ -75,293 +89,123 @@ everything implemented. Only the checks listed below are still open.
   (`40 -> 48 -> 47` is +7 gained), with raw events kept.
 - **Session history:** bounded game records on the card, enough to rebuild
   aggregates, with a retention limit, separate from the recovery record.
+- **Counter extensions:** per-counter profile statistics and arbitrary custom
+  counters remain later work; built-in Magic counters/statuses are implemented.
 
 ### iOS app
 
-- **Native iPhone/iPad app** (*Foundation implemented; gameplay planned*, owner,
-  2026-10-13; TH-019): SwiftUI shell, a Foundation-only core package, metadata/
-  endpoint contract tests and unsigned simulator CI. The
-  [development framework](IOS_DEVELOPMENT.md) owns the architecture, milestone
-  sequence and acceptance criteria. Next: standalone lobby, then full local
-  gameplay and recovery/history; Atlas connection and shared-table controls
-  follow. [Build and source layout](../../iOS/README.md). Physical iPhone/iPad,
+- **Native iPhone/iPad port** (*Foundation implemented; port awaits Android
+  stabilization*, owner, 2026-10-16; TH-019): SwiftUI shell, a Foundation-only
+  core package, metadata/endpoint contract tests and unsigned simulator CI
+  exist; gameplay, persistence and HTTP transport do not. The Android
+  stabilization gate above comes first. Use the accepted Android experience as
+  the reference for features, flows and behavior. The
+  [development framework](IOS_DEVELOPMENT.md) owns the native architecture and
+  implementation sequence within the accepted scope: standalone lobby, local
+  gameplay and recovery/history, then Atlas connection/shared-table controls.
+  [Build and source layout](../../iOS/README.md). Physical iPhone/iPad,
   VoiceOver and lifecycle acceptance remain open. Signing and distribution
   are later owner decisions.
 
 ### Accounts, portal and app
 
-- **Common engine and full phone takeover** (owner, 2026-10-13): shared lobby
-  and live table presentation are unified. Extract one portable engine for
-  Atlas/native apps, prefer Atlas after a validated handoff, and let the
-  designated phone host all game actions after fenced disconnection.
-  Checkpoint/command contracts, authority leases, reconnect reconciliation and
-  durable completion receipts are designed in [Shared table authority](TABLE_AUTHORITY.md)
-  and remain to be implemented. Current connected offline behavior still queues
-  life/Commander edits only.
-
-- **Router-style web administration** (*Implemented locally; device acceptance pending*, owner confirmed, 2026-10-09):
-  web portal for Admin settings/maintenance and Android for personal/shared
-  tablet play; retire browser gameplay, including the web tablet. Preserve the
-  app's HTTP game APIs.
-  Define app parity, initial-Admin bootstrap, diagnostics permissions,
-  cardless administration/updates before removal. [Feature parity audit](history/2026-10-09-portal-app-parity.md)
-  records existing app coverage and missing custom timer entry, multi-game
-  selection, empty paired-Sigil attachment, invite QR generation and local
-  event feedback settings. Hardware tests/local signed-package uploads remain
-  web-admin features. Implemented in the current TH-013 slice: administration-only embedded pages in Atlas 0.7.7-dev,
-  retired separate pack build/install/app/release flows, retired tablet/statistics routes, preserved bootstrap and
-  signed maintenance, native game/session polling, custom timer entry, empty
-  seat A attachment and app-install QR. Android unit tests/debug build, Atlas
-  host/firmware checks and administration browser checks with/without a card pass; device
-  acceptance remains pending; native vibration preferences/background decision alert remain open.
-- **Android game sounds device acceptance:** confirm pass/start/pause/resume/
-  win/draw cues in local and connected play, rapid actions, silent/vibrate/media
-  volume, mute while a cue plays, lifecycle/reconnect suppression and accessible
-  labeled sound/volume controls. JVM transition tests and a build do not verify
-  speaker behavior.
-- **Password hashing:** parked, see "Parked: storage batch" below.
-- **High-resolution uploaded avatars and tablet card backgrounds** (*Planned*,
-  owner, 2026-10-08; TH-003 in [COLLABORATION.md](../../COLLABORATION.md)):
-  Connected avatar upload/crop/review is implemented in PR #86 (2026-10-10).
-  Standalone account avatars/crop/preview/replace/remove are implemented in TH-018;
-  physical acceptance remains above. Remaining: player-card background artwork, with crop,
-  preview, replace and remove controls. Preserve enough image detail for large
-  tablet cards; choose explicit source/display dimensions and file limits during
-  design rather than reducing everything to tiny icons. Retain the existing
-  Admin-approval requirement for avatars before public display.
-  Connected assets need an Atlas-owned metadata/storage design; standalone
-  players must be able to use local artwork without owning Atlas. Scope artwork
-  to player identity, not the tablet-only account. Plan device-sized derivatives
-  and caching so large originals do not burden Atlas RAM or game-state polling.
-  Define SD storage/failure behavior and safe fallback artwork; play must remain
-  available without an image or SD card. Exact storage/transfer contracts remain
-  to be designed.
-- **Fuller tablet-mode presentation** (*Planned*, owner, 2026-10-08):
-  "de minimize the tablet mode screen." Working interpretation: richer player
-  cards, prominent avatar/background artwork, and more useful game information
-  and controls visible without opening secondary views. Prepare a visual design
-  before implementation to settle density and which controls remain exposed;
-  this is not yet a request to disable Android immersive/full-screen mode.
-  Keep life totals, active-player state, names and touch controls readable over
-  custom artwork, with contrast overlays and accessible labels. Apply the
-  presentation direction to connected and standalone tablet play, including
-  phone/foldable layouts. Verify crop fidelity, large text, orientation changes,
-  missing/rejected images, and responsive gameplay while images load.
-- **App and portal screenshot tests:** golden images of the Android screens
-  in every theme (Roborazzi or Paparazzi on the JVM) next to the portal
-  renders.
-- **Portal theme packs:** retired by owner, 2026-10-10; the portal keeps only
-  System/Dark/Light/High contrast accessibility appearance.
-- **HTTPS on Atlas:** revisit administration transport after the app-first cutover; native tablet wake/immersive behavior does not depend on portal HTTPS.
-
-- **Zero-life elimination and separate concessions** (*Implemented locally*,
-  owner, 2026-10-10): automatic elimination at zero/negative life defaults on,
-  editable in lobby and during running/paused play; enabling checks everyone
-  immediately. Concede and Eliminate have separate controls, state, saved exit
-  reasons and statistics, in connected and standalone play. Atlas host/firmware
-  checks and 222 Android unit tests pass; physical acceptance pending. See [GAMEPLAY.md](GAMEPLAY.md).
-
-- **Tablet mode, later rounds** (round one, 2026-10-06: Atlas grant and
-  seating, the portal's `/tablet` with life, Commander damage, pass, win and
-  concede; round two, the same screen in the Android app; see
-  PLAYERS_AND_ACCOUNTS.md). Magic counters and statuses now include poison,
-  commander casts/tax, energy, experience, initiative and city’s blessing,
-  with live poison/Commander elimination settings and shared team poison.
-  Physical native acceptance remains pending. Per-counter profile statistics,
-  arbitrary custom counters and tablet seating of Sigil seat B remain future
-  work; uploaded player backgrounds are tracked above.
-
-- **Seat B attachment:** the picker offers already-seated tablet players but
-  the handler rejects them. Needs identity-preserving seat-level reassignment,
-  including an explicit order policy for nonadjacent shared players; see the
-  play-note report. Do not solve it by removing a rejection alone.
-- **Tablet win-claim acceptance:** verify reachable player-facing Confirm/Deny
-  without the central Resume overlay on Android and the portal, including
-  sequential four-player claims and denial. The browser regression passes;
-  Android compilation/physical testing remains outstanding. Later UX: claim
-  progress, responder/waiting labels and decision-first controls.
-- **Fold signup acceptance:** verify staged scrolling with keyboard open,
-  folded/unfolded, rotation, large text and long account lists; retain the
-  7- and 10-inch tablet checks.
-
-- **Standalone tablet game, later rounds** (round one, 2026-10-07: the app
-  plays a game alone; round two: Atlas imports each finished game once,
-  `POST /api/standalone/import`, protocol/http-v1.md; user manual V0.12,
-  section 18). Local UUID players and retained history/basic local totals now
-  and explicit per-match Atlas mapping/import/rejection status exist on
-  `codex/app-only-entry` (TH-001 B/C; Android/README.md). Remaining: export/backup,
-  deliberate deletion/retention controls, local-player editing, storage/performance
-  work for large histories, and physical device acceptance.
-
-### Setup and updates
-
-- **Atlas fetches updates over home Wi-Fi** (optional): an Admin stores a
-  home SSID and password (presence-gated); **Check for updates** joins it in
-  station mode between games, reads the feed over HTTPS, downloads and
-  verifies the same packages, then returns its AP and ESP-NOW to channel 6.
-  Needs a CA bundle and about 40 KB heap; can't pass a sign-in page.
-- **Atlas name** as a later setup step.
+- **Common engine and full phone takeover:** implement the portable engine,
+  validated handoff, fenced phone authority, reconnect reconciliation and
+  durable completion receipts in [Shared table authority](TABLE_AUTHORITY.md).
+  Unified lobby/table presentation is implemented; full offline hosting of an
+  Atlas game is not.
+- **Local library management:** export/backup, explicit history deletion/
+  retention and large-history storage/performance remain open. Local player
+  editing, PIN removal, account deletion and retained UUID-based history are
+  implemented; device checks belong to stabilization above.
+- **Connected artwork:** design Atlas-owned player-card background storage,
+  transfer, caching, approval and no-card/failure fallback. Local tile artwork
+  and connected avatar upload/crop/review are implemented. Preserve player
+  identity and sufficient tablet resolution without burdening state polling.
+  Device crop/approval/card-removal checks remain open.
+- **Native feedback and visual regression:** vibration preferences and a
+  background win-decision notification remain planned. Add representative
+  theme/layout screenshot coverage; native accessibility and lifecycle checks
+  remain part of stabilization, rather than separate cosmetic milestones.
+- **Dedicated tablet-only account type:** a restricted RAM-only shared-tablet
+  credential already exists ([Accounts](PLAYERS_AND_ACCOUNTS.md)). A distinct
+  account type remains planned: no PIN, player seat, personal statistics or
+  general Admin access; define its operation allowlist and enforce table scope
+  on Atlas. Authorized shared-tablet life edits must preserve the personal
+  controller's approval requirements. Existing credential/re-entry acceptance
+  is tracked above.
+- **Administration follow-ups:** revisit HTTPS and optional home-Wi-Fi update
+  fetching after S3 maintenance contracts settle. The latter needs explicit
+  Admin configuration, verified downloads, sufficient heap/CA trust and return
+  to the Atlas AP/radio channel. Include the later Atlas-name setup step in
+  that setup work. Browser gameplay retirement, native game selection, custom
+  timers, empty seat-A attachment and app-install QR are implemented; see
+  [Android](../../Android/README.md) and [First-run setup](FIRST_RUN_SETUP.md).
 
 ### Table, controllers and accessibility
 
-- **Commander names, card art and Sean Mode on Atlas** (owner, 2026-10-15):
-  the Android phone-hosted table has optional commander names with Scryfall
-  art and the Star Commander Sean Mode rematch. Atlas games need a profile or
-  participant commander field in `/api/v1/state`, an Intent to set it and a
-  Sean Mode rematch Intent before the app can offer them with Atlas. Device
-  check of the art credit, scrim legibility and TalkBack still open.
-
-- **Planechase** (owner, 2026-10-15): the standalone round is built
-  ([Gameplay](GAMEPLAY.md#planechase)). Still open:
-  - The device check of the Planes tab, the download, art credit and
-    TalkBack.
-  - Round 2: own decks and Two-Headed Giant, the deck builder, official deck
-    limits and house rules, card scripts, and automatic effects with
-    switches and Undo.
-  - Round 3: Atlas parity, with the host suite running the shared scenarios.
-  - Round 4: the plane screen on the LVGL simulator, then a two-panel S3
-    bench check.
-
-  Design: [Planned Designs](PLANNED_DESIGNS.md#planechase-on-atlas-and-the-plane-screen-planned-owner-2026-10-15).
-
-- **Eliminated-controller release** (owner, 2026-10-09): permit release once
-  all players on a Sigil are eliminated, preserving their match identities and
-  results; then attach the hardware to another seated player. Needs seat-level
-  reassignment, recovery, rematch and two-game isolation; report has the design.
-- **Temporary turns** (owner, 2026-10-09): support gifted extra turns using
-  a separate scheduled-turn model; grant order, permissions and team behavior
-  require decisions before implementation.
-- **Waiting LED breathing** (decision open): waiting is intentionally steady
-  in each seat's custom color today. Evaluate optional gentle breathing while
-  retaining steady reduced motion and distinct turn/decision cues.
-- **Tablet re-entry and dedicated tablet-only accounts** (*Planned*, owner,
-  2026-10-08; discussion TH-002 in [COLLABORATION.md](../../COLLABORATION.md)):
-  - A seated player can reopen tablet mode during an active game after leaving
-    that screen, without giving up their seat, resetting the game or creating
-    another participant.
-  - Add a distinct **Tablet-only account type**, not a player role. It has no
-    PIN, earns no statistics of its own, and cannot take a seat or become a
-    player participant. It represents a shared table screen.
-  - Restrict it to capabilities needed to operate tablet mode, including game
-    setup settings. It cannot change unrelated account, administration,
-    network, device, firmware or system settings. Define the exact tablet
-    operation allowlist before implementation; do not grant general Admin
-    access to make tablet mode work.
-  - Shared tablet mode can change player life directly, without the ordinary
-    approval request. Apply that capability to authorized tablet operations,
-    including a seated player's shared-tablet session, without granting the
-    same bypass to ordinary personal-controller requests.
-  - Atlas must validate account type, table scope and permitted operations on
-    the server through the existing semantic action path. Hiding buttons or
-    accepting a client-supplied tablet flag is not authorization. Player
-    results/statistics remain attributed to the actual players.
-  - Acceptance: seated-player re-entry mid-game preserves game/seat state;
-    tablet-only access needs no PIN; seat-taking and own-stat creation are
-    rejected; game setup and direct life edits work; unrelated settings remain
-    rejected even through direct API calls; personal-controller life approval
-    remains intact. Verify isolation between the two Atlas games.
-
-
-- **Two games per Atlas, later rounds** (round one, 2026-10-07: two tables,
-  Sigil "Switch game", the portal switch; see PLANNED_DESIGNS.md): the Atlas
-  touchscreen game selector (with pairing and turn order for Game 2), a
-  native personal/shared-tablet selector is implemented in TH-013, awaiting device acceptance. User manual V0.12
-  (section 19) describes round one; update it when these land.
-- **Profile picker:** a per-Sigil startup choice (last profile or picker).
-- **Accessibility:** Sigil-local pairing/error lights in the player's style,
-  e-ink text scale, a monochrome-safe portal
-  theme, guest accessibility preferences. LED intensity and buzzer volume wait
-  for hardware that can vary them.
-- **Device theme acceptance (2026-10-09, PR #82):** owner to check all four
-  normal/inverted looks on Atlas and both Sigils, header emblems, e-paper full
-  refresh/ghosting, inversion retained through reboot/unpair and cleared by
-  factory reset, scanning Atlas QR codes, and calm LED colors with independent
-  shared-seat preferences. Host previews/tests and firmware builds passed;
-  physical appearance/persistence acceptance is still open.
-- **Atlas battery physical acceptance (TH-015, 2026-10-12):** persistent stable
-  indication, debounced source inference and independent voltage protection are
-  implemented. Calibrate the ADC divider and generic curve against real timed
-  discharge; confirm source/absence ambiguity, charge/taper rate, sustained load
-  changes, critical/emergency latency before regulator brownout, checkpoint
-  restart/deep-sleep continuity, interrupted-game recovery, sleep current and
-  USB wake at full/middle/low charge. Procedures and limitations are in
-  [Battery estimation and protection](BATTERY_GAUGE.md). Android/display device
-  acceptance remains pending; manual now describes the implemented behavior.
+- **Atlas gameplay parity:** add commander names/art and the Star Commander
+  Sean Mode rematch through Atlas-owned state and semantic actions. Android
+  standalone implementations exist. Two-Headed Giant and Star Commander
+  physical playtests remain G13/G14 below.
+- **Planechase expansion:** shared digital/physical play, collections, saved
+  custom decks and active-team rolling are implemented on Android. Remaining:
+  individual player/team decks, official deck-limit enforcement with house
+  rules, card scripts and automatic effects with switches/Undo; then Atlas
+  parity using the shared scenarios, the LVGL plane screen and a two-panel S3
+  bench check. [Gameplay](GAMEPLAY.md#planechase) owns current behavior;
+  [Planned Designs](PLANNED_DESIGNS.md#planechase-on-atlas-and-the-plane-screen-planned-owner-2026-10-15)
+  owns the remaining design. Device acceptance is grouped above.
+- **Controller reassignment:** implement seat-B attachment to tablet-seated
+  players and release/reassign a Sigil once all its players are eliminated.
+  Preserve match identities/results, define nonadjacent shared-seat ordering,
+  and verify recovery, rematch and two-game isolation. Design evidence:
+  [play-note investigation](history/2026-10-09-play-note-investigation.md).
+- **Scheduled extra turns:** settle grant order, permissions and team behavior,
+  then implement temporary turns separately from lobby seat ordering.
+- **S3 display/controller behavior:** Atlas touchscreen game selection with
+  Game 2 pairing/order, Sigil startup profile choice, player-facing LEDs,
+  accessible pairing/error cues and guest preferences remain open. Resolve
+  optional waiting-light breathing and variable LED/audio controls alongside
+  the S3 input/output design; retain reduced-motion behavior.
+- **S3 theme and battery acceptance:** verify supported themes, contrast,
+  QR scanning and persistence on the new displays. Calibrate battery indication
+  against real discharge; verify source/charge ambiguity, critical protection,
+  interrupted-game recovery, sleep current and USB wake across charge levels.
+  Procedures: [Battery estimation and protection](BATTERY_GAUGE.md).
 
 ### Hardware
 
-- **S3 generation / LVGL** (2026-10-11, TH-015): source-reviewed ES3C40P/ES3C28P
-  direction and partial prototype BOM are in [the hardware plan](hardware/ESP32_S3_REFRESH.md).
-  Resolve listed flash/audio/UART conflicts, supplier prices/MOQ, connector families,
-  battery/boost power and physical measurements before hardware fabrication.
-  [LVGL desktop foundation](../../LVGL/README.md) now builds and exercises both
-  profiles, shared themes and interactive fixtures; [migration architecture](LVGL_MIGRATION.md)
-  preserves the production boundaries.
-  Per-board firmware, production Intent/snapshot bindings, SD JPEG loading and S3
-  OTA remain pending. Legacy e-ink/OLED features stay frozen.
-
-- **Player-facing Sigil LEDs are required** (owner, 2026-10-09): implement
-  the existing GPIO13/J6 front-strip plan on both display variants; choose
-  count/location/brightness and verify current and case fit.
-- **Dedicated pass/action button alongside joystick** (proposal): settle
-  Pass versus contextual Action behavior, then GPIO/carrier/wake design and
-  shared semantic input routing. Keep the joystick.
-- **Atlas S3/second-radio evaluation:** capture current multi-Android failure
-  evidence first. A PSRAM S3 board addresses movable memory pressure; a wired
-  radio bridge may isolate transport contention. Neither is a confirmed fix;
-  the report records port requirements and a common acceptance matrix.
-- **Sigil carrier PCB:** caliper-check the DevKit rows (22.86 mm assumed) and
-  test-fit DevKit and Jewel footprints, finish layout and DRC, then inspect
-  assembled boards. The OLED PCB is still a placeholder (`KiCad/PCB/Sigilv1/`
-  on `legacy/gen1`).
-- **Power:** measure idle, radio, display, buzzer, capped LED and sleep
-  current; confirm the USB supplies and power banks hold up.
-- Freeze hardware revisions only after GPIO, power, display, transport,
-  controls and accessibility decisions settle.
-
-## Frozen legacy Sigils (owner, 2026-10-10)
-
-Owner, 2026-10-12: the current-generation Atlas is retired too. After one final
-USB flash, both refuse every OTA update ([Firmware Updates](FIRMWARE_UPDATES.md#retired-hardware-no-more-updates));
-open checks below that need further legacy flashing (U06, G12) apply to the S3
-hardware instead.
-
-Current e-paper/OLED Sigil feature development is frozen. Future display work
-moves to ESP32-S3 ES3C28P/ES3C40P candidates; source specifications and verification
-holds are documented above. Hardware firmware targets and artwork transfer/cache
-remain to be built. Player artwork's
-512px SD master and provisional 64/128px app previews are implemented in PR #86;
-physical acceptance of crop fidelity, card removal/reinsert, approval and Atlas
-thumbnail display remains outstanding. Background artwork and standalone local
-player images from TH-003 remain planned separately.
-
-Shared tablet credential handoff is implemented in PR #86: Game-tab entry,
-automatic replacement of this device's personal token with the restricted
-Shared tablet account, and signed-out exit. Physical simultaneous tablet/phone
-sign-in and exit/reconnect acceptance remains pending.
+- **S3 boards and production bindings:** resolve the hardware plan's flash,
+  audio/UART, connector, power and mechanical holds before fabrication. Build
+  board drivers, production Intent/snapshot bindings, SD JPEG loading and S3
+  OTA. [Hardware plan](hardware/ESP32_S3_REFRESH.md),
+  [LVGL migration](LVGL_MIGRATION.md) and [desktop foundation](../../LVGL/README.md)
+  own details; the simulator is not physical acceptance.
+- **Player controls and PCB:** carry the required player-facing Sigil LEDs
+  into the S3 design; settle count, brightness, current and case fit. Evaluate
+  the proposed pass/action button alongside the joystick, including semantic
+  routing and wake. Verify footprints, GPIO, power and connectors; complete
+  layout/DRC and assembled-board inspection before freezing revisions.
+- **Transport and power:** compare S3 memory relief/second-radio options using
+  measured multi-phone evidence. Measure idle/radio/display/audio/LED/sleep
+  current and power-bank behavior (H03). Product transport, battery/charging
+  and manufacturing choices remain in Production decisions below.
 
 ## Parked: storage batch
 
-*Planned.* Proposed and parked by the owner (2026-10-06): do these together, since
-both need a USB flash and a factory reset.
-
-- **Larger NVS partition.** `min_spiffs.csv` gives NVS 20 KB (about 500
-  entries) and each profile uses about 20, so the real ceiling is about 20
-  profiles, not the 64 the code allows (*Needs verification*: estimated
-  from code, not measured). Fix: a custom partition table with a bigger NVS.
-- **Slow PIN and password hash.** Today it is one SHA-256 over the profile ID
-  and secret (`web_session.cpp`), which a flash dump can brute-force. Fix:
-  PBKDF2 via mbedTLS. Full protection also needs flash encryption (eFuse), a
-  release-time decision.
-
-Decided at the same time: storage stays NVS plus checksummed SD blobs, with
-no SQL database. SQLite would add RAM pressure and power-loss risk on FAT,
-and would make the card required. Revisit only for full per-match history, which would use
-append-only files on the card.
+- **NVS capacity and secret hashing:** choose and measure S3 partition capacity
+  against intended profile counts; replace Atlas's single SHA-256 secret hash
+  with salted PBKDF2 via mbedTLS. Plan the storage reset together. Android local
+  accounts already use PBKDF2; this item concerns Atlas. Flash encryption is a
+  release decision. See [Accounts](PLAYERS_AND_ACCOUNTS.md) and
+  [Storage and Recovery](STORAGE_AND_RECOVERY.md).
 
 ## Open checks
 
-Hardware checks that need a deliberate bench setup. Record runs as
+Hardware checks that need a deliberate bench setup. Firmware/display/OTA checks
+apply to the S3 targets once available; master has no physical board drivers.
+Gen 1 maintenance checks belong on `legacy/gen1`. Record runs as
 `ID | PASS/FAIL | build | device(s) | evidence` here until they pass, then
 delete the line. A host or compile result never checks off a hardware line.
 
@@ -382,17 +226,15 @@ delete the line. A host or compile result never checks off a hardware line.
   reconnect: everything recovers and the bootloader rolls back without USB.
 - [ ] **S09** Secure Link negatives: Reject, the 60 s timeout, portal Codes
   match, eight Sigils at once, forged/replayed/cleartext packets refused.
-- [ ] **G11** Playtest Sigil Commander entry and partners (Sigil 0.9.10) and
-  shared-Sigil turn order (2026-10-05).
+- [ ] **G11** Playtest S3 Sigil Commander entry/partners and shared-Sigil
+  turn order once its presentation/input bindings exist.
 - [ ] **G13** Playtest Two-Headed Giant (2026-10-06): four players on separate
   Sigils and on two shared Sigils, Magic and Commander, either teammate
   passing, team life on every client, team concession and the win.
 - [ ] **G14** Playtest Star Commander (2026-10-13): five players on phones,
   the tablet and standalone; seat swaps, ally damage refused, a shared win,
   a concession win and the statistics.
-- [ ] **G12** Spare Sigil end to end (`legacy/gen1`): make spare, pair without
-  a code, return to service over the air, flash-all records it.
-- [ ] **H03** Power measurements (above).
+- [ ] **H03** S3 power measurements and USB/power-bank behavior (above).
 - [ ] **F02** Someone unfamiliar with the build sets up, pairs, assigns
   players and plays using only the kit and manual.
 - [ ] **F03** Name the accepted candidate with a tag and matching firmware
@@ -413,4 +255,3 @@ delete the line. A host or compile result never checks off a hardware line.
 - First reproducible `ATLAS-REV-A` / `SIGIL-REV-A` with BOMs; enclosure
   mounting and docking after power and connectors settle; a
   design-for-assembly review with the PCBA maker.
-- A decision log for major product decisions and reversals.

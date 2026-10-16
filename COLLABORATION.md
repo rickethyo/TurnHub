@@ -44,7 +44,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
 | TH-021 | Shared table authority design | Android, hosting design | UI integrated; common engine/authority staged | Owner / design implementation and device acceptance |
 | TH-020 | Star Commander game mode | Atlas, protocol, Android, stats | Implemented on `claude/master`; host and JVM tests pass | Owner / interpretations below, playtest G14 |
-| TH-019 | iOS foundation and development flow | iOS, contracts, CI | Active framework slice | Codex / scaffold and staged plan; owner / Apple device acceptance |
+| TH-019 | iOS foundation and development flow | Android baseline, iOS, contracts, CI | Foundation implemented; port awaits Android stabilization | Owner / Android baseline acceptance; see STAGED_CHANGES |
 | TH-018 | Phone-owned profiles and lighter Atlas requests | Android, account import, documentation | Implemented; local validation passes | Owner / device acceptance and PR review |
 | TH-017 | ESP32-S3 hardware and LVGL foundation | Hardware, BOM, LVGL | Master is now this track (2026-10-13) | Board drivers and snapshot/Intent adapters; see STAGED_CHANGES |
 | TH-012 | Admin portal / app-play feature parity | Portal, Android, product scope | Direction agreed; source audit complete | Owner / review migration priorities |
@@ -167,6 +167,29 @@ Append replies under the same topic with date, author and reviewed SHA. Record a
 UI/background changes are integrated through PR #106. The [authority design](Documentation/engineering/TABLE_AUTHORITY.md) and STAGED_CHANGES own future common-engine/takeover work; implementation evidence is in the [archive](Documentation/engineering/history/2026-10-13-collaboration-archive.md).
 
 ## TH-019: iOS foundation and development flow
+
+- 2026-10-16 / Codex: owner requests the staged plan reflect Android-first
+  stabilization, then a native iOS port of an accepted Android baseline.
+  Documentation-only scope: STAGED_CHANGES.md and IOS_DEVELOPMENT.md; no app
+  implementation or acceptance checks claimed. Branch `codex/master`, baseline
+  `1809303`; clean tree and no open PRs at startup. Existing iOS foundation stays
+  in place. Staged work now defines the Android acceptance gate and bounded
+  port scope; IOS_DEVELOPMENT.md defers implementation milestones to that gate.
+  Documentation hygiene and `git diff --check` pass. No app tests or physical
+  acceptance run for this documentation-only change. Next owner: review the
+  plan, then select the Android build and perform the recorded acceptance work.
+- 2026-10-16 / Codex follow-up: owner also requests a general refresh and
+  removal of completed, unnecessary or minor backlog entries. Same branch;
+  follow-up baseline `accf846`. Audit STAGED_CHANGES.md against current Android,
+  gameplay/accounts references and S3 hardware scope. Consolidate acceptance
+  checks, remove completed implementation narratives and obsolete Gen 1 work,
+  and retain substantive unresolved features and device evidence requirements.
+  Result: consolidated Android acceptance and controller/hardware work; removed
+  obsolete branch/version narratives, completed local editing/background/deck
+  work and legacy-only checks. Preserved unresolved statistics, storage,
+  authority, parity and physical acceptance requirements. Documentation hygiene
+  and whitespace checks pass; no app/firmware behavior changed or device checks
+  claimed. This follows the same reviewable Android/iOS planning slice.
 
 - Date / owner: 2026-10-13 / Codex on `codex/master`; accepted baseline
   `9fa32bbd83824c2905b6be31524125b2e6239030`. Clean checkout, fetched master

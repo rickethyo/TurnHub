@@ -320,7 +320,8 @@ pattern.
 
 The app carries the user manual so it reads offline, before connecting to
 any Atlas. `app/src/main/assets/manual.md` is generated from the newest
-`Documentation/User Manual/TurnHub Manual V*.docx`; never edit it by hand.
+`Documentation/User Manual/TurnHub App Manual V*.docx` followed by the newest
+`TurnHub Hardware Manual V*.docx`; never edit it by hand.
 After changing or adding a manual version, run
 `python Android/tools/export_manual.py` (standard library only) and commit the
 result. CI runs it with `--check` and fails when the asset is stale.

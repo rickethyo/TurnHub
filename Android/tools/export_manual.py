@@ -1,8 +1,11 @@
-"""Exports the newest user manual (.docx) to the Android app's manual asset.
+"""Exports the newest user manuals (.docx) to the Android app's manual asset.
 
 The app shows the manual offline from app/src/main/assets/manual.md. This
-script rebuilds that file from "Documentation/User Manual/TurnHub Manual V*.docx"
-(the highest version) using the standard library only.
+script rebuilds that file from the highest versions of
+"Documentation/User Manual/TurnHub App Manual V*.docx" followed by
+"TurnHub Hardware Manual V*.docx", using the standard library only. The
+hardware manual's title becomes a chapter heading and its edition line is
+dropped, so the app shows one contents list.
 
     python Android/tools/export_manual.py           # rewrite the asset
     python Android/tools/export_manual.py --check   # fail if the asset is stale
@@ -24,13 +27,13 @@ MANUAL_DIR = ROOT / "Documentation" / "User Manual"
 ASSET = ROOT / "Android" / "app" / "src" / "main" / "assets" / "manual.md"
 
 
-def newest_manual() -> Path:
+def newest_manual(kind: str) -> Path:
     def version(path: Path):
         match = re.search(r"V(\d+)\.(\d+)", path.stem)
         return (int(match.group(1)), int(match.group(2))) if match else (-1, -1)
-    manuals = sorted(MANUAL_DIR.glob("TurnHub Manual V*.docx"), key=version)
+    manuals = sorted(MANUAL_DIR.glob(f"TurnHub {kind} Manual V*.docx"), key=version)
     if not manuals:
-        sys.exit(f"no manual found in {MANUAL_DIR}")
+        sys.exit(f"no {kind} manual found in {MANUAL_DIR}")
     return manuals[-1]
 
 
@@ -82,7 +85,7 @@ def paragraph_text(paragraph) -> str:
     return "\n".join(line for line in lines if line)
 
 
-def export(docx_path: Path) -> str:
+def export_blocks(docx_path: Path) -> list:
     with zipfile.ZipFile(docx_path) as docx:
         decimal = numbered_ids(docx)
         body = ET.fromstring(docx.read("word/document.xml")).find(W + "body")
@@ -112,7 +115,16 @@ def export(docx_path: Path) -> str:
         else:
             blocks.append(text)
             counter_key = None
-    header = f"<!-- Generated from {docx_path.name} by Android/tools/export_manual.py. Do not edit by hand. -->"
+    return blocks
+
+
+def export(app_path: Path, hardware_path: Path) -> str:
+    hardware = export_blocks(hardware_path)
+    if len(hardware) > 1 and hardware[1].startswith("## "):
+        del hardware[1]  # the edition line; the app manual's edition covers both
+    blocks = export_blocks(app_path) + hardware
+    header = (f"<!-- Generated from {app_path.name} and {hardware_path.name} "
+              "by Android/tools/export_manual.py. Do not edit by hand. -->")
     return header + "\n\n" + "\n\n".join(blocks) + "\n"
 
 
@@ -120,19 +132,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="fail if the asset is out of date")
     args = parser.parse_args()
-    source = newest_manual()
-    text = export(source)
+    app, hardware = newest_manual("App"), newest_manual("Hardware")
+    text = export(app, hardware)
+    source_names = f"{app.name} and {hardware.name}"
     if args.check:
         current = ASSET.read_text(encoding="utf-8") if ASSET.is_file() else ""
         if current != text:
-            print(f"{ASSET.relative_to(ROOT)} is out of date with {source.name}; "
+            print(f"{ASSET.relative_to(ROOT)} is out of date with {source_names}; "
                   "run python Android/tools/export_manual.py", file=sys.stderr)
             return 1
-        print(f"manual asset matches {source.name}")
+        print(f"manual asset matches {source_names}")
         return 0
     ASSET.parent.mkdir(parents=True, exist_ok=True)
     ASSET.write_text(text, encoding="utf-8", newline="\n")
-    print(f"wrote {ASSET.relative_to(ROOT)} from {source.name}")
+    print(f"wrote {ASSET.relative_to(ROOT)} from {source_names}")
     return 0
 
 

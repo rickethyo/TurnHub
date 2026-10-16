@@ -34,7 +34,7 @@ branch from `legacy/gen1` and open the PR against it. The two never merge.
 | [`protocol/`](protocol/README.md) | Client contract: JSON schemas, [`http-v1.md`](protocol/http-v1.md), example responses |
 | [`shared/include/`](shared/include) | Firmware headers shared by Atlas and Sigil (radio contract, firmware package format) |
 | [`Documentation/engineering/`](Documentation/engineering/README.md) | The engineering record: invariants, design references, staged work |
-| [`Documentation/User Manual/`](Documentation/User%20Manual) | The user manual (newest `.docx`; the app bundles the same text) |
+| [`Documentation/User Manual/`](Documentation/User%20Manual) | The user manuals: the App Manual and the Hardware Manual (newest `.docx` of each; the app bundles both) |
 
 ## Core architectural rule
 
