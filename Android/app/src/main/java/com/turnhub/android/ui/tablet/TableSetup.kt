@@ -126,7 +126,8 @@ internal fun SetupSwitch(title: String, detail: String?, checked: Boolean, enabl
  * Two-Headed Giant off, and Standard from it goes back to Commander).
  */
 enum class GameMode(val label: String, val detail: String) {
-    STANDARD("Standard", "Everyone for themselves."),
+    // "Free-for-all": the Standard tile is the Magic format, so the mode needs its own word.
+    STANDARD("Free-for-all", "Everyone for themselves."),
     TWO_HEADED_GIANT("Two-Headed Giant", "Players next to each other play as teams of two (1 and 2, 3 and 4, and so on), sharing life, poison and the turn."),
     STAR_COMMANDER("Star Commander", "Five players. Your neighbors are allies who can't deal you Commander damage; " +
         "win when both players across the star are out."),
@@ -138,6 +139,10 @@ enum class GameMode(val label: String, val detail: String) {
             twoHeadedGiant -> TWO_HEADED_GIANT
             else -> STANDARD
         }
+
+        /** Star Commander is a Commander variant: Standard Magic offers only free-for-all and Two-Headed Giant. */
+        fun availableFor(profile: GameProfile): List<GameMode> =
+            if (profile.commanderRules) entries else entries.filter { it != STAR_COMMANDER }
     }
 }
 
@@ -150,11 +155,11 @@ internal fun formatSelected(current: GameProfile, chip: GameProfile): Boolean =
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun GameModeChips(selected: GameMode, enabled: Boolean, onSelect: (GameMode) -> Unit) {
+internal fun GameModeChips(profile: GameProfile, selected: GameMode, enabled: Boolean, onSelect: (GameMode) -> Unit) {
     val p = palette
     Text("Game mode", color = p.muted, style = MaterialTheme.typography.labelLarge)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        GameMode.entries.forEach { mode ->
+        GameMode.availableFor(profile).forEach { mode ->
             FilterChip(
                 selected = selected == mode,
                 onClick = { onSelect(mode) },
@@ -215,7 +220,7 @@ internal data class GameChoice(val profile: GameProfile, val label: String, val 
 /** Formats offered in the shared lobby, by family; Atlas runs those that are [GameProfile.atlasSupported]. */
 internal val FORMATS = listOf(
     GameChoice(GameProfile.MTG_COMMANDER, "Commander", "40 life · Commander damage", GameFamily.MAGIC),
-    GameChoice(GameProfile.MTG, "Magic", "20 life · poison", GameFamily.MAGIC),
+    GameChoice(GameProfile.MTG, "Standard", "20 life · poison", GameFamily.MAGIC),
     GameChoice(GameProfile.YUGIOH, "Yu-Gi-Oh!", "8000 Life Points · 2 players", GameFamily.CARD_GAMES),
     GameChoice(GameProfile.POKEMON, "Pokémon", "6 Prize cards · 2 players", GameFamily.CARD_GAMES),
     GameChoice(GameProfile.LORCANA, "Lorcana", "Race to 20 lore · 2+ players", GameFamily.CARD_GAMES),

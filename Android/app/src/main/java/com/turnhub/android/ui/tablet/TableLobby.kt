@@ -210,7 +210,7 @@ internal fun TableLobby(
                     actions.settings(profile, StandaloneGame.defaultLife(profile, settings.twoHeadedGiant && profile.magicRules), null)
                 }
                 if (settings.profile.magicRules) {
-                    GameModeChips(GameMode.of(settings.profile, settings.twoHeadedGiant), settingsEnabled) { mode ->
+                    GameModeChips(settings.profile, GameMode.of(settings.profile, settings.twoHeadedGiant), settingsEnabled) { mode ->
                         if (mode != GameMode.of(settings.profile, settings.twoHeadedGiant)) {
                             val change = settingsForMode(settings.profile, mode)
                             actions.settings(change.profile, change.life, change.teams)

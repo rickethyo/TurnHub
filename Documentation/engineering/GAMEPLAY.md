@@ -50,7 +50,9 @@ loss condition; Commander damage totals alone do not trigger elimination.
 - **Game picker** (both lobbies): games are grouped as Magic: The Gathering,
   More card games and Your own game, each a tile saying what the table counts
   (`GamePicker`, `FORMATS` in `TableSetup.kt`). Atlas's lobby lists only the
-  formats Atlas runs.
+  formats Atlas runs. The Magic format's tile is "Standard"; its game modes are
+  Free-for-all and Two-Headed Giant, and Star Commander shows only under
+  Commander (`GameMode.availableFor`).
 - Custom starting life 0 to 1,000,000 (custom modes or house rules). Any
   seated player may change the next game's settings in the lobby
   (`ConfigureGame`); a running match keeps what it captured at start, and a
