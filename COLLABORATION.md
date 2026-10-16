@@ -754,3 +754,34 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   Commander 2 remains hidden. Koga confirmed back at 40 after the accidental
   +1 was corrected; no pass, timer or other counter actions. App left showing
   the corrected menu. Captures outside Git in Private/TurnHub-builds/review-356.
+
+### 2026-10-16 — Codex: setup navigation, countdown and table planar die
+
+- Owner requests Back to setup -> Game tab, countdown before start, and an
+  animated Planar die beside Pass. Baseline `44376e1`, `codex/master`, same PR.
+- Feature gate: existing standalone/Atlas engines retain game actions, die
+  randomness/costs and validation. Compose owns cancellable three-second local
+  pre-start UI and disposable roll animation/navigation. Timers start only when
+  the start action is committed. Atlas keeps its authoritative start countdown.
+  No protocol, persisted game layout or dependency changes. Background/Back
+  cancels pending UI; numeric/text announcements support reduced motion.
+- Local planar roll uses existing `rollPlanarDie`, validates same game/turn
+  at commit, then stays on Table for blank or opens Planes for chaos/walk.
+  Highlight arrival is disposable presentation, never a second roll.
+- Validation: Preview 15 assemble, lint and all 347 JVM tests pass (0 test
+  failures/skips; lint 0 errors, 45 warnings, 7 hints). Design-token contrast,
+  docs links, manual export and whitespace checks pass. Manual rendering again
+  fails because LibreOffice is absent; DOCX page layout remains unverified.
+- Emulator acceptance: three-second start, Back cancellation and background
+  cancellation leave setup intact; successful start commits once. Actual random
+  rolls exercised blank staying on Table, planeswalk opening Planes with its
+  banner, and chaos opening Planes with banner/ability highlight. Embedded and
+  full-screen Back to setup both return to Game with the roster retained.
+- Owner explicitly authorized replacing the test match and any app testing.
+  Preview 15 installed on Pixel Fold and emulator. Phone screenshots confirm
+  countdown, fresh live game, matching adjacent Pass/Planar die controls, and
+  a die roll navigating to Planes. Returned phone to Table on the fresh test
+  match, both players at 40. Practice does not offer the live-deck roll shortcut;
+  player-level reduced-motion preferences also apply to the roll dialog.
+  Captures are outside Git in Private/TurnHub-builds/review-356. Atlas hardware,
+  inner display, five-player layout and TalkBack acceptance remain unverified.

@@ -201,6 +201,7 @@ internal fun TabletTable(
     /** The finished game was under a minute and isn't counted until [onCountGame]. */
     shortGameUnsaved: Boolean = summary.shortGameUncounted,
     onCountGame: () -> Unit = { summary.anySeat()?.let { seat -> controls { control(seat, "count-game") } } },
+    onPlanarRoll: (() -> Unit)? = null,
 ) {
     val p = palette
     val haptics = rememberHaptics()
@@ -234,8 +235,16 @@ internal fun TabletTable(
         }
     }
 
+    var pendingStart by remember { mutableStateOf<Pair<TabletSeat, String>?>(null) }
+    val startCountdown = rememberGameStartCountdown(summary.state, standalone && !offline) {
+        pendingStart?.let { (seat, action) -> controls { control(seat, action) } }
+        pendingStart = null
+    }
     fun send(seat: TabletSeat?, action: String) {
         seat ?: return
+        if (standalone && action in listOf("rematch", "sean-mode")) {
+            pendingStart = seat to action; startCountdown(); return
+        }
         haptics.tick()
         if (isOffline) controls { refuseOffline() } else controls { this.control(seat, action) }
     }
@@ -320,6 +329,7 @@ internal fun TabletTable(
                         summary = summary,
                         life = life,
                         pendingDelta = pending,
+                        onPlanarRoll = onPlanarRoll,
                         onOpenMenu = {
                             haptics.tick()
                             playerMenu = unit.key
@@ -636,6 +646,7 @@ private fun PlayerPanel(
     life: Int,
     pendingDelta: Int,
     onOpenMenu: () -> Unit,
+    onPlanarRoll: (() -> Unit)?,
     onBump: (Int) -> Unit,
     onControl: (TabletSeat, String) -> Unit,
     onRespond: (TabletSeat, Long, Boolean) -> Unit,
@@ -695,7 +706,8 @@ private fun PlayerPanel(
         // Short panels (five or six on a phone) put Menu and Hold to pass beside each other in a
         // slim bottom bar, and the number is sized to the room between it and the name.
         val compact = maxHeight < 260.dp
-        val between = (maxHeight.value - if (compact) 104f else 120f).coerceAtLeast(24f)
+        val planarCompact = compact && active && !out && onPlanarRoll != null && maxWidth < 300.dp
+        val between = (maxHeight.value - if (planarCompact) 160f else if (compact) 104f else 120f).coerceAtLeast(24f)
         // Room for the lines under the number, so a short panel shrinks the number instead of
         // squashing those lines to slivers.
         val demerits = unit.members.first().demerits
@@ -775,8 +787,23 @@ private fun PlayerPanel(
             }
         }
 
+        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (planarCompact) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MenuButton(name, true, onOpenMenu)
+                    Spacer(Modifier.weight(1f))
+                    TurnClock(summary)
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
+                    if (actor != null) HoldToPass(summary.pending.passPlayer != null,
+                        { onControl(actor.seat(), "pass") }, haptics, Modifier.weight(1f), true)
+                    PlanarDieButton(onPlanarRoll!!, true, Modifier.weight(1f))
+                }
+            } else {
         Row(
-            Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -790,11 +817,28 @@ private fun PlayerPanel(
                 HoldToPass(passing, { onControl(actor.seat(), "pass") }, haptics,
                     if (compact) Modifier.widthIn(max = 168.dp) else Modifier.weight(1f), compact)
             }
+            if (canPass && onPlanarRoll != null) {
+                PlanarDieButton(onPlanarRoll, compact)
+            }
             if (compact || !canPass) Spacer(Modifier.weight(1f))
             if (active && !compact) TurnClock(summary)
         }
+            }
+        }
 
         Prompt(unit, summary, onControl, onRespond, Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+@Composable
+private fun PlanarDieButton(onRoll: () -> Unit, compact: Boolean, modifier: Modifier = Modifier) {
+    val p = palette
+    val shape = RoundedCornerShape(14.dp)
+    Box(modifier.heightIn(min = 48.dp).clip(shape).background(p.activeSoft).border(1.dp, p.active, shape)
+        .clickable(onClickLabel = "Roll the planar die", role = Role.Button, onClick = onRoll)
+        .padding(horizontal = 8.dp, vertical = if (compact) 6.dp else 12.dp), contentAlignment = Alignment.Center) {
+        Text("Planar die", color = p.text, fontWeight = FontWeight.SemiBold, maxLines = 1,
+            style = if (compact) MaterialTheme.typography.labelLarge else LocalTextStyle.current)
     }
 }
 

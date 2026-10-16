@@ -61,6 +61,7 @@ import java.io.File
 
 /** The planes on this phone, downloaded from Scryfall once, and their decoded art; one copy for the app. */
 internal object PlaneLibrary {
+    var arrivalEffect by mutableStateOf<PlanarFace?>(null)
     private var source: ScryfallPlanes? = null
     private val art = mutableStateMapOf<String, ImageBitmap>()
     /** The downloaded cards by id; null until the saved list is read or downloaded. */
@@ -235,8 +236,21 @@ private fun PlanarPlay(state: StandaloneState, table: StandaloneTable, cards: Ma
     // Chaos and physical planeswalks show for a few seconds after they happen (not when the tab opens).
     var seenChaos by remember { mutableStateOf(planar.chaos) }
     var seenWalks by remember { mutableStateOf(planar.planeswalks) }
-    var chaosNow by remember { mutableStateOf(false) }
-    var walkNow by remember { mutableStateOf(false) }
+    var chaosNow by remember { mutableStateOf(PlaneLibrary.arrivalEffect == PlanarFace.CHAOS) }
+    var walkNow by remember { mutableStateOf(PlaneLibrary.arrivalEffect == PlanarFace.PLANESWALK) }
+    LaunchedEffect(Unit) {
+        PlaneLibrary.arrivalEffect = null
+        delay(5000)
+        chaosNow = false; walkNow = false
+    }
+    if (chaosNow) BrassCard(highlight = p.warn) {
+        Text("Chaos ensues!", color = p.warn, style = MaterialTheme.typography.headlineMedium)
+        Text("Resolve the plane's chaos ability.", color = p.text)
+    }
+    if (walkNow) BrassCard(highlight = p.accent) {
+        Text("Planeswalk!", color = p.accent, style = MaterialTheme.typography.headlineMedium)
+        Text("Resolve the new face-up card.", color = p.text)
+    }
     LaunchedEffect(planar.chaos) {
         if (planar.chaos > seenChaos) { chaosNow = true; delay(5_000); chaosNow = false }
         seenChaos = planar.chaos

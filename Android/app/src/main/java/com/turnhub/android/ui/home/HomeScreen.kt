@@ -143,7 +143,9 @@ fun HomeScreen(
     /** The device game's Game page; openTable switches to the Table tab, openPlanes to the Planes tab. */
     localGameContent: @Composable (openTable: () -> Unit, openPlanes: () -> Unit) -> Unit = { _, _ -> },
     /** The device game's table, in the Table tab; onSetUp returns to Game. */
-    localTableContent: @Composable (onSetUp: () -> Unit) -> Unit = {},
+    localTableContent: @Composable (onSetUp: () -> Unit, onOpenPlanes: () -> Unit) -> Unit = { _, _ -> },
+    requestedTab: String? = null,
+    onTabRequestHandled: () -> Unit = {},
     localPlayersContent: @Composable () -> Unit = {},
     localHistoryContent: @Composable () -> Unit = {},
     /** The device game's Planechase setup and planes, in the Planes tab. */
@@ -178,6 +180,9 @@ fun HomeScreen(
         com.turnhub.android.ui.tablet.LocalTileBackgroundDialog(player, localTable) { editingBackgroundId = null }
     }
     var tab by rememberSaveable { mutableStateOf(HomeTab.GAME) }
+    androidx.compose.runtime.LaunchedEffect(requestedTab) {
+        HomeTab.entries.firstOrNull { it.name == requestedTab }?.let { tab = it; onTabRequestHandled() }
+    }
     val me = uiState.me()
     val info = uiState.sessionInfo()
     val canSettings = info?.has(com.turnhub.android.protocol.AccountPermission.ADMIN) == true
@@ -218,6 +223,7 @@ fun HomeScreen(
                 showTablet = false
                 if (info?.tablet == true) tabletActions.run { disable() }
             },
+            onBackToSetup = { showTablet = false; tab = HomeTab.GAME },
             modifier = modifier,
             onEditBackground = if (localTable == null) null else { player ->
                 editingBackgroundId = summary?.let { localState.library.linkedPlayer(it.atlasId, player.profileId)?.localId }
@@ -326,7 +332,7 @@ fun HomeScreen(
                                 Text("Use this device as the table's shared screen.", color = p.muted)
                                 AccentButton("Use as table screen", { showTablet = true }, Modifier.fillMaxWidth())
                             }
-                        } else localTableContent { tab = HomeTab.GAME }
+                        } else localTableContent({ tab = HomeTab.GAME }, { tab = HomeTab.PLANES })
                         !setup.visible && shown == HomeTab.HISTORY -> localHistoryContent()
                         !setup.visible && shown == HomeTab.PLANES -> localPlanesContent()
                         !setup.visible && shown == HomeTab.PLAYERS && (summary == null || playersPage == "Device") -> localPlayersContent()

@@ -64,11 +64,18 @@ fun StandaloneScreen(
     reduceMotion: Boolean,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    onSetUp: () -> Unit = onClose,
+    onOpenPlanes: () -> Unit = onClose,
 ) {
     val p = palette
     KeepScreenOn()
     BackHandler(onBack = onClose)
     val game = state.game
+    var previousState by remember { mutableStateOf(game.state) }
+    androidx.compose.runtime.LaunchedEffect(game.state) {
+        if (previousState in listOf(TableState.RUNNING, TableState.PAUSED) && game.state == TableState.LOBBY) onSetUp()
+        previousState = game.state
+    }
     val soundSummary = remember(game) { game.toSummary(0, 0) }
     com.turnhub.android.ui.components.GameSoundEffect(soundSummary, available = state.storageProblem == null)
     Box(modifier.fillMaxSize().tableBackground(p)) {
@@ -82,18 +89,21 @@ fun StandaloneScreen(
             StandaloneLobby(state, table)
         } else {
             Immersive()
-            LocalTable(state, table, reduceMotion, onClose)
+            LocalTable(state, table, reduceMotion, onClose, onOpenPlanes)
         }
     }
 }
 
 /** The running or finished local game on the shared table screen, full screen or in the Table tab. */
 @Composable
-private fun LocalTable(state: StandaloneState, table: StandaloneTable, reduceMotion: Boolean, onClose: () -> Unit) {
+private fun LocalTable(state: StandaloneState, table: StandaloneTable, reduceMotion: Boolean, onClose: () -> Unit, onOpenPlanes: (() -> Unit)? = null) {
     val p = palette
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     val game = state.game
+    val effectiveReduceMotion = reduceMotion || game.players.mapNotNull { it.localId }.toSet().let { seated ->
+        state.library.players.any { it.localId in seated && it.personalization.reduceMotion }
+    }
     // The clocks tick on their own from the summary; it is rebuilt only when the game
     // changes or the turn timer's phase (warning, time up) moves on, so the panels
     // aren't redrawn every tick.
@@ -101,14 +111,34 @@ private fun LocalTable(state: StandaloneState, table: StandaloneTable, reduceMot
     val phase = game.turnTimer(System.currentTimeMillis()).phase
     val summary = remember(game, phase, state.library.players) { game.toSummary(System.currentTimeMillis(), TableClock.nowMs(),
         state.library.players.associate { it.localId to it.personalization }) }
+    var rolling by remember { mutableStateOf(false) }
+    var rollGame by remember { mutableStateOf(game) }
+    if (rolling) PlanarRollDialog(effectiveReduceMotion, onRoll = {
+        val current = table.state.value.game
+        if (current.gameId != rollGame.gameId || current.active != rollGame.active ||
+            current.turnStartedAtElapsedMs != rollGame.turnStartedAtElapsedMs || current.state != TableState.RUNNING) null
+        else {
+            val before = current.planechase.lastRoll?.number
+            table.rollPlanarDie()
+            table.state.value.game.planechase.lastRoll?.takeIf { it.number != before }?.face
+        }
+    }, onFinish = { face ->
+        rolling = false
+        if (face != null && face != com.turnhub.android.standalone.PlanarFace.BLANK) {
+            PlaneLibrary.arrivalEffect = face
+            onOpenPlanes?.invoke()
+        }
+    })
     TabletTable(
+        onPlanarRoll = if (onOpenPlanes != null && game.planechase.enabled && game.state == TableState.RUNNING && !game.planechase.phenomenonPending) {
+            { rollGame = table.state.value.game; rolling = true }
+        } else null,
         summary = summary,
         tablet = TabletState(),
         controls = { block -> scope.launch { table.block() } },
         onDismissMessage = {},
         // Only the players at this table: a saved player who isn't playing doesn't slow everyone else's table.
-        reduceMotion = reduceMotion || game.players.mapNotNull { it.localId }.toSet().let { seated ->
-            state.library.players.any { it.localId in seated && it.personalization.reduceMotion } },
+        reduceMotion = effectiveReduceMotion,
         onClose = onClose,
         standalone = true,
         onShareResult = game.record()?.let { record ->
@@ -135,6 +165,7 @@ fun EmbeddedTable(
     reduceMotion: Boolean,
     onFullScreen: () -> Unit,
     onSetUp: () -> Unit,
+    onOpenPlanes: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val p = palette
@@ -143,6 +174,12 @@ fun EmbeddedTable(
         Column(modifier.padding(24.dp)) { Text(state.storageProblem, color = p.text) }
         return
     }
+    var previousState by remember { mutableStateOf(game.state) }
+    androidx.compose.runtime.LaunchedEffect(game.state) {
+        if (previousState in listOf(TableState.RUNNING, TableState.PAUSED) && game.state == TableState.LOBBY) onSetUp()
+        previousState = game.state
+    }
+    val startCountdown = rememberGameStartCountdown(game.state, game.canStart) { table.start() }
     val lobby = game.state == TableState.LOBBY
     // A new practice table whenever the lobby changes, or the practice game returns to setup.
     var practiceRound by rememberSaveable { mutableStateOf(0) }
@@ -173,14 +210,14 @@ fun EmbeddedTable(
             }
             when {
                 !lobby -> ToneButton("Full screen", onFullScreen)
-                game.canStart -> AccentButton("Start game", { table.start() }, Modifier.width(IntrinsicSize.Max))
+                game.canStart -> AccentButton("Start game", startCountdown, Modifier.width(IntrinsicSize.Max))
                 else -> ToneButton("Set up players", onSetUp)
             }
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (shown.game.state == TableState.RUNNING) KeepScreenOn()
             if (practice != null) LocalTable(shown, practice, reduceMotion, onSetUp)
-            else LocalTable(state, table, reduceMotion, onSetUp)
+            else LocalTable(state, table, reduceMotion, onSetUp, onOpenPlanes)
         }
     }
 }
@@ -236,6 +273,9 @@ fun StandaloneLobby(
     }
 
     val seated = game.players.mapNotNull { it.localId }.toSet()
+    val startCountdown = rememberGameStartCountdown(game.state, game.canStart) {
+        table.start(); if (table.state.value.game.state == TableState.RUNNING) onStarted()
+    }
     TableLobby(
         summary = summary,
         actions = TableLobbyActions(
@@ -252,7 +292,7 @@ fun StandaloneLobby(
             zeroLife = table::setZeroLifeElimination,
             houseRules = table::setHouseRules,
             chooseStarter = { table.chooseStarter(it.playerNumber - 1) },
-            start = { table.start(); if (table.state.value.game.state == TableState.RUNNING) onStarted() },
+            start = startCountdown,
             background = { editingLocalId = game.players.getOrNull(it.playerNumber - 1)?.localId },
             canEditBackground = { player -> game.players.getOrNull(player.playerNumber - 1)?.localId in state.library.players.map { it.localId } },
         ),

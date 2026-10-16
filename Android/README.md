@@ -37,7 +37,11 @@ internet. Up to 20 named decks are kept locally. Planechase has:
 setup (a shuffled digital deck, downloaded once from Scryfall into
 `files/planes/` with art cached in `plane_art/`, or the players' own cards),
 then the face-up plane with artist credit, the planar die with each roll's
-cost, phenomena and counters. The engine is `standalone/Planechase.kt`, and
+cost, phenomena and counters. During live play, Planar die beside Pass animates
+one roll: blank keeps Table open, while chaos or planeswalk opens Planes and
+highlights the effect. Local starts and rematches show a cancellable three-second
+countdown; clocks start after it finishes. Back to setup returns to Game,
+including from the full-screen table. The engine is `standalone/Planechase.kt`, and
 `PlanechaseScenarioTest` runs the shared scenarios in
 `protocol/scenarios/planechase/`. A finished phone-hosted Star game also offers Sean Mode, a rematch that
 reseats the five players so allies become enemies. Game shows local

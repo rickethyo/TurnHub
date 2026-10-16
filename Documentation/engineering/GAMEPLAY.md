@@ -35,7 +35,14 @@ loss condition; Commander damage totals alone do not trigger elimination.
   with the same players and settings and nothing is recorded. A match under a
   minute (`SHORT_GAME_MS`) commits its finished checkpoint but its statistics
   wait for `CountShortGame` (state `shortGameUncounted`); left uncounted, it
-  never reaches the statistics. The standalone app does the same.
+  never reaches the statistics. The standalone app does the same. Android returns
+  to the Game tab when this action succeeds, including from full screen.
+- Local Android starts and rematches show a cancellable three-second countdown
+  before committing the engine action. Back, leaving the screen or backgrounding
+  cancels it; clocks start only after completion. Atlas retains its own countdown.
+  During local Planechase play, Planar die beside Pass animates one validated
+  engine roll. Blank stays on Table; chaos and planeswalk open Planes with the
+  corresponding effect highlighted. Cancellation before the roll changes nothing.
 - **Who goes first:** any player can choose (`SelectStarter`); choosing the
   chosen player again clears it. With nobody chosen, Atlas picks a random
   player when the countdown ends, as the standalone app does (rematches too).
