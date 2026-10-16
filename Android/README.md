@@ -97,6 +97,22 @@ the visible state and existing haptics, and never changes a game. Original WAV
 assets come from `tools/generate_game_sounds.py` (stdlib; `--check` validates
 them); native SoundPool adds no third-party runtime dependency.
 
+### Bug reports
+
+**Report a bug** opens the TurnHub Google Form in the browser with editable
+defaults for the installed app version/build, reporting phone/tablet type,
+manufacturer/model, Android version and display size. The report includes the
+screen and game format/state when known, and the last known firmware version
+for an Atlas screen. Device play stays device play even if an Atlas connection
+exists in the background. Settings leaves play mode for the reporter to choose.
+
+The single-page form adds optional expected-result and frequency prompts. Its
+version/device fields are optional so old app versions and direct links still
+work. The user can change the issue device to Physical Atlas, review all defaults,
+attach a file and explicitly submit. Google Forms collects the signed-in email;
+there is no automatic submission, new permission or developer credential in the
+app. Question IDs in `BugReportLink.kt` must stay aligned with the owned form.
+
 ### The one exception: the standalone tablet game
 
 Fresh launches open the shared Game tab; rotation restores the open screen.

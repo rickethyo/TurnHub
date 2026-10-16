@@ -260,7 +260,10 @@ internal fun TableLobby(
             // full-screen lobby has neither, so it keeps them at the bottom.
             if (!embedded) {
                 DisclosureCard("Game sounds") { com.turnhub.android.ui.components.GameSoundControls() }
-                DisclosureCard("Feedback") { com.turnhub.android.ui.components.ReportBugButton() }
+                DisclosureCard("Feedback") {
+                    com.turnhub.android.ui.components.ReportBugButton(
+                        com.turnhub.android.ui.components.tableBugReportContext(summary, "Table setup"))
+                }
             }
             footer()
         }

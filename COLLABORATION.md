@@ -39,6 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Active | Codex / preview, prefill implementation and validation |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
 | TH-021 | Shared table authority design | Android, hosting design | UI integrated; common engine/authority staged | Owner / design implementation and device acceptance |
@@ -66,6 +67,46 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 - Next action / intended responder:
 
 Append replies under the same topic with date, author and reviewed SHA. Record a final outcome and links when resolved.
+
+## TH-024: Concise bug reports with app diagnostics
+
+- Date / owner: 2026-10-16 / Codex, `codex/master`, accepted baseline `519314e`.
+  Fetched origin, confirmed no open PR, and selected the persistent branch with
+  no overlapping active bug-report scope. This is a new reviewable slice.
+- Scope authorized by the owner: expand the existing Google Form concisely and
+  prefill app version/build, reporting device type/model/Android version and
+  known play context from Android. Preserve the existing six question/item IDs,
+  responses, file-upload item and single-page structure. Add optional expected
+  result, frequency and two app diagnostic fields; no additional required work.
+- Feature gate: the user owns editable draft answers in the external Google
+  Form; Android derives a disposable prefilled URL on tap. Opening the browser
+  is the only app action; no game Intent, validator, local persistence or Atlas
+  protocol change. Google validates explicit user submission. Android native
+  package/device information and existing context only; no OAuth credentials,
+  new permissions, new runtime libraries, player IDs or sign-in data in the app.
+  Standard labeled controls and editable fields retain TalkBack access.
+- The form integration remains outside TurnHub. The real form is snapshotted,
+  locally previewed and updated through the official Forms API with
+  requiredRevisionId. Browser submission and attachment acceptance are owner
+  device checks; no report will be submitted as an automated test.
+- The live form update is applied at revision `00000041`: one page, ten fields,
+  with all six original question definitions/IDs, their relative order and
+  form settings preserved. No responses were accessed or removed. The upload
+  item is entirely unchanged. New form-entry mappings are checked into the
+  app as public question IDs only; credentials stay outside this repository.
+- Android implementation: installed package version/build shared with the visible
+  label; encoded editable defaults for phone/tablet, model/OS/display, screen,
+  game state/format and known Atlas firmware. Local play never inherits the
+  background Atlas connection; Settings leaves unknown play mode unanswered.
+- Local validation: manual export/check, documentation hygiene and whitespace
+  checks pass. The separate Forms integration has 44 passing offline safeguard
+  tests, including corrected update masks with required item-kind definitions.
+  Six Android regressions cover URL encoding/field injection, installed-build
+  values, phone/tablet boundary, missing metadata and local/connected context.
+  Android SDK/Gradle are absent locally; Android JVM/build validation runs in
+  this slice's PR CI. Native device/browser-prefill and attachment acceptance
+  remain owner checks; no synthetic report will be submitted.
+- Implementation commit and PR: pending; no release or merge is authorized.
 
 ## TH-023: Atlas parity with the standalone app
 

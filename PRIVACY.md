@@ -5,10 +5,11 @@ Effective 15 October 2026. This policy covers the TurnHub Android app
 
 ## The short version
 
-TurnHub does not collect your data. The app has no ads, analytics, tracking
-or crash reporting, and TurnHub runs no servers. Everything you enter stays on
-your phone or on your own TurnHub table controller (the "Atlas"). You can play
-on one phone or tablet without an Atlas at all.
+The app has no ads, analytics, tracking or automatic crash reporting, and
+TurnHub runs no app servers. Game and player data stays on your phone or on
+your own TurnHub table controller (the "Atlas"), except for sharing you choose.
+You can play on one phone or tablet without an Atlas at all. Optional bug
+reports are described below.
 
 ## What the app stores and where
 
@@ -78,6 +79,22 @@ about the players is sent; Scryfall receives the
 requests (including your IP address) under
 [Scryfall's privacy policy](https://scryfall.com/docs/privacy). The cards are
 kept on the phone. Playing with your own cards downloads nothing.
+
+## Optional bug reports
+
+Choosing **Report a bug** opens a Google Form in your browser. Its editable
+defaults include the installed app version/build, phone/tablet type,
+manufacturer/model, Android version, display size and the current screen/game
+context when known. An Atlas report can include its last known firmware version.
+The app does not include player names, profile identifiers, passwords, session
+tokens or device serial numbers.
+
+Google receives the prefilled details when the browser opens the link. You can
+review and change the answers before explicitly submitting them. The form
+collects your signed-in Google-account email address, your answers and any file
+you choose to upload; these are available to the TurnHub developer for reviewing
+the report. The app sends no report automatically. Google handles the form under
+[Google's privacy policy](https://policies.google.com/privacy).
 
 ## Children
 
