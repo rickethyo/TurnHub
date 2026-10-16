@@ -200,10 +200,18 @@ fun LocalLibraryScreen(
                                     stateDescription = if (open) "Expanded" else "Collapsed"
                                 })
                                 if (open) {
-                                    val prizes = record.profile.pokemon
-                                    Text(if (prizes) "${record.startingLife} Prize cards each" else "${record.startingLife} starting life", color = p.muted)
+                                    val score = when {
+                                        record.profile.pokemon -> "prizes left"
+                                        record.profile.lorcana -> "lore"
+                                        else -> "life"
+                                    }
+                                    Text(when {
+                                        record.profile.pokemon -> "${record.startingLife} Prize cards each"
+                                        record.profile.lorcana -> "${record.startingLife} lore to win"
+                                        else -> "${record.startingLife} starting life"
+                                    }, color = p.muted)
                                     record.players.forEachIndexed { index, player ->
-                                        Text("${index + 1}. ${player.name}: ${player.finalLife} ${if (prizes) "prizes left" else "life"} · ${player.turnsCompleted} turns" +
+                                        Text("${index + 1}. ${player.name}: ${player.finalLife} $score · ${player.turnsCompleted} turns" +
                                             if (player.outOrder != null) (if (player.conceded) " · Conceded" else " · Eliminated") else "", color = p.text)
                                         if (player.demerits > 0 || player.extensionsUsed > 0) {
                                             Text("${player.demerits} demerits · ${player.extensionsUsed} extensions used", color = p.muted)

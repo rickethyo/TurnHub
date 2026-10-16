@@ -22,6 +22,11 @@ enum class GameProfile(val wireValue: String) {
      * taking the last one wins. Phone-hosted games only: Atlas doesn't know it yet.
      */
     POKEMON("pokemon"),
+    /**
+     * Disney Lorcana: lore counts up from 0 and the first player to reach the
+     * goal (20) wins at once. Phone-hosted games only, like [POKEMON].
+     */
+    LORCANA("lorcana"),
     ;
 
     /** Commander rules (Commander damage, commander casts, 40 life): Commander and Star Commander. */
@@ -35,8 +40,14 @@ enum class GameProfile(val wireValue: String) {
     /** Prizes instead of life (see [POKEMON]). */
     val pokemon: Boolean get() = this == POKEMON
 
+    /** Lore instead of life (see [LORCANA]); the settings' starting life is the lore to win. */
+    val lorcana: Boolean get() = this == LORCANA
+
+    /** A life total that can run out; Pokémon counts prizes and Lorcana counts lore up instead. */
+    val countsLife: Boolean get() = !pokemon && !lorcana
+
     /** Atlas runs and imports this format; the others are phone-hosted only. */
-    val atlasSupported: Boolean get() = this != POKEMON
+    val atlasSupported: Boolean get() = this != POKEMON && this != LORCANA
 
     companion object {
         fun fromWire(value: String): GameProfile? = entries.firstOrNull { it.wireValue == value }

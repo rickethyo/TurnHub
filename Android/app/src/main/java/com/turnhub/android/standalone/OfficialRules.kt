@@ -88,6 +88,18 @@ fun officialRules(profile: GameProfile, teams: Boolean): OfficialRules? = when {
         sourceName = "Pokémon Trading Card Game rulebook (The Pokémon Company International)",
         sourceUrl = "https://www.pokemon.com/us/pokemon-tcg/rules",
     )
+    profile == GameProfile.LORCANA -> OfficialRules(
+        "Lorcana", life = 20, poison = null, commanderDamage = null, players = null,
+        summary = listOf(
+            "Each player starts with 0 lore. The first player to reach 20 lore wins at once (TurnHub counts lore up; the goal is the number in setup).",
+            "A player who has to draw from an empty deck loses.",
+            "Games with three or more players follow the same rules. A player who loses leaves the game, and the last player left wins.",
+            "The first player skips their draw on their first turn.",
+            "Once per turn you may put a card with the inkwell symbol into your inkwell.",
+        ),
+        sourceName = "Disney Lorcana Comprehensive Rules (Ravensburger)",
+        sourceUrl = "https://www.disneylorcana.com/en-US/resources",
+    )
     else -> null
 }
 

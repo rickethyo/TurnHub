@@ -151,4 +151,5 @@ fun GameProfile.displayName(): String = when (this) {
     GameProfile.MTG_STAR_COMMANDER -> "Star Commander"
     GameProfile.YUGIOH -> "Yu-Gi-Oh!"
     GameProfile.POKEMON -> "Pokémon"
+    GameProfile.LORCANA -> "Lorcana"
 }

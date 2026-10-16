@@ -5,9 +5,9 @@ import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.domain.LocalTimerRules
-import com.turnhub.android.domain.PokemonAction
-import com.turnhub.android.domain.PokemonStatus
 import com.turnhub.android.domain.SpecialCondition
+import com.turnhub.android.domain.TurnAction
+import com.turnhub.android.domain.TurnStatus
 import com.turnhub.android.protocol.CommanderDamage
 import com.turnhub.android.protocol.PlayerCounters
 import com.turnhub.android.protocol.GameProfile
@@ -47,8 +47,8 @@ data class LocalPlayer(
     val commander: String? = null,
     /** The Scryfall printing whose art [commander] shows; null uses Scryfall's default printing. */
     val commanderArt: String? = null,
-    /** Pokémon: this turn's once-per-turn actions and the Active Pokémon's Special Conditions. */
-    val pokemon: PokemonStatus = PokemonStatus(),
+    /** Pokémon and Lorcana: this turn's once-per-turn actions; Pokémon's Special Conditions. */
+    val turn: TurnStatus = TurnStatus(),
 )
 
 /**
@@ -123,6 +123,8 @@ data class StandaloneGame(
     private val star: Boolean get() = profile.starCommander
 
     private val pokemon: Boolean get() = profile.pokemon
+
+    private val lorcana: Boolean get() = profile.lorcana
 
     /** [index] and, in Two-Headed Giant, their teammate. */
     fun mates(index: Int): List<Int> =
@@ -291,7 +293,8 @@ data class StandaloneGame(
         return copy(
             gameId = gameId,
             state = TableState.RUNNING,
-            players = players.map { LocalPlayer(it.name, it.profileId, life = startingLife, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt) },
+            // Lorcana counts lore up from 0 to [startingLife].
+            players = players.map { LocalPlayer(it.name, it.profileId, life = if (lorcana) 0 else startingLife, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt) },
             active = first,
             starter = first,
             winner = null,
@@ -359,7 +362,11 @@ data class StandaloneGame(
         val earn = reward && timerRules.earnExtensions && turnTimerMs > 0 && !timeoutHandled && turnExtensionMs == 0L &&
             players[holder].turnsCompleted >= 3 && took < turnTimerMs * timerRules.earnBeforePercent / 100 &&
             players[holder].extensionsEarned < timerRules.maxEarnedPerGame
-        val (checked, checkup) = if (pokemon) pokemonCheckup(holder, random) else players to emptyList()
+        val (checked, checkup) = when {
+            pokemon -> pokemonCheckup(holder, random)
+            lorcana -> players.map { it.copy(turn = it.turn.copy(turnActions = emptySet())) } to emptyList()
+            else -> players to emptyList()
+        }
         return copy(
             pokemonCheckup = checkup,
             players = checked.mapIndexed { i, p ->
@@ -396,6 +403,13 @@ data class StandaloneGame(
             val taken = update(index) { it.copy(life = prizes) }
             return if (prizes == 0) taken.finish(listOf(index), nowMs) else taken
         }
+        // Lorcana counts lore up: reaching the goal wins at once.
+        if (lorcana) {
+            val lore = (player.life + delta).coerceIn(0, MAX_LIFE)
+            if (lore == player.life) return this
+            val gained = update(index) { it.copy(life = lore) }
+            return if (lore >= startingLife) gained.finish(listOf(index), nowMs) else gained
+        }
         val life = (player.life.toLong() + delta).coerceIn(-MAX_LIFE.toLong(), MAX_LIFE.toLong()).toInt()
         return updateTeam(index) { it.copy(life = life) }.resolveEliminationRules(nowMs)
     }
@@ -430,7 +444,7 @@ data class StandaloneGame(
 
     fun changeCounter(index: Int, kind: String, value: Int, commander: Int = 1, nowMs: Long = startedAtMs): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
-        if (pokemon) return pokemonMark(index, kind, value)
+        if (pokemon || lorcana) return markTurn(index, kind, value)
         if (!playing || player.eliminated || !magic) return this
         if (kind == "initiative") {
             if (value !in 0..1 || (value == 0 && initiative != index)) return this
@@ -506,7 +520,7 @@ data class StandaloneGame(
         if (!playing) return this
         val targets = players.indices.filter { i ->
             val p = players[i]
-            !p.eliminated && ((autoEliminateAtZeroLife && !pokemon && p.life <= 0) ||
+            !p.eliminated && ((autoEliminateAtZeroLife && profile.countsLife && p.life <= 0) ||
                 (magic && autoEliminateAtPoisonLimit && p.counters.poison >= poisonLimit) ||
                 (profile.commanderRules && autoEliminateAtCommanderDamage && p.commanderDamage.values.any { damage -> damage.any { it >= 21 } }))
         }.flatMap { mates(it) }.distinct().filter { !players[it].eliminated }
@@ -551,31 +565,31 @@ data class StandaloneGame(
         return copy(players = reseated, starter = null).start(nowMs, gameId, random, planarDeck)
     }
 
-    // --- Pokémon ------------------------------------------------------------------------
+    // --- Pokémon and Lorcana -----------------------------------------------------------
 
     /**
-     * Marks a once-per-turn action (`pokemon-action:ENERGY`, ...; the active player's,
-     * this turn) or a Special Condition (`pokemon-condition:POISONED`, ...) on or off
-     * ([value] 1 or 0).
+     * Marks a once-per-turn action (`turn-action:ENERGY`, ...; the active player's,
+     * this turn, for this game) or a Pokémon Special Condition (`pokemon-condition:POISONED`, ...)
+     * on or off ([value] 1 or 0).
      */
-    private fun pokemonMark(index: Int, kind: String, value: Int): StandaloneGame {
+    private fun markTurn(index: Int, kind: String, value: Int): StandaloneGame {
         val player = players[index]
         if (!playing || player.eliminated || value !in 0..1) return this
         val on = value == 1
-        val status = player.pokemon
+        val status = player.turn
         val next = when {
             kind.startsWith(ACTION_KIND) -> {
-                val action = PokemonAction.entries.firstOrNull { it.name == kind.removePrefix(ACTION_KIND) } ?: return this
+                val action = TurnAction.of(profile).firstOrNull { it.name == kind.removePrefix(ACTION_KIND) } ?: return this
                 if (active != index) return this
                 status.copy(turnActions = if (on) status.turnActions + action else status.turnActions - action)
             }
-            kind.startsWith(CONDITION_KIND) -> {
+            kind.startsWith(CONDITION_KIND) && pokemon -> {
                 val condition = SpecialCondition.entries.firstOrNull { it.name == kind.removePrefix(CONDITION_KIND) } ?: return this
                 status.withCondition(condition, on)
             }
             else -> return this
         }
-        return if (next == status) this else update(index) { it.copy(pokemon = next) }
+        return if (next == status) this else update(index) { it.copy(turn = next) }
     }
 
     /** The table has read the last Pokémon Checkup. */
@@ -590,8 +604,8 @@ data class StandaloneGame(
     private fun pokemonCheckup(ended: Int, random: Random): Pair<List<LocalPlayer>, List<String>> {
         val lines = mutableListOf<String>()
         val checked = players.mapIndexed { i, p ->
-            var status = p.pokemon.copy(turnActions = emptySet())
-            if (p.eliminated) return@mapIndexed p.copy(pokemon = status)
+            var status = p.turn.copy(turnActions = emptySet())
+            if (p.eliminated) return@mapIndexed p.copy(turn = status)
             val c = status.conditions
             if (SpecialCondition.POISONED in c) lines += "${p.name}: Poisoned. Put 1 damage counter on the Active Pokémon."
             if (SpecialCondition.BURNED in c) {
@@ -609,7 +623,7 @@ data class StandaloneGame(
                 lines += "${p.name}: no longer Paralyzed."
                 status = status.withCondition(SpecialCondition.PARALYZED, false)
             }
-            p.copy(pokemon = status)
+            p.copy(turn = status)
         }
         return checked to lines
     }
@@ -831,7 +845,7 @@ data class StandaloneGame(
                     extensionsAvailable = p.extensionsEarned - p.extensionsUsed,
                     commander = p.commander,
                     commanderArt = p.commanderArt,
-                    pokemon = p.pokemon,
+                    turn = p.turn,
                     life = if (state == TableState.LOBBY) null else p.life,
                     turnsCompleted = p.turnsCompleted.toLong(),
                     commanderDamage = p.commanderDamage.map { (source, damage) -> CommanderDamage(source + 1, damage) },
@@ -868,6 +882,7 @@ data class StandaloneGame(
             GameProfile.MTG -> if (twoHeadedGiant) 30 else 20
             GameProfile.YUGIOH -> 8000
             GameProfile.POKEMON -> 6
+            GameProfile.LORCANA -> 20
             else -> 20
         }
 
@@ -876,8 +891,8 @@ data class StandaloneGame(
         /** A finished game shorter than this isn't counted unless the table saves it (a test or a wrong setup). */
         const val SHORT_GAME_MS = 60_000L
 
-        /** Counter kinds for Pokémon's once-per-turn actions and Special Conditions ([PokemonAction], [SpecialCondition] names follow). */
-        const val ACTION_KIND = "pokemon-action:"
+        /** Counter kinds for once-per-turn actions and Pokémon's Special Conditions ([TurnAction], [SpecialCondition] names follow). */
+        const val ACTION_KIND = "turn-action:"
         const val CONDITION_KIND = "pokemon-condition:"
 
         private const val SOLO_POISON = 10

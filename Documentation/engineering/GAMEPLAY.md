@@ -15,6 +15,7 @@ loss condition; Commander damage totals alone do not trigger elimination.
 | Star Commander | 40, Commander rules for exactly five players (below) |
 | Yu-Gi-Oh! | 8000, counted in hundreds on every client |
 | Pokémon (phone only) | 6 Prize cards left; the app game only (below) |
+| Lorcana (phone only) | 0 lore, counting up to 20 to win; the app game only (below) |
 
 - **Official rules** (2026-10-14, owner request; host tests only, *needs a
   playtest*): Magic (20 life, 10 poison), Commander (40, 10), Two-Headed Giant
@@ -39,6 +40,17 @@ loss condition; Commander damage totals alone do not trigger elimination.
   lists Poisoned and Burned damage for the players to place, flips the Burned
   and Asleep coins (heads removes them) and ends Paralyzed for the player whose
   turn ended (`StandaloneGame.pokemonCheckup`). Rules text in `OfficialRules.kt`.
+- **Lorcana** (2026-10-16, owner request; JVM tests only, *needs a
+  playtest*): phone-hosted like Pokémon. Lore starts at 0 and counts up; the
+  setup's number is the lore to win (official 20, editable under house rules),
+  and reaching it wins at once. Two or more players: a player who must draw
+  from an empty deck taps that in their menu and leaves, and the last player
+  left wins. The active panel has a "Card inked" reminder that resets on pass,
+  and the starter's first turn says to skip the draw.
+- **Game picker** (both lobbies): games are grouped as Magic: The Gathering,
+  More card games and Your own game, each a tile saying what the table counts
+  (`GamePicker`, `FORMATS` in `TableSetup.kt`). Atlas's lobby lists only the
+  formats Atlas runs.
 - Custom starting life 0 to 1,000,000 (custom modes or house rules). Any
   seated player may change the next game's settings in the lobby
   (`ConfigureGame`); a running match keeps what it captured at start, and a

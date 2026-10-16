@@ -148,8 +148,8 @@ data class TablePlayer(
     val commander: String? = null,
     /** The Scryfall printing whose art the commander shows; null for Scryfall's default. */
     val commanderArt: String? = null,
-    /** Pokémon (phone-hosted games): this turn's actions and the Active Pokémon's Special Conditions. */
-    val pokemon: PokemonStatus = PokemonStatus(),
+    /** Pokémon and Lorcana (phone-hosted games): this turn's actions; Pokémon's Special Conditions. */
+    val turn: TurnStatus = TurnStatus(),
 )
 
 /**

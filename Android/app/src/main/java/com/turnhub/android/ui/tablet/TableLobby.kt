@@ -206,14 +206,8 @@ internal fun TableLobby(
             BrassCard {
                 Eyebrow("Game")
                 if (!settingsEnabled) Text("Add a player to choose the game.", color = p.muted)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FORMATS.filter { phoneHosted || it.first.atlasSupported }.forEach { (profile, label, _) ->
-                        FilterChip(selected = formatSelected(settings.profile, profile), onClick = {
-                            if (!formatSelected(settings.profile, profile)) actions.settings(profile,
-                                StandaloneGame.defaultLife(profile, settings.twoHeadedGiant && profile.magicRules), null)
-                        }, label = { Text(label) }, enabled = settingsEnabled,
-                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = p.accentSoft))
-                    }
+                GamePicker(settings.profile, settingsEnabled, phoneHosted) { profile ->
+                    actions.settings(profile, StandaloneGame.defaultLife(profile, settings.twoHeadedGiant && profile.magicRules), null)
                 }
                 if (settings.profile.magicRules) {
                     GameModeChips(GameMode.of(settings.profile, settings.twoHeadedGiant), settingsEnabled) { mode ->
@@ -236,6 +230,7 @@ internal fun TableLobby(
                     OutlinedTextField(life, { life = it.filter(Char::isDigit).take(5) },
                         label = { Text(when {
                             settings.profile.pokemon -> "Prize cards"
+                            settings.profile.lorcana -> "Lore to win"
                             settings.twoHeadedGiant -> "Starting life per team"
                             else -> "Starting life"
                         }) },
@@ -244,12 +239,18 @@ internal fun TableLobby(
                     ToneButton("Set", { life.toIntOrNull()?.let { actions.settings(null, it, null) } },
                         enabled = settingsEnabled && !locked && (life.toIntOrNull() ?: 0) > 0 && life != "${settings.startingLife}")
                 }
-                if (locked) Text(if (settings.profile.pokemon) "Official 6 Prize cards. Turn on house rules to change them."
-                    else "Official starting life. Turn on house rules to change it.", color = p.faint,
+                if (locked) Text(when {
+                    settings.profile.pokemon -> "Official 6 Prize cards. Turn on house rules to change them."
+                    settings.profile.lorcana -> "Official 20 lore to win. Turn on house rules to change it."
+                    else -> "Official starting life. Turn on house rules to change it."
+                }, color = p.faint,
                     style = MaterialTheme.typography.bodySmall)
                 if (official != null) actions.houseRules?.let { setHouseRules ->
-                    SetupSwitch("House rules", (if (settings.profile.pokemon) "Change the Prize cards and player count. "
-                        else "Change the starting life, poison limit and player count. ") +
+                    SetupSwitch("House rules", when {
+                        settings.profile.pokemon -> "Change the Prize cards and player count. "
+                        settings.profile.lorcana -> "Change the lore to win. "
+                        else -> "Change the starting life, poison limit and player count. "
+                    } +
                         "The game no longer follows the official ${official.name} rules.", settings.houseRules, settingsEnabled, setHouseRules)
                 }
                 TurnTimerChips(settings.turnTimerMs, settingsEnabled, actions.timer)
@@ -259,8 +260,8 @@ internal fun TableLobby(
                     if (rules != null && changeRules != null) TimerRulesEditor(rules, settings.turnTimerMs, settingsEnabled, changeRules)
                     else Text("At the limit, Atlas keeps counting overtime.", color = p.muted, style = MaterialTheme.typography.bodySmall)
                 }
-                // Pokémon has no life: taking the last Prize card wins.
-                if (!settings.profile.pokemon) {
+                // Pokémon and Lorcana have no life total: prizes and lore end the game.
+                if (settings.profile.countsLife) {
                     SetupSwitch("Automatic elimination at zero life", null, settings.autoEliminateAtZeroLife, settingsEnabled, actions.zeroLife)
                 }
                 extraSettings()
