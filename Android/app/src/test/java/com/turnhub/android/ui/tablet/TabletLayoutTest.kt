@@ -26,6 +26,7 @@ class TabletLayoutTest {
     fun `Yu-Gi-Oh! counts life in hundreds`() {
         assertEquals(100 to 1000, lifeSteps(GameProfile.YUGIOH))
         assertEquals(1 to 5, lifeSteps(GameProfile.MTG_COMMANDER))
+        assertEquals(1 to 1, lifeSteps(GameProfile.POKEMON))
     }
 
     @Test

@@ -5,6 +5,9 @@ import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.domain.LocalTimerRules
+import com.turnhub.android.domain.PokemonAction
+import com.turnhub.android.domain.PokemonStatus
+import com.turnhub.android.domain.SpecialCondition
 import com.turnhub.android.protocol.CommanderDamage
 import com.turnhub.android.protocol.PlayerCounters
 import com.turnhub.android.protocol.GameProfile
@@ -44,6 +47,8 @@ data class LocalPlayer(
     val commander: String? = null,
     /** The Scryfall printing whose art [commander] shows; null uses Scryfall's default printing. */
     val commanderArt: String? = null,
+    /** Pokémon: this turn's once-per-turn actions and the Active Pokémon's Special Conditions. */
+    val pokemon: PokemonStatus = PokemonStatus(),
 )
 
 /**
@@ -103,6 +108,8 @@ data class StandaloneGame(
     val turnStartedAtElapsedMs: Long = 0,
     /** Planechase: the planar deck, die and counters ([Planechase]); off unless the table turns it on. */
     val planechase: Planechase = Planechase(),
+    /** Pokémon: what the last Pokémon Checkup did, shown until the table dismisses it; empty when nothing happened. */
+    val pokemonCheckup: List<String> = emptyList(),
     val revision: Long = 0,
 ) {
     fun gameElapsedMs(nowMs: Long): Long = elapsedMs + (runningSinceMs?.let { (nowMs - it).coerceAtLeast(0) } ?: 0)
@@ -114,6 +121,8 @@ data class StandaloneGame(
     private val magic: Boolean get() = profile.magicRules
 
     private val star: Boolean get() = profile.starCommander
+
+    private val pokemon: Boolean get() = profile.pokemon
 
     /** [index] and, in Two-Headed Giant, their teammate. */
     fun mates(index: Int): List<Int> =
@@ -296,6 +305,7 @@ data class StandaloneGame(
             turnExtensionMs = 0,
             timeoutHandled = false,
             planechase = if (planechase.enabled && magic) planechase.dealt(planarDeck) else planechase.cleared(),
+            pokemonCheckup = emptyList(),
         ).bump()
     }
 
@@ -328,7 +338,8 @@ data class StandaloneGame(
 
     // --- the table ------------------------------------------------------------------
 
-    fun pass(index: Int, nowMs: Long): StandaloneGame {
+    /** [random] flips Pokémon Checkup's coins. */
+    fun pass(index: Int, nowMs: Long, random: Random = Random.Default): StandaloneGame {
         val holder = active ?: return this
         // Either teammate may pass the team's turn; it goes to the next team.
         val team = mates(holder)
@@ -336,10 +347,10 @@ data class StandaloneGame(
         val settled = applyTurnTimeout(nowMs)
         // A timeout may already have passed this turn; don't also pass the next one.
         if (settled.active != active) return settled
-        return settled.advanceTurn(nowMs, reward = true)
+        return settled.advanceTurn(nowMs, reward = true, random = random)
     }
 
-    private fun advanceTurn(nowMs: Long, reward: Boolean): StandaloneGame {
+    private fun advanceTurn(nowMs: Long, reward: Boolean, random: Random = Random.Default): StandaloneGame {
         val holder = active ?: return this
         val team = mates(holder)
         val next = nextIn(team.last()) ?: return this
@@ -348,8 +359,10 @@ data class StandaloneGame(
         val earn = reward && timerRules.earnExtensions && turnTimerMs > 0 && !timeoutHandled && turnExtensionMs == 0L &&
             players[holder].turnsCompleted >= 3 && took < turnTimerMs * timerRules.earnBeforePercent / 100 &&
             players[holder].extensionsEarned < timerRules.maxEarnedPerGame
+        val (checked, checkup) = if (pokemon) pokemonCheckup(holder, random) else players to emptyList()
         return copy(
-            players = players.mapIndexed { i, p ->
+            pokemonCheckup = checkup,
+            players = checked.mapIndexed { i, p ->
                 if (i !in team || p.eliminated) p else p.copy(
                     turnsCompleted = p.turnsCompleted + 1,
                     turnMs = p.turnMs + took,
@@ -376,6 +389,13 @@ data class StandaloneGame(
     fun changeLife(index: Int, delta: Int, nowMs: Long = startedAtMs): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated || delta == 0) return this
+        // Pokémon counts Prize cards left: taking the last one wins.
+        if (pokemon) {
+            val prizes = (player.life + delta).coerceIn(0, maxOf(startingLife, player.life))
+            if (prizes == player.life) return this
+            val taken = update(index) { it.copy(life = prizes) }
+            return if (prizes == 0) taken.finish(listOf(index), nowMs) else taken
+        }
         val life = (player.life.toLong() + delta).coerceIn(-MAX_LIFE.toLong(), MAX_LIFE.toLong()).toInt()
         return updateTeam(index) { it.copy(life = life) }.resolveEliminationRules(nowMs)
     }
@@ -410,6 +430,7 @@ data class StandaloneGame(
 
     fun changeCounter(index: Int, kind: String, value: Int, commander: Int = 1, nowMs: Long = startedAtMs): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
+        if (pokemon) return pokemonMark(index, kind, value)
         if (!playing || player.eliminated || !magic) return this
         if (kind == "initiative") {
             if (value !in 0..1 || (value == 0 && initiative != index)) return this
@@ -485,7 +506,7 @@ data class StandaloneGame(
         if (!playing) return this
         val targets = players.indices.filter { i ->
             val p = players[i]
-            !p.eliminated && ((autoEliminateAtZeroLife && p.life <= 0) ||
+            !p.eliminated && ((autoEliminateAtZeroLife && !pokemon && p.life <= 0) ||
                 (magic && autoEliminateAtPoisonLimit && p.counters.poison >= poisonLimit) ||
                 (profile.commanderRules && autoEliminateAtCommanderDamage && p.commanderDamage.values.any { damage -> damage.any { it >= 21 } }))
         }.flatMap { mates(it) }.distinct().filter { !players[it].eliminated }
@@ -528,6 +549,69 @@ data class StandaloneGame(
         if (state != TableState.GAME_OVER || !star || players.size != StarCommander.PLAYERS) return this
         val reseated = SEAN_MODE_ORDER.map { players[it] }
         return copy(players = reseated, starter = null).start(nowMs, gameId, random, planarDeck)
+    }
+
+    // --- Pokémon ------------------------------------------------------------------------
+
+    /**
+     * Marks a once-per-turn action (`pokemon-action:ENERGY`, ...; the active player's,
+     * this turn) or a Special Condition (`pokemon-condition:POISONED`, ...) on or off
+     * ([value] 1 or 0).
+     */
+    private fun pokemonMark(index: Int, kind: String, value: Int): StandaloneGame {
+        val player = players[index]
+        if (!playing || player.eliminated || value !in 0..1) return this
+        val on = value == 1
+        val status = player.pokemon
+        val next = when {
+            kind.startsWith(ACTION_KIND) -> {
+                val action = PokemonAction.entries.firstOrNull { it.name == kind.removePrefix(ACTION_KIND) } ?: return this
+                if (active != index) return this
+                status.copy(turnActions = if (on) status.turnActions + action else status.turnActions - action)
+            }
+            kind.startsWith(CONDITION_KIND) -> {
+                val condition = SpecialCondition.entries.firstOrNull { it.name == kind.removePrefix(CONDITION_KIND) } ?: return this
+                status.withCondition(condition, on)
+            }
+            else -> return this
+        }
+        return if (next == status) this else update(index) { it.copy(pokemon = next) }
+    }
+
+    /** The table has read the last Pokémon Checkup. */
+    fun dismissCheckup(): StandaloneGame = if (pokemonCheckup.isEmpty()) this else copy(pokemonCheckup = emptyList()).bump()
+
+    /**
+     * Pokémon Checkup between turns, in the rulebook's order: Poisoned and Burned
+     * damage (players place the counters), a coin for Burned and for Asleep (heads
+     * removes it), and Paralyzed ends for [ended], whose turn just ended. Every
+     * player's once-per-turn actions start over. Returns the players and what to tell the table.
+     */
+    private fun pokemonCheckup(ended: Int, random: Random): Pair<List<LocalPlayer>, List<String>> {
+        val lines = mutableListOf<String>()
+        val checked = players.mapIndexed { i, p ->
+            var status = p.pokemon.copy(turnActions = emptySet())
+            if (p.eliminated) return@mapIndexed p.copy(pokemon = status)
+            val c = status.conditions
+            if (SpecialCondition.POISONED in c) lines += "${p.name}: Poisoned. Put 1 damage counter on the Active Pokémon."
+            if (SpecialCondition.BURNED in c) {
+                val heads = random.nextBoolean()
+                lines += "${p.name}: Burned. Put 2 damage counters on the Active Pokémon. " +
+                    if (heads) "Coin: heads, it's no longer Burned." else "Coin: tails, it's still Burned."
+                if (heads) status = status.withCondition(SpecialCondition.BURNED, false)
+            }
+            if (SpecialCondition.ASLEEP in c) {
+                val heads = random.nextBoolean()
+                lines += "${p.name}: Asleep. " + if (heads) "Coin: heads, it wakes up." else "Coin: tails, it stays Asleep."
+                if (heads) status = status.withCondition(SpecialCondition.ASLEEP, false)
+            }
+            if (SpecialCondition.PARALYZED in c && i == ended) {
+                lines += "${p.name}: no longer Paralyzed."
+                status = status.withCondition(SpecialCondition.PARALYZED, false)
+            }
+            p.copy(pokemon = status)
+        }
+        return checked to lines
     }
 
     // --- Planechase --------------------------------------------------------------------
@@ -747,6 +831,7 @@ data class StandaloneGame(
                     extensionsAvailable = p.extensionsEarned - p.extensionsUsed,
                     commander = p.commander,
                     commanderArt = p.commanderArt,
+                    pokemon = p.pokemon,
                     life = if (state == TableState.LOBBY) null else p.life,
                     turnsCompleted = p.turnsCompleted.toLong(),
                     commanderDamage = p.commanderDamage.map { (source, damage) -> CommanderDamage(source + 1, damage) },
@@ -758,6 +843,7 @@ data class StandaloneGame(
                 )
             },
             physicalSigils = emptyList(),
+            pokemonCheckup = pokemonCheckup,
         )
     }
 
@@ -781,6 +867,7 @@ data class StandaloneGame(
             GameProfile.MTG_STAR_COMMANDER -> 40
             GameProfile.MTG -> if (twoHeadedGiant) 30 else 20
             GameProfile.YUGIOH -> 8000
+            GameProfile.POKEMON -> 6
             else -> 20
         }
 
@@ -788,6 +875,10 @@ data class StandaloneGame(
         const val UNDO_START_MS = 3 * 60_000L
         /** A finished game shorter than this isn't counted unless the table saves it (a test or a wrong setup). */
         const val SHORT_GAME_MS = 60_000L
+
+        /** Counter kinds for Pokémon's once-per-turn actions and Special Conditions ([PokemonAction], [SpecialCondition] names follow). */
+        const val ACTION_KIND = "pokemon-action:"
+        const val CONDITION_KIND = "pokemon-condition:"
 
         private const val SOLO_POISON = 10
         private const val TEAM_POISON = 15

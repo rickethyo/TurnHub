@@ -176,7 +176,7 @@ fun LocalLibraryScreen(
                             val delivery = state.library.delivery(record.recordId)
                             var open by rememberSaveable(record.recordId) { mutableStateOf(false) }
                             val canReviewImport = canImport && importState.atlasId != null && state.storageProblem == null &&
-                                delivery.status != DeliveryStatus.IMPORTED
+                                delivery.status != DeliveryStatus.IMPORTED && record.profile.atlasSupported
                             BrassCard {
                                 val names = record.players.indices.filter(record::won).map { record.players[it].name }
                                 Text(when {
@@ -189,7 +189,8 @@ fun LocalLibraryScreen(
                                 Text("${record.profile.displayName()}${if (record.twoHeadedGiant) " · Two-Headed Giant" else ""} · " +
                                     TableClock.format(record.durationMs), color = p.muted)
                                 Text(when (delivery.status) {
-                                    DeliveryStatus.NEEDS_LINKING -> "Saved on this device"
+                                    DeliveryStatus.NEEDS_LINKING -> if (record.profile.atlasSupported) "Saved on this device"
+                                        else "Saved on this device (Atlas doesn't import ${record.profile.displayName()} games yet)"
                                     DeliveryStatus.PENDING -> "Atlas import pending"
                                     DeliveryStatus.IMPORTED -> "Imported to Atlas"
                                     DeliveryStatus.REJECTED -> "Atlas import needs attention"
@@ -199,9 +200,10 @@ fun LocalLibraryScreen(
                                     stateDescription = if (open) "Expanded" else "Collapsed"
                                 })
                                 if (open) {
-                                    Text("${record.startingLife} starting life", color = p.muted)
+                                    val prizes = record.profile.pokemon
+                                    Text(if (prizes) "${record.startingLife} Prize cards each" else "${record.startingLife} starting life", color = p.muted)
                                     record.players.forEachIndexed { index, player ->
-                                        Text("${index + 1}. ${player.name}: ${player.finalLife} life · ${player.turnsCompleted} turns" +
+                                        Text("${index + 1}. ${player.name}: ${player.finalLife} ${if (prizes) "prizes left" else "life"} · ${player.turnsCompleted} turns" +
                                             if (player.outOrder != null) (if (player.conceded) " · Conceded" else " · Eliminated") else "", color = p.text)
                                         if (player.demerits > 0 || player.extensionsUsed > 0) {
                                             Text("${player.demerits} demerits · ${player.extensionsUsed} extensions used", color = p.muted)

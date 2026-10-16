@@ -74,6 +74,20 @@ fun officialRules(profile: GameProfile, teams: Boolean): OfficialRules? = when {
         sourceName = "Yu-Gi-Oh! TRADING CARD GAME rulebook (Konami)",
         sourceUrl = "https://www.yugioh-card.com/en/rulebook/",
     )
+    profile == GameProfile.POKEMON -> OfficialRules(
+        "Pokémon", life = 6, poison = null, commanderDamage = null, players = 2,
+        summary = listOf(
+            "A game is between two players. Each sets aside 6 Prize cards; TurnHub counts the Prize cards you have left.",
+            "When you Knock Out an opponent's Pokémon you take Prize cards (2 for a Pokémon ex, as the card says). Take your last one and you win.",
+            "You also win when your opponent has no Pokémon left in play, or can't draw a card at the start of their turn.",
+            "The player who goes first can't attack or play a Supporter card on their first turn.",
+            "Each turn you may attach one Energy, play one Supporter, play one Stadium and retreat once.",
+            "Between turns, Pokémon Checkup: Poisoned puts 1 damage counter on the Active Pokémon; Burned puts 2, then flip a coin " +
+                "and heads removes it; an Asleep Pokémon flips and wakes on heads; Paralyzed ends after its owner's next turn.",
+        ),
+        sourceName = "Pokémon Trading Card Game rulebook (The Pokémon Company International)",
+        sourceUrl = "https://www.pokemon.com/us/pokemon-tcg/rules",
+    )
     else -> null
 }
 

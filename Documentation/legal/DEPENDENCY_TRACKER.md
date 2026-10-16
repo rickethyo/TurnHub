@@ -79,6 +79,7 @@ The high-level rows above are not yet a complete software bill of materials. Bef
 | Magic: The Gathering / MTG | Game profile/compatibility wording in documentation and legacy UI | N/A | Keep use descriptive. Avoid logos, card art, mana symbols, card frames, or implication of affiliation. Review commercial wording before launch. |
 | Commander / MTG Commander | Game profile and commander-damage terminology | N/A | Same as above. Review exact naming/disclaimer strategy before public commercial release. |
 | Yu-Gi-Oh! | Game profile/compatibility wording | N/A | Keep descriptive and avoid branded visual assets or implied endorsement. Review before launch. |
+| Pokémon / Pokémon TCG | Game profile and rules-summary wording in the Android app | N/A | Same as Yu-Gi-Oh!: names only, no logos, card art, energy symbols or implied endorsement. Review before launch. |
 
 ## Open IP/legal tasks
 

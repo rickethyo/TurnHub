@@ -78,6 +78,8 @@ internal fun TableLobby(
     embedded: Boolean = false,
     /** Extra game options under the standard ones (the device game's Planechase switch). */
     extraSettings: @Composable () -> Unit = {},
+    /** The phone runs this game: it also offers the formats Atlas doesn't run yet (Pokémon). */
+    phoneHosted: Boolean = false,
 ) {
     val p = palette
     val players = summary.players.sortedBy { it.playerNumber }
@@ -205,7 +207,7 @@ internal fun TableLobby(
                 Eyebrow("Game")
                 if (!settingsEnabled) Text("Add a player to choose the game.", color = p.muted)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FORMATS.forEach { (profile, label, _) ->
+                    FORMATS.filter { phoneHosted || it.first.atlasSupported }.forEach { (profile, label, _) ->
                         FilterChip(selected = formatSelected(settings.profile, profile), onClick = {
                             if (!formatSelected(settings.profile, profile)) actions.settings(profile,
                                 StandaloneGame.defaultLife(profile, settings.twoHeadedGiant && profile.magicRules), null)
@@ -232,16 +234,22 @@ internal fun TableLobby(
                 var life by rememberSaveable(settings.startingLife) { mutableStateOf("${settings.startingLife}") }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(life, { life = it.filter(Char::isDigit).take(5) },
-                        label = { Text(if (settings.twoHeadedGiant) "Starting life per team" else "Starting life") },
+                        label = { Text(when {
+                            settings.profile.pokemon -> "Prize cards"
+                            settings.twoHeadedGiant -> "Starting life per team"
+                            else -> "Starting life"
+                        }) },
                         singleLine = true, enabled = settingsEnabled && !locked, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f))
                     ToneButton("Set", { life.toIntOrNull()?.let { actions.settings(null, it, null) } },
                         enabled = settingsEnabled && !locked && (life.toIntOrNull() ?: 0) > 0 && life != "${settings.startingLife}")
                 }
-                if (locked) Text("Official starting life. Turn on house rules to change it.", color = p.faint,
+                if (locked) Text(if (settings.profile.pokemon) "Official 6 Prize cards. Turn on house rules to change them."
+                    else "Official starting life. Turn on house rules to change it.", color = p.faint,
                     style = MaterialTheme.typography.bodySmall)
                 if (official != null) actions.houseRules?.let { setHouseRules ->
-                    SetupSwitch("House rules", "Change the starting life, poison limit and player count. " +
+                    SetupSwitch("House rules", (if (settings.profile.pokemon) "Change the Prize cards and player count. "
+                        else "Change the starting life, poison limit and player count. ") +
                         "The game no longer follows the official ${official.name} rules.", settings.houseRules, settingsEnabled, setHouseRules)
                 }
                 TurnTimerChips(settings.turnTimerMs, settingsEnabled, actions.timer)
@@ -251,7 +259,10 @@ internal fun TableLobby(
                     if (rules != null && changeRules != null) TimerRulesEditor(rules, settings.turnTimerMs, settingsEnabled, changeRules)
                     else Text("At the limit, Atlas keeps counting overtime.", color = p.muted, style = MaterialTheme.typography.bodySmall)
                 }
-                SetupSwitch("Automatic elimination at zero life", null, settings.autoEliminateAtZeroLife, settingsEnabled, actions.zeroLife)
+                // Pokémon has no life: taking the last Prize card wins.
+                if (!settings.profile.pokemon) {
+                    SetupSwitch("Automatic elimination at zero life", null, settings.autoEliminateAtZeroLife, settingsEnabled, actions.zeroLife)
+                }
                 extraSettings()
             }
             StartTableButton(players.size, settings.twoHeadedGiant, enabled, settings.profile.starCommander,

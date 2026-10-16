@@ -212,6 +212,12 @@ fun EliminationRulesEditor(settings: TableSettings, enabled: Boolean = true,
     /** An official mode without house rules: the poison limit is the official one. */
     limitsLocked: Boolean = false,
     onChange: (field: String, value: Int) -> Unit) {
+    // Pokémon has no life total to lose: taking the last Prize card wins.
+    if (settings.profile.pokemon) {
+        Text("Taking your last Prize card wins the game. Other ways to win are in each player's menu.",
+            color = palette.muted, style = MaterialTheme.typography.bodySmall)
+        return
+    }
     RuleToggle("Zero life", "autoEliminateAtZeroLife", settings.autoEliminateAtZeroLife, enabled, onChange)
     if (settings.profile.magicRules && limitsLocked) {
         RuleToggle("Poison limit", "autoEliminateAtPoisonLimit", settings.autoEliminateAtPoisonLimit, enabled, onChange)
