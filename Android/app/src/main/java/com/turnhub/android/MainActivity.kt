@@ -248,6 +248,7 @@ class MainActivity : ComponentActivity() {
     private var reduceMotion by mutableStateOf(false)
     private var gameSounds by mutableStateOf(GameSoundPreferences())
     private var standalone by mutableStateOf(false)
+    private var requestedHomeTab by mutableStateOf<String?>(null)
     /** Discovery preference; the same app navigation remains available either way. */
     private var atlasEnabled by mutableStateOf(true)
 
@@ -415,8 +416,12 @@ class MainActivity : ComponentActivity() {
                             StandaloneScreen(
                                 state = localState, table = standaloneViewModel.table, reduceMotion = reduceMotion,
                                 onClose = { standalone = false },
+                                onSetUp = { standalone = false; requestedHomeTab = "GAME" },
+                                onOpenPlanes = { standalone = false; requestedHomeTab = "PLANES" },
                             )
                         } else shellState.SaveableStateProvider("home") { HomeScreen(
+                            requestedTab = requestedHomeTab,
+                            onTabRequestHandled = { requestedHomeTab = null },
                             localState = localState,
                             localTable = standaloneViewModel.table,
                             onFollowGame = homeViewModel::onFollowGame,
@@ -441,9 +446,9 @@ class MainActivity : ComponentActivity() {
                                     com.turnhub.android.ui.home.DeviceGameOverview(summary, reduceMotion, openTable)
                                 }
                             },
-                            localTableContent = { onSetUp ->
+                            localTableContent = { onSetUp, onOpenPlanes ->
                                 com.turnhub.android.ui.tablet.EmbeddedTable(localState, standaloneViewModel.table, reduceMotion,
-                                    onFullScreen = ::playOnDevice, onSetUp = onSetUp)
+                                    onFullScreen = ::playOnDevice, onSetUp = onSetUp, onOpenPlanes = onOpenPlanes)
                             },
                             localPlayersContent = {
                                 com.turnhub.android.ui.tablet.LocalLibraryScreen(localState, onClose = {},

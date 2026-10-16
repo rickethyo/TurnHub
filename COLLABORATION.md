@@ -641,3 +641,147 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
 - Lobby buttons say what they do: Name commander, Tile color & photo.
 - Validation: new `SeanModeTest` and `ScryfallCommanderArtTest` cases; docs,
   tokens and manual checks local; Gradle in PR CI. Not yet seen on a device.
+
+## 2026-10-15 — Codex: build 356 phone review
+
+- Owner / branch: Codex, `codex/master`; clean baseline `b4bfaa2`, fetched
+  accepted master; no open PRs or overlapping active scope found.
+- Scope: inspect installed build 356 on the USB Pixel Fold; Digital deck /
+  Physical cards copy, Pass caption retaining hold, literal table/card icons.
+  Presentation only: existing authorities, actions, persistence and contracts
+  stay the same; labeled navigation/accessibility actions remain. No dependency.
+- Collection filtering is accepted future work; custom card selection is a
+  proposed extension. STAGED_CHANGES owns the requirements and data concern.
+- Device: Play versionCode 356, versionName 0.1.0; Planes setup inspected.
+  Captures: Private/TurnHub-builds/review-356 (outside Git).
+- Validation: preview debug assemble and lint pass (0 errors, 42 warnings,
+  4 hints); tokens, documentation links, manual export and whitespace checks
+  pass. No new tests for caption/vector changes; hold/action code unchanged.
+  DOCX render attempted; bundled runtime cannot find LibreOffice, so no page
+  layout verification claimed. No manual deliverable published.
+- Also viewed build 356 practice table: large totals, relative +/- controls and
+  existing pass caption. Returned to Planes; no real game or account changes.
+  New artwork/copy compiled locally; not installed on the phone.
+
+### 2026-10-15 — Codex: planar collections and custom decks
+
+- Owner authorized implementation after build 356 review. Baseline `ef66920`
+  on `codex/master`; PR #123 open, accepted master merged (already current).
+- Feature gate: standalone domain owns deck choices; `setPlanarSelection` and
+  save/delete preset operations validate lobby state, nonempty known plane pool,
+  unique IDs and bounded names. Choice is a game snapshot, presets belong to
+  LocalLibrary; PreferencesStandaloneStore persists both together. Compose
+  renders labeled pickers, searchable checkboxes and card previews with text.
+  No Atlas/protocol changes, new dependency or card data bundled. Scryfall
+  search downloads all printings and merges release membership into one card;
+  retain saved representative IDs on refresh. Existing request pacing/cache apply.
+- Scope: All planes, release/Anthology collection, saved custom decks and
+  browsing/preview; choices are applied before shuffling for start/rematch/late
+  deal. In-play choices are frozen and presets cannot mutate the dealt game.
+- Implemented: all-printings release membership with stable representative IDs
+  and refreshed rules text; lobby-only collection/custom choices, saved named
+  presets, search/selection filters and a scrolling art/text card browser.
+  Selection snapshots survive reset, resume and rematch; unavailable selected
+  cards block dealing instead of silently substituting All planes.
+- Validation: final preview build 11 assemble/lint and the complete 345-test
+  JVM suite pass (0 failures, 0 errors, 0 skipped). Lint: 0 errors, 44 warnings,
+  7 hints. Tokens, docs, manual export and whitespace checks pass. New tests
+  cover merged membership/identity/rules refresh, pagination failure, choice
+  persistence/dealing, in-game guards, missing/invalid pools, preset replacement/
+  deletion/limits, malformed JSON and failed persistence.
+- Pixel Fold over authorized wireless ADB: Preview build 11 installed separately
+  from Play build 356. Loaded the real catalogue (272 printings, eight releases),
+  selected Anthology (78 planes/8 phenomena), searched Bant and opened its
+  credited art/rules preview. Fixed keyboard clipping by scrolling fields and
+  results together with fixed Save/Cancel. Verified both above the keyboard.
+  Saved a 77-plane custom pool and reopened the process with preset/choice intact;
+  deleted the test preset and restored the full Anthology collection. No real
+  game, Play app or account changes. App remains in Preview's Planes setup.
+- Decoded art cache bounded to 12 entries; disk cache remains reusable offline.
+  No physical full-match/Atlas/TalkBack or inner-display acceptance claimed.
+  Manual text/export synchronized; renderer again cannot find LibreOffice, so
+  DOCX page layout remains unverified. PR #123 carries the combined scope.
+
+### 2026-10-15 — Codex: partner cast disclosure and commander icon
+
+- Owner follow-up on `codex/master`, baseline `951d892`: hide Commander 2 casts
+  unless Partner is enabled; clarified the unwanted icon is the command-key
+  glyph beside casts. Scope is presentation: existing counters/actions stay
+  canonical, disclosure is saveable UI state, no protocol/storage dependency.
+- Move the existing Partner switch beside cast counters, retain it across
+  player-menu close/reopen, and use an original commander-card vector for casts
+  and tax chips. Personal counter editor gets the same disclosure. Existing
+  nonzero counters are preserved when hidden.
+- Reviewed Wizards Fan Content Policy: standalone logos/trademarks are restricted;
+  do not assume permission to extract set symbols as UI icons. Use original
+  artwork instead; existing card content remains under its tracked policy.
+- Implemented: conditional second cast row, Partner switch beside casts,
+  saveable table-level disclosure per player and original commander-card vector
+  shared by cast rows/tax chips. Counter values and authoritative actions unchanged.
+- Validation: Preview build 12 assemble/lint pass (0 errors, 44 warnings,
+  7 hints); tokens, manual export, docs and whitespace checks pass. Rebuilt APK
+  after the manual asset update and installed Preview 12 over Preview 11,
+  preserving the running game. Phone locked before inspection, so Partner
+  toggle/menu-reopen and icon visual acceptance remain pending. No gameplay
+  actions performed. No new mirror tests for this disclosure/vector change;
+  the prior 345-test engine suite remains the last unit-test run.
+- Manual source/export synchronized. DOCX renderer attempted and unavailable
+  because LibreOffice is absent; page layout remains unverified.
+
+### 2026-10-15 — Codex: commander rarity colour and phone check
+
+- Owner requests colouring the original commander icon by the named card's
+  rarity. Baseline `e45c562`, same PR #123. Existing Scryfall art metadata/cache
+  owns rarity for the selected printing; no gameplay/protocol state added.
+  Theme tokens own contrasting icon colours; text/TalkBack retain rarity names.
+  Unknown rarity and unnamed partner use neutral ink; art-off makes no requests.
+- Phone check: accidental menu tap hit Koga life (40 to 41); corrected and
+  screenshot confirms 40 again. No passes/turn controls used. New icon and
+  hidden Commander 2 row visually confirmed before rarity follow-up.
+- Implemented rarity from selected-printing metadata into decoded art and both
+  cast rows/tax chips. Shared rarity colour tokens cover four themes and enforce
+  3:1 icon contrast on surface2. Unknown rarity/unnamed partners stay neutral;
+  art-disabled follows the existing no-lookup preference. Older cached images
+  refresh metadata without fetching their image again, and survive offline.
+- Validation: Preview build 13 assemble/lint pass (0 errors, 44 warnings,
+  7 hints); seven commander-art tests pass, including selected rarity/cache
+  reload, old-cache refresh and offline fallback. Tokens, manual export, docs
+  and whitespace checks pass. Manual render attempted, but LibreOffice absent;
+  page layout still unverified. No new third-party dependencies or endpoints.
+- Device: Partner off/on/close/reopen confirmed on Pixel Fold; returned it to
+  off. Preview 13 installed preserving the ongoing game. Screenshot verifies
+  Teferi's Care icon uses its selected printing's silver/uncommon colour and
+  Commander 2 remains hidden. Koga confirmed back at 40 after the accidental
+  +1 was corrected; no pass, timer or other counter actions. App left showing
+  the corrected menu. Captures outside Git in Private/TurnHub-builds/review-356.
+
+### 2026-10-16 — Codex: setup navigation, countdown and table planar die
+
+- Owner requests Back to setup -> Game tab, countdown before start, and an
+  animated Planar die beside Pass. Baseline `44376e1`, `codex/master`, same PR.
+- Feature gate: existing standalone/Atlas engines retain game actions, die
+  randomness/costs and validation. Compose owns cancellable three-second local
+  pre-start UI and disposable roll animation/navigation. Timers start only when
+  the start action is committed. Atlas keeps its authoritative start countdown.
+  No protocol, persisted game layout or dependency changes. Background/Back
+  cancels pending UI; numeric/text announcements support reduced motion.
+- Local planar roll uses existing `rollPlanarDie`, validates same game/turn
+  at commit, then stays on Table for blank or opens Planes for chaos/walk.
+  Highlight arrival is disposable presentation, never a second roll.
+- Validation: Preview 15 assemble, lint and all 347 JVM tests pass (0 test
+  failures/skips; lint 0 errors, 45 warnings, 7 hints). Design-token contrast,
+  docs links, manual export and whitespace checks pass. Manual rendering again
+  fails because LibreOffice is absent; DOCX page layout remains unverified.
+- Emulator acceptance: three-second start, Back cancellation and background
+  cancellation leave setup intact; successful start commits once. Actual random
+  rolls exercised blank staying on Table, planeswalk opening Planes with its
+  banner, and chaos opening Planes with banner/ability highlight. Embedded and
+  full-screen Back to setup both return to Game with the roster retained.
+- Owner explicitly authorized replacing the test match and any app testing.
+  Preview 15 installed on Pixel Fold and emulator. Phone screenshots confirm
+  countdown, fresh live game, matching adjacent Pass/Planar die controls, and
+  a die roll navigating to Planes. Returned phone to Table on the fresh test
+  match, both players at 40. Practice does not offer the live-deck roll shortcut;
+  player-level reduced-motion preferences also apply to the roll dialog.
+  Captures are outside Git in Private/TurnHub-builds/review-356. Atlas hardware,
+  inner display, five-player layout and TalkBack acceptance remain unverified.

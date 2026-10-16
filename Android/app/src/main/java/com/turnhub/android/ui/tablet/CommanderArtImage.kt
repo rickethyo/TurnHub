@@ -17,7 +17,7 @@ import com.turnhub.android.data.ScryfallCommanderArt
 import java.io.File
 
 /** A commander's art, decoded for a tile, with the artist credit shown beside it. */
-internal class TileArt(val image: ImageBitmap, val cardName: String, val artist: String)
+internal class TileArt(val image: ImageBitmap, val cardName: String, val artist: String, val rarity: String? = null)
 
 private const val ART_PREF = "commander_art"
 
@@ -58,7 +58,7 @@ internal fun rememberCommanderArt(name: String?, printing: String? = null): Tile
         if (value != null) return@produceState
         val loaded = CommanderArtCache.source(context).art(name, printing) ?: return@produceState
         val bitmap = BitmapFactory.decodeByteArray(loaded.jpeg, 0, loaded.jpeg.size) ?: return@produceState
-        val tile = TileArt(bitmap.asImageBitmap(), loaded.cardName, loaded.artist)
+        val tile = TileArt(bitmap.asImageBitmap(), loaded.cardName, loaded.artist, loaded.rarity)
         CommanderArtCache.decoded[key] = tile
         value = tile
     }

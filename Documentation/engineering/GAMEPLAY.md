@@ -35,7 +35,14 @@ loss condition; Commander damage totals alone do not trigger elimination.
   with the same players and settings and nothing is recorded. A match under a
   minute (`SHORT_GAME_MS`) commits its finished checkpoint but its statistics
   wait for `CountShortGame` (state `shortGameUncounted`); left uncounted, it
-  never reaches the statistics. The standalone app does the same.
+  never reaches the statistics. The standalone app does the same. Android returns
+  to the Game tab when this action succeeds, including from full screen.
+- Local Android starts and rematches show a cancellable three-second countdown
+  before committing the engine action. Back, leaving the screen or backgrounding
+  cancels it; clocks start only after completion. Atlas retains its own countdown.
+  During local Planechase play, Planar die beside Pass animates one validated
+  engine roll. Blank stays on Table; chaos and planeswalk open Planes with the
+  corresponding effect highlighted. Cancellation before the roll changes nothing.
 - **Who goes first:** any player can choose (`SelectStarter`); choosing the
   chosen player again clears it. With nobody chosen, Atlas picks a random
   player when the countdown ends, as the standalone app does (rematches too).
@@ -180,15 +187,26 @@ the spec every engine runs.
 
 - **Setup.** Magic formats only (`Planechase` in `StandaloneGame`, the on/off
   switch sits with the other game options on the app's Game tab, which links
-  to the deck options in the Planes tab). Planechase can use **TurnHub's deck**
-  or **our own cards**.
-  - TurnHub's deck is the single shared planar deck option (901.15). It has
-    every downloaded plane, plus up to two phenomena per player when
-    phenomena are on.
-  - With our own cards, the players turn over their own planes and TurnHub
+  to the deck options in the Planes tab). Planechase can use **Digital deck**
+  or **Physical cards**.
+  - The digital deck is the single shared planar deck option (901.15). Choose
+    All planes, a release collection (including Planechase Anthology), or a
+    named custom deck. The chosen pool contributes every selected plane and
+    up to two selected phenomena per player when phenomena are on.
+  - Browse & build searches names, types and rules text; collection and
+    selected-only filters narrow the list. Checkboxes and Add/Remove shown
+    build a pool; Preview shows art, rules and Previous/Next card controls.
+    Save & use deck keeps up to 20 named presets locally; saving the same name
+    replaces that preset. Delete removes only the preset, preserving the
+    current copied choice. At least one known plane is required; small decks
+    are supported for casual play, without certifying tournament legality.
+    Choices are lobby-only. Missing selected cards block start/rematch until
+    the library is refreshed or the pool changed; an All planes game can
+    still start without downloads using physical cards.
+  - With physical cards, the players turn over their own planes and TurnHub
     keeps no deck. A digital game started before any planes were downloaded
     plays the same way until the planes arrive; then the Planes tab offers
-    to switch to TurnHub's deck mid-game (`dealtLate`: dealt as at the start,
+    to switch to the digital deck mid-game (`dealtLate`: dealt as at the start,
     keeping this turn's roll costs).
 - **Start (901.5).** The deck is shuffled at start (and for a rematch). Cards
   are turned over until a plane comes up, and phenomena go to the bottom.
@@ -212,13 +230,25 @@ the spec every engine runs.
 - **Pause.** Rolls and deck moves wait while paused; counter corrections
   don't.
 - **Persistence.** The whole planar state is saved with the local game (the
-  `planechase` object).
+  `planechase` object), including the selection snapshot. Saved presets live
+  in LocalLibrary (`planarDecks`); deleting or replacing a preset cannot
+  change a running deck. Start, rematch and late dealing use the copied pool.
 - **Card data.** Names, rules text and `art_crop` art come from Scryfall,
-  downloaded on the phone the first time Planechase is on with TurnHub's
-  deck, from Game setup or the Planes tab (`ScryfallPlanes`). The cards are
+  downloaded on the phone the first time Planechase is on with the digital
+  deck, from Game setup or the Planes tab (`ScryfallPlanes`). All paper printings
+  are downloaded to merge release membership into one entry per card name;
+  refresh preserves cached representative IDs and art so saved choices remain
+  valid. Older catalogues remain playable; Refresh library loads collections.
+  Failed/incomplete downloads preserve the catalogue. The cards are
   saved in app files, the art in the app cache, and nothing is bundled. Each
   plane credits its artist, and the tab carries the Fan Content Policy
   notice.
+
+The standalone domain owns choices and validates `setPlanarSelection` and
+save/delete preset requests; PreferencesStandaloneStore saves game and library
+together. Compose renders labeled selectors, checkboxes and text/art previews.
+Atlas state and contracts are unchanged. This uses the existing Scryfall client
+and caching, with no new dependency; browsing can download uncached preview art.
 
 ## Turns
 
@@ -436,3 +466,18 @@ disconnected (they do not replay status/counter changes). Standalone games own
 and persist their equivalent local state. New matches reset counters/status;
 match settings carry forward. Elimination clears initiative; city’s blessing
 and numerical counters remain as the last values on an eliminated player.
+
+### Commander counter presentation
+
+In the Android player menu, Partner commanders sits beside command-zone casts.
+Commander 2 casts is hidden until that switch is enabled; hiding it preserves
+its recorded total. This disclosure also exposes partner damage rows and is
+retained across closing/reopening the menu. Existing nonzero received partner
+damage remains visible for corrections. Cast rows and tax chips use an original
+commander-card icon; set/rarity symbols are not extracted for UI artwork.
+The named commander's selected printing supplies its rarity colour (common grey,
+uncommon silver, rare gold, mythic orange), with theme-specific contrasting
+colours. Known rarity is also spoken by accessibility labels. Unknown rarity and
+unnamed partner icons use neutral ink. The existing Commander card art preference
+controls metadata lookup; old cached art refreshes metadata once and retains its
+image, with offline fallback to neutral until rarity is available.

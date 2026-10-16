@@ -61,6 +61,7 @@ import java.io.File
 
 /** The planes on this phone, downloaded from Scryfall once, and their decoded art; one copy for the app. */
 internal object PlaneLibrary {
+    var arrivalEffect by mutableStateOf<PlanarFace?>(null)
     private var source: ScryfallPlanes? = null
     private val art = mutableStateMapOf<String, ImageBitmap>()
     /** The downloaded cards by id; null until the saved list is read or downloaded. */
@@ -94,14 +95,16 @@ internal object PlaneLibrary {
     suspend fun art(context: Context, card: PlaneInfo): ImageBitmap? = art[card.id] ?: run {
         val bytes = source(context).art(card) ?: return null
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() ?: return null
+        // Browsing a whole collection must not retain every decoded image in RAM.
+        if (art.size >= 12) art.keys.firstOrNull()?.let { art.remove(it) }
         art[card.id] = bitmap
         bitmap
     }
 }
 
 /**
- * Downloads the planes the first time a table plays Planechase with TurnHub's
- * deck, from whichever screen turned it on (Game setup or the Planes tab).
+ * Downloads the planes the first time a table plays Planechase with the
+ * digital deck, from whichever screen turned it on (Game setup or the Planes tab).
  */
 @Composable
 internal fun PlanesDownloadWhenNeeded(planar: Planechase) {
@@ -112,7 +115,7 @@ internal fun PlanesDownloadWhenNeeded(planar: Planechase) {
     }
 }
 
-/** How TurnHub's deck stands on this phone, in a few words for setup; null once it's here. */
+/** How the digital deck stands on this phone, in a few words for setup; null once it's here. */
 internal fun planesDownloadNote(): String? = when {
     PlaneLibrary.downloading -> "Downloading the planes…"
     PlaneLibrary.cards != null -> null
@@ -166,9 +169,9 @@ private fun PlanarSetup(state: StandaloneState, table: StandaloneTable, cards: M
             Text("Planar deck", color = p.muted, style = MaterialTheme.typography.titleSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(planar.source == PlanarDeckSource.DIGITAL, { table.setPlanarSource(PlanarDeckSource.DIGITAL) },
-                    label = { Text("TurnHub's deck") }, enabled = lobby)
+                    label = { Text("Digital deck") }, enabled = lobby)
                 FilterChip(planar.source == PlanarDeckSource.PHYSICAL, { table.setPlanarSource(PlanarDeckSource.PHYSICAL) },
-                    label = { Text("Our own cards") }, enabled = lobby)
+                    label = { Text("Physical cards") }, enabled = lobby)
             }
             if (planar.source == PlanarDeckSource.PHYSICAL) {
                 Text("Shuffle your planar deck and turn over the first plane. TurnHub rolls the die, counts the cost " +
@@ -176,8 +179,10 @@ private fun PlanarSetup(state: StandaloneState, table: StandaloneTable, cards: M
             } else {
                 SetupSwitch("Include phenomena", "Up to two for each player, as the official rules allow.",
                     planar.phenomena, lobby, table::setPlanarPhenomena)
-                val planes = cards?.values?.count { !it.phenomenon } ?: 0
-                val phenomena = cards?.values?.count { it.phenomenon } ?: 0
+                if (cards != null) PlanarDeckPicker(state, table, cards.values.toList(), lobby)
+                val selected = cards?.values?.filter { planar.selection.cardIds == null || it.id in planar.selection.cardIds.orEmpty() }
+                val planes = selected?.count { !it.phenomenon } ?: 0
+                val phenomena = selected?.count { it.phenomenon } ?: 0
                 when {
                     PlaneLibrary.downloading -> Text("Downloading the planes…", color = p.muted,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
@@ -187,8 +192,8 @@ private fun PlanarSetup(state: StandaloneState, table: StandaloneTable, cards: M
                         Text("Without them, a game uses your own cards.", color = p.faint, style = MaterialTheme.typography.bodySmall)
                     }
                     else -> {
-                        Text("Every game shuffles all $planes planes" + if (planar.phenomena) " and some of the $phenomena phenomena." else ".", color = p.muted)
-                        ToneButton("Check for new planes", { scope.launch { PlaneLibrary.download(context) } }, Modifier.fillMaxWidth())
+                        Text("Every game shuffles $planes selected planes" + if (planar.phenomena) " and some of the $phenomena phenomena." else ".", color = p.muted)
+                        ToneButton("Refresh library", { scope.launch { PlaneLibrary.download(context) } }, Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -205,16 +210,16 @@ private fun PlanarSetup(state: StandaloneState, table: StandaloneTable, cards: M
     }
 }
 
-/** A digital game that started before the planes were on this phone: switch to TurnHub's deck once they are. */
+/** A digital game that started before the planes were on this phone: switch to the digital deck once they are. */
 @Composable
 private fun LateDeck(table: StandaloneTable, cards: Map<String, PlaneInfo>?) {
     val p = palette
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    Text("TurnHub's deck wasn't on this phone when the game started, so the table is using its own cards.", color = p.muted)
+    Text("The digital deck wasn't on this phone when the game started, so the table is using its own cards.", color = p.muted)
     when {
         cards != null && cards.values.any { !it.phenomenon } ->
-            AccentButton("Switch to TurnHub's deck", table::dealPlanarDeck, Modifier.fillMaxWidth())
+            AccentButton("Switch to digital deck", table::dealPlanarDeck, Modifier.fillMaxWidth())
         PlaneLibrary.downloading -> Text("Downloading the planes…", color = p.muted,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
         else -> ToneButton("Download the planes", { scope.launch { PlaneLibrary.download(context) } }, Modifier.fillMaxWidth())
@@ -231,8 +236,21 @@ private fun PlanarPlay(state: StandaloneState, table: StandaloneTable, cards: Ma
     // Chaos and physical planeswalks show for a few seconds after they happen (not when the tab opens).
     var seenChaos by remember { mutableStateOf(planar.chaos) }
     var seenWalks by remember { mutableStateOf(planar.planeswalks) }
-    var chaosNow by remember { mutableStateOf(false) }
-    var walkNow by remember { mutableStateOf(false) }
+    var chaosNow by remember { mutableStateOf(PlaneLibrary.arrivalEffect == PlanarFace.CHAOS) }
+    var walkNow by remember { mutableStateOf(PlaneLibrary.arrivalEffect == PlanarFace.PLANESWALK) }
+    LaunchedEffect(Unit) {
+        PlaneLibrary.arrivalEffect = null
+        delay(5000)
+        chaosNow = false; walkNow = false
+    }
+    if (chaosNow) BrassCard(highlight = p.warn) {
+        Text("Chaos ensues!", color = p.warn, style = MaterialTheme.typography.headlineMedium)
+        Text("Resolve the plane's chaos ability.", color = p.text)
+    }
+    if (walkNow) BrassCard(highlight = p.accent) {
+        Text("Planeswalk!", color = p.accent, style = MaterialTheme.typography.headlineMedium)
+        Text("Resolve the new face-up card.", color = p.text)
+    }
     LaunchedEffect(planar.chaos) {
         if (planar.chaos > seenChaos) { chaosNow = true; delay(5_000); chaosNow = false }
         seenChaos = planar.chaos

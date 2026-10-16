@@ -28,11 +28,20 @@ name shows under theirs, on their commander-tax counter and in others' Commander
 damage, and its Scryfall art crop (credited to the artist,
 cached in `commander_art/`, off via Settings > Commander card art) fills their
 tile. When the device game is a Magic format, its setup has a Planechase
-switch and a Planes tab runs Planechase:
-setup (TurnHub's shuffled deck, downloaded once from Scryfall into
+switch and a Planes tab runs Planechase. Choose all planes, a release collection
+(including Anthology), or browse cards and save a named custom deck. Search,
+collection and selected-only filters, checkboxes, and Previous/Next previews
+help build the pool. Deck choices freeze before play, persist across reopening
+and rematches, and work offline after downloading; uncached preview art needs
+internet. Up to 20 named decks are kept locally. Planechase has:
+setup (a shuffled digital deck, downloaded once from Scryfall into
 `files/planes/` with art cached in `plane_art/`, or the players' own cards),
 then the face-up plane with artist credit, the planar die with each roll's
-cost, phenomena and counters. The engine is `standalone/Planechase.kt`, and
+cost, phenomena and counters. During live play, Planar die beside Pass animates
+one roll: blank keeps Table open, while chaos or planeswalk opens Planes and
+highlights the effect. Local starts and rematches show a cancellable three-second
+countdown; clocks start after it finishes. Back to setup returns to Game,
+including from the full-screen table. The engine is `standalone/Planechase.kt`, and
 `PlanechaseScenarioTest` runs the shared scenarios in
 `protocol/scenarios/planechase/`. A finished phone-hosted Star game also offers Sean Mode, a rematch that
 reseats the five players so allies become enemies. Game shows local

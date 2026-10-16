@@ -92,7 +92,7 @@ class ScryfallCommanderArtTest {
                 url.contains("/cards/search") -> card("""{"data":[
                     {"id":"$id","set_name":"Theros Beyond Death","artist":"Vincent Proce","image_uris":{"art_crop":"https://cards.scryfall.io/a.jpg"}},
                     {"id":"bad","set_name":"Skipped","artist":"X","image_uris":{"art_crop":"https://cards.scryfall.io/b.jpg"}}]}""")
-                url.endsWith("/cards/$id") -> card("""{"name":"Kroxa, Titan of Death's Hunger","artist":"Vincent Proce",
+                url.endsWith("/cards/$id") -> card("""{"name":"Kroxa, Titan of Death's Hunger","artist":"Vincent Proce","rarity":"mythic",
                     "image_uris":{"art_crop":"https://cards.scryfall.io/a.jpg"}}""")
                 else -> Reply(200, jpeg)
             }
@@ -102,7 +102,37 @@ class ScryfallCommanderArtTest {
         assertEquals(listOf(id), printings.map { it.id })
         assertEquals("Theros Beyond Death", printings.single().setName)
         assertArrayEquals(jpeg, art.preview(printings.single()))
-        assertEquals("Vincent Proce", art.art("Kroxa, Titan of Death's Hunger", id)!!.artist)
+        val picked = art.art("Kroxa, Titan of Death's Hunger", id)!!
+        assertEquals("Vincent Proce", picked.artist)
+        assertEquals("mythic", picked.rarity)
+        val reopened = ScryfallCommanderArt(folder.root, "t", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
+        assertEquals("mythic", reopened.art("Kroxa, Titan of Death's Hunger", id)!!.rarity)
         assertEquals("https://api.scryfall.com/cards/$id", web.asked[2])
+    }
+
+    @Test fun `older art cache refreshes rarity without downloading the image again`() = runBlocking {
+        val key = ScryfallCommanderArt.cacheKey("Teferi")
+        java.io.File(folder.root, "$key.json").writeText("""{"name":"Teferi","artist":"Painter"}""")
+        java.io.File(folder.root, "$key.jpg").writeBytes(jpeg)
+        val web = FakeWeb { card("""{"name":"Teferi","artist":"Painter","rarity":"rare","image_uris":{"art_crop":"https://cards.scryfall.io/existing.jpg"}}""") }
+        val source = ScryfallCommanderArt(folder.root, "t", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
+        val found = source.art("Teferi")!!
+        assertEquals("rare", found.rarity)
+        assertArrayEquals(jpeg, found.jpeg)
+        assertEquals(1, web.asked.size)
+        val reopened = ScryfallCommanderArt(folder.root, "t", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
+        assertEquals("rare", reopened.art("Teferi")!!.rarity)
+        assertEquals(1, web.asked.size)
+    }
+
+    @Test fun `offline old art remains usable with unknown rarity`() = runBlocking {
+        val key = ScryfallCommanderArt.cacheKey("Teferi")
+        java.io.File(folder.root, "$key.json").writeText("""{"name":"Teferi","artist":"Painter"}""")
+        java.io.File(folder.root, "$key.jpg").writeBytes(jpeg)
+        val web = FakeWeb { Reply(503, ByteArray(0)) }
+        val source = ScryfallCommanderArt(folder.root, "t", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
+        val found = source.art("Teferi")!!
+        assertNull(found.rarity)
+        assertArrayEquals(jpeg, found.jpeg)
     }
 }

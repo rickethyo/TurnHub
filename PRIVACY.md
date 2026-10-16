@@ -69,10 +69,12 @@ art.
 
 ## Planechase planes
 
-When a player turns on Planechase with TurnHub's deck, the app downloads the
-list of planes and phenomena (names, rules text and art) from
+When a player turns on Planechase with the digital deck, the app downloads the
+list of planes and phenomena (names, rules text, release membership and art) from
 [Scryfall](https://scryfall.com) once, and each face-up plane's art when it
-is first shown. Nothing about the players is sent; Scryfall receives the
+is first shown or previewed in the deck browser. Custom deck names and card
+selections are saved only on the phone and are not sent to Scryfall. Nothing
+about the players is sent; Scryfall receives the
 requests (including your IP address) under
 [Scryfall's privacy policy](https://scryfall.com/docs/privacy). The cards are
 kept on the phone. Playing with your own cards downloads nothing.

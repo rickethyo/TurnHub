@@ -54,7 +54,7 @@ class ScryfallPlanesTest {
         assertEquals(listOf("a", "b"), cards.map { it.id })
         assertEquals(listOf(false, true), cards.map { it.phenomenon })
         assertEquals("A. Painter", cards.first().artist)
-        assertTrue(web.asked.first().startsWith("https://api.scryfall.com/cards/search?unique=cards&order=name&q="))
+        assertTrue(web.asked.first().startsWith("https://api.scryfall.com/cards/search?unique=prints&order=name&q="))
         assertEquals(cards, source.saved())
     }
 
@@ -66,6 +66,34 @@ class ScryfallPlanesTest {
         up = false
         assertTrue(runCatching { source.download() }.isFailure)
         assertEquals(listOf("a"), source.saved()?.map { it.id })
+    }
+
+    @Test fun `printings merge collections and preserve saved identity on refresh`() = runBlocking {
+        var refresh = false
+        val original = card("a", "Bant", "Plane — Alara")
+        val reprint = card("reprint", "Bant", "Plane — Alara").replace("\"Planechase\"", "\"Planechase Anthology\"")
+        val updated = original.replace("draw a card", "draw two cards")
+        val web = FakeWeb { Reply(200, """{"has_more":false,"data":[${if (refresh) "$reprint,$updated" else original}]}""".toByteArray()) }
+        val source = planes(web)
+        source.download()
+        refresh = true
+        val cards = source.download()
+        assertEquals(1, cards.size)
+        assertEquals("a", cards.single().id)
+        assertTrue(cards.single().text.contains("draw two cards"))
+        assertEquals(setOf("Planechase", "Planechase Anthology"), cards.single().collections)
+        assertEquals(cards, source.saved())
+    }
+
+    @Test fun `invalid pagination cannot replace a complete catalogue`() = runBlocking {
+        var broken = false
+        val web = FakeWeb { Reply(200, if (broken) """{"has_more":true,"next_page":"https://invalid.example/x","data":[]}""".toByteArray()
+            else """{"has_more":false,"data":[${card("a", "Bant", "Plane — Alara")}]}""".toByteArray()) }
+        val source = planes(web)
+        source.download()
+        broken = true
+        assertTrue(runCatching { source.download() }.isFailure)
+        assertEquals("a", source.saved()!!.single().id)
     }
 
     @Test fun `art is fetched once and then comes from the cache`() = runBlocking {

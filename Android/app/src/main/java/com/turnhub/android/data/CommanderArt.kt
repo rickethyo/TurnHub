@@ -12,7 +12,7 @@ import java.net.URLEncoder
 import java.security.MessageDigest
 
 /** A commander's art crop and the credit Scryfall asks us to show with it. */
-class CommanderArt(val cardName: String, val artist: String, val jpeg: ByteArray)
+class CommanderArt(val cardName: String, val artist: String, val jpeg: ByteArray, val rarity: String? = null, internal val metadataCurrent: Boolean = true)
 
 /** One printing of a card with its own art, for choosing which art a tile shows. */
 class CommanderPrinting(val id: String, val setName: String, val artist: String, val artCrop: String)
@@ -40,16 +40,17 @@ class ScryfallCommanderArt(
     suspend fun art(name: String, printing: String? = null): CommanderArt? = withContext(ioDispatcher) {
         val id = printing?.takeIf { it.matches(PRINTING_ID) }
         val key = cacheKey(if (id == null) name else "$name#$id")
-        cached(key)?.let { return@withContext it.takeIf { art -> art.jpeg.isNotEmpty() } }
+        cached(key)?.takeIf { it.metadataCurrent }?.let { return@withContext it.takeIf { art -> art.jpeg.isNotEmpty() } }
         gate.withLock {
-            cached(key)?.let { return@withLock it.takeIf { art -> art.jpeg.isNotEmpty() } }
+            val old = cached(key)
+            old?.takeIf { it.metadataCurrent }?.let { return@withLock it.takeIf { art -> art.jpeg.isNotEmpty() } }
             val card = runCatching { lookup(name, id) }.getOrElse { error ->
                 // A card Scryfall can't find is remembered; a network failure is tried again later.
                 if (error is ScryfallHttp.NotFound) remember(key, CommanderArt(name, "", ByteArray(0)))
-                return@withLock null
+                return@withLock old?.takeIf { it.jpeg.isNotEmpty() }
             }
             delay(ScryfallHttp.REQUEST_SPACING_MS)
-            val art = runCatching { CommanderArt(card.name, card.artist, http.fetch(card.artCrop, MAX_ART_BYTES)) }.getOrNull()
+            val art = runCatching { CommanderArt(card.name, card.artist, old?.jpeg?.takeIf { it.isNotEmpty() } ?: http.fetch(card.artCrop, MAX_ART_BYTES), card.rarity) }.getOrNull()
                 ?: return@withLock null
             remember(key, art)
             delay(ScryfallHttp.REQUEST_SPACING_MS)
@@ -57,7 +58,7 @@ class ScryfallCommanderArt(
         }
     }
 
-    private class Card(val name: String, val artist: String, val artCrop: String)
+    private class Card(val name: String, val artist: String, val artCrop: String, val rarity: String?)
 
     /** Card names starting like [typed], for the commander picker; empty under two letters or offline. */
     suspend fun suggest(typed: String): List<String> = withContext(ioDispatcher) {
@@ -112,7 +113,7 @@ class ScryfallCommanderArt(
         val face = frontFace(json) ?: throw ScryfallHttp.NotFound()
         val crop = face.optJSONObject("image_uris")?.optString("art_crop").orEmpty()
         if (!crop.startsWith("https://")) throw ScryfallHttp.NotFound()
-        return Card(json.optString("name", name), face.optString("artist", json.optString("artist")), crop)
+        return Card(json.optString("name", name), face.optString("artist", json.optString("artist")), crop, json.optString("rarity").takeIf { it.isNotBlank() })
     }
 
     /** Double-faced cards keep their art on each face; the front face is the commander. */
@@ -123,14 +124,14 @@ class ScryfallCommanderArt(
         val meta = File(cacheDir, "$key.json").takeIf { it.exists() } ?: return null
         val json = JSONObject(meta.readText())
         val image = File(cacheDir, "$key.jpg")
-        CommanderArt(json.getString("name"), json.getString("artist"), if (image.exists()) image.readBytes() else ByteArray(0))
+        CommanderArt(json.getString("name"), json.getString("artist"), if (image.exists()) image.readBytes() else ByteArray(0), json.optString("rarity").takeIf { it.isNotBlank() && it != "null" }, json.has("rarity"))
     }.getOrNull()
 
     private fun remember(key: String, art: CommanderArt) {
         runCatching {
             cacheDir.mkdirs()
             if (art.jpeg.isNotEmpty()) File(cacheDir, "$key.jpg").writeBytes(art.jpeg)
-            File(cacheDir, "$key.json").writeText(JSONObject().put("name", art.cardName).put("artist", art.artist).toString())
+            File(cacheDir, "$key.json").writeText(JSONObject().put("name", art.cardName).put("artist", art.artist).put("rarity", art.rarity ?: JSONObject.NULL).toString())
         }
     }
 

@@ -43,6 +43,10 @@ data class TokenColors(
     val scrim: Color,
     val glowA: Color,
     val glowB: Color,
+    val rarityCommon: Color,
+    val rarityUncommon: Color,
+    val rarityRare: Color,
+    val rarityMythic: Color,
 )
 
 /** The themes in design/tokens.json, in order. */
@@ -62,7 +66,7 @@ enum class TokenTheme(
         dark = true,
         serifDisplay = false,
         brassOrnament = false,
-        colors = TokenColors(bg = Color(0xFF0A0B0E), surface1 = Color(0xFF14161B), surface2 = Color(0xFF1B1E25), surface3 = Color(0xFF262A33), fill = Color(0x12FFFFFF), fillStrong = Color(0x24FFFFFF), separator = Color(0x1AFFFFFF), separatorStrong = Color(0x38FFFFFF), text = Color(0xFFF4F6FA), textSecondary = Color(0xFFA7AFBC), textTertiary = Color(0xFF828A99), accent = Color(0xFFF5B53F), accentPressed = Color(0xFFDDA02E), onAccent = Color(0xFF1B1303), accentSoft = Color(0x24F5B53F), turn = Color(0xFF3DDBB1), onTurn = Color(0xFF03231A), turnSoft = Color(0x293DDBB1), good = Color(0xFF45D98A), warning = Color(0xFFFFA24C), critical = Color(0xFFFF6B66), info = Color(0xFF72AEFF), focus = Color(0xFF8CBBFF), scrim = Color(0xA8000000), glowA = Color(0x00000000), glowB = Color(0x00000000)),
+        colors = TokenColors(bg = Color(0xFF0A0B0E), surface1 = Color(0xFF14161B), surface2 = Color(0xFF1B1E25), surface3 = Color(0xFF262A33), fill = Color(0x12FFFFFF), fillStrong = Color(0x24FFFFFF), separator = Color(0x1AFFFFFF), separatorStrong = Color(0x38FFFFFF), text = Color(0xFFF4F6FA), textSecondary = Color(0xFFA7AFBC), textTertiary = Color(0xFF828A99), accent = Color(0xFFF5B53F), accentPressed = Color(0xFFDDA02E), onAccent = Color(0xFF1B1303), accentSoft = Color(0x24F5B53F), turn = Color(0xFF3DDBB1), onTurn = Color(0xFF03231A), turnSoft = Color(0x293DDBB1), good = Color(0xFF45D98A), warning = Color(0xFFFFA24C), critical = Color(0xFFFF6B66), info = Color(0xFF72AEFF), focus = Color(0xFF8CBBFF), scrim = Color(0xA8000000), glowA = Color(0x00000000), glowB = Color(0x00000000), rarityCommon = Color(0xFFD0D3D8), rarityUncommon = Color(0xFFA4B5C7), rarityRare = Color(0xFFE1B956), rarityMythic = Color(0xFFF5985A)),
     ),
     DAYLIGHT(
         key = "daylight",
@@ -71,7 +75,7 @@ enum class TokenTheme(
         dark = false,
         serifDisplay = false,
         brassOrnament = false,
-        colors = TokenColors(bg = Color(0xFFF2F3F6), surface1 = Color(0xFFFFFFFF), surface2 = Color(0xFFF7F8FA), surface3 = Color(0xFFEBEDF1), fill = Color(0x0D0F172A), fillStrong = Color(0x1C0F172A), separator = Color(0x1A0F172A), separatorStrong = Color(0x380F172A), text = Color(0xFF0D1117), textSecondary = Color(0xFF4A5260), textTertiary = Color(0xFF646B78), accent = Color(0xFF9A5D00), accentPressed = Color(0xFF7E4C00), onAccent = Color(0xFFFFFFFF), accentSoft = Color(0x1FC27A0A), turn = Color(0xFF00775E), onTurn = Color(0xFFFFFFFF), turnSoft = Color(0x1F00876A), good = Color(0xFF18794A), warning = Color(0xFFA35200), critical = Color(0xFFC72B2B), info = Color(0xFF1F64C4), focus = Color(0xFF1F64C4), scrim = Color(0x660D1117), glowA = Color(0x00000000), glowB = Color(0x00000000)),
+        colors = TokenColors(bg = Color(0xFFF2F3F6), surface1 = Color(0xFFFFFFFF), surface2 = Color(0xFFF7F8FA), surface3 = Color(0xFFEBEDF1), fill = Color(0x0D0F172A), fillStrong = Color(0x1C0F172A), separator = Color(0x1A0F172A), separatorStrong = Color(0x380F172A), text = Color(0xFF0D1117), textSecondary = Color(0xFF4A5260), textTertiary = Color(0xFF646B78), accent = Color(0xFF9A5D00), accentPressed = Color(0xFF7E4C00), onAccent = Color(0xFFFFFFFF), accentSoft = Color(0x1FC27A0A), turn = Color(0xFF00775E), onTurn = Color(0xFFFFFFFF), turnSoft = Color(0x1F00876A), good = Color(0xFF18794A), warning = Color(0xFFA35200), critical = Color(0xFFC72B2B), info = Color(0xFF1F64C4), focus = Color(0xFF1F64C4), scrim = Color(0x660D1117), glowA = Color(0x00000000), glowB = Color(0x00000000), rarityCommon = Color(0xFF353A43), rarityUncommon = Color(0xFF50677D), rarityRare = Color(0xFF85620C), rarityMythic = Color(0xFFA84410)),
     ),
     BRASS(
         key = "brass",
@@ -80,7 +84,7 @@ enum class TokenTheme(
         dark = true,
         serifDisplay = true,
         brassOrnament = true,
-        colors = TokenColors(bg = Color(0xFF110D09), surface1 = Color(0xFF1B1510), surface2 = Color(0xFF241C14), surface3 = Color(0xFF30251A), fill = Color(0x14DEB064), fillStrong = Color(0x29DEB064), separator = Color(0x33DEB064), separatorStrong = Color(0x70DEB064), text = Color(0xFFF6ECD9), textSecondary = Color(0xFFC9B594), textTertiary = Color(0xFFA18F72), accent = Color(0xFFE2AE4A), accentPressed = Color(0xFFC9952F), onAccent = Color(0xFF1C1205), accentSoft = Color(0x24E2AE4A), turn = Color(0xFF62D6B2), onTurn = Color(0xFF06231B), turnSoft = Color(0x2962D6B2), good = Color(0xFF93DC8C), warning = Color(0xFFFFA25C), critical = Color(0xFFFF7D70), info = Color(0xFFA6C8EA), focus = Color(0xFFFFE28F), scrim = Color(0xA8000000), glowA = Color(0x2BE0A848), glowB = Color(0x0F5FD4B0)),
+        colors = TokenColors(bg = Color(0xFF110D09), surface1 = Color(0xFF1B1510), surface2 = Color(0xFF241C14), surface3 = Color(0xFF30251A), fill = Color(0x14DEB064), fillStrong = Color(0x29DEB064), separator = Color(0x33DEB064), separatorStrong = Color(0x70DEB064), text = Color(0xFFF6ECD9), textSecondary = Color(0xFFC9B594), textTertiary = Color(0xFFA18F72), accent = Color(0xFFE2AE4A), accentPressed = Color(0xFFC9952F), onAccent = Color(0xFF1C1205), accentSoft = Color(0x24E2AE4A), turn = Color(0xFF62D6B2), onTurn = Color(0xFF06231B), turnSoft = Color(0x2962D6B2), good = Color(0xFF93DC8C), warning = Color(0xFFFFA25C), critical = Color(0xFFFF7D70), info = Color(0xFFA6C8EA), focus = Color(0xFFFFE28F), scrim = Color(0xA8000000), glowA = Color(0x2BE0A848), glowB = Color(0x0F5FD4B0), rarityCommon = Color(0xFFD0D3D8), rarityUncommon = Color(0xFFA4B5C7), rarityRare = Color(0xFFE1B956), rarityMythic = Color(0xFFF5985A)),
     ),
     CONTRAST(
         key = "contrast",
@@ -89,7 +93,7 @@ enum class TokenTheme(
         dark = true,
         serifDisplay = false,
         brassOrnament = false,
-        colors = TokenColors(bg = Color(0xFF000000), surface1 = Color(0xFF000000), surface2 = Color(0xFF0E0E0E), surface3 = Color(0xFF1C1C1C), fill = Color(0x1FFFFFFF), fillStrong = Color(0x3DFFFFFF), separator = Color(0xFFBDBDBD), separatorStrong = Color(0xFFFFFFFF), text = Color(0xFFFFFFFF), textSecondary = Color(0xFFECECEC), textTertiary = Color(0xFFD0D0D0), accent = Color(0xFFFFD400), accentPressed = Color(0xFFFFE45C), onAccent = Color(0xFF000000), accentSoft = Color(0x33FFD400), turn = Color(0xFF00F0D8), onTurn = Color(0xFF000000), turnSoft = Color(0x3300F0D8), good = Color(0xFF7DFF9B), warning = Color(0xFFFFB000), critical = Color(0xFFFF9A9A), info = Color(0xFF8FD3FF), focus = Color(0xFFFFFFFF), scrim = Color(0xCC000000), glowA = Color(0x00000000), glowB = Color(0x00000000)),
+        colors = TokenColors(bg = Color(0xFF000000), surface1 = Color(0xFF000000), surface2 = Color(0xFF0E0E0E), surface3 = Color(0xFF1C1C1C), fill = Color(0x1FFFFFFF), fillStrong = Color(0x3DFFFFFF), separator = Color(0xFFBDBDBD), separatorStrong = Color(0xFFFFFFFF), text = Color(0xFFFFFFFF), textSecondary = Color(0xFFECECEC), textTertiary = Color(0xFFD0D0D0), accent = Color(0xFFFFD400), accentPressed = Color(0xFFFFE45C), onAccent = Color(0xFF000000), accentSoft = Color(0x33FFD400), turn = Color(0xFF00F0D8), onTurn = Color(0xFF000000), turnSoft = Color(0x3300F0D8), good = Color(0xFF7DFF9B), warning = Color(0xFFFFB000), critical = Color(0xFFFF9A9A), info = Color(0xFF8FD3FF), focus = Color(0xFFFFFFFF), scrim = Color(0xCC000000), glowA = Color(0x00000000), glowB = Color(0x00000000), rarityCommon = Color(0xFFD0D3D8), rarityUncommon = Color(0xFFA4B5C7), rarityRare = Color(0xFFE1B956), rarityMythic = Color(0xFFF5985A)),
     ),
     ;
 
@@ -199,6 +203,7 @@ object DesignTokens {
         @DrawableRes val bell: Int = R.drawable.ic_th_bell
         @DrawableRes val book: Int = R.drawable.ic_th_book
         @DrawableRes val bug: Int = R.drawable.ic_th_bug
+        @DrawableRes val cards: Int = R.drawable.ic_th_cards
         @DrawableRes val chart: Int = R.drawable.ic_th_chart
         @DrawableRes val check: Int = R.drawable.ic_th_check
         @DrawableRes val chevronDown: Int = R.drawable.ic_th_chevron_down
@@ -207,6 +212,7 @@ object DesignTokens {
         @DrawableRes val chevronUp: Int = R.drawable.ic_th_chevron_up
         @DrawableRes val clock: Int = R.drawable.ic_th_clock
         @DrawableRes val close: Int = R.drawable.ic_th_close
+        @DrawableRes val commander: Int = R.drawable.ic_th_commander
         @DrawableRes val contrast: Int = R.drawable.ic_th_contrast
         @DrawableRes val crown: Int = R.drawable.ic_th_crown
         @DrawableRes val dice: Int = R.drawable.ic_th_dice
@@ -240,6 +246,7 @@ object DesignTokens {
         @DrawableRes val sparkle: Int = R.drawable.ic_th_sparkle
         @DrawableRes val sun: Int = R.drawable.ic_th_sun
         @DrawableRes val swap: Int = R.drawable.ic_th_swap
+        @DrawableRes val table: Int = R.drawable.ic_th_table
         @DrawableRes val timer: Int = R.drawable.ic_th_timer
         @DrawableRes val trash: Int = R.drawable.ic_th_trash
         @DrawableRes val unlock: Int = R.drawable.ic_th_unlock

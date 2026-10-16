@@ -97,7 +97,13 @@ fun TabletScreen(
     switching: Boolean = false,
     onEditBackground: ((TablePlayer) -> Unit)? = null,
     canEditBackground: (TablePlayer) -> Boolean = { false },
+    onBackToSetup: () -> Unit = onClose,
 ) {
+    var previousState by remember { mutableStateOf(summary?.state) }
+    androidx.compose.runtime.LaunchedEffect(summary?.state) {
+        if (previousState in listOf(TableState.RUNNING, TableState.PAUSED) && summary?.state == TableState.LOBBY) onBackToSetup()
+        previousState = summary?.state
+    }
     val scopedActions = actions.copy(run = { block -> actions.run { inGame(summary?.game ?: 1, block) } })
     val p = palette
     KeepScreenOn()
