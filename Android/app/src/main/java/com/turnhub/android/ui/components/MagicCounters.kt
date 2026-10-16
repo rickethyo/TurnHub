@@ -20,6 +20,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.res.painterResource
+import com.turnhub.android.ui.theme.DesignTokens
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -51,7 +55,7 @@ fun magicStatus(c: PlayerCounters, initiative: Boolean): String = buildList {
 }.joinToString(" · ")
 
 /** One counter as a chip: a symbol and value, with its name unless [compact]. Words always ride along for TalkBack. */
-internal data class CounterChip(val glyph: String, val value: String?, val label: String, val tone: Tone)
+internal data class CounterChip(val glyph: String, val value: String?, val label: String, val tone: Tone, val icon: Int? = null)
 
 internal fun counterChips(c: PlayerCounters, initiative: Boolean, commander: Boolean, poisonLimit: Int): List<CounterChip> = buildList {
     if (c.poison > 0) add(CounterChip("☠", "${c.poison}/$poisonLimit", "Poison", if (c.poison >= poisonLimit - 3) Tone.BAD else Tone.WARN))
@@ -61,7 +65,7 @@ internal fun counterChips(c: PlayerCounters, initiative: Boolean, commander: Boo
     if (c.experience > 0) add(CounterChip("★", "${c.experience}", "Experience", Tone.GOOD))
     if (commander) for (n in 1..2) {
         val tax = c.commanderTax(n)
-        if (tax > 0) add(CounterChip("⌘", "+$tax", "Commander $n tax", Tone.NEUTRAL))
+        if (tax > 0) add(CounterChip("", "+$tax", "Commander $n tax", Tone.NEUTRAL, DesignTokens.Icons.commander))
     }
 }
 
@@ -102,7 +106,8 @@ fun CounterChips(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                Text(chip.glyph, color = color, style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleMedium)
+                if (chip.icon != null) Icon(painterResource(chip.icon), contentDescription = null, tint = color, modifier = Modifier.size(if (compact) 16.dp else 22.dp))
+                else Text(chip.glyph, color = color, style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleMedium)
                 chip.value?.let {
                     Text(it, color = color, style = (if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleMedium)
                         .copy(fontWeight = FontWeight.Bold))
@@ -121,8 +126,12 @@ fun MagicCountersEditor(counters: PlayerCounters, initiative: Boolean, commander
     showPoison: Boolean = true,
     /** The commander the player named, used in place of "Commander 1". */
     commanderName: String? = null,
+    partnerEnabled: Boolean? = null,
+    onPartnerChange: ((Boolean) -> Unit)? = null,
     onChange: (kind: String, value: Int, commander: Int) -> Unit,
 ) {
+    var localPartner by rememberSaveable(commanderName) { mutableStateOf(false) }
+    val partner = partnerEnabled ?: localPartner
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (showPoison) CounterRow("Poison", counters.poison, enabled, "☠", Tone.WARN) { onChange("poison", it, 1) }
         CounterRow("Energy", counters.energy, enabled, "⚡", Tone.INFO) { onChange("energy", it, 1) }
@@ -132,10 +141,17 @@ fun MagicCountersEditor(counters: PlayerCounters, initiative: Boolean, commander
         ToneButton(if (counters.cityBlessing) "Clear city’s blessing (correction)" else "I have the city’s blessing",
             { onChange("city-blessing", if (counters.cityBlessing) 0 else 1, 1) }, Modifier.fillMaxWidth(), enabled = enabled)
         if (commander) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                .toggleable(partner, enabled = enabled, role = Role.Switch, onValueChange = {
+                    if (onPartnerChange != null) onPartnerChange(it) else localPartner = it
+                }), verticalAlignment = Alignment.CenterVertically) {
+                Text("Partner commanders", color = palette.text, modifier = Modifier.weight(1f))
+                Switch(partner, onCheckedChange = null, enabled = enabled)
+            }
             Text("Casts from the command zone", color = palette.muted, style = MaterialTheme.typography.labelLarge)
-            for (c in 1..2) {
+            for (c in 1..if (partner) 2 else 1) {
                 val which = if (c == 1 && commanderName != null) commanderName else "Commander $c"
-                CounterRow("$which casts · next tax +${counters.commanderTax(c)}", counters.commanderCasts[c-1], enabled, "⌘") {
+                CounterRow("$which casts · next tax +${counters.commanderTax(c)}", counters.commanderCasts[c-1], enabled, icon = DesignTokens.Icons.commander) {
                     onChange("commander-casts", it, c)
                 }
             }
@@ -148,10 +164,10 @@ fun MagicCountersEditor(counters: PlayerCounters, initiative: Boolean, commander
 /** A Two-Headed Giant team's poison: shared by both players (CR 810.10), so shown once. */
 @Composable
 fun TeamPoisonRow(poison: Int, enabled: Boolean, onChange: (Int) -> Unit) =
-    CounterRow("Team poison", poison, enabled, "☠", Tone.WARN, onChange)
+    CounterRow("Team poison", poison, enabled, "☠", Tone.WARN, onDelta = onChange)
 
 @Composable
-private fun CounterRow(label: String, value: Int, enabled: Boolean, glyph: String = "", tone: Tone = Tone.NEUTRAL, onDelta: (Int) -> Unit) {
+private fun CounterRow(label: String, value: Int, enabled: Boolean, glyph: String = "", tone: Tone = Tone.NEUTRAL, icon: Int? = null, onDelta: (Int) -> Unit) {
     val p = palette
     val color = if (tone == Tone.NEUTRAL) p.text else toneColor(tone)
     Row(
@@ -163,7 +179,8 @@ private fun CounterRow(label: String, value: Int, enabled: Boolean, glyph: Strin
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (glyph.isNotEmpty()) Text(glyph, color = color, style = MaterialTheme.typography.titleMedium)
+        if (icon != null) Icon(painterResource(icon), contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
+        else if (glyph.isNotEmpty()) Text(glyph, color = color, style = MaterialTheme.typography.titleMedium)
         Text(label, color = p.text, modifier = Modifier.weight(1f))
         StepButton("−", "Subtract one $label", enabled && value > 0) { onDelta(-1) }
         Text("$value", color = color, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),

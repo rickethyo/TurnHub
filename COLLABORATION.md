@@ -701,3 +701,29 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   No physical full-match/Atlas/TalkBack or inner-display acceptance claimed.
   Manual text/export synchronized; renderer again cannot find LibreOffice, so
   DOCX page layout remains unverified. PR #123 carries the combined scope.
+
+### 2026-10-15 — Codex: partner cast disclosure and commander icon
+
+- Owner follow-up on `codex/master`, baseline `951d892`: hide Commander 2 casts
+  unless Partner is enabled; clarified the unwanted icon is the command-key
+  glyph beside casts. Scope is presentation: existing counters/actions stay
+  canonical, disclosure is saveable UI state, no protocol/storage dependency.
+- Move the existing Partner switch beside cast counters, retain it across
+  player-menu close/reopen, and use an original commander-card vector for casts
+  and tax chips. Personal counter editor gets the same disclosure. Existing
+  nonzero counters are preserved when hidden.
+- Reviewed Wizards Fan Content Policy: standalone logos/trademarks are restricted;
+  do not assume permission to extract set symbols as UI icons. Use original
+  artwork instead; existing card content remains under its tracked policy.
+- Implemented: conditional second cast row, Partner switch beside casts,
+  saveable table-level disclosure per player and original commander-card vector
+  shared by cast rows/tax chips. Counter values and authoritative actions unchanged.
+- Validation: Preview build 12 assemble/lint pass (0 errors, 44 warnings,
+  7 hints); tokens, manual export, docs and whitespace checks pass. Rebuilt APK
+  after the manual asset update and installed Preview 12 over Preview 11,
+  preserving the running game. Phone locked before inspection, so Partner
+  toggle/menu-reopen and icon visual acceptance remain pending. No gameplay
+  actions performed. No new mirror tests for this disclosure/vector change;
+  the prior 345-test engine suite remains the last unit-test run.
+- Manual source/export synchronized. DOCX renderer attempted and unavailable
+  because LibreOffice is absent; page layout remains unverified.

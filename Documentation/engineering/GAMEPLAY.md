@@ -459,3 +459,12 @@ disconnected (they do not replay status/counter changes). Standalone games own
 and persist their equivalent local state. New matches reset counters/status;
 match settings carry forward. Elimination clears initiative; city’s blessing
 and numerical counters remain as the last values on an eliminated player.
+
+### Commander counter presentation
+
+In the Android player menu, Partner commanders sits beside command-zone casts.
+Commander 2 casts is hidden until that switch is enabled; hiding it preserves
+its recorded total. This disclosure also exposes partner damage rows and is
+retained across closing/reopening the menu. Existing nonzero received partner
+damage remains visible for corrections. Cast rows and tax chips use an original
+commander-card icon; set/rarity symbols are not extracted for UI artwork.

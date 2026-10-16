@@ -208,6 +208,7 @@ object DesignTokens {
         @DrawableRes val chevronUp: Int = R.drawable.ic_th_chevron_up
         @DrawableRes val clock: Int = R.drawable.ic_th_clock
         @DrawableRes val close: Int = R.drawable.ic_th_close
+        @DrawableRes val commander: Int = R.drawable.ic_th_commander
         @DrawableRes val contrast: Int = R.drawable.ic_th_contrast
         @DrawableRes val crown: Int = R.drawable.ic_th_crown
         @DrawableRes val dice: Int = R.drawable.ic_th_dice

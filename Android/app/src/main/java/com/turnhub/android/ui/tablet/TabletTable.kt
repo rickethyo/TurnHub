@@ -43,6 +43,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.toMutableStateList
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -211,6 +214,10 @@ internal fun TabletTable(
     var nextId by remember { mutableStateOf(0L) }
     // One player's menu at a time, full screen and turned to face that player.
     var playerMenu by remember { mutableStateOf<String?>(null) }
+    val partners = rememberSaveable(summary.atlasId, summary.bootId, summary.game,
+        saver = listSaver<SnapshotStateList<Int>, Int>(save = { it.toList() }, restore = { it.toMutableStateList() })) {
+        mutableStateListOf<Int>()
+    }
     var flipped by rememberSaveable { mutableStateOf(false) }
     val starLayout = rememberStarLayout()
     var menuOpen by remember { mutableStateOf(false) }
@@ -380,6 +387,7 @@ internal fun TabletTable(
             Box(Modifier.fillMaxSize().facing((degreesOf(menuIndex) + turn) % 360)) {
                 PlayerMenu(
                     unit = unit,
+                    partners = partners,
                     summary = summary,
                     onClose = { playerMenu = null },
                     onControl = { seat, action ->
@@ -1051,6 +1059,7 @@ private fun Prompt(
 @Composable
 private fun PlayerMenu(
     unit: TableUnit,
+    partners: MutableList<Int>,
     summary: TableSummary,
     onClose: () -> Unit,
     onControl: (TabletSeat, String) -> Unit,
@@ -1059,7 +1068,6 @@ private fun PlayerMenu(
     offlineCommander: (Long, Int, Int) -> Int,
 ) {
     val p = palette
-    val partners = remember { mutableStateListOf<Int>() }
     val hue = unit.members.first().color?.let { Color(android.graphics.Color.parseColor(it)) }
         ?: p.avatarColor(unit.members.first().playerNumber)
     Column(
@@ -1145,7 +1153,9 @@ private fun PlayerMenuItems(
             unit.members.filter { !it.eliminated }.forEach { member ->
                 if (team) Text("${member.label} counters and status", color = p.text)
                 MagicCountersEditor(member.counters, summary.initiativePlayerNumber == member.playerNumber,
-                    summary.settings.profile.commanderRules, showPoison = !team, commanderName = member.commander) { kind, value, commander -> onCounter(member, kind, value, commander) }
+                    summary.settings.profile.commanderRules, showPoison = !team, commanderName = member.commander,
+                    partnerEnabled = member.playerNumber in partners,
+                    onPartnerChange = { on -> if (on) partners.add(member.playerNumber) else partners.remove(member.playerNumber) }) { kind, value, commander -> onCounter(member, kind, value, commander) }
                 ToneButton(
                     if (unit.members.size > 1) "${member.label}: I’m the monarch" else "I’m the monarch",
                     { onControl(member.seat(), "monarch") }, Modifier.fillMaxWidth(), tone = Tone.ACCENT,
@@ -1198,9 +1208,6 @@ private fun PlayerMenuItems(
                             }
                         }
                     }
-                }
-                SetupSwitch("Partner commanders", null, showPartner, true) {
-                    if (showPartner) partners.remove(member.playerNumber) else partners.add(member.playerNumber)
                 }
             }
         }
