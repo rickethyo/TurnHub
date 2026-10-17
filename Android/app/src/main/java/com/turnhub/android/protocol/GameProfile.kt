@@ -27,6 +27,12 @@ enum class GameProfile(val wireValue: String) {
      * goal (20) wins at once. Phone-hosted games only, like [POKEMON].
      */
     LORCANA("lorcana"),
+    /**
+     * Cthulhu: Death May Die, a cooperative board game: the investigators win
+     * or lose together. TurnHub tracks who has taken their turn this round,
+     * each player's investigator and their wounds. Phone-hosted games only, like [POKEMON].
+     */
+    DEATH_MAY_DIE("death_may_die"),
     ;
 
     /** Commander rules (Commander damage, commander casts, 40 life): Commander and Star Commander. */
@@ -43,11 +49,17 @@ enum class GameProfile(val wireValue: String) {
     /** Lore instead of life (see [LORCANA]); the settings' starting life is the lore to win. */
     val lorcana: Boolean get() = this == LORCANA
 
-    /** A life total that can run out; Pokémon counts prizes and Lorcana counts lore up instead. */
-    val countsLife: Boolean get() = !pokemon && !lorcana
+    /** Wounds instead of life (see [DEATH_MAY_DIE]); the whole table wins or loses. */
+    val deathMayDie: Boolean get() = this == DEATH_MAY_DIE
+
+    /** The players win or lose together. */
+    val cooperative: Boolean get() = deathMayDie
+
+    /** A life total that can run out; Pokémon counts prizes, Lorcana lore and Death May Die wounds instead. */
+    val countsLife: Boolean get() = !pokemon && !lorcana && !deathMayDie
 
     /** Atlas runs and imports this format; the others are phone-hosted only. */
-    val atlasSupported: Boolean get() = this != POKEMON && this != LORCANA
+    val atlasSupported: Boolean get() = this != POKEMON && this != LORCANA && this != DEATH_MAY_DIE
 
     companion object {
         fun fromWire(value: String): GameProfile? = entries.firstOrNull { it.wireValue == value }

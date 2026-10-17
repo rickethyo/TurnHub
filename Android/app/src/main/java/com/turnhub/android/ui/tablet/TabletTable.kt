@@ -158,8 +158,8 @@ internal fun placements(count: Int): Placement {
 internal fun lifeSteps(profile: GameProfile): Pair<Int, Int> =
     when (profile) {
         GameProfile.YUGIOH -> 100 to 1000
-        // Pokémon counts Prize cards and Lorcana counts lore, one at a time.
-        GameProfile.POKEMON, GameProfile.LORCANA -> 1 to 1
+        // Pokémon counts Prize cards, Lorcana lore and Death May Die wounds, one at a time.
+        GameProfile.POKEMON, GameProfile.LORCANA, GameProfile.DEATH_MAY_DIE -> 1 to 1
         else -> 1 to 5
     }
 
@@ -464,14 +464,17 @@ internal fun TabletTable(
                 val winners = units.filter { u -> u.members.any { summary.isWinner(it.playerNumber) } }
                 val names = winners.joinToString(" and ") { it.name }
                 val star = summary.settings.profile.starCommander
+                val together = summary.settings.profile.cooperative
                 Overlay(
                     when {
+                        together -> if (winners.isEmpty()) "The investigators lost" else "The investigators win"
                         winners.isEmpty() -> "Game over"
                         star -> "Star Commander victory"
                         winners.size > 1 -> "Shared victory"
                         else -> "$names ${if (winners.single().members.size > 1) "win" else "wins"}"
                     },
                     when {
+                        together -> summary.round?.let { "The game ended in round $it." }
                         winners.isEmpty() -> "The game ended as a draw."
                         winners.size > 1 -> "$names share the victory."
                         star -> "$names wins. Well played, everyone."
@@ -543,7 +546,8 @@ internal fun TabletTable(
                     DisclosureCard("Finish game") {
                         BackToSetup(summary) { menuOpen = false; send(anySeat, "back-to-setup") }
                         if (standalone) {
-                            ArmedButton("End without a winner", "Tap again to end the game", Tone.BAD) {
+                            ArmedButton(if (summary.settings.profile.cooperative) "The investigators lost" else "End without a winner",
+                                "Tap again to end the game", Tone.BAD) {
                                 menuOpen = false
                                 send(anySeat, "draw")
                             }
@@ -599,7 +603,7 @@ private fun Hub(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit) {
     ) {
         Text(if (summary.state == TableState.PAUSED) "Paused" else clock, color = p.text,
             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text("Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
+        Text(summary.round?.let { "Round $it" } ?: "Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -681,8 +685,9 @@ private fun PlayerPanel(
     val out = unit.out
     val (small, big) = lifeSteps(summary.settings.profile)
     val name = unit.name
-    // The commanders a team or player named, shown under the name.
-    val commanders = unit.members.mapNotNull { it.namedCommander }.takeIf { it.isNotEmpty() }?.joinToString(" & ")
+    // The commanders a team or player named (Death May Die: their investigator), shown under the name.
+    val commanders = unit.members.mapNotNull { if (summary.settings.profile.deathMayDie) it.investigator else it.namedCommander }
+        .takeIf { it.isNotEmpty() }?.joinToString(" & ")
     // The active panel's edge breathes slowly; steady when motion is reduced. The value is
     // read only while drawing, so the pulse redraws the edge without recomposing the panel.
     val glow = if (active && !reduceMotion) {
@@ -1201,7 +1206,8 @@ private fun PlayerMenuItems(
     DisclosureCard(if (!playing) "Turn & tools" else if (unit.members.size > 1) "Turn, team counters & status" else "Turn, counters & status",
         initiallyExpanded = true) {
         val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
-        if (actor != null && summary.state == TableState.RUNNING) {
+        // A cooperative game is won together, from its own card below.
+        if (actor != null && summary.state == TableState.RUNNING && !summary.settings.profile.cooperative) {
             ArmedButton("Claim the win", "Tap again to claim", Tone.GOOD) { onControl(actor.seat(), "win") }
         }
         val rules = summary.localTimerRules

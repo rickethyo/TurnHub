@@ -35,6 +35,7 @@ import com.turnhub.android.ui.theme.palette
 internal fun scoreCaption(profile: GameProfile, score: Int, goal: Int): String? = when {
     profile.pokemon -> if (score == 1) "prize left" else "prizes left"
     profile.lorcana -> "lore · $goal to win"
+    profile.deathMayDie -> if (score == 1) "wound" else "wounds"
     else -> null
 }
 
@@ -42,6 +43,7 @@ internal fun scoreCaption(profile: GameProfile, score: Int, goal: Int): String? 
 internal fun scoreDescription(profile: GameProfile, name: String, score: Int, goal: Int): String = when {
     profile.pokemon -> "$name, $score Prize cards left"
     profile.lorcana -> "$name, $score lore of $goal"
+    profile.deathMayDie -> "$name, $score ${if (score == 1) "wound" else "wounds"}"
     else -> "$name, life $score"
 }
 
@@ -49,6 +51,7 @@ internal fun scoreDescription(profile: GameProfile, name: String, score: Int, go
 internal fun stepLabel(profile: GameProfile, name: String, step: Int, adding: Boolean): String = when {
     profile.pokemon -> if (adding) "$name: put a Prize card back" else "$name: take a Prize card"
     profile.lorcana -> if (adding) "$name: gain $step lore" else "$name: lose $step lore"
+    profile.deathMayDie -> if (adding) "$name: add a wound" else "$name: heal a wound"
     else -> if (adding) "$name: add $step life" else "$name: subtract $step life"
 }
 
@@ -69,6 +72,7 @@ private fun firstTurnNote(holder: TablePlayer, summary: TableSummary): String? {
 
 /** Room [TurnPanelLines] takes under the number, in dp. */
 internal fun turnPanelHeight(unit: TableUnit, summary: TableSummary, narrow: Boolean): Float {
+    if (summary.settings.profile.cooperative) return if (summary.state == TableState.GAME_OVER) 0f else 34f
     val holder = turnHolder(unit, summary)
     val actions = TurnAction.of(summary.settings.profile).size
     return (if (unit.members.any { it.turn.conditions.isNotEmpty() }) 26f else 0f) +
@@ -83,6 +87,10 @@ internal fun turnPanelHeight(unit: TableUnit, summary: TableSummary, narrow: Boo
 @Composable
 internal fun TurnPanelLines(unit: TableUnit, summary: TableSummary, onMark: (TablePlayer, String, Int) -> Unit, modifier: Modifier) {
     val p = palette
+    if (summary.settings.profile.cooperative) {
+        RoundStatus(unit, summary, modifier)
+        return
+    }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         unit.members.forEach { member ->
             val conditions = member.turn.conditions
@@ -98,6 +106,29 @@ internal fun TurnPanelLines(unit: TableUnit, summary: TableSummary, onMark: (Tab
             Text(it, color = p.text, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
         }
         TurnActionChips(holder, summary.settings.profile, onMark)
+    }
+}
+
+/** Where this player is in the round, in words: never shown by color or the panel's glow alone. */
+internal fun roundStatus(player: TablePlayer, summary: TableSummary): String? = when {
+    summary.state == TableState.GAME_OVER || summary.state == TableState.LOBBY -> null
+    player.eliminated -> null
+    summary.activePlayerNumber == player.playerNumber -> "Taking their turn"
+    player.actedThisRound -> "✓ Turn taken"
+    else -> "Still to go"
+}
+
+/** A cooperative game's panel: whether this player has taken their turn this round. */
+@Composable
+private fun RoundStatus(unit: TableUnit, summary: TableSummary, modifier: Modifier) {
+    val p = palette
+    val member = unit.members.first()
+    val status = roundStatus(member, summary) ?: return
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(status, color = if (member.actedThisRound) p.muted else p.text, style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.background(if (member.actedThisRound) p.surface.copy(alpha = .85f) else p.accentSoft, RoundedCornerShape(99.dp))
+                .padding(horizontal = 12.dp, vertical = 4.dp))
     }
 }
 
@@ -131,6 +162,10 @@ internal fun CardGameMenuItems(unit: TableUnit, summary: TableSummary, onMark: (
     if (summary.state != TableState.RUNNING && summary.state != TableState.PAUSED) return
     val member = unit.members.firstOrNull { !it.eliminated } ?: return
     val profile = summary.settings.profile
+    if (profile.deathMayDie) {
+        DeathMayDieMenuItems(member, summary, onAction)
+        return
+    }
     com.turnhub.android.ui.components.DisclosureCard(if (profile.pokemon) "Pokémon" else "Lorcana", initiallyExpanded = true) {
         turnHolder(unit, summary)?.let { holder ->
             Text("This turn", color = p.muted, style = MaterialTheme.typography.labelLarge)
@@ -160,6 +195,34 @@ internal fun CardGameMenuItems(unit: TableUnit, summary: TableSummary, onMark: (
                 color = p.faint, style = MaterialTheme.typography.bodySmall)
             ArmedButton("I had to draw from an empty deck", "Tap again: you're out", Tone.BAD) { onAction(member, "eliminate") }
         }
+    }
+}
+
+/**
+ * The player's menu in Death May Die: their investigator, where the round
+ * stands, and how the game ends. Everyone wins or loses together (rulebook,
+ * "Winning and Losing"): killing the Elder One wins; an investigator who dies
+ * or goes insane before it is summoned loses the game, afterwards only they are out.
+ */
+@Composable
+private fun DeathMayDieMenuItems(member: TablePlayer, summary: TableSummary, onAction: (TablePlayer, String) -> Unit) {
+    val p = palette
+    com.turnhub.android.ui.components.DisclosureCard("Death May Die", initiallyExpanded = true) {
+        Text(member.investigator?.let { "Investigator: $it" } ?: "No investigator chosen", color = p.text)
+        summary.round?.let { round ->
+            val waiting = summary.players.filter { !it.eliminated && !it.actedThisRound && it.playerNumber != summary.activePlayerNumber }
+            Text("Round $round · " + if (waiting.isEmpty()) "the last turn of the round" else "still to go: ${waiting.joinToString { it.label }}",
+                color = p.muted)
+        }
+        Text("Wounds on the panel are a reminder; the dashboard says when an investigator dies.",
+            color = p.faint, style = MaterialTheme.typography.bodySmall)
+        ArmedButton("We killed the Elder One", "Tap again: the investigators win", Tone.GOOD) { onAction(member, "win") }
+        ArmedButton("${member.label} died or went insane", "Tap again: ${member.label} is out", Tone.BAD) { onAction(member, "eliminate") }
+        Text("With the Elder One on the board, the others play on. Before it is summoned, that loses the game.",
+            color = p.faint, style = MaterialTheme.typography.bodySmall)
+        ArmedButton("We lost", "Tap again: the investigators lose", Tone.BAD) { onAction(member, "draw") }
+        Text("An investigator fell before the Elder One was summoned, or the Summoning track reached its last space.",
+            color = p.faint, style = MaterialTheme.typography.bodySmall)
     }
 }
 

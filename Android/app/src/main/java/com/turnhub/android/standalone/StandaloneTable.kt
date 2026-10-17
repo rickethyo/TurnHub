@@ -388,6 +388,7 @@ class StandaloneTable(
 
     // A standalone game has no phones asking for life changes, and is never offline.
     fun setCommander(index: Int, name: String?, art: String? = null, cardOnly: Boolean = false) { edit { it.setCommander(index, name, art, cardOnly) } }
+    fun setInvestigator(index: Int, name: String?) { edit { it.setInvestigator(index, name) } }
     fun setZeroLifeElimination(enabled: Boolean) { edit { it.setAutoEliminateAtZeroLife(enabled, wallClock()) } }
 
     override suspend fun counter(seat: TabletSeat, kind: String, value: Int, commander: Int) =
@@ -492,6 +493,8 @@ class StandaloneTable(
             put("revision", game.revision)
             put("planechase", game.planechase.toJson())
             put("pokemonCheckup", JSONArray(game.pokemonCheckup))
+            put("acted", JSONArray(game.acted.sorted()))
+            put("round", game.round)
             put("players", JSONArray().apply {
                 game.players.forEach { p ->
                     put(JSONObject().apply {
@@ -516,6 +519,7 @@ class StandaloneTable(
                         put("commander", p.commander ?: JSONObject.NULL)
                         put("commanderArt", p.commanderArt ?: JSONObject.NULL)
                         put("cardOnly", p.cardOnly)
+                        put("investigator", p.investigator ?: JSONObject.NULL)
                         put("turn", JSONObject()
                             .put("actions", JSONArray(p.turn.turnActions.map { it.name }))
                             .put("conditions", JSONArray(p.turn.conditions.map { it.name })))
@@ -562,6 +566,8 @@ class StandaloneTable(
                 revision = json.getLong("revision"),
                 planechase = json.optJSONObject("planechase")?.let { Planechase.fromJson(it) } ?: Planechase(),
                 pokemonCheckup = json.optJSONArray("pokemonCheckup")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(),
+                acted = json.optIntList("acted")?.filter { it in 0 until players.length() }?.toSet().orEmpty(),
+                round = json.optInt("round", 1).coerceAtLeast(1),
                 players = (0 until players.length()).map { i ->
                     val p = players.getJSONObject(i)
                     val damage = p.getJSONObject("commanderDamage")
@@ -587,6 +593,7 @@ class StandaloneTable(
                         commander = p.optStringOrNull("commander"),
                         commanderArt = p.optStringOrNull("commanderArt")?.takeIf { com.turnhub.android.data.TileCardGame.valid(it) },
                         cardOnly = p.optBoolean("cardOnly"),
+                        investigator = p.optStringOrNull("investigator"),
                         // Pokémon games saved before Lorcana kept this under "pokemon".
                         turn = (p.optJSONObject("turn") ?: p.optJSONObject("pokemon"))?.let { pk ->
                             fun <E : Enum<E>> names(key: String, values: List<E>): Set<E> = pk.optJSONArray(key)?.let { a ->

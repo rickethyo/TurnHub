@@ -1100,6 +1100,7 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
         GameProfile.YUGIOH -> "8000"
         GameProfile.POKEMON -> "6"
         GameProfile.LORCANA -> "20"
+        GameProfile.DEATH_MAY_DIE -> "0"
         GameProfile.GENERIC -> life
     }
     BrassCard {
