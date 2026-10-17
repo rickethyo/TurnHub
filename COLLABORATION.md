@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-028 | Death May Die setup and play helpers | Android domain, persistence, UI | Active implementation | Codex / PR #132 follow-up |
+| TH-028 | Death May Die setup and play helpers | Android domain, persistence, UI | Ready for review; CI passes | Owner / PR #132 and device acceptance |
 | TH-027 | Forgiving Pass touch targets | Android table UI | Ready for review; CI passes | Owner / PR #132 integration and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
@@ -91,10 +91,31 @@ TH-026: Staged turns and community catalogue merged in [PR #131](https://github.
   explicitly unknown. No copied source implementation, art or rules bundled;
   sources/legal tracker and manual will be updated. Standard labeled controls,
   scrollable dialogs and text alternatives; no new dependency.
-- Validation planned: model/persistence tests for dealing, guards, marker
-  preservation, legacy saves and random/filter availability; Android CI compile,
-  complete JVM suite and release bundle, docs/tokens/manual checks and rendered
-  manual inspection. No local SDK/emulator; physical acceptance stays explicit.
+- Implemented in `ffe3543`, [PR #132](https://github.com/rickethyo/TurnHub/pull/132).
+  Owner clarified that both physical and app-dealt draws must be available. The
+  editor supports both; app pairs reserve both cards without replacement and
+  survive cancel/reopen and recovery. No reopening reroll; exhausted pools offer
+  manual entry. House-rule setup is frozen during play and retained for rematch.
+  Acquired abilities support presets/custom text, eight total slots and marker
+  preservation when removing an extra or renaming in place; fresh setup resets
+  markers and clears extras while retaining edits to the original three slots.
+  Random investigator selection respects search, skill filter and taken figures,
+  and previews before committing. The factual common-skill index covers 94
+  roster entries; ten core investigators have full summaries, other signature
+  effects stay explicitly unknown. Turn phases are available in setup, on the
+  active investigator and in Game menu, checked against the CMON rulebook.
+- Validation: six focused JVM tests cover dealing, lifecycle/profile guards,
+  physical assignments, persistence/legacy recovery, extra markers and resets,
+  rename/remove preservation and random/filter availability. [CI passes](https://github.com/rickethyo/TurnHub/actions/runs/39044063208)
+  Android compilation, the complete JVM suite and release-bundle creation for
+  `ffe3543`. Local docs links, tokens, manual export and whitespace checks pass.
+  Updated manual rendered and visually reviewed on pages 4–7. No new dependency,
+  source implementation, third-party artwork or card text bundled.
+- Next owner: integrate #132 with a merge commit, retaining `codex/master`, and
+  playtest draw choices, recovery, additional skills, preview/filter/random,
+  reminders and the Pass touch boundary on phone/tablet, including large text
+  and TalkBack. Device checks remain in STAGED_CHANGES. No merge or release
+  performed; no local Android SDK/emulator available.
 
 ## TH-027: Forgiving Pass touch targets
 
