@@ -50,6 +50,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import com.turnhub.android.standalone.StandaloneGame
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
@@ -312,6 +314,8 @@ internal fun TabletTable(
         val star = starLayout.on && summary.settings.profile.starCommander && units.size == StarCommander.PLAYERS
         // A cooperative table reads as one upright list, top to bottom, under a slim menu bar.
         val list = summary.settings.profile.cooperative
+        val focused = units.indexOfFirst { !it.out && it.members.any { member -> summary.hasTurn(member.playerNumber) } }
+            .takeIf { it >= 0 } ?: units.indexOfFirst { !it.out }.coerceAtLeast(0)
         // The middle panel of a side with an odd count meets the centre disc at its inner (top) edge.
         val underHub = if (star || list) emptySet()
             else listOf(plan.near, plan.far).filter { it.size % 2 == 1 }.map { it[it.size / 2] }.toSet()
@@ -331,7 +335,10 @@ internal fun TabletTable(
                 val inFlight = sent.filter { it.key == unit.key && !(it.acked && it.sentAtRevision != summary.revision) }
                 val life = (unit.lifeSeat.life ?: 0) + pending + inFlight.sumOf { it.delta } +
                     unit.members.sumOf { tablet.offlineLife(it.participantId) }
-                Box(modifier.padding(4.dp).facing((degrees + turn) % 360)) {
+                Box(modifier.padding(4.dp).then(
+                    // List cards measure their own height; facing fixes both dimensions.
+                    if (list) Modifier.rotate(turn.toFloat()) else Modifier.facing((degrees + turn) % 360),
+                ), propagateMinConstraints = list) {
                     PlayerPanel(
                         unit = unit,
                         summary = summary,
@@ -348,6 +355,11 @@ internal fun TabletTable(
                             haptics.tick()
                             controls { counter(member.seat(), kind, value, 1) }
                         },
+                        onSkillLevel = { member, slot, level ->
+                            controls { counter(member.seat(), StandaloneGame.SKILL_KIND, level, slot + 1) }
+                        },
+                        onEditSkills = { member, skills -> controls { investigatorSkills(member.seat(), skills) } },
+                        investigatorFocused = index == focused,
                         onRespond = { seat, id, accept ->
                             if (isOffline) controls { refuseOffline() }
                             else controls { this.respondLife(seat, id, accept) }
@@ -373,7 +385,20 @@ internal fun TabletTable(
                         haptics.tick()
                         menuOpen = true
                     }
-                    units.indices.forEach { panel(it, 0, Modifier.weight(1f).fillMaxWidth()) }
+                    if (units.isNotEmpty()) {
+                        key(units[focused].key) {
+                            BoxWithConstraints(Modifier.weight(.70f).fillMaxWidth()) {
+                                val cardHeight = maxHeight
+                                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                                    panel(focused, 0, Modifier.fillMaxWidth().heightIn(min = cardHeight))
+                                }
+                            }
+                        }
+                        val others = units.indices.filter { it != focused }
+                        if (others.isNotEmpty()) Column(Modifier.weight(.30f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                            others.forEach { panel(it, 0, Modifier.fillMaxWidth()) }
+                        }
+                    }
                 }
             } else if (star) {
                 StarTable(panel)
@@ -433,6 +458,8 @@ internal fun TabletTable(
                         if (isOffline) controls { refuseOffline() }
                         else controls { counter(member.seat(), kind, value, commander) }
                     },
+                    onLife = { member, delta -> controls { life(member.seat(), delta) } },
+                    onEditSkills = { member, skills -> controls { investigatorSkills(member.seat(), skills) } },
                     offlineCommander = tablet::offlineCommander,
                 )
             }
@@ -705,6 +732,9 @@ private fun PlayerPanel(
     onControl: (TabletSeat, String) -> Unit,
     /** Pokémon and Lorcana: marks a once-per-turn action or Special Condition (see [TurnPanelLines]). */
     onTurnMark: (TablePlayer, String, Int) -> Unit,
+    onSkillLevel: (TablePlayer, Int, Int) -> Unit,
+    onEditSkills: (TablePlayer, List<com.turnhub.android.domain.InvestigatorSkill>) -> Unit,
+    investigatorFocused: Boolean,
     onRespond: (TabletSeat, Long, Boolean) -> Unit,
     offlineCommander: (Long, Int, Int) -> Int,
     haptics: TurnHubHaptics,
@@ -712,6 +742,10 @@ private fun PlayerPanel(
     underHub: Boolean = false,
 ) {
     val p = palette
+    val tracks = summary.settings.profile.deathMayDie
+    val investigatorArt = rememberInvestigatorArt(unit.members.first().investigator.takeIf { tracks })
+    val investigatorCard = if (tracks) rememberCommanderArt(unit.members.first().commander, unit.members.first().commanderArt) else null
+    val dashboardArt = investigatorArt ?: investigatorCard
     val shape = RoundedCornerShape(22.dp)
     val hue = unit.members.first().color?.let { Color(android.graphics.Color.parseColor(it)) }
         ?: p.avatarColor(unit.members.first().playerNumber)
@@ -732,7 +766,7 @@ private fun PlayerPanel(
     val activeColor = p.active
     BoxWithConstraints(
         Modifier
-            .fillMaxSize()
+            .then(if (tracks) Modifier.fillMaxWidth() else Modifier.fillMaxSize())
             .clip(shape)
             .background(p.surface)
             .then(
@@ -751,15 +785,20 @@ private fun PlayerPanel(
             ),
     ) {
         // Team panels share space; each player's chosen background gets an equal share.
-        Row(Modifier.fillMaxSize()) {
+        Row(Modifier.matchParentSize()) {
             unit.members.forEach { member ->
                 // Death May Die: the investigator's picture, when there is one, before any tile card.
-                val investigator = rememberInvestigatorArt(member.investigator.takeIf { summary.settings.profile.deathMayDie })
-                val card = rememberCommanderArt(member.commander, member.commanderArt)
+                val card = if (tracks) dashboardArt else rememberCommanderArt(member.commander, member.commanderArt)
                 PlayerTileBackground(member.tileBackground,
                     com.turnhub.android.ui.components.playerColor(member.color, p.avatarColor(member.playerNumber)),
-                    Modifier.weight(1f).fillMaxHeight(), art = investigator ?: card)
+                    Modifier.weight(1f).fillMaxHeight(), art = card, showCredit = !tracks)
             }
+        }
+        if (tracks) {
+            if (investigatorFocused) InvestigatorPanelContent(unit, summary, life, onBump, onTurnMark, onOpenMenu,
+                onControl, onRespond, haptics, onSkillLevel, onEditSkills, dashboardArt)
+            else CompactInvestigatorPanel(unit, summary, life, onOpenMenu, onTurnMark, dashboardArt)
+            return@BoxWithConstraints
         }
         val nameMax = maxWidth * .6f
         val panelWidth = maxWidth
@@ -769,9 +808,7 @@ private fun PlayerPanel(
         val profile = summary.settings.profile
         // Pokémon and Lorcana: the number is prizes or lore, with turn reminders under it.
         val cardGame = !profile.countsLife
-        // Death May Die: wounds and stress as matching counters in place of the big number.
-        val tracks = profile.deathMayDie
-        val turnHeight = if (cardGame && !tracks) turnPanelHeight(unit, summary, maxWidth < 420.dp) else 0f
+        val turnHeight = if (cardGame) turnPanelHeight(unit, summary, maxWidth < 420.dp) else 0f
         val planarCompact = compact && active && !out && onPlanarRoll != null && maxWidth < 300.dp
         val between = (maxHeight.value - turnHeight - if (planarCompact) 160f else if (compact) 104f else 120f).coerceAtLeast(24f)
         // Room for the lines under the number, so a short panel shrinks the number instead of
@@ -785,7 +822,7 @@ private fun PlayerPanel(
             minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f,
             (between - linesBelow) * .8f,
         ).coerceIn(24f, 160f)
-        if (!tracks) Row(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
+        Row(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
             HoldHalf("−", stepLabel(profile, name, small, adding = false), !out,
                 { onBump(-small) }, { onBump(-big) }, Alignment.CenterStart, Modifier.weight(1f).fillMaxHeight())
             HoldHalf("+", stepLabel(profile, name, small, adding = true), !out,
@@ -819,11 +856,7 @@ private fun PlayerPanel(
                 Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = if (commanders != null) 70.dp else 52.dp))
         }
 
-        if (tracks) InvestigatorTracks(unit, summary, life, onBump, onTurnMark,
-            Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 12.dp)
-                .padding(top = if (commanders != null) 60.dp else 44.dp, bottom = if (compact) 56.dp else 64.dp)
-                .alpha(if (out) .45f else 1f))
-        else Column(
+        Column(
             Modifier.align(Alignment.Center).padding(top = 44.dp, bottom = (if (compact) 56f else 64f).dp + turnHeight.dp)
                 .alpha(if (out) .45f else 1f)
                 .clearAndSetSemantics {
@@ -862,7 +895,7 @@ private fun PlayerPanel(
             }
         }
 
-        if (cardGame && !out && !tracks) {
+        if (cardGame && !out) {
             TurnPanelLines(unit, summary, onTurnMark,
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp)
                     .padding(bottom = if (compact) 56.dp else 64.dp))
@@ -909,6 +942,99 @@ private fun PlayerPanel(
 
         Prompt(unit, summary, onControl, onRespond, Modifier.align(Alignment.BottomCenter))
     }
+}
+
+/** A cooperative card grows with its counters and text, including wrapped rows and large type. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun InvestigatorPanelContent(
+    unit: TableUnit,
+    summary: TableSummary,
+    wounds: Int,
+    onWound: (Int) -> Unit,
+    onMark: (TablePlayer, String, Int) -> Unit,
+    onOpenMenu: () -> Unit,
+    onControl: (TabletSeat, String) -> Unit,
+    onRespond: (TabletSeat, Long, Boolean) -> Unit,
+    haptics: TurnHubHaptics,
+    onSkillLevel: (TablePlayer, Int, Int) -> Unit,
+    onEditSkills: (TablePlayer, List<com.turnhub.android.domain.InvestigatorSkill>) -> Unit,
+    art: TileArt?,
+) {
+    val p = palette
+    val member = unit.members.first()
+    val active = summary.hasTurn(member.playerNumber) && summary.state != TableState.GAME_OVER
+    val details: @Composable () -> Unit = {
+      Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth()) {
+            member.avatar?.let { com.turnhub.android.ui.components.AvatarGlyph(it, p.text, 32.dp) }
+            Text(member.label, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            member.investigator?.let {
+                Text(it, color = p.muted, style = MaterialTheme.typography.labelMedium, fontStyle = FontStyle.Italic)
+            }
+            if (active) Tag("Turn", p.active, p.onActive)
+            if (unit.out) Tag(if (member.conceded) "Conceded" else "Eliminated", p.bad, p.surface)
+        }
+        InvestigatorTracks(unit, summary, wounds, onWound, onMark,
+            Modifier.fillMaxWidth().alpha(if (unit.out) .45f else 1f))
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            MenuButton(member.label, true, onOpenMenu)
+            if (active && !unit.out) {
+                TurnClock(summary)
+                if (summary.state == TableState.RUNNING) {
+                    HoldToPass(summary.pending.passPlayer == member.playerNumber,
+                        { onControl(member.seat(), "pass") }, haptics, Modifier, compact = true)
+                }
+            }
+        }
+        InvestigatorArtCredit(art)
+        Prompt(unit, summary, onControl, onRespond, Modifier)
+      }
+    }
+    val abilities: @Composable () -> Unit = {
+        InvestigatorAbilities(member, summary,
+            onInsanity = { onMark(member, StandaloneGame.INSANITY_KIND, it) },
+            onLevel = { slot, level -> onSkillLevel(member, slot, level) },
+            onEdit = { onEditSkills(member, it) })
+    }
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(16.dp)) {
+        if (maxWidth >= 600.dp) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.weight(.38f)) { details() }
+            Column(Modifier.weight(.62f)) { abilities() }
+        } else Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            details()
+            abilities()
+        }
+    }
+}
+
+@Composable
+private fun CompactInvestigatorPanel(unit: TableUnit, summary: TableSummary, wounds: Int,
+    onOpenMenu: () -> Unit, onMark: (TablePlayer, String, Int) -> Unit, art: TileArt?) {
+    val member = unit.members.first()
+    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(member.label, color = palette.text, fontWeight = FontWeight.SemiBold)
+                member.investigator?.let { Text(it, color = palette.muted, style = MaterialTheme.typography.labelMedium) }
+                if (unit.out) Text(if (member.conceded) "Conceded" else "Eliminated", color = palette.bad,
+                    style = MaterialTheme.typography.labelMedium)
+                Text("Wounds $wounds · Stress ${member.stress} · Insanity ${member.dashboard.insanity}",
+                    color = palette.text, style = MaterialTheme.typography.labelMedium)
+            }
+            MenuButton(member.label, true, onOpenMenu)
+        }
+        InvestigatorArtCredit(art)
+        TurnPanelLines(unit, summary, onMark, Modifier.fillMaxWidth())
+    }
+}
+
+@Composable
+private fun InvestigatorArtCredit(art: TileArt?) {
+    if (art == null) return
+    Text("Art: ${art.artist}", color = palette.muted, style = MaterialTheme.typography.labelSmall,
+        modifier = Modifier.semantics { contentDescription = "${art.cardName} art by ${art.artist}, from ${art.source}" })
 }
 
 @Composable
@@ -1190,6 +1316,8 @@ private fun PlayerMenu(
     onControl: (TabletSeat, String) -> Unit,
     onCommander: (TablePlayer, Int, Int, Int) -> Unit,
     onCounter: (TablePlayer, String, Int, Int) -> Unit,
+    onLife: (TablePlayer, Int) -> Unit,
+    onEditSkills: (TablePlayer, List<com.turnhub.android.domain.InvestigatorSkill>) -> Unit,
     offlineCommander: (Long, Int, Int) -> Int,
 ) {
     val p = palette
@@ -1227,6 +1355,15 @@ private fun PlayerMenu(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            if (summary.settings.profile.deathMayDie) {
+                val member = unit.members.first()
+                InvestigatorTracks(unit, summary, member.life ?: 0, { onLife(member, it) },
+                    { who, kind, value -> onCounter(who, kind, value, 1) }, Modifier.fillMaxWidth())
+                InvestigatorAbilities(member, summary,
+                    onInsanity = { onCounter(member, StandaloneGame.INSANITY_KIND, it, 1) },
+                    onLevel = { slot, level -> onCounter(member, StandaloneGame.SKILL_KIND, level, slot + 1) },
+                    onEdit = { onEditSkills(member, it) })
+            }
             PlayerMenuItems(unit, summary, partners, onControl, onCommander, onCounter, offlineCommander)
         }
         AccentButton("Done", onClose, Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp))

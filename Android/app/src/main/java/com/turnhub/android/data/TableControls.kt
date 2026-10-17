@@ -16,6 +16,10 @@ interface TableControls {
     suspend fun commander(seat: TabletSeat, source: Int, commander: Int, delta: Int)
 
     suspend fun counter(seat: TabletSeat, kind: String, value: Int, commander: Int = 1)
+    /** Editable reference text for the phone-only investigator dashboard. */
+    suspend fun investigatorSkills(seat: TabletSeat, skills: List<com.turnhub.android.domain.InvestigatorSkill>) {
+        error("Investigator dashboards require a phone-hosted game")
+    }
     suspend fun setEliminationRule(seat: TabletSeat, field: String, value: Int)
 
     suspend fun setAutoEliminateAtZeroLife(seat: TabletSeat, enabled: Boolean)

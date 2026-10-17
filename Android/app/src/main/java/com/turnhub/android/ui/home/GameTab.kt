@@ -910,7 +910,8 @@ private fun CoopTile(summary: TableSummary, player: TablePlayer) {
             .clip(shape)
             .border(if (active) 2.dp else 1.dp, if (active) p.active else p.line, shape)
             .semantics(mergeDescendants = true) {
-                contentDescription = listOfNotNull(player.label, player.investigator, "$wounds wounds", "stress ${player.stress}", status)
+                contentDescription = listOfNotNull(player.label, player.investigator, "$wounds wounds", "stress ${player.stress}",
+                    "insanity ${player.dashboard.insanity}", "skill levels ${player.dashboard.skillLevels.joinToString()}", status)
                     .joinToString(", ")
             },
     ) {
@@ -926,6 +927,8 @@ private fun CoopTile(summary: TableSummary, player: TablePlayer) {
                     textDecoration = if (player.eliminated) TextDecoration.LineThrough else null)
                 player.investigator?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 status?.let { Text(it, color = if (active) p.active else p.muted, style = MaterialTheme.typography.labelMedium) }
+                Text("Insanity ${player.dashboard.insanity} · Skills ${player.dashboard.skillLevels.joinToString(" / ")}",
+                    color = p.muted, style = MaterialTheme.typography.labelMedium)
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text("Wounds $wounds", color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

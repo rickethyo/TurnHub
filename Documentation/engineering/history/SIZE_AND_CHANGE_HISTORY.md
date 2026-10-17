@@ -1024,3 +1024,11 @@ change. Local preview build 11 APK: 16,605,945 bytes (debug, unshrunk; not a
 release-download or installed-size estimate). Decoded planar art retains at
 most 12 cached images while browsing; persisted catalogue and image cache
 remain on the phone.
+
+### 2026-10-17 / Android Death May Die investigator dashboard
+
+Checkpoint: `d4fe209`. The active investigator receives 70% of the play area;
+skill levels, sanity loss and editable ability references persist with the
+phone-hosted game. The change adds 642 lines and removes 29 across 15 files;
+the new dashboard domain/reference, editor and regression-test files total
+22,813 raw bytes. No firmware version, protocol or runtime dependency changes.

@@ -95,6 +95,18 @@ Open **Game**. The table preview shows the seats as players join, even before th
 
 Official modes (Magic, Commander, Two-Headed Giant and Yu-Gi-Oh!) keep their official starting life, poison limit and player count. Turn on **House rules** in setup to change them; any whole number from 0 to 1,000,000 is allowed. Two-Headed Giant Commander, Star Commander and Generic are custom modes. **? Rules**, in setup and in the table menu, summarizes the mode and links to its official rules.
 
+## Death May Die
+
+- Cthulhu: Death May Die is a cooperative, phone-hosted game. Pick each player’s investigator in setup. Everyone wins or loses together, and wounds and stress are reminders; the physical game determines their effects.
+
+- The active investigator uses 70% of the play area. Their card scrolls independently, with the other players in a smaller list below. Wide screens put abilities beside the counters. Open another player’s menu to edit their counters and skills. A player still to go can choose Take the next turn; after every living player has gone, a new round begins.
+
+- Each investigator has three skill markers, with levels 1 to 4. Tap the level to move a marker; earlier effects still apply unless a later effect says instead. Preview upgrades shows future level effects without moving a marker. The ten core-box investigators include ability summaries. Edit abilities lets you enter or correct the names and all four level effects for any investigator. Apply effects to the physical game yourself.
+
+- The Insanity counter records sanity loss. It stops at each insanity threshold and shows bonus dice. Resolve your insanity card and choose a skill upgrade on the physical dashboard when prompted. The minus button corrects an entry; it does not mean sanity can normally be healed. Reaching the end of the track does not automatically end a player’s game: use their menu to resolve the outcome.
+
+- Skill markers, sanity loss and edited ability text survive closing the app. A rematch resets the markers and keeps the edited text. Choosing a different investigator clears their dashboard.
+
 ## Two-Headed Giant
 
 Players 1 and 2 are a team, then 3 and 4, and so on; change the seats to change the teams. It needs an even number of players, at least 4 (official Two-Headed Giant is two teams of two).
