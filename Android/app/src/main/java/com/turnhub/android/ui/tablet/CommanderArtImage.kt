@@ -4,10 +4,10 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
@@ -67,15 +67,18 @@ internal fun rememberCommanderArt(name: String?, printing: String? = null): Tile
     val enabled = rememberCommanderArtEnabled().first
     if (name.isNullOrBlank() || !enabled) return null
     val key = ScryfallCommanderArt.cacheKey(if (printing == null) name else "$name#$printing")
-    val art by produceState(CommanderArtCache.decoded[key], key) {
-        if (value != null) return@produceState
-        val loaded = CommanderArtCache.source(context).art(name, printing) ?: return@produceState
+    // Keyed state, not produceState: its value would keep the previous card's art (and name)
+    // until the new card's art finished downloading.
+    val art = remember(key) { mutableStateOf(CommanderArtCache.decoded[key]) }
+    LaunchedEffect(key) {
+        if (art.value != null) return@LaunchedEffect
+        val loaded = CommanderArtCache.source(context).art(name, printing) ?: return@LaunchedEffect
         // Lorcana images are AVIF, which Android decodes from version 12; older phones show no art.
         val bitmap = BitmapFactory.decodeByteArray(loaded.jpeg, 0, loaded.jpeg.size)
-            ?.let { cropArt(it, TileCardGame.of(printing).crop) } ?: return@produceState
+            ?.let { cropArt(it, TileCardGame.of(printing).crop) } ?: return@LaunchedEffect
         val tile = TileArt(bitmap.asImageBitmap(), loaded.cardName, loaded.artist, loaded.rarity, TileCardGame.of(printing).source)
         CommanderArtCache.decoded[key] = tile
-        value = tile
+        art.value = tile
     }
-    return art
+    return art.value
 }
