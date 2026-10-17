@@ -73,7 +73,7 @@ fun StandaloneScreen(
     val game = state.game
     var previousState by remember { mutableStateOf(game.state) }
     androidx.compose.runtime.LaunchedEffect(game.state) {
-        if (previousState in listOf(TableState.RUNNING, TableState.PAUSED) && game.state == TableState.LOBBY) onSetUp()
+        if (previousState in listOf(TableState.RUNNING, TableState.PAUSED, TableState.GAME_OVER) && game.state == TableState.LOBBY) onSetUp()
         previousState = game.state
     }
     val soundSummary = remember(game) { game.toSummary(0, 0) }
@@ -176,14 +176,14 @@ fun EmbeddedTable(
     }
     var previousState by remember { mutableStateOf(game.state) }
     androidx.compose.runtime.LaunchedEffect(game.state) {
-        if (previousState in listOf(TableState.RUNNING, TableState.PAUSED) && game.state == TableState.LOBBY) onSetUp()
+        if (previousState in listOf(TableState.RUNNING, TableState.PAUSED, TableState.GAME_OVER) && game.state == TableState.LOBBY) onSetUp()
         previousState = game.state
     }
     val startCountdown = rememberGameStartCountdown(game.state, game.canStart) { table.start() }
     val lobby = game.state == TableState.LOBBY
     // A new practice table whenever the lobby changes, or the practice game returns to setup.
     var practiceRound by rememberSaveable { mutableStateOf(0) }
-    val practice = remember(lobby, game.players, game.profile, game.twoHeadedGiant, game.startingLife, practiceRound) {
+    val practice = remember(lobby, game.players, game.profile, game.twoHeadedGiant, game.startingLife, game.useRelics, practiceRound) {
         if (lobby) practiceTable(game, state.library) else null
     }
     val practiceState = practice?.state?.collectAsState()?.value
@@ -243,8 +243,13 @@ internal fun TablePreview(summary: TableSummary, reduceMotion: Boolean, card: @C
 /** The lobby as a table: a short roster gets placeholder seats, then a started game. */
 internal fun StandaloneGame.preview(paused: Boolean = true): StandaloneGame {
     var seats = this
+    fun practiceAssignments(game: StandaloneGame) = if (!game.profile.deathMayDie) game else game.copy(
+        players = game.players.map { it.copy(dashboard = it.dashboard.copy(
+            sanityCondition = it.dashboard.sanityCondition ?: com.turnhub.android.domain.InvestigatorCard("Practice condition"),
+            relic = if (game.useRelics) it.dashboard.relic ?: com.turnhub.android.domain.InvestigatorCard("Practice relic") else null)) })
+    seats = practiceAssignments(seats)
     while (!seats.canStart && seats.players.size < StandaloneGame.MAX_PLAYERS) {
-        seats = seats.copy(players = seats.players + LocalPlayer("Player ${seats.players.size + 1}"))
+        seats = practiceAssignments(seats.copy(players = seats.players + LocalPlayer("Player ${seats.players.size + 1}")))
     }
     val started = seats.start(System.currentTimeMillis(), "practice", kotlin.random.Random(0))
     return if (paused) started.togglePause(System.currentTimeMillis()) else started
@@ -308,7 +313,15 @@ fun StandaloneLobby(
         introduction = "One screen. Many rivals. Your table.",
         embedded = embedded,
         phoneHosted = true,
+        startReady = game.canStart,
+        startHint = if (game.profile.deathMayDie && !game.investigatorCardsReady)
+            if (game.useRelics) "Assign a sanity condition and a relic to every investigator before starting."
+            else "Assign a sanity condition to every investigator before starting."
+        else null,
         extraSettings = {
+            if (game.profile.deathMayDie) SetupSwitch("Use relics",
+                "Turn on when playing with relics. Assign one to every investigator before starting.",
+                game.useRelics, true, table::setUseRelics)
             if (game.profile.magicRules) {
                 val planar = game.planechase
                 val digital = planar.source == com.turnhub.android.standalone.PlanarDeckSource.DIGITAL

@@ -39,12 +39,13 @@ import com.turnhub.android.ui.theme.palette
 /** The same two assignment slots in setup and on the investigator's live card/menu. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun InvestigatorCards(player: TablePlayer, gameId: String, enabled: Boolean, compact: Boolean = false,
+internal fun InvestigatorCards(player: TablePlayer, gameId: String, enabled: Boolean, compact: Boolean = false, useRelics: Boolean = false,
     onAssign: (InvestigatorCardSlot, InvestigatorCard?) -> Unit) {
     val p = palette
+    val slots = InvestigatorCardSlot.entries.filter { it != InvestigatorCardSlot.RELIC || useRelics }
     var editing by rememberSaveable(player.participantId, player.investigator, gameId) { mutableStateOf<InvestigatorCardSlot?>(null) }
     if (compact) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        InvestigatorCardSlot.entries.forEach { slot ->
+        slots.forEach { slot ->
             val card = player.dashboard.card(slot)
             ToneButton(card?.let { "${slot.label}: ${it.name}" } ?: "Assign ${slot.label.lowercase()}",
                 { editing = slot }, enabled = enabled, modifier = Modifier.semantics {
@@ -52,7 +53,7 @@ internal fun InvestigatorCards(player: TablePlayer, gameId: String, enabled: Boo
                 })
         }
     } else Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        InvestigatorCardSlot.entries.forEach { slot ->
+        slots.forEach { slot ->
             val card = player.dashboard.card(slot)
             Column(Modifier.fillMaxWidth().background(p.surface.copy(alpha = .94f), RoundedCornerShape(14.dp)).padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -67,7 +68,7 @@ internal fun InvestigatorCards(player: TablePlayer, gameId: String, enabled: Boo
             }
         }
     }
-    editing?.let { slot ->
+    editing?.takeIf { it in slots }?.let { slot ->
         key(player.participantId, player.investigator, gameId, slot) {
             InvestigatorCardEditor(player, slot, player.dashboard.card(slot), onDismiss = { editing = null }, onSave = {
                 if (enabled) onAssign(slot, it)

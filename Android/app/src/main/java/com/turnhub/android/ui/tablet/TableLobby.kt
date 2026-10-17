@@ -88,6 +88,8 @@ internal fun TableLobby(
     extraSettings: @Composable () -> Unit = {},
     /** The phone runs this game: it also offers the formats Atlas doesn't run yet (Pokémon). */
     phoneHosted: Boolean = false,
+    startReady: Boolean = true,
+    startHint: String? = null,
 ) {
     val p = palette
     val players = summary.players.sortedBy { it.playerNumber }
@@ -212,7 +214,7 @@ internal fun TableLobby(
                             }
                         }
                         if (investigators) actions.investigatorCard?.let { assign ->
-                            InvestigatorCards(player, summary.bootId, enabled, compact = true,
+                            InvestigatorCards(player, summary.bootId, enabled, compact = true, useRelics = summary.useRelics,
                                 onAssign = { slot, card -> assign(player, slot, card) })
                         }
                     }
@@ -313,7 +315,8 @@ internal fun TableLobby(
                 }
                 extraSettings()
             }
-            StartTableButton(players.size, settings.twoHeadedGiant, enabled, settings.profile.starCommander,
+            startHint?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
+            StartTableButton(players.size, settings.twoHeadedGiant, enabled && startReady, settings.profile.starCommander,
                 official?.players?.takeIf { locked }, actions.start)
             // In the app, sounds and bug reports live in Settings and the banner; the
             // full-screen lobby has neither, so it keeps them at the bottom.

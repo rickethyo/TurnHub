@@ -270,7 +270,7 @@ internal fun TabletTable(
             }
             return
         }
-        if (standalone && action in listOf("rematch", "sean-mode")) {
+        if (standalone && action in listOf("rematch", "sean-mode") && !current.settings.profile.deathMayDie) {
             pendingStart = seat to action; startCountdown(); return
         }
         haptics.tick()
@@ -564,7 +564,7 @@ internal fun TabletTable(
                     }
                     OverlayButtons {
                         ToneButton("New players", { send(anySeat, "reset") }, Modifier.weight(1f))
-                        AccentButton("Rematch", { send(anySeat, "rematch") }, Modifier.weight(1f))
+                        AccentButton(if (standalone && summary.settings.profile.deathMayDie) "Set up rematch" else "Rematch", { send(anySeat, "rematch") }, Modifier.weight(1f))
                     }
                     // The Sean Mode easter egg: the same five, reseated so allies become enemies.
                     if (standalone && summary.star) {

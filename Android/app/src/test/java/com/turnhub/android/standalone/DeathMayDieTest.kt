@@ -21,7 +21,11 @@ class DeathMayDieTest {
     private fun lobby(players: Int = 3) =
         (1..players).fold(StandaloneGame().setFormat(GameProfile.DEATH_MAY_DIE)) { g, i -> g.addPlayer("P$i") }
 
-    private fun game(players: Int = 3) = lobby(players).start(0, "d", First)
+    private fun assigned(g: StandaloneGame) = g.players.indices.fold(g) { next, i ->
+        next.setInvestigatorCard(i, com.turnhub.android.domain.InvestigatorCardSlot.SANITY_CONDITION,
+            com.turnhub.android.domain.InvestigatorCard("Condition $i"))
+    }
+    private fun game(players: Int = 3) = assigned(lobby(players)).start(0, "d", First)
 
     @Test fun `death may die is a phone-hosted cooperative game counting wounds from zero`() {
         assertFalse(GameProfile.DEATH_MAY_DIE.atlasSupported)
@@ -193,7 +197,7 @@ class DeathMayDieTest {
         assertEquals(listOf("Rasputin", "Sister Beth", null), picked.players.map { it.investigator })
         assertSame(picked, picked.setInvestigator(2, "rasputin"))
         assertNull(picked.setInvestigator(0, " ").players[0].investigator)
-        val running = picked.start(0, "d", First).pass(0, 1_000)
+        val running = assigned(picked).start(0, "d", First).pass(0, 1_000)
         assertEquals("Rasputin", running.toSummary(1_000, 0).players[0].investigator)
         val restored = StandaloneTable.gameFromJson(StandaloneTable.gameToJson(running))
         assertEquals(running.players.map { it.investigator }, restored.players.map { it.investigator })

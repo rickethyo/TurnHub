@@ -226,6 +226,7 @@ class StandaloneTable(
     fun setTurnTimer(ms: Long) = edit { it.setTurnTimer(ms) }
     fun setTwoHeadedGiant(on: Boolean) = edit { it.setTwoHeadedGiant(on) }
     fun setHouseRules(on: Boolean) = edit { it.setHouseRules(on) }
+    fun setUseRelics(on: Boolean) = edit { it.setUseRelics(on) }
     /** One settings update from the shared lobby, preserving unspecified fields. */
     fun configure(profile: GameProfile?, life: Int?, teams: Boolean?) = edit { game ->
         var next = profile?.let { game.setFormat(it) } ?: game
@@ -511,6 +512,7 @@ class StandaloneTable(
             put("timeoutHandled", game.timeoutHandled)
             put("twoHeadedGiant", game.twoHeadedGiant)
             put("houseRules", game.houseRules)
+            put("useRelics", game.useRelics)
             put("startedAtMs", game.startedAtMs)
             put("elapsedMs", game.elapsedMs)
             put("runningSinceMs", game.runningSinceMs ?: JSONObject.NULL)
@@ -596,6 +598,7 @@ class StandaloneTable(
                 timeoutHandled = json.optBoolean("timeoutHandled"),
                 twoHeadedGiant = json.optBoolean("twoHeadedGiant"),
                 houseRules = json.optBoolean("houseRules"),
+                useRelics = json.optBoolean("useRelics"),
                 startedAtMs = json.getLong("startedAtMs"),
                 elapsedMs = json.getLong("elapsedMs"),
                 runningSinceMs = json.optLongOrNull("runningSinceMs"),

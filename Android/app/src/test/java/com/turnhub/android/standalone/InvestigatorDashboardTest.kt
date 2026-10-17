@@ -14,6 +14,8 @@ import kotlin.random.Random
 class InvestigatorDashboardTest {
     private fun lobby() = StandaloneGame().setFormat(GameProfile.DEATH_MAY_DIE)
         .addPlayer("One").addPlayer("Two").setInvestigator(0, "Borden").setInvestigator(1, "Elizabeth Ives")
+        .setInvestigatorCard(0, com.turnhub.android.domain.InvestigatorCardSlot.SANITY_CONDITION, com.turnhub.android.domain.InvestigatorCard("Condition A"))
+        .setInvestigatorCard(1, com.turnhub.android.domain.InvestigatorCardSlot.SANITY_CONDITION, com.turnhub.android.domain.InvestigatorCard("Condition B"))
     private fun game() = lobby().chooseStarter(0).start(0, "d", Random(0))
 
     @Test fun `core investigators have complete distinct skills and four effects per skill`() {
@@ -46,7 +48,7 @@ class InvestigatorDashboardTest {
             .changeCounter(0, StandaloneGame.INSANITY_KIND, 3)
         assertEquals(listOf(1, 4, 1), changed.players[0].dashboard.skillLevels)
         assertEquals(3, changed.players[0].dashboard.insanity)
-        assertEquals(InvestigatorDashboard(), changed.players[1].dashboard)
+        assertEquals(g.players[1].dashboard, changed.players[1].dashboard)
         assertEquals(g.players[0].life, changed.players[0].life)
         assertEquals(g.players[0].stress, changed.players[0].stress)
         val insane = (1..20).fold(changed) { state, _ -> state.changeCounter(0, StandaloneGame.INSANITY_KIND, 1) }
@@ -69,7 +71,7 @@ class InvestigatorDashboardTest {
         assertSame(magic, magic.changeCounter(0, StandaloneGame.INSANITY_KIND, 1))
     }
 
-    @Test fun `custom skills and progress survive saving while rematch resets only markers`() {
+    @Test fun `custom skills and progress survive saving while rematch returns fresh markers to setup`() {
         val skills = List(3) { i -> InvestigatorSkill("Custom $i", List(4) { j -> "Effect $i $j" }) }
         val customized = game().setInvestigatorSkills(0, skills).changeCounter(0, StandaloneGame.SKILL_KIND, 3, 1)
             .changeCounter(0, StandaloneGame.INSANITY_KIND, 4)
@@ -77,6 +79,8 @@ class InvestigatorDashboardTest {
         assertEquals(customized.players.map { it.dashboard }, restored.players.map { it.dashboard })
         assertEquals(customized.players[0].dashboard, restored.toSummary(0, 0).players[0].dashboard)
         val rematch = restored.claimWin(restored.active!!, 20).rematch(30, "e", Random(0))
+        assertEquals(TableState.LOBBY, rematch.state)
+        assertFalse(rematch.canStart)
         assertEquals(0, rematch.players[0].dashboard.insanity)
         assertEquals(listOf(1, 1, 1), rematch.players[0].dashboard.skillLevels)
         assertEquals(skills, rematch.players[0].dashboard.skills("Borden"))

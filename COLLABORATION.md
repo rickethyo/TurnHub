@@ -101,22 +101,32 @@ TH-025: Death May Die dashboard merged in [PR #129](https://github.com/rickethyo
 ### 2026-10-17 / Codex follow-up: sanity condition and relic slots
 
 - Owner requests assignment framework for one sanity condition and one relic
-  per investigator. Scope: optional named cards with editable rules/notes in
+  per investigator. Scope: named cards with editable rules/notes in
   setup and live dashboards/menus; no catalogue or automatic card effects.
   Same owner/branch, baseline `4a1d70b`; no overlap and #130 remains open,
   so this related follow-up stays in that PR.
 - StandaloneGame owns typed assignment/replacement/removal and validation;
   each InvestigatorDashboard owns its cards. JSON snapshot recovery persists
-  them. Setup/back-to-setup retains assignments, rematch clears cards for fresh
-  draws, and changing investigator clears the dashboard. Names and rules have
+  them. Back-to-setup retains assignments; Set up rematch returns to the lobby
+  with empty slots for fresh draws. Changing investigator clears the dashboard. Names and rules have
   explicit size bounds. Native labeled editors support Save, Cancel and Remove;
   plain text references remain readable with wrapping and scrolling.
 - No new Atlas protocol, dependencies, endpoints or third-party card data.
-  Six new JVM scenarios cover isolation/seat swaps, both slots, input bounds,
+  Eight new card JVM scenarios cover isolation/seat swaps, both slots, input bounds,
   save/recovery and corrupt card data, lifecycle, investigator changes and
   rematch behavior. Documentation, token, manual-export and whitespace checks
-  pass locally; the complete Android run is pending. Device checks remain
-  separate from JVM/build validation.
+  pass locally. Initial card implementation `d1c9be4` passed the complete Android
+  run (39012247210). Device checks remain separate from JVM/build validation.
+- Owner clarification, baseline `d1c9be4`: base-game sanity conditions must be
+  assigned before starting. Relics are optional, off by default, with a setup-only
+  Use relics switch; when enabled every investigator needs one. Disabling clears
+  relic references. StandaloneGame validates readiness atomically at start;
+  Compose uses the same result for disabled Start/countdown cancellation.
+  Rematch returns to setup without starting clocks; corrections remain available
+  during play. Practice supplies disposable references, leaving setup unchanged.
+  Snapshot recovery persists the option, reset retains it; no protocol/dependency
+  change. Two added card scenarios plus one practice scenario cover readiness,
+  optional-rule guards, recovery and independent practice. Final CI pending.
 
 ## TH-024: Concise bug reports with app diagnostics
 

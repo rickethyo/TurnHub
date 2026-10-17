@@ -75,7 +75,7 @@ internal fun InvestigatorAbilities(
             board.atThreshold -> Text("Insanity threshold: resolve ${board.sanityCondition?.name ?: "your insanity card"} and advance one skill. Apply its effects on the board.", color = p.text,
                 style = MaterialTheme.typography.bodySmall)
         }
-        InvestigatorCards(player, summary.bootId, editable, onAssign = onCard)
+        InvestigatorCards(player, summary.bootId, editable, useRelics = summary.useRelics, onAssign = onCard)
         skills.forEachIndexed { slot, skill ->
             val level = board.skillLevels[slot]
             Column(Modifier.fillMaxWidth().background(p.surface.copy(alpha = .94f), RoundedCornerShape(14.dp)).padding(12.dp),

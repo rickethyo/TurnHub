@@ -74,6 +74,8 @@ data class TableSummary(
     val round: Int? = null,
     /** Phone engine's eligible recipients after the active investigator finishes this turn. */
     val passPlayerNumbers: List<Int> = emptyList(),
+    /** Phone-hosted Death May Die optional setup rule. */
+    val useRelics: Boolean = false,
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding

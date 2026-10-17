@@ -81,12 +81,17 @@ loss condition; Commander damage totals alone do not trigger elimination.
   their four level effects for any investigator. **Preview upgrades** shows
   future effects without changing a marker. Higher-level effects add to
   earlier effects unless they say instead. Edited ability text survives
-  rematches; markers reset. Each investigator also has one optional **Sanity
-  condition** and one **Relic**: editable names and rules/notes assigned in setup,
-  on the active card or in their menu. A named condition appears in the insanity
+  rematches; markers reset. Every investigator needs a **Sanity
+  condition** assigned before starting. **Use relics** is off by default; when
+  enabled in setup, every investigator also needs a **Relic**. Disabled relic
+  slots are hidden, and turning the option off clears relic assignments.
+  Names and rules/notes are assigned in setup and remain editable on the active
+  card or in the player menu for corrections. A named condition appears in the insanity
   threshold reminder. Card effects are resolved on the physical game. Both
   slots persist in game recovery and stay with the investigator when seats swap.
-  Setup/back-to-setup retains them, while a rematch clears both for fresh draws.
+  Back-to-setup retains assignments and the relic option. **Set up rematch**
+  returns to the lobby with both slots empty and the relic option retained;
+  clocks start only after required cards are reassigned and Start is confirmed.
   Names are bounded to 80 characters and rules/notes to 2,000. Choosing a
   different investigator clears their dashboard, including both card slots.
   Everyone wins together ("We killed the Elder One") or loses together ("We
