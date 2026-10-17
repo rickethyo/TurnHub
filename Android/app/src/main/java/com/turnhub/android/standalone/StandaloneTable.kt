@@ -387,7 +387,7 @@ class StandaloneTable(
         edit { it.commanderDamage(StandaloneGame.indexOf(seat.moduleId), source - 1, commander, delta, wallClock()) }
 
     // A standalone game has no phones asking for life changes, and is never offline.
-    fun setCommander(index: Int, name: String?, art: String? = null) { edit { it.setCommander(index, name, art) } }
+    fun setCommander(index: Int, name: String?, art: String? = null, cardOnly: Boolean = false) { edit { it.setCommander(index, name, art, cardOnly) } }
     fun setZeroLifeElimination(enabled: Boolean) { edit { it.setAutoEliminateAtZeroLife(enabled, wallClock()) } }
 
     override suspend fun counter(seat: TabletSeat, kind: String, value: Int, commander: Int) =
@@ -515,9 +515,10 @@ class StandaloneTable(
                         put("longestTurnMs", p.longestTurnMs)
                         put("commander", p.commander ?: JSONObject.NULL)
                         put("commanderArt", p.commanderArt ?: JSONObject.NULL)
-                        put("pokemon", JSONObject()
-                            .put("actions", JSONArray(p.pokemon.turnActions.map { it.name }))
-                            .put("conditions", JSONArray(p.pokemon.conditions.map { it.name })))
+                        put("cardOnly", p.cardOnly)
+                        put("turn", JSONObject()
+                            .put("actions", JSONArray(p.turn.turnActions.map { it.name }))
+                            .put("conditions", JSONArray(p.turn.conditions.map { it.name })))
                         put("commanderDamage", JSONObject().apply {
                             p.commanderDamage.forEach { (source, damage) -> put("$source", JSONArray(damage)) }
                         })
@@ -584,15 +585,17 @@ class StandaloneTable(
                         fastestTurnMs = p.optLong("fastestTurnMs"),
                         longestTurnMs = p.optLong("longestTurnMs"),
                         commander = p.optStringOrNull("commander"),
-                        commanderArt = p.optStringOrNull("commanderArt")?.takeIf { it.matches(StandaloneGame.PRINTING_ID) },
-                        pokemon = p.optJSONObject("pokemon")?.let { pk ->
+                        commanderArt = p.optStringOrNull("commanderArt")?.takeIf { com.turnhub.android.data.TileCardGame.valid(it) },
+                        cardOnly = p.optBoolean("cardOnly"),
+                        // Pokémon games saved before Lorcana kept this under "pokemon".
+                        turn = (p.optJSONObject("turn") ?: p.optJSONObject("pokemon"))?.let { pk ->
                             fun <E : Enum<E>> names(key: String, values: List<E>): Set<E> = pk.optJSONArray(key)?.let { a ->
                                 (0 until a.length()).mapNotNull { i -> values.firstOrNull { it.name == a.getString(i) } }.toSet()
                             }.orEmpty()
-                            com.turnhub.android.domain.PokemonStatus(
-                                names("actions", com.turnhub.android.domain.PokemonAction.entries),
+                            com.turnhub.android.domain.TurnStatus(
+                                names("actions", com.turnhub.android.domain.TurnAction.entries),
                                 names("conditions", com.turnhub.android.domain.SpecialCondition.entries))
-                        } ?: com.turnhub.android.domain.PokemonStatus(),
+                        } ?: com.turnhub.android.domain.TurnStatus(),
                         commanderDamage = damage.keys().asSequence().associate { key ->
                             val array = damage.getJSONArray(key)
                             key.toInt() to (0 until array.length()).map { array.getInt(it) }

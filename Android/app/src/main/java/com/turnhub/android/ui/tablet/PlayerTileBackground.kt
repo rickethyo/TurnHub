@@ -5,12 +5,15 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -53,9 +56,11 @@ internal fun PlayerTileBackground(background: TileBackground, seatColor: Color, 
             Image(art.image, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             // Dim enough for the life total and controls to stay readable over any art.
             Box(Modifier.fillMaxSize().background(p.surface.copy(alpha = .55f)))
+            // Kept to the panel's outer third so a long credit ends before the centre controls.
             if (showCredit) Text("Art: ${art.artist}", color = p.text.copy(alpha = .75f), style = MaterialTheme.typography.labelSmall,
-                maxLines = 1, modifier = Modifier.align(Alignment.TopEnd).padding(horizontal = 10.dp, vertical = 4.dp)
-                    .semantics { contentDescription = "${art.cardName} art by ${art.artist}, from Scryfall" })
+                maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End,
+                modifier = Modifier.align(Alignment.TopEnd).fillMaxWidth(.34f).padding(horizontal = 10.dp, vertical = 4.dp)
+                    .semantics { contentDescription = "${art.cardName} art by ${art.artist}, from ${art.source}" })
         } else if (bitmap != null) {
             Image(bitmap, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             Box(Modifier.fillMaxSize().background(p.surface.copy(alpha = .82f)))

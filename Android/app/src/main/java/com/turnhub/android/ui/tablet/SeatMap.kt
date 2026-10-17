@@ -59,10 +59,12 @@ import androidx.compose.ui.graphics.Color
  * (also the screen-reader path, with a "Swap with" action per seat).
  * With [teams] (Two-Headed Giant) each panel is a team split in two:
  * players 1 and 2, then 3 and 4, with empty halves until the team fills.
+ * Each panel shows its player's tile card art ([cards]: name and printing), as the table will.
  */
 @Composable
 internal fun SeatMap(names: List<String>, onSwap: (Int, Int) -> Unit, modifier: Modifier = Modifier,
-    backgrounds: List<TileBackground> = emptyList(), colors: List<String?> = emptyList(), teams: Boolean = false) {
+    backgrounds: List<TileBackground> = emptyList(), colors: List<String?> = emptyList(), teams: Boolean = false,
+    cards: List<Pair<String?, String?>> = emptyList()) {
     val p = palette
     val swap by rememberUpdatedState(onSwap)
     val configuration = LocalConfiguration.current
@@ -167,7 +169,8 @@ internal fun SeatMap(names: List<String>, onSwap: (Int, Int) -> Unit, modifier: 
                 },
             contentAlignment = Alignment.Center,
         ) {
-            PlayerTileBackground(backgrounds.getOrNull(index) ?: TileBackground(), hue, Modifier.fillMaxSize().facing(degrees))
+            PlayerTileBackground(backgrounds.getOrNull(index) ?: TileBackground(), hue, Modifier.fillMaxSize().facing(degrees),
+                art = cards.getOrNull(index)?.let { (card, printing) -> rememberCommanderArt(card, printing) }, showCredit = false)
             Box(Modifier.fillMaxSize().facing(degrees), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
                     Box(Modifier.size(24.dp).background(hue, CircleShape), contentAlignment = Alignment.Center) {

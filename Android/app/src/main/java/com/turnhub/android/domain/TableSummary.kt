@@ -144,13 +144,21 @@ data class TablePlayer(
     val tileBackground: TileBackground = TileBackground(),
     val demerits: Int = 0,
     val extensionsAvailable: Int = 0,
-    /** The commander this player named (phone-hosted games only). */
+    /**
+     * The card whose art fills this player's tile (phone-hosted Magic games only): their
+     * commander, unless [cardOnly]. Name it with [namedCommander].
+     */
     val commander: String? = null,
-    /** The Scryfall printing whose art the commander shows; null for Scryfall's default. */
+    /** The Scryfall printing whose art the card shows; null for Scryfall's default. */
     val commanderArt: String? = null,
-    /** Pokémon (phone-hosted games): this turn's actions and the Active Pokémon's Special Conditions. */
-    val pokemon: PokemonStatus = PokemonStatus(),
-)
+    /** [commander] is only the tile's art (a non-Commander format, or a random card), never named as a commander. */
+    val cardOnly: Boolean = false,
+    /** Pokémon and Lorcana (phone-hosted games): this turn's actions; Pokémon's Special Conditions. */
+    val turn: TurnStatus = TurnStatus(),
+) {
+    /** The commander this player named, for labels and menus; null when the card is only tile art. */
+    val namedCommander: String? get() = commander.takeUnless { cardOnly }
+}
 
 /**
  * A physical Sigil that is seated at the current table, and which seats it

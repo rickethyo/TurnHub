@@ -46,15 +46,11 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 
 ### More game types
 
-- **Lorcana, then Pokémon damage counters** (owner, 2026-10-16; *Planned*):
-  after Pokémon (phone-hosted, `GAMEPLAY.md`), add Lorcana to the app: lore
-  counts up from 0 and 20 wins at once, an empty-deck draw loses, the first
-  player skips their first draw, and a once-per-turn "ink a card" reminder.
-  Read the Comprehensive Rules' multiplayer section (1.10) before choosing how
-  more than two players work. Then per-Pokémon damage counters (Active and
-  Bench, HP in tens). Atlas, the schema and the Sigils learn the new formats
-  and import their games later, per the dev sequence; One Piece can reuse the
-  Prize-card count if the owner wants it.
+- **Pokémon damage counters and Atlas support** (owner, 2026-10-16;
+  *Planned*): Pokémon and Lorcana are in the app (`GAMEPLAY.md`). Next are
+  per-Pokémon damage counters (Active and Bench, HP in tens). Atlas, the schema
+  and the Sigils learn the new formats and import their games later, per the
+  dev sequence. One Piece can reuse the Prize-card count if the owner wants it.
 
 ### Stability and diagnostics
 

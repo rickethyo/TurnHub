@@ -27,7 +27,12 @@ suggests card names as they type, and they can pick which printing's art); the
 name shows under theirs, on their commander-tax counter and in others' Commander
 damage, and its Scryfall art crop (credited to the artist,
 cached in `commander_art/`, off via Settings > Commander card art) fills their
-tile. When the device game is a Magic format, its setup has a Planechase
+tile. In every game the same picker chooses a tile card from any of Magic,
+Pokémon (TCGdex), Lorcana (Lorcast, AVIF so Android 12+) or Yu-Gi-Oh!
+(YGOPRODeck), typed or **Random card** (`TileCardGame`, `data/TileCards.kt`;
+saved as a prefixed id in `commanderArt`). Only a Magic card typed in a
+Commander mode is named as the commander; every other tile card is art only.
+When the device game is a Magic format, its setup has a Planechase
 switch and a Planes tab runs Planechase. Choose all planes, a release collection
 (including Anthology), or browse cards and save a named custom deck. Search,
 collection and selected-only filters, checkboxes, and Previous/Next previews

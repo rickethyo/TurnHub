@@ -212,9 +212,10 @@ fun EliminationRulesEditor(settings: TableSettings, enabled: Boolean = true,
     /** An official mode without house rules: the poison limit is the official one. */
     limitsLocked: Boolean = false,
     onChange: (field: String, value: Int) -> Unit) {
-    // Pokémon has no life total to lose: taking the last Prize card wins.
-    if (settings.profile.pokemon) {
-        Text("Taking your last Prize card wins the game. Other ways to win are in each player's menu.",
+    // Pokémon and Lorcana have no life total to lose: prizes and lore end the game.
+    if (!settings.profile.countsLife) {
+        Text(if (settings.profile.pokemon) "Taking your last Prize card wins the game. Other ways to win are in each player's menu."
+            else "Reaching ${settings.startingLife} lore wins the game. A player who can't draw is out from their menu.",
             color = palette.muted, style = MaterialTheme.typography.bodySmall)
         return
     }

@@ -62,11 +62,11 @@ import kotlin.math.sin
 /** One Star Commander seat as the star map draws it; index in the list is the seat (turn order). */
 internal data class StarSeat(val name: String, val playerNumber: Int, val avatar: AvatarIcon? = null,
     val eliminated: Boolean = false, val color: String? = null, val background: TileBackground = TileBackground(),
-    val commander: String? = null, val commanderArt: String? = null)
+    val commander: String? = null, val commanderArt: String? = null, val namedCommander: String? = null)
 
 internal fun TableSummary.starSeats(): List<StarSeat> =
     players.sortedBy { it.playerNumber }.map {
-        StarSeat(it.label, it.playerNumber, it.avatar, it.eliminated, it.color, it.tileBackground, it.commander, it.commanderArt)
+        StarSeat(it.label, it.playerNumber, it.avatar, it.eliminated, it.color, it.tileBackground, it.commander, it.commanderArt, it.namedCommander)
     }
 
 /** "Allies: B, E · Enemies: C, D" for [seat], the same words the map's labels and legend use. */
@@ -200,7 +200,7 @@ internal fun StarMap(seats: List<StarSeat>, modifier: Modifier = Modifier, onSwa
                                 maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
                                 textDecoration = if (seat.eliminated) TextDecoration.LineThrough else null,
                             )
-                            seat.commander?.let {
+                            seat.namedCommander?.let {
                                 Text(it, color = p.muted, style = MaterialTheme.typography.labelSmall, fontStyle = FontStyle.Italic,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                             }

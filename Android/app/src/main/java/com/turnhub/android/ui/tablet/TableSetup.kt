@@ -1,5 +1,21 @@
 package com.turnhub.android.ui.tablet
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -110,7 +126,8 @@ internal fun SetupSwitch(title: String, detail: String?, checked: Boolean, enabl
  * Two-Headed Giant off, and Standard from it goes back to Commander).
  */
 enum class GameMode(val label: String, val detail: String) {
-    STANDARD("Standard", "Everyone for themselves."),
+    // "Free-for-all": the Standard tile is the Magic format, so the mode needs its own word.
+    STANDARD("Free-for-all", "Everyone for themselves."),
     TWO_HEADED_GIANT("Two-Headed Giant", "Players next to each other play as teams of two (1 and 2, 3 and 4, and so on), sharing life, poison and the turn."),
     STAR_COMMANDER("Star Commander", "Five players. Your neighbors are allies who can't deal you Commander damage; " +
         "win when both players across the star are out."),
@@ -122,6 +139,10 @@ enum class GameMode(val label: String, val detail: String) {
             twoHeadedGiant -> TWO_HEADED_GIANT
             else -> STANDARD
         }
+
+        /** Star Commander is a Commander variant: Standard Magic offers only free-for-all and Two-Headed Giant. */
+        fun availableFor(profile: GameProfile): List<GameMode> =
+            if (profile.commanderRules) entries else entries.filter { it != STAR_COMMANDER }
     }
 }
 
@@ -134,11 +155,11 @@ internal fun formatSelected(current: GameProfile, chip: GameProfile): Boolean =
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun GameModeChips(selected: GameMode, enabled: Boolean, onSelect: (GameMode) -> Unit) {
+internal fun GameModeChips(profile: GameProfile, selected: GameMode, enabled: Boolean, onSelect: (GameMode) -> Unit) {
     val p = palette
     Text("Game mode", color = p.muted, style = MaterialTheme.typography.labelLarge)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        GameMode.entries.forEach { mode ->
+        GameMode.availableFor(profile).forEach { mode ->
             FilterChip(
                 selected = selected == mode,
                 onClick = { onSelect(mode) },
@@ -186,11 +207,78 @@ internal const val SEAT_MAP_HINT = "This is how the table will look. Drag a play
 internal const val TEAM_MAP_HINT = "Each outlined panel is a team: players 1 and 2, then 3 and 4, and so on. " +
     "Teammates share one panel, life total and turn. Drag a player onto another seat to swap them, or tap two seats."
 
-/** Formats offered in the shared lobby; Atlas runs those that are [GameProfile.atlasSupported]. */
+/** A game family in the picker: a heading, and a colour stripe on its tiles that the heading always names too. */
+internal enum class GameFamily(val title: String) {
+    MAGIC("Magic: The Gathering"),
+    CARD_GAMES("More card games"),
+    CUSTOM("Your own game"),
+}
+
+/** One game in the picker; [detail] says what the table counts and who plays. */
+internal data class GameChoice(val profile: GameProfile, val label: String, val detail: String, val family: GameFamily)
+
+/** Formats offered in the shared lobby, by family; Atlas runs those that are [GameProfile.atlasSupported]. */
 internal val FORMATS = listOf(
-    Triple(GameProfile.MTG_COMMANDER, "Commander", 40),
-    Triple(GameProfile.MTG, "Magic", 20),
-    Triple(GameProfile.YUGIOH, "Yu-Gi-Oh!", 8000),
-    Triple(GameProfile.POKEMON, "Pokémon", 6),
-    Triple(GameProfile.GENERIC, "Other", 20),
+    GameChoice(GameProfile.MTG_COMMANDER, "Commander", "40 life · 2+ players", GameFamily.MAGIC),
+    GameChoice(GameProfile.MTG, "Standard", "20 life · 2+ players", GameFamily.MAGIC),
+    GameChoice(GameProfile.YUGIOH, "Yu-Gi-Oh!", "8000 Life Points · 2 players", GameFamily.CARD_GAMES),
+    GameChoice(GameProfile.POKEMON, "Pokémon", "6 Prize cards · 2 players", GameFamily.CARD_GAMES),
+    GameChoice(GameProfile.LORCANA, "Lorcana", "Race to 20 lore · 2+ players", GameFamily.CARD_GAMES),
+    GameChoice(GameProfile.GENERIC, "Other", "Any life total and player count", GameFamily.CUSTOM),
 )
+
+/**
+ * The lobby's game picker: one section per family, each game a tile that says
+ * what the table counts. [onSelect] gets the chosen tile's format; Star
+ * Commander shows as Commander ([formatSelected]).
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun GamePicker(selected: GameProfile, enabled: Boolean, phoneHosted: Boolean, onSelect: (GameProfile) -> Unit) {
+    val p = palette
+    Column(Modifier.fillMaxWidth().selectableGroup(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        FORMATS.filter { phoneHosted || it.profile.atlasSupported }.groupBy { it.family }.forEach { (family, choices) ->
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(family.title, color = p.muted, style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.semantics { heading() })
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 2) {
+                    choices.forEach { choice ->
+                        val on = formatSelected(selected, choice.profile)
+                        GameTile(choice, on, enabled, Modifier.weight(1f)) { if (!on) onSelect(choice.profile) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GameTile(choice: GameChoice, selected: Boolean, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val p = palette
+    val shape = RoundedCornerShape(14.dp)
+    val stripe = when (choice.family) {
+        GameFamily.MAGIC -> p.accent
+        GameFamily.CARD_GAMES -> p.info
+        GameFamily.CUSTOM -> p.faint
+    }
+    Row(
+        modifier
+            .heightIn(min = 64.dp)
+            .clip(shape)
+            .background(if (selected) p.accentSoft else p.surface)
+            .border(if (selected) 2.dp else 1.dp, if (selected) p.accent else p.line, shape)
+            .selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+            .alpha(if (enabled) 1f else .5f)
+            .height(IntrinsicSize.Min),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(6.dp).fillMaxHeight().background(stripe))
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Text(choice.label, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(choice.detail, color = p.muted, style = MaterialTheme.typography.bodySmall)
+        }
+        if (selected) Text("✓", color = p.accent, style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 12.dp))
+    }
+}

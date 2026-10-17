@@ -288,7 +288,7 @@ fun StandaloneLobby(
             settings = table::configure,
             timer = table::setTurnTimer,
             timerRules = table::setTimerRules,
-            commander = { player, name, art -> table.setCommander(player.playerNumber - 1, name, art) },
+            commander = { player, name, art, cardOnly -> table.setCommander(player.playerNumber - 1, name, art, cardOnly) },
             zeroLife = table::setZeroLifeElimination,
             houseRules = table::setHouseRules,
             chooseStarter = { table.chooseStarter(it.playerNumber - 1) },

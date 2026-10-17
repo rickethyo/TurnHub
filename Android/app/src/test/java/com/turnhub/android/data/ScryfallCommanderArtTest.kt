@@ -135,4 +135,18 @@ class ScryfallCommanderArtTest {
         assertNull(found.rarity)
         assertArrayEquals(jpeg, found.jpeg)
     }
+
+    @Test fun `another game's card comes from its own database and is credited`() = runBlocking {
+        val web = FakeWeb { url ->
+            if (url.startsWith("https://api.tcgdex.net/")) card("""{"id":"base1-58","name":"Pikachu","image":"https://assets.tcgdex.net/en/base/base1/58",
+                "illustrator":"Mitsuhiro Arita","set":{"name":"Base Set"}}""") else Reply(200, jpeg)
+        }
+        val art = ScryfallCommanderArt(folder.root, "t", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
+        val found = art.art("Pikachu", "pokemon:base1-58")!!
+        assertEquals("Mitsuhiro Arita", found.artist)
+        assertEquals(listOf("https://api.tcgdex.net/v2/en/cards/base1-58", "https://assets.tcgdex.net/en/base/base1/58/high.jpg"), web.asked)
+        // Yu-Gi-Oh! art crops are named by id: no lookup, just the image.
+        assertEquals(TileCardJson.YUGIOH_CREDIT, art.art("Dark Magician", "yugioh:46986414")!!.artist)
+        assertEquals("https://images.ygoprodeck.com/images/cards_cropped/46986414.jpg", web.asked.last())
+    }
 }

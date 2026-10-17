@@ -54,8 +54,11 @@ internal data class TableLobbyActions(
     /** House rules for official modes; null hides the choice. */
     val houseRules: ((Boolean) -> Unit)? = null,
     val timerRules: ((com.turnhub.android.domain.LocalTimerRules) -> Unit)? = null,
-    /** Names a player's commander in Commander modes (optional); null hides it. */
-    val commander: ((TablePlayer, String?, String?) -> Unit)? = null,
+    /**
+     * Picks a player's tile card in Magic formats, named as their commander in Commander modes
+     * unless `cardOnly` (optional); null hides it.
+     */
+    val commander: ((player: TablePlayer, name: String?, printing: String?, cardOnly: Boolean) -> Unit)? = null,
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -114,7 +117,7 @@ internal fun TableLobby(
                 } else {
                     SeatMap(players.map { it.label }, { a, b -> if (enabled) actions.swap(a, b) },
                         backgrounds = players.map { it.tileBackground }, colors = players.map { it.color },
-                        teams = settings.twoHeadedGiant)
+                        teams = settings.twoHeadedGiant, cards = players.map { it.commander to it.commanderArt })
                 }
                 // How this mode's seating works, right under the map it explains.
                 Text(when {
@@ -124,7 +127,8 @@ internal fun TableLobby(
                 }, color = p.muted, style = MaterialTheme.typography.bodySmall)
                 var namingCommander by rememberSaveable { mutableStateOf<Int?>(null) }
                 players.firstOrNull { it.playerNumber == namingCommander }?.let { player ->
-                    actions.commander?.let { save -> CommanderPickerDialog(player, { name, art -> save(player, name, art); namingCommander = null }) { namingCommander = null } }
+                    actions.commander?.let { save -> CommanderPickerDialog(player, settings.profile.commanderRules, com.turnhub.android.data.TileCardGame.forProfile(settings.profile),
+                        { name, art, cardOnly -> save(player, name, art, cardOnly); namingCommander = null }) { namingCommander = null } }
                 }
                 players.forEach { player ->
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -135,9 +139,12 @@ internal fun TableLobby(
                             }
                             Column(Modifier.weight(1f)) {
                                 Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge)
-                                player.commander?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
-                                rememberCommanderArt(player.commander, player.commanderArt)?.let { art ->
-                                    Text("${art.cardName} · Art: ${art.artist} (Scryfall)", color = p.faint, style = MaterialTheme.typography.labelSmall)
+                                player.namedCommander?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
+                                // The tile card shows as soon as it is saved; its credit follows once the art arrives.
+                                val art = rememberCommanderArt(player.commander, player.commanderArt)
+                                player.commander?.let { card ->
+                                    Text(listOfNotNull(art?.cardName ?: card, art?.let { "Art: ${it.artist} (${it.source})" }).joinToString(" · "),
+                                        color = p.faint, style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                             if (settings.twoHeadedGiant) Text("Team ${(player.playerNumber + 1) / 2}", color = p.muted,
@@ -155,10 +162,18 @@ internal fun TableLobby(
                                         contentDescription = if (first) "${player.label} goes first. Tap to clear" else "Make ${player.label} go first"
                                     })
                             }
-                            if (settings.profile.commanderRules && actions.commander != null) {
+                            if (actions.commander != null) {
+                                val commanderRules = settings.profile.commanderRules
                                 TextButton(onClick = { namingCommander = player.playerNumber }, enabled = enabled,
-                                    modifier = Modifier.semantics { contentDescription = "Name ${player.label}'s commander and pick its card art" }) {
-                                    Text(if (player.commander == null) "Name commander" else "Change commander")
+                                    modifier = Modifier.semantics {
+                                        contentDescription = if (commanderRules) "Name ${player.label}'s commander or pick a card for their tile"
+                                        else "Pick a card for ${player.label}'s tile"
+                                    }) {
+                                    Text(when {
+                                        player.commander == null -> if (commanderRules) "Name commander" else "Choose tile card"
+                                        player.namedCommander != null -> "Change commander"
+                                        else -> "Change tile card"
+                                    })
                                 }
                             }
                             actions.background?.takeIf { actions.canEditBackground(player) }?.let { edit ->
@@ -206,17 +221,11 @@ internal fun TableLobby(
             BrassCard {
                 Eyebrow("Game")
                 if (!settingsEnabled) Text("Add a player to choose the game.", color = p.muted)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FORMATS.filter { phoneHosted || it.first.atlasSupported }.forEach { (profile, label, _) ->
-                        FilterChip(selected = formatSelected(settings.profile, profile), onClick = {
-                            if (!formatSelected(settings.profile, profile)) actions.settings(profile,
-                                StandaloneGame.defaultLife(profile, settings.twoHeadedGiant && profile.magicRules), null)
-                        }, label = { Text(label) }, enabled = settingsEnabled,
-                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = p.accentSoft))
-                    }
+                GamePicker(settings.profile, settingsEnabled, phoneHosted) { profile ->
+                    actions.settings(profile, StandaloneGame.defaultLife(profile, settings.twoHeadedGiant && profile.magicRules), null)
                 }
                 if (settings.profile.magicRules) {
-                    GameModeChips(GameMode.of(settings.profile, settings.twoHeadedGiant), settingsEnabled) { mode ->
+                    GameModeChips(settings.profile, GameMode.of(settings.profile, settings.twoHeadedGiant), settingsEnabled) { mode ->
                         if (mode != GameMode.of(settings.profile, settings.twoHeadedGiant)) {
                             val change = settingsForMode(settings.profile, mode)
                             actions.settings(change.profile, change.life, change.teams)
@@ -236,6 +245,7 @@ internal fun TableLobby(
                     OutlinedTextField(life, { life = it.filter(Char::isDigit).take(5) },
                         label = { Text(when {
                             settings.profile.pokemon -> "Prize cards"
+                            settings.profile.lorcana -> "Lore to win"
                             settings.twoHeadedGiant -> "Starting life per team"
                             else -> "Starting life"
                         }) },
@@ -244,12 +254,18 @@ internal fun TableLobby(
                     ToneButton("Set", { life.toIntOrNull()?.let { actions.settings(null, it, null) } },
                         enabled = settingsEnabled && !locked && (life.toIntOrNull() ?: 0) > 0 && life != "${settings.startingLife}")
                 }
-                if (locked) Text(if (settings.profile.pokemon) "Official 6 Prize cards. Turn on house rules to change them."
-                    else "Official starting life. Turn on house rules to change it.", color = p.faint,
+                if (locked) Text(when {
+                    settings.profile.pokemon -> "Official 6 Prize cards. Turn on house rules to change them."
+                    settings.profile.lorcana -> "Official 20 lore to win. Turn on house rules to change it."
+                    else -> "Official starting life. Turn on house rules to change it."
+                }, color = p.faint,
                     style = MaterialTheme.typography.bodySmall)
                 if (official != null) actions.houseRules?.let { setHouseRules ->
-                    SetupSwitch("House rules", (if (settings.profile.pokemon) "Change the Prize cards and player count. "
-                        else "Change the starting life, poison limit and player count. ") +
+                    SetupSwitch("House rules", when {
+                        settings.profile.pokemon -> "Change the Prize cards and player count. "
+                        settings.profile.lorcana -> "Change the lore to win. "
+                        else -> "Change the starting life, poison limit and player count. "
+                    } +
                         "The game no longer follows the official ${official.name} rules.", settings.houseRules, settingsEnabled, setHouseRules)
                 }
                 TurnTimerChips(settings.turnTimerMs, settingsEnabled, actions.timer)
@@ -259,8 +275,8 @@ internal fun TableLobby(
                     if (rules != null && changeRules != null) TimerRulesEditor(rules, settings.turnTimerMs, settingsEnabled, changeRules)
                     else Text("At the limit, Atlas keeps counting overtime.", color = p.muted, style = MaterialTheme.typography.bodySmall)
                 }
-                // Pokémon has no life: taking the last Prize card wins.
-                if (!settings.profile.pokemon) {
+                // Pokémon and Lorcana have no life total: prizes and lore end the game.
+                if (settings.profile.countsLife) {
                     SetupSwitch("Automatic elimination at zero life", null, settings.autoEliminateAtZeroLife, settingsEnabled, actions.zeroLife)
                 }
                 extraSettings()

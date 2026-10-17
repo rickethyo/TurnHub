@@ -857,16 +857,15 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   Captures are outside Git in Private/TurnHub-builds/review-356. Atlas hardware,
   inner display, five-player layout and TalkBack acceptance remain unverified.
 
-## 2026-10-16 — Claude: Pokémon in the app (standalone)
+## 2026-10-16 — Claude: Pokémon and Lorcana in the app; game picker
 
-- Owner: Claude on `claude/project-thread-20h617`, baseline `4ce4768` (#125).
-  Owner request: more game types; owner chose Pokémon now, Lorcana next,
-  per-Pokémon damage counters later (`STAGED_CHANGES.md`, "More game types").
-- Phone-hosted only: `GameProfile.POKEMON` with `atlasSupported = false`, so
-  Atlas's lobby and settings don't offer it and its records are never queued
-  for import. Prize cards reuse the life number; once-per-turn actions,
-  Special Conditions and Pokémon Checkup live in `StandaloneGame`
-  (`domain/Pokemon.kt`, `ui/tablet/PokemonControls.kt`).
-- Validation: new `PokemonTest` JVM tests; no Android SDK in the cloud
-  container, so CI runs the build and tests. Device playtest pending.
-
+- Owner: Claude on `claude/project-thread-20h617`. Pokémon merged in #126;
+  this round, baseline `6f68a1e`, adds Lorcana (owner's pick over One Piece)
+  and a grouped game picker (owner: "greater division between the game types").
+- Phone-hosted only: `GameProfile.atlasSupported` is false for both, so
+  Atlas's lobby and settings don't offer them and their records are never
+  queued for import. Score words, turn reminders and menus live in
+  `ui/tablet/CardGameControls.kt`; per-player turn state is `TurnStatus`
+  (`domain/CardGames.kt`), saved under `turn` (older Pokémon saves: `pokemon`).
+- Validation: `CardGamesTest` JVM tests; CI runs the build (no Android SDK in
+  the cloud container). Device playtest pending.
