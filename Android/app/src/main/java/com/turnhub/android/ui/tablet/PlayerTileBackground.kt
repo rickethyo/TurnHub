@@ -59,7 +59,7 @@ internal fun PlayerTileBackground(background: TileBackground, seatColor: Color, 
             // Kept to the panel's outer third so a long credit ends before the centre controls.
             if (showCredit) Text("Art: ${art.artist}", color = p.text.copy(alpha = .75f), style = MaterialTheme.typography.labelSmall,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End,
-                modifier = Modifier.align(Alignment.TopEnd).fillMaxWidth(.34f).padding(horizontal = 10.dp, vertical = 4.dp)
+                modifier = Modifier.align(Alignment.TopEnd).fillMaxWidth(.34f).padding(horizontal = 16.dp, vertical = 8.dp)
                     .semantics { contentDescription = "${art.cardName} art by ${art.artist}, from ${art.source}" })
         } else if (bitmap != null) {
             Image(bitmap, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)

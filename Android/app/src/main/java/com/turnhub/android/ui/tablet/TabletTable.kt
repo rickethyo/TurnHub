@@ -769,7 +769,9 @@ private fun PlayerPanel(
         val profile = summary.settings.profile
         // Pokémon and Lorcana: the number is prizes or lore, with turn reminders under it.
         val cardGame = !profile.countsLife
-        val turnHeight = if (cardGame) turnPanelHeight(unit, summary, maxWidth < 420.dp) else 0f
+        // Death May Die: wounds and stress as matching counters in place of the big number.
+        val tracks = profile.deathMayDie
+        val turnHeight = if (cardGame && !tracks) turnPanelHeight(unit, summary, maxWidth < 420.dp) else 0f
         val planarCompact = compact && active && !out && onPlanarRoll != null && maxWidth < 300.dp
         val between = (maxHeight.value - turnHeight - if (planarCompact) 160f else if (compact) 104f else 120f).coerceAtLeast(24f)
         // Room for the lines under the number, so a short panel shrinks the number instead of
@@ -783,7 +785,7 @@ private fun PlayerPanel(
             minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f,
             (between - linesBelow) * .8f,
         ).coerceIn(24f, 160f)
-        Row(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
+        if (!tracks) Row(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
             HoldHalf("−", stepLabel(profile, name, small, adding = false), !out,
                 { onBump(-small) }, { onBump(-big) }, Alignment.CenterStart, Modifier.weight(1f).fillMaxHeight())
             HoldHalf("+", stepLabel(profile, name, small, adding = true), !out,
@@ -817,7 +819,11 @@ private fun PlayerPanel(
                 Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = if (commanders != null) 70.dp else 52.dp))
         }
 
-        Column(
+        if (tracks) InvestigatorTracks(unit, summary, life, onBump, onTurnMark,
+            Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 12.dp)
+                .padding(top = if (commanders != null) 60.dp else 44.dp, bottom = if (compact) 56.dp else 64.dp)
+                .alpha(if (out) .45f else 1f))
+        else Column(
             Modifier.align(Alignment.Center).padding(top = 44.dp, bottom = (if (compact) 56f else 64f).dp + turnHeight.dp)
                 .alpha(if (out) .45f else 1f)
                 .clearAndSetSemantics {
@@ -856,7 +862,7 @@ private fun PlayerPanel(
             }
         }
 
-        if (cardGame && !out) {
+        if (cardGame && !out && !tracks) {
             TurnPanelLines(unit, summary, onTurnMark,
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp)
                     .padding(bottom = if (compact) 56.dp else 64.dp))

@@ -928,9 +928,8 @@ private fun CoopTile(summary: TableSummary, player: TablePlayer) {
                 status?.let { Text(it, color = if (active) p.active else p.muted, style = MaterialTheme.typography.labelMedium) }
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text("$wounds ${if (wounds == 1) "wound" else "wounds"}", color = p.text, style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold)
-                Text("Stress ${player.stress}", color = p.text, style = MaterialTheme.typography.labelLarge)
+                Text("Wounds $wounds", color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Stress ${player.stress}", color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
         }
     }

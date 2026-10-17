@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -76,7 +77,7 @@ private fun firstTurnNote(holder: TablePlayer, summary: TableSummary): String? {
 
 /** Room [TurnPanelLines] takes under the number, in dp. */
 internal fun turnPanelHeight(unit: TableUnit, summary: TableSummary, narrow: Boolean): Float {
-    // One row: where the player is in the round, their stress, and Take the next turn; two when narrow.
+    // One row: where the player is in the round and Take the next turn; two when narrow.
     if (summary.settings.profile.cooperative) return when {
         unit.members.none { roundStatus(it, summary) != null } -> 0f
         narrow -> 112f
@@ -130,9 +131,8 @@ internal fun roundStatus(player: TablePlayer, summary: TableSummary): String? = 
 private const val STILL_TO_GO = "Still to go"
 
 /**
- * A cooperative game's panel: whether this player has taken their turn this round, and
- * (Death May Die) their stress beside the wounds above. There is no fixed order, so a
- * player still to go can take the turn from whoever holds it.
+ * A cooperative game's panel: whether this player has taken their turn this round. There
+ * is no fixed order, so a player still to go can take the turn from whoever holds it.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -146,19 +146,52 @@ private fun RoundStatus(unit: TableUnit, summary: TableSummary, onMark: (TablePl
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.background(if (member.actedThisRound) p.surface.copy(alpha = .85f) else p.accentSoft, RoundedCornerShape(99.dp))
                 .padding(horizontal = 12.dp, vertical = 4.dp))
-        if (summary.settings.profile.deathMayDie) {
-            Row(Modifier.background(p.surface.copy(alpha = .85f), RoundedCornerShape(99.dp)).padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                StepButton("−", "${member.label}: remove a stress", member.stress > 0) { onMark(member, StandaloneGame.STRESS_KIND, -1) }
-                Text("Stress ${member.stress}", color = p.text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-                StepButton("+", "${member.label}: add a stress", true) { onMark(member, StandaloneGame.STRESS_KIND, 1) }
-            }
-        }
         if (status == STILL_TO_GO && summary.state == TableState.RUNNING) {
             com.turnhub.android.ui.components.ToneButton("Take the next turn",
                 { onMark(member, StandaloneGame.TAKE_TURN_KIND, 1) })
         }
+    }
+}
+
+/**
+ * Death May Die's panel: wounds and stress as two matching counters side by side, with
+ * where the player is in the round under them. [wounds] includes taps not yet sent.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun InvestigatorTracks(
+    unit: TableUnit,
+    summary: TableSummary,
+    wounds: Int,
+    onWound: (Int) -> Unit,
+    onMark: (TablePlayer, String, Int) -> Unit,
+    modifier: Modifier,
+) {
+    val member = unit.members.first()
+    val live = summary.state == TableState.RUNNING && !unit.out
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Tracker("Wounds", wounds, member.label, "wound", live, live && wounds < StandaloneGame.MAX_LIFE) { onWound(it) }
+            Tracker("Stress", member.stress, member.label, "stress", live, live) { onMark(member, StandaloneGame.STRESS_KIND, it) }
+        }
+        RoundStatus(unit, summary, onMark, Modifier)
+    }
+}
+
+/** One counter: −, its name over its number, +. Every counter has the same width, so a pair lines up. */
+@Composable
+private fun Tracker(name: String, value: Int, player: String, noun: String, live: Boolean, canAdd: Boolean, onStep: (Int) -> Unit) {
+    val p = palette
+    Row(Modifier.background(p.surface.copy(alpha = .9f), RoundedCornerShape(99.dp)).padding(4.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        StepButton("−", "$player: remove a $noun", live && value > 0) { onStep(-1) }
+        Column(Modifier.width(76.dp).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+            horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(name, color = p.muted, style = MaterialTheme.typography.labelMedium)
+            Text("$value", color = p.text, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+        }
+        StepButton("+", "$player: add a $noun", canAdd) { onStep(1) }
     }
 }
 
