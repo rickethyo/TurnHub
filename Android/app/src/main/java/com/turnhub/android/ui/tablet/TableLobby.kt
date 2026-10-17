@@ -117,7 +117,7 @@ internal fun TableLobby(
                 } else {
                     SeatMap(players.map { it.label }, { a, b -> if (enabled) actions.swap(a, b) },
                         backgrounds = players.map { it.tileBackground }, colors = players.map { it.color },
-                        teams = settings.twoHeadedGiant)
+                        teams = settings.twoHeadedGiant, cards = players.map { it.commander to it.commanderArt })
                 }
                 // How this mode's seating works, right under the map it explains.
                 Text(when {
