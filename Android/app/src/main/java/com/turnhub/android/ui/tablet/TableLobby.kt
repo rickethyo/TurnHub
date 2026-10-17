@@ -127,7 +127,7 @@ internal fun TableLobby(
                 }, color = p.muted, style = MaterialTheme.typography.bodySmall)
                 var namingCommander by rememberSaveable { mutableStateOf<Int?>(null) }
                 players.firstOrNull { it.playerNumber == namingCommander }?.let { player ->
-                    actions.commander?.let { save -> CommanderPickerDialog(player, settings.profile.commanderRules,
+                    actions.commander?.let { save -> CommanderPickerDialog(player, settings.profile.commanderRules, com.turnhub.android.data.TileCardGame.forProfile(settings.profile),
                         { name, art, cardOnly -> save(player, name, art, cardOnly); namingCommander = null }) { namingCommander = null } }
                 }
                 players.forEach { player ->
@@ -159,7 +159,7 @@ internal fun TableLobby(
                                         contentDescription = if (first) "${player.label} goes first. Tap to clear" else "Make ${player.label} go first"
                                     })
                             }
-                            if (settings.profile.magicRules && actions.commander != null) {
+                            if (actions.commander != null) {
                                 val commanderRules = settings.profile.commanderRules
                                 TextButton(onClick = { namingCommander = player.playerNumber }, enabled = enabled,
                                     modifier = Modifier.semantics {

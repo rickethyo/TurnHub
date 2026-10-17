@@ -1230,7 +1230,7 @@ private fun PlayerMenuItems(
             unit.members.filter { !it.eliminated }.forEach { member ->
                 if (team) Text("${member.label} counters and status", color = p.text)
                 MagicCountersEditor(member.counters, summary.initiativePlayerNumber == member.playerNumber,
-                    summary.settings.profile.commanderRules, showPoison = !team, commanderName = member.commander,
+                    summary.settings.profile.commanderRules, showPoison = !team, commanderName = member.namedCommander,
                     commanderRarity = rememberCommanderArt(member.namedCommander, member.commanderArt)?.rarity,
                     partnerEnabled = member.playerNumber in partners,
                     onPartnerChange = { on -> if (on) partners.add(member.playerNumber) else partners.remove(member.playerNumber) }) { kind, value, commander -> onCounter(member, kind, value, commander) }

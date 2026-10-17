@@ -55,18 +55,20 @@ TurnHub's GitHub releases. GitHub receives the request (including your IP
 address) under [GitHub's privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement).
 No account or personal data is included.
 
-## Commander card art
+## Commander and tile card art
 
-When a player names their commander in a Commander game, the app asks
-[Scryfall](https://scryfall.com) for that card's art and shows it on the
-player's tile. Only the commander name typed in is sent; Scryfall receives the
-request (including your IP address) under
-[Scryfall's privacy policy](https://scryfall.com/docs/privacy). The art is
-kept in the app's cache so each name is looked up once. Naming a commander is
-optional, and **Commander card art** in Settings turns the lookups off. While
-you type a commander name, what you have typed so far is sent to Scryfall to
-suggest card names, and choosing a card lists its printings so you can pick the
-art.
+When a player names their commander in a Commander game, or picks a card for
+their tile in any game, the app asks that card game's database for the card's
+art and shows it on the player's tile: [Scryfall](https://scryfall.com) for
+Magic, [TCGdex](https://tcgdex.dev) for Pokémon, [Lorcast](https://lorcast.com)
+for Lorcana and [YGOPRODeck](https://ygoprodeck.com) for Yu-Gi-Oh!. Only the
+card name typed in (or a request for a random card) is sent; each service
+receives the request (including your IP address) under its own privacy policy,
+for example [Scryfall's](https://scryfall.com/docs/privacy). The art is kept in
+the app's cache so each card is looked up once. Choosing a card is optional,
+and **Commander card art** in Settings turns the lookups off. While you type a
+card name, what you have typed so far is sent to suggest cards, and choosing a
+Magic card lists its printings so you can pick the art.
 
 ## Planechase planes
 

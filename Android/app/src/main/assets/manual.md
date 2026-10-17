@@ -129,6 +129,8 @@ Each of the five players has two allies, the players seated on either side, and 
 
 In any Commander mode, **Name commander** next to a player lets them name their commander. The name shows under theirs, names their commander-tax counter and labels the Commander damage others take from it. As you type, matching card names are suggested from Scryfall; pick one, and choose a printing whose art fills the player's tile, credited to its artist. The original commander-card icon takes the printing's rarity color. Only what you type is sent to Scryfall. **Commander card art** in Settings turns the suggestions and art off.
 
+In any game, the same button (**Choose tile card** outside Commander) puts a card's art on a player's tile. Pick the game the card is from (Magic, Pokémon, Lorcana or Yu-Gi-Oh!, whatever you are playing), type part of its name and tap the card, or tap **Random card**. Only a Magic card typed or suggested in a Commander game becomes the player's commander; any other tile card is art only, so it never labels Commander damage or tax. Pokémon cards come from TCGdex, Lorcana cards from Lorcast (their art needs Android 12 or later) and Yu-Gi-Oh! cards from YGOPRODeck.
+
 ## Turn Timer
 
 - **Off:** no countdown. After five minutes the panel shows a gentle Long turn reminder.
@@ -330,6 +332,7 @@ Everything you do in the app stays on this device: players, PINs (stored only as
 - **An Atlas**, over the Atlas's own Wi-Fi, only when you connect.
 
 - **Scryfall**, only for commander names and art you look up and for the Planechase library. Only what you type is sent; turn Commander card art off in Settings to stop it.
+- **TCGdex, Lorcast and YGOPRODeck**, only for Pokémon, Lorcana and Yu-Gi-Oh! tile cards you look up. Only what you type is sent, and the same setting stops it.
 
 - **Google Forms**, only when you choose to send a bug report.
 

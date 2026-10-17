@@ -1,6 +1,7 @@
 package com.turnhub.android.ui.tablet
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -13,7 +14,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.pm.PackageInfoCompat
+import com.turnhub.android.data.ArtCrop
 import com.turnhub.android.data.ScryfallCommanderArt
+import com.turnhub.android.data.TileCardGame
 import java.io.File
 
 /** A commander's art, decoded for a tile, with the artist credit shown beside it. */
@@ -47,6 +50,16 @@ internal fun rememberCommanderArtEnabled(): Pair<Boolean, (Boolean) -> Unit> {
     return on to { value: Boolean -> on = value; prefs.edit().putBoolean(ART_PREF, value).apply() }
 }
 
+/** The art window of a full card image ([crop]); the image itself when it is already art. */
+internal fun cropArt(bitmap: Bitmap, crop: ArtCrop?): Bitmap {
+    crop ?: return bitmap
+    val left = (bitmap.width * crop.left).toInt().coerceIn(0, bitmap.width - 1)
+    val top = (bitmap.height * crop.top).toInt().coerceIn(0, bitmap.height - 1)
+    val right = (bitmap.width * crop.right).toInt().coerceIn(left + 1, bitmap.width)
+    val bottom = (bitmap.height * crop.bottom).toInt().coerceIn(top + 1, bitmap.height)
+    return Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
+}
+
 /** The art for a named commander, once Scryfall (or the cache) has it; null otherwise. */
 @Composable
 internal fun rememberCommanderArt(name: String?, printing: String? = null): TileArt? {
@@ -57,7 +70,9 @@ internal fun rememberCommanderArt(name: String?, printing: String? = null): Tile
     val art by produceState(CommanderArtCache.decoded[key], key) {
         if (value != null) return@produceState
         val loaded = CommanderArtCache.source(context).art(name, printing) ?: return@produceState
-        val bitmap = BitmapFactory.decodeByteArray(loaded.jpeg, 0, loaded.jpeg.size) ?: return@produceState
+        // Lorcana images are AVIF, which Android decodes from version 12; older phones show no art.
+        val bitmap = BitmapFactory.decodeByteArray(loaded.jpeg, 0, loaded.jpeg.size)
+            ?.let { cropArt(it, TileCardGame.of(printing).crop) } ?: return@produceState
         val tile = TileArt(bitmap.asImageBitmap(), loaded.cardName, loaded.artist, loaded.rarity)
         CommanderArtCache.decoded[key] = tile
         value = tile

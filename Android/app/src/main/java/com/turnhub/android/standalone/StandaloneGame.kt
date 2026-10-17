@@ -713,8 +713,9 @@ data class StandaloneGame(
     fun setCommander(index: Int, name: String?, art: String? = null, cardOnly: Boolean = false): StandaloneGame {
         if (index !in players.indices) return this
         val clean = name?.trim()?.take(MAX_COMMANDER)?.takeIf { it.isNotEmpty() }
-        val printing = art?.takeIf { clean != null && it.matches(PRINTING_ID) }
-        val only = cardOnly && clean != null
+        val printing = art?.takeIf { clean != null && com.turnhub.android.data.TileCardGame.valid(it) }
+        // Only a Magic card can be a commander.
+        val only = clean != null && (cardOnly || com.turnhub.android.data.TileCardGame.of(printing) != com.turnhub.android.data.TileCardGame.MAGIC)
         if (players[index].commander == clean && players[index].commanderArt == printing && players[index].cardOnly == only) return this
         return update(index) { it.copy(commander = clean, commanderArt = printing, cardOnly = only) }
     }
@@ -849,10 +850,10 @@ data class StandaloneGame(
                     counters = p.counters,
                     demerits = p.demerits,
                     extensionsAvailable = p.extensionsEarned - p.extensionsUsed,
-                    // Every Magic format can show a card on the tile; only Commander formats call
+                    // Any game can show any game's card on a tile; only Commander formats call
                     // it a commander, and never a card picked only for its art.
-                    commander = p.commander.takeIf { profile.magicRules },
-                    commanderArt = p.commanderArt.takeIf { profile.magicRules },
+                    commander = p.commander,
+                    commanderArt = p.commanderArt,
                     cardOnly = p.cardOnly || !profile.commanderRules,
                     turn = p.turn,
                     life = if (state == TableState.LOBBY) null else p.life,

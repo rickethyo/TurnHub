@@ -20,14 +20,22 @@ class TableLobbyTest {
         assertEquals("Standard", FORMATS.single { it.profile == GameProfile.MTG }.label)
     }
 
-    @Test fun `tile cards show in every magic format but are named as commanders only in commander`() {
+    @Test fun `tile cards show in every game but are named as commanders only in commander`() {
         val lobby = com.turnhub.android.standalone.StandaloneGame().setFormat(GameProfile.MTG_COMMANDER)
             .addPlayer("A").addPlayer("B").addPlayer("C").addPlayer("D").setCommander(0, "Atraxa")
         assertEquals("Atraxa", lobby.toSummary(0, 0).players[0].namedCommander)
         val teams = lobby.setFormat(GameProfile.MTG).setTwoHeadedGiant(true).toSummary(0, 0).players[0]
         assertEquals("Atraxa", teams.commander)
         assertEquals(null, teams.namedCommander)
-        assertEquals(null, lobby.setFormat(GameProfile.YUGIOH).toSummary(0, 0).players[0].commander)
+        // Tile art isn't tied to the game: a Magic card can sit behind a Yu-Gi-Oh! player.
+        val duel = lobby.setFormat(GameProfile.YUGIOH).toSummary(0, 0).players[0]
+        assertEquals("Atraxa", duel.commander)
+        assertEquals(null, duel.namedCommander)
+        // Another game's card is tile art only, even in Commander.
+        val pikachu = lobby.setCommander(2, "Pikachu", "pokemon:base1-58").toSummary(0, 0).players[2]
+        assertEquals("pokemon:base1-58", pikachu.commanderArt)
+        assertEquals(null, pikachu.namedCommander)
+        assertEquals(null, lobby.setCommander(2, "Pikachu", "pokemon:../x").players[2].commanderArt)
 
         // A random card in Commander is only tile art, and survives saving as such.
         val random = lobby.setCommander(1, "Llanowar Elves", cardOnly = true)

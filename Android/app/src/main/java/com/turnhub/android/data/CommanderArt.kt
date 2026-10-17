@@ -14,11 +14,15 @@ import java.security.MessageDigest
 /** A commander's art crop and the credit Scryfall asks us to show with it. */
 class CommanderArt(val cardName: String, val artist: String, val jpeg: ByteArray, val rarity: String? = null, internal val metadataCurrent: Boolean = true)
 
-/** One printing of a card with its own art, for choosing which art a tile shows. */
-class CommanderPrinting(val id: String, val setName: String, val artist: String, val artCrop: String)
+/**
+ * One printing of a card with its own art, for choosing which art a tile shows. [id] is a
+ * Scryfall id, or another game's prefixed id ([TileCardGame]); [artCrop] is the image to show.
+ */
+class CommanderPrinting(val id: String, val setName: String, val artist: String, val artCrop: String, val name: String = "")
 
 /**
- * Looks up a named commander's art on Scryfall (https://scryfall.com/docs/api):
+ * Looks up a named commander's art on Scryfall (https://scryfall.com/docs/api),
+ * and tile cards from the other games' databases ([TileCardGame]):
  * only the name the player typed is sent. Results, misses included, are kept
  * in [cacheDir] so each name is asked for once. Requests are spaced out as
  * Scryfall asks and use the phone's default network, like firmware updates.
@@ -27,6 +31,9 @@ class ScryfallCommanderArt(
     private val cacheDir: File,
     private val userAgent: String,
     private val baseUrl: String = "https://api.scryfall.com",
+    private val pokemonUrl: String = "https://api.tcgdex.net/v2/en",
+    private val lorcanaUrl: String = "https://api.lorcast.com/v0",
+    private val yugiohUrl: String = "https://db.ygoprodeck.com/api/v7",
     private val opener: HttpConnectionOpener = HttpConnectionOpener.Default,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
@@ -38,13 +45,14 @@ class ScryfallCommanderArt(
      * from the cache or Scryfall; null when no card matches or the lookup fails.
      */
     suspend fun art(name: String, printing: String? = null): CommanderArt? = withContext(ioDispatcher) {
-        val id = printing?.takeIf { it.matches(PRINTING_ID) }
+        val game = TileCardGame.of(printing)
+        val id = game.id(printing)
         val key = cacheKey(if (id == null) name else "$name#$id")
         cached(key)?.takeIf { it.metadataCurrent }?.let { return@withContext it.takeIf { art -> art.jpeg.isNotEmpty() } }
         gate.withLock {
             val old = cached(key)
             old?.takeIf { it.metadataCurrent }?.let { return@withLock it.takeIf { art -> art.jpeg.isNotEmpty() } }
-            val card = runCatching { lookup(name, id) }.getOrElse { error ->
+            val card = runCatching { if (game == TileCardGame.MAGIC) lookup(name, id) else otherCard(game, name, id ?: throw ScryfallHttp.NotFound()) }.getOrElse { error ->
                 // A card Scryfall can't find is remembered; a network failure is tried again later.
                 if (error is ScryfallHttp.NotFound) remember(key, CommanderArt(name, "", ByteArray(0)))
                 return@withLock old?.takeIf { it.jpeg.isNotEmpty() }
@@ -96,21 +104,64 @@ class ScryfallCommanderArt(
         }
     }
 
-    /** A random paper card's name and printing for a tile; null offline. Nothing the player typed is sent. */
-    suspend fun random(): Pair<String, String>? = withContext(ioDispatcher) {
+    /** A random card of [game] for a tile; null offline. Nothing the player typed is sent. */
+    suspend fun random(game: TileCardGame = TileCardGame.MAGIC): CommanderPrinting? = withContext(ioDispatcher) {
         gate.withLock {
             val found = runCatching {
-                val query = "game:paper -type:token"
-                val card = JSONObject(http.fetch("$baseUrl/cards/random?q=" + URLEncoder.encode(query, "UTF-8"), MAX_JSON_BYTES)
-                    .toString(Charsets.UTF_8))
-                val id = card.optString("id")
-                val name = card.optString("name")
-                if (name.isBlank() || !id.matches(PRINTING_ID) || frontFace(card) == null) null else name to id
+                when (game) {
+                    TileCardGame.MAGIC -> {
+                        val query = "game:paper -type:token"
+                        val card = json("$baseUrl/cards/random?q=" + URLEncoder.encode(query, "UTF-8"))
+                        val id = card.optString("id")
+                        val crop = frontFace(card)?.optJSONObject("image_uris")?.optString("art_crop").orEmpty()
+                        if (card.optString("name").isBlank() || !id.matches(PRINTING_ID) || !crop.startsWith("https://")) null
+                        else CommanderPrinting(id, card.optString("set_name"), frontFace(card)?.optString("artist").orEmpty(), crop, card.optString("name"))
+                    }
+                    TileCardGame.POKEMON -> TileCardJson.pokemon(json("$pokemonUrl/random/card"))
+                    // Lorcast has no random card: a random set and ink is a small search to pick from.
+                    TileCardGame.LORCANA -> TileCardJson.lorcanaCards(text("$lorcanaUrl/cards/search?q=" +
+                        URLEncoder.encode("set:${(1..LORCANA_SETS).random()} ink:${LORCANA_INKS.random()}", "UTF-8"))).randomOrNull()
+                    TileCardGame.YUGIOH -> TileCardJson.yugiohCards(text("$yugiohUrl/cardinfo.php?num=1&offset=0&sort=random&cachebust")).firstOrNull()
+                }
             }.getOrNull()
+            delay(ScryfallHttp.REQUEST_SPACING_MS)
+            found?.takeIf { it.name.isNotBlank() }
+        }
+    }
+
+    /** Cards of another game whose names contain [typed], each artwork its own choice; empty under three letters or offline. */
+    suspend fun search(game: TileCardGame, typed: String): List<CommanderPrinting> = withContext(ioDispatcher) {
+        val query = typed.trim()
+        if (game == TileCardGame.MAGIC || query.length < 3) return@withContext emptyList()
+        val q = URLEncoder.encode(query, "UTF-8")
+        gate.withLock {
+            val found = runCatching {
+                when (game) {
+                    TileCardGame.POKEMON -> TileCardJson.pokemonCards(text("$pokemonUrl/cards?name=like:$q&pagination:page=1&pagination:itemsPerPage=$MAX_PRINTINGS"))
+                    TileCardGame.LORCANA -> TileCardJson.lorcanaCards(text("$lorcanaUrl/cards/search?q=$q"))
+                    TileCardGame.YUGIOH -> TileCardJson.yugiohCards(text("$yugiohUrl/cardinfo.php?fname=$q&num=$MAX_PRINTINGS&offset=0"))
+                    TileCardGame.MAGIC -> emptyList()
+                }.filter { it.name.isNotBlank() }.take(MAX_PRINTINGS)
+            }.getOrDefault(emptyList())
             delay(ScryfallHttp.REQUEST_SPACING_MS)
             found
         }
     }
+
+    /** Another game's card by its database [id], with the image to show and the artist to credit. */
+    private fun otherCard(game: TileCardGame, name: String, id: String): Card {
+        val printing = when (game) {
+            TileCardGame.POKEMON -> TileCardJson.pokemon(json("$pokemonUrl/cards/" + URLEncoder.encode(id, "UTF-8")))
+            TileCardGame.LORCANA -> TileCardJson.lorcana(json("$lorcanaUrl/cards/$id"))
+            // YGOPRODeck's art crops are named by id, so no lookup is needed.
+            TileCardGame.YUGIOH -> CommanderPrinting(game.prefix + id, "", TileCardJson.YUGIOH_CREDIT, "$YUGIOH_IMAGES/$id.jpg", name)
+            TileCardGame.MAGIC -> null
+        } ?: throw ScryfallHttp.NotFound()
+        return Card(printing.name.ifBlank { name }, printing.artist, printing.artCrop, null)
+    }
+
+    private fun text(url: String): String = http.fetch(url, MAX_LIST_BYTES).toString(Charsets.UTF_8)
+    private fun json(url: String): JSONObject = JSONObject(http.fetch(url, MAX_JSON_BYTES).toString(Charsets.UTF_8))
 
     /** A printing's art crop for the picker, cached like tile art; null offline. */
     suspend fun preview(printing: CommanderPrinting): ByteArray? = withContext(ioDispatcher) {
@@ -156,6 +207,10 @@ class ScryfallCommanderArt(
         private const val MAX_ART_BYTES = 2 * 1024 * 1024
         private const val MAX_LIST_BYTES = 4 * 1024 * 1024
         private const val MAX_PRINTINGS = 30
+        private const val YUGIOH_IMAGES = "https://images.ygoprodeck.com/images/cards_cropped"
+        /** Lorcana's main sets so far, and its inks, for a random card. */
+        private const val LORCANA_SETS = 10
+        private val LORCANA_INKS = listOf("amber", "amethyst", "emerald", "ruby", "sapphire", "steel")
         private val PRINTING_ID = com.turnhub.android.standalone.StandaloneGame.PRINTING_ID
 
         /** Same name, same file, however it was capitalised or spaced. */
