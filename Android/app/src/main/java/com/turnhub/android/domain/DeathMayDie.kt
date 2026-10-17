@@ -16,7 +16,7 @@ object DeathMayDie {
             "Rasputin", "Sergeant Ian Welles", "Sister Beth", "The Kid",
         )),
         InvestigatorBox("Season 2", listOf(
-            "Adilah Vidal", "Alex Parker", "Ariele Venturi", "Father Luke", "Halia Hovath", "Machinist's Mate Tony Boyle",
+            "Adilah Vidal", "Alex Parker", "Ariele Venturi", "Father Luke", "Hailia Hovath", "Machinist's Mate Tony Boyle",
             "Margarethe Richter", "Mary Diaz", "Sam Wood", "Sergeant Mario Braghieri",
         )),
         InvestigatorBox("Season 3 (Fear of the Unknown)", listOf(
@@ -58,6 +58,57 @@ object DeathMayDie {
         )),
         InvestigatorBox("Promos", listOf("Eddie the Head", "Scarlett Hayes")),
     )
+
+    /**
+     * The community wiki's picture of an investigator, where it has one (its file path under
+     * the wiki's image host): box art for Season 1, a photo or scan of the dashboard after.
+     */
+    private val art: Map<String, String> = mapOf(
+        "Adilah Vidal" to "2/2a/AdilahDashboardFront.png",
+        "Agatha May" to "6/67/Agatha.jpg",
+        "Ahmed Yasin" to "9/97/Achmed.jpg",
+        "Alex Parker" to "3/31/ParkerDashboardFront.png",
+        "Aniko Biko" to "e/e3/Anika.jpg",
+        "Ariele Venturi" to "5/50/ArieleDashboardFront.png",
+        "Borden" to "5/5d/Borden.jpg",
+        "Bruno Vitale" to "c/c2/Bruno.jpg",
+        "Elizabeth Ives" to "2/26/Elizabeth.jpg",
+        "Father Luke" to "2/2b/LukeDashboardFront.png",
+        "Fatima Safar" to "7/7a/Fatima.jpg",
+        "Gary West" to "b/bd/Gary.jpg",
+        "Hailia Hovath" to "8/80/HaliaDashboardFront.png",
+        "Huikong" to "e/e9/Huikong.jpg",
+        "Jakub Peters" to "4/47/Peters.jpg",
+        "John Fernsby" to "d/dd/John.jpg",
+        "John Morgan" to "6/6f/Morgan.jpg",
+        "Julien Dulik" to "5/52/Julian.jpg",
+        "Leon Barnes" to "1/18/Leon.jpg",
+        "Lord Adam Benchley" to "e/e5/Adam.jpg",
+        "Machinist's Mate Tony Boyle" to "f/fe/TonyDashboardFront.png",
+        "Margarethe Richter" to "e/e6/MargaretheDashboardFront.png",
+        "Mary Diaz" to "4/43/MaryDashboardFront.png",
+        "Mike Kozlov" to "9/90/Mike.jpg",
+        "Rasputin" to "8/8e/Rasputin.jpg",
+        "Rosario Guerra" to "9/99/Rosario.jpg",
+        "Ruth Weber" to "c/c5/Ruth.jpg",
+        "Sally Withers" to "7/7c/Sally.jpg",
+        "Sam Wood" to "f/fd/SamDashboardFront.png",
+        "Sandra Atkinson" to "a/ac/Sandra.jpg",
+        "Sergeant Ian Welles" to "3/3b/Ian.jpg",
+        "Sergeant Mario Braghieri" to "9/9b/MarioDashboardFront.png",
+        "Sister Beth" to "0/06/Beth.jpg",
+        "Stella Fontaine" to "f/fa/Stella.jpg",
+        "Sylvia Doyle" to "7/7a/Sylvia.jpg",
+        "The Kid" to "a/a6/Kid.jpg",
+    )
+
+    /** Where to download [name]'s picture for their tile; null when the wiki has none. */
+    fun artUrl(name: String): String? = art[name]?.let { "$WIKI_IMAGES/$it/revision/latest/scale-to-width-down/1000" }
+
+    /** A dashboard picture is wide: its portrait is the left-hand panel, cropped as left, top, right, bottom. */
+    val dashboardPortrait = listOf(.15f, .13f, .44f, .80f)
+
+    private const val WIKI_IMAGES = "https://static.wikia.nocookie.net/cthulhu-death-may-die/images"
 
     /** Every investigator once, in box order. */
     val all: List<String> get() = boxes.flatMap { it.investigators }

@@ -264,7 +264,8 @@ private fun StageCard(summary: TableSummary, myNumber: Int?, nowMs: Long, labelF
         }
         TableState.STARTING -> "Starting" to "The game begins in a moment"
         TableState.RUNNING -> (if (myTurn) "Your turn" else active?.let { "$it's turn" } ?: "Running") to
-            "Turn ${summary.players.firstOrNull { it.playerNumber == summary.activePlayerNumber }?.let { it.turnsCompleted + 1 } ?: "—"}"
+            (summary.round?.let { "Round $it" }
+                ?: "Turn ${summary.players.firstOrNull { it.playerNumber == summary.activePlayerNumber }?.let { it.turnsCompleted + 1 } ?: "—"}")
         TableState.PAUSED -> "Paused" to when {
             summary.pending.winConfirmationPlayer != null ->
                 "${labelFor(summary.pending.winClaimPlayer ?: 0)} claims the win"
@@ -272,7 +273,10 @@ private fun StageCard(summary: TableSummary, myNumber: Int?, nowMs: Long, labelF
                 "Eliminating ${labelFor(summary.pending.eliminationTargetPlayer)}"
             else -> active?.let { "$it was up" } ?: "The table is paused"
         }
-        TableState.GAME_OVER -> if (summary.endedInDraw) "Draw" to "The match ended as a draw"
+        TableState.GAME_OVER -> if (summary.settings.profile.cooperative) {
+            (if (summary.winnerPlayerNumbers.isEmpty()) "The investigators lost" else "The investigators win") to
+                (summary.round?.let { "The game ended in round $it" } ?: "Game over")
+        } else if (summary.endedInDraw) "Draw" to "The match ended as a draw"
         else if (summary.winnerPlayerNumbers.any { !summary.sameTeam(it, summary.winnerPlayerNumber) }) (if (summary.settings.profile.starCommander) "Star Commander victory" else "Game over") to
             "${summary.winnerPlayerNumbers.joinToString(" and ") { labelFor(it) }} share the victory"
         else (if (summary.settings.profile.starCommander) "Star Commander victory" else "Game over") to
@@ -675,6 +679,14 @@ private fun LifeCard(
     }
     val canAct = me != null && !me.eliminated &&
         (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)
+    // A cooperative game (Death May Die) lists its players top to bottom, as its table does.
+    if (summary.settings.profile.cooperative) {
+        BrassCard {
+            Eyebrow(summary.round?.let { "Investigators · Round $it" } ?: "Investigators")
+            summary.players.forEach { player -> CoopTile(summary, player) }
+        }
+        return
+    }
     BrassCard {
         Eyebrow("Life")
         FlowRow(
@@ -878,6 +890,49 @@ private fun LifeTile(
             },
             style = MaterialTheme.typography.labelSmall,
         )
+    }
+}
+
+/** One player of a cooperative game: their investigator's picture, wounds, stress and place in the round. */
+@Composable
+private fun CoopTile(summary: TableSummary, player: TablePlayer) {
+    val p = palette
+    val shape = RoundedCornerShape(14.dp)
+    val active = summary.hasTurn(player.playerNumber) && summary.state != TableState.GAME_OVER
+    val status = when {
+        player.eliminated -> "Out"
+        else -> com.turnhub.android.ui.tablet.roundStatus(player, summary)
+    }
+    val wounds = player.life ?: 0
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .border(if (active) 2.dp else 1.dp, if (active) p.active else p.line, shape)
+            .semantics(mergeDescendants = true) {
+                contentDescription = listOfNotNull(player.label, player.investigator, "$wounds wounds", "stress ${player.stress}", status)
+                    .joinToString(", ")
+            },
+    ) {
+        com.turnhub.android.ui.tablet.PlayerTileBackground(player.tileBackground,
+            com.turnhub.android.ui.components.playerColor(player.color, p.avatarColor(player.playerNumber)), Modifier.matchParentSize(),
+            art = com.turnhub.android.ui.tablet.rememberInvestigatorArt(player.investigator), showCredit = false)
+        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PlayerAvatar(player.label, player.playerNumber, player.avatar, size = 32.dp)
+            Column(Modifier.weight(1f)) {
+                Text(player.label, color = p.text, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    textDecoration = if (player.eliminated) TextDecoration.LineThrough else null)
+                player.investigator?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                status?.let { Text(it, color = if (active) p.active else p.muted, style = MaterialTheme.typography.labelMedium) }
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text("$wounds ${if (wounds == 1) "wound" else "wounds"}", color = p.text, style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold)
+                Text("Stress ${player.stress}", color = p.text, style = MaterialTheme.typography.labelLarge)
+            }
+        }
     }
 }
 

@@ -53,6 +53,8 @@ data class LocalPlayer(
     val turn: TurnStatus = TurnStatus(),
     /** Death May Die: the investigator this player plays ([com.turnhub.android.domain.DeathMayDie]); shown, never scored. */
     val investigator: String? = null,
+    /** Death May Die: stress tokens, from 0 (wounds are [life]). */
+    val stress: Int = 0,
 )
 
 /**
@@ -490,7 +492,15 @@ data class StandaloneGame(
     fun changeCounter(index: Int, kind: String, value: Int, commander: Int = 1, nowMs: Long = startedAtMs): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
         if (pokemon || lorcana) return markTurn(index, kind, value)
-        if (deathMayDie) return if (kind == TAKE_TURN_KIND) takeTurn(index, nowMs) else this
+        if (deathMayDie) return when (kind) {
+            TAKE_TURN_KIND -> takeTurn(index, nowMs)
+            STRESS_KIND -> {
+                val stress = player.stress + value
+                if (!playing || player.eliminated || value == 0 || stress !in 0..MAX_LIFE) this
+                else update(index) { it.copy(stress = stress) }
+            }
+            else -> this
+        }
         if (!playing || player.eliminated || !magic) return this
         if (kind == "initiative") {
             if (value !in 0..1 || (value == 0 && initiative != index)) return this
@@ -918,6 +928,7 @@ data class StandaloneGame(
                     cardOnly = p.cardOnly || !profile.commanderRules,
                     turn = p.turn,
                     investigator = p.investigator,
+                    stress = p.stress,
                     actedThisRound = profile.cooperative && i in acted,
                     life = if (state == TableState.LOBBY) null else p.life,
                     turnsCompleted = p.turnsCompleted.toLong(),
@@ -972,6 +983,8 @@ data class StandaloneGame(
         const val CONDITION_KIND = "pokemon-condition:"
         /** Counter kind for a cooperative player taking the turn out of order ([takeTurn]). */
         const val TAKE_TURN_KIND = "take-turn"
+        /** Counter kind for Death May Die's stress tokens. */
+        const val STRESS_KIND = "stress"
 
         private const val SOLO_POISON = 10
         private const val TEAM_POISON = 15

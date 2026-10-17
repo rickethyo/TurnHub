@@ -59,7 +59,11 @@ loss condition; Commander damage totals alone do not trigger elimination.
   each seat. Each player can pick their
   investigator in the lobby from every season and box (`domain/DeathMayDie.kt`,
   from the community wiki; any name can be typed) and no two players share one.
-  The panel's number counts wounds as a reminder and never knocks anyone out.
+  The panel's number counts wounds and a row beside it counts stress, both as
+  reminders that never knock anyone out. A tile shows the investigator's
+  picture from the community wiki where it has one (Seasons 1 to 4 core
+  investigators; a dashboard's portrait is cropped out), and the Game tab
+  lists the players the same way.
   Everyone wins together ("We killed the Elder One") or loses together ("We
   lost"); an investigator who falls with the Elder One on the board leaves and
   the rest play on, and the game is lost when nobody is left.

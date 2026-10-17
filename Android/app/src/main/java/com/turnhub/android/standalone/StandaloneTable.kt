@@ -520,6 +520,7 @@ class StandaloneTable(
                         put("commanderArt", p.commanderArt ?: JSONObject.NULL)
                         put("cardOnly", p.cardOnly)
                         put("investigator", p.investigator ?: JSONObject.NULL)
+                        put("stress", p.stress)
                         put("turn", JSONObject()
                             .put("actions", JSONArray(p.turn.turnActions.map { it.name }))
                             .put("conditions", JSONArray(p.turn.conditions.map { it.name })))
@@ -594,6 +595,7 @@ class StandaloneTable(
                         commanderArt = p.optStringOrNull("commanderArt")?.takeIf { com.turnhub.android.data.TileCardGame.valid(it) },
                         cardOnly = p.optBoolean("cardOnly"),
                         investigator = p.optStringOrNull("investigator"),
+                        stress = p.optInt("stress").coerceAtLeast(0),
                         // Pokémon games saved before Lorcana kept this under "pokemon".
                         turn = (p.optJSONObject("turn") ?: p.optJSONObject("pokemon"))?.let { pk ->
                             fun <E : Enum<E>> names(key: String, values: List<E>): Set<E> = pk.optJSONArray(key)?.let { a ->

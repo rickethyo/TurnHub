@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -72,10 +76,11 @@ private fun firstTurnNote(holder: TablePlayer, summary: TableSummary): String? {
 
 /** Room [TurnPanelLines] takes under the number, in dp. */
 internal fun turnPanelHeight(unit: TableUnit, summary: TableSummary, narrow: Boolean): Float {
-    if (summary.settings.profile.cooperative) return when (summary.state) {
-        TableState.GAME_OVER -> 0f
-        TableState.RUNNING -> if (unit.members.any { roundStatus(it, summary) == STILL_TO_GO }) 84f else 34f
-        else -> 34f
+    // One row: where the player is in the round, their stress, and Take the next turn; two when narrow.
+    if (summary.settings.profile.cooperative) return when {
+        unit.members.none { roundStatus(it, summary) != null } -> 0f
+        narrow -> 112f
+        else -> 56f
     }
     val holder = turnHolder(unit, summary)
     val actions = TurnAction.of(summary.settings.profile).size
@@ -125,23 +130,35 @@ internal fun roundStatus(player: TablePlayer, summary: TableSummary): String? = 
 private const val STILL_TO_GO = "Still to go"
 
 /**
- * A cooperative game's panel: whether this player has taken their turn this round. There is
- * no fixed order, so a player still to go can take the turn from whoever holds it.
+ * A cooperative game's panel: whether this player has taken their turn this round, and
+ * (Death May Die) their stress beside the wounds above. There is no fixed order, so a
+ * player still to go can take the turn from whoever holds it.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun RoundStatus(unit: TableUnit, summary: TableSummary, onMark: (TablePlayer, String, Int) -> Unit, modifier: Modifier) {
     val p = palette
     val member = unit.members.first()
     val status = roundStatus(member, summary) ?: return
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (status == STILL_TO_GO && summary.state == TableState.RUNNING) {
-            com.turnhub.android.ui.components.ToneButton("Take the next turn",
-                { onMark(member, StandaloneGame.TAKE_TURN_KIND, 1) })
-        }
+    FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(status, color = if (member.actedThisRound) p.muted else p.text, style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.background(if (member.actedThisRound) p.surface.copy(alpha = .85f) else p.accentSoft, RoundedCornerShape(99.dp))
                 .padding(horizontal = 12.dp, vertical = 4.dp))
+        if (summary.settings.profile.deathMayDie) {
+            Row(Modifier.background(p.surface.copy(alpha = .85f), RoundedCornerShape(99.dp)).padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                StepButton("−", "${member.label}: remove a stress", member.stress > 0) { onMark(member, StandaloneGame.STRESS_KIND, -1) }
+                Text("Stress ${member.stress}", color = p.text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                StepButton("+", "${member.label}: add a stress", true) { onMark(member, StandaloneGame.STRESS_KIND, 1) }
+            }
+        }
+        if (status == STILL_TO_GO && summary.state == TableState.RUNNING) {
+            com.turnhub.android.ui.components.ToneButton("Take the next turn",
+                { onMark(member, StandaloneGame.TAKE_TURN_KIND, 1) })
+        }
     }
 }
 

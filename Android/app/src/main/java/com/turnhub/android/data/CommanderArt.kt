@@ -163,6 +163,20 @@ class ScryfallCommanderArt(
     private fun text(url: String): String = http.fetch(url, MAX_LIST_BYTES).toString(Charsets.UTF_8)
     private fun json(url: String): JSONObject = JSONObject(http.fetch(url, MAX_JSON_BYTES).toString(Charsets.UTF_8))
 
+    /**
+     * A Death May Die investigator's picture for their tile, from the community wiki
+     * ([com.turnhub.android.domain.DeathMayDie.artUrl]), cached like tile art; null for an
+     * investigator the wiki has no picture of, or offline.
+     */
+    suspend fun investigator(name: String): ByteArray? = withContext(ioDispatcher) {
+        val url = com.turnhub.android.domain.DeathMayDie.artUrl(name) ?: return@withContext null
+        val file = File(cacheDir, cacheKey("investigator#$name") + ".img")
+        if (file.exists()) return@withContext file.readBytes()
+        runCatching { http.fetch(url, MAX_ART_BYTES) }.getOrNull()?.also { image ->
+            runCatching { cacheDir.mkdirs(); file.writeBytes(image) }
+        }
+    }
+
     /** A printing's art crop for the picker, cached like tile art; null offline. */
     suspend fun preview(printing: CommanderPrinting): ByteArray? = withContext(ioDispatcher) {
         val file = File(cacheDir, cacheKey("preview#${printing.id}") + ".jpg")

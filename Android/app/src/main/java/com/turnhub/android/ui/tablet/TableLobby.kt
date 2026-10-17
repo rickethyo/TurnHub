@@ -116,6 +116,9 @@ internal fun TableLobby(
                     StarRelationsList(seats)
                     val starLayout = rememberStarLayout()
                     SetupSwitch("Star layout at the table", STAR_LAYOUT_HINT, starLayout.on, true, starLayout.set)
+                } else if (settings.profile.cooperative) {
+                    ListSeatMap(players.map { it.label }, players.map { it.investigator }, { a, b -> if (enabled) actions.swap(a, b) },
+                        backgrounds = players.map { it.tileBackground }, colors = players.map { it.color })
                 } else {
                     SeatMap(players.map { it.label }, { a, b -> if (enabled) actions.swap(a, b) },
                         backgrounds = players.map { it.tileBackground }, colors = players.map { it.color },

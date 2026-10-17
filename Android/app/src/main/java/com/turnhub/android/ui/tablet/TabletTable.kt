@@ -753,9 +753,12 @@ private fun PlayerPanel(
         // Team panels share space; each player's chosen background gets an equal share.
         Row(Modifier.fillMaxSize()) {
             unit.members.forEach { member ->
+                // Death May Die: the investigator's picture, when there is one, before any tile card.
+                val investigator = rememberInvestigatorArt(member.investigator.takeIf { summary.settings.profile.deathMayDie })
+                val card = rememberCommanderArt(member.commander, member.commanderArt)
                 PlayerTileBackground(member.tileBackground,
                     com.turnhub.android.ui.components.playerColor(member.color, p.avatarColor(member.playerNumber)),
-                    Modifier.weight(1f).fillMaxHeight(), art = rememberCommanderArt(member.commander, member.commanderArt))
+                    Modifier.weight(1f).fillMaxHeight(), art = investigator ?: card)
             }
         }
         val nameMax = maxWidth * .6f
@@ -1350,7 +1353,7 @@ private fun PlayerMenuItems(
 }
 
 @Composable
-private fun StepButton(glyph: String, label: String, enabled: Boolean, onClick: () -> Unit) {
+internal fun StepButton(glyph: String, label: String, enabled: Boolean, onClick: () -> Unit) {
     val p = palette
     Box(
         Modifier

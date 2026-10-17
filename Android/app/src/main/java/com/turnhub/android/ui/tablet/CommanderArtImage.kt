@@ -82,3 +82,28 @@ internal fun rememberCommanderArt(name: String?, printing: String? = null): Tile
     }
     return art.value
 }
+
+/**
+ * Death May Die: the investigator's picture for their tile, once the wiki (or the cache) has
+ * it; null for no investigator, one the wiki has no picture of, or card art turned off.
+ */
+@Composable
+internal fun rememberInvestigatorArt(name: String?): TileArt? {
+    val context = LocalContext.current
+    val enabled = rememberCommanderArtEnabled().first
+    if (name.isNullOrBlank() || !enabled || com.turnhub.android.domain.DeathMayDie.artUrl(name) == null) return null
+    val key = "investigator#$name"
+    val art = remember(key) { mutableStateOf(CommanderArtCache.decoded[key]) }
+    LaunchedEffect(key) {
+        if (art.value != null) return@LaunchedEffect
+        val bytes = CommanderArtCache.source(context).investigator(name) ?: return@LaunchedEffect
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@LaunchedEffect
+        // A dashboard picture is wide; its portrait is the left-hand panel.
+        val crop = com.turnhub.android.domain.DeathMayDie.dashboardPortrait.takeIf { bitmap.width > bitmap.height * 13 / 10 }
+            ?.let { (l, t, r, b) -> ArtCrop(l, t, r, b) }
+        val tile = TileArt(cropArt(bitmap, crop).asImageBitmap(), name, "CMON", source = "the Death May Die wiki")
+        CommanderArtCache.decoded[key] = tile
+        art.value = tile
+    }
+    return art.value
+}

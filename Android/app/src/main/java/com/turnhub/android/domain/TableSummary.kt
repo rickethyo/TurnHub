@@ -159,6 +159,8 @@ data class TablePlayer(
     val turn: TurnStatus = TurnStatus(),
     /** Death May Die (phone-hosted games): the investigator this player plays. */
     val investigator: String? = null,
+    /** Death May Die: stress tokens (wounds are [life]). */
+    val stress: Int = 0,
     /** Cooperative games: this player has taken their turn this round. */
     val actedThisRound: Boolean = false,
 ) {
