@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-026 | Death May Die staged next turn | Android | Ready for review; CI passes | Owner / PR #131 integration and device acceptance |
+| TH-026 | Death May Die staged turns and community card catalogue | Android | Ready for review; CI passes | Owner / PR #131 integration and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
@@ -92,6 +92,18 @@ TH-025: Death May Die dashboard merged in [PR #129](https://github.com/rickethyo
   Save/Cancel/Remove retain existing behavior. No Atlas protocol/endpoint or library
   addition. Update the IP tracker for CMON/BGG references. Labeled native search,
   scrollable results and zoom controls support accessibility; device checks remain.
+- Implementation: `41fb969`, added to [PR #131](https://github.com/rickethyo/TurnHub/pull/131).
+  First-source coverage: 35 conditions, 20 relics and verified image references for
+  18 entries. Catalogue names are available offline; images fetch only on opening.
+  Seven new JVM scenarios cover catalogue search/normalization, slot validation,
+  assignment/recovery isolation and image-cache/retry behavior.
+- [CI](https://github.com/rickethyo/TurnHub/actions/runs/39029421036) passes
+  Android compilation, the complete JVM suite and release-bundle creation.
+  Local docs links, design tokens, manual export and whitespace checks pass.
+  The revised manual was rendered to PDF and pages 5–6 visually reviewed.
+  No local Android SDK/device: phone/tablet, large text, rotation and TalkBack
+  remain acceptance checks. Next owner: try the source coverage and review/integrate
+  #131 with a merge commit, retaining codex/master. No merge/release performed.
 
 ### 2026-10-17 / Codex follow-up: stage the next investigator
 
