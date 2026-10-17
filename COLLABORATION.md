@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-026 | Death May Die turns and assigned cards | Android | Card follow-up in progress | Codex / PR #130 and validation |
+| TH-026 | Death May Die turns and assigned cards | Android | Ready for review | Owner / PR #130 integration |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
@@ -126,7 +126,16 @@ TH-025: Death May Die dashboard merged in [PR #129](https://github.com/rickethyo
   during play. Practice supplies disposable references, leaving setup unchanged.
   Snapshot recovery persists the option, reset retains it; no protocol/dependency
   change. Two added card scenarios plus one practice scenario cover readiness,
-  optional-rule guards, recovery and independent practice. Final CI pending.
+  optional-rule guards, recovery and independent practice.
+- Final implementation: `45c1380`, [PR #130](https://github.com/rickethyo/TurnHub/pull/130).
+  [CI](https://github.com/rickethyo/TurnHub/actions/runs/39012533387) passes
+  Android compilation, the complete JVM suite and release-bundle creation. The
+  PR adds seventeen JVM scenarios (eight pass-to, eight cards, one practice).
+  Docs links, design tokens, manual export and whitespace checks pass. The
+  revised DOCX was rendered to PDF; pages 5–6 were visually checked. Device
+  layout, keyboard, rotation and TalkBack acceptance remain pending. Ready for
+  owner review/integration with a merge commit; retain codex/master. No merge
+  or release performed.
 
 ## TH-024: Concise bug reports with app diagnostics
 
