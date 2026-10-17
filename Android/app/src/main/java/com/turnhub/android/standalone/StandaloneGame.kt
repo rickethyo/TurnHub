@@ -55,6 +55,7 @@ data class LocalPlayer(
     val investigator: String? = null,
     /** Death May Die: stress tokens, from 0 (wounds are [life]). */
     val stress: Int = 0,
+    val dashboard: com.turnhub.android.domain.InvestigatorDashboard = com.turnhub.android.domain.InvestigatorDashboard(),
 )
 
 /**
@@ -307,7 +308,8 @@ data class StandaloneGame(
             state = TableState.RUNNING,
             // Lorcana counts lore up from 0 to [startingLife]; Death May Die counts wounds up from 0.
             players = players.map { LocalPlayer(it.name, it.profileId, life = if (lorcana || deathMayDie) 0 else startingLife, localId = it.localId,
-                commander = it.commander, commanderArt = it.commanderArt, cardOnly = it.cardOnly, investigator = it.investigator) },
+                commander = it.commander, commanderArt = it.commanderArt, cardOnly = it.cardOnly, investigator = it.investigator,
+                dashboard = it.dashboard.fresh()) },
             active = first,
             starter = first,
             winner = null,
@@ -343,7 +345,7 @@ data class StandaloneGame(
             houseRules = houseRules,
             planechase = planechase.cleared(),
             players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt,
-                cardOnly = it.cardOnly, investigator = it.investigator) },
+                cardOnly = it.cardOnly, investigator = it.investigator, dashboard = it.dashboard.fresh()) },
             revision = revision + 1,
         )
     }
@@ -365,7 +367,7 @@ data class StandaloneGame(
         if (state != TableState.RUNNING || index !in team) return this
         val settled = applyTurnTimeout(nowMs)
         // A timeout may already have passed this turn; don't also pass the next one.
-        if (settled.active != active) return settled
+        if (settled.active != active || settled.players[holder].turnsCompleted != players[holder].turnsCompleted) return settled
         return settled.advanceTurn(nowMs, reward = true, random = random)
     }
 
@@ -410,6 +412,7 @@ data class StandaloneGame(
     private fun nextUp(index: Int, done: Set<Int>): Int? = (1..players.size)
         .map { (index + it) % players.size }
         .firstOrNull { !players[it].eliminated && it !in done } ?: nextIn(index)
+        ?: index.takeIf { !players[it].eliminated }
 
     /**
      * Cooperative games: a player still to go this round takes the turn instead of the one
@@ -494,6 +497,19 @@ data class StandaloneGame(
         if (pokemon || lorcana) return markTurn(index, kind, value)
         if (deathMayDie) return when (kind) {
             TAKE_TURN_KIND -> takeTurn(index, nowMs)
+            INSANITY_KIND -> {
+                if (!playing || player.eliminated || value == 0) this
+                else {
+                    val next = player.dashboard.changeInsanity(value)
+                    if (next == player.dashboard) this else update(index) { it.copy(dashboard = next) }
+                }
+            }
+            SKILL_KIND -> {
+                val slot = commander - 1
+                if (!playing || player.eliminated || slot !in 0..2 || value !in 1..4 || player.dashboard.skillLevels[slot] == value) this
+                else update(index) { it.copy(dashboard = it.dashboard.copy(
+                    skillLevels = it.dashboard.skillLevels.mapIndexed { i, level -> if (i == slot) value else level })) }
+            }
             STRESS_KIND -> {
                 val stress = player.stress + value
                 if (!playing || player.eliminated || value == 0 || stress !in 0..MAX_LIFE) this
@@ -786,7 +802,17 @@ data class StandaloneGame(
         val clean = name?.trim()?.take(MAX_NAME)?.takeIf { it.isNotEmpty() }
         if (players[index].investigator == clean) return this
         if (clean != null && players.withIndex().any { (i, p) -> i != index && p.investigator.equals(clean, ignoreCase = true) }) return this
-        return update(index) { it.copy(investigator = clean) }
+        return update(index) { it.copy(investigator = clean, dashboard = com.turnhub.android.domain.InvestigatorDashboard()) }
+    }
+
+    /** Reference edits do not move any markers or apply a skill's effects. */
+    fun setInvestigatorSkills(index: Int, skills: List<com.turnhub.android.domain.InvestigatorSkill>): StandaloneGame {
+        val player = players.getOrNull(index) ?: return this
+        if (!deathMayDie || state == TableState.GAME_OVER || player.eliminated || skills.size != 3 ||
+            skills.any { it.name.isBlank() || it.name.length > com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILL_NAME ||
+                it.levels.size != 4 || it.levels.any { text -> text.length > com.turnhub.android.domain.InvestigatorDashboard.MAX_LEVEL_TEXT } }) return this
+        if (skills == player.dashboard.skills(player.investigator)) return this
+        return update(index) { it.copy(dashboard = it.dashboard.copy(customSkills = skills)) }
     }
 
     private fun finish(winners: List<Int>, nowMs: Long): StandaloneGame = copy(
@@ -929,6 +955,7 @@ data class StandaloneGame(
                     turn = p.turn,
                     investigator = p.investigator,
                     stress = p.stress,
+                    dashboard = p.dashboard,
                     actedThisRound = profile.cooperative && i in acted,
                     life = if (state == TableState.LOBBY) null else p.life,
                     turnsCompleted = p.turnsCompleted.toLong(),
@@ -985,6 +1012,8 @@ data class StandaloneGame(
         const val TAKE_TURN_KIND = "take-turn"
         /** Counter kind for Death May Die's stress tokens. */
         const val STRESS_KIND = "stress"
+        const val INSANITY_KIND = "insanity"
+        const val SKILL_KIND = "investigator-skill"
 
         private const val SOLO_POISON = 10
         private const val TEAM_POISON = 15

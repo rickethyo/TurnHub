@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -186,7 +186,7 @@ private fun Tracker(name: String, value: Int, player: String, noun: String, live
     Row(Modifier.background(p.surface.copy(alpha = .9f), RoundedCornerShape(99.dp)).padding(4.dp),
         verticalAlignment = Alignment.CenterVertically) {
         StepButton("−", "$player: remove a $noun", live && value > 0) { onStep(-1) }
-        Column(Modifier.width(76.dp).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+        Column(Modifier.widthIn(min = 76.dp).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
             horizontalAlignment = Alignment.CenterHorizontally) {
             Text(name, color = p.muted, style = MaterialTheme.typography.labelMedium)
             Text("$value", color = p.text, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)

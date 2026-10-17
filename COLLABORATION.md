@@ -34,6 +34,25 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+- 2026-10-17 — Codex is fixing the Death May Die responsive table on
+  `codex/master`, baseline `2faabb8` (merged #128). Owner screenshots show
+  Stress clipped in portrait and round status/Take the next turn clipped in
+  landscape. Owner expanded scope: active investigator takes at least 60% of
+  the play area, with interactive abilities, levels and insanity tracking.
+  Implemented 70% active / 30% other-player lists, natural-height cards and
+  independently scrolling areas. Wide active cards put abilities beside counters.
+  Feature gate: StandaloneGame owns markers and reference edits, existing counter
+  requests carry sanity/skill updates, typed investigatorSkills edits reference
+  text locally. JSON recovery owns persistence; no Atlas wire changes, runtime
+  endpoint or library additions. Level choices and effect resolution remain
+  manual (companions/corrections), threshold sanity loss is validated in domain
+  state. Native labels, text effects and wrapping 48dp controls support TalkBack
+  and large text. Core-box presets are paraphrases checked against dashboard
+  photos in Make Craft Game's character guide; other investigators have editable
+  reference slots. Also found/fixed the final living investigator's frozen Pass.
+  No open PR or overlapping active implementation found. Android compilation
+  and device acceptance will be recorded at handoff.
+
 Open topics only. Closed topics (TH-004 to TH-011, TH-013 to TH-016) and the
 session logs up to 2026-10-13 are in the [archive](Documentation/engineering/history/2026-10-13-collaboration-archive.md).
 

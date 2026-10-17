@@ -389,6 +389,9 @@ class StandaloneTable(
     // A standalone game has no phones asking for life changes, and is never offline.
     fun setCommander(index: Int, name: String?, art: String? = null, cardOnly: Boolean = false) { edit { it.setCommander(index, name, art, cardOnly) } }
     fun setInvestigator(index: Int, name: String?) { edit { it.setInvestigator(index, name) } }
+    override suspend fun investigatorSkills(seat: TabletSeat, skills: List<com.turnhub.android.domain.InvestigatorSkill>) {
+        edit { it.setInvestigatorSkills(StandaloneGame.indexOf(seat.moduleId), skills) }
+    }
     fun setZeroLifeElimination(enabled: Boolean) { edit { it.setAutoEliminateAtZeroLife(enabled, wallClock()) } }
 
     override suspend fun counter(seat: TabletSeat, kind: String, value: Int, commander: Int) =
@@ -521,6 +524,15 @@ class StandaloneTable(
                         put("cardOnly", p.cardOnly)
                         put("investigator", p.investigator ?: JSONObject.NULL)
                         put("stress", p.stress)
+                        put("dashboard", JSONObject().apply {
+                            put("insanity", p.dashboard.insanity)
+                            put("skillLevels", JSONArray(p.dashboard.skillLevels))
+                            put("skills", JSONArray().apply {
+                                p.dashboard.customSkills.forEach { skill ->
+                                    put(JSONObject().put("name", skill.name).put("levels", JSONArray(skill.levels)))
+                                }
+                            })
+                        })
                         put("turn", JSONObject()
                             .put("actions", JSONArray(p.turn.turnActions.map { it.name }))
                             .put("conditions", JSONArray(p.turn.conditions.map { it.name })))
@@ -596,6 +608,21 @@ class StandaloneTable(
                         cardOnly = p.optBoolean("cardOnly"),
                         investigator = p.optStringOrNull("investigator"),
                         stress = p.optInt("stress").coerceAtLeast(0),
+                        dashboard = p.optJSONObject("dashboard")?.let { d ->
+                            val skills = d.optJSONArray("skills")?.let { a ->
+                                if (a.length() != 3) emptyList() else List(3) { slot ->
+                                    val skill = a.optJSONObject(slot)
+                                    com.turnhub.android.domain.InvestigatorSkill(
+                                        skill?.optString("name").orEmpty().take(com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILL_NAME),
+                                        List(4) { level -> skill?.optJSONArray("levels")?.optString(level).orEmpty()
+                                            .take(com.turnhub.android.domain.InvestigatorDashboard.MAX_LEVEL_TEXT) })
+                                }.takeIf { list -> list.none { it.name.isBlank() } }.orEmpty()
+                            }.orEmpty()
+                            com.turnhub.android.domain.InvestigatorDashboard(
+                                insanity = d.optInt("insanity").coerceIn(0, com.turnhub.android.domain.InvestigatorDashboard.MAX_INSANITY),
+                                skillLevels = List(3) { slot -> d.optJSONArray("skillLevels")?.optInt(slot, 1)?.coerceIn(1, 4) ?: 1 },
+                                customSkills = skills)
+                        } ?: com.turnhub.android.domain.InvestigatorDashboard(),
                         // Pokémon games saved before Lorcana kept this under "pokemon".
                         turn = (p.optJSONObject("turn") ?: p.optJSONObject("pokemon"))?.let { pk ->
                             fun <E : Enum<E>> names(key: String, values: List<E>): Set<E> = pk.optJSONArray(key)?.let { a ->

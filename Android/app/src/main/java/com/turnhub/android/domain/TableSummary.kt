@@ -161,6 +161,7 @@ data class TablePlayer(
     val investigator: String? = null,
     /** Death May Die: stress tokens (wounds are [life]). */
     val stress: Int = 0,
+    val dashboard: InvestigatorDashboard = InvestigatorDashboard(),
     /** Cooperative games: this player has taken their turn this round. */
     val actedThisRound: Boolean = false,
 ) {

@@ -55,15 +55,29 @@ loss condition; Commander damage totals alone do not trigger elimination.
   clockwise still to go, and any player still to go can take it instead from
   their panel. Once every living player has gone, the next round starts (the
   round shows in the menu bar). The table is one upright list of player
-  panels, top to bottom, under a slim menu bar (owner), not panels facing
-  each seat. Each player can pick their
+  panels under a slim menu bar (owner). The active investigator gets 70% of
+  the play area, with the others in a scrollable list below. Their menus retain
+  all counters and skill controls. The active card scrolls independently, grows
+  with wrapped controls, and puts abilities beside the counters on wide screens.
+  Each player can pick their
   investigator in the lobby from every season and box (`domain/DeathMayDie.kt`,
   from the community wiki; any name can be typed) and no two players share one.
-  The panel's number counts wounds and a row beside it counts stress, both as
-  reminders that never knock anyone out. A tile shows the investigator's
+  Matching Wounds and Stress counters are reminders that never knock anyone
+  out. A tile shows the investigator's
   picture from the community wiki where it has one (Seasons 1 to 4 core
   investigators; a dashboard's portrait is cropped out), and the Game tab
   lists the players the same way.
+  Each dashboard saves its sanity loss (0–20) and three skill levels (1–4).
+  Sanity loss stops at thresholds 4, 8, 12, 15, 18 and 19; bonus dice appear at
+  8, 15, 18 and 19. Thresholds remind the player to resolve their insanity card
+  and upgrade a skill; level choices remain manual for companions and corrections.
+  Reaching 20 does not automatically eliminate anyone: resolve the printed
+  dashboard and game conditions through the player's menu. The ten core-box
+  investigators have offline skill-effect summaries checked against their
+  dashboards. **Edit abilities** supplies or corrects all three skills and
+  their four level effects for any investigator. Higher-level effects add to
+  earlier effects unless they say instead. Custom text survives rematches;
+  markers reset. Choosing a different investigator clears their dashboard.
   Everyone wins together ("We killed the Elder One") or loses together ("We
   lost"); an investigator who falls with the Elder One on the board leaves and
   the rest play on, and the game is lost when nobody is left.
