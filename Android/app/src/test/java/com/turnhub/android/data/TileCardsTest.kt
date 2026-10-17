@@ -28,6 +28,8 @@ class TileCardsTest {
         assertEquals("pokemon:base1-58", pokemon.id)
         assertEquals("https://assets.tcgdex.net/en/base/base1/58/high.jpg", pokemon.artCrop)
         assertEquals("Pikachu", pokemon.name)
+        assertEquals("The Pokémon Company Art Team", TileCardJson.pokemon(org.json.JSONObject("""{"id":"swsh-1","name":"P",
+            "image":"https://assets.tcgdex.net/en/x/1","illustrator":"Illus. & Direc. The Pokémon Company Art Team"}"""))!!.artist)
 
         val elsa = TileCardJson.lorcanaCards("""{"results":[{"id":"crd_a6f3c215973844fc8ae5cbc2a4ea388f","name":"Elsa","version":"Concerned Sister",
             "image_uris":{"digital":{"normal":"https://cards.lorcast.io/card/digital/normal/crd_a6f3c215973844fc8ae5cbc2a4ea388f.avif"}},

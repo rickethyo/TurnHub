@@ -54,7 +54,8 @@ internal object TileCardJson {
         val image = card.optString("image")
         if (TileCardGame.POKEMON.id(TileCardGame.POKEMON.prefix + id) == null || !image.startsWith("https://")) return null
         return CommanderPrinting(TileCardGame.POKEMON.prefix + id, card.optJSONObject("set")?.optString("name").orEmpty(),
-            card.optString("illustrator"), "$image/high.jpg", card.optString("name"))
+            // "Illus. & Direc. The Pokémon Company Art Team": keep who, not the role, so a short credit still says it.
+            card.optString("illustrator").replace(Regex("^Illus\\.\\s*&\\s*Direc\\.\\s*"), ""), "$image/high.jpg", card.optString("name"))
     }
 
     fun lorcanaCards(body: String): List<CommanderPrinting> {
