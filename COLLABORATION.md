@@ -869,3 +869,17 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   (`domain/CardGames.kt`), saved under `turn` (older Pokémon saves: `pokemon`).
 - Validation: `CardGamesTest` JVM tests; CI runs the build (no Android SDK in
   the cloud container). Device playtest pending.
+
+## 2026-10-17 — Claude: Cthulhu: Death May Die in the app
+
+- Owner: Claude on `claude/death-may-die-mode-biwa1i`, baseline `e31e35c`
+  (#127). Owner request: a mode that tracks which players have taken their
+  turn, with each player's investigator from the game and all expansions.
+- Phone-hosted only (`atlasSupported = false`), the first cooperative format
+  (`GameProfile.cooperative`): `StandaloneGame.acted`/`round` track the round,
+  every player shares a win and the game is lost only when the table says so
+  or nobody is left. Roster in `domain/DeathMayDie.kt` (fan wiki, cross-checked
+  with Make Craft Game's guides; spellings need the owner's eye). UI in
+  `CardGameControls.kt` and `InvestigatorPicker.kt`.
+- Validation: `DeathMayDieTest` JVM tests; CI runs the build (no Android SDK
+  in the cloud container). Device playtest pending.

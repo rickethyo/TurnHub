@@ -158,8 +158,8 @@ internal fun placements(count: Int): Placement {
 internal fun lifeSteps(profile: GameProfile): Pair<Int, Int> =
     when (profile) {
         GameProfile.YUGIOH -> 100 to 1000
-        // Pokémon counts Prize cards and Lorcana counts lore, one at a time.
-        GameProfile.POKEMON, GameProfile.LORCANA -> 1 to 1
+        // Pokémon counts Prize cards, Lorcana lore and Death May Die wounds, one at a time.
+        GameProfile.POKEMON, GameProfile.LORCANA, GameProfile.DEATH_MAY_DIE -> 1 to 1
         else -> 1 to 5
     }
 
@@ -310,10 +310,13 @@ internal fun TabletTable(
         val landscape = maxWidth >= maxHeight || units.size <= 2
         val plan = placements(units.size)
         val star = starLayout.on && summary.settings.profile.starCommander && units.size == StarCommander.PLAYERS
+        // A cooperative table reads as one upright list, top to bottom, under a slim menu bar.
+        val list = summary.settings.profile.cooperative
         // The middle panel of a side with an odd count meets the centre disc at its inner (top) edge.
-        val underHub = if (star) emptySet()
+        val underHub = if (star || list) emptySet()
             else listOf(plan.near, plan.far).filter { it.size % 2 == 1 }.map { it[it.size / 2] }.toSet()
         fun degreesOf(index: Int) = when {
+            list -> 0
             // A player's full-screen menu turns to the nearest side of their star seat.
             star -> Math.floorMod(Math.round(starSpot(index).degrees / 90f) * 90, 360)
             landscape -> if (index in plan.far) 180 else 0
@@ -364,7 +367,15 @@ internal fun TabletTable(
             tableShot.record { this@drawWithContent.drawContent() }
             drawLayer(tableShot)
         }) {
-            if (star) {
+            if (list) {
+                Column(Modifier.fillMaxSize().padding(4.dp)) {
+                    HubBar(summary, Modifier.fillMaxWidth().padding(4.dp)) {
+                        haptics.tick()
+                        menuOpen = true
+                    }
+                    units.indices.forEach { panel(it, 0, Modifier.weight(1f).fillMaxWidth()) }
+                }
+            } else if (star) {
                 StarTable(panel)
             } else if (landscape) {
                 Column(Modifier.fillMaxSize().padding(4.dp)) {
@@ -392,7 +403,7 @@ internal fun TabletTable(
                 }
             }
 
-            Hub(summary, Modifier.align(Alignment.Center)) {
+            if (!list) Hub(summary, Modifier.align(Alignment.Center)) {
                 haptics.tick()
                 menuOpen = true
             }
@@ -464,14 +475,17 @@ internal fun TabletTable(
                 val winners = units.filter { u -> u.members.any { summary.isWinner(it.playerNumber) } }
                 val names = winners.joinToString(" and ") { it.name }
                 val star = summary.settings.profile.starCommander
+                val together = summary.settings.profile.cooperative
                 Overlay(
                     when {
+                        together -> if (winners.isEmpty()) "The investigators lost" else "The investigators win"
                         winners.isEmpty() -> "Game over"
                         star -> "Star Commander victory"
                         winners.size > 1 -> "Shared victory"
                         else -> "$names ${if (winners.single().members.size > 1) "win" else "wins"}"
                     },
                     when {
+                        together -> summary.round?.let { "The game ended in round $it." }
                         winners.isEmpty() -> "The game ended as a draw."
                         winners.size > 1 -> "$names share the victory."
                         star -> "$names wins. Well played, everyone."
@@ -543,7 +557,8 @@ internal fun TabletTable(
                     DisclosureCard("Finish game") {
                         BackToSetup(summary) { menuOpen = false; send(anySeat, "back-to-setup") }
                         if (standalone) {
-                            ArmedButton("End without a winner", "Tap again to end the game", Tone.BAD) {
+                            ArmedButton(if (summary.settings.profile.cooperative) "The investigators lost" else "End without a winner",
+                                "Tap again to end the game", Tone.BAD) {
                                 menuOpen = false
                                 send(anySeat, "draw")
                             }
@@ -599,7 +614,30 @@ private fun Hub(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit) {
     ) {
         Text(if (summary.state == TableState.PAUSED) "Paused" else clock, color = p.text,
             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text("Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
+        Text(summary.round?.let { "Round $it" } ?: "Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+/** The list layout's menu bar: the round, the game clock, and the table menu on tap. */
+@Composable
+private fun HubBar(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit) {
+    val p = palette
+    val nowMs = rememberNowMs(ticking = summary.state == TableState.RUNNING, intervalMs = 500)
+    val clock = TableClock.format(TableClock.gameElapsedMs(summary, nowMs))
+    Row(
+        modifier
+            .clip(RoundedCornerShape(99.dp))
+            .background(p.surface)
+            .border(2.dp, p.lineStrong, RoundedCornerShape(99.dp))
+            .clickable(onClickLabel = "Open the table menu", role = Role.Button, onClick = onOpen)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        summary.round?.let { Text("Round $it", color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
+        Text(if (summary.state == TableState.PAUSED) "Paused" else clock, color = p.muted, style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.weight(1f))
+        Text("Game menu", color = p.text, style = MaterialTheme.typography.labelLarge)
     }
 }
 
@@ -681,8 +719,9 @@ private fun PlayerPanel(
     val out = unit.out
     val (small, big) = lifeSteps(summary.settings.profile)
     val name = unit.name
-    // The commanders a team or player named, shown under the name.
-    val commanders = unit.members.mapNotNull { it.namedCommander }.takeIf { it.isNotEmpty() }?.joinToString(" & ")
+    // The commanders a team or player named (Death May Die: their investigator), shown under the name.
+    val commanders = unit.members.mapNotNull { if (summary.settings.profile.deathMayDie) it.investigator else it.namedCommander }
+        .takeIf { it.isNotEmpty() }?.joinToString(" & ")
     // The active panel's edge breathes slowly; steady when motion is reduced. The value is
     // read only while drawing, so the pulse redraws the edge without recomposing the panel.
     val glow = if (active && !reduceMotion) {
@@ -714,9 +753,12 @@ private fun PlayerPanel(
         // Team panels share space; each player's chosen background gets an equal share.
         Row(Modifier.fillMaxSize()) {
             unit.members.forEach { member ->
+                // Death May Die: the investigator's picture, when there is one, before any tile card.
+                val investigator = rememberInvestigatorArt(member.investigator.takeIf { summary.settings.profile.deathMayDie })
+                val card = rememberCommanderArt(member.commander, member.commanderArt)
                 PlayerTileBackground(member.tileBackground,
                     com.turnhub.android.ui.components.playerColor(member.color, p.avatarColor(member.playerNumber)),
-                    Modifier.weight(1f).fillMaxHeight(), art = rememberCommanderArt(member.commander, member.commanderArt))
+                    Modifier.weight(1f).fillMaxHeight(), art = investigator ?: card)
             }
         }
         val nameMax = maxWidth * .6f
@@ -727,7 +769,9 @@ private fun PlayerPanel(
         val profile = summary.settings.profile
         // Pokémon and Lorcana: the number is prizes or lore, with turn reminders under it.
         val cardGame = !profile.countsLife
-        val turnHeight = if (cardGame) turnPanelHeight(unit, summary, maxWidth < 420.dp) else 0f
+        // Death May Die: wounds and stress as matching counters in place of the big number.
+        val tracks = profile.deathMayDie
+        val turnHeight = if (cardGame && !tracks) turnPanelHeight(unit, summary, maxWidth < 420.dp) else 0f
         val planarCompact = compact && active && !out && onPlanarRoll != null && maxWidth < 300.dp
         val between = (maxHeight.value - turnHeight - if (planarCompact) 160f else if (compact) 104f else 120f).coerceAtLeast(24f)
         // Room for the lines under the number, so a short panel shrinks the number instead of
@@ -741,7 +785,7 @@ private fun PlayerPanel(
             minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f,
             (between - linesBelow) * .8f,
         ).coerceIn(24f, 160f)
-        Row(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
+        if (!tracks) Row(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
             HoldHalf("−", stepLabel(profile, name, small, adding = false), !out,
                 { onBump(-small) }, { onBump(-big) }, Alignment.CenterStart, Modifier.weight(1f).fillMaxHeight())
             HoldHalf("+", stepLabel(profile, name, small, adding = true), !out,
@@ -775,7 +819,11 @@ private fun PlayerPanel(
                 Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = if (commanders != null) 70.dp else 52.dp))
         }
 
-        Column(
+        if (tracks) InvestigatorTracks(unit, summary, life, onBump, onTurnMark,
+            Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 12.dp)
+                .padding(top = if (commanders != null) 60.dp else 44.dp, bottom = if (compact) 56.dp else 64.dp)
+                .alpha(if (out) .45f else 1f))
+        else Column(
             Modifier.align(Alignment.Center).padding(top = 44.dp, bottom = (if (compact) 56f else 64f).dp + turnHeight.dp)
                 .alpha(if (out) .45f else 1f)
                 .clearAndSetSemantics {
@@ -814,7 +862,7 @@ private fun PlayerPanel(
             }
         }
 
-        if (cardGame && !out) {
+        if (cardGame && !out && !tracks) {
             TurnPanelLines(unit, summary, onTurnMark,
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp)
                     .padding(bottom = if (compact) 56.dp else 64.dp))
@@ -1201,7 +1249,8 @@ private fun PlayerMenuItems(
     DisclosureCard(if (!playing) "Turn & tools" else if (unit.members.size > 1) "Turn, team counters & status" else "Turn, counters & status",
         initiallyExpanded = true) {
         val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
-        if (actor != null && summary.state == TableState.RUNNING) {
+        // A cooperative game is won together, from its own card below.
+        if (actor != null && summary.state == TableState.RUNNING && !summary.settings.profile.cooperative) {
             ArmedButton("Claim the win", "Tap again to claim", Tone.GOOD) { onControl(actor.seat(), "win") }
         }
         val rules = summary.localTimerRules
@@ -1310,7 +1359,7 @@ private fun PlayerMenuItems(
 }
 
 @Composable
-private fun StepButton(glyph: String, label: String, enabled: Boolean, onClick: () -> Unit) {
+internal fun StepButton(glyph: String, label: String, enabled: Boolean, onClick: () -> Unit) {
     val p = palette
     Box(
         Modifier

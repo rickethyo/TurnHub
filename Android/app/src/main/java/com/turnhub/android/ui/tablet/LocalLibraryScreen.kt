@@ -203,11 +203,13 @@ fun LocalLibraryScreen(
                                     val score = when {
                                         record.profile.pokemon -> "prizes left"
                                         record.profile.lorcana -> "lore"
+                                        record.profile.deathMayDie -> "wounds"
                                         else -> "life"
                                     }
                                     Text(when {
                                         record.profile.pokemon -> "${record.startingLife} Prize cards each"
                                         record.profile.lorcana -> "${record.startingLife} lore to win"
+                                        record.profile.deathMayDie -> if (record.winners.isEmpty()) "Co-op · the investigators lost" else "Co-op · the investigators won"
                                         else -> "${record.startingLife} starting life"
                                     }, color = p.muted)
                                     record.players.forEachIndexed { index, player ->

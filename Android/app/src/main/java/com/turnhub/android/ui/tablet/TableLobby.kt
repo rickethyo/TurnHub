@@ -59,6 +59,8 @@ internal data class TableLobbyActions(
      * unless `cardOnly` (optional); null hides it.
      */
     val commander: ((player: TablePlayer, name: String?, printing: String?, cardOnly: Boolean) -> Unit)? = null,
+    /** Death May Die: names (or clears, null) a player's investigator; null hides it. */
+    val investigator: ((player: TablePlayer, name: String?) -> Unit)? = null,
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -114,6 +116,9 @@ internal fun TableLobby(
                     StarRelationsList(seats)
                     val starLayout = rememberStarLayout()
                     SetupSwitch("Star layout at the table", STAR_LAYOUT_HINT, starLayout.on, true, starLayout.set)
+                } else if (settings.profile.cooperative) {
+                    ListSeatMap(players.map { it.label }, players.map { it.investigator }, { a, b -> if (enabled) actions.swap(a, b) },
+                        backgrounds = players.map { it.tileBackground }, colors = players.map { it.color })
                 } else {
                     SeatMap(players.map { it.label }, { a, b -> if (enabled) actions.swap(a, b) },
                         backgrounds = players.map { it.tileBackground }, colors = players.map { it.color },
@@ -122,6 +127,7 @@ internal fun TableLobby(
                 // How this mode's seating works, right under the map it explains.
                 Text(when {
                     settings.profile.starCommander -> STAR_MAP_HINT
+                    settings.profile.cooperative -> COOP_MAP_HINT
                     settings.twoHeadedGiant -> TEAM_MAP_HINT
                     else -> SEAT_MAP_HINT
                 }, color = p.muted, style = MaterialTheme.typography.bodySmall)
@@ -130,6 +136,15 @@ internal fun TableLobby(
                     actions.commander?.let { save -> CommanderPickerDialog(player, settings.profile.commanderRules, com.turnhub.android.data.TileCardGame.forProfile(settings.profile),
                         { name, art, cardOnly -> save(player, name, art, cardOnly); namingCommander = null }) { namingCommander = null } }
                 }
+                var choosingInvestigator by rememberSaveable { mutableStateOf<Int?>(null) }
+                players.firstOrNull { it.playerNumber == choosingInvestigator }?.let { player ->
+                    actions.investigator?.let { save ->
+                        val taken = players.filter { it.playerNumber != player.playerNumber }
+                            .mapNotNull { other -> other.investigator?.let { it to other.label } }.toMap()
+                        InvestigatorPickerDialog(player, taken, { name -> save(player, name); choosingInvestigator = null }) { choosingInvestigator = null }
+                    }
+                }
+                val investigators = settings.profile.deathMayDie && actions.investigator != null
                 players.forEach { player ->
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -139,6 +154,8 @@ internal fun TableLobby(
                             }
                             Column(Modifier.weight(1f)) {
                                 Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                                if (investigators) Text(player.investigator ?: "No investigator yet", color = p.muted,
+                                    style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic)
                                 player.namedCommander?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
                                 // The tile card shows as soon as it is saved; its credit follows once the art arrives.
                                 val art = rememberCommanderArt(player.commander, player.commanderArt)
@@ -161,6 +178,12 @@ internal fun TableLobby(
                                     modifier = Modifier.semantics {
                                         contentDescription = if (first) "${player.label} goes first. Tap to clear" else "Make ${player.label} go first"
                                     })
+                            }
+                            if (investigators) {
+                                TextButton(onClick = { choosingInvestigator = player.playerNumber }, enabled = enabled,
+                                    modifier = Modifier.semantics { contentDescription = "Choose ${player.label}'s investigator" }) {
+                                    Text(if (player.investigator == null) "Choose investigator" else "Change investigator")
+                                }
                             }
                             if (actions.commander != null) {
                                 val commanderRules = settings.profile.commanderRules
@@ -234,6 +257,7 @@ internal fun TableLobby(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(when {
+                        settings.profile.cooperative -> "Co-op: everyone wins or loses together"
                         officialMode == null -> "Custom mode"
                         locked || official == null -> "Official ${officialMode.name} rules"
                         else -> "House rules"
@@ -241,7 +265,8 @@ internal fun TableLobby(
                     ModeRulesButton(settings.profile, settings.twoHeadedGiant)
                 }
                 var life by rememberSaveable(settings.startingLife) { mutableStateOf("${settings.startingLife}") }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Death May Die counts wounds up from 0: there is no starting number to set.
+                if (!settings.profile.deathMayDie) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(life, { life = it.filter(Char::isDigit).take(5) },
                         label = { Text(when {
                             settings.profile.pokemon -> "Prize cards"

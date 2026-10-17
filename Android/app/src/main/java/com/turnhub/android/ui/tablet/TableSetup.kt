@@ -203,6 +203,10 @@ internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, st
 internal const val SEAT_MAP_HINT = "This is how the table will look. Drag a player onto another seat to swap them, " +
     "or tap two seats. Turns go clockwise in number order."
 
+/** A cooperative game's table is one upright list, and any player still to go may take the next turn. */
+internal const val COOP_MAP_HINT = "At the table, players are listed top to bottom in this order, all facing the same way. Tap two players to swap them. " +
+    "Turns can go in any order: a player who hasn't gone this round can take the next turn."
+
 /** The seat map's explanation in Two-Headed Giant. */
 internal const val TEAM_MAP_HINT = "Each outlined panel is a team: players 1 and 2, then 3 and 4, and so on. " +
     "Teammates share one panel, life total and turn. Drag a player onto another seat to swap them, or tap two seats."
@@ -211,6 +215,7 @@ internal const val TEAM_MAP_HINT = "Each outlined panel is a team: players 1 and
 internal enum class GameFamily(val title: String) {
     MAGIC("Magic: The Gathering"),
     CARD_GAMES("More card games"),
+    BOARD_GAMES("Board games"),
     CUSTOM("Your own game"),
 }
 
@@ -224,6 +229,7 @@ internal val FORMATS = listOf(
     GameChoice(GameProfile.YUGIOH, "Yu-Gi-Oh!", "8000 Life Points · 2 players", GameFamily.CARD_GAMES),
     GameChoice(GameProfile.POKEMON, "Pokémon", "6 Prize cards · 2 players", GameFamily.CARD_GAMES),
     GameChoice(GameProfile.LORCANA, "Lorcana", "Race to 20 lore · 2+ players", GameFamily.CARD_GAMES),
+    GameChoice(GameProfile.DEATH_MAY_DIE, "Death May Die", "Co-op · turns each round · investigators", GameFamily.BOARD_GAMES),
     GameChoice(GameProfile.GENERIC, "Other", "Any life total and player count", GameFamily.CUSTOM),
 )
 
@@ -260,6 +266,7 @@ private fun GameTile(choice: GameChoice, selected: Boolean, enabled: Boolean, mo
     val stripe = when (choice.family) {
         GameFamily.MAGIC -> p.accent
         GameFamily.CARD_GAMES -> p.info
+        GameFamily.BOARD_GAMES -> p.good
         GameFamily.CUSTOM -> p.faint
     }
     Row(

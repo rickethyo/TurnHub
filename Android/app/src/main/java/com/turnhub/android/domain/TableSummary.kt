@@ -70,6 +70,8 @@ data class TableSummary(
     val turnExtensionMs: Long = 0,
     /** Pokémon (phone-hosted games): what the last Pokémon Checkup did, until the table dismisses it. */
     val pokemonCheckup: List<String> = emptyList(),
+    /** Cooperative games (Death May Die, phone-hosted): the round being played; null otherwise. */
+    val round: Int? = null,
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding
@@ -155,6 +157,12 @@ data class TablePlayer(
     val cardOnly: Boolean = false,
     /** Pokémon and Lorcana (phone-hosted games): this turn's actions; Pokémon's Special Conditions. */
     val turn: TurnStatus = TurnStatus(),
+    /** Death May Die (phone-hosted games): the investigator this player plays. */
+    val investigator: String? = null,
+    /** Death May Die: stress tokens (wounds are [life]). */
+    val stress: Int = 0,
+    /** Cooperative games: this player has taken their turn this round. */
+    val actedThisRound: Boolean = false,
 ) {
     /** The commander this player named, for labels and menus; null when the card is only tile art. */
     val namedCommander: String? get() = commander.takeUnless { cardOnly }

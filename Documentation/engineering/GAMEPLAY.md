@@ -16,6 +16,7 @@ loss condition; Commander damage totals alone do not trigger elimination.
 | Yu-Gi-Oh! | 8000, counted in hundreds on every client |
 | Pokémon (phone only) | 6 Prize cards left; the app game only (below) |
 | Lorcana (phone only) | 0 lore, counting up to 20 to win; the app game only (below) |
+| Death May Die (phone only) | 0 wounds, counting up; cooperative, the app game only (below) |
 
 - **Official rules** (2026-10-14, owner request; host tests only, *needs a
   playtest*): Magic (20 life, 10 poison), Commander (40, 10), Two-Headed Giant
@@ -47,8 +48,27 @@ loss condition; Commander damage totals alone do not trigger elimination.
   from an empty deck taps that in their menu and leaves, and the last player
   left wins. The active panel has a "Card inked" reminder that resets on pass,
   and the starter's first turn says to skip the draw.
+- **Cthulhu: Death May Die** (2026-10-17, owner request; JVM tests only,
+  *needs a playtest*): phone-hosted, cooperative (`GameProfile.cooperative`).
+  There is no fixed turn order (owner): each panel says whether that player
+  has taken their turn this round, passing offers the turn to the next player
+  clockwise still to go, and any player still to go can take it instead from
+  their panel. Once every living player has gone, the next round starts (the
+  round shows in the menu bar). The table is one upright list of player
+  panels, top to bottom, under a slim menu bar (owner), not panels facing
+  each seat. Each player can pick their
+  investigator in the lobby from every season and box (`domain/DeathMayDie.kt`,
+  from the community wiki; any name can be typed) and no two players share one.
+  The panel's number counts wounds and a row beside it counts stress, both as
+  reminders that never knock anyone out. A tile shows the investigator's
+  picture from the community wiki where it has one (Seasons 1 to 4 core
+  investigators; a dashboard's portrait is cropped out), and the Game tab
+  lists the players the same way.
+  Everyone wins together ("We killed the Elder One") or loses together ("We
+  lost"); an investigator who falls with the Elder One on the board leaves and
+  the rest play on, and the game is lost when nobody is left.
 - **Game picker** (both lobbies): games are grouped as Magic: The Gathering,
-  More card games and Your own game, each a tile saying what the table counts
+  More card games, Board games and Your own game, each a tile saying what the table counts
   (`GamePicker`, `FORMATS` in `TableSetup.kt`). Atlas's lobby lists only the
   formats Atlas runs. The Magic format's tile is "Standard"; its game modes are
   Free-for-all and Two-Headed Giant, and Star Commander shows only under

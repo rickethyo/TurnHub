@@ -214,8 +214,11 @@ fun EliminationRulesEditor(settings: TableSettings, enabled: Boolean = true,
     onChange: (field: String, value: Int) -> Unit) {
     // Pokémon and Lorcana have no life total to lose: prizes and lore end the game.
     if (!settings.profile.countsLife) {
-        Text(if (settings.profile.pokemon) "Taking your last Prize card wins the game. Other ways to win are in each player's menu."
-            else "Reaching ${settings.startingLife} lore wins the game. A player who can't draw is out from their menu.",
+        Text(when {
+            settings.profile.pokemon -> "Taking your last Prize card wins the game. Other ways to win are in each player's menu."
+            settings.profile.deathMayDie -> "The investigators win or lose together, from any player's menu. Nobody is out automatically."
+            else -> "Reaching ${settings.startingLife} lore wins the game. A player who can't draw is out from their menu."
+        },
             color = palette.muted, style = MaterialTheme.typography.bodySmall)
         return
     }

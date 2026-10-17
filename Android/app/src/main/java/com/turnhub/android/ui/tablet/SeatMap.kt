@@ -225,3 +225,69 @@ internal fun SeatMap(names: List<String>, onSwap: (Int, Int) -> Unit, modifier: 
 private fun Modifier.wrapAspect(landscape: Boolean): Modifier =
     if (landscape) fillMaxWidth().aspectRatio(16f / 10f)
     else height(420.dp).aspectRatio(10f / 15f, matchHeightConstraintsFirst = true)
+
+/**
+ * The lobby's copy of a cooperative table (Death May Die): one upright list, top to
+ * bottom in turn-list order, each tile with its investigator's picture where there is
+ * one. Tap one tile and then another to swap them (TalkBack: a "Swap with" action each).
+ */
+@Composable
+internal fun ListSeatMap(names: List<String>, investigators: List<String?>, onSwap: (Int, Int) -> Unit, modifier: Modifier = Modifier,
+    backgrounds: List<TileBackground> = emptyList(), colors: List<String?> = emptyList()) {
+    val p = palette
+    var picked by remember(names.size) { mutableStateOf<Int?>(null) }
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.bg)
+        .border(1.dp, p.lineStrong, RoundedCornerShape(18.dp)).padding(4.dp)) {
+        // The table's menu bar, so the miniature reads as the same table.
+        Box(Modifier.fillMaxWidth().padding(2.dp).height(14.dp).background(p.surface, RoundedCornerShape(99.dp))
+            .border(1.dp, p.lineStrong, RoundedCornerShape(99.dp)))
+        names.indices.forEach { index ->
+            val hue = com.turnhub.android.ui.components.playerColor(colors.getOrNull(index), p.avatarColor(index + 1))
+            val shape = RoundedCornerShape(10.dp)
+            val investigator = investigators.getOrNull(index)
+            val others = names.indices.filter { it != index }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .padding(2.dp)
+                    .clip(shape)
+                    .border(if (picked == index) 3.dp else 1.dp, if (picked == index) p.accent else p.line, shape)
+                    .pointerInput(index) {
+                        detectTapGestures {
+                            val first = picked
+                            picked = when (first) { null -> index; index -> null; else -> { onSwap(first, index); null } }
+                        }
+                    }
+                    .clearAndSetSemantics {
+                        contentDescription = "Seat ${index + 1}, ${names[index]}" + (investigator?.let { ", playing $it" } ?: "") +
+                            if (picked == index) ", picked. Tap another seat to swap" else ""
+                        role = Role.Button
+                        selected = picked == index
+                        onClick(label = "Pick to swap") {
+                            val first = picked
+                            picked = when (first) { null -> index; index -> null; else -> { onSwap(first, index); null } }
+                            true
+                        }
+                        customActions = others.map { other ->
+                            CustomAccessibilityAction("Swap with ${names[other]}") { onSwap(index, other); true }
+                        }
+                    },
+            ) {
+                PlayerTileBackground(backgrounds.getOrNull(index) ?: TileBackground(), hue, Modifier.fillMaxSize(),
+                    art = rememberInvestigatorArt(investigator), showCredit = false)
+                Row(Modifier.fillMaxSize().padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(24.dp).background(hue, CircleShape), contentAlignment = Alignment.Center) {
+                        Text("${index + 1}", color = p.avatarText, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    }
+                    Column(Modifier.padding(start = 10.dp)) {
+                        Text(names[index], color = p.text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(investigator ?: "No investigator yet", color = p.muted, style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+    }
+}

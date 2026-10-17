@@ -152,4 +152,5 @@ fun GameProfile.displayName(): String = when (this) {
     GameProfile.YUGIOH -> "Yu-Gi-Oh!"
     GameProfile.POKEMON -> "Pokémon"
     GameProfile.LORCANA -> "Lorcana"
+    GameProfile.DEATH_MAY_DIE -> "Death May Die"
 }

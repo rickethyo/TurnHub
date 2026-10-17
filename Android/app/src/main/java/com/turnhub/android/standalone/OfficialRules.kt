@@ -106,6 +106,14 @@ fun officialRules(profile: GameProfile, teams: Boolean): OfficialRules? = when {
 /** The rules page for a mode: official rules, or what a custom mode changes. */
 fun modeRules(profile: GameProfile, teams: Boolean): ModeRules = officialRules(profile, teams)?.let { ModeRules(it.name, it) }
     ?: when {
+        profile.deathMayDie -> ModeRules("Cthulhu: Death May Die", null, listOf(
+            "A cooperative game: the investigators win or lose together.",
+            "Each investigator takes one turn a round, in whatever order the table likes. TurnHub marks who has taken their turn; a player still to go can take the next turn from their panel.",
+            "The investigators win by killing the Elder One in its final stage.",
+            "If an investigator dies or goes insane before the Elder One is summoned, the game is lost. Once it is on the board, the others play on.",
+            "The game is also lost when the Summoning track reaches its last space, or when every investigator is dead or insane.",
+            "Each panel counts that player's wounds as a reminder; their dashboard decides when they die.",
+        ))
         profile.starCommander -> ModeRules("Star Commander (custom)", null, listOf(
             "A five-player Commander variant played by many groups; it is not part of Magic's official rules.",
             "Each player starts at 40 life.",
