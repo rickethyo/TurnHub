@@ -2,6 +2,8 @@ package com.turnhub.android.standalone
 
 import com.turnhub.android.domain.ControllerHandle
 import com.turnhub.android.domain.CooperativeTurn
+import com.turnhub.android.domain.InvestigatorCard
+import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
@@ -310,7 +312,7 @@ data class StandaloneGame(
             // Lorcana counts lore up from 0 to [startingLife]; Death May Die counts wounds up from 0.
             players = players.map { LocalPlayer(it.name, it.profileId, life = if (lorcana || deathMayDie) 0 else startingLife, localId = it.localId,
                 commander = it.commander, commanderArt = it.commanderArt, cardOnly = it.cardOnly, investigator = it.investigator,
-                dashboard = it.dashboard.fresh()) },
+                dashboard = it.dashboard.fresh(clearCards = state == TableState.GAME_OVER)) },
             active = first,
             starter = first,
             winner = null,
@@ -826,6 +828,20 @@ data class StandaloneGame(
         if (players[index].investigator == clean) return this
         if (clean != null && players.withIndex().any { (i, p) -> i != index && p.investigator.equals(clean, ignoreCase = true) }) return this
         return update(index) { it.copy(investigator = clean, dashboard = com.turnhub.android.domain.InvestigatorDashboard()) }
+    }
+
+    /** Assigns or clears one match card without applying its printed effects. */
+    fun setInvestigatorCard(index: Int, slot: InvestigatorCardSlot, card: InvestigatorCard?): StandaloneGame {
+        val player = players.getOrNull(index) ?: return this
+        if (!deathMayDie || (state != TableState.LOBBY && !playing) || player.eliminated) return this
+        val clean = card?.normalized()
+        if (card != null && clean == null) return this
+        if (player.dashboard.card(slot) == clean) return this
+        val board = when (slot) {
+            InvestigatorCardSlot.SANITY_CONDITION -> player.dashboard.copy(sanityCondition = clean)
+            InvestigatorCardSlot.RELIC -> player.dashboard.copy(relic = clean)
+        }
+        return update(index) { it.copy(dashboard = board) }
     }
 
     /** Reference edits do not move any markers or apply a skill's effects. */

@@ -30,6 +30,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.domain.InvestigatorDashboard
+import com.turnhub.android.domain.InvestigatorCard
+import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.domain.InvestigatorSkill
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
@@ -46,6 +48,7 @@ internal fun InvestigatorAbilities(
     onInsanity: (Int) -> Unit,
     onLevel: (Int, Int) -> Unit,
     onEdit: (List<InvestigatorSkill>) -> Unit,
+    onCard: (InvestigatorCardSlot, InvestigatorCard?) -> Unit,
 ) {
     val p = palette
     val board = player.dashboard
@@ -69,9 +72,10 @@ internal fun InvestigatorAbilities(
         }
         when {
             board.insanity == InvestigatorDashboard.MAX_INSANITY -> Text("Consumed by madness. Resolve the investigator's death from their menu.", color = p.bad)
-            board.atThreshold -> Text("Insanity threshold: resolve your insanity card and advance one skill. Apply its effects on the board.", color = p.text,
+            board.atThreshold -> Text("Insanity threshold: resolve ${board.sanityCondition?.name ?: "your insanity card"} and advance one skill. Apply its effects on the board.", color = p.text,
                 style = MaterialTheme.typography.bodySmall)
         }
+        InvestigatorCards(player, summary.bootId, editable, onAssign = onCard)
         skills.forEachIndexed { slot, skill ->
             val level = board.skillLevels[slot]
             Column(Modifier.fillMaxWidth().background(p.surface.copy(alpha = .94f), RoundedCornerShape(14.dp)).padding(12.dp),

@@ -8,11 +8,19 @@ data class InvestigatorDashboard(
     val insanity: Int = 0,
     val skillLevels: List<Int> = List(3) { 1 },
     val customSkills: List<InvestigatorSkill> = emptyList(),
+    val sanityCondition: InvestigatorCard? = null,
+    val relic: InvestigatorCard? = null,
 ) {
     fun skills(investigator: String?): List<InvestigatorSkill> =
         customSkills.takeIf { it.size == 3 } ?: InvestigatorSkills.forInvestigator(investigator)
 
-    fun fresh(): InvestigatorDashboard = copy(insanity = 0, skillLevels = List(3) { 1 })
+    fun fresh(clearCards: Boolean = false): InvestigatorDashboard = copy(insanity = 0, skillLevels = List(3) { 1 },
+        sanityCondition = sanityCondition.takeUnless { clearCards }, relic = relic.takeUnless { clearCards })
+
+    fun card(slot: InvestigatorCardSlot): InvestigatorCard? = when (slot) {
+        InvestigatorCardSlot.SANITY_CONDITION -> sanityCondition
+        InvestigatorCardSlot.RELIC -> relic
+    }
 
     /** Sanity loss stops at the next threshold; negative steps correct an entered marker. */
     fun changeInsanity(delta: Int): InvestigatorDashboard {

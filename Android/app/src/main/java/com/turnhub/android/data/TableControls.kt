@@ -24,6 +24,10 @@ interface TableControls {
     suspend fun investigatorSkills(seat: TabletSeat, skills: List<com.turnhub.android.domain.InvestigatorSkill>) {
         error("Investigator dashboards require a phone-hosted game")
     }
+    suspend fun investigatorCard(seat: TabletSeat, slot: com.turnhub.android.domain.InvestigatorCardSlot,
+        card: com.turnhub.android.domain.InvestigatorCard?) {
+        error("Investigator cards require a phone-hosted game")
+    }
     suspend fun setEliminationRule(seat: TabletSeat, field: String, value: Int)
 
     suspend fun setAutoEliminateAtZeroLife(seat: TabletSeat, enabled: Boolean)

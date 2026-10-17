@@ -395,6 +395,12 @@ class StandaloneTable(
     // A standalone game has no phones asking for life changes, and is never offline.
     fun setCommander(index: Int, name: String?, art: String? = null, cardOnly: Boolean = false) { edit { it.setCommander(index, name, art, cardOnly) } }
     fun setInvestigator(index: Int, name: String?) { edit { it.setInvestigator(index, name) } }
+    fun setInvestigatorCard(index: Int, slot: com.turnhub.android.domain.InvestigatorCardSlot,
+        card: com.turnhub.android.domain.InvestigatorCard?) { edit { it.setInvestigatorCard(index, slot, card) } }
+    override suspend fun investigatorCard(seat: TabletSeat, slot: com.turnhub.android.domain.InvestigatorCardSlot,
+        card: com.turnhub.android.domain.InvestigatorCard?) {
+        setInvestigatorCard(StandaloneGame.indexOf(seat.moduleId), slot, card)
+    }
     override suspend fun investigatorSkills(seat: TabletSeat, skills: List<com.turnhub.android.domain.InvestigatorSkill>) {
         edit { it.setInvestigatorSkills(StandaloneGame.indexOf(seat.moduleId), skills) }
     }
@@ -471,6 +477,16 @@ class StandaloneTable(
     }
 
     companion object {
+        private fun investigatorCardToJson(card: com.turnhub.android.domain.InvestigatorCard?): Any =
+            card?.let { JSONObject().put("name", it.name).put("rules", it.rules) } ?: JSONObject.NULL
+
+        private fun investigatorCardFromJson(json: JSONObject?): com.turnhub.android.domain.InvestigatorCard? {
+            if (json == null) return null
+            val name = json.opt("name") as? String ?: return null
+            val rules = if (json.has("rules")) json.opt("rules") as? String ?: return null else ""
+            return com.turnhub.android.domain.InvestigatorCard(name, rules).normalized()
+        }
+
         fun gameToJson(game: StandaloneGame): JSONObject = JSONObject().apply {
             put("gameId", game.gameId)
             put("state", game.state.name)
@@ -531,6 +547,8 @@ class StandaloneTable(
                         put("investigator", p.investigator ?: JSONObject.NULL)
                         put("stress", p.stress)
                         put("dashboard", JSONObject().apply {
+                            put("sanityCondition", investigatorCardToJson(p.dashboard.sanityCondition))
+                            put("relic", investigatorCardToJson(p.dashboard.relic))
                             put("insanity", p.dashboard.insanity)
                             put("skillLevels", JSONArray(p.dashboard.skillLevels))
                             put("skills", JSONArray().apply {
@@ -627,7 +645,9 @@ class StandaloneTable(
                             com.turnhub.android.domain.InvestigatorDashboard(
                                 insanity = d.optInt("insanity").coerceIn(0, com.turnhub.android.domain.InvestigatorDashboard.MAX_INSANITY),
                                 skillLevels = List(3) { slot -> d.optJSONArray("skillLevels")?.optInt(slot, 1)?.coerceIn(1, 4) ?: 1 },
-                                customSkills = skills)
+                                customSkills = skills,
+                                sanityCondition = investigatorCardFromJson(d.optJSONObject("sanityCondition")),
+                                relic = investigatorCardFromJson(d.optJSONObject("relic")))
                         } ?: com.turnhub.android.domain.InvestigatorDashboard(),
                         // Pokémon games saved before Lorcana kept this under "pokemon".
                         turn = (p.optJSONObject("turn") ?: p.optJSONObject("pokemon"))?.let { pk ->

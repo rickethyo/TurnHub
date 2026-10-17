@@ -105,7 +105,9 @@ Official modes (Magic, Commander, Two-Headed Giant and Yu-Gi-Oh!) keep their off
 
 - The Insanity counter records sanity loss. It stops at each insanity threshold and shows bonus dice. Resolve your insanity card and choose a skill upgrade on the physical dashboard when prompted. The minus button corrects an entry; it does not mean sanity can normally be healed. Reaching the end of the track does not automatically end a player’s game: use their menu to resolve the outcome.
 
-- Skill markers, sanity loss and edited ability text survive closing the app. A rematch resets the markers and keeps the edited text. Choosing a different investigator clears their dashboard.
+- Each investigator has a Sanity condition and a Relic slot. In setup, use Assign sanity condition or Assign relic beneath their name. During play, use Assign or Edit on their card or in their menu. Enter a name and optional rules/notes; Save applies the assignment, Cancel keeps the current card, and Remove clears that slot. Apply card effects to the physical game. Back to setup keeps these assignments, and a rematch starts with empty slots.
+
+- Skill markers, sanity loss and edited ability text survive closing the app. A rematch resets the markers and clears assigned cards, while keeping edited ability text. Choosing a different investigator clears their dashboard.
 
 ## Two-Headed Giant
 
