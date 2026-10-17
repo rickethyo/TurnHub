@@ -73,6 +73,26 @@ TH-025: Death May Die dashboard merged in [PR #129](https://github.com/rickethyo
 
 ## TH-026: Death May Die staged next turn
 
+### 2026-10-17 / Codex follow-up: community card catalogue
+
+- Active owner: Codex on `codex/master`, baseline `5bef4aa`; clean tree,
+  master fetched/merged, #131 remains open. Owner has the full collection and
+  authorizes choosing a community source to try, retaining custom entry if poor.
+- Scope: searchable condition/relic presets in the existing editor, every known
+  entry available without collection filtering, editable names/notes and card
+  references where verified. Community coverage is incomplete and is labeled;
+  no invented card effects or images. Related follow-up stays in #131.
+- Data choice: wiki condition-name list and BGG game inventories/card reference
+  galleries; the randomizer spreadsheet download is unavailable. Bundle only
+  factual names and reference identifiers/URLs, never artwork or card text.
+  Images are fetched only when opened and cached on the device, like tile art.
+- StandaloneGame remains the assignment validator; InvestigatorCard carries an
+  optional catalogue ID, normalized against known entries and slot. StandaloneTable
+  persists the ID with editable text. Compose owns disposable search/preview state;
+  Save/Cancel/Remove retain existing behavior. No Atlas protocol/endpoint or library
+  addition. Update the IP tracker for CMON/BGG references. Labeled native search,
+  scrollable results and zoom controls support accessibility; device checks remain.
+
 ### 2026-10-17 / Codex follow-up: stage the next investigator
 
 - Active owner: Codex on `codex/master`, baseline `0dffe4d` (merged #130).

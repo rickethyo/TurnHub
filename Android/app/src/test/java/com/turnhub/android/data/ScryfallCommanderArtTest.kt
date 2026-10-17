@@ -5,6 +5,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -39,6 +40,29 @@ class ScryfallCommanderArtTest {
     private val jpeg = byteArrayOf(1, 2, 3)
 
     private fun card(json: String) = Reply(200, json.toByteArray())
+
+    @Test fun `community reference images are cached across service restarts without fetching other cards`() = runBlocking {
+        val web = FakeWeb { Reply(200, jpeg) }
+        val service = ScryfallCommanderArt(folder.root, "TurnHub/test", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
+        assertNull(service.investigatorCard("https://untrusted.example"))
+        assertTrue(web.asked.isEmpty())
+        assertArrayEquals(jpeg, service.investigatorCard("7194667"))
+        assertArrayEquals(jpeg, service.investigatorCard("7194667"))
+        val reopened = ScryfallCommanderArt(folder.root, "TurnHub/test", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
+        assertArrayEquals(jpeg, reopened.investigatorCard("7194667"))
+        assertEquals(1, web.asked.size)
+        assertEquals("cf.geekdo-images.com", URL(web.asked.single()).host)
+    }
+
+    @Test fun `failed community image downloads can be retried and do not cache an error page`() = runBlocking {
+        var available = false
+        val web = FakeWeb { if (available) Reply(200, jpeg) else Reply(503, "try later".toByteArray()) }
+        val service = ScryfallCommanderArt(folder.root, "TurnHub/test", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
+        assertNull(service.investigatorCard("7194667"))
+        available = true
+        assertArrayEquals(jpeg, service.investigatorCard("7194667"))
+        assertEquals(2, web.asked.size)
+    }
 
     @Test fun `finds the art crop, credits the artist and asks only once`() = runBlocking {
         val web = FakeWeb { url ->

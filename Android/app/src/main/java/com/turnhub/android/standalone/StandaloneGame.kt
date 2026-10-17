@@ -861,6 +861,7 @@ data class StandaloneGame(
         if (slot == InvestigatorCardSlot.RELIC && !useRelics) return this
         val clean = card?.normalized()
         if (card != null && clean == null) return this
+        if (clean?.catalogueId?.let { com.turnhub.android.domain.InvestigatorCardCatalogue.find(it)?.slot != slot } == true) return this
         if (player.dashboard.card(slot) == clean) return this
         val board = when (slot) {
             InvestigatorCardSlot.SANITY_CONDITION -> player.dashboard.copy(sanityCondition = clean)

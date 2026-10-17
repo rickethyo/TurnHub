@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.domain.InvestigatorCard
 import com.turnhub.android.domain.InvestigatorCardSlot
+import com.turnhub.android.domain.InvestigatorCardCatalogue
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.theme.palette
@@ -65,6 +66,7 @@ internal fun InvestigatorCards(player: TablePlayer, gameId: String, enabled: Boo
                 }
                 Text(card?.name ?: "Unassigned", color = p.text, fontWeight = FontWeight.SemiBold)
                 card?.rules?.takeIf { it.isNotEmpty() }?.let { Text(it, color = p.text, style = MaterialTheme.typography.bodyMedium) }
+                InvestigatorCardReferenceButton(card?.catalogueId)
             }
         }
     }
@@ -83,17 +85,32 @@ private fun InvestigatorCardEditor(player: TablePlayer, slot: InvestigatorCardSl
     onDismiss: () -> Unit, onSave: (InvestigatorCard?) -> Unit) {
     var name by rememberSaveable { mutableStateOf(card?.name.orEmpty()) }
     var rules by rememberSaveable { mutableStateOf(card?.rules.orEmpty()) }
+    var catalogueId by rememberSaveable { mutableStateOf(card?.catalogueId) }
+    var choosing by rememberSaveable { mutableStateOf(card == null) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("${player.investigator ?: player.label}: ${slot.label.lowercase()}") },
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(name, { name = it.take(InvestigatorCard.MAX_NAME) }, label = { Text("Name") },
+                ToneButton("Choose from catalogue", { choosing = true }, modifier = Modifier.fillMaxWidth())
+                InvestigatorCardReferenceButton(catalogueId)
+                OutlinedTextField(name, {
+                    name = it.take(InvestigatorCard.MAX_NAME)
+                    if (!InvestigatorCardCatalogue.find(catalogueId)?.name.equals(name.trim(), ignoreCase = true)) catalogueId = null
+                }, label = { Text("Name") },
                     modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(rules, { rules = it.take(InvestigatorCard.MAX_RULES) }, label = { Text("Rules / notes") },
                     modifier = Modifier.fillMaxWidth(), minLines = 4)
                 if (card != null) TextButton(onClick = { onSave(null) }) { Text("Remove ${slot.label.lowercase()}") }
             }
         },
-        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onSave(InvestigatorCard(name, rules)) }) { Text("Save") } },
+        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onSave(InvestigatorCard(name, rules, catalogueId)) }) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+    if (choosing) InvestigatorCardPicker(slot, catalogueId, onDismiss = { choosing = false }, onPick = { preset ->
+        if (preset != null) {
+            if (preset.id != catalogueId) rules = ""
+            name = preset.name
+        }
+        catalogueId = preset?.id
+        choosing = false
+    })
 }

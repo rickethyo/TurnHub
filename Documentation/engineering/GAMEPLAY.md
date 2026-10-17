@@ -91,7 +91,12 @@ loss condition; Commander damage totals alone do not trigger elimination.
   condition** assigned before starting. **Use relics** is off by default; when
   enabled in setup, every investigator also needs a **Relic**. Disabled relic
   slots are hidden, and turning the option off clears relic assignments.
-  Names and rules/notes are assigned in setup and remain editable on the active
+  The condition/relic editor offers a searchable community catalogue (35 condition
+  names, 20 relics), including known transformed relic names in search. All known
+  entries are available without collection filtering; coverage is incomplete and
+  **Use custom entry** supports other cards. Choosing an entry edits a draft;
+  **Save** assigns it, while Cancel/Back leaves the existing assignment unchanged.
+  Names and rules/notes remain editable on the active
   card or in the player menu for corrections. A named condition appears in the insanity
   threshold reminder. Card effects are resolved on the physical game. Both
   slots persist in game recovery and stay with the investigator when seats swap.
@@ -100,6 +105,15 @@ loss condition; Commander damage totals alone do not trigger elimination.
   clocks start only after required cards are reassigned and Start is confirmed.
   Names are bounded to 80 characters and rules/notes to 2,000. Choosing a
   different investigator clears their dashboard, including both card slots.
+  **View card reference** opens verified community photographs for 18 catalogue
+  entries. Images may show paired cards or both relic faces; pinch/drag and
+  labeled Zoom in/Zoom out/Fit controls support reading them. References are
+  downloaded only when opened, cached on the device and credited to CMON and
+  BoardGameGeek. Failed downloads can be retried; missing images never block
+  assignment. Other entries link their community source and accept typed notes.
+  No card rules text or artwork is bundled. Recovery saves the selected catalogue
+  ID with each card; a renamed card becomes a custom entry, and unknown or
+  wrong-slot references are discarded without losing entered names/notes.
   Everyone wins together ("We killed the Elder One") or loses together ("We
   lost"); an investigator who falls with the Elder One on the board leaves and
   the rest play on, and the game is lost when nobody is left.

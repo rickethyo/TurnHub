@@ -177,6 +177,19 @@ class ScryfallCommanderArt(
         }
     }
 
+    /** A verified community card reference; paired cards share one cached photograph. */
+    suspend fun investigatorCard(imageId: String): ByteArray? = withContext(ioDispatcher) {
+        val url = com.turnhub.android.domain.InvestigatorCardCatalogue.imageUrl(imageId) ?: return@withContext null
+        gate.withLock {
+            val file = File(cacheDir, "investigator-card-$imageId.img")
+            runCatching { file.takeIf { it.exists() }?.readBytes() }.getOrNull()?.let { return@withLock it }
+            val bytes = runCatching { http.fetch(url, MAX_ART_BYTES) }.getOrNull() ?: return@withLock null
+            runCatching { cacheDir.mkdirs(); file.writeBytes(bytes) }
+            delay(ScryfallHttp.REQUEST_SPACING_MS)
+            bytes
+        }
+    }
+
     /** A printing's art crop for the picker, cached like tile art; null offline. */
     suspend fun preview(printing: CommanderPrinting): ByteArray? = withContext(ioDispatcher) {
         val file = File(cacheDir, cacheKey("preview#${printing.id}") + ".jpg")
