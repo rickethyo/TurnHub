@@ -153,6 +153,12 @@ loss condition; Commander damage totals alone do not trigger elimination.
 
 ## Zero-life elimination and exit reasons
 
+In the Android full-screen table, life taps and holds are confined to the area
+above the bottom action strip. A 12dp neutral gap separates the two; missing the
+enlarged Pass target within the strip or gap cannot change life. Leaving the life
+area cancels its gesture. Pass keeps its 600ms hold and semantic accessibility
+action. These input protections do not alter automatic-elimination rules.
+
 `autoEliminateAtZeroLife` is on by default. Any seated player can change it in
 Android Game, the connected tablet lobby/table menu, or standalone play. During
 a connected match ConfigureGame permits only this field to change: profile,

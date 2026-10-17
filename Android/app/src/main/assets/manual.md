@@ -159,9 +159,9 @@ Earned extensions are optional. From a player's fourth turn, passing early (befo
 
 Each player has a panel facing their seat with their name, life, counters and turn clock. The player whose turn it is has a glowing edge.
 
-- **Life:** tap the top half of a panel to add life and the bottom half to subtract; hold to repeat the bigger step. Steps are 1 and 5 (100 and 1000 for Yu-Gi-Oh!). On rotated panels, minus is always on the player's left and plus on their right.
+- **Life:** use the minus and plus halves of the area above the bottom action strip; hold to repeat the bigger step. Steps are 1 and 5 (100 and 1000 for Yu-Gi-Oh!). On rotated panels, minus is always on the player's left and plus on their right. The action strip and the space above it do not change life, so a near-miss around Pass does nothing. Moving a life gesture out of its area cancels it.
 
-- **Pass:** the active player taps **Pass**. While it says **Passing… tap to keep**, a tap undoes the pass.
+- **Pass:** the active player holds Pass for 0.6 seconds. It has a larger target in the separate bottom action strip. Small panels show the turn clock inside Pass. While it says Passing… tap to keep, a tap undoes the pass.
 
 Death May Die uses the Pass to? menu described under Game Modes.
 
