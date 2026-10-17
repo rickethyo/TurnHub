@@ -41,6 +41,8 @@ import com.turnhub.android.ui.theme.palette
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun InvestigatorCards(player: TablePlayer, gameId: String, enabled: Boolean, compact: Boolean = false, useRelics: Boolean = false,
+    drawTwo: Boolean = false, onDeal: ((InvestigatorCardSlot) -> Unit)? = null,
+    reservedCardIds: Set<String> = emptySet(),
     onAssign: (InvestigatorCardSlot, InvestigatorCard?) -> Unit) {
     val p = palette
     val slots = InvestigatorCardSlot.entries.filter { it != InvestigatorCardSlot.RELIC || useRelics }
@@ -72,7 +74,7 @@ internal fun InvestigatorCards(player: TablePlayer, gameId: String, enabled: Boo
     }
     editing?.takeIf { it in slots }?.let { slot ->
         key(player.participantId, player.investigator, gameId, slot) {
-            InvestigatorCardEditor(player, slot, player.dashboard.card(slot), onDismiss = { editing = null }, onSave = {
+            InvestigatorCardEditor(player, slot, player.dashboard.card(slot), drawTwo, reservedCardIds, onDeal?.let { deal -> { deal(slot) } }, onDismiss = { editing = null }, onSave = {
                 if (enabled) onAssign(slot, it)
                 editing = null
             })
@@ -82,15 +84,52 @@ internal fun InvestigatorCards(player: TablePlayer, gameId: String, enabled: Boo
 
 @Composable
 private fun InvestigatorCardEditor(player: TablePlayer, slot: InvestigatorCardSlot, card: InvestigatorCard?,
-    onDismiss: () -> Unit, onSave: (InvestigatorCard?) -> Unit) {
+    drawTwo: Boolean, reservedCardIds: Set<String>, onDeal: (() -> Unit)?, onDismiss: () -> Unit, onSave: (InvestigatorCard?) -> Unit) {
     var name by rememberSaveable { mutableStateOf(card?.name.orEmpty()) }
     var rules by rememberSaveable { mutableStateOf(card?.rules.orEmpty()) }
     var catalogueId by rememberSaveable { mutableStateOf(card?.catalogueId) }
-    var choosing by rememberSaveable { mutableStateOf(card == null) }
+    var choosing by rememberSaveable { mutableStateOf(card == null && !drawTwo) }
+    var physical by rememberSaveable { mutableStateOf(false) }
+    var physicalNames by rememberSaveable { mutableStateOf(listOf("", "")) }
+    val offers = player.dashboard.cardOffers[slot].orEmpty().mapNotNull(InvestigatorCardCatalogue::find)
+    val canDeal = offers.isNotEmpty() || InvestigatorCardCatalogue.all.count { it.slot == slot && it.id !in reservedCardIds } >= 2
     AlertDialog(onDismissRequest = onDismiss, title = { Text("${player.investigator ?: player.label}: ${slot.label.lowercase()}") },
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (drawTwo) {
+                    Text("Draw two, pick one · house rule", style = MaterialTheme.typography.titleSmall)
+                    Text("App pairs use the current catalogue. Physical draws use your own deck.")
+                    if (card == null && name.isBlank()) Text("Choose one of your two draws, then Save.")
+                    ToneButton(if (offers.isEmpty()) "Deal two in app" else "Show app-dealt pair", {
+                        physical = false; onDeal?.invoke()
+                    }, enabled = onDeal != null && canDeal)
+                    if (!canDeal) Text("Fewer than two catalogue cards remain. Enter physical draws or use a custom entry.")
+                    if (!physical && offers.isNotEmpty()) {
+                        Text("This pair stays fixed for this match. Choose one, then Save.")
+                        offers.forEach { preset ->
+                            ToneButton(if (catalogueId == preset.id) "✓ ${preset.name}" else preset.name, {
+                                name = preset.name; catalogueId = preset.id; rules = ""
+                            }, modifier = Modifier.fillMaxWidth())
+                            InvestigatorCardReferenceButton(preset.id)
+                        }
+                    }
+                    ToneButton("Enter two physical draws", { physical = true })
+                    if (physical) {
+                        (0..1).forEach { i ->
+                            OutlinedTextField(physicalNames[i], { value ->
+                                physicalNames = physicalNames.mapIndexed { j, old -> if (i == j) value.take(InvestigatorCard.MAX_NAME) else old }
+                            }, label = { Text("Physical draw ${i + 1}") }, modifier = Modifier.fillMaxWidth())
+                            TextButton(enabled = physicalNames.all { it.isNotBlank() }, onClick = {
+                                name = physicalNames[i].trim()
+                                catalogueId = InvestigatorCardCatalogue.all.firstOrNull {
+                                    it.slot == slot && it.name.equals(name, ignoreCase = true)
+                                }?.id
+                                rules = ""
+                            }) { Text("Choose draw ${i + 1}") }
+                        }
+                    }
+                }
                 ToneButton("Choose from catalogue", { choosing = true }, modifier = Modifier.fillMaxWidth())
                 InvestigatorCardReferenceButton(catalogueId)
                 OutlinedTextField(name, {

@@ -227,6 +227,8 @@ class StandaloneTable(
     fun setTwoHeadedGiant(on: Boolean) = edit { it.setTwoHeadedGiant(on) }
     fun setHouseRules(on: Boolean) = edit { it.setHouseRules(on) }
     fun setUseRelics(on: Boolean) = edit { it.setUseRelics(on) }
+    fun setDrawTwoCards(on: Boolean) = edit { it.setDrawTwoCards(on) }
+    fun dealInvestigatorCards(index: Int, slot: com.turnhub.android.domain.InvestigatorCardSlot) = edit { it.dealInvestigatorCards(index, slot) }
     /** One settings update from the shared lobby, preserving unspecified fields. */
     fun configure(profile: GameProfile?, life: Int?, teams: Boolean?) = edit { game ->
         var next = profile?.let { game.setFormat(it) } ?: game
@@ -516,6 +518,7 @@ class StandaloneTable(
             put("twoHeadedGiant", game.twoHeadedGiant)
             put("houseRules", game.houseRules)
             put("useRelics", game.useRelics)
+            put("drawTwoCards", game.drawTwoCards)
             put("startedAtMs", game.startedAtMs)
             put("elapsedMs", game.elapsedMs)
             put("runningSinceMs", game.runningSinceMs ?: JSONObject.NULL)
@@ -557,6 +560,9 @@ class StandaloneTable(
                             put("relic", investigatorCardToJson(p.dashboard.relic))
                             put("insanity", p.dashboard.insanity)
                             put("skillLevels", JSONArray(p.dashboard.skillLevels))
+                            put("cardOffers", JSONObject().apply {
+                                p.dashboard.cardOffers.forEach { (slot, ids) -> put(slot.name, JSONArray(ids)) }
+                            })
                             put("skills", JSONArray().apply {
                                 p.dashboard.customSkills.forEach { skill ->
                                     put(JSONObject().put("name", skill.name).put("levels", JSONArray(skill.levels)))
@@ -603,6 +609,7 @@ class StandaloneTable(
                 twoHeadedGiant = json.optBoolean("twoHeadedGiant"),
                 houseRules = json.optBoolean("houseRules"),
                 useRelics = json.optBoolean("useRelics"),
+                drawTwoCards = json.optBoolean("drawTwoCards"),
                 startedAtMs = json.getLong("startedAtMs"),
                 elapsedMs = json.getLong("elapsedMs"),
                 runningSinceMs = json.optLongOrNull("runningSinceMs"),
@@ -642,18 +649,24 @@ class StandaloneTable(
                         stress = p.optInt("stress").coerceAtLeast(0),
                         dashboard = p.optJSONObject("dashboard")?.let { d ->
                             val skills = d.optJSONArray("skills")?.let { a ->
-                                if (a.length() != 3) emptyList() else List(3) { slot ->
+                                if (a.length() !in 3..com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILLS) emptyList() else List(a.length()) { slot ->
                                     val skill = a.optJSONObject(slot)
                                     com.turnhub.android.domain.InvestigatorSkill(
                                         skill?.optString("name").orEmpty().take(com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILL_NAME),
                                         List(4) { level -> skill?.optJSONArray("levels")?.optString(level).orEmpty()
                                             .take(com.turnhub.android.domain.InvestigatorDashboard.MAX_LEVEL_TEXT) })
-                                }.takeIf { list -> list.none { it.name.isBlank() } }.orEmpty()
+                                }.takeIf { list -> list.none { it.name.isBlank() } && list.map { it.name.lowercase(java.util.Locale.ROOT) }.distinct().size == list.size }.orEmpty()
                             }.orEmpty()
                             com.turnhub.android.domain.InvestigatorDashboard(
                                 insanity = d.optInt("insanity").coerceIn(0, com.turnhub.android.domain.InvestigatorDashboard.MAX_INSANITY),
-                                skillLevels = List(3) { slot -> d.optJSONArray("skillLevels")?.optInt(slot, 1)?.coerceIn(1, 4) ?: 1 },
+                                skillLevels = List(skills.size.coerceAtLeast(3)) { slot -> d.optJSONArray("skillLevels")?.optInt(slot, 1)?.coerceIn(1, 4) ?: 1 },
                                 customSkills = skills,
+                                cardOffers = com.turnhub.android.domain.InvestigatorCardSlot.entries.mapNotNull { slot ->
+                                    val a = d.optJSONObject("cardOffers")?.optJSONArray(slot.name)
+                                    val ids = if (a?.length() == 2) List(2) { a.optString(it) } else emptyList()
+                                    if (ids.distinct().size == 2 && ids.all { com.turnhub.android.domain.InvestigatorCardCatalogue.find(it)?.slot == slot })
+                                        slot to ids else null
+                                }.toMap(),
                                 sanityCondition = investigatorCardFromJson(d.optJSONObject("sanityCondition"), com.turnhub.android.domain.InvestigatorCardSlot.SANITY_CONDITION),
                                 relic = investigatorCardFromJson(d.optJSONObject("relic"), com.turnhub.android.domain.InvestigatorCardSlot.RELIC))
                         } ?: com.turnhub.android.domain.InvestigatorDashboard(),

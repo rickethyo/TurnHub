@@ -295,6 +295,7 @@ fun StandaloneLobby(
             timerRules = table::setTimerRules,
             commander = { player, name, art, cardOnly -> table.setCommander(player.playerNumber - 1, name, art, cardOnly) },
             investigator = { player, name -> table.setInvestigator(player.playerNumber - 1, name) },
+            dealInvestigatorCards = { player, slot -> table.dealInvestigatorCards(player.playerNumber - 1, slot) },
             investigatorCard = { player, slot, card -> table.setInvestigatorCard(player.playerNumber - 1, slot, card) },
             zeroLife = table::setZeroLifeElimination,
             houseRules = table::setHouseRules,
@@ -319,9 +320,13 @@ fun StandaloneLobby(
             else "Assign a sanity condition to every investigator before starting."
         else null,
         extraSettings = {
-            if (game.profile.deathMayDie) SetupSwitch("Use relics",
-                "Turn on when playing with relics. Assign one to every investigator before starting.",
-                game.useRelics, true, table::setUseRelics)
+            if (game.profile.deathMayDie) {
+                SetupSwitch("Use relics", "Turn on when playing with relics. Assign one to every investigator before starting.",
+                    game.useRelics, true, table::setUseRelics)
+                SetupSwitch("Draw two, pick one", "House rule for sanity conditions and enabled relics. Deal a pair in the app or enter two physical draws.",
+                    game.drawTwoCards, true, table::setDrawTwoCards)
+                DeathMayDieTurnPhasesButton()
+            }
             if (game.profile.magicRules) {
                 val planar = game.planechase
                 val digital = planar.source == com.turnhub.android.standalone.PlanarDeckSource.DIGITAL

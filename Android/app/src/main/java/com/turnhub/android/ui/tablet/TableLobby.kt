@@ -63,6 +63,7 @@ internal data class TableLobbyActions(
     val commander: ((player: TablePlayer, name: String?, printing: String?, cardOnly: Boolean) -> Unit)? = null,
     /** Death May Die: names (or clears, null) a player's investigator; null hides it. */
     val investigator: ((player: TablePlayer, name: String?) -> Unit)? = null,
+    val dealInvestigatorCards: ((TablePlayer, InvestigatorCardSlot) -> Unit)? = null,
     val investigatorCard: ((TablePlayer, InvestigatorCardSlot, InvestigatorCard?) -> Unit)? = null,
 )
 
@@ -214,7 +215,10 @@ internal fun TableLobby(
                             }
                         }
                         if (investigators) actions.investigatorCard?.let { assign ->
-                            InvestigatorCards(player, summary.bootId, enabled, compact = true, useRelics = summary.useRelics,
+                            InvestigatorCards(player, summary.bootId, enabled, compact = true, useRelics = summary.useRelics, drawTwo = summary.drawTwoCards,
+                                onDeal = actions.dealInvestigatorCards?.let { deal -> { slot -> deal(player, slot) } },
+                                reservedCardIds = summary.players.flatMap { p -> p.dashboard.cardOffers.values.flatten() +
+                                    InvestigatorCardSlot.entries.mapNotNull { p.dashboard.card(it)?.catalogueId } }.toSet(),
                                 onAssign = { slot, card -> assign(player, slot, card) })
                         }
                     }

@@ -99,6 +99,7 @@ data class StandaloneGame(
     val houseRules: Boolean = false,
     /** Death May Die: optional relic rules, selected before the match. */
     val useRelics: Boolean = false,
+    val drawTwoCards: Boolean = false,
     val players: List<LocalPlayer> = emptyList(),
     /** Index into [players] of whose turn it is. */
     val active: Int? = null,
@@ -356,6 +357,7 @@ data class StandaloneGame(
             twoHeadedGiant = twoHeadedGiant,
             houseRules = houseRules,
             useRelics = useRelics,
+            drawTwoCards = drawTwoCards,
             planechase = planechase.cleared(),
             players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt,
                 cardOnly = it.cardOnly, investigator = it.investigator, dashboard = it.dashboard.fresh()) },
@@ -544,9 +546,9 @@ data class StandaloneGame(
             }
             SKILL_KIND -> {
                 val slot = commander - 1
-                if (!playing || player.eliminated || slot !in 0..2 || value !in 1..4 || player.dashboard.skillLevels[slot] == value) this
+                if (!playing || player.eliminated || slot !in player.dashboard.skills(player.investigator).indices || value !in 1..4 || player.dashboard.skillLevels.getOrElse(slot) { 1 } == value) this
                 else update(index) { it.copy(dashboard = it.dashboard.copy(
-                    skillLevels = it.dashboard.skillLevels.mapIndexed { i, level -> if (i == slot) value else level })) }
+                    skillLevels = it.dashboard.skills(it.investigator).indices.map { i -> if (i == slot) value else it.dashboard.skillLevels.getOrElse(i) { 1 } })) }
             }
             STRESS_KIND -> {
                 val stress = player.stress + value
@@ -850,8 +852,26 @@ data class StandaloneGame(
     fun setUseRelics(on: Boolean): StandaloneGame {
         if (!deathMayDie || state != TableState.LOBBY || useRelics == on) return this
         return copy(useRelics = on, players = if (on) players else players.map {
-            it.copy(dashboard = it.dashboard.copy(relic = null))
+            it.copy(dashboard = it.dashboard.copy(relic = null, cardOffers = it.dashboard.cardOffers - InvestigatorCardSlot.RELIC))
         }).bump()
+    }
+
+    fun setDrawTwoCards(on: Boolean): StandaloneGame {
+        if (!deathMayDie || state != TableState.LOBBY || drawTwoCards == on) return this
+        return copy(drawTwoCards = on).bump()
+    }
+
+    /** A pair is reserved once per slot for this match, including its unchosen card. */
+    fun dealInvestigatorCards(index: Int, slot: InvestigatorCardSlot, random: Random = Random.Default): StandaloneGame {
+        val player = players.getOrNull(index) ?: return this
+        if (!deathMayDie || state != TableState.LOBBY || !drawTwoCards ||
+            (slot == InvestigatorCardSlot.RELIC && !useRelics) || player.dashboard.cardOffers.containsKey(slot)) return this
+        val reserved = players.flatMap { p -> p.dashboard.cardOffers.values.flatten() +
+            InvestigatorCardSlot.entries.mapNotNull { p.dashboard.card(it)?.catalogueId } }.toSet()
+        val pool = com.turnhub.android.domain.InvestigatorCardCatalogue.all.filter { it.slot == slot && it.id !in reserved }
+        if (pool.size < 2) return this
+        val pair = pool.shuffled(random).take(2).map { it.id }
+        return update(index) { it.copy(dashboard = it.dashboard.copy(cardOffers = it.dashboard.cardOffers + (slot to pair))) }
     }
 
     /** Assigns or corrects one match card without applying its printed effects. */
@@ -873,11 +893,19 @@ data class StandaloneGame(
     /** Reference edits do not move any markers or apply a skill's effects. */
     fun setInvestigatorSkills(index: Int, skills: List<com.turnhub.android.domain.InvestigatorSkill>): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
-        if (!deathMayDie || state == TableState.GAME_OVER || player.eliminated || skills.size != 3 ||
+        if (!deathMayDie || state == TableState.GAME_OVER || player.eliminated || skills.size !in 3..com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILLS ||
             skills.any { it.name.isBlank() || it.name.length > com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILL_NAME ||
                 it.levels.size != 4 || it.levels.any { text -> text.length > com.turnhub.android.domain.InvestigatorDashboard.MAX_LEVEL_TEXT } }) return this
-        if (skills == player.dashboard.skills(player.investigator)) return this
-        return update(index) { it.copy(dashboard = it.dashboard.copy(customSkills = skills)) }
+        val clean = skills.map { it.copy(name = it.name.trim()) }
+        if (clean.map { it.name.lowercase(java.util.Locale.ROOT) }.distinct().size != clean.size) return this
+        val previous = player.dashboard.skills(player.investigator)
+        if (clean == previous) return this
+        val levels = clean.mapIndexed { slot, skill ->
+            val match = previous.indexOfFirst { it.name.equals(skill.name, ignoreCase = true) }
+            val old = if (slot < 3 || (match < 0 && clean.size == previous.size)) slot else match
+            if (old >= 0) player.dashboard.skillLevels.getOrElse(old) { 1 } else 1
+        }
+        return update(index) { it.copy(dashboard = it.dashboard.copy(customSkills = clean, skillLevels = levels)) }
     }
 
     private fun finish(winners: List<Int>, nowMs: Long): StandaloneGame = copy(
@@ -992,6 +1020,7 @@ data class StandaloneGame(
             passPlayerNumbers = cooperativePassTargets(),
             nextTurnPlayerNumber = stagedNextTurn?.plus(1),
             useRelics = useRelics,
+            drawTwoCards = drawTwoCards,
             winnerPlayerNumber = winner?.plus(1),
             winnerPlayerNumbers = winners.map { it + 1 },
             monarchPlayerNumber = monarch?.plus(1),

@@ -71,26 +71,48 @@ loss condition; Commander damage totals alone do not trigger elimination.
   Each player can pick their
   investigator in the lobby from every season and box (`domain/DeathMayDie.kt`,
   from the community wiki; any name can be typed) and no two players share one.
+  Search matches investigator or known skill names. **Ability** filters six common
+  skills; the community index covers 94 roster entries (including the ten full
+  core summaries). Unindexed investigators are excluded by a skill filter, with
+  coverage stated in the picker. **Random investigator** samples available figures
+  within the search/filter, excludes other players' picks and opens a preview;
+  **Use investigator** commits it. Every row also opens this preview. Missing
+  signature effects remain explicit; a community-guide link supplies references.
   Matching Wounds and Stress counters are reminders that never knock anyone
   out. A tile shows the investigator's
   picture from the community wiki where it has one (Seasons 1 to 4 core
   investigators; a dashboard's portrait is cropped out), and the Game tab
   lists the players the same way.
-  Each dashboard saves its sanity loss (0–20) and three skill levels (1–4).
+  Each dashboard saves its sanity loss (0–20) and three base skill levels (1–4), with up to five added skills.
   Sanity loss stops at thresholds 4, 8, 12, 15, 18 and 19; bonus dice appear at
   8, 15, 18 and 19. Thresholds remind the player to resolve their insanity card
   and upgrade a skill; level choices remain manual for companions and corrections.
   Reaching 20 does not automatically eliminate anyone: resolve the printed
   dashboard and game conditions through the player's menu. The ten core-box
   investigators have offline skill-effect summaries checked against their
-  dashboards. **Edit abilities** supplies or corrects all three skills and
-  their four level effects for any investigator. **Preview upgrades** shows
+  dashboards. Indexed investigators also get the known common-skill summaries.
+  **Edit abilities** supplies or corrects names and four level effects. It can
+  add common presets (including Swiftness) or custom abilities, up to eight total,
+  and remove added abilities. New markers start at 1; move them manually for the
+  granting effect. Removing an extra preserves the other skills' levels. **Preview upgrades** shows
   future effects without changing a marker. Higher-level effects add to
   earlier effects unless they say instead. Edited ability text survives
-  rematches; markers reset. Every investigator needs a **Sanity
+  rematches for the original three slots; acquired extras are cleared and markers
+  reset on returning to setup or starting a fresh match. **Phases of your turn**
+  opens from setup, the active investigator and Game menu without changing state.
+  It covers actions, Mythos, Discovery if safe or enemy attacks, and end checks in
+  printed order; physical-game exceptions apply. Every investigator needs a **Sanity
   condition** assigned before starting. **Use relics** is off by default; when
   enabled in setup, every investigator also needs a **Relic**. Disabled relic
-  slots are hidden, and turning the option off clears relic assignments.
+  slots are hidden, and turning the option off clears relic assignments and offers.
+  **Draw two, pick one** is a separate setup-only house-rule switch, off by default,
+  applying to conditions and enabled relics. Each editor offers **Deal two in app**
+  (random without replacement from the current catalogue) or **Enter two physical
+  draws** (type both names, choose one and Save). App offers reserve both cards,
+  survive cancel/reopen and recovery, and cannot reroll by reopening. Manual and
+  catalogue assignment remain available for physical draws/corrections; no card
+  text or art coverage is implied by a random deal. Back-to-setup preserves offers;
+  rematch or changing investigator clears them. The house-rule switch persists.
   The condition/relic editor offers a searchable community catalogue (35 condition
   names, 20 relics), including known transformed relic names in search. All known
   entries are available without collection filtering; coverage is incomplete and
@@ -152,6 +174,12 @@ loss condition; Commander damage totals alone do not trigger elimination.
   Star Commander counters below.
 
 ## Zero-life elimination and exit reasons
+
+In the Android full-screen table, life taps and holds are confined to the area
+above the bottom action strip. A 12dp neutral gap separates the two; missing the
+enlarged Pass target within the strip or gap cannot change life. Leaving the life
+area cancels its gesture. Pass keeps its 600ms hold and semantic accessibility
+action. These input protections do not alter automatic-elimination rules.
 
 `autoEliminateAtZeroLife` is on by default. Any seated player can change it in
 Android Game, the connected tablet lobby/table menu, or standalone play. During

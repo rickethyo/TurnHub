@@ -197,6 +197,18 @@ Web and future app clients should:
 - Use sufficiently large touch targets.
 - Respect platform accessibility settings when practical, including text scaling and reduced motion.
 
+Android full-screen panels with life/score gesture halves reserve a separate
+bottom action strip for Pass, the player menu and Planechase controls. Life
+gesture halves occupy only the area above it, with a 12dp neutral gap. The actual measured action-strip height,
+including wrapped labels or a second row, determines the remaining life area;
+touch-target expansion cannot turn a tap outside that area into a life change.
+Moving a life gesture out of its actual area cancels it, and interrupted holds
+cancel their repeat/pass timers. Pass has a minimum 64dp height and uses the
+remaining row width; small panels put the turn clock inside it, except compact
+Planechase's two-row bar, which places the clock beside Menu. Pass retains its
+600ms hold and semantic click action, so assistive technology needs no timed hold.
+Check phone/tablet, rotated panels, large text and edge taps/holds on a device.
+
 ## Timers and time-limited interactions
 
 Because TurnHub is itself a timing product, accessibility must distinguish between **game rules** and **UI timeouts**.

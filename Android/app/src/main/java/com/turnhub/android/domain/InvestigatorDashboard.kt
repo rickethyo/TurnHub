@@ -10,11 +10,13 @@ data class InvestigatorDashboard(
     val customSkills: List<InvestigatorSkill> = emptyList(),
     val sanityCondition: InvestigatorCard? = null,
     val relic: InvestigatorCard? = null,
+    val cardOffers: Map<InvestigatorCardSlot, List<String>> = emptyMap(),
 ) {
     fun skills(investigator: String?): List<InvestigatorSkill> =
-        customSkills.takeIf { it.size == 3 } ?: InvestigatorSkills.forInvestigator(investigator)
+        customSkills.takeIf { it.size in 3..MAX_SKILLS } ?: InvestigatorSkills.forInvestigator(investigator)
 
     fun fresh(clearCards: Boolean = false): InvestigatorDashboard = copy(insanity = 0, skillLevels = List(3) { 1 },
+        customSkills = customSkills.take(3), cardOffers = cardOffers.takeUnless { clearCards }.orEmpty(),
         sanityCondition = sanityCondition.takeUnless { clearCards }, relic = relic.takeUnless { clearCards })
 
     fun card(slot: InvestigatorCardSlot): InvestigatorCard? = when (slot) {
@@ -36,6 +38,7 @@ data class InvestigatorDashboard(
         const val MAX_INSANITY = 20
         val THRESHOLDS = listOf(4, 8, 12, 15, 18, 19)
         val BONUS_THRESHOLDS = listOf(8, 15, 18, 19)
+        const val MAX_SKILLS = 8
         const val MAX_SKILL_NAME = 60
         const val MAX_LEVEL_TEXT = 600
     }
@@ -110,7 +113,11 @@ object InvestigatorSkills {
             "Within 1 space of a Gate, add 1 green die and gain 1 free Rest action."), marksman, arcane),
     )
 
+    val presets: List<InvestigatorSkill> = listOf(arcane, brawling, lucky, marksman, savage, stealth, swiftness, toughness)
+
     fun forInvestigator(name: String?): List<InvestigatorSkill> = known[name]
+        ?: InvestigatorIndex.skills(name)?.let { names -> listOf(InvestigatorSkill("Signature skill")) +
+            names.map { skillName -> presets.first { it.name == skillName } } }
         ?: List(3) { InvestigatorSkill(if (it == 0) "Signature skill" else "Skill ${it + 1}") }
 
     fun hasReference(name: String?): Boolean = name in known

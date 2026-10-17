@@ -78,6 +78,7 @@ data class TableSummary(
     val nextTurnPlayerNumber: Int? = null,
     /** Phone-hosted Death May Die optional setup rule. */
     val useRelics: Boolean = false,
+    val drawTwoCards: Boolean = false,
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding

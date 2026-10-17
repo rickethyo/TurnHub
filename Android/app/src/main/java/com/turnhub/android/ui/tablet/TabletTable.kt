@@ -50,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import com.turnhub.android.standalone.StandaloneGame
 import com.turnhub.android.domain.CooperativeTurn
@@ -58,6 +59,9 @@ import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.domain.cooperativeTurn
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -590,6 +594,7 @@ internal fun TabletTable(
             summary.pending.eliminationTargetPlayer == null) {
                 Overlay("Game menu", null, onDismiss = { menuOpen = false }) {
                     GameClockLine(summary)
+                    if (summary.settings.profile.deathMayDie) DeathMayDieTurnPhasesButton()
                     val paused = summary.state == TableState.PAUSED
                     AccentButton(if (paused) "Resume game" else "Pause game", {
                         menuOpen = false; send(activeSeat, "pause")
@@ -841,141 +846,145 @@ private fun PlayerPanel(
         }
         val nameMax = maxWidth * .6f
         val panelWidth = maxWidth
-        // Short panels (five or six on a phone) put Menu and Hold to pass beside each other in a
-        // slim bottom bar, and the number is sized to the room between it and the name.
-        val compact = maxHeight < 260.dp
+        // Short or narrow panels put the clock inside Pass so it keeps a usable target.
+        val compact = maxHeight < 260.dp || maxWidth < 300.dp
         val profile = summary.settings.profile
         // Pokémon and Lorcana: the number is prizes or lore, with turn reminders under it.
         val cardGame = !profile.countsLife
         val turnHeight = if (cardGame) turnPanelHeight(unit, summary, maxWidth < 420.dp) else 0f
-        val planarCompact = compact && active && !out && onPlanarRoll != null && maxWidth < 300.dp
-        val between = (maxHeight.value - turnHeight - if (planarCompact) 160f else if (compact) 104f else 120f).coerceAtLeast(24f)
-        // Room for the lines under the number, so a short panel shrinks the number instead of
-        // squashing those lines to slivers.
-        val demerits = unit.members.first().demerits
-        val linesBelow = (if (demerits > 0) 22f else 0f) + (if (summary.star) 22f else 0f) + (if (cardGame) 20f else 0f) +
-            (if (summary.settings.profile.magicRules) unit.members.count { m -> counterChips(m.counters, summary.initiativePlayerNumber == m.playerNumber,
-                summary.settings.profile.commanderRules, summary.settings.poisonLimit).isNotEmpty() } * 30f else 0f) +
-            (if (summary.settings.profile.commanderRules && unit.members.any { m -> m.commanderDamage.any { d -> d.damage.any { it > 0 } } }) 26f else 0f)
-        val lifeSize = minOf(
-            minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f,
-            (between - linesBelow) * .8f,
-        ).coerceIn(24f, 160f)
-        Row(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
-            HoldHalf("−", stepLabel(profile, name, small, adding = false), !out,
-                { onBump(-small) }, { onBump(-big) }, Alignment.CenterStart, Modifier.weight(1f).fillMaxHeight())
-            HoldHalf("+", stepLabel(profile, name, small, adding = true), !out,
-                { onBump(small) }, { onBump(big) }, Alignment.CenterEnd, Modifier.weight(1f).fillMaxHeight())
-        }
+        val planarCompact = compact && active && !out && summary.state == TableState.RUNNING && onPlanarRoll != null && maxWidth < 300.dp
+        // Column measures the actual action bar first. Life gestures only occupy the
+        // remaining area; gaps around Pass can never fall through to life controls.
+        Column(Modifier.fillMaxSize()) {
+            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
+                val between = (maxHeight.value - turnHeight - 52f).coerceAtLeast(24f)
+                // Room for the lines under the number, so a short panel shrinks the number instead of
+                // squashing those lines to slivers.
+                val demerits = unit.members.first().demerits
+                val linesBelow = (if (demerits > 0) 22f else 0f) + (if (summary.star) 22f else 0f) + (if (cardGame) 20f else 0f) +
+                    (if (summary.settings.profile.magicRules) unit.members.count { m -> counterChips(m.counters, summary.initiativePlayerNumber == m.playerNumber,
+                        summary.settings.profile.commanderRules, summary.settings.poisonLimit).isNotEmpty() } * 30f else 0f) +
+                    (if (summary.settings.profile.commanderRules && unit.members.any { m -> m.commanderDamage.any { d -> d.damage.any { it > 0 } } }) 26f else 0f)
+                val lifeSize = minOf(
+                    minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f,
+                    (between - linesBelow) * .8f,
+                ).coerceIn(24f, 160f)
+                Row(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
+                    HoldHalf("−", stepLabel(profile, name, small, adding = false), !out,
+                        { onBump(-small) }, { onBump(-big) }, Alignment.CenterStart, Modifier.weight(1f).fillMaxHeight())
+                    HoldHalf("+", stepLabel(profile, name, small, adding = true), !out,
+                        { onBump(small) }, { onBump(big) }, Alignment.CenterEnd, Modifier.weight(1f).fillMaxHeight())
+                }
 
-        Row(
-            Modifier.align(Alignment.TopStart).padding(horizontal = 16.dp, vertical = 12.dp)
-                // Stops short of the centre disc, which covers the middle of this edge.
-                .then(if (underHub) Modifier.widthIn(max = (panelWidth / 2 - 62.dp).coerceAtLeast(64.dp)) else Modifier),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            unit.members.forEach { member -> member.avatar?.let {
-                com.turnhub.android.ui.components.AvatarGlyph(it, p.text, 32.dp)
-            } }
-            Column(Modifier.weight(1f, fill = false).widthIn(max = nameMax)) {
-                Text(name, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-                commanders?.let {
-                    Text(it, color = p.muted, style = MaterialTheme.typography.labelMedium, fontStyle = FontStyle.Italic,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(
+                    Modifier.align(Alignment.TopStart).padding(horizontal = 16.dp, vertical = 12.dp)
+                        // Stops short of the centre disc, which covers the middle of this edge.
+                        .then(if (underHub) Modifier.widthIn(max = (panelWidth / 2 - 62.dp).coerceAtLeast(64.dp)) else Modifier),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    unit.members.forEach { member -> member.avatar?.let {
+                        com.turnhub.android.ui.components.AvatarGlyph(it, p.text, 32.dp)
+                    } }
+                    Column(Modifier.weight(1f, fill = false).widthIn(max = nameMax)) {
+                        Text(name, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        commanders?.let {
+                            Text(it, color = p.muted, style = MaterialTheme.typography.labelMedium, fontStyle = FontStyle.Italic,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    if (active) Tag("Turn", p.active, p.onActive)
+                    if (out) Tag(if (unit.members.any { it.conceded }) "Conceded" else "Eliminated", p.bad, p.surface)
+                }
+
+                unit.members.firstOrNull { it.playerNumber == summary.monarchPlayerNumber }?.let { monarch ->
+                    MonarchBadge(if (unit.members.size > 1) monarch.label else null,
+                        Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = if (commanders != null) 70.dp else 52.dp))
+                }
+
+                Column(
+                    Modifier.align(Alignment.Center).padding(top = 44.dp, bottom = 8.dp + turnHeight.dp)
+                        .alpha(if (out) .45f else 1f)
+                        .clearAndSetSemantics {
+                            contentDescription = scoreDescription(profile, name, life, summary.settings.startingLife)
+                            liveRegion = LiveRegionMode.Polite
+                        },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    // The running change floats as a pill over the number's top edge, so it never moves it.
+                    val pill = if (pendingDelta == 0) null else (if (pendingDelta > 0) "+" else "−") + kotlin.math.abs(pendingDelta)
+                    Box(contentAlignment = Alignment.Center) {
+                        LifeNumber(life, lifeSize, reduceMotion)
+                        if (pill != null) {
+                            val tone = if (pendingDelta > 0) p.good else p.bad
+                            Text(pill, color = tone, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = 18.dp, y = (-10).dp)
+                                    .background(p.surface.copy(alpha = .9f), RoundedCornerShape(99.dp))
+                                    .border(1.dp, tone.copy(alpha = .6f), RoundedCornerShape(99.dp))
+                                    .padding(horizontal = 10.dp, vertical = 1.dp))
+                        }
+                    }
+                    scoreCaption(profile, life, summary.settings.startingLife)?.let {
+                        Text(it, color = p.muted, style = MaterialTheme.typography.labelLarge)
+                    }
+                    CommanderSummary(unit, summary, offlineCommander)
+                    if (demerits > 0) Text("Demerits · $demerits", color = p.text, style = MaterialTheme.typography.labelMedium)
+                    StarProgressLine(unit, summary, panelWidth)
+                    if (summary.settings.profile.magicRules) {
+                        unit.members.forEach { member ->
+                            CounterChips(member.counters, summary.initiativePlayerNumber == member.playerNumber,
+                                summary.settings.profile.commanderRules, summary.settings.poisonLimit,
+                                Modifier.padding(top = 4.dp), compact = true, commanderRarity = rememberCommanderArt(member.namedCommander, member.commanderArt)?.rarity)
+                        }
+                    }
+                }
+
+                if (cardGame && !out) {
+                    TurnPanelLines(unit, summary, onTurnMark,
+                        Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp)
+                            .padding(bottom = 8.dp))
                 }
             }
-            if (active) Tag("Turn", p.active, p.onActive)
-            if (out) Tag(if (unit.members.any { it.conceded }) "Conceded" else "Eliminated", p.bad, p.surface)
-        }
-
-        unit.members.firstOrNull { it.playerNumber == summary.monarchPlayerNumber }?.let { monarch ->
-            MonarchBadge(if (unit.members.size > 1) monarch.label else null,
-                Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = if (commanders != null) 70.dp else 52.dp))
-        }
-
-        Column(
-            Modifier.align(Alignment.Center).padding(top = 44.dp, bottom = (if (compact) 56f else 64f).dp + turnHeight.dp)
-                .alpha(if (out) .45f else 1f)
-                .clearAndSetSemantics {
-                    contentDescription = scoreDescription(profile, name, life, summary.settings.startingLife)
-                    liveRegion = LiveRegionMode.Polite
-                },
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            // The running change floats as a pill over the number's top edge, so it never moves it.
-            val pill = if (pendingDelta == 0) null else (if (pendingDelta > 0) "+" else "−") + kotlin.math.abs(pendingDelta)
-            Box(contentAlignment = Alignment.Center) {
-                LifeNumber(life, lifeSize, reduceMotion)
-                if (pill != null) {
-                    val tone = if (pendingDelta > 0) p.good else p.bad
-                    Text(pill, color = tone, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold,
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .offset(x = 18.dp, y = (-10).dp)
-                            .background(p.surface.copy(alpha = .9f), RoundedCornerShape(99.dp))
-                            .border(1.dp, tone.copy(alpha = .6f), RoundedCornerShape(99.dp))
-                            .padding(horizontal = 10.dp, vertical = 1.dp))
+            Column(Modifier.fillMaxWidth().padding(top = 12.dp)
+                .background(p.surface.copy(alpha = .94f)).padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (planarCompact) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MenuButton(name, true, onOpenMenu)
+                        Spacer(Modifier.weight(1f))
+                        TurnClock(summary)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
+                        if (actor != null) HoldToPass(summary.pending.passPlayer != null,
+                            { onControl(actor.seat(), "pass") }, haptics, Modifier.weight(1f), true)
+                        PlanarDieButton(onPlanarRoll!!, true, Modifier.weight(1f))
+                    }
+                } else {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        MenuButton(name, compact, onOpenMenu)
+                        val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
+                        val canPass = actor != null && !out && summary.state == TableState.RUNNING
+                        if (canPass && actor != null) {
+                            val passing = summary.pending.passPlayer != null && unit.members.any { it.playerNumber == summary.pending.passPlayer }
+                            HoldToPass(passing, { onControl(actor.seat(), "pass") }, haptics,
+                                Modifier.weight(1f), compact) { foreground -> if (compact) TurnClock(summary, foreground) }
+                        }
+                        if (canPass && onPlanarRoll != null) {
+                            PlanarDieButton(onPlanarRoll, compact)
+                        }
+                        if (compact && active && !canPass) TurnClock(summary)
+                        if (!canPass) Spacer(Modifier.weight(1f))
+                        if (active && !compact) TurnClock(summary)
+                    }
                 }
-            }
-            scoreCaption(profile, life, summary.settings.startingLife)?.let {
-                Text(it, color = p.muted, style = MaterialTheme.typography.labelLarge)
-            }
-            CommanderSummary(unit, summary, offlineCommander)
-            if (demerits > 0) Text("Demerits · $demerits", color = p.text, style = MaterialTheme.typography.labelMedium)
-            StarProgressLine(unit, summary, panelWidth)
-            if (summary.settings.profile.magicRules) {
-                unit.members.forEach { member ->
-                    CounterChips(member.counters, summary.initiativePlayerNumber == member.playerNumber,
-                        summary.settings.profile.commanderRules, summary.settings.poisonLimit,
-                        Modifier.padding(top = 4.dp), compact = true, commanderRarity = rememberCommanderArt(member.namedCommander, member.commanderArt)?.rarity)
-                }
-            }
-        }
-
-        if (cardGame && !out) {
-            TurnPanelLines(unit, summary, onTurnMark,
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp)
-                    .padding(bottom = if (compact) 56.dp else 64.dp))
-        }
-
-        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (planarCompact) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MenuButton(name, true, onOpenMenu)
-                    Spacer(Modifier.weight(1f))
-                    TurnClock(summary)
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
-                    if (actor != null) HoldToPass(summary.pending.passPlayer != null,
-                        { onControl(actor.seat(), "pass") }, haptics, Modifier.weight(1f), true)
-                    PlanarDieButton(onPlanarRoll!!, true, Modifier.weight(1f))
-                }
-            } else {
-        Row(
-            Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            MenuButton(name, compact, onOpenMenu)
-            // Keep the bottom actions compact so the life controls remain easy to reach.
-            if (compact && active) TurnClock(summary)
-            val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
-            val canPass = actor != null && !out && summary.state == TableState.RUNNING
-            if (canPass && actor != null) {
-                val passing = summary.pending.passPlayer != null && unit.members.any { it.playerNumber == summary.pending.passPlayer }
-                HoldToPass(passing, { onControl(actor.seat(), "pass") }, haptics,
-                    if (compact) Modifier.widthIn(max = 168.dp) else Modifier.weight(1f), compact)
-            }
-            if (canPass && onPlanarRoll != null) {
-                PlanarDieButton(onPlanarRoll, compact)
-            }
-            if (compact || !canPass) Spacer(Modifier.weight(1f))
-            if (active && !compact) TurnClock(summary)
-        }
             }
         }
 
@@ -1026,6 +1035,7 @@ private fun InvestigatorPanelContent(
                 }
             }
         }
+        DeathMayDieTurnPhasesButton()
         InvestigatorArtCredit(art)
         Prompt(unit, summary, onControl, onRespond, Modifier)
       }
@@ -1127,7 +1137,19 @@ private fun Tag(text: String, background: Color, color: Color) {
     )
 }
 
-/** Half the panel: tap for one step, hold to repeat the big step. */
+/** Cancels when a life gesture leaves its actual bounds, including platform touch slop. */
+private suspend fun AwaitPointerEventScope.waitForLifeRelease(): PointerInputChange? {
+    while (true) {
+        val event = awaitPointerEvent(PointerEventPass.Main)
+        if (event.changes.any { change -> change.isConsumed ||
+            change.position.x < 0 || change.position.x >= size.width ||
+            change.position.y < 0 || change.position.y >= size.height }) return null
+        if (event.changes.all { !it.pressed }) return event.changes.first()
+        if (awaitPointerEvent(PointerEventPass.Final).changes.any { it.isConsumed }) return null
+    }
+}
+
+/** Half the life area: tap for one step, hold to repeat the big step. */
 @Composable
 private fun HoldHalf(
     glyph: String,
@@ -1154,7 +1176,10 @@ private fun HoldHalf(
             .pointerInput(enabled) {
                 if (!enabled) return@pointerInput
                 awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
+                    val down = awaitFirstDown()
+                    // Compose can expand small targets; it must not expand life into the action strip.
+                    if (down.position.x < 0 || down.position.x >= size.width ||
+                        down.position.y < 0 || down.position.y >= size.height) return@awaitEachGesture
                     pressed = true
                     var held = false
                     val repeating = scope.launch {
@@ -1165,12 +1190,15 @@ private fun HoldHalf(
                             delay(REPEAT_MS)
                         }
                     }
-                    val up = waitForUpOrCancellation()
-                    repeating.cancel()
-                    pressed = false
-                    if (up != null && !held) {
-                        up.consume()
-                        step()
+                    try {
+                        val up = waitForLifeRelease()
+                        if (up != null && !held) {
+                            up.consume()
+                            step()
+                        }
+                    } finally {
+                        repeating.cancel()
+                        pressed = false
                     }
                 }
             },
@@ -1183,19 +1211,20 @@ private fun HoldHalf(
 
 /** Hold to pass, so a brushed panel never ends a turn; while Atlas holds the pass, a tap keeps the turn. */
 @Composable
-private fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHaptics, modifier: Modifier, compact: Boolean = false) {
+private fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHaptics, modifier: Modifier, compact: Boolean = false,
+    clock: @Composable (Color?) -> Unit = {}) {
     val p = palette
     val pass by rememberUpdatedState(onPass)
     val scope = rememberCoroutineScope()
     var holding by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(14.dp)
-    val label = if (passing) "Passing… tap to keep" else "Pass"
+    val label = if (passing) "Passing… tap to keep" else if (compact) "Pass" else "Hold to pass"
     Box(
         modifier
             .clip(shape)
             .background(if (holding || passing) p.active else p.activeSoft)
             .border(1.dp, p.active, shape)
-            .semantics {
+            .semantics(mergeDescendants = true) {
                 contentDescription = if (passing) "Keep the turn" else "Pass the turn"
                 role = Role.Button
                 onClick { pass(); true }
@@ -1214,23 +1243,29 @@ private fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHap
                         haptics.confirm()
                         pass()
                     }
-                    waitForUpOrCancellation()
-                    timer.cancel()
-                    holding = false
+                    try {
+                        waitForUpOrCancellation()
+                    } finally {
+                        timer.cancel()
+                        holding = false
+                    }
                 }
             }
-            .heightIn(min = 48.dp)
+            .heightIn(min = 64.dp)
             .padding(horizontal = 8.dp, vertical = if (compact) 6.dp else 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = if (holding || passing) p.onActive else p.text, fontWeight = FontWeight.SemiBold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            style = if (compact) MaterialTheme.typography.labelLarge else LocalTextStyle.current)
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, color = if (holding || passing) p.onActive else p.text, fontWeight = FontWeight.SemiBold,
+                maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                style = if (compact) MaterialTheme.typography.labelLarge else LocalTextStyle.current)
+            clock(if (holding || passing) p.onActive else null)
+        }
     }
 }
 
 @Composable
-private fun TurnClock(summary: TableSummary) {
+private fun TurnClock(summary: TableSummary, foreground: Color? = null) {
     val p = palette
     val nowMs = rememberNowMs(ticking = summary.state == TableState.RUNNING, intervalMs = 500)
     val expired = summary.turnTimer.phase == TurnTimerPhase.EXPIRED
@@ -1238,7 +1273,7 @@ private fun TurnClock(summary: TableSummary) {
     // Over time shows "+" and the overtime, so time-up never rests on color alone.
     val text = if (expired) "+" + TableClock.format(TableClock.overtimeMs(summary, nowMs))
         else TableClock.format(remaining ?: TableClock.turnElapsedMs(summary, nowMs))
-    val color = when (summary.turnTimer.phase) {
+    val color = foreground ?: when (summary.turnTimer.phase) {
         TurnTimerPhase.WARNING -> p.warn
         TurnTimerPhase.EXPIRED -> p.bad
         else -> p.text
