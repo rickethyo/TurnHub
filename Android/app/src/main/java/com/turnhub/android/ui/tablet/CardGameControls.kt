@@ -72,7 +72,11 @@ private fun firstTurnNote(holder: TablePlayer, summary: TableSummary): String? {
 
 /** Room [TurnPanelLines] takes under the number, in dp. */
 internal fun turnPanelHeight(unit: TableUnit, summary: TableSummary, narrow: Boolean): Float {
-    if (summary.settings.profile.cooperative) return if (summary.state == TableState.GAME_OVER) 0f else 34f
+    if (summary.settings.profile.cooperative) return when (summary.state) {
+        TableState.GAME_OVER -> 0f
+        TableState.RUNNING -> if (unit.members.any { roundStatus(it, summary) == STILL_TO_GO }) 84f else 34f
+        else -> 34f
+    }
     val holder = turnHolder(unit, summary)
     val actions = TurnAction.of(summary.settings.profile).size
     return (if (unit.members.any { it.turn.conditions.isNotEmpty() }) 26f else 0f) +
@@ -88,7 +92,7 @@ internal fun turnPanelHeight(unit: TableUnit, summary: TableSummary, narrow: Boo
 internal fun TurnPanelLines(unit: TableUnit, summary: TableSummary, onMark: (TablePlayer, String, Int) -> Unit, modifier: Modifier) {
     val p = palette
     if (summary.settings.profile.cooperative) {
-        RoundStatus(unit, summary, modifier)
+        RoundStatus(unit, summary, onMark, modifier)
         return
     }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -115,16 +119,25 @@ internal fun roundStatus(player: TablePlayer, summary: TableSummary): String? = 
     player.eliminated -> null
     summary.activePlayerNumber == player.playerNumber -> "Taking their turn"
     player.actedThisRound -> "✓ Turn taken"
-    else -> "Still to go"
+    else -> STILL_TO_GO
 }
 
-/** A cooperative game's panel: whether this player has taken their turn this round. */
+private const val STILL_TO_GO = "Still to go"
+
+/**
+ * A cooperative game's panel: whether this player has taken their turn this round. There is
+ * no fixed order, so a player still to go can take the turn from whoever holds it.
+ */
 @Composable
-private fun RoundStatus(unit: TableUnit, summary: TableSummary, modifier: Modifier) {
+private fun RoundStatus(unit: TableUnit, summary: TableSummary, onMark: (TablePlayer, String, Int) -> Unit, modifier: Modifier) {
     val p = palette
     val member = unit.members.first()
     val status = roundStatus(member, summary) ?: return
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (status == STILL_TO_GO && summary.state == TableState.RUNNING) {
+            com.turnhub.android.ui.components.ToneButton("Take the next turn",
+                { onMark(member, StandaloneGame.TAKE_TURN_KIND, 1) })
+        }
         Text(status, color = if (member.actedThisRound) p.muted else p.text, style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.background(if (member.actedThisRound) p.surface.copy(alpha = .85f) else p.accentSoft, RoundedCornerShape(99.dp))

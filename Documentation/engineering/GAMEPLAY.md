@@ -50,9 +50,11 @@ loss condition; Commander damage totals alone do not trigger elimination.
   and the starter's first turn says to skip the draw.
 - **Cthulhu: Death May Die** (2026-10-17, owner request; JVM tests only,
   *needs a playtest*): phone-hosted, cooperative (`GameProfile.cooperative`).
-  Turns pass clockwise as usual; each panel says whether that player has taken
-  their turn this round, and once every living player has, the next round
-  starts (the round shows on the centre disc). Each player can pick their
+  There is no fixed turn order (owner): each panel says whether that player
+  has taken their turn this round, passing offers the turn to the next player
+  clockwise still to go, and any player still to go can take it instead from
+  their panel. Once every living player has gone, the next round starts (the
+  round shows on the centre disc). Each player can pick their
   investigator in the lobby from every season and box (`domain/DeathMayDie.kt`,
   from the community wiki; any name can be typed) and no two players share one.
   The panel's number counts wounds as a reminder and never knocks anyone out.

@@ -52,6 +52,25 @@ class DeathMayDieTest {
         assertEquals(0, next.active)
     }
 
+    @Test fun `any player still to go can take the next turn`() {
+        val g = game(4).pass(0, 1_000)
+        assertEquals(1, g.active)
+        // Player 3 goes instead; player 2 still hasn't gone.
+        val jumped = g.changeCounter(2, StandaloneGame.TAKE_TURN_KIND, 1, nowMs = 1_500)
+        assertEquals(2, jumped.active)
+        // Someone who has gone, or already holds the turn, can't take it.
+        assertSame(jumped, jumped.takeTurn(0, 1_600))
+        assertSame(jumped, jumped.takeTurn(2, 1_600))
+        // After player 3, the turn goes to the next player still to go: player 4, then player 2.
+        val three = jumped.pass(2, 2_000)
+        assertEquals(3, three.active)
+        val four = three.pass(3, 3_000)
+        assertEquals(1, four.active)
+        val round = four.pass(1, 4_000)
+        assertEquals(2, round.round)
+        assertTrue(round.acted.isEmpty())
+    }
+
     @Test fun `a fallen investigator no longer holds up the round`() {
         val two = game().pass(0, 1_000).pass(1, 2_000)
         // The last player still to go dies on their turn: the round is over.

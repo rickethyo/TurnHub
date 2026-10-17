@@ -370,7 +370,7 @@ data class StandaloneGame(
     private fun advanceTurn(nowMs: Long, reward: Boolean, random: Random = Random.Default): StandaloneGame {
         val holder = active ?: return this
         val team = mates(holder)
-        val next = nextIn(team.last()) ?: return this
+        val next = (if (profile.cooperative) nextUp(team.last(), acted + team) else nextIn(team.last())) ?: return this
         val now = gameElapsedMs(nowMs)
         val took = (now - turnStartedAtElapsedMs).coerceAtLeast(0)
         val earn = reward && timerRules.earnExtensions && turnTimerMs > 0 && !timeoutHandled && turnExtensionMs == 0L &&
@@ -399,6 +399,24 @@ data class StandaloneGame(
             planechase = planechase.newTurn(),
             acted = if (profile.cooperative) acted + team else acted,
         ).bump().closeRound()
+    }
+
+    /**
+     * Cooperative games have no fixed order: the next player clockwise after [index] still to go
+     * this round ([done] have gone), or once everyone has, the next player clockwise.
+     */
+    private fun nextUp(index: Int, done: Set<Int>): Int? = (1..players.size)
+        .map { (index + it) % players.size }
+        .firstOrNull { !players[it].eliminated && it !in done } ?: nextIn(index)
+
+    /**
+     * Cooperative games: a player still to go this round takes the turn instead of the one
+     * TurnHub offered, who hasn't acted yet and stays to go.
+     */
+    fun takeTurn(index: Int, nowMs: Long): StandaloneGame {
+        if (!profile.cooperative || state != TableState.RUNNING || index !in players.indices || players[index].eliminated ||
+            index in acted || index == active) return this
+        return copy(active = index, turnStartedAtElapsedMs = gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false).bump()
     }
 
     /** Cooperative games: once every living player has taken a turn, the next round starts with nobody done. */
@@ -472,7 +490,7 @@ data class StandaloneGame(
     fun changeCounter(index: Int, kind: String, value: Int, commander: Int = 1, nowMs: Long = startedAtMs): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
         if (pokemon || lorcana) return markTurn(index, kind, value)
-        if (deathMayDie) return this
+        if (deathMayDie) return if (kind == TAKE_TURN_KIND) takeTurn(index, nowMs) else this
         if (!playing || player.eliminated || !magic) return this
         if (kind == "initiative") {
             if (value !in 0..1 || (value == 0 && initiative != index)) return this
@@ -532,7 +550,7 @@ data class StandaloneGame(
         }).bump().passStatuses(leaving)
         game.decided()?.let { return game.finish(it, nowMs) }
         if (active in leaving) {
-            val next = game.nextIn(leaving.last()) ?: return game
+            val next = (if (profile.cooperative) game.nextUp(leaving.last(), acted) else game.nextIn(leaving.last())) ?: return game
             game = game.copy(active = next, turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false,
                 planechase = game.planechase.newTurn())
         }
@@ -952,6 +970,8 @@ data class StandaloneGame(
         /** Counter kinds for once-per-turn actions and Pokémon's Special Conditions ([TurnAction], [SpecialCondition] names follow). */
         const val ACTION_KIND = "turn-action:"
         const val CONDITION_KIND = "pokemon-condition:"
+        /** Counter kind for a cooperative player taking the turn out of order ([takeTurn]). */
+        const val TAKE_TURN_KIND = "take-turn"
 
         private const val SOLO_POISON = 10
         private const val TEAM_POISON = 15
