@@ -159,10 +159,10 @@ class DeathMayDieTest {
         assertEquals(listOf(1, 0, 0, 0), timed.players.map { it.turnsCompleted })
         assertNull(timed.nextTurn)
         // A chooser opened earlier can still explicitly name another eligible player.
-        val explicit = g.passTo(g.cooperativeTurn()!!, 3, 500)
+        val explicit = g.stageNextTurn(1).passTo(g.cooperativeTurn()!!, 3, 500)
         assertEquals(2, explicit.active)
         assertNull(explicit.nextTurn)
-        assertEquals(1, explicit.pass(2, 1_000).active)
+        assertEquals(3, explicit.pass(2, 1_000).active)
     }
 
     @Test fun `a fallen investigator no longer holds up the round`() {
