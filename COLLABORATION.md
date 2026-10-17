@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-025 | Death May Die active investigator dashboard | Android | Implementation in PR #129; final UI validation in progress | Codex / CI, owner / device acceptance |
+| TH-025 | Death May Die active investigator dashboard | Android | Ready for review; Android CI passes | Codex / CI, owner / device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
@@ -91,9 +91,11 @@ Append replies under the same topic with date, author and reviewed SHA. Record a
   [PR #129](https://github.com/rickethyo/TurnHub/pull/129). Documentation links,
   tokens, manual export and whitespace checks pass. The manual renders to PDF;
   its new section was visually checked on pages 4–5. Android compilation and
-  the complete JVM suite passed in CI for `d4fe209`. A final UI follow-up adds
-  Preview upgrades without moving markers and labels eliminated compact cards;
-  its compile check is pending. No Android SDK or device is attached
+  the complete JVM suite passed for final code `92084c0` in
+  [CI](https://github.com/rickethyo/TurnHub/actions/runs/38996021399), including
+  nine new dashboard/last-investigator regression tests. Final follow-ups add
+  Preview upgrades without moving markers, label eliminated compact cards and
+  propagate the active card's minimum height. No Android SDK or device is attached
   here; phone/foldable/tablet layouts, large text, TalkBack and lifecycle/device
   acceptance remain open. Owner reviews and integrates; no merge/release.
 
