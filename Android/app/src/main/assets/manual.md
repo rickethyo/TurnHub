@@ -99,13 +99,15 @@ Official modes (Magic, Commander, Two-Headed Giant and Yu-Gi-Oh!) keep their off
 
 - Cthulhu: Death May Die is a cooperative, phone-hosted game. Pick each player’s investigator in setup. Everyone wins or loses together, and wounds and stress are reminders; the physical game determines their effects.
 
-- The active investigator uses 70% of the play area. Their card scrolls independently, with the other players in a smaller list below. Wide screens put abilities beside the counters. Open another player’s menu to edit their counters and skills. A player still to go can choose Take the next turn; after every living player has gone, a new round begins.
+- The active investigator uses 70% of the play area. Their card scrolls independently, with the other players in a smaller list below. Wide screens put abilities beside the counters. Open another player’s menu to edit their counters and skills. Tap Pass to open Pass to? and choose an investigator who still needs a turn. After the last turn, choose any surviving investigator to start the next round, including the current player. Cancel or Back keeps the current turn. A player still to go can also choose Take the next turn from their panel.
 
 - Each investigator has three skill markers, with levels 1 to 4. Tap the level to move a marker; earlier effects still apply unless a later effect says instead. Preview upgrades shows future level effects without moving a marker. The ten core-box investigators include ability summaries. Edit abilities lets you enter or correct the names and all four level effects for any investigator. Apply effects to the physical game yourself.
 
 - The Insanity counter records sanity loss. It stops at each insanity threshold and shows bonus dice. Resolve your insanity card and choose a skill upgrade on the physical dashboard when prompted. The minus button corrects an entry; it does not mean sanity can normally be healed. Reaching the end of the track does not automatically end a player’s game: use their menu to resolve the outcome.
 
-- Skill markers, sanity loss and edited ability text survive closing the app. A rematch resets the markers and keeps the edited text. Choosing a different investigator clears their dashboard.
+- Before starting, assign a Sanity condition to every investigator using Assign sanity condition beneath their name. Relics are optional: turn on Use relics in setup when playing with them, then assign a relic to every investigator. Start stays unavailable until the required cards are assigned. Turning Use relics off clears relic assignments and hides their slots. Enter a name and optional rules/notes; Save applies the assignment, Cancel keeps the current card, and Remove clears that slot. During play, Edit on the card or in the player menu lets you correct a reference. Apply card effects to the physical game.
+
+- Skill markers, sanity loss, edited ability text and assigned cards survive closing the app. Back to setup keeps assignments. Set up rematch returns to setup with empty card slots and reset markers, while keeping investigators, edited ability text and the Use relics option. Assign fresh cards before starting the next game. Choosing a different investigator clears their dashboard.
 
 ## Two-Headed Giant
 
@@ -158,6 +160,8 @@ Each player has a panel facing their seat with their name, life, counters and tu
 - **Life:** tap the top half of a panel to add life and the bottom half to subtract; hold to repeat the bigger step. Steps are 1 and 5 (100 and 1000 for Yu-Gi-Oh!). On rotated panels, minus is always on the player's left and plus on their right.
 
 - **Pass:** the active player taps **Pass**. While it says **Passing… tap to keep**, a tap undoes the pass.
+
+Death May Die uses the Pass to? menu described under Game Modes.
 
 - **Planar die:** in Planechase, beside Pass (section 6).
 

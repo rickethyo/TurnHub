@@ -31,4 +31,17 @@ class PracticeTableTest {
         assertEquals(lobby.startingLife - 3, practice.state.value.game.players.first().life)
         assertEquals(TableState.LOBBY, lobby.state)
     }
+    @Test fun `Death May Die practice fills only missing references and never changes real setup`() {
+        val condition = com.turnhub.android.domain.InvestigatorCard("Chosen condition")
+        val lobby = StandaloneGame(profile = GameProfile.DEATH_MAY_DIE).addPlayer("Ana").setUseRelics(true)
+            .setInvestigatorCard(0, com.turnhub.android.domain.InvestigatorCardSlot.SANITY_CONDITION, condition)
+        val game = lobby.preview(paused = false)
+        assertEquals(TableState.RUNNING, game.state)
+        assertEquals(2, game.players.size)
+        assertEquals(condition, game.players[0].dashboard.sanityCondition)
+        assertTrue(game.players.all { it.dashboard.sanityCondition != null && it.dashboard.relic != null })
+        assertEquals(1, lobby.players.size)
+        assertEquals(null, lobby.players[0].dashboard.relic)
+        assertEquals(TableState.LOBBY, lobby.state)
+    }
 }

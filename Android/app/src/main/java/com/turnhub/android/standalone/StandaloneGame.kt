@@ -1,6 +1,9 @@
 package com.turnhub.android.standalone
 
 import com.turnhub.android.domain.ControllerHandle
+import com.turnhub.android.domain.CooperativeTurn
+import com.turnhub.android.domain.InvestigatorCard
+import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
@@ -94,6 +97,8 @@ data class StandaloneGame(
      * limit and player count unless the table turns on house rules.
      */
     val houseRules: Boolean = false,
+    /** Death May Die: optional relic rules, selected before the match. */
+    val useRelics: Boolean = false,
     val players: List<LocalPlayer> = emptyList(),
     /** Index into [players] of whose turn it is. */
     val active: Int? = null,
@@ -146,11 +151,14 @@ data class StandaloneGame(
     /** The official rules this game follows; null for a custom mode or house rules. */
     val locked: OfficialRules? get() = if (houseRules) null else officialRules(profile, twoHeadedGiant)
 
-    /**
-     * Two players, (Two-Headed Giant) an even table of at least four, or (Star Commander)
-     * exactly five; an official mode's exact count (two teams of two, a two-player Duel).
-     */
+    /** Base-game condition cards, plus relics only when their optional rules are in use. */
+    val investigatorCardsReady: Boolean get() = !deathMayDie || players.all {
+        it.dashboard.sanityCondition?.normalized() != null && (!useRelics || it.dashboard.relic?.normalized() != null)
+    }
+
+    /** Required player count and all selected setup references are ready. */
     val canStart: Boolean get() = when {
+        !investigatorCardsReady -> false
         star -> players.size == StarCommander.PLAYERS
         locked?.players != null -> players.size == locked?.players
         else -> players.size >= 2 && (!twoHeadedGiant || (players.size >= 4 && players.size % 2 == 0))
@@ -294,6 +302,7 @@ data class StandaloneGame(
     /** Starts a match with a random first player; needs two players. */
     fun start(nowMs: Long, gameId: String, random: Random = Random.Default, planarDeck: List<PlanarCard> = emptyList()): StandaloneGame {
         if (state != TableState.LOBBY && state != TableState.GAME_OVER) return this
+        if (deathMayDie && state == TableState.GAME_OVER) return rematch(nowMs, gameId, random, planarDeck)
         if (!canStart) return this
         // The lobby's chosen starter, else random (a rematch is random too). A team game
         // starts with a team: its first player holds the turn for both.
@@ -343,6 +352,7 @@ data class StandaloneGame(
             timerRules = timerRules,
             twoHeadedGiant = twoHeadedGiant,
             houseRules = houseRules,
+            useRelics = useRelics,
             planechase = planechase.cleared(),
             players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt,
                 cardOnly = it.cardOnly, investigator = it.investigator, dashboard = it.dashboard.fresh()) },
@@ -371,10 +381,32 @@ data class StandaloneGame(
         return settled.advanceTurn(nowMs, reward = true, random = random)
     }
 
-    private fun advanceTurn(nowMs: Long, reward: Boolean, random: Random = Random.Default): StandaloneGame {
+    fun cooperativeTurn(): CooperativeTurn? {
+        val holder = active ?: return null
+        if (!profile.cooperative || state != TableState.RUNNING || players[holder].eliminated) return null
+        return CooperativeTurn(gameId, holder + 1, round, players[holder].turnsCompleted.toLong())
+    }
+
+    /** Normally only investigators still to go; a finished round offers every survivor. */
+    fun cooperativePassTargets(): List<Int> {
+        val turn = cooperativeTurn() ?: return emptyList()
+        val living = players.indices.filter { !players[it].eliminated }
+        val done = acted + (turn.playerNumber - 1)
+        return living.filter { it !in done }.ifEmpty { living }.map { it + 1 }
+    }
+
+    /** Finishes and hands off one turn in one mutation, guarded against a stale chooser. */
+    fun passTo(turn: CooperativeTurn, playerNumber: Int, nowMs: Long): StandaloneGame {
+        if (turn != cooperativeTurn() || playerNumber !in cooperativePassTargets()) return this
+        val settled = applyTurnTimeout(nowMs)
+        if (settled.cooperativeTurn() != turn) return settled
+        return settled.advanceTurn(nowMs, reward = true, nextPlayer = playerNumber - 1)
+    }
+
+    private fun advanceTurn(nowMs: Long, reward: Boolean, random: Random = Random.Default, nextPlayer: Int? = null): StandaloneGame {
         val holder = active ?: return this
         val team = mates(holder)
-        val next = (if (profile.cooperative) nextUp(team.last(), acted + team) else nextIn(team.last())) ?: return this
+        val next = nextPlayer ?: (if (profile.cooperative) nextUp(team.last(), acted + team) else nextIn(team.last())) ?: return this
         val now = gameElapsedMs(nowMs)
         val took = (now - turnStartedAtElapsedMs).coerceAtLeast(0)
         val earn = reward && timerRules.earnExtensions && turnTimerMs > 0 && !timeoutHandled && turnExtensionMs == 0L &&
@@ -622,9 +654,12 @@ data class StandaloneGame(
     /** The table ends the game with no winner (it still counts as played). */
     fun endWithoutWinner(nowMs: Long): StandaloneGame = if (!playing) this else finish(emptyList(), nowMs)
 
-    /** The same players play again; a new [gameId] makes it a separate record. */
+    /** The same players play again; Death May Die returns to setup for fresh card assignments. */
     fun rematch(nowMs: Long, gameId: String, random: Random = Random.Default, planarDeck: List<PlanarCard> = emptyList()): StandaloneGame {
         if (state != TableState.GAME_OVER) return this
+        if (deathMayDie) return reset().let { setup ->
+            setup.copy(players = setup.players.map { it.copy(dashboard = it.dashboard.fresh(clearCards = true)) })
+        }
         return start(nowMs, gameId, random, planarDeck)
     }
 
@@ -805,6 +840,29 @@ data class StandaloneGame(
         return update(index) { it.copy(investigator = clean, dashboard = com.turnhub.android.domain.InvestigatorDashboard()) }
     }
 
+    /** Optional rules are chosen in setup; disabling relics discards their assignments. */
+    fun setUseRelics(on: Boolean): StandaloneGame {
+        if (!deathMayDie || state != TableState.LOBBY || useRelics == on) return this
+        return copy(useRelics = on, players = if (on) players else players.map {
+            it.copy(dashboard = it.dashboard.copy(relic = null))
+        }).bump()
+    }
+
+    /** Assigns or corrects one match card without applying its printed effects. */
+    fun setInvestigatorCard(index: Int, slot: InvestigatorCardSlot, card: InvestigatorCard?): StandaloneGame {
+        val player = players.getOrNull(index) ?: return this
+        if (!deathMayDie || (state != TableState.LOBBY && !playing) || player.eliminated) return this
+        if (slot == InvestigatorCardSlot.RELIC && !useRelics) return this
+        val clean = card?.normalized()
+        if (card != null && clean == null) return this
+        if (player.dashboard.card(slot) == clean) return this
+        val board = when (slot) {
+            InvestigatorCardSlot.SANITY_CONDITION -> player.dashboard.copy(sanityCondition = clean)
+            InvestigatorCardSlot.RELIC -> player.dashboard.copy(relic = clean)
+        }
+        return update(index) { it.copy(dashboard = board) }
+    }
+
     /** Reference edits do not move any markers or apply a skill's effects. */
     fun setInvestigatorSkills(index: Int, skills: List<com.turnhub.android.domain.InvestigatorSkill>): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
@@ -923,6 +981,8 @@ data class StandaloneGame(
             host = null,
             starterPlayerNumber = starter?.plus(1),
             activePlayerNumber = active?.plus(1),
+            passPlayerNumbers = cooperativePassTargets(),
+            useRelics = useRelics,
             winnerPlayerNumber = winner?.plus(1),
             winnerPlayerNumbers = winners.map { it + 1 },
             monarchPlayerNumber = monarch?.plus(1),

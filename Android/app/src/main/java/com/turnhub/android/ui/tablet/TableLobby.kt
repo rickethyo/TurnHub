@@ -20,6 +20,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.domain.ControllerHandle
+import com.turnhub.android.domain.InvestigatorCard
+import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
@@ -61,6 +63,7 @@ internal data class TableLobbyActions(
     val commander: ((player: TablePlayer, name: String?, printing: String?, cardOnly: Boolean) -> Unit)? = null,
     /** Death May Die: names (or clears, null) a player's investigator; null hides it. */
     val investigator: ((player: TablePlayer, name: String?) -> Unit)? = null,
+    val investigatorCard: ((TablePlayer, InvestigatorCardSlot, InvestigatorCard?) -> Unit)? = null,
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -85,6 +88,8 @@ internal fun TableLobby(
     extraSettings: @Composable () -> Unit = {},
     /** The phone runs this game: it also offers the formats Atlas doesn't run yet (Pokémon). */
     phoneHosted: Boolean = false,
+    startReady: Boolean = true,
+    startHint: String? = null,
 ) {
     val p = palette
     val players = summary.players.sortedBy { it.playerNumber }
@@ -208,6 +213,10 @@ internal fun TableLobby(
                                 Text("×", color = p.muted, style = MaterialTheme.typography.titleLarge)
                             }
                         }
+                        if (investigators) actions.investigatorCard?.let { assign ->
+                            InvestigatorCards(player, summary.bootId, enabled, compact = true, useRelics = summary.useRelics,
+                                onAssign = { slot, card -> assign(player, slot, card) })
+                        }
                     }
                 }
                 var name by rememberSaveable { mutableStateOf("") }
@@ -306,7 +315,8 @@ internal fun TableLobby(
                 }
                 extraSettings()
             }
-            StartTableButton(players.size, settings.twoHeadedGiant, enabled, settings.profile.starCommander,
+            startHint?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
+            StartTableButton(players.size, settings.twoHeadedGiant, enabled && startReady, settings.profile.starCommander,
                 official?.players?.takeIf { locked }, actions.start)
             // In the app, sounds and bug reports live in Settings and the banner; the
             // full-screen lobby has neither, so it keeps them at the bottom.

@@ -8,6 +8,10 @@ package com.turnhub.android.data
 interface TableControls {
     /** `pass`, `pause`, `concede`, `win`, `confirm`, `deny`, `rematch` or `reset` (Atlas also takes the lobby ones). */
     suspend fun control(seat: TabletSeat, action: String): Boolean
+    /** A phone-hosted cooperative turn ends only after its recipient is chosen. */
+    suspend fun passTo(turn: com.turnhub.android.domain.CooperativeTurn, playerNumber: Int): Boolean {
+        error("Pass to requires a phone-hosted cooperative game")
+    }
 
     /** Changes the seat's own life by [delta]; true when it was applied. */
     suspend fun life(seat: TabletSeat, delta: Int): Boolean
@@ -19,6 +23,10 @@ interface TableControls {
     /** Editable reference text for the phone-only investigator dashboard. */
     suspend fun investigatorSkills(seat: TabletSeat, skills: List<com.turnhub.android.domain.InvestigatorSkill>) {
         error("Investigator dashboards require a phone-hosted game")
+    }
+    suspend fun investigatorCard(seat: TabletSeat, slot: com.turnhub.android.domain.InvestigatorCardSlot,
+        card: com.turnhub.android.domain.InvestigatorCard?) {
+        error("Investigator cards require a phone-hosted game")
     }
     suspend fun setEliminationRule(seat: TabletSeat, field: String, value: Int)
 

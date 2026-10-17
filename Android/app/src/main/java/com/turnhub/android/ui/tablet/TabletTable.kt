@@ -52,6 +52,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import com.turnhub.android.standalone.StandaloneGame
+import com.turnhub.android.domain.CooperativeTurn
+import com.turnhub.android.domain.InvestigatorCard
+import com.turnhub.android.domain.InvestigatorCardSlot
+import com.turnhub.android.domain.cooperativeTurn
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
@@ -222,6 +226,11 @@ internal fun TabletTable(
     var nextId by remember { mutableStateOf(0L) }
     // One player's menu at a time, full screen and turned to face that player.
     var playerMenu by remember { mutableStateOf<String?>(null) }
+    var passToTurn by remember { mutableStateOf<CooperativeTurn?>(null) }
+    val cooperativeTurn = summary.cooperativeTurn()
+    LaunchedEffect(cooperativeTurn) {
+        if (passToTurn != cooperativeTurn) passToTurn = null
+    }
     val partners = rememberSaveable(summary.atlasId, summary.bootId, summary.game,
         saver = listSaver<SnapshotStateList<Int>, Int>(save = { it.toList() }, restore = { it.toMutableStateList() })) {
         mutableStateListOf<Int>()
@@ -229,9 +238,12 @@ internal fun TabletTable(
     var flipped by rememberSaveable { mutableStateOf(false) }
     val starLayout = rememberStarLayout()
     var menuOpen by remember { mutableStateOf(false) }
-    BackHandler(enabled = playerMenu != null || menuOpen) {
-        playerMenu = null
-        menuOpen = false
+    BackHandler(enabled = passToTurn != null || playerMenu != null || menuOpen) {
+        if (passToTurn != null) passToTurn = null
+        else {
+            playerMenu = null
+            menuOpen = false
+        }
     }
 
     LaunchedEffect(summary.revision) { sent.removeAll { it.acked && it.sentAtRevision != summary.revision } }
@@ -249,7 +261,16 @@ internal fun TabletTable(
     }
     fun send(seat: TabletSeat?, action: String) {
         seat ?: return
-        if (standalone && action in listOf("rematch", "sean-mode")) {
+        if (standalone && action == "pass" && current.settings.profile.cooperative) {
+            if (isOffline) controls { refuseOffline() }
+            else {
+                passToTurn = current.cooperativeTurn()
+                playerMenu = null
+                menuOpen = false
+            }
+            return
+        }
+        if (standalone && action in listOf("rematch", "sean-mode") && !current.settings.profile.deathMayDie) {
             pendingStart = seat to action; startCountdown(); return
         }
         haptics.tick()
@@ -359,6 +380,7 @@ internal fun TabletTable(
                             controls { counter(member.seat(), StandaloneGame.SKILL_KIND, level, slot + 1) }
                         },
                         onEditSkills = { member, skills -> controls { investigatorSkills(member.seat(), skills) } },
+                        onInvestigatorCard = { member, slot, card -> controls { investigatorCard(member.seat(), slot, card) } },
                         investigatorFocused = index == focused,
                         onRespond = { seat, id, accept ->
                             if (isOffline) controls { refuseOffline() }
@@ -460,6 +482,7 @@ internal fun TabletTable(
                     },
                     onLife = { member, delta -> controls { life(member.seat(), delta) } },
                     onEditSkills = { member, skills -> controls { investigatorSkills(member.seat(), skills) } },
+                    onInvestigatorCard = { member, slot, card -> controls { investigatorCard(member.seat(), slot, card) } },
                     offlineCommander = tablet::offlineCommander,
                 )
             }
@@ -480,6 +503,16 @@ internal fun TabletTable(
                     .padding(horizontal = 16.dp, vertical = 10.dp)
                     .semantics { liveRegion = LiveRegionMode.Polite },
             )
+        }
+
+        passToTurn?.takeIf { it == cooperativeTurn }?.let { turn ->
+            CooperativePassDialog(summary, turn, onDismiss = { passToTurn = null }, onChoose = { target ->
+                passToTurn = null
+                if (current.cooperativeTurn() == turn && target in current.passPlayerNumbers) {
+                    haptics.confirm()
+                    controls { passTo(turn, target) }
+                }
+            })
         }
 
         val anySeat = summary.anySeat()
@@ -531,7 +564,7 @@ internal fun TabletTable(
                     }
                     OverlayButtons {
                         ToneButton("New players", { send(anySeat, "reset") }, Modifier.weight(1f))
-                        AccentButton("Rematch", { send(anySeat, "rematch") }, Modifier.weight(1f))
+                        AccentButton(if (standalone && summary.settings.profile.deathMayDie) "Set up rematch" else "Rematch", { send(anySeat, "rematch") }, Modifier.weight(1f))
                     }
                     // The Sean Mode easter egg: the same five, reseated so allies become enemies.
                     if (standalone && summary.star) {
@@ -734,6 +767,7 @@ private fun PlayerPanel(
     onTurnMark: (TablePlayer, String, Int) -> Unit,
     onSkillLevel: (TablePlayer, Int, Int) -> Unit,
     onEditSkills: (TablePlayer, List<com.turnhub.android.domain.InvestigatorSkill>) -> Unit,
+    onInvestigatorCard: (TablePlayer, InvestigatorCardSlot, InvestigatorCard?) -> Unit,
     investigatorFocused: Boolean,
     onRespond: (TabletSeat, Long, Boolean) -> Unit,
     offlineCommander: (Long, Int, Int) -> Int,
@@ -796,7 +830,7 @@ private fun PlayerPanel(
         }
         if (tracks) {
             if (investigatorFocused) InvestigatorPanelContent(unit, summary, life, onBump, onTurnMark, onOpenMenu,
-                onControl, onRespond, haptics, onSkillLevel, onEditSkills, dashboardArt)
+                onControl, onRespond, onSkillLevel, onEditSkills, onInvestigatorCard, dashboardArt)
             else CompactInvestigatorPanel(unit, summary, life, onOpenMenu, onTurnMark, dashboardArt)
             return@BoxWithConstraints
         }
@@ -956,9 +990,9 @@ private fun InvestigatorPanelContent(
     onOpenMenu: () -> Unit,
     onControl: (TabletSeat, String) -> Unit,
     onRespond: (TabletSeat, Long, Boolean) -> Unit,
-    haptics: TurnHubHaptics,
     onSkillLevel: (TablePlayer, Int, Int) -> Unit,
     onEditSkills: (TablePlayer, List<com.turnhub.android.domain.InvestigatorSkill>) -> Unit,
+    onInvestigatorCard: (TablePlayer, InvestigatorCardSlot, InvestigatorCard?) -> Unit,
     art: TileArt?,
 ) {
     val p = palette
@@ -983,8 +1017,7 @@ private fun InvestigatorPanelContent(
             if (active && !unit.out) {
                 TurnClock(summary)
                 if (summary.state == TableState.RUNNING) {
-                    HoldToPass(summary.pending.passPlayer == member.playerNumber,
-                        { onControl(member.seat(), "pass") }, haptics, Modifier, compact = true)
+                    ToneButton("Pass", { onControl(member.seat(), "pass") })
                 }
             }
         }
@@ -996,7 +1029,7 @@ private fun InvestigatorPanelContent(
         InvestigatorAbilities(member, summary,
             onInsanity = { onMark(member, StandaloneGame.INSANITY_KIND, it) },
             onLevel = { slot, level -> onSkillLevel(member, slot, level) },
-            onEdit = { onEditSkills(member, it) })
+            onEdit = { onEditSkills(member, it) }, onCard = { slot, card -> onInvestigatorCard(member, slot, card) })
     }
     BoxWithConstraints(Modifier.fillMaxWidth().padding(16.dp)) {
         if (maxWidth >= 600.dp) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -1318,6 +1351,7 @@ private fun PlayerMenu(
     onCounter: (TablePlayer, String, Int, Int) -> Unit,
     onLife: (TablePlayer, Int) -> Unit,
     onEditSkills: (TablePlayer, List<com.turnhub.android.domain.InvestigatorSkill>) -> Unit,
+    onInvestigatorCard: (TablePlayer, InvestigatorCardSlot, InvestigatorCard?) -> Unit,
     offlineCommander: (Long, Int, Int) -> Int,
 ) {
     val p = palette
@@ -1362,7 +1396,7 @@ private fun PlayerMenu(
                 InvestigatorAbilities(member, summary,
                     onInsanity = { onCounter(member, StandaloneGame.INSANITY_KIND, it, 1) },
                     onLevel = { slot, level -> onCounter(member, StandaloneGame.SKILL_KIND, level, slot + 1) },
-                    onEdit = { onEditSkills(member, it) })
+                    onEdit = { onEditSkills(member, it) }, onCard = { slot, card -> onInvestigatorCard(member, slot, card) })
             }
             PlayerMenuItems(unit, summary, partners, onControl, onCommander, onCounter, offlineCommander)
         }

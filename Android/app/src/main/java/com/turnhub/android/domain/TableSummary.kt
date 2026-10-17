@@ -72,6 +72,10 @@ data class TableSummary(
     val pokemonCheckup: List<String> = emptyList(),
     /** Cooperative games (Death May Die, phone-hosted): the round being played; null otherwise. */
     val round: Int? = null,
+    /** Phone engine's eligible recipients after the active investigator finishes this turn. */
+    val passPlayerNumbers: List<Int> = emptyList(),
+    /** Phone-hosted Death May Die optional setup rule. */
+    val useRelics: Boolean = false,
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding
