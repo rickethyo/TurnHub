@@ -338,7 +338,7 @@ internal fun TabletTable(
                 Box(modifier.padding(4.dp).then(
                     // List cards measure their own height; facing fixes both dimensions.
                     if (list) Modifier.rotate(turn.toFloat()) else Modifier.facing((degrees + turn) % 360),
-                )) {
+                ), propagateMinConstraints = list) {
                     PlayerPanel(
                         unit = unit,
                         summary = summary,
