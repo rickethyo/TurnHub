@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-027 | Forgiving Pass touch targets | Android table UI | Active | Codex / implement and validate |
+| TH-027 | Forgiving Pass touch targets | Android table UI | Ready for review; CI passes | Owner / PR #132 integration and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
@@ -96,6 +96,18 @@ TH-026: Staged turns and community catalogue merged in [PR #131](https://github.
   edge taps/holds and drags across the boundary on phone/tablet; no local SDK/device.
 - A new PR is needed because #131 is integrated. Update the user manual and
   accessibility reference; use CI for Android compilation/the existing JVM suite.
+- Implementation: `d1f9f4f`, [PR #132](https://github.com/rickethyo/TurnHub/pull/132).
+  Local docs links, design tokens, manual export and whitespace checks pass.
+  The updated DOCX renders correctly on reviewed page 8. No new dependencies or
+  game-state tests: this change only moves input/layout and cancels gesture jobs.
+  [CI](https://github.com/rickethyo/TurnHub/actions/runs/39042711784) passes Android
+  compilation, the complete existing JVM suite and release-bundle creation for
+  `d1f9f4f`. Physical hit-target behavior remains a device acceptance check, not
+  a claim of automated pointer coverage. Final manual clarifications were exported,
+  rendered and visually reviewed on page 8; docs/whitespace checks pass.
+  Next owner: review/integrate #132 with a merge commit, retaining codex/master,
+  then test physical edge taps/holds/drags and interrupted gestures. No merge or
+  release performed.
 
 ## TH-024: Concise bug reports with app diagnostics
 
