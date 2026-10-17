@@ -126,6 +126,8 @@ data class StandaloneGame(
     val acted: Set<Int> = emptySet(),
     /** Cooperative games: the round, from 1; a round ends once every living player has taken a turn. */
     val round: Int = 1,
+    /** Cooperative games: the investigator staged to follow the current turn, by index. */
+    val nextTurn: Int? = null,
     val revision: Long = 0,
 ) {
     fun gameElapsedMs(nowMs: Long): Long = elapsedMs + (runningSinceMs?.let { (nowMs - it).coerceAtLeast(0) } ?: 0)
@@ -335,6 +337,7 @@ data class StandaloneGame(
             pokemonCheckup = emptyList(),
             acted = emptySet(),
             round = 1,
+            nextTurn = null,
         ).bump()
     }
 
@@ -406,7 +409,7 @@ data class StandaloneGame(
     private fun advanceTurn(nowMs: Long, reward: Boolean, random: Random = Random.Default, nextPlayer: Int? = null): StandaloneGame {
         val holder = active ?: return this
         val team = mates(holder)
-        val next = nextPlayer ?: (if (profile.cooperative) nextUp(team.last(), acted + team) else nextIn(team.last())) ?: return this
+        val next = nextPlayer ?: stagedNextTurn ?: (if (profile.cooperative) nextUp(team.last(), acted + team) else nextIn(team.last())) ?: return this
         val now = gameElapsedMs(nowMs)
         val took = (now - turnStartedAtElapsedMs).coerceAtLeast(0)
         val earn = reward && timerRules.earnExtensions && turnTimerMs > 0 && !timeoutHandled && turnExtensionMs == 0L &&
@@ -429,6 +432,7 @@ data class StandaloneGame(
                 )
             },
             active = next,
+            nextTurn = null,
             turnStartedAtElapsedMs = now,
             turnExtensionMs = 0,
             timeoutHandled = false,
@@ -446,14 +450,16 @@ data class StandaloneGame(
         .firstOrNull { !players[it].eliminated && it !in done } ?: nextIn(index)
         ?: index.takeIf { !players[it].eliminated }
 
-    /**
-     * Cooperative games: a player still to go this round takes the turn instead of the one
-     * TurnHub offered, who hasn't acted yet and stays to go.
-     */
-    fun takeTurn(index: Int, nowMs: Long): StandaloneGame {
-        if (!profile.cooperative || state != TableState.RUNNING || index !in players.indices || players[index].eliminated ||
-            index in acted || index == active) return this
-        return copy(active = index, turnStartedAtElapsedMs = gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false).bump()
+    private fun canStageNextTurn(index: Int): Boolean = profile.cooperative && playing &&
+        index in players.indices && !players[index].eliminated && index !in acted && index != active
+
+    /** Validated for rendering, recovery and every path that advances a turn. */
+    val stagedNextTurn: Int? get() = nextTurn?.takeIf { canStageNextTurn(it) }
+
+    /** Stage one recipient without touching clocks or stats; selecting them again cancels. */
+    fun stageNextTurn(index: Int): StandaloneGame {
+        if (state != TableState.RUNNING || !canStageNextTurn(index)) return this
+        return copy(nextTurn = index.takeUnless { it == stagedNextTurn }).bump()
     }
 
     /** Cooperative games: once every living player has taken a turn, the next round starts with nobody done. */
@@ -528,7 +534,7 @@ data class StandaloneGame(
         val player = players.getOrNull(index) ?: return this
         if (pokemon || lorcana) return markTurn(index, kind, value)
         if (deathMayDie) return when (kind) {
-            TAKE_TURN_KIND -> takeTurn(index, nowMs)
+            TAKE_TURN_KIND -> stageNextTurn(index)
             INSANITY_KIND -> {
                 if (!playing || player.eliminated || value == 0) this
                 else {
@@ -603,13 +609,13 @@ data class StandaloneGame(
         // Teammates leave together.
         val leaving = mates(index).filter { !players[it].eliminated }
         val out = players.count { it.eliminated } + 1
-        var game = copy(players = players.mapIndexed { i, p ->
+        var game = copy(nextTurn = nextTurn.takeUnless { it in leaving }, players = players.mapIndexed { i, p ->
             if (i in leaving) p.copy(eliminated = true, conceded = conceded, outOrder = out) else p
         }).bump().passStatuses(leaving)
         game.decided()?.let { return game.finish(it, nowMs) }
         if (active in leaving) {
-            val next = (if (profile.cooperative) game.nextUp(leaving.last(), acted) else game.nextIn(leaving.last())) ?: return game
-            game = game.copy(active = next, turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false,
+            val next = game.stagedNextTurn ?: (if (profile.cooperative) game.nextUp(leaving.last(), acted) else game.nextIn(leaving.last())) ?: return game
+            game = game.copy(active = next, nextTurn = null, turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false,
                 planechase = game.planechase.newTurn())
         }
         return game.closeRound()
@@ -855,6 +861,7 @@ data class StandaloneGame(
         if (slot == InvestigatorCardSlot.RELIC && !useRelics) return this
         val clean = card?.normalized()
         if (card != null && clean == null) return this
+        if (clean?.catalogueId?.let { com.turnhub.android.domain.InvestigatorCardCatalogue.find(it)?.slot != slot } == true) return this
         if (player.dashboard.card(slot) == clean) return this
         val board = when (slot) {
             InvestigatorCardSlot.SANITY_CONDITION -> player.dashboard.copy(sanityCondition = clean)
@@ -875,6 +882,7 @@ data class StandaloneGame(
 
     private fun finish(winners: List<Int>, nowMs: Long): StandaloneGame = copy(
         state = TableState.GAME_OVER,
+        nextTurn = null,
         winner = winners.firstOrNull(),
         winners = winners,
         elapsedMs = gameElapsedMs(nowMs),
@@ -982,6 +990,7 @@ data class StandaloneGame(
             starterPlayerNumber = starter?.plus(1),
             activePlayerNumber = active?.plus(1),
             passPlayerNumbers = cooperativePassTargets(),
+            nextTurnPlayerNumber = stagedNextTurn?.plus(1),
             useRelics = useRelics,
             winnerPlayerNumber = winner?.plus(1),
             winnerPlayerNumbers = winners.map { it + 1 },
@@ -1068,7 +1077,7 @@ data class StandaloneGame(
         /** Counter kinds for once-per-turn actions and Pokémon's Special Conditions ([TurnAction], [SpecialCondition] names follow). */
         const val ACTION_KIND = "turn-action:"
         const val CONDITION_KIND = "pokemon-condition:"
-        /** Counter kind for a cooperative player taking the turn out of order ([takeTurn]). */
+        /** Counter kind for staging a cooperative game's next turn ([stageNextTurn]). */
         const val TAKE_TURN_KIND = "take-turn"
         /** Counter kind for Death May Die's stress tokens. */
         const val STRESS_KIND = "stress"

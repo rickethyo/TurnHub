@@ -55,8 +55,14 @@ loss condition; Commander damage totals alone do not trigger elimination.
   investigators still to go. Selecting one finishes the current turn and gives
   them the next; Cancel or Back leaves the current turn in place. After the last
   turn, every living investigator is offered as the next round's starter,
-  including the current player. Any player still to go can also take the turn
-  from their panel. Once every living player has gone, the next round starts (the
+  including the current player. **Take the next turn** stages one investigator
+  still to go as **Up next** without changing the active turn, clock or statistics.
+  The current player's Pass then counts their completed turn and hands off
+  directly, skipping the chooser. **Cancel next turn** clears the selection;
+  selecting another investigator replaces it. The selection survives pause and
+  recovery, and clears when consumed, when its investigator leaves or when the
+  game ends or returns to setup. Automatic passes also use the staged recipient.
+  With nobody staged, Pass opens the chooser. Once every living player has gone, the next round starts (the
   round shows in the menu bar). The table is one upright list of player
   panels under a slim menu bar (owner). The active investigator gets 70% of
   the play area, with the others in a scrollable list below. Their menus retain
@@ -85,7 +91,12 @@ loss condition; Commander damage totals alone do not trigger elimination.
   condition** assigned before starting. **Use relics** is off by default; when
   enabled in setup, every investigator also needs a **Relic**. Disabled relic
   slots are hidden, and turning the option off clears relic assignments.
-  Names and rules/notes are assigned in setup and remain editable on the active
+  The condition/relic editor offers a searchable community catalogue (35 condition
+  names, 20 relics), including known transformed relic names in search. All known
+  entries are available without collection filtering; coverage is incomplete and
+  **Use custom entry** supports other cards. Choosing an entry edits a draft;
+  **Save** assigns it, while Cancel/Back leaves the existing assignment unchanged.
+  Names and rules/notes remain editable on the active
   card or in the player menu for corrections. A named condition appears in the insanity
   threshold reminder. Card effects are resolved on the physical game. Both
   slots persist in game recovery and stay with the investigator when seats swap.
@@ -94,6 +105,15 @@ loss condition; Commander damage totals alone do not trigger elimination.
   clocks start only after required cards are reassigned and Start is confirmed.
   Names are bounded to 80 characters and rules/notes to 2,000. Choosing a
   different investigator clears their dashboard, including both card slots.
+  **View card reference** opens verified community photographs for 18 catalogue
+  entries. Images may show paired cards or both relic faces; pinch/drag and
+  labeled Zoom in/Zoom out/Fit controls support reading them. References are
+  downloaded only when opened, cached on the device and credited to CMON and
+  BoardGameGeek. Failed downloads can be retried; missing images never block
+  assignment. Other entries link their community source and accept typed notes.
+  No card rules text or artwork is bundled. Recovery saves the selected catalogue
+  ID with each card; a renamed card becomes a custom entry, and unknown or
+  wrong-slot references are discarded without losing entered names/notes.
   Everyone wins together ("We killed the Elder One") or loses together ("We
   lost"); an investigator who falls with the Elder One on the board leaves and
   the rest play on, and the game is lost when nobody is left.

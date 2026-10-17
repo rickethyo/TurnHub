@@ -205,7 +205,7 @@ internal const val SEAT_MAP_HINT = "This is how the table will look. Drag a play
 
 /** A cooperative game's table is one upright list, and any player still to go may take the next turn. */
 internal const val COOP_MAP_HINT = "At the table, players are listed top to bottom in this order, all facing the same way. Tap two players to swap them. " +
-    "Turns can go in any order: a player who hasn't gone this round can take the next turn."
+    "Turns can go in any order: Take the next turn marks a player as Up next until the current player passes."
 
 /** The seat map's explanation in Two-Headed Giant. */
 internal const val TEAM_MAP_HINT = "Each outlined panel is a team: players 1 and 2, then 3 and 4, and so on. " +

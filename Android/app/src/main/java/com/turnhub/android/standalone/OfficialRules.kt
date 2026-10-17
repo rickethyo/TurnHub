@@ -108,7 +108,7 @@ fun modeRules(profile: GameProfile, teams: Boolean): ModeRules = officialRules(p
     ?: when {
         profile.deathMayDie -> ModeRules("Cthulhu: Death May Die", null, listOf(
             "A cooperative game: the investigators win or lose together.",
-            "Each investigator takes one turn a round, in whatever order the table likes. TurnHub marks who has taken their turn; a player still to go can take the next turn from their panel.",
+            "Each investigator takes one turn a round, in whatever order the table likes. Take the next turn stages an investigator as Up next; their turn starts when the current player passes. With nobody staged, Pass asks who goes next.",
             "The investigators win by killing the Elder One in its final stage.",
             "If an investigator dies or goes insane before the Elder One is summoned, the game is lost. Once it is on the board, the others play on.",
             "The game is also lost when the Summoning track reaches its last space, or when every investigator is dead or insane.",

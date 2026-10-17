@@ -228,8 +228,8 @@ internal fun TabletTable(
     var playerMenu by remember { mutableStateOf<String?>(null) }
     var passToTurn by remember { mutableStateOf<CooperativeTurn?>(null) }
     val cooperativeTurn = summary.cooperativeTurn()
-    LaunchedEffect(cooperativeTurn) {
-        if (passToTurn != cooperativeTurn) passToTurn = null
+    LaunchedEffect(cooperativeTurn, summary.nextTurnPlayerNumber) {
+        if (passToTurn != cooperativeTurn || summary.nextTurnPlayerNumber != null) passToTurn = null
     }
     val partners = rememberSaveable(summary.atlasId, summary.bootId, summary.game,
         saver = listSaver<SnapshotStateList<Int>, Int>(save = { it.toList() }, restore = { it.toMutableStateList() })) {
@@ -264,7 +264,12 @@ internal fun TabletTable(
         if (standalone && action == "pass" && current.settings.profile.cooperative) {
             if (isOffline) controls { refuseOffline() }
             else {
-                passToTurn = current.cooperativeTurn()
+                val turn = current.cooperativeTurn()
+                val next = current.nextTurnPlayerNumber
+                if (turn != null && next != null) {
+                    haptics.tick()
+                    controls { passTo(turn, next) }
+                } else passToTurn = turn
                 playerMenu = null
                 menuOpen = false
             }

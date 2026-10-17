@@ -31,6 +31,12 @@ These names are used as compatibility or game-profile references. TurnHub does n
 
 Before a commercial release, compatibility wording, attribution/disclaimer language, product packaging, app-store copy, and marketing materials should receive trademark review. TurnHub should not imply sponsorship, endorsement, or affiliation unless one actually exists.
 
+Death May Die condition/relic names are descriptive game references. Card-reference
+photographs are © CMON, hosted by BoardGameGeek, downloaded only when opened and
+cached on the device. They are not bundled or covered by TurnHub's license.
+Sources and release review are recorded in the
+[dependency tracker](Documentation/legal/DEPENDENCY_TRACKER.md).
+
 ## TurnHub-owned material
 
 TurnHub source code, protocol documents, product names, hardware concepts, UI code, and other original project material are separate from the third-party components listed above. The repository's root license does not relicense third-party code under TurnHub's chosen license.
