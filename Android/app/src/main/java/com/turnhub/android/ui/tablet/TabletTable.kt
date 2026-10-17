@@ -594,6 +594,7 @@ internal fun TabletTable(
             summary.pending.eliminationTargetPlayer == null) {
                 Overlay("Game menu", null, onDismiss = { menuOpen = false }) {
                     GameClockLine(summary)
+                    if (summary.settings.profile.deathMayDie) DeathMayDieTurnPhasesButton()
                     val paused = summary.state == TableState.PAUSED
                     AccentButton(if (paused) "Resume game" else "Pause game", {
                         menuOpen = false; send(activeSeat, "pause")
@@ -1034,6 +1035,7 @@ private fun InvestigatorPanelContent(
                 }
             }
         }
+        DeathMayDieTurnPhasesButton()
         InvestigatorArtCredit(art)
         Prompt(unit, summary, onControl, onRespond, Modifier)
       }

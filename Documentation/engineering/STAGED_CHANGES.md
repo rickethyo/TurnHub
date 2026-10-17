@@ -71,7 +71,10 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   table, Pass/action-strip edge taps and holds (including drags out of life,
   interrupted holds, narrow/rotated panels, large text and compact Planechase),
   Death May Die active-investigator focus, skill/sanity markers and
-  reference editing/recovery, community card search/custom entry, reference-image
+  reference editing/recovery, draw-two physical/app choices and stable pairs after
+  cancel/recovery/rematch, added fourth/fifth skills and marker preservation,
+  investigator random/filter/preview and turn-phase reminders, community card
+  search/custom entry, reference-image
   zoom/download/offline recovery, staged Up next handoff and Pass to chooser,
   commander names/printing art, Star layout/Sean Mode and Planechase
   download/deck selection/offline recovery. Check art credits, legibility,

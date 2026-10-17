@@ -39,6 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-028 | Death May Die setup and play helpers | Android domain, persistence, UI | Active implementation | Codex / PR #132 follow-up |
 | TH-027 | Forgiving Pass touch targets | Android table UI | Ready for review; CI passes | Owner / PR #132 integration and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
@@ -72,6 +73,28 @@ Append replies under the same topic with date, author and reviewed SHA. Record a
 TH-025: Death May Die dashboard merged in [PR #129](https://github.com/rickethyo/TurnHub/pull/129); [validation and handoff](Documentation/engineering/history/2026-10-17-death-may-die-dashboard.md). Device checks remain in STAGED_CHANGES.
 
 TH-026: Staged turns and community catalogue merged in [PR #131](https://github.com/rickethyo/TurnHub/pull/131); [validation and handoff](Documentation/engineering/history/2026-10-17-death-may-die-catalogue.md).
+
+## TH-028: Death May Die setup and play helpers
+
+- Owner: Codex on `codex/master`, baseline `d960d41`; fetched master, clean
+  tree, related PR #132 remains open. Extend that reviewable slice.
+- Owner requests: optional draw-two/choose-one conditions and relics, manual
+  fourth/fifth abilities, an always-available turn reference, random investigator
+  selection, previews and filtering by skills such as Brawling.
+- Authority: standalone game validates setup-only house rule and stable random
+  pairs, dynamic bounded skill lists and marker identity. Dashboard/JSON own
+  offers and abilities; Compose owns draft editing, filtering and reminder views.
+  Existing connected/protocol contracts remain unchanged. Legacy saves default
+  to three skills with the house rule off; rematch clears acquired extra skills.
+- Factual skill associations come from Make Craft Game's community index;
+  existing original effect paraphrases are reused. Missing signature text stays
+  explicitly unknown. No copied source implementation, art or rules bundled;
+  sources/legal tracker and manual will be updated. Standard labeled controls,
+  scrollable dialogs and text alternatives; no new dependency.
+- Validation planned: model/persistence tests for dealing, guards, marker
+  preservation, legacy saves and random/filter availability; Android CI compile,
+  complete JVM suite and release bundle, docs/tokens/manual checks and rendered
+  manual inspection. No local SDK/emulator; physical acceptance stays explicit.
 
 ## TH-027: Forgiving Pass touch targets
 

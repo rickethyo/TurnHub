@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.turnhub.android.domain.InvestigatorDashboard
 import com.turnhub.android.domain.InvestigatorCard
 import com.turnhub.android.domain.InvestigatorCardSlot
+import com.turnhub.android.domain.InvestigatorSkills
 import com.turnhub.android.domain.InvestigatorSkill
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
@@ -77,7 +78,7 @@ internal fun InvestigatorAbilities(
         }
         InvestigatorCards(player, summary.bootId, editable, useRelics = summary.useRelics, onAssign = onCard)
         skills.forEachIndexed { slot, skill ->
-            val level = board.skillLevels[slot]
+            val level = board.skillLevels.getOrElse(slot) { 1 }
             Column(Modifier.fillMaxWidth().background(p.surface.copy(alpha = .94f), RoundedCornerShape(14.dp)).padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("${skill.name} · Level $level", color = p.text, fontWeight = FontWeight.SemiBold)
@@ -113,15 +114,29 @@ private fun InvestigatorSkillEditor(player: TablePlayer, skills: List<Investigat
         mutableStateOf(skills.flatMap { listOf(it.name) + it.levels })
     }
     var slot by rememberSaveable { mutableStateOf(0) }
-    val valid = (0..2).all { fields[it * 5].isNotBlank() }
+    val count = fields.size / 5
+    val names = (0 until count).map { fields[it * 5].trim() }
+    val valid = names.none { it.isBlank() } && names.map { it.lowercase(java.util.Locale.ROOT) }.distinct().size == count
     AlertDialog(onDismissRequest = onDismiss, title = { Text("${player.investigator ?: player.label}: abilities") },
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Enter the effects on your dashboard. Higher levels add to earlier effects unless they say instead.")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    (0..2).forEach { i -> FilterChip(selected = slot == i, onClick = { slot = i }, label = { Text("Skill ${i + 1}") }) }
+                    (0 until count).forEach { i -> FilterChip(selected = slot == i, onClick = { slot = i }, label = { Text("Skill ${i + 1}") }) }
                 }
+                Text("Add skills gained from relics, companions or other effects. New skills begin at level 1; set their marker after saving.")
+                if (count < InvestigatorDashboard.MAX_SKILLS) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        InvestigatorSkills.presets.filter { preset -> names.none { it.equals(preset.name, ignoreCase = true) } }.forEach { preset ->
+                            TextButton(onClick = { fields = fields + listOf(preset.name) + preset.levels; slot = count }) { Text("+ ${preset.name}") }
+                        }
+                        TextButton(onClick = { fields = fields + List(5) { "" }; slot = count }) { Text("+ Custom ability") }
+                    }
+                }
+                if (slot >= 3) TextButton(onClick = {
+                    fields = fields.filterIndexed { i, _ -> i / 5 != slot }; slot = 0
+                }) { Text("Remove added ability") }
                 fun change(index: Int, text: String, limit: Int) {
                     fields = fields.mapIndexed { i, old -> if (i == index) text.take(limit) else old }
                 }
@@ -134,7 +149,7 @@ private fun InvestigatorSkillEditor(player: TablePlayer, skills: List<Investigat
             }
         },
         confirmButton = { TextButton(enabled = valid, onClick = {
-            onSave(List(3) { i -> InvestigatorSkill(fields[i * 5].trim(), fields.subList(i * 5 + 1, i * 5 + 5).toList()) })
+            onSave(List(count) { i -> InvestigatorSkill(fields[i * 5].trim(), fields.subList(i * 5 + 1, i * 5 + 5).toList()) })
         }) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }
