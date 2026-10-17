@@ -75,7 +75,8 @@ loss condition; Commander damage totals alone do not trigger elimination.
   dashboard and game conditions through the player's menu. The ten core-box
   investigators have offline skill-effect summaries checked against their
   dashboards. **Edit abilities** supplies or corrects all three skills and
-  their four level effects for any investigator. Higher-level effects add to
+  their four level effects for any investigator. **Preview upgrades** shows
+  future effects without changing a marker. Higher-level effects add to
   earlier effects unless they say instead. Custom text survives rematches;
   markers reset. Choosing a different investigator clears their dashboard.
   Everyone wins together ("We killed the Elder One") or loses together ("We

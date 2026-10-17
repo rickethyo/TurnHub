@@ -101,7 +101,7 @@ Official modes (Magic, Commander, Two-Headed Giant and Yu-Gi-Oh!) keep their off
 
 - The active investigator uses 70% of the play area. Their card scrolls independently, with the other players in a smaller list below. Wide screens put abilities beside the counters. Open another player’s menu to edit their counters and skills. A player still to go can choose Take the next turn; after every living player has gone, a new round begins.
 
-- Each investigator has three skill markers, with levels 1 to 4. Tap the level to move a marker; earlier effects still apply unless a later effect says instead. The ten core-box investigators include ability summaries. Edit abilities lets you enter or correct the names and all four level effects for any investigator. Apply effects to the physical game yourself.
+- Each investigator has three skill markers, with levels 1 to 4. Tap the level to move a marker; earlier effects still apply unless a later effect says instead. Preview upgrades shows future level effects without moving a marker. The ten core-box investigators include ability summaries. Edit abilities lets you enter or correct the names and all four level effects for any investigator. Apply effects to the physical game yourself.
 
 - The Insanity counter records sanity loss. It stops at each insanity threshold and shows bonus dice. Resolve your insanity card and choose a skill upgrade on the physical dashboard when prompted. The minus button corrects an entry; it does not mean sanity can normally be healed. Reaching the end of the track does not automatically end a player’s game: use their menu to resolve the outcome.
 

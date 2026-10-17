@@ -1018,6 +1018,8 @@ private fun CompactInvestigatorPanel(unit: TableUnit, summary: TableSummary, wou
             Column(Modifier.weight(1f)) {
                 Text(member.label, color = palette.text, fontWeight = FontWeight.SemiBold)
                 member.investigator?.let { Text(it, color = palette.muted, style = MaterialTheme.typography.labelMedium) }
+                if (unit.out) Text(if (member.conceded) "Conceded" else "Eliminated", color = palette.bad,
+                    style = MaterialTheme.typography.labelMedium)
                 Text("Wounds $wounds · Stress ${member.stress} · Insanity ${member.dashboard.insanity}",
                     color = palette.text, style = MaterialTheme.typography.labelMedium)
             }

@@ -52,6 +52,7 @@ internal fun InvestigatorAbilities(
     val skills = board.skills(player.investigator)
     val editable = !player.eliminated && summary.state in listOf(TableState.RUNNING, TableState.PAUSED)
     var editing by rememberSaveable(player.participantId, player.investigator) { mutableStateOf(false) }
+    var previewUpgrades by rememberSaveable(player.participantId, player.investigator) { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
             itemVerticalAlignment = Alignment.CenterVertically) {
@@ -64,6 +65,7 @@ internal fun InvestigatorAbilities(
                 StepButton("+", "${player.label}: lose one sanity", editable && board.insanity < InvestigatorDashboard.MAX_INSANITY) { onInsanity(1) }
             }
             ToneButton("Edit abilities", { editing = true }, enabled = editable)
+            ToneButton(if (previewUpgrades) "Current abilities" else "Preview upgrades", { previewUpgrades = !previewUpgrades })
         }
         when {
             board.insanity == InvestigatorDashboard.MAX_INSANITY -> Text("Consumed by madness. Resolve the investigator's death from their menu.", color = p.bad)
@@ -83,11 +85,12 @@ internal fun InvestigatorAbilities(
                             })
                     }
                 }
-                val effects = skill.levels.take(level)
+                val effects = skill.levels.take(if (previewUpgrades) 4 else level)
                 if (effects.all { it.isBlank() }) Text("Add this skill's effects from your dashboard with Edit abilities.",
                     color = p.muted, style = MaterialTheme.typography.bodySmall)
                 else effects.forEachIndexed { i, effect ->
-                    if (effect.isNotBlank()) Text("${i + 1}: $effect", color = p.text, style = MaterialTheme.typography.bodyMedium)
+                    if (effect.isNotBlank()) Text("${i + 1}${if (i >= level) " (upgrade)" else ""}: $effect",
+                        color = if (i >= level) p.muted else p.text, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
