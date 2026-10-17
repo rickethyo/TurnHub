@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-026 | Death May Die staged next turn | Android | Active | Codex / implement and validate |
+| TH-026 | Death May Die staged next turn | Android | Ready for review; CI passes | Owner / PR #131 integration and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
@@ -89,7 +89,16 @@ TH-025: Death May Die dashboard merged in [PR #129](https://github.com/rickethyo
   Text status and a labeled Cancel next turn button expose the selection without
   relying on color. Regression tests cover accounting, lifecycle and recovery;
   phone/tablet and TalkBack acceptance remain device checks.
-- A new PR is needed because #130 is already integrated.
+- Implementation: `5dc6fda`, regression-test refinement `6e7d0db`,
+  [PR #131](https://github.com/rickethyo/TurnHub/pull/131). A new PR is needed
+  because #130 is already integrated. Local documentation links, design tokens,
+  manual export and whitespace checks pass. The updated manual rendered to PDF;
+  pages 4–5 were visually reviewed. Android SDK/device validation is unavailable
+  locally. [CI](https://github.com/rickethyo/TurnHub/actions/runs/39026863968)
+  passes Android compilation, the complete JVM suite and release-bundle creation
+  for `6e7d0db`. Phone/tablet, rotation and TalkBack acceptance remain open.
+  Next owner: review/integrate #131 with a merge commit and retain codex/master.
+  No merge or release performed.
 - Research: the [community wiki insanity list](https://cthulhu-death-may-die.fandom.com/wiki/Insanaties),
   [CDMD/FOTU randomizer spreadsheet](https://boardgamegeek.com/filepage/254978/randomizer-for-cdmd-and-fotu)
   and [original insanity artist portfolio](https://filipe-pagliuso.artstation.com/projects/RY3gaE)
