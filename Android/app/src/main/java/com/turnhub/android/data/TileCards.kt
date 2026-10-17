@@ -12,14 +12,14 @@ class ArtCrop(val left: Float, val top: Float, val right: Float, val bottom: Flo
  * community database, saved as `<prefix><that database's id>`. Only Magic
  * cards can be named as a commander.
  */
-enum class TileCardGame(val label: String, val prefix: String, private val idPattern: Regex, val crop: ArtCrop?) {
-    MAGIC("Magic", "", com.turnhub.android.standalone.StandaloneGame.PRINTING_ID, null),
+enum class TileCardGame(val label: String, val prefix: String, private val idPattern: Regex, val crop: ArtCrop?, val source: String) {
+    MAGIC("Magic", "", com.turnhub.android.standalone.StandaloneGame.PRINTING_ID, null, "Scryfall"),
     /** TCGdex (https://tcgdex.dev): full card images, so the art window is cut out. */
-    POKEMON("Pokémon", "pokemon:", Regex("[A-Za-z0-9][A-Za-z0-9.\\-]{0,39}"), ArtCrop(.08f, .11f, .92f, .47f)),
+    POKEMON("Pokémon", "pokemon:", Regex("[A-Za-z0-9][A-Za-z0-9.\\-]{0,39}"), ArtCrop(.08f, .11f, .92f, .47f), "TCGdex"),
     /** Lorcast (https://lorcast.com/docs/api): full card images (AVIF); the art is the card's top half. */
-    LORCANA("Lorcana", "lorcana:", Regex("crd_[0-9a-f]{32}"), ArtCrop(0f, .02f, 1f, .55f)),
+    LORCANA("Lorcana", "lorcana:", Regex("crd_[0-9a-f]{32}"), ArtCrop(0f, .02f, 1f, .55f), "Lorcast"),
     /** YGOPRODeck (https://ygoprodeck.com/api-guide/): its own art crops. */
-    YUGIOH("Yu-Gi-Oh!", "yugioh:", Regex("[0-9]{1,10}"), null);
+    YUGIOH("Yu-Gi-Oh!", "yugioh:", Regex("[0-9]{1,10}"), null, "YGOPRODeck");
 
     /** The database's own id in [printing], when it is a valid id for this game. */
     fun id(printing: String?): String? = printing?.takeIf { it.startsWith(prefix) }?.removePrefix(prefix)?.takeIf { it.matches(idPattern) }

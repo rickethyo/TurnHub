@@ -55,7 +55,7 @@ internal fun PlayerTileBackground(background: TileBackground, seatColor: Color, 
             Box(Modifier.fillMaxSize().background(p.surface.copy(alpha = .55f)))
             if (showCredit) Text("Art: ${art.artist}", color = p.text.copy(alpha = .75f), style = MaterialTheme.typography.labelSmall,
                 maxLines = 1, modifier = Modifier.align(Alignment.TopEnd).padding(horizontal = 10.dp, vertical = 4.dp)
-                    .semantics { contentDescription = "${art.cardName} art by ${art.artist}, from Scryfall" })
+                    .semantics { contentDescription = "${art.cardName} art by ${art.artist}, from ${art.source}" })
         } else if (bitmap != null) {
             Image(bitmap, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             Box(Modifier.fillMaxSize().background(p.surface.copy(alpha = .82f)))

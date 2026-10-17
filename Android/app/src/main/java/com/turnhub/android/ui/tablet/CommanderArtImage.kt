@@ -20,7 +20,7 @@ import com.turnhub.android.data.TileCardGame
 import java.io.File
 
 /** A commander's art, decoded for a tile, with the artist credit shown beside it. */
-internal class TileArt(val image: ImageBitmap, val cardName: String, val artist: String, val rarity: String? = null)
+internal class TileArt(val image: ImageBitmap, val cardName: String, val artist: String, val rarity: String? = null, val source: String = "Scryfall")
 
 private const val ART_PREF = "commander_art"
 
@@ -73,7 +73,7 @@ internal fun rememberCommanderArt(name: String?, printing: String? = null): Tile
         // Lorcana images are AVIF, which Android decodes from version 12; older phones show no art.
         val bitmap = BitmapFactory.decodeByteArray(loaded.jpeg, 0, loaded.jpeg.size)
             ?.let { cropArt(it, TileCardGame.of(printing).crop) } ?: return@produceState
-        val tile = TileArt(bitmap.asImageBitmap(), loaded.cardName, loaded.artist, loaded.rarity)
+        val tile = TileArt(bitmap.asImageBitmap(), loaded.cardName, loaded.artist, loaded.rarity, TileCardGame.of(printing).source)
         CommanderArtCache.decoded[key] = tile
         value = tile
     }

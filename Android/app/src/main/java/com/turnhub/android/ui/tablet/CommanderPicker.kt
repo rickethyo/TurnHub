@@ -146,7 +146,7 @@ internal fun CommanderPickerDialog(player: TablePlayer, commander: Boolean, game
                         !artOn -> "Card art is off in Settings, so tiles show no card art."
                         magic && commander -> "Suggestions and card art come from Scryfall; only what you type is sent. Naming a commander is optional."
                         magic -> "The card's art fills this player's tile. Suggestions and art come from Scryfall; only what you type is sent."
-                        else -> "The card's art fills this player's tile. Cards come from ${game.database}, an unofficial fan database; only what you type is sent."
+                        else -> "The card's art fills this player's tile. Cards come from ${game.source}, an unofficial fan database; only what you type is sent."
                     },
                     color = p.faint, style = MaterialTheme.typography.bodySmall,
                 )
@@ -163,14 +163,6 @@ internal fun CommanderPickerDialog(player: TablePlayer, commander: Boolean, game
             else TextButton(onDismiss) { Text("Cancel") }
         },
     )
-}
-
-/** Where each game's cards come from, for the picker's note. */
-private val TileCardGame.database: String get() = when (this) {
-    TileCardGame.MAGIC -> "Scryfall"
-    TileCardGame.POKEMON -> "TCGdex"
-    TileCardGame.LORCANA -> "Lorcast"
-    TileCardGame.YUGIOH -> "YGOPRODeck"
 }
 
 @Composable

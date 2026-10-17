@@ -140,8 +140,11 @@ internal fun TableLobby(
                             Column(Modifier.weight(1f)) {
                                 Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge)
                                 player.namedCommander?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
-                                rememberCommanderArt(player.commander, player.commanderArt)?.let { art ->
-                                    Text("${art.cardName} · Art: ${art.artist} (Scryfall)", color = p.faint, style = MaterialTheme.typography.labelSmall)
+                                // The tile card shows as soon as it is saved; its credit follows once the art arrives.
+                                val art = rememberCommanderArt(player.commander, player.commanderArt)
+                                player.commander?.let { card ->
+                                    Text(listOfNotNull(art?.cardName ?: card, art?.let { "Art: ${it.artist} (${it.source})" }).joinToString(" · "),
+                                        color = p.faint, style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                             if (settings.twoHeadedGiant) Text("Team ${(player.playerNumber + 1) / 2}", color = p.muted,
