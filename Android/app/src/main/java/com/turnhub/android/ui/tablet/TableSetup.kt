@@ -219,8 +219,8 @@ internal data class GameChoice(val profile: GameProfile, val label: String, val 
 
 /** Formats offered in the shared lobby, by family; Atlas runs those that are [GameProfile.atlasSupported]. */
 internal val FORMATS = listOf(
-    GameChoice(GameProfile.MTG_COMMANDER, "Commander", "40 life · Commander damage", GameFamily.MAGIC),
-    GameChoice(GameProfile.MTG, "Standard", "20 life · poison", GameFamily.MAGIC),
+    GameChoice(GameProfile.MTG_COMMANDER, "Commander", "40 life · 2+ players", GameFamily.MAGIC),
+    GameChoice(GameProfile.MTG, "Standard", "20 life · 2+ players", GameFamily.MAGIC),
     GameChoice(GameProfile.YUGIOH, "Yu-Gi-Oh!", "8000 Life Points · 2 players", GameFamily.CARD_GAMES),
     GameChoice(GameProfile.POKEMON, "Pokémon", "6 Prize cards · 2 players", GameFamily.CARD_GAMES),
     GameChoice(GameProfile.LORCANA, "Lorcana", "Race to 20 lore · 2+ players", GameFamily.CARD_GAMES),
