@@ -54,7 +54,9 @@ loss condition; Commander damage totals alone do not trigger elimination.
   has taken their turn this round, passing offers the turn to the next player
   clockwise still to go, and any player still to go can take it instead from
   their panel. Once every living player has gone, the next round starts (the
-  round shows on the centre disc). Each player can pick their
+  round shows in the menu bar). The table is one upright list of player
+  panels, top to bottom, under a slim menu bar (owner), not panels facing
+  each seat. Each player can pick their
   investigator in the lobby from every season and box (`domain/DeathMayDie.kt`,
   from the community wiki; any name can be typed) and no two players share one.
   The panel's number counts wounds as a reminder and never knocks anyone out.

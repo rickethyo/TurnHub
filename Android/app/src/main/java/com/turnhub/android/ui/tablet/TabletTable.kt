@@ -310,10 +310,13 @@ internal fun TabletTable(
         val landscape = maxWidth >= maxHeight || units.size <= 2
         val plan = placements(units.size)
         val star = starLayout.on && summary.settings.profile.starCommander && units.size == StarCommander.PLAYERS
+        // A cooperative table reads as one upright list, top to bottom, under a slim menu bar.
+        val list = summary.settings.profile.cooperative
         // The middle panel of a side with an odd count meets the centre disc at its inner (top) edge.
-        val underHub = if (star) emptySet()
+        val underHub = if (star || list) emptySet()
             else listOf(plan.near, plan.far).filter { it.size % 2 == 1 }.map { it[it.size / 2] }.toSet()
         fun degreesOf(index: Int) = when {
+            list -> 0
             // A player's full-screen menu turns to the nearest side of their star seat.
             star -> Math.floorMod(Math.round(starSpot(index).degrees / 90f) * 90, 360)
             landscape -> if (index in plan.far) 180 else 0
@@ -364,7 +367,15 @@ internal fun TabletTable(
             tableShot.record { this@drawWithContent.drawContent() }
             drawLayer(tableShot)
         }) {
-            if (star) {
+            if (list) {
+                Column(Modifier.fillMaxSize().padding(4.dp)) {
+                    HubBar(summary, Modifier.fillMaxWidth().padding(4.dp)) {
+                        haptics.tick()
+                        menuOpen = true
+                    }
+                    units.indices.forEach { panel(it, 0, Modifier.weight(1f).fillMaxWidth()) }
+                }
+            } else if (star) {
                 StarTable(panel)
             } else if (landscape) {
                 Column(Modifier.fillMaxSize().padding(4.dp)) {
@@ -392,7 +403,7 @@ internal fun TabletTable(
                 }
             }
 
-            Hub(summary, Modifier.align(Alignment.Center)) {
+            if (!list) Hub(summary, Modifier.align(Alignment.Center)) {
                 haptics.tick()
                 menuOpen = true
             }
@@ -604,6 +615,29 @@ private fun Hub(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit) {
         Text(if (summary.state == TableState.PAUSED) "Paused" else clock, color = p.text,
             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Text(summary.round?.let { "Round $it" } ?: "Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+/** The list layout's menu bar: the round, the game clock, and the table menu on tap. */
+@Composable
+private fun HubBar(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit) {
+    val p = palette
+    val nowMs = rememberNowMs(ticking = summary.state == TableState.RUNNING, intervalMs = 500)
+    val clock = TableClock.format(TableClock.gameElapsedMs(summary, nowMs))
+    Row(
+        modifier
+            .clip(RoundedCornerShape(99.dp))
+            .background(p.surface)
+            .border(2.dp, p.lineStrong, RoundedCornerShape(99.dp))
+            .clickable(onClickLabel = "Open the table menu", role = Role.Button, onClick = onOpen)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        summary.round?.let { Text("Round $it", color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
+        Text(if (summary.state == TableState.PAUSED) "Paused" else clock, color = p.muted, style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.weight(1f))
+        Text("Game menu", color = p.text, style = MaterialTheme.typography.labelLarge)
     }
 }
 

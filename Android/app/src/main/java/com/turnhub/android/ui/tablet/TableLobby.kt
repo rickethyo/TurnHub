@@ -124,6 +124,7 @@ internal fun TableLobby(
                 // How this mode's seating works, right under the map it explains.
                 Text(when {
                     settings.profile.starCommander -> STAR_MAP_HINT
+                    settings.profile.cooperative -> COOP_MAP_HINT
                     settings.twoHeadedGiant -> TEAM_MAP_HINT
                     else -> SEAT_MAP_HINT
                 }, color = p.muted, style = MaterialTheme.typography.bodySmall)

@@ -203,6 +203,10 @@ internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, st
 internal const val SEAT_MAP_HINT = "This is how the table will look. Drag a player onto another seat to swap them, " +
     "or tap two seats. Turns go clockwise in number order."
 
+/** A cooperative game's table is one upright list, and any player still to go may take the next turn. */
+internal const val COOP_MAP_HINT = "At the table, players are listed top to bottom in this order, all facing the same way. " +
+    "Turns can go in any order: a player who hasn't gone this round can take the next turn."
+
 /** The seat map's explanation in Two-Headed Giant. */
 internal const val TEAM_MAP_HINT = "Each outlined panel is a team: players 1 and 2, then 3 and 4, and so on. " +
     "Teammates share one panel, life total and turn. Drag a player onto another seat to swap them, or tap two seats."
