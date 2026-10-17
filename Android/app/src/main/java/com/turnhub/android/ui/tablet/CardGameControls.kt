@@ -125,6 +125,7 @@ internal fun roundStatus(player: TablePlayer, summary: TableSummary): String? = 
     player.eliminated -> null
     summary.activePlayerNumber == player.playerNumber -> "Taking their turn"
     player.actedThisRound -> "✓ Turn taken"
+    summary.nextTurnPlayerNumber == player.playerNumber -> "Up next"
     else -> STILL_TO_GO
 }
 
@@ -132,7 +133,7 @@ private const val STILL_TO_GO = "Still to go"
 
 /**
  * A cooperative game's panel: whether this player has taken their turn this round. There
- * is no fixed order, so a player still to go can take the turn from whoever holds it.
+ * is no fixed order, so a player still to go can stage the next turn.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -146,8 +147,8 @@ private fun RoundStatus(unit: TableUnit, summary: TableSummary, onMark: (TablePl
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.background(if (member.actedThisRound) p.surface.copy(alpha = .85f) else p.accentSoft, RoundedCornerShape(99.dp))
                 .padding(horizontal = 12.dp, vertical = 4.dp))
-        if (status == STILL_TO_GO && summary.state == TableState.RUNNING) {
-            com.turnhub.android.ui.components.ToneButton("Take the next turn",
+        if ((status == STILL_TO_GO || summary.nextTurnPlayerNumber == member.playerNumber) && summary.state == TableState.RUNNING) {
+            com.turnhub.android.ui.components.ToneButton(if (summary.nextTurnPlayerNumber == member.playerNumber) "Cancel next turn" else "Take the next turn",
                 { onMark(member, StandaloneGame.TAKE_TURN_KIND, 1) })
         }
     }

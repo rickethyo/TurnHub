@@ -69,7 +69,8 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   [Android behavior](../../Android/README.md).
 - **Recent Android flows:** playtest the cancellable start countdown, practice
   table, Death May Die active-investigator focus, skill/sanity markers and
-  reference editing/recovery, commander names/printing art, Star layout/Sean Mode and Planechase
+  reference editing/recovery, staged Up next handoff and Pass to chooser,
+  commander names/printing art, Star layout/Sean Mode and Planechase
   download/deck selection/offline recovery. Check art credits, legibility,
   missing assets and TalkBack. Verify bug-report prefilled values and editable
   form/attachment submission on phone and tablet without automatic submission.

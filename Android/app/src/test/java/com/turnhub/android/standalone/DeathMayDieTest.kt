@@ -57,23 +57,112 @@ class DeathMayDieTest {
         assertEquals(0, next.active)
     }
 
-    @Test fun `any player still to go can take the next turn`() {
+    @Test fun `taking the next turn stages it until pass and counts the current players whole turn`() {
         val g = game(4).pass(0, 1_000)
         assertEquals(1, g.active)
-        // Player 3 goes instead; player 2 still hasn't gone.
-        val jumped = g.changeCounter(2, StandaloneGame.TAKE_TURN_KIND, 1, nowMs = 1_500)
-        assertEquals(2, jumped.active)
-        // Someone who has gone, or already holds the turn, can't take it.
-        assertSame(jumped, jumped.takeTurn(0, 1_600))
-        assertSame(jumped, jumped.takeTurn(2, 1_600))
-        // After player 3, the turn goes to the next player still to go: player 4, then player 2.
-        val three = jumped.pass(2, 2_000)
-        assertEquals(3, three.active)
-        val four = three.pass(3, 3_000)
-        assertEquals(1, four.active)
-        val round = four.pass(1, 4_000)
+        val staged = g.changeCounter(3, StandaloneGame.TAKE_TURN_KIND, 1, nowMs = 1_500)
+        assertEquals(g.active, staged.active)
+        assertEquals(g.acted, staged.acted)
+        assertEquals(g.players, staged.players)
+        assertEquals(g.turnStartedAtElapsedMs, staged.turnStartedAtElapsedMs)
+        assertEquals(g.turnTimer(1_500), staged.turnTimer(1_500))
+        assertEquals(4, staged.toSummary(1_500, 0).nextTurnPlayerNumber)
+        assertEquals(500L, staged.toSummary(1_500, 0).turnElapsedMs)
+        // P2 must still pass; someone without the turn cannot complete it.
+        assertSame(staged, staged.pass(3, 1_600))
+        val passed = staged.pass(1, 2_500)
+        // The UI's guarded direct handoff must use the same accounting as Pass.
+        assertEquals(passed, staged.passTo(staged.cooperativeTurn()!!, 4, 2_500))
+        assertEquals(3, passed.active)
+        assertNull(passed.nextTurn)
+        assertNull(passed.toSummary(2_500, 0).nextTurnPlayerNumber)
+        assertEquals(setOf(0, 1), passed.acted)
+        assertEquals(listOf(1, 1, 0, 0), passed.players.map { it.turnsCompleted })
+        assertEquals(1_500L, passed.players[1].turnMs)
+        assertEquals(1_500L, passed.players[1].fastestTurnMs)
+        assertEquals(1_500L, passed.players[1].longestTurnMs)
+        assertEquals(0L, passed.toSummary(2_500, 0).turnElapsedMs)
+        val last = passed.pass(3, 3_000)
+        assertEquals(2, last.active)
+        val round = last.pass(2, 4_000)
         assertEquals(2, round.round)
         assertTrue(round.acted.isEmpty())
+    }
+
+    @Test fun `only one investigator is up next and the choice can be replaced or cancelled`() {
+        val g = game(4).pass(0, 1_000)
+        val staged = g.stageNextTurn(2)
+        listOf(-1, 0, 1, 99).forEach { assertSame(staged, staged.stageNextTurn(it)) }
+        val replaced = staged.stageNextTurn(3)
+        assertEquals(3, replaced.stagedNextTurn)
+        assertEquals(4, replaced.toSummary(1_500, 0).nextTurnPlayerNumber)
+        val cancelled = replaced.stageNextTurn(3)
+        assertNull(cancelled.nextTurn)
+        assertEquals(g.cooperativePassTargets(), cancelled.cooperativePassTargets())
+        assertEquals(2, cancelled.passTo(cancelled.cooperativeTurn()!!, 3, 2_000).active)
+    }
+
+    @Test fun `staging survives pause and recovery but clears on game end and setup`() {
+        val staged = game().stageNextTurn(2)
+        val paused = staged.togglePause(500)
+        assertSame(paused, paused.stageNextTurn(1))
+        val restored = StandaloneTable.gameFromJson(StandaloneTable.gameToJson(paused))
+        assertEquals(2, restored.stagedNextTurn)
+        assertEquals(3, restored.toSummary(1_500, 0).nextTurnPlayerNumber)
+        val resumed = restored.togglePause(2_000)
+        val next = resumed.pass(0, 2_500)
+        assertEquals(2, next.active)
+        assertEquals(1_000L, next.players[0].turnMs)
+        assertNull(next.nextTurn)
+        assertNull(staged.reset().nextTurn)
+        assertNull(staged.backToSetup(500).nextTurn)
+        val won = staged.claimWin(0, 500)
+        assertNull(won.nextTurn)
+        assertNull(won.rematch(1_000, "e", First).nextTurn)
+        assertNull(staged.endWithoutWinner(500).nextTurn)
+        listOf(lobby(), game().claimWin(0, 500),
+            StandaloneGame().addPlayer("A").addPlayer("B").start(0, "m", First)).forEach {
+            assertSame(it, it.stageNextTurn(1))
+        }
+    }
+
+    @Test fun `eliminating the staged investigator restores the chooser while an active death uses the selection`() {
+        val g = game(4).stageNextTurn(3)
+        val fallen = g.eliminate(3, 500)
+        assertNull(fallen.nextTurn)
+        assertEquals(listOf(2, 3), fallen.cooperativePassTargets())
+        assertSame(fallen, fallen.stageNextTurn(3))
+        val activeFallen = g.eliminate(0, 500)
+        assertEquals(3, activeFallen.active)
+        assertNull(activeFallen.nextTurn)
+        assertEquals(listOf(0, 0, 0, 0), activeFallen.players.map { it.turnsCompleted })
+    }
+
+    @Test fun `invalid recovered selections cannot change pass eligibility or receive the turn`() {
+        val g = game(4).pass(0, 1_000).eliminate(3, 1_500)
+        listOf(-1, 0, 1, 3, 99).forEach { invalid ->
+            val json = StandaloneTable.gameToJson(g).put("nextTurn", invalid)
+            val restored = StandaloneTable.gameFromJson(json)
+            assertNull(restored.stagedNextTurn)
+            assertNull(restored.toSummary(1_500, 0).nextTurnPlayerNumber)
+            assertEquals(listOf(3), restored.cooperativePassTargets())
+            assertEquals(2, restored.pass(1, 2_000).active)
+        }
+    }
+
+    @Test fun `a staged recipient is consumed once by automatic timeout and explicit pass-to`() {
+        val g = game(4).copy(turnTimerMs = 1_000,
+            timerRules = com.turnhub.android.domain.LocalTimerRules(timeout = com.turnhub.android.domain.TimeoutAction.PASS))
+            .stageNextTurn(3)
+        val timed = g.pass(0, 1_500)
+        assertEquals(3, timed.active)
+        assertEquals(listOf(1, 0, 0, 0), timed.players.map { it.turnsCompleted })
+        assertNull(timed.nextTurn)
+        // A chooser opened earlier can still explicitly name another eligible player.
+        val explicit = g.passTo(g.cooperativeTurn()!!, 3, 500)
+        assertEquals(2, explicit.active)
+        assertNull(explicit.nextTurn)
+        assertEquals(1, explicit.pass(2, 1_000).active)
     }
 
     @Test fun `a fallen investigator no longer holds up the round`() {
@@ -136,7 +225,7 @@ class DeathMayDieTest {
         val turn = g.cooperativeTurn()!!
         listOf(turn.copy(gameId = "other"), turn.copy(playerNumber = 2), turn.copy(round = 2),
             turn.copy(turnsCompleted = 1)).forEach { stale -> assertSame(g, g.passTo(stale, 2, 1_000)) }
-        val jumped = g.takeTurn(1, 500)
+        val jumped = g.pass(0, 500)
         assertSame(jumped, jumped.passTo(turn, 3, 1_000))
         val passed = g.passTo(turn, 2, 1_000)
         assertSame(passed, passed.passTo(turn, 3, 2_000))

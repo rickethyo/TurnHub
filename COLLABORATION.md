@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-026 | Death May Die turns and assigned cards | Android | Ready for review | Owner / PR #130 integration |
+| TH-026 | Death May Die staged next turn | Android | Active | Codex / implement and validate |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
@@ -71,71 +71,33 @@ Append replies under the same topic with date, author and reviewed SHA. Record a
 
 TH-025: Death May Die dashboard merged in [PR #129](https://github.com/rickethyo/TurnHub/pull/129); [validation and handoff](Documentation/engineering/history/2026-10-17-death-may-die-dashboard.md). Device checks remain in STAGED_CHANGES.
 
-## TH-026: Death May Die Pass to selection
+## TH-026: Death May Die staged next turn
 
-- 2026-10-17 / Codex, `codex/master`, accepted baseline `a336660` (#129).
-  Clean working tree, fetched current refs, no open PR or overlapping active
-  scope. The prior handoff-only commits are retained in this follow-up.
-- Owner requests Pass -> **Pass to?** rather than choosing clockwise.
-  Selecting a recipient atomically finishes the current turn and assigns the
-  next; Cancel changes nothing. At a round boundary every living investigator
-  can start, including the previous holder. Other game modes keep their flow.
-- Feature gate: StandaloneGame owns eligibility and one pass transition;
-  typed local TableControls action validates game/holder/round/completed-turn
-  identity before commit. Compose owns a disposable, scrollable chooser with
-  player/investigator labels and Back/Cancel. JSON saves the resulting existing
-  turn state; no storage layout, Atlas protocol, dependency or endpoint changes.
-  Timed automatic passes retain their configured behavior. Acceptance: target
-  validation, stale dialogs, clock/stat accounting and round/solo transitions;
-  device/TalkBack checks remain separate.
-- A new PR is necessary because the owner has already merged #129.
-- Implementation: `a407a30`, [PR #130](https://github.com/rickethyo/TurnHub/pull/130).
-  [CI](https://github.com/rickethyo/TurnHub/actions/runs/39011395997) passes
-  Android compilation, the complete JVM suite (including eight new pass-to
-  scenarios) and release-bundle creation. Docs links, tokens, manual export and
-  whitespace checks pass. The manual rendered to PDF; updated pages 4 and 7
-  were visually checked. No local Android SDK/device; phone/tablet layout,
-  rotation and TalkBack acceptance remain open. Next owner: review and merge
-  with a merge commit, retaining codex/master. No merge or release performed.
+### 2026-10-17 / Codex follow-up: stage the next investigator
 
-### 2026-10-17 / Codex follow-up: sanity condition and relic slots
+- Active owner: Codex on `codex/master`, baseline `0dffe4d` (merged #130).
+  Clean tree, current refs fetched; no open PR or overlapping active work.
+- Owner requests **Take the next turn** to stage a recipient until the current
+  investigator passes. Pass then finishes/counts the turn and skips the chooser;
+  without a selection the existing Pass to flow remains. Also research sources
+  for condition/relic references and art; no catalogue import requested yet.
+- StandaloneGame owns one validated, cancellable next-player selection. Existing
+  counter action stages it; pass/timeout use the shared turn transition and clear
+  it. StandaloneTable JSON persists it, and TableSummary supplies the UI's Up next
+  label and direct handoff. Invalid/eliminated selections cannot receive a turn.
+  No Atlas protocol, runtime endpoint, library or third-party data additions.
+  Text status and a labeled Cancel next turn button expose the selection without
+  relying on color. Regression tests cover accounting, lifecycle and recovery;
+  phone/tablet and TalkBack acceptance remain device checks.
+- A new PR is needed because #130 is already integrated.
+- Research: the [community wiki insanity list](https://cthulhu-death-may-die.fandom.com/wiki/Insanaties),
+  [CDMD/FOTU randomizer spreadsheet](https://boardgamegeek.com/filepage/254978/randomizer-for-cdmd-and-fotu)
+  and [original insanity artist portfolio](https://filipe-pagliuso.artstation.com/projects/RY3gaE)
+  provide reference leads. No complete condition/relic image API was verified.
+  A curated offline catalogue could combine verified entries and available art;
+  current cards remain editable references. No third-party content imported.
 
-- Owner requests assignment framework for one sanity condition and one relic
-  per investigator. Scope: named cards with editable rules/notes in
-  setup and live dashboards/menus; no catalogue or automatic card effects.
-  Same owner/branch, baseline `4a1d70b`; no overlap and #130 remains open,
-  so this related follow-up stays in that PR.
-- StandaloneGame owns typed assignment/replacement/removal and validation;
-  each InvestigatorDashboard owns its cards. JSON snapshot recovery persists
-  them. Back-to-setup retains assignments; Set up rematch returns to the lobby
-  with empty slots for fresh draws. Changing investigator clears the dashboard. Names and rules have
-  explicit size bounds. Native labeled editors support Save, Cancel and Remove;
-  plain text references remain readable with wrapping and scrolling.
-- No new Atlas protocol, dependencies, endpoints or third-party card data.
-  Eight new card JVM scenarios cover isolation/seat swaps, both slots, input bounds,
-  save/recovery and corrupt card data, lifecycle, investigator changes and
-  rematch behavior. Documentation, token, manual-export and whitespace checks
-  pass locally. Initial card implementation `d1c9be4` passed the complete Android
-  run (39012247210). Device checks remain separate from JVM/build validation.
-- Owner clarification, baseline `d1c9be4`: base-game sanity conditions must be
-  assigned before starting. Relics are optional, off by default, with a setup-only
-  Use relics switch; when enabled every investigator needs one. Disabling clears
-  relic references. StandaloneGame validates readiness atomically at start;
-  Compose uses the same result for disabled Start/countdown cancellation.
-  Rematch returns to setup without starting clocks; corrections remain available
-  during play. Practice supplies disposable references, leaving setup unchanged.
-  Snapshot recovery persists the option, reset retains it; no protocol/dependency
-  change. Two added card scenarios plus one practice scenario cover readiness,
-  optional-rule guards, recovery and independent practice.
-- Final implementation: `45c1380`, [PR #130](https://github.com/rickethyo/TurnHub/pull/130).
-  [CI](https://github.com/rickethyo/TurnHub/actions/runs/39012533387) passes
-  Android compilation, the complete JVM suite and release-bundle creation. The
-  PR adds seventeen JVM scenarios (eight pass-to, eight cards, one practice).
-  Docs links, design tokens, manual export and whitespace checks pass. The
-  revised DOCX was rendered to PDF; pages 5–6 were visually checked. Device
-  layout, keyboard, rotation and TalkBack acceptance remain pending. Ready for
-  owner review/integration with a merge commit; retain codex/master. No merge
-  or release performed.
+Pass to and card assignments merged in [PR #130](https://github.com/rickethyo/TurnHub/pull/130); [prior validation and handoff](Documentation/engineering/history/2026-10-17-death-may-die-pass-and-cards.md).
 
 ## TH-024: Concise bug reports with app diagnostics
 

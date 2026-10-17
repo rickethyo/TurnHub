@@ -522,6 +522,7 @@ class StandaloneTable(
             put("pokemonCheckup", JSONArray(game.pokemonCheckup))
             put("acted", JSONArray(game.acted.sorted()))
             put("round", game.round)
+            put("nextTurn", game.stagedNextTurn ?: JSONObject.NULL)
             put("players", JSONArray().apply {
                 game.players.forEach { p ->
                     put(JSONObject().apply {
@@ -608,6 +609,7 @@ class StandaloneTable(
                 pokemonCheckup = json.optJSONArray("pokemonCheckup")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(),
                 acted = json.optIntList("acted")?.filter { it in 0 until players.length() }?.toSet().orEmpty(),
                 round = json.optInt("round", 1).coerceAtLeast(1),
+                nextTurn = json.optIntOrNull("nextTurn"),
                 players = (0 until players.length()).map { i ->
                     val p = players.getJSONObject(i)
                     val damage = p.getJSONObject("commanderDamage")

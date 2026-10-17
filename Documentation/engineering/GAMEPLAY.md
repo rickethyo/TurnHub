@@ -55,8 +55,14 @@ loss condition; Commander damage totals alone do not trigger elimination.
   investigators still to go. Selecting one finishes the current turn and gives
   them the next; Cancel or Back leaves the current turn in place. After the last
   turn, every living investigator is offered as the next round's starter,
-  including the current player. Any player still to go can also take the turn
-  from their panel. Once every living player has gone, the next round starts (the
+  including the current player. **Take the next turn** stages one investigator
+  still to go as **Up next** without changing the active turn, clock or statistics.
+  The current player's Pass then counts their completed turn and hands off
+  directly, skipping the chooser. **Cancel next turn** clears the selection;
+  selecting another investigator replaces it. The selection survives pause and
+  recovery, and clears when consumed, when its investigator leaves or when the
+  game ends or returns to setup. Automatic passes also use the staged recipient.
+  With nobody staged, Pass opens the chooser. Once every living player has gone, the next round starts (the
   round shows in the menu bar). The table is one upright list of player
   panels under a slim menu bar (owner). The active investigator gets 70% of
   the play area, with the others in a scrollable list below. Their menus retain
