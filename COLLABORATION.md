@@ -39,6 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-026 | Death May Die Pass to selection | Android | In progress on codex/master | Codex / implementation and validation |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
@@ -69,6 +70,25 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 Append replies under the same topic with date, author and reviewed SHA. Record a final outcome and links when resolved.
 
 TH-025: Death May Die dashboard merged in [PR #129](https://github.com/rickethyo/TurnHub/pull/129); [validation and handoff](Documentation/engineering/history/2026-10-17-death-may-die-dashboard.md). Device checks remain in STAGED_CHANGES.
+
+## TH-026: Death May Die Pass to selection
+
+- 2026-10-17 / Codex, `codex/master`, accepted baseline `a336660` (#129).
+  Clean working tree, fetched current refs, no open PR or overlapping active
+  scope. The prior handoff-only commits are retained in this follow-up.
+- Owner requests Pass -> **Pass to?** rather than choosing clockwise.
+  Selecting a recipient atomically finishes the current turn and assigns the
+  next; Cancel changes nothing. At a round boundary every living investigator
+  can start, including the previous holder. Other game modes keep their flow.
+- Feature gate: StandaloneGame owns eligibility and one pass transition;
+  typed local TableControls action validates game/holder/round/completed-turn
+  identity before commit. Compose owns a disposable, scrollable chooser with
+  player/investigator labels and Back/Cancel. JSON saves the resulting existing
+  turn state; no storage layout, Atlas protocol, dependency or endpoint changes.
+  Timed automatic passes retain their configured behavior. Acceptance: target
+  validation, stale dialogs, clock/stat accounting and round/solo transitions;
+  device/TalkBack checks remain separate.
+- A new PR is necessary because the owner has already merged #129.
 
 ## TH-024: Concise bug reports with app diagnostics
 

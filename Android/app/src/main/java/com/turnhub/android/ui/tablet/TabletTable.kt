@@ -52,6 +52,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import com.turnhub.android.standalone.StandaloneGame
+import com.turnhub.android.domain.CooperativeTurn
+import com.turnhub.android.domain.cooperativeTurn
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
@@ -222,6 +224,11 @@ internal fun TabletTable(
     var nextId by remember { mutableStateOf(0L) }
     // One player's menu at a time, full screen and turned to face that player.
     var playerMenu by remember { mutableStateOf<String?>(null) }
+    var passToTurn by remember { mutableStateOf<CooperativeTurn?>(null) }
+    val cooperativeTurn = summary.cooperativeTurn()
+    LaunchedEffect(cooperativeTurn) {
+        if (passToTurn != cooperativeTurn) passToTurn = null
+    }
     val partners = rememberSaveable(summary.atlasId, summary.bootId, summary.game,
         saver = listSaver<SnapshotStateList<Int>, Int>(save = { it.toList() }, restore = { it.toMutableStateList() })) {
         mutableStateListOf<Int>()
@@ -229,9 +236,12 @@ internal fun TabletTable(
     var flipped by rememberSaveable { mutableStateOf(false) }
     val starLayout = rememberStarLayout()
     var menuOpen by remember { mutableStateOf(false) }
-    BackHandler(enabled = playerMenu != null || menuOpen) {
-        playerMenu = null
-        menuOpen = false
+    BackHandler(enabled = passToTurn != null || playerMenu != null || menuOpen) {
+        if (passToTurn != null) passToTurn = null
+        else {
+            playerMenu = null
+            menuOpen = false
+        }
     }
 
     LaunchedEffect(summary.revision) { sent.removeAll { it.acked && it.sentAtRevision != summary.revision } }
@@ -249,6 +259,15 @@ internal fun TabletTable(
     }
     fun send(seat: TabletSeat?, action: String) {
         seat ?: return
+        if (standalone && action == "pass" && current.settings.profile.cooperative) {
+            if (isOffline) controls { refuseOffline() }
+            else {
+                passToTurn = current.cooperativeTurn()
+                playerMenu = null
+                menuOpen = false
+            }
+            return
+        }
         if (standalone && action in listOf("rematch", "sean-mode")) {
             pendingStart = seat to action; startCountdown(); return
         }
@@ -480,6 +499,16 @@ internal fun TabletTable(
                     .padding(horizontal = 16.dp, vertical = 10.dp)
                     .semantics { liveRegion = LiveRegionMode.Polite },
             )
+        }
+
+        passToTurn?.takeIf { it == cooperativeTurn }?.let { turn ->
+            CooperativePassDialog(summary, turn, onDismiss = { passToTurn = null }, onChoose = { target ->
+                passToTurn = null
+                if (current.cooperativeTurn() == turn && target in current.passPlayerNumbers) {
+                    haptics.confirm()
+                    controls { passTo(turn, target) }
+                }
+            })
         }
 
         val anySeat = summary.anySeat()
@@ -796,7 +825,7 @@ private fun PlayerPanel(
         }
         if (tracks) {
             if (investigatorFocused) InvestigatorPanelContent(unit, summary, life, onBump, onTurnMark, onOpenMenu,
-                onControl, onRespond, haptics, onSkillLevel, onEditSkills, dashboardArt)
+                onControl, onRespond, onSkillLevel, onEditSkills, dashboardArt)
             else CompactInvestigatorPanel(unit, summary, life, onOpenMenu, onTurnMark, dashboardArt)
             return@BoxWithConstraints
         }
@@ -956,7 +985,6 @@ private fun InvestigatorPanelContent(
     onOpenMenu: () -> Unit,
     onControl: (TabletSeat, String) -> Unit,
     onRespond: (TabletSeat, Long, Boolean) -> Unit,
-    haptics: TurnHubHaptics,
     onSkillLevel: (TablePlayer, Int, Int) -> Unit,
     onEditSkills: (TablePlayer, List<com.turnhub.android.domain.InvestigatorSkill>) -> Unit,
     art: TileArt?,
@@ -983,8 +1011,7 @@ private fun InvestigatorPanelContent(
             if (active && !unit.out) {
                 TurnClock(summary)
                 if (summary.state == TableState.RUNNING) {
-                    HoldToPass(summary.pending.passPlayer == member.playerNumber,
-                        { onControl(member.seat(), "pass") }, haptics, Modifier, compact = true)
+                    ToneButton("Pass", { onControl(member.seat(), "pass") })
                 }
             }
         }

@@ -377,6 +377,12 @@ class StandaloneTable(
         return _state.value.game !== before
     }
 
+    override suspend fun passTo(turn: com.turnhub.android.domain.CooperativeTurn, playerNumber: Int): Boolean {
+        val before = _state.value.game
+        edit { it.passTo(turn, playerNumber, wallClock()) }
+        return _state.value.game !== before
+    }
+
     override suspend fun life(seat: TabletSeat, delta: Int): Boolean {
         val before = _state.value.game
         edit { it.changeLife(StandaloneGame.indexOf(seat.moduleId), delta, wallClock()) }

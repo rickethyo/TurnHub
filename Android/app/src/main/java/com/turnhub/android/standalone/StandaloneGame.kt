@@ -1,6 +1,7 @@
 package com.turnhub.android.standalone
 
 import com.turnhub.android.domain.ControllerHandle
+import com.turnhub.android.domain.CooperativeTurn
 import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
@@ -371,10 +372,32 @@ data class StandaloneGame(
         return settled.advanceTurn(nowMs, reward = true, random = random)
     }
 
-    private fun advanceTurn(nowMs: Long, reward: Boolean, random: Random = Random.Default): StandaloneGame {
+    fun cooperativeTurn(): CooperativeTurn? {
+        val holder = active ?: return null
+        if (!profile.cooperative || state != TableState.RUNNING || players[holder].eliminated) return null
+        return CooperativeTurn(gameId, holder + 1, round, players[holder].turnsCompleted.toLong())
+    }
+
+    /** Normally only investigators still to go; a finished round offers every survivor. */
+    fun cooperativePassTargets(): List<Int> {
+        val turn = cooperativeTurn() ?: return emptyList()
+        val living = players.indices.filter { !players[it].eliminated }
+        val done = acted + (turn.playerNumber - 1)
+        return living.filter { it !in done }.ifEmpty { living }.map { it + 1 }
+    }
+
+    /** Finishes and hands off one turn in one mutation, guarded against a stale chooser. */
+    fun passTo(turn: CooperativeTurn, playerNumber: Int, nowMs: Long): StandaloneGame {
+        if (turn != cooperativeTurn() || playerNumber !in cooperativePassTargets()) return this
+        val settled = applyTurnTimeout(nowMs)
+        if (settled.cooperativeTurn() != turn) return settled
+        return settled.advanceTurn(nowMs, reward = true, nextPlayer = playerNumber - 1)
+    }
+
+    private fun advanceTurn(nowMs: Long, reward: Boolean, random: Random = Random.Default, nextPlayer: Int? = null): StandaloneGame {
         val holder = active ?: return this
         val team = mates(holder)
-        val next = (if (profile.cooperative) nextUp(team.last(), acted + team) else nextIn(team.last())) ?: return this
+        val next = nextPlayer ?: (if (profile.cooperative) nextUp(team.last(), acted + team) else nextIn(team.last())) ?: return this
         val now = gameElapsedMs(nowMs)
         val took = (now - turnStartedAtElapsedMs).coerceAtLeast(0)
         val earn = reward && timerRules.earnExtensions && turnTimerMs > 0 && !timeoutHandled && turnExtensionMs == 0L &&
@@ -923,6 +946,7 @@ data class StandaloneGame(
             host = null,
             starterPlayerNumber = starter?.plus(1),
             activePlayerNumber = active?.plus(1),
+            passPlayerNumbers = cooperativePassTargets(),
             winnerPlayerNumber = winner?.plus(1),
             winnerPlayerNumbers = winners.map { it + 1 },
             monarchPlayerNumber = monarch?.plus(1),

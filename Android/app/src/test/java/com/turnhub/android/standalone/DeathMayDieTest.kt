@@ -1,6 +1,7 @@
 package com.turnhub.android.standalone
 
 import com.turnhub.android.domain.DeathMayDie
+import com.turnhub.android.domain.cooperativeTurn
 import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.TableState
 import org.junit.Assert.assertEquals
@@ -78,6 +79,100 @@ class DeathMayDieTest {
         assertEquals(TableState.RUNNING, fallen.state)
         assertEquals(2, fallen.round)
         assertEquals(0, fallen.active)
+    }
+
+    @Test fun `passing to a chosen investigator completes exactly one turn and accounts for its time`() {
+        val g = game(4)
+        assertEquals(listOf(2, 3, 4), g.cooperativePassTargets())
+        assertEquals(g.cooperativePassTargets(), g.toSummary(0, 0).passPlayerNumbers)
+        assertEquals(g.cooperativeTurn(), g.toSummary(0, 0).cooperativeTurn())
+        val passed = g.passTo(g.cooperativeTurn()!!, 4, 1_500)
+        assertEquals(3, passed.active)
+        assertEquals(setOf(0), passed.acted)
+        assertEquals(1, passed.round)
+        assertEquals(listOf(1, 0, 0, 0), passed.players.map { it.turnsCompleted })
+        assertEquals(1_500L, passed.players[0].turnMs)
+        assertEquals(1_500L, passed.players[0].fastestTurnMs)
+        assertEquals(1_500L, passed.turnStartedAtElapsedMs)
+        assertEquals(0L, passed.toSummary(1_500, 0).turnElapsedMs)
+        assertEquals(listOf(2, 3), passed.cooperativePassTargets())
+    }
+
+    @Test fun `invalid recipients cannot finish a turn or move its clock`() {
+        val g = game().passTo(game().cooperativeTurn()!!, 3, 1_000)
+        // P1 has gone; P3 currently holds the turn; only P2 is eligible.
+        assertEquals(listOf(2), g.cooperativePassTargets())
+        listOf(0, 1, 3, 99).forEach { target ->
+            assertSame(g, g.passTo(g.cooperativeTurn()!!, target, 2_000))
+        }
+    }
+
+    @Test fun `the last turn offers every survivor and the chosen player starts the new round`() {
+        val g = game().pass(0, 1_000).pass(1, 2_000)
+        assertEquals(listOf(1, 2, 3), g.cooperativePassTargets())
+        val next = g.passTo(g.cooperativeTurn()!!, 3, 3_000)
+        assertEquals(2, next.round)
+        assertTrue(next.acted.isEmpty())
+        assertEquals(2, next.active)
+        assertEquals(listOf(1, 1, 1), next.players.map { it.turnsCompleted })
+        assertEquals(listOf(1, 2), next.cooperativePassTargets())
+    }
+
+    @Test fun `fallen investigators are never offered even across the round boundary`() {
+        val g = game(4).eliminate(1, 500).pass(0, 1_000)
+        assertEquals(listOf(4), g.cooperativePassTargets())
+        assertSame(g, g.passTo(g.cooperativeTurn()!!, 2, 1_500))
+        val last = g.passTo(g.cooperativeTurn()!!, 4, 2_000)
+        assertEquals(listOf(1, 3, 4), last.cooperativePassTargets())
+        assertEquals(2, last.passTo(last.cooperativeTurn()!!, 1, 3_000).round)
+    }
+
+    @Test fun `a stale pass chooser cannot act on a different game holder round or completed turn`() {
+        val g = game()
+        val turn = g.cooperativeTurn()!!
+        listOf(turn.copy(gameId = "other"), turn.copy(playerNumber = 2), turn.copy(round = 2),
+            turn.copy(turnsCompleted = 1)).forEach { stale -> assertSame(g, g.passTo(stale, 2, 1_000)) }
+        val jumped = g.takeTurn(1, 500)
+        assertSame(jumped, jumped.passTo(turn, 3, 1_000))
+        val passed = g.passTo(turn, 2, 1_000)
+        assertSame(passed, passed.passTo(turn, 3, 2_000))
+        // A wound correction doesn't finish or invalidate the current turn.
+        val corrected = g.changeLife(0, 1)
+        assertEquals(1, corrected.passTo(turn, 2, 1_000).active)
+    }
+
+    @Test fun `pass selection respects pause game over and profile guards`() {
+        val g = game()
+        val turn = g.cooperativeTurn()!!
+        listOf(g.togglePause(500), g.claimWin(0, 500), lobby(),
+            StandaloneGame().addPlayer("A").addPlayer("B").start(0, "d", First)).forEach { stopped ->
+            assertNull(stopped.cooperativeTurn())
+            assertTrue(stopped.cooperativePassTargets().isEmpty())
+            assertSame(stopped, stopped.passTo(turn, 2, 1_000))
+        }
+    }
+
+    @Test fun `an automatic timeout while choosing still completes only one turn`() {
+        val g = game().copy(turnTimerMs = 1_000,
+            timerRules = com.turnhub.android.domain.LocalTimerRules(timeout = com.turnhub.android.domain.TimeoutAction.PASS))
+        val settled = g.passTo(g.cooperativeTurn()!!, 3, 2_000)
+        // The already-due configured auto-pass wins; the old chooser doesn't pass its new turn.
+        assertEquals(1, settled.active)
+        assertEquals(listOf(1, 0, 0), settled.players.map { it.turnsCompleted })
+        assertEquals(setOf(0), settled.acted)
+    }
+
+    @Test fun `one survivor can choose themself and pass-to results survive recovery`() {
+        val g = game(2).eliminate(1, 500)
+        assertEquals(listOf(1), g.cooperativePassTargets())
+        val next = g.passTo(g.cooperativeTurn()!!, 1, 1_000)
+        assertEquals(0, next.active)
+        assertEquals(2, next.round)
+        assertEquals(1, next.players[0].turnsCompleted)
+        val restored = StandaloneTable.gameFromJson(StandaloneTable.gameToJson(next))
+        assertEquals(next.cooperativeTurn(), restored.cooperativeTurn())
+        assertEquals(listOf(1), restored.cooperativePassTargets())
+        assertEquals(3, restored.passTo(restored.cooperativeTurn()!!, 1, 2_000).round)
     }
 
     @Test fun `the investigators win and lose together`() {

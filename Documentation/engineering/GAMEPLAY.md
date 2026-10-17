@@ -51,9 +51,12 @@ loss condition; Commander damage totals alone do not trigger elimination.
 - **Cthulhu: Death May Die** (2026-10-17, owner request; JVM tests only,
   *needs a playtest*): phone-hosted, cooperative (`GameProfile.cooperative`).
   There is no fixed turn order (owner): each panel says whether that player
-  has taken their turn this round, passing offers the turn to the next player
-  clockwise still to go, and any player still to go can take it instead from
-  their panel. Once every living player has gone, the next round starts (the
+  has taken their turn this round. Tapping **Pass** opens **Pass to?**, listing
+  investigators still to go. Selecting one finishes the current turn and gives
+  them the next; Cancel or Back leaves the current turn in place. After the last
+  turn, every living investigator is offered as the next round's starter,
+  including the current player. Any player still to go can also take the turn
+  from their panel. Once every living player has gone, the next round starts (the
   round shows in the menu bar). The table is one upright list of player
   panels under a slim menu bar (owner). The active investigator gets 70% of
   the play area, with the others in a scrollable list below. Their menus retain
