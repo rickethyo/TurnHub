@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Active implementation | Codex / source drafts and owner review checklist |
+| TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
@@ -94,10 +94,28 @@ TH-027 / TH-028: Merged in [PR #132](https://github.com/rickethyo/TurnHub/pull/1
   third-party image/rules prose bundled. Missing source details are not guessed.
   Legal tracker/manual/gameplay docs updated. All imported drafts start unchecked;
   source review is distinct from owner's physical-card verification.
-- Validation planned: prefills/legacy notes, normalization, edit invalidation,
-  persistence, separate relic faces and lifecycle; Android CI compilation/full
-  JVM suite/release bundle, docs/tokens/manual export/render checks. Physical
-  review by owner remains open, with scan targets recorded per card.
+- Implemented in `35fc385`, [PR #133](https://github.com/rickethyo/TurnHub/pull/133).
+  Original drafts cover 20/35 conditions and both faces of 10/20 relics; all start
+  unchecked. No effect is inferred for missing/uncertain entries. Setup review
+  browses the complete catalogue without seating anyone, saves corrected local
+  references independently of match snapshots, filters pending cards and shows
+  progress. Existing notes survive; explicit fill only populates blank fields.
+  Name/face fingerprints invalidate stale checks, while the other face retains
+  its check. Empty text cannot be checked. Printed flip requirements require
+  owner comparison/entry; no automatic rule or game state changes are applied.
+- Validation: six focused JVM tests cover prefills, independent face invalidation,
+  library/match isolation, recovery/legacy notes, malformed/oversized identities,
+  condition-only face normalization and failed persistence. [CI passes](https://github.com/rickethyo/TurnHub/actions/runs/39155100215)
+  Android compilation, the complete JVM suite and release-bundle creation for
+  `35fc385`. Local docs links, design tokens, manual export and whitespace checks
+  pass. Updated manual rendered and visually reviewed on pages 6–7. No local
+  SDK/emulator or physical-device acceptance is claimed.
+- Next owner: review/integrate #133 using a merge commit, retaining codex/master;
+  compare physical cards using the [complete checklist](Documentation/engineering/DEATH_MAY_DIE_CARD_REVIEW.md),
+  correct drafts and supply missing/unclear scans (conditions' rules face, both
+  relic faces including the flip track). No physical card is marked verified by
+  this implementation. Check phone/tablet large-text layouts, TalkBack, save/
+  recovery and selection prefills. No merge or release performed.
 
 ## TH-024: Concise bug reports with app diagnostics
 
