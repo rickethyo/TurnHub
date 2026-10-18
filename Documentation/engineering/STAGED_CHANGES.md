@@ -73,7 +73,9 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   Death May Die active-investigator focus, skill/sanity markers and
   reference editing/recovery, draw-two physical/app choices and stable pairs after
   cancel/recovery/rematch, added fourth/fifth skills and marker preservation,
-  investigator random/filter/preview and turn-phase reminders, community card
+  investigator random/filter/preview and turn-phase reminders, device-wide
+  condition/relic rules review, independent face checks/edit invalidation and
+  correction-prefill/legacy-note preservation, community card
   search/custom entry, reference-image
   zoom/download/offline recovery, staged Up next handoff and Pass to chooser,
   commander names/printing art, Star layout/Sean Mode and Planechase
@@ -88,6 +90,11 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   in [the play-note investigation](history/2026-10-09-play-note-investigation.md).
 - **Manual acceptance:** visually verify the current exported manual and run
   the unfamiliar-user setup/play check F02 below.
+
+- **Physical card review:** owner will compare all conditions and both relic
+  faces with their collection, correct drafts and supply missing/unclear scans.
+  All checks remain pending in the [card review sheet](DEATH_MAY_DIE_CARD_REVIEW.md).
+  Source photos/automated tests are not physical-card verification.
 
 ### Statistics and history
 

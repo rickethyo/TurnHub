@@ -109,8 +109,8 @@ private fun LocalTable(state: StandaloneState, table: StandaloneTable, reduceMot
     // aren't redrawn every tick.
     rememberNowMs(ticking = game.state == TableState.RUNNING, intervalMs = 500)
     val phase = game.turnTimer(System.currentTimeMillis()).phase
-    val summary = remember(game, phase, state.library.players) { game.toSummary(System.currentTimeMillis(), TableClock.nowMs(),
-        state.library.players.associate { it.localId to it.personalization }) }
+    val summary = remember(game, phase, state.library.players, state.library.investigatorReferences) { game.toSummary(System.currentTimeMillis(), TableClock.nowMs(),
+        state.library.players.associate { it.localId to it.personalization }).copy(investigatorReferences = state.library.investigatorReferences) }
     var rolling by remember { mutableStateOf(false) }
     var rollGame by remember { mutableStateOf(game) }
     if (rolling) PlanarRollDialog(effectiveReduceMotion, onRoll = {
@@ -269,8 +269,8 @@ fun StandaloneLobby(
     onOpenPlanes: (() -> Unit)? = null,
 ) {
     val game = state.game
-    val summary = remember(game, state.library.players) {
-        game.toSummary(0, 0, state.library.players.associate { it.localId to it.personalization })
+    val summary = remember(game, state.library.players, state.library.investigatorReferences) {
+        game.toSummary(0, 0, state.library.players.associate { it.localId to it.personalization }).copy(investigatorReferences = state.library.investigatorReferences)
     }
     var editingLocalId by rememberSaveable { mutableStateOf<String?>(null) }
     state.library.players.firstOrNull { it.localId == editingLocalId }?.let { account ->
@@ -326,6 +326,7 @@ fun StandaloneLobby(
                 SetupSwitch("Draw two, pick one", "House rule for sanity conditions and enabled relics. Deal a pair in the app or enter two physical draws.",
                     game.drawTwoCards, true, table::setDrawTwoCards)
                 DeathMayDieTurnPhasesButton()
+                InvestigatorReferenceReviewButton(state.library.investigatorReferences, table::saveInvestigatorReference)
             }
             if (game.profile.magicRules) {
                 val planar = game.planechase

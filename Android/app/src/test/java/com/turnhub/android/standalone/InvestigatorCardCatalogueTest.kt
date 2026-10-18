@@ -26,7 +26,9 @@ class InvestigatorCardCatalogueTest {
             assertEquals(entry.card(), entry.card().normalized())
             assertEquals("https", URI(entry.sourceUrl).scheme)
             entry.imageId?.let { assertEquals("cf.geekdo-images.com", URI(InvestigatorCardCatalogue.imageUrl(it)!!).host) }
-            assertTrue(entry.card().rules.isEmpty()) // Card text is not bundled.
+            assertFalse(entry.card().rulesVerified)
+            assertFalse(entry.card().transformedRulesVerified)
+            assertTrue(entry.card().rules.length <= InvestigatorCard.MAX_RULES)
         }
     }
 

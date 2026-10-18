@@ -31,6 +31,7 @@ import com.turnhub.android.ui.theme.palette
 /** Selection edits the editor's draft; only its Save assigns a card to the game. */
 @Composable
 internal fun InvestigatorCardPicker(slot: InvestigatorCardSlot, chosenId: String?, onDismiss: () -> Unit,
+    references: Map<String, com.turnhub.android.domain.InvestigatorCard> = emptyMap(),
     onPick: (InvestigatorCardPreset?) -> Unit) {
     val p = palette
     var query by rememberSaveable(slot) { mutableStateOf("") }
@@ -49,6 +50,8 @@ internal fun InvestigatorCardPicker(slot: InvestigatorCardSlot, chosenId: String
                         .clickable(role = Role.Button, onClickLabel = "Choose ${entry.name}") { onPick(entry) }
                         .semantics { selected = entry.id == chosenId }.padding(8.dp)) {
                         Text(if (entry.id == chosenId) "✓ ${entry.name}" else entry.name, color = p.text)
+                        Text(ruleReviewStatus(references[entry.id] ?: entry.card(), slot),
+                            color = p.muted, style = MaterialTheme.typography.labelSmall)
                         Text(entry.collection, color = p.muted, style = MaterialTheme.typography.labelSmall)
                     }
                 }

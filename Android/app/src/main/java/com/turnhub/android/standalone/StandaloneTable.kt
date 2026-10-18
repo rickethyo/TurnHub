@@ -226,6 +226,16 @@ class StandaloneTable(
     fun setTurnTimer(ms: Long) = edit { it.setTurnTimer(ms) }
     fun setTwoHeadedGiant(on: Boolean) = edit { it.setTwoHeadedGiant(on) }
     fun setHouseRules(on: Boolean) = edit { it.setHouseRules(on) }
+    /** Device-wide reference edits are separate from assigned match snapshots. */
+    fun saveInvestigatorReference(id: String, card: com.turnhub.android.domain.InvestigatorCard): Boolean {
+        val before = _state.value
+        val entry = com.turnhub.android.domain.InvestigatorCardCatalogue.find(id) ?: return false
+        val clean = card.normalized(entry.slot)?.takeIf { it.catalogueId == id } ?: return false
+        val library = before.library.withInvestigatorReference(id, clean)
+        if (library === before.library) return true
+        return publish(before.copy(library = library))
+    }
+
     fun setUseRelics(on: Boolean) = edit { it.setUseRelics(on) }
     fun setDrawTwoCards(on: Boolean) = edit { it.setDrawTwoCards(on) }
     fun dealInvestigatorCards(index: Int, slot: com.turnhub.android.domain.InvestigatorCardSlot) = edit { it.dealInvestigatorCards(index, slot) }
@@ -481,14 +491,11 @@ class StandaloneTable(
 
     companion object {
         private fun investigatorCardToJson(card: com.turnhub.android.domain.InvestigatorCard?): Any =
-            card?.let { JSONObject().put("name", it.name).put("rules", it.rules)
-                .put("catalogueId", it.catalogueId ?: JSONObject.NULL) } ?: JSONObject.NULL
+            card?.toJson() ?: JSONObject.NULL
 
         private fun investigatorCardFromJson(json: JSONObject?, slot: com.turnhub.android.domain.InvestigatorCardSlot): com.turnhub.android.domain.InvestigatorCard? {
             if (json == null) return null
-            val name = json.opt("name") as? String ?: return null
-            val rules = if (json.has("rules")) json.opt("rules") as? String ?: return null else ""
-            val card = com.turnhub.android.domain.InvestigatorCard(name, rules, json.optStringOrNull("catalogueId")).normalized() ?: return null
+            val card = com.turnhub.android.domain.InvestigatorCard.fromJson(json, slot) ?: return null
             return if (com.turnhub.android.domain.InvestigatorCardCatalogue.find(card.catalogueId)?.slot?.let { it != slot } == true)
                 card.copy(catalogueId = null) else card
         }

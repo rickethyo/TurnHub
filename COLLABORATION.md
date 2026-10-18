@@ -39,8 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-028 | Death May Die setup and play helpers | Android domain, persistence, UI | Ready for review; CI passes | Owner / PR #132 and device acceptance |
-| TH-027 | Forgiving Pass touch targets | Android table UI | Ready for review; CI passes | Owner / PR #132 integration and device acceptance |
+| TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Active implementation | Codex / source drafts and owner review checklist |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
@@ -74,84 +73,31 @@ TH-025: Death May Die dashboard merged in [PR #129](https://github.com/rickethyo
 
 TH-026: Staged turns and community catalogue merged in [PR #131](https://github.com/rickethyo/TurnHub/pull/131); [validation and handoff](Documentation/engineering/history/2026-10-17-death-may-die-catalogue.md).
 
-## TH-028: Death May Die setup and play helpers
+TH-027 / TH-028: Merged in [PR #132](https://github.com/rickethyo/TurnHub/pull/132); [validation and handoff](Documentation/engineering/history/2026-10-18-pass-and-dmd-helpers.md). Device checks remain in STAGED_CHANGES.
 
-- Owner: Codex on `codex/master`, baseline `d960d41`; fetched master, clean
-  tree, related PR #132 remains open. Extend that reviewable slice.
-- Owner requests: optional draw-two/choose-one conditions and relics, manual
-  fourth/fifth abilities, an always-available turn reference, random investigator
-  selection, previews and filtering by skills such as Brawling.
-- Authority: standalone game validates setup-only house rule and stable random
-  pairs, dynamic bounded skill lists and marker identity. Dashboard/JSON own
-  offers and abilities; Compose owns draft editing, filtering and reminder views.
-  Existing connected/protocol contracts remain unchanged. Legacy saves default
-  to three skills with the house rule off; rematch clears acquired extra skills.
-- Factual skill associations come from Make Craft Game's community index;
-  existing original effect paraphrases are reused. Missing signature text stays
-  explicitly unknown. No copied source implementation, art or rules bundled;
-  sources/legal tracker and manual will be updated. Standard labeled controls,
-  scrollable dialogs and text alternatives; no new dependency.
-- Implemented in `ffe3543`, [PR #132](https://github.com/rickethyo/TurnHub/pull/132).
-  Owner clarified that both physical and app-dealt draws must be available. The
-  editor supports both; app pairs reserve both cards without replacement and
-  survive cancel/reopen and recovery. No reopening reroll; exhausted pools offer
-  manual entry. House-rule setup is frozen during play and retained for rematch.
-  Acquired abilities support presets/custom text, eight total slots and marker
-  preservation when removing an extra or renaming in place; fresh setup resets
-  markers and clears extras while retaining edits to the original three slots.
-  Random investigator selection respects search, skill filter and taken figures,
-  and previews before committing. The factual common-skill index covers 94
-  roster entries; ten core investigators have full summaries, other signature
-  effects stay explicitly unknown. Turn phases are available in setup, on the
-  active investigator and in Game menu, checked against the CMON rulebook.
-- Validation: six focused JVM tests cover dealing, lifecycle/profile guards,
-  physical assignments, persistence/legacy recovery, extra markers and resets,
-  rename/remove preservation and random/filter availability. [CI passes](https://github.com/rickethyo/TurnHub/actions/runs/39044063208)
-  Android compilation, the complete JVM suite and release-bundle creation for
-  `ffe3543`. Local docs links, tokens, manual export and whitespace checks pass.
-  Updated manual rendered and visually reviewed on pages 4–7. No new dependency,
-  source implementation, third-party artwork or card text bundled.
-- Next owner: integrate #132 with a merge commit, retaining `codex/master`, and
-  playtest draw choices, recovery, additional skills, preview/filter/random,
-  reminders and the Pass touch boundary on phone/tablet, including large text
-  and TalkBack. Device checks remain in STAGED_CHANGES. No merge or release
-  performed; no local Android SDK/emulator available.
+## TH-029: Condition and relic rules with physical verification
 
-## TH-027: Forgiving Pass touch targets
-
-- Active owner: Codex on `codex/master`, baseline `6b90f42` (merged #131).
-  Clean tree, current master fetched and merged; no open PR or overlapping scope.
-- Owner reports accidental self-elimination after missing Pass and pressing the
-  life decrement region, especially with impaired motor precision. Owner offers
-  user-positionable/sized Pass controls or more margin around its touch target.
-  Implement the margin option: physically separate life gestures from a bottom
-  action strip, add a neutral gap and enlarge Pass. No draggable layout required.
-- Root cause: non-cooperative panels put life gesture halves across the whole
-  panel, behind gaps between the bottom controls. Missing Pass can start a life
-  hold (450ms) before the 600ms pass hold would complete.
-- Compose owns layout/gesture capture only. A weighted life area and separately
-  measured action bar must have disjoint bounds even with wrapped controls, text
-  scaling, rotation and Planechase's two-row bar. Pass is at least 64dp high;
-  compact panels use remaining bar width and show their clock inside Pass.
-  Preserve existing semantic actions, hold/undo timings and authoritative life/
-  elimination rules. No Intent, persistence, protocol, dependency or asset change.
-- Accessibility: neutral space cannot change life, no essential drag interaction,
-  visible separation, generous Pass target and retained TalkBack actions. Check
-  edge taps/holds and drags across the boundary on phone/tablet; no local SDK/device.
-- A new PR is needed because #131 is integrated. Update the user manual and
-  accessibility reference; use CI for Android compilation/the existing JVM suite.
-- Implementation: `d1f9f4f`, [PR #132](https://github.com/rickethyo/TurnHub/pull/132).
-  Local docs links, design tokens, manual export and whitespace checks pass.
-  The updated DOCX renders correctly on reviewed page 8. No new dependencies or
-  game-state tests: this change only moves input/layout and cancels gesture jobs.
-  [CI](https://github.com/rickethyo/TurnHub/actions/runs/39042711784) passes Android
-  compilation, the complete existing JVM suite and release-bundle creation for
-  `d1f9f4f`. Physical hit-target behavior remains a device acceptance check, not
-  a claim of automated pointer coverage. Final manual clarifications were exported,
-  rendered and visually reviewed on page 8; docs/whitespace checks pass.
-  Next owner: review/integrate #132 with a merge commit, retaining codex/master,
-  then test physical edge taps/holds/drags and interrupted gestures. No merge or
-  release performed.
+- Date / owner: 2026-10-18 / Codex on `codex/master`, baseline `250e36f`.
+  Clean tree, accepted master fetched/merged; #132 is integrated, no open PR.
+- Owner authorizes condition rules prefills and manual verification against their
+  physical collection, extended to relics (both faces). Scans may follow.
+- Scope: original concise mechanical summaries where source evidence is usable;
+  explicit missing/ambiguous entries, source links and a complete review checklist.
+  Catalogue defaults prefill new selections; existing typed notes remain intact.
+  Per-assignment verification belongs to InvestigatorCard, validated on edit and
+  saved by standalone JSON. LocalLibrary owns corrected catalogue references and
+  per-face physical checks for future picks, separate from match snapshots.
+  Editing name/effects invalidates the matching check by content fingerprint.
+  Verification is a reference aid, never a gameplay gate or automatic effect.
+- Compose owns drafts and separately labeled checks for relic faces. Domain owns
+  normalization/reset of checks. No Atlas/protocol change, new dependency or
+  third-party image/rules prose bundled. Missing source details are not guessed.
+  Legal tracker/manual/gameplay docs updated. All imported drafts start unchecked;
+  source review is distinct from owner's physical-card verification.
+- Validation planned: prefills/legacy notes, normalization, edit invalidation,
+  persistence, separate relic faces and lifecycle; Android CI compilation/full
+  JVM suite/release bundle, docs/tokens/manual export/render checks. Physical
+  review by owner remains open, with scan targets recorded per card.
 
 ## TH-024: Concise bug reports with app diagnostics
 

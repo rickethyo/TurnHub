@@ -879,7 +879,7 @@ data class StandaloneGame(
         val player = players.getOrNull(index) ?: return this
         if (!deathMayDie || (state != TableState.LOBBY && !playing) || player.eliminated) return this
         if (slot == InvestigatorCardSlot.RELIC && !useRelics) return this
-        val clean = card?.normalized()
+        val clean = card?.normalized(slot)
         if (card != null && clean == null) return this
         if (clean?.catalogueId?.let { com.turnhub.android.domain.InvestigatorCardCatalogue.find(it)?.slot != slot } == true) return this
         if (player.dashboard.card(slot) == clean) return this

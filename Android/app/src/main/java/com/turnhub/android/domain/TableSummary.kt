@@ -79,6 +79,7 @@ data class TableSummary(
     /** Phone-hosted Death May Die optional setup rule. */
     val useRelics: Boolean = false,
     val drawTwoCards: Boolean = false,
+    val investigatorReferences: Map<String, InvestigatorCard> = emptyMap(),
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding
