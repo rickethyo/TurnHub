@@ -338,7 +338,9 @@ GameEngine on Atlas and StandaloneGame on a phone-hosted table.
   Safe entries, corrections, the boundary, the last result and a Draw control.
   They send semantic requests; only the authority selects. Continue resumes
   the paused game. Review life totals closes the window without drawing.
-  Pending source questions take priority over the bag check.
+  Closing a preview or result never dismisses the next due check. The tablet
+  center badge reopens a pending check directly. Pending source questions take
+  priority over the bag check.
   Boot, revision and cycle guards reject stale or duplicate requests.
 - Atlas durably checkpoints a private selection before revealing it. Failed or
   uncertain saves keep that selection sealed; retries and reboot recover the

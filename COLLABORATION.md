@@ -39,6 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-030 | Bag-check prompt dismissal | Android tablet/personal UI | In progress | Codex / screenshot regression |
 | TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
@@ -56,6 +57,23 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 Bag of Doom full-screen checks and explicit elimination sources landed in [PR #136](https://github.com/rickethyo/TurnHub/pull/136); physical acceptance remains in [Staged Changes](Documentation/engineering/STAGED_CHANGES.md).
 
 Ten-player app and general elimination credit landed in [PR #134](https://github.com/rickethyo/TurnHub/pull/134); acceptance remains in [Staged Changes](Documentation/engineering/STAGED_CHANGES.md).
+
+## TH-030: Bag-check prompt dismissal regression
+
+- Owner / baseline: Codex on `codex/master`, `2f68856` / accepted master
+  `b0f72b7`. Clean tree, current master fetched, no open PR or overlapping scope.
+- Owner screenshot shows a paused due check as only the center badge. Source
+  inspection identifies a reproducible suppression: closing a preview or result
+  records the current cycle as reviewed even though its check is not yet due.
+- Scope: share presentation-only bag review state between tablet and personal
+  Game; acknowledge pending checks only while pending. Keep result acknowledgement
+  separate; the center badge directly reopens a pending check/source question.
+  Compose owns this saveable window state; authoritative gameplay, actions,
+  validation, storage, contracts, dependencies and statistics are unchanged.
+- Five regression cases cover preview -> due, result -> next due, life-total
+  review, manual reopen and credited-cycle changes. Docs, manual export, design
+  tokens and whitespace pass locally. Android validation pending; device/build
+  identification requested, no physical UI acceptance claimed.
 
 ## New topic / reply template
 

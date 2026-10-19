@@ -157,7 +157,7 @@ The first bag check follows four complete turn cycles. Afterward, check once per
 
 Crediting an elimination refills the bag except for that player and moves its deadline to the living player before them. This starts a one-cycle check, even during the opening four cycles. Choose the actual opponent in “Eliminated by?”, including off-turn interactions. Self and Unknown give nobody credit and do not reset the bag. Credit an earlier elimination can correct an Unknown while the game continues. Concessions and players drawn from the bag give nobody elimination credit. At four survivors, the bag switches off.
 
-A due bag check and its result open a full-screen pop-up on the shared tablet and on personal phones. Review life totals closes it so you can fix life entries; reopen Bag of Doom from the tablet menu or Game to finish the check. Answer any “Eliminated by?” question first. Draw results are saved before they appear; if saving fails, retry keeps the same reserved choice on Atlas. Reopening the panel cannot reroll a completed check. TurnHub uses reset-after-every-check rules.
+A due bag check and its result open a full-screen pop-up on the shared tablet and on personal phones. Review life totals closes it so you can fix life entries; tap the tablet center badge or Open bag in Game to finish the check. Game menu is also available inside the tablet bag window. Closing a preview or result does not dismiss the next due check. Answer any “Eliminated by?” question first. Draw results are saved before they appear; if saving fails, retry keeps the same reserved choice on Atlas. Reopening the panel cannot reroll a completed check. TurnHub uses reset-after-every-check rules.
 
 ## Naming Your Commander
 

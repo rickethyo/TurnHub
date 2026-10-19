@@ -244,15 +244,13 @@ internal fun TabletTable(
     var flipped by rememberSaveable { mutableStateOf(false) }
     val starLayout = rememberStarLayout()
     var menuOpen by remember { mutableStateOf(false) }
-    var bagOpen by rememberSaveable(summary.bootId, summary.game) { mutableStateOf(false) }
-    var reviewedBagCycle by rememberSaveable(summary.bootId, summary.game) { mutableStateOf(0L) }
-    var dismissedBagCheck by rememberSaveable(summary.bootId, summary.game) { mutableStateOf(0L) }
+    var bagPrompt by rememberBagPromptState(summary)
     val bag = summary.doomBag
     val attribution = summary.players.firstOrNull { it.eliminationPending }
     var sourceOpen by rememberSaveable(summary.bootId, summary.game, attribution?.playerNumber) { mutableStateOf(true) }
-    val bagAutomatic = bag != null && ((bag.pending && reviewedBagCycle != bag.cycle) || bag.lastCheck > dismissedBagCheck)
-    fun dismissBag() { bagOpen = false; reviewedBagCycle = bag?.cycle ?: 0; dismissedBagCheck = bag?.lastCheck ?: 0 }
-    BackHandler(enabled = passToTurn != null || playerMenu != null || menuOpen || (bag != null && (bagOpen || bagAutomatic))) {
+    val showBag = bag != null && bagPrompt.shouldShow(bag)
+    fun dismissBag() { bagPrompt = bagPrompt.dismiss(bag) }
+    BackHandler(enabled = passToTurn != null || playerMenu != null || menuOpen || showBag) {
         if (passToTurn != null) passToTurn = null
         else if (playerMenu != null || menuOpen) {
             playerMenu = null
@@ -471,7 +469,9 @@ internal fun TabletTable(
 
             if (!list) Hub(summary, Modifier.align(Alignment.Center)) {
                 haptics.tick()
-                menuOpen = true
+                if (attribution != null) sourceOpen = true
+                else if (bag?.pending == true) bagPrompt = bagPrompt.open()
+                else menuOpen = true
             }
         }
 
@@ -548,17 +548,17 @@ internal fun TabletTable(
                     controls { resolveElimination(actor.seat(), sourceVictim.playerNumber, source, token) }
                 } else { controls { eliminate(sourceVictim.seat(), source) }; manualRemoval = null }
             }, onCancel = { if (attribution != null) sourceOpen = false else manualRemoval = null })
-        if (bag != null && attribution == null && sourceVictim == null && (bagOpen || bagAutomatic) && !menuOpen && playerMenu == null &&
+        if (bag != null && attribution == null && sourceVictim == null && showBag && !menuOpen && playerMenu == null &&
             summary.pending.eliminationTargetPlayer == null &&
             summary.state in listOf(TableState.RUNNING, TableState.PAUSED)) {
             DoomBagDialog(summary, !isOffline && !tablet.busy, onAction = { action, player, value ->
                 val actor = summary.players.firstOrNull { !it.eliminated }?.seat()
                 if (actor != null) {
-                    bagOpen = true; haptics.tick()
+                    bagPrompt = bagPrompt.open(); haptics.tick()
                     controls { doom(actor, action, com.turnhub.android.protocol.GameActionToken(summary.bootId, summary.revision, bag.cycle, summary.game), player, value) }
                 }
             }, onResume = { dismissBag(); send(summary.players.firstOrNull { !it.eliminated }?.seat(), "pause") },
-                onDismiss = { dismissBag() })
+                onDismiss = { dismissBag() }, onOpenMenu = { dismissBag(); menuOpen = true })
         }
         val anySeat = summary.anySeat()
         val activeSeat = summary.players.firstOrNull { it.playerNumber == summary.activePlayerNumber }?.seat() ?: anySeat
@@ -634,7 +634,7 @@ internal fun TabletTable(
                         menuOpen = false; sourceOpen = true
                     }, Modifier.fillMaxWidth())
                     if (summary.doomBag != null) AccentButton("Bag of Doom · ${summary.players.count { !it.eliminated && summary.doomBag.contains(it.playerNumber) }} at risk", {
-                        menuOpen = false; if (attribution != null) sourceOpen = true else bagOpen = true
+                        menuOpen = false; if (attribution != null) sourceOpen = true else bagPrompt = bagPrompt.open()
                     }, Modifier.fillMaxWidth())
                     if (summary.settings.profile.deathMayDie) DeathMayDieTurnPhasesButton()
                     val paused = summary.state == TableState.PAUSED
