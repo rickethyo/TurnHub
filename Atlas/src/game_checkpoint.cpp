@@ -124,7 +124,9 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
   reset();
   if (!s.count) return true;
   doom_ = s.doom;
-  settings_ = s.settings; playerCount_ = s.count; activeIndex_ = s.active;
+  settings_ = s.settings;
+  if (settings_.profile == GameProfile::DoomCommander) settings_.askEliminationSource = true;
+  playerCount_ = s.count; activeIndex_ = s.active;
   monarchPlayer_ = s.monarch;
   initiativePlayer_ = s.initiative;
   starterPlayer_ = s.starter; winnerPlayer_ = s.winner; winnerMask_ = s.winners;
