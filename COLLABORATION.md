@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-030 | Bag-check prompt dismissal | Android tablet/personal UI | In progress | Codex / screenshot regression |
+| TH-030 | Bag-check prompt dismissal | Android tablet/personal UI | Ready for review; CI passes | Owner / PR #137 |
 | TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
@@ -71,10 +71,17 @@ Ten-player app and general elimination credit landed in [PR #134](https://github
   source questions retain their existing Game menu entry point.
   Compose owns this saveable window state; authoritative gameplay, actions,
   validation, storage, contracts, dependencies and statistics are unchanged.
-- Five regression cases cover preview -> due, result -> next due, life-total
-  review, manual reopen and credited-cycle changes. Docs, manual export, design
-  tokens and whitespace pass locally. Android validation pending; device/build
-  identification requested, no physical UI acceptance claimed.
+- Implemented in `dbd39c6`, `896f9a8`; [PR #137](https://github.com/rickethyo/TurnHub/pull/137).
+  Five regression cases cover preview -> due, result -> next due, life-total
+  review, manual reopen and credited-cycle changes. [CI passes on `896f9a8`](https://github.com/rickethyo/TurnHub/actions/runs/39291955190),
+  including Android compilation/full JVM suite/release bundle and the always-run
+  host/contract/documentation guards. Unchanged firmware/simulator builds skip.
+  Docs, manual export, design tokens and whitespace also pass locally; local
+  Gradle could not resolve the configured Foojay plugin. Manual text/export
+  synchronized; updated DOCX page layout and physical UI remain unverified.
+- Owner supplied Build 414 then clarified a PR had not been merged. The source
+  suppression bug is independently reproducible; no claim the screenshot proves
+  it was triggered. Owner reviews/integrates #137; no merge or release by Codex.
 
 ## New topic / reply template
 
