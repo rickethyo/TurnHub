@@ -192,7 +192,7 @@ fun GameTab(
         summary.doomBag?.let { bag ->
             BrassCard {
                 Text(if (bag.pending) "Bag check due" else "Bag of Doom", color = p.text, style = MaterialTheme.typography.titleMedium)
-                ToneButton("Open bag", { bagOpen = true }, Modifier.fillMaxWidth())
+                ToneButton("Open bag", { if (pendingSource != null) sourceOpen = true else bagOpen = true }, Modifier.fillMaxWidth())
             }
         }
         SeatCard(uiState, summary, me, actions, reduceMotion)

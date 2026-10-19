@@ -539,7 +539,7 @@ internal fun TabletTable(
         }
 
         val manualVictim = summary.players.firstOrNull { it.playerNumber == manualRemoval && !it.eliminated }
-        val sourceVictim = attribution?.takeIf { sourceOpen } ?: manualVictim
+        val sourceVictim = if (attribution != null) attribution.takeIf { sourceOpen } else manualVictim
         if (sourceVictim != null) EliminationSourceDialog(summary, sourceVictim, attribution != null,
             enabled = !isOffline && !tablet.busy, onConfirm = { source ->
                 val token = com.turnhub.android.protocol.GameActionToken(summary.bootId, summary.revision, bag?.cycle ?: 0, summary.game)
@@ -634,7 +634,7 @@ internal fun TabletTable(
                         menuOpen = false; sourceOpen = true
                     }, Modifier.fillMaxWidth())
                     if (summary.doomBag != null) AccentButton("Bag of Doom · ${summary.players.count { !it.eliminated && summary.doomBag.contains(it.playerNumber) }} at risk", {
-                        menuOpen = false; bagOpen = true
+                        menuOpen = false; if (attribution != null) sourceOpen = true else bagOpen = true
                     }, Modifier.fillMaxWidth())
                     if (summary.settings.profile.deathMayDie) DeathMayDieTurnPhasesButton()
                     val paused = summary.state == TableState.PAUSED

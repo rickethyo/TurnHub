@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-030 | Bag of Doom Commander | Atlas, Android, protocol, recovery | Active follow-up | Codex / explicit source + full-screen checks |
+| TH-030 | Bag of Doom Commander | Atlas, Android, protocol, recovery | Ready for review; final UI check running | Codex / PR #136 |
 | TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
@@ -75,13 +75,23 @@ Ten-player app and general elimination credit landed in [PR #134](https://github
   starts without the policy keep immediate uncredited automatic removal
   outside Bag of Doom. No new
   dependency/media; large labeled controls, scrolling, TalkBack and safe insets.
-- Implementation complete; local four-suite ASan/UBSan host run, client
-  contracts, adapter audit, docs, tokens and manual export pass. Added general
-  HTTP final-elimination statistics coverage (syntax-checked; CI pending) and
-  JVM cases for off-turn/Self/Unknown, all-out/teams, recovery, rematches and
-  stale answers. Android build/JVM checks will run in the new PR; local Gradle
-  remains blocked by the previously recorded Foojay resolution issue.
-- New PR needed because #135 was merged. No merge or release authorization.
+- Implemented in `75bed4b`, `7ede41d`, `50b5c20`; [PR #136](https://github.com/rickethyo/TurnHub/pull/136).
+  Source questions can be reviewed/dismissed while still pending, and reopened
+  from the Game card / tablet menu; automatic attribution takes priority over
+  manual removal and bag checks. Review never records an implied answer.
+- Local four-suite ASan/UBSan host run, client contracts, adapter audit, docs,
+  tokens, manual export and whitespace pass. Manual rendered/reviewed on pages
+  9 and 12. [CI passes on `50b5c20`](https://github.com/rickethyo/TurnHub/actions/runs/39273443765):
+  full Android compilation/JVM suite/release bundle, optimized host suites/
+  contracts, firmware and LVGL. New coverage includes final HTTP attribution
+  before stats, Self/Unknown/off-turn sources, all-out/teams, recovery, rematches,
+  stale answers and preserving the policy during live rule toggles. The first
+  Android compile caught a callback invocation; corrected in `50b5c20`.
+- Final UI follow-up keeps source priority when Review game interrupts a manual
+  removal and directs Open bag to the outstanding source question. CI rerun
+  pending. Physical-device acceptance remains in STAGED_CHANGES.md. Owner
+  integrates #136 with a merge commit and retains `codex/master`; no merge or
+  release performed.
 
 ## New topic / reply template
 
