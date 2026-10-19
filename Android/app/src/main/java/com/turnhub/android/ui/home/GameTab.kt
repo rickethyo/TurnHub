@@ -162,9 +162,7 @@ fun GameTab(
 ) {
     val me = uiState.me()
     val p = palette
-    var bagOpen by androidx.compose.runtime.saveable.rememberSaveable(summary.bootId, summary.game) { mutableStateOf(false) }
-    var reviewed by androidx.compose.runtime.saveable.rememberSaveable(summary.bootId, summary.game) { mutableStateOf(0L) }
-    var dismissed by androidx.compose.runtime.saveable.rememberSaveable(summary.bootId, summary.game) { mutableStateOf(0L) }
+    var bagPrompt by com.turnhub.android.ui.tablet.rememberBagPromptState(summary)
     val bag = summary.doomBag
     val pendingSource = summary.players.firstOrNull { it.eliminationPending }
     var sourceOpen by androidx.compose.runtime.saveable.rememberSaveable(summary.bootId, summary.game, pendingSource?.playerNumber) { mutableStateOf(true) }
@@ -174,11 +172,11 @@ fun GameTab(
                 com.turnhub.android.protocol.GameActionToken(summary.bootId, summary.revision, bag?.cycle ?: 0, summary.game))
         }, onCancel = { sourceOpen = false })
     if (pendingSource == null && bag != null && summary.state in listOf(TableState.RUNNING, TableState.PAUSED) &&
-        (bagOpen || (bag.pending && reviewed != bag.cycle) || bag.lastCheck > dismissed)) {
-        fun closeBag() { bagOpen = false; reviewed = bag.cycle; dismissed = bag.lastCheck }
+        bagPrompt.shouldShow(bag)) {
+        fun closeBag() { bagPrompt = bagPrompt.dismiss(bag) }
         com.turnhub.android.ui.tablet.DoomBagDialog(summary, me != null && !me.eliminated && uiState.player?.busy != true,
             onAction = { action, player, value ->
-                bagOpen = true
+                bagPrompt = bagPrompt.open()
                 actions.onDoom(action, com.turnhub.android.protocol.GameActionToken(summary.bootId, summary.revision, bag.cycle, summary.game), player, value)
             }, onResume = { closeBag(); actions.onControl(ControlAction.PAUSE_RESUME) }, onDismiss = { closeBag() })
     }
@@ -192,7 +190,7 @@ fun GameTab(
         summary.doomBag?.let { bag ->
             BrassCard {
                 Text(if (bag.pending) "Bag check due" else "Bag of Doom", color = p.text, style = MaterialTheme.typography.titleMedium)
-                ToneButton("Open bag", { if (pendingSource != null) sourceOpen = true else bagOpen = true }, Modifier.fillMaxWidth())
+                ToneButton("Open bag", { if (pendingSource != null) sourceOpen = true else bagPrompt = bagPrompt.open() }, Modifier.fillMaxWidth())
             }
         }
         SeatCard(uiState, summary, me, actions, reduceMotion)

@@ -55,7 +55,10 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 ### Elimination attribution and full-screen checks
 
 - Verify full-screen due/result windows on phone, foldable and tablet, including
-  large type/TalkBack, rotation, Back and Review life totals. Exercise manual and
+  large type/TalkBack, rotation, Back and Review life totals. Close a preview
+  before the first check and a result before the next check; each newly due
+  check must open automatically. Reopen it using the tablet center badge.
+  Exercise manual and
   automatic “Eliminated by?” prompts, off-turn/already-out sources, explicit Self
   and Unknown, teams and simultaneous/all-out/final removals. Ensure nothing is
   preselected, source questions take priority, and final history/stats wait for

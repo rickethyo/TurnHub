@@ -8,6 +8,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
@@ -20,6 +21,15 @@ import com.turnhub.android.protocol.TableState
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.theme.palette
+
+@Composable
+internal fun rememberBagPromptState(summary: TableSummary): MutableState<BagPromptState> = rememberSaveable(
+    summary.bootId, summary.game,
+    stateSaver = listSaver<BagPromptState, Long>(
+        save = { listOf(if (it.opened) 1L else 0L, it.reviewedPendingCycle, it.dismissedResultCheck) },
+        restore = { BagPromptState(it[0] != 0L, it[1], it[2]) },
+    ),
+) { mutableStateOf(BagPromptState()) }
 
 /** A modal window fills the available display, including on large tablets. */
 @Composable
@@ -63,7 +73,7 @@ internal fun EliminationSourceDialog(summary: TableSummary, victim: TablePlayer,
 
 @Composable
 internal fun DoomBagDialog(summary: TableSummary, enabled: Boolean, onAction: (DoomAction, Int, Int) -> Unit,
-    onResume: () -> Unit, onDismiss: () -> Unit) {
+    onResume: () -> Unit, onDismiss: () -> Unit, onOpenMenu: (() -> Unit)? = null) {
     val bag = summary.doomBag ?: return
     val p = palette
     FullScreenGamePrompt(if (bag.pending) "Bag check" else "Bag of Doom", onDismiss) {
@@ -76,5 +86,6 @@ internal fun DoomBagDialog(summary: TableSummary, enabled: Boolean, onAction: (D
         if (!bag.pending && summary.state == TableState.PAUSED)
             AccentButton("Continue game", onResume, Modifier.fillMaxWidth(), enabled = enabled)
         ToneButton(if (bag.pending) "Review life totals" else "Close", onDismiss, Modifier.fillMaxWidth())
+        onOpenMenu?.let { ToneButton("Game menu", it, Modifier.fillMaxWidth()) }
     }
 }

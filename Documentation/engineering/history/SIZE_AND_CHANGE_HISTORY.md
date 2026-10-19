@@ -1061,8 +1061,11 @@ unverified.
 ## 2026-10-19: Full-screen checks and explicit elimination attribution
 
 Baseline `2c684c7`; firmware versions and statistics layouts unchanged. Atlas
-`src/*.cpp` source snapshot: 723,391 bytes. Checkpoint schema 8 uses two free
+`src/*.cpp` source snapshot: 723,646 bytes. Checkpoint schema 8 uses two free
 bits in each exit byte for Self/pending and profile bit 0x20 for the interactive
 policy; maximum record remains 3,062 bytes. Engine/checkpoint/projection hold
-the extra flags; no media or dependency was added. Physical-device performance
-and acceptance remain unverified.
+the extra flags; no media or dependency was added. CI Atlas compile target on
+`50b5c20`: static RAM 102,492 / 327,680 bytes (31.3%), flash 1,288,613 /
+1,966,080 bytes (65.5%): +232 bytes RAM / +2,800 bytes flash against Bag of Doom.
+These are board-less compile measurements; physical-device performance and
+acceptance remain unverified.

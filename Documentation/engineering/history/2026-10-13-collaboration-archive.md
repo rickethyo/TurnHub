@@ -1552,3 +1552,43 @@ management/invitations from TH-002 remain separate planned work.
 - Next owner: review/integrate #135 with a merge commit and retain `codex/master`.
   Physical ten-player, accessibility, process-death and power-cut acceptance
   remains open in STAGED_CHANGES.md. No merge or release performed.
+
+## TH-030: Full-screen bag checks and explicit elimination source
+
+- Owner / baseline: Codex, `codex/master`, `2c684c7` (PR #135 merged).
+  Clean tree, fetched origin, no open PR. Owner's first playtest requested a
+  full-screen bag check and an explicit “Eliminated by?” question with Self.
+- Feature gate: GameEngine / StandaloneGame own pending attribution and Self
+  metadata. App-started games pause automatic removals and defer the outcome /
+  statistics until pending sources are answered. New ResolveElimination Intent
+  validates victim, opponent/self/unknown choice and snapshot freshness. Recovery
+  and local snapshots persist the pending question and answer; checkpoint exit
+  flags add Self/pending bits. Explicit manual removal asks before committing.
+  Bag draws/concessions are already known and never ask or infer turn ownership.
+- Renderers: shared full-screen Compose prompts on tablet and personal Game.
+  Named player choices include off-turn and eliminated opponents; Self/Unknown
+  give no opponent credit or bag reset. No source is preselected. Contracts and
+  local history/import preserve Self. App start opts into the interactive flow;
+  starts without the policy keep immediate uncredited automatic removal
+  outside Bag of Doom. No new
+  dependency/media; large labeled controls, scrolling, TalkBack and safe insets.
+- Implemented in `75bed4b`, `7ede41d`, `50b5c20`; [PR #136](https://github.com/rickethyo/TurnHub/pull/136).
+  Source questions can be reviewed/dismissed while still pending, and reopened
+  from the Game card / tablet menu; automatic attribution takes priority over
+  manual removal and bag checks. Review never records an implied answer.
+- Local four-suite ASan/UBSan host run, client contracts, adapter audit, docs,
+  tokens, manual export and whitespace pass. Manual rendered/reviewed on pages
+  9 and 12. [CI passes on `50b5c20`](https://github.com/rickethyo/TurnHub/actions/runs/39273443765):
+  full Android compilation/JVM suite/release bundle, optimized host suites/
+  contracts, firmware and LVGL. New coverage includes final HTTP attribution
+  before stats, Self/Unknown/off-turn sources, all-out/teams, recovery, rematches,
+  stale answers and preserving the policy during live rule toggles. The first
+  Android compile caught a callback invocation; corrected in `50b5c20`.
+- Final UI follow-up `6bd6b27` keeps source priority when Review game interrupts
+  a manual removal and directs Open bag to the outstanding source question.
+  [Final CI passes](https://github.com/rickethyo/TurnHub/actions/runs/39274068620),
+  including Android/JVM/release bundle, optimized host suites/contracts, firmware
+  and LVGL; [iOS passes](https://github.com/rickethyo/TurnHub/actions/runs/39274067918).
+  Physical-device acceptance remains in STAGED_CHANGES.md. Owner merged
+  #136 as `b0f72b7`; `codex/master` is retained and synchronized. No release
+  performed by Codex.

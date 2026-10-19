@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-030 | Bag of Doom Commander | Atlas, Android, protocol, recovery | Ready for review; final UI check running | Codex / PR #136 |
+| TH-030 | Bag-check prompt dismissal | Android tablet/personal UI | Ready for review; CI passes | Owner / PR #137 |
 | TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
@@ -54,44 +54,34 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and scope; unassigned |
 | TH-003 | High-resolution player artwork and fuller tablet UI | Android, assets, profiles, storage | Implemented in PR #86 | Owner acceptance; LCD layouts planned |
 
+Bag of Doom full-screen checks and explicit elimination sources landed in [PR #136](https://github.com/rickethyo/TurnHub/pull/136); physical acceptance remains in [Staged Changes](Documentation/engineering/STAGED_CHANGES.md).
+
 Ten-player app and general elimination credit landed in [PR #134](https://github.com/rickethyo/TurnHub/pull/134); acceptance remains in [Staged Changes](Documentation/engineering/STAGED_CHANGES.md).
 
-## TH-030: Full-screen bag checks and explicit elimination source
+## TH-030: Bag-check prompt dismissal regression
 
-- Owner / baseline: Codex, `codex/master`, `2c684c7` (PR #135 merged).
-  Clean tree, fetched origin, no open PR. Owner's first playtest requested a
-  full-screen bag check and an explicit “Eliminated by?” question with Self.
-- Feature gate: GameEngine / StandaloneGame own pending attribution and Self
-  metadata. App-started games pause automatic removals and defer the outcome /
-  statistics until pending sources are answered. New ResolveElimination Intent
-  validates victim, opponent/self/unknown choice and snapshot freshness. Recovery
-  and local snapshots persist the pending question and answer; checkpoint exit
-  flags add Self/pending bits. Explicit manual removal asks before committing.
-  Bag draws/concessions are already known and never ask or infer turn ownership.
-- Renderers: shared full-screen Compose prompts on tablet and personal Game.
-  Named player choices include off-turn and eliminated opponents; Self/Unknown
-  give no opponent credit or bag reset. No source is preselected. Contracts and
-  local history/import preserve Self. App start opts into the interactive flow;
-  starts without the policy keep immediate uncredited automatic removal
-  outside Bag of Doom. No new
-  dependency/media; large labeled controls, scrolling, TalkBack and safe insets.
-- Implemented in `75bed4b`, `7ede41d`, `50b5c20`; [PR #136](https://github.com/rickethyo/TurnHub/pull/136).
-  Source questions can be reviewed/dismissed while still pending, and reopened
-  from the Game card / tablet menu; automatic attribution takes priority over
-  manual removal and bag checks. Review never records an implied answer.
-- Local four-suite ASan/UBSan host run, client contracts, adapter audit, docs,
-  tokens, manual export and whitespace pass. Manual rendered/reviewed on pages
-  9 and 12. [CI passes on `50b5c20`](https://github.com/rickethyo/TurnHub/actions/runs/39273443765):
-  full Android compilation/JVM suite/release bundle, optimized host suites/
-  contracts, firmware and LVGL. New coverage includes final HTTP attribution
-  before stats, Self/Unknown/off-turn sources, all-out/teams, recovery, rematches,
-  stale answers and preserving the policy during live rule toggles. The first
-  Android compile caught a callback invocation; corrected in `50b5c20`.
-- Final UI follow-up keeps source priority when Review game interrupts a manual
-  removal and directs Open bag to the outstanding source question. CI rerun
-  pending. Physical-device acceptance remains in STAGED_CHANGES.md. Owner
-  integrates #136 with a merge commit and retains `codex/master`; no merge or
-  release performed.
+- Owner / baseline: Codex on `codex/master`, `2f68856` / accepted master
+  `b0f72b7`. Clean tree, current master fetched, no open PR or overlapping scope.
+- Owner screenshot shows a paused due check as only the center badge. Source
+  inspection identifies a reproducible suppression: closing a preview or result
+  records the current cycle as reviewed even though its check is not yet due.
+- Scope: share presentation-only bag review state between tablet and personal
+  Game; acknowledge pending checks only while pending. Keep result acknowledgement
+  separate; the center badge directly reopens a pending bag check. Outstanding
+  source questions retain their existing Game menu entry point.
+  Compose owns this saveable window state; authoritative gameplay, actions,
+  validation, storage, contracts, dependencies and statistics are unchanged.
+- Implemented in `dbd39c6`, `896f9a8`; [PR #137](https://github.com/rickethyo/TurnHub/pull/137).
+  Five regression cases cover preview -> due, result -> next due, life-total
+  review, manual reopen and credited-cycle changes. [CI passes on `896f9a8`](https://github.com/rickethyo/TurnHub/actions/runs/39291955190),
+  including Android compilation/full JVM suite/release bundle and the always-run
+  host/contract/documentation guards. Unchanged firmware/simulator builds skip.
+  Docs, manual export, design tokens and whitespace also pass locally; local
+  Gradle could not resolve the configured Foojay plugin. Manual text/export
+  synchronized; updated DOCX page layout and physical UI remain unverified.
+- Owner supplied Build 414 then clarified a PR had not been merged. The source
+  suppression bug is independently reproducible; no claim the screenshot proves
+  it was triggered. Owner reviews/integrates #137; no merge or release by Codex.
 
 ## New topic / reply template
 
