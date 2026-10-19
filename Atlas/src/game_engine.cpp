@@ -454,7 +454,7 @@ bool GameEngine::eliminatePlayer(
   }
 
   const int index = indexForPlayerNumber(playerNumber);
-  if (creditedPlayer && (conceded || indexForPlayerNumber(creditedPlayer) < 0 || sameTeam(creditedPlayer, playerNumber))) return false;
+  if ((conceded && creditedPlayer) || !validEliminationCredit(playerNumber, creditedPlayer)) return false;
   if (index < 0 || eliminated_[index]) {
     return false;
   }
@@ -574,6 +574,11 @@ bool GameEngine::setEliminationSettings(const GameSettings &settings) {
 bool GameEngine::hasConceded(uint8_t player) const {
   const int index = indexForPlayerNumber(player);
   return index >= 0 && conceded_[index];
+}
+
+bool GameEngine::validEliminationCredit(uint8_t victim, uint8_t source) const {
+  return indexForPlayerNumber(victim) >= 0 &&
+      (!source || (indexForPlayerNumber(source) >= 0 && !sameTeam(source, victim)));
 }
 
 uint8_t GameEngine::eliminatedBy(uint8_t player) const {

@@ -4869,7 +4869,8 @@ static void zeroLifeAndExitReasons() {
   assert(request("/api/control/start",c)==200); testNow+=3000; updateCountdown(testNow);
   assert(request("/api/control/concede",a)==200);
   assert(table().game.hasConceded(1) && table().hubState==HubState::Running);
-  assert(request("/api/control/eliminate",b,{{"eliminatedBy","2"}})==409);
+  assert(request("/api/control/pass",b)==200 && table().pendingPass.active);
+  assert(request("/api/control/eliminate",b,{{"eliminatedBy","2"}})==409 && table().pendingPass.active);
   assert(request("/api/control/eliminate",b,{{"eliminatedBy","17"}})==400);
   assert(request("/api/control/eliminate",b,{{"eliminatedBy","3"}})==200 && !table().game.hasConceded(2));
   assert(table().game.eliminatedBy(2)==3 && ProfileFixture::profiles[cId.c_str()].stats.lastGameEliminationsMade==1);
@@ -5328,6 +5329,7 @@ static void eliminationCredit() {
   assert(!g.eliminatePlayer(3,2000,finished,false,4));
   assert(g.eliminatePlayer(3,2000,finished,false,1) && finished);
   assert(g.eliminatedBy(3)==1 && g.eliminatedBy(4)==1 && g.eliminationsBy(1)==2);
+  g.checkpoint(checkpoint,2000); checkpoint.eliminatedBy[3]=0; assert(!validCheckpoint(checkpoint));
   GameEngine::setGameCompletedCallback(completed);
 }
 

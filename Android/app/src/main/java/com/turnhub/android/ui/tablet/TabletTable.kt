@@ -1578,7 +1578,7 @@ private fun PlayerMenuItems(
                 ToneButton(if (credited == null) "✓ No player credited" else "No player credited", { credited = null }, Modifier.fillMaxWidth().semantics { selected = credited == null })
                 summary.players.filter { candidate -> candidate.playerNumber != member.playerNumber &&
                     (member.team == null || candidate.team != member.team) }.forEach { candidate ->
-                    ToneButton((if (credited == candidate.playerNumber) "✓ " else "") + candidate.label,
+                    ToneButton((if (credited == candidate.playerNumber) "✓ " else "") + "${candidate.playerNumber}. ${candidate.label}",
                         { credited = candidate.playerNumber }, Modifier.fillMaxWidth().semantics { selected = credited == candidate.playerNumber })
                 }
                 key(credited) {

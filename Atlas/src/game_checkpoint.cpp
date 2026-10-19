@@ -43,7 +43,7 @@ bool validCheckpoint(const GameCheckpoint &s) {
   // Two-Headed Giant teammates share one life total and leave together.
   if (s.settings.twoHeadedGiant)
     for (uint8_t i = 0; i + 1 < s.count; i += TEAM_SIZE)
-      if (s.life[i] != s.life[i+1] || s.eliminated[i] != s.eliminated[i+1] || s.counters[i].poison != s.counters[i+1].poison) return false;
+      if (s.life[i] != s.life[i+1] || s.eliminated[i] != s.eliminated[i+1] || s.eliminatedBy[i] != s.eliminatedBy[i+1] || s.counters[i].poison != s.counters[i+1].poison) return false;
   uint8_t living = 0;
   for (uint8_t i = 0; i < s.count; ++i) {
     const auto &p = s.players[i];

@@ -87,6 +87,7 @@ class GameEngine {
   void setAutoEliminateAtZeroLife(bool enabled) { settings_.autoEliminateAtZeroLife = enabled; }
   bool resolveEliminationRules(uint32_t nowMs);
   bool hasConceded(uint8_t player) const;
+  bool validEliminationCredit(uint8_t victim, uint8_t source) const;
   uint8_t eliminatedBy(uint8_t player) const;
   uint8_t eliminationsBy(uint8_t player) const;
 

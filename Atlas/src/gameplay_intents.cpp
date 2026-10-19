@@ -344,6 +344,11 @@ IntentResult handleConcedeIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::Conflict, "This player has already left the game");
   }
 
+  const bool conceded = intent.type == IntentType::Concede;
+  if ((conceded && intent.payload.eliminatedBy) ||
+      !table().game.validEliminationCredit(seat->playerNumber, intent.payload.eliminatedBy)) {
+    return IntentResult::reject(IntentStatus::Conflict, "Credit an opponent, or leave elimination credit empty");
+  }
   clearPendingPass(intent.type == IntentType::Concede ? "CONCEDE" : "ELIMINATE");
   const uint32_t nowMs = millis();
   const bool restoreRunning = table().hubState == HubState::Running;
@@ -354,7 +359,6 @@ IntentResult handleConcedeIntent(const Intent &intent, void *) {
     table().hubState = HubState::Paused;
   }
 
-  const bool conceded = intent.type == IntentType::Concede;
   bool gameFinished = false;
   if (!table().game.eliminatePlayer(seat->playerNumber, nowMs, gameFinished, conceded, intent.payload.eliminatedBy)) {
     if (restoreRunning && table().game.resume(nowMs)) table().hubState = HubState::Running;
