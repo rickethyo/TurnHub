@@ -469,8 +469,7 @@ internal fun TabletTable(
 
             if (!list) Hub(summary, Modifier.align(Alignment.Center)) {
                 haptics.tick()
-                if (attribution != null) sourceOpen = true
-                else if (bag?.pending == true) bagPrompt = bagPrompt.open()
+                if (attribution == null && bag?.pending == true) bagPrompt = bagPrompt.open()
                 else menuOpen = true
             }
         }

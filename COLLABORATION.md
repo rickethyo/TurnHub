@@ -67,7 +67,8 @@ Ten-player app and general elimination credit landed in [PR #134](https://github
   records the current cycle as reviewed even though its check is not yet due.
 - Scope: share presentation-only bag review state between tablet and personal
   Game; acknowledge pending checks only while pending. Keep result acknowledgement
-  separate; the center badge directly reopens a pending check/source question.
+  separate; the center badge directly reopens a pending bag check. Outstanding
+  source questions retain their existing Game menu entry point.
   Compose owns this saveable window state; authoritative gameplay, actions,
   validation, storage, contracts, dependencies and statistics are unchanged.
 - Five regression cases cover preview -> due, result -> next due, life-total
