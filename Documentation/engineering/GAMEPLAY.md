@@ -85,7 +85,9 @@ loss condition; Commander damage totals alone do not trigger elimination.
   elimination, so nobody is knocked out by a mis-tap, and the
   before-summoning loss rule still applies. In the lobby each player row
   keeps one height: the investigator button shows the chosen name, and the
-  two card buttons stay on one line. A tile shows the investigator's
+  two card buttons stay on one line. The player's-name field and saved-player
+  chips sit at the top of "At the table", so players added from them fill in
+  below and the picker never moves under a finger. A tile shows the investigator's
   picture from the community wiki where it has one (Seasons 1 to 4 core
   investigators; a dashboard's portrait is cropped out), and the Game tab
   lists the players the same way.

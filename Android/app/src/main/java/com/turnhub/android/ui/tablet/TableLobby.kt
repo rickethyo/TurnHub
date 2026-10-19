@@ -125,6 +125,34 @@ internal fun TableLobby(
                 Eyebrow("At the table") {
                     TextButton(onClick = actions.clear, enabled = enabled && players.any(actions.canRemove)) { Text("Clear all") }
                 }
+                // The picker comes first: players added from it fill in below, so the
+                // name field and saved chips never move under a finger (owner, 2026-10-19).
+                var name by rememberSaveable { mutableStateOf("") }
+                val add = {
+                    if (enabled && canAdd && name.isNotBlank()) { actions.add(name.trim()); name = "" }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(name, { name = it.take(StandaloneGame.MAX_NAME) }, label = { Text("Player's name") },
+                        singleLine = true, enabled = enabled && canAdd,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { add() }),
+                        modifier = Modifier.weight(1f))
+                    ToneButton("Add", add, enabled = enabled && canAdd && name.isNotBlank())
+                }
+                if (savedPlayers.isNotEmpty()) {
+                    Text(savedTitle, color = p.muted, style = MaterialTheme.typography.labelLarge)
+                    Text(identityHint, color = p.faint, style = MaterialTheme.typography.bodySmall)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        savedPlayers.forEach { player ->
+                            SuggestionChip(onClick = { actions.select(player) }, label = {
+                                Column {
+                                    Text(player.name.ifBlank { "Unnamed" })
+                                    Text("ID ${player.displayId}", style = MaterialTheme.typography.bodySmall)
+                                }
+                            },
+                                enabled = enabled && canAdd)
+                        }
+                    }
+                }
                 // The preview takes the mode's shape from the first player: the star's five
                 // seats, or Two-Headed Giant's split team panels, filling in as players join.
                 if (settings.profile.starCommander && players.size <= StarCommander.PLAYERS) {
@@ -164,7 +192,8 @@ internal fun TableLobby(
                 val investigators = settings.profile.deathMayDie && actions.investigator != null
                 players.forEach { player ->
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        // Top-aligned: the number sits beside the name, whatever the buttons under the name hold.
+                        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             val hue = com.turnhub.android.ui.components.playerColor(player.color, p.avatarColor(player.playerNumber))
                             Box(Modifier.size(30.dp).background(hue, CircleShape), contentAlignment = Alignment.Center) {
                                 Text("${player.playerNumber}", color = com.turnhub.android.ui.components.colorInk(hue), style = MaterialTheme.typography.labelLarge)
@@ -242,32 +271,6 @@ internal fun TableLobby(
                                 reservedCardIds = summary.players.flatMap { p -> p.dashboard.cardOffers.values.flatten() +
                                     InvestigatorCardSlot.entries.mapNotNull { p.dashboard.card(it)?.catalogueId } }.toSet(),
                                 onAssign = { slot, card -> assign(player, slot, card) })
-                        }
-                    }
-                }
-                var name by rememberSaveable { mutableStateOf("") }
-                val add = {
-                    if (enabled && canAdd && name.isNotBlank()) { actions.add(name.trim()); name = "" }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(name, { name = it.take(StandaloneGame.MAX_NAME) }, label = { Text("Player's name") },
-                        singleLine = true, enabled = enabled && canAdd,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { add() }),
-                        modifier = Modifier.weight(1f))
-                    ToneButton("Add", add, enabled = enabled && canAdd && name.isNotBlank())
-                }
-                if (savedPlayers.isNotEmpty()) {
-                    Text(savedTitle, color = p.muted, style = MaterialTheme.typography.labelLarge)
-                    Text(identityHint, color = p.faint, style = MaterialTheme.typography.bodySmall)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        savedPlayers.forEach { player ->
-                            SuggestionChip(onClick = { actions.select(player) }, label = {
-                                Column {
-                                    Text(player.name.ifBlank { "Unnamed" })
-                                    Text("ID ${player.displayId}", style = MaterialTheme.typography.bodySmall)
-                                }
-                            },
-                                enabled = enabled && canAdd)
                         }
                     }
                 }
