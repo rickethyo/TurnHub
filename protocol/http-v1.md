@@ -614,7 +614,7 @@ State adds optional `doomBag` (null outside a started Bag of Doom match):
 | `warmup` | Opening complete cycles still required, 0–4. |
 | `cycle` | Positive uint32 bag generation, incremented by each check or credited kill while active. |
 | `pending`, `pendingTurn` | Check due; life edits still belong to the turn that just ended. |
-| `sealed` | A private choice was reserved. Only retrying that draw or explicitly ending the match is allowed. |
+| `sealed` | A private choice was reserved. Membership is frozen; retry resolves the same name. |
 | `lastDraw`, `lastCheck` | Last completed result and cycle. `lastDraw=0` means everyone was safe; `lastCheck=0` means no check yet. |
 
 `POST /api/control/doom` requires a signed-in living participant.

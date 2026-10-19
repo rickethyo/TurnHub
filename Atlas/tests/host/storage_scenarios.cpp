@@ -375,7 +375,7 @@ void gameSettingsRecords() {
   for(uint32_t timer : {1u,14000u,15500u,TURN_TIMER_MAX_MS+1000})
     {settings.turnTimerMs=timer;assert(writeGameSettings(store,settings)==Status::InvalidArgument);}
   for(const auto &bytes : {std::vector<uint8_t>{}, {1,0,20}, {1,0,20,0,0,0,0},
-      {1,5,20,0,0,0}, {1,0,0xff,0xff,0xff,0xff}, {2,0,20,0,0,0}, {1,0,20,0,0,0,0,0,0,0},
+      {1,6,20,0,0,0}, {1,0,0xff,0xff,0xff,0xff}, {2,0,20,0,0,0}, {1,0,20,0,0,0,0,0,0,0},
       {2,0,20,0,0,0,0xe8,0x03,0,0}, {99,0,20,0,0,0}}) {
     FakeNvs::blobs["gamecfg"]=bytes;
     settings=GameSettings{};

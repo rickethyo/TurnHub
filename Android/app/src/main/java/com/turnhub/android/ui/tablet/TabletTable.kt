@@ -246,12 +246,15 @@ internal fun TabletTable(
     var bagOpen by rememberSaveable(summary.bootId, summary.game) { mutableStateOf(false) }
     var reviewedBagCycle by rememberSaveable(summary.bootId, summary.game) { mutableStateOf(0L) }
     var dismissedBagCheck by rememberSaveable(summary.bootId, summary.game) { mutableStateOf(0L) }
-    BackHandler(enabled = passToTurn != null || playerMenu != null || menuOpen) {
+    val bag = summary.doomBag
+    val bagAutomatic = bag != null && ((bag.pending && reviewedBagCycle != bag.cycle) || bag.lastCheck > dismissedBagCheck)
+    fun dismissBag() { bagOpen = false; reviewedBagCycle = bag?.cycle ?: 0; dismissedBagCheck = bag?.lastCheck ?: 0 }
+    BackHandler(enabled = passToTurn != null || playerMenu != null || menuOpen || (bag != null && (bagOpen || bagAutomatic))) {
         if (passToTurn != null) passToTurn = null
-        else {
+        else if (playerMenu != null || menuOpen) {
             playerMenu = null
             menuOpen = false
-        }
+        } else dismissBag()
     }
 
     LaunchedEffect(summary.revision) { sent.removeAll { it.acked && it.sentAtRevision != summary.revision } }
@@ -533,15 +536,14 @@ internal fun TabletTable(
             })
         }
 
-        val bag = summary.doomBag
-        val bagAutomatic = bag != null && ((bag.pending && reviewedBagCycle != bag.cycle) || bag.lastCheck > dismissedBagCheck)
         if (bag != null && (bagOpen || bagAutomatic) && !menuOpen && playerMenu == null &&
+            summary.pending.eliminationTargetPlayer == null &&
             summary.state in listOf(TableState.RUNNING, TableState.PAUSED)) {
-            fun dismissBag() { bagOpen = false; reviewedBagCycle = bag.cycle; dismissedBagCheck = bag.lastCheck }
             Overlay("Bag of Doom", null, onDismiss = { dismissBag() }) {
                 DoomBagPanel(summary, !isOffline && !tablet.busy) { action, player, value ->
                     val actor = summary.players.firstOrNull { !it.eliminated }?.seat()
                     if (actor != null) {
+                        bagOpen = true
                         haptics.tick()
                         controls { doom(actor, action, com.turnhub.android.protocol.DoomToken(summary.bootId, summary.revision, bag.cycle, summary.game), player, value) }
                     }
