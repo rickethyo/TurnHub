@@ -94,6 +94,8 @@ private enum class HomeTab(val label: String, @DrawableRes val icon: Int) {
     TABLE("Table", DesignTokens.Icons.table),
     /** Planechase for the device game; shown only while a Magic format is chosen. */
     PLANES("Planes", DesignTokens.Icons.cards),
+    /** Death May Die's Elder One, episode and Story board; shown only while that game is chosen. */
+    ELDER("Elder One", DesignTokens.Icons.eye),
     PLAYERS("Players", DesignTokens.Icons.users),
     HISTORY("History", DesignTokens.Icons.clock),
     SETTINGS("Settings", DesignTokens.Icons.sliders),
@@ -150,6 +152,8 @@ fun HomeScreen(
     localHistoryContent: @Composable () -> Unit = {},
     /** The device game's Planechase setup and planes, in the Planes tab. */
     localPlanesContent: @Composable () -> Unit = {},
+    /** The device game's Elder One and Story board (Death May Die), in the Elder One tab. */
+    localElderContent: @Composable () -> Unit = {},
     atlasEnabled: Boolean = true,
     onAtlasEnabled: (Boolean) -> Unit = {},
     localState: com.turnhub.android.standalone.StandaloneState = com.turnhub.android.standalone.StandaloneState(),
@@ -189,9 +193,11 @@ fun HomeScreen(
     val canPeople = canSettings || info?.has(com.turnhub.android.protocol.AccountPermission.GAME_MASTER) == true
     val canDev = info?.has(com.turnhub.android.protocol.AccountPermission.DEVELOPER) == true
     val planes = localState.game.profile.magicRules
-    val tabs = HomeTab.entries.filter { it != HomeTab.PLANES || planes }
-    // Leaving Magic hides the Planes tab; whoever was on it goes back to Game.
+    val elderOne = localState.game.profile.deathMayDie
+    val tabs = HomeTab.entries.filter { (it != HomeTab.PLANES || planes) && (it != HomeTab.ELDER || elderOne) }
+    // Leaving Magic hides the Planes tab (Death May Die the Elder One tab); whoever was on it goes back to Game.
     androidx.compose.runtime.LaunchedEffect(planes) { if (!planes && tab == HomeTab.PLANES) tab = HomeTab.GAME }
+    androidx.compose.runtime.LaunchedEffect(elderOne) { if (!elderOne && tab == HomeTab.ELDER) tab = HomeTab.GAME }
     var atlasGame by rememberSaveable { mutableStateOf(false) }
     var playersPage by rememberSaveable { mutableStateOf("Device") }
     val pageState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
@@ -289,6 +295,7 @@ fun HomeScreen(
                                     entry.label,
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                    maxLines = 1,
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
@@ -353,6 +360,7 @@ fun HomeScreen(
                         } else localTableContent({ tab = HomeTab.GAME }, { tab = HomeTab.PLANES })
                         !setup.visible && shown == HomeTab.HISTORY -> localHistoryContent()
                         !setup.visible && shown == HomeTab.PLANES -> localPlanesContent()
+                        !setup.visible && shown == HomeTab.ELDER -> localElderContent()
                         !setup.visible && shown == HomeTab.PLAYERS && (summary == null || playersPage == "Device") -> localPlayersContent()
                         !setup.visible && shown == HomeTab.GAME && (summary == null || !atlasGame) -> localGameContent({ tab = HomeTab.TABLE }, { tab = HomeTab.PLANES })
                         else -> Column(
@@ -402,7 +410,7 @@ fun HomeScreen(
                                     if (canDev) com.turnhub.android.ui.components.DisclosureCard("Developer") { DevTab(admin, adminActions) }
                                     com.turnhub.android.ui.components.AppVersionLabel(Modifier.fillMaxWidth())
                                 }
-                                HomeTab.HISTORY, HomeTab.TABLE, HomeTab.PLANES -> Unit
+                                HomeTab.HISTORY, HomeTab.TABLE, HomeTab.PLANES, HomeTab.ELDER -> Unit
                             }
                         }
                     }

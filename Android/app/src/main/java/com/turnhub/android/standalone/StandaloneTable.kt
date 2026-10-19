@@ -242,6 +242,12 @@ class StandaloneTable(
     }
 
     fun setUseRelics(on: Boolean) = edit { it.setUseRelics(on) }
+    /** Death May Die's Elder One tab ([com.turnhub.android.domain.ElderOneTrack]). */
+    fun setElderOne(name: String?) = edit { it.setElderOne(name) }
+    fun setEpisode(name: String?) = edit { it.setEpisode(name) }
+    fun changeElder(change: (com.turnhub.android.domain.ElderOneTrack) -> com.turnhub.android.domain.ElderOneTrack) =
+        edit { it.changeElder(wallClock(), change) }
+    fun killElderOne() = edit { it.killElderOne(wallClock()) }
     fun setDrawTwoCards(on: Boolean) = edit { it.setDrawTwoCards(on) }
     fun dealInvestigatorCards(index: Int, slot: com.turnhub.android.domain.InvestigatorCardSlot) = edit { it.dealInvestigatorCards(index, slot) }
     /** One settings update from the shared lobby, preserving unspecified fields. */
@@ -530,6 +536,41 @@ class StandaloneTable(
     }
 
     companion object {
+        private fun elderToJson(elder: com.turnhub.android.domain.ElderOneTrack): JSONObject = JSONObject().apply {
+            put("elderOne", elder.elderOne ?: JSONObject.NULL)
+            put("episode", elder.episode ?: JSONObject.NULL)
+            put("space", elder.space)
+            put("summoned", elder.summoned)
+            put("ritualDisrupted", elder.ritualDisrupted)
+            put("stage", elder.stage)
+            put("stageWounds", elder.stageWounds)
+            put("stageHealth", JSONObject().apply { elder.stageHealth.forEach { (stage, health) -> put("$stage", health) } })
+            put("symbols", elder.symbols)
+        }
+
+        /** Out-of-range saved values fall back to a fresh track rather than an impossible one. */
+        private fun elderFromJson(json: JSONObject): com.turnhub.android.domain.ElderOneTrack {
+            val fresh = com.turnhub.android.domain.ElderOneTrack()
+                .withElderOne(json.optStringOrNull("elderOne")).withEpisode(json.optStringOrNull("episode"))
+            val track = com.turnhub.android.domain.ElderOneTrack
+            val space = json.optInt("space", track.START_SPACE)
+            val stage = json.optInt("stage", 1)
+            val summoned = json.optBoolean("summoned")
+            val health = json.optJSONObject("stageHealth")
+            if (space !in track.START_SPACE..track.LAST_SPACE || stage !in 1..track.FINAL_STAGE || summoned != (stage >= 2)) return fresh
+            return fresh.copy(
+                space = space,
+                summoned = summoned,
+                ritualDisrupted = json.optBoolean("ritualDisrupted") && summoned,
+                stage = stage,
+                stageWounds = json.optInt("stageWounds").coerceIn(0, track.MAX_WOUNDS),
+                stageHealth = health?.keys()?.asSequence()?.mapNotNull { key ->
+                    key.toIntOrNull()?.takeIf { it in 2..track.FINAL_STAGE }?.let { it to health.getInt(key) }
+                }?.filter { it.second in 1..track.MAX_WOUNDS }?.toMap().orEmpty(),
+                symbols = json.optInt("symbols").coerceIn(0, track.SYMBOLS_TO_ADVANCE - 1),
+            )
+        }
+
         private fun investigatorCardToJson(card: com.turnhub.android.domain.InvestigatorCard?): Any =
             card?.toJson() ?: JSONObject.NULL
 
@@ -578,6 +619,7 @@ class StandaloneTable(
             put("acted", JSONArray(game.acted.sorted()))
             put("round", game.round)
             put("nextTurn", game.stagedNextTurn ?: JSONObject.NULL)
+            put("elder", elderToJson(game.elder))
             put("players", JSONArray().apply {
                 game.players.forEach { p ->
                     put(JSONObject().apply {
@@ -674,6 +716,7 @@ class StandaloneTable(
                 acted = json.optIntList("acted")?.filter { it in 0 until players.length() }?.toSet().orEmpty(),
                 round = json.optInt("round", 1).coerceAtLeast(1),
                 nextTurn = json.optIntOrNull("nextTurn"),
+                elder = json.optJSONObject("elder")?.let(::elderFromJson) ?: com.turnhub.android.domain.ElderOneTrack(),
                 players = (0 until players.length()).map { i ->
                     val p = players.getJSONObject(i)
                     val damage = p.getJSONObject("commanderDamage")

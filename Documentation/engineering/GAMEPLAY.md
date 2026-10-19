@@ -101,10 +101,28 @@ loss condition; Commander damage totals alone do not trigger elimination.
   reset on returning to setup or starting a fresh match. **Phases of your turn**
   opens from setup, the active investigator and Game menu without changing state.
   It covers actions, Mythos, Discovery if safe or enemy attacks, and end checks in
-  printed order; physical-game exceptions apply. Every investigator needs a **Sanity
-  condition** assigned before starting. **Use relics** is off by default; when
+  printed order; physical-game exceptions apply. Start stays off (owner,
+  2026-10-19) until every player has chosen an **investigator** and has a **Sanity
+  condition** assigned; the setup hint names who still needs what
+  (`StandaloneGame.setupMissing`). **Use relics** is off by default; when
   enabled in setup, every investigator also needs a **Relic**. Disabled relic
   slots are hidden, and turning the option off clears relic assignments and offers.
+  The **Elder One** tab (owner, 2026-10-19; shown only while Death May Die is the
+  device game, like Planes for Magic) records the Elder One and episode, chosen
+  from `DeathMayDieStory` (community wiki; any name can be typed) in setup or
+  during play, and follows the Story board (`domain/ElderOne.kt`, CMON rulebook):
+  a **Summoning symbols** count where the third advances the Elder One and empties
+  the count; the 8-space **Summoning track** (spaces 1 to 4 green, 5 to 7 red, 8
+  last) where entering space 5 summons it; **We disrupted the ritual**, which
+  summons it and makes it mortal; then Stage 2, 3 and Final, each with typed
+  printed health and a wound count (excess wounds don't carry over). The
+  Progression token reaching space 8 ends the game as a loss, and so does an
+  investigator lost while a chosen Elder One is still on the track; the
+  armed **We killed the Elder One** on the Final stage is a shared win. Moves
+  that end the game are armed (tap twice); corrections (back a space, undo
+  summon or disruption before wounds) are available. Card effects stay on the
+  physical cards. The menu bar and Game tab show the track space or stage.
+  Choices survive back-to-setup and rematch; progress resets.
   **Draw two, pick one** is a separate setup-only house-rule switch, off by default,
   applying to conditions and enabled relics. Each editor offers **Deal two in app**
   (random without replacement from the current catalogue) or **Enter two physical

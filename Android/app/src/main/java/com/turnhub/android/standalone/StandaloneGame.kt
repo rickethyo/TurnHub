@@ -2,6 +2,7 @@ package com.turnhub.android.standalone
 
 import com.turnhub.android.domain.ControllerHandle
 import com.turnhub.android.domain.CooperativeTurn
+import com.turnhub.android.domain.ElderOneTrack
 import com.turnhub.android.domain.InvestigatorCard
 import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.domain.StarCommander
@@ -135,6 +136,8 @@ data class StandaloneGame(
     val round: Int = 1,
     /** Cooperative games: the investigator staged to follow the current turn, by index. */
     val nextTurn: Int? = null,
+    /** Death May Die: the Elder One, episode, Summoning track and stages ([ElderOneTrack]). */
+    val elder: ElderOneTrack = ElderOneTrack(),
     val revision: Long = 0,
 ) {
     fun gameElapsedMs(nowMs: Long): Long = elapsedMs + (runningSinceMs?.let { (nowMs - it).coerceAtLeast(0) } ?: 0)
@@ -160,9 +163,19 @@ data class StandaloneGame(
     /** The official rules this game follows; null for a custom mode or house rules. */
     val locked: OfficialRules? get() = if (houseRules) null else officialRules(profile, twoHeadedGiant)
 
-    /** Base-game condition cards, plus relics only when their optional rules are in use. */
-    val investigatorCardsReady: Boolean get() = !deathMayDie || players.all {
-        it.dashboard.sanityCondition?.normalized() != null && (!useRelics || it.dashboard.relic?.normalized() != null)
+    /**
+     * Death May Die: every investigator chosen, with a sanity condition and (only when their
+     * optional rules are in use) a relic.
+     */
+    val investigatorCardsReady: Boolean get() = setupMissing.isEmpty()
+
+    /** Death May Die: what each player still needs before the game can start, by name; empty when ready. */
+    val setupMissing: List<Pair<String, List<String>>> get() = if (!deathMayDie) emptyList() else players.mapNotNull { player ->
+        listOfNotNull(
+            "investigator".takeIf { player.investigator == null },
+            "sanity condition".takeIf { player.dashboard.sanityCondition?.normalized() == null },
+            "relic".takeIf { useRelics && player.dashboard.relic?.normalized() == null },
+        ).takeIf { it.isNotEmpty() }?.let { player.name to it }
     }
 
     /** Required player count and all selected setup references are ready. */
@@ -348,6 +361,7 @@ data class StandaloneGame(
             acted = emptySet(),
             round = 1,
             nextTurn = null,
+            elder = elder.fresh(),
         ).bump()
     }
 
@@ -369,6 +383,7 @@ data class StandaloneGame(
             useRelics = useRelics,
             drawTwoCards = drawTwoCards,
             planechase = planechase.cleared(),
+            elder = elder.fresh(),
             players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt,
                 cardOnly = it.cardOnly, investigator = it.investigator, dashboard = it.dashboard.fresh()) },
             revision = revision + 1,
@@ -709,6 +724,35 @@ data class StandaloneGame(
         return copy(players = reseated, starter = null).start(nowMs, gameId, random, planarDeck)
     }
 
+    // --- Death May Die's Elder One -----------------------------------------------------
+
+    /** The Elder One or episode the table plays, in setup or during the game; blank clears it. */
+    fun setElderOne(name: String?): StandaloneGame = editElder(setup = true) { it.withElderOne(name) }
+
+    fun setEpisode(name: String?): StandaloneGame = editElder(setup = true) { it.withEpisode(name) }
+
+    /**
+     * A change to the Story board during the game ([ElderOneTrack]). The Progression token
+     * reaching the last space loses the game; defeating the Final stage is [killElderOne].
+     */
+    fun changeElder(nowMs: Long, change: (ElderOneTrack) -> ElderOneTrack): StandaloneGame {
+        val next = editElder(setup = false, change)
+        return if (next !== this && next.elder.dominates) next.finish(emptyList(), nowMs) else next
+    }
+
+    /** The Final stage is defeated: the investigators win together. */
+    fun killElderOne(nowMs: Long): StandaloneGame {
+        if (!deathMayDie || !playing || !elder.vulnerable || elder.stage < ElderOneTrack.FINAL_STAGE ||
+            doomBag.pending || players.any { it.eliminationPending }) return this
+        return finish(players.indices.toList(), nowMs)
+    }
+
+    private fun editElder(setup: Boolean, change: (ElderOneTrack) -> ElderOneTrack): StandaloneGame {
+        if (!deathMayDie || state == TableState.GAME_OVER || (!setup && !playing)) return this
+        val next = change(elder)
+        return if (next == elder) this else copy(elder = next).bump()
+    }
+
     // --- Pokémon and Lorcana -----------------------------------------------------------
 
     /**
@@ -963,7 +1007,10 @@ data class StandaloneGame(
      */
     private fun decided(): List<Int>? {
         val standing = players.indices.filter { !players[it].eliminated }
-        // Together to the end: the game is lost only once nobody is left (or the table says so).
+        // Together to the end: the game is lost once nobody is left (or the table says so). In
+        // Death May Die an investigator lost while the Elder One is still on the Summoning track
+        // loses the game too, once the table tracks the Elder One in the app.
+        if (deathMayDie && elder.inUse && !elder.summoned && standing.size < players.size) return emptyList()
         if (profile.cooperative) return if (standing.isEmpty()) emptyList() else null
         if (star && players.size == StarCommander.PLAYERS) {
             return StarCommander.winners(players.map { it.eliminated }).takeIf { it.isNotEmpty() || standing.isEmpty() }
@@ -1146,6 +1193,7 @@ data class StandaloneGame(
             physicalSigils = emptyList(),
             pokemonCheckup = pokemonCheckup,
             round = round.takeIf { profile.cooperative && state != TableState.LOBBY },
+            elder = elder.takeIf { deathMayDie },
         )
     }
 

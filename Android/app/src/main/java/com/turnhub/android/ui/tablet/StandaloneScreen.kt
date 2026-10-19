@@ -244,7 +244,7 @@ internal fun TablePreview(summary: TableSummary, reduceMotion: Boolean, card: @C
 internal fun StandaloneGame.preview(paused: Boolean = true): StandaloneGame {
     var seats = this
     fun practiceAssignments(game: StandaloneGame) = if (!game.profile.deathMayDie) game else game.copy(
-        players = game.players.map { it.copy(dashboard = it.dashboard.copy(
+        players = game.players.mapIndexed { i, player -> player.copy(investigator = player.investigator ?: "Practice investigator ${i + 1}") }.map { it.copy(dashboard = it.dashboard.copy(
             sanityCondition = it.dashboard.sanityCondition ?: com.turnhub.android.domain.InvestigatorCard("Practice condition"),
             relic = if (game.useRelics) it.dashboard.relic ?: com.turnhub.android.domain.InvestigatorCard("Practice relic") else null)) })
     seats = practiceAssignments(seats)
@@ -321,10 +321,7 @@ fun StandaloneLobby(
         embedded = embedded,
         phoneHosted = true,
         startReady = game.canStart,
-        startHint = if (game.profile.deathMayDie && !game.investigatorCardsReady)
-            if (game.useRelics) "Assign a sanity condition and a relic to every investigator before starting."
-            else "Assign a sanity condition to every investigator before starting."
-        else null,
+        startHint = deathMayDieStartHint(game),
         extraSettings = {
             if (game.profile.deathMayDie) {
                 SetupSwitch("Use relics", "Turn on when playing with relics. Assign one to every investigator before starting.",
@@ -349,4 +346,15 @@ fun StandaloneLobby(
             }
         },
     )
+}
+
+/**
+ * Death May Die: Start stays off until every player has an investigator, a sanity condition
+ * and (with relics on) a relic; this names who still needs what.
+ */
+internal fun deathMayDieStartHint(game: StandaloneGame): String? {
+    val missing = game.setupMissing.takeIf { it.isNotEmpty() } ?: return null
+    val needs = if (game.useRelics) "an investigator, a sanity condition and a relic" else "an investigator and a sanity condition"
+    return "Every player needs $needs before starting. Still to choose: " +
+        missing.joinToString("; ") { (name, items) -> "$name: ${items.joinToString(", ")}" } + "."
 }

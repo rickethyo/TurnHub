@@ -293,9 +293,16 @@ private fun DeathMayDieMenuItems(member: TablePlayer, summary: TableSummary, onA
         Text("Wounds on the panel are a reminder; the dashboard says when an investigator dies.",
             color = p.faint, style = MaterialTheme.typography.bodySmall)
         ArmedButton("We killed the Elder One", "Tap again: the investigators win", Tone.GOOD) { onAction(member, "win") }
-        ArmedButton("${member.label} died or went insane", "Tap again: ${member.label} is out", Tone.BAD) { onAction(member, "eliminate") }
-        Text("With the Elder One on the board, the others play on. Before it is summoned, that loses the game.",
-            color = p.faint, style = MaterialTheme.typography.bodySmall)
+        // With the Elder One tracked in its tab, the engine knows whether this loses the game.
+        val elder = summary.elder?.takeIf { it.inUse }
+        val losesGame = elder?.summoned == false
+        ArmedButton("${member.label} died or went insane",
+            if (losesGame) "Tap again: the investigators lose" else "Tap again: ${member.label} is out", Tone.BAD) { onAction(member, "eliminate") }
+        Text(when {
+            elder == null -> "With the Elder One on the board, the others play on. Before it is summoned, that loses the game."
+            losesGame -> "The Elder One is still on the Summoning track, so this loses the game."
+            else -> "The Elder One is on the board: the others play on."
+        }, color = p.faint, style = MaterialTheme.typography.bodySmall)
         ArmedButton("We lost", "Tap again: the investigators lose", Tone.BAD) { onAction(member, "draw") }
         Text("An investigator fell before the Elder One was summoned, or the Summoning track reached its last space.",
             color = p.faint, style = MaterialTheme.typography.bodySmall)
