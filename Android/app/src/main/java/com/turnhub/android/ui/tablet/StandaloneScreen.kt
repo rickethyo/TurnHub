@@ -310,7 +310,7 @@ fun StandaloneLobby(
         canAdd = game.players.size < StandaloneGame.MAX_PLAYERS,
         identityHint = "Choose a saved player to keep their results together. Matching names can have different account IDs.",
         savedTitle = "Saved on this device",
-        starterHint = "First player: random. Tap First? to choose.",
+        starterHint = "First player: random. Tap First to choose.",
         introduction = "One screen. Many rivals. Your table.",
         embedded = embedded,
         phoneHosted = true,
