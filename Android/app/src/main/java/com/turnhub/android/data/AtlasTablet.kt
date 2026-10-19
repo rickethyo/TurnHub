@@ -240,6 +240,12 @@ class AtlasTablet(
         return response.ok
     }
 
+    override suspend fun eliminate(seat: TabletSeat, eliminatedBy: Int?): Boolean {
+        val response = post("/api/tablet/control", seat.fields + listOf("action" to "eliminate", "eliminatedBy" to "${eliminatedBy ?: 0}")) ?: return false
+        if (response.ok) succeed() else fail(response)
+        return response.ok
+    }
+
     /** Changes the seat's own life by [delta]; true when Atlas applied it. */
     override suspend fun life(seat: TabletSeat, delta: Int): Boolean {
         val response = post("/api/tablet/life", seat.fields + ("delta" to "$delta")) ?: return false

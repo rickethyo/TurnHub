@@ -159,14 +159,15 @@ static void statisticsSplit() {
   setLuxuryStore(nullptr);
   assert(loadStatsForProfile(id, stats, &detailed) && stats.gamesPlayed == 0 && !detailed);
 
-  // No card: only the 20-byte core record is written.
+  // No card: only the 28-byte core record is written.
+  stats.eliminationsMade = 7; stats.lastGameEliminationsMade = 2;
   stats.gamesPlayed = 2; stats.gamesWon = 1; stats.totalTurnMs = 9000; stats.turnsCompleted = 4;
   stats.lastGameResult = LastGameResult::Win; stats.lastGameProfile = 2;
   assert(saveStatsForProfile(id, stats));
-  assert(FakeNvs::blobs.count(core) && FakeNvs::blobs[core].size() == 20 && !FakeNvs::blobs.count(detail));
+  assert(FakeNvs::blobs.count(core) && FakeNvs::blobs[core].size() == 28 && !FakeNvs::blobs.count(detail));
   assert(loadStatsForProfile(id, stats, &detailed) && !detailed && stats.gamesPlayed == 2 &&
       stats.gamesWon == 1 && stats.lastGameProfile == 2 && stats.lastGameResult == LastGameResult::Win &&
-      stats.totalTurnMs == 0);
+      stats.totalTurnMs == 0 && stats.eliminationsMade == 7 && stats.lastGameEliminationsMade == 2);
 
   // With a card: the detail goes there; the core counts stay authoritative.
   FakeCard card; setLuxuryStore(&card);
@@ -174,9 +175,9 @@ static void statisticsSplit() {
   assert(saveStatsForProfile(id, stats) && card.records.count(detail) && !FakeNvs::blobs.count(detail));
   assert(loadStatsForProfile(id, stats, &detailed) && detailed && stats.gamesPlayed == 3 && stats.totalTurnMs == 12000);
   // A game played without the card: the core keeps counting, the detail lags.
-  setLuxuryStore(nullptr); stats.gamesPlayed = 4; stats.totalTurnMs = 15000; assert(saveStatsForProfile(id, stats));
+  setLuxuryStore(nullptr); stats.eliminationsMade = 10; stats.lastGameEliminationsMade = 3; stats.gamesPlayed = 4; stats.totalTurnMs = 15000; assert(saveStatsForProfile(id, stats));
   setLuxuryStore(&card);
-  assert(loadStatsForProfile(id, stats, &detailed) && detailed && stats.gamesPlayed == 4 && stats.totalTurnMs == 12000);
+  assert(loadStatsForProfile(id, stats, &detailed) && detailed && stats.gamesPlayed == 4 && stats.totalTurnMs == 12000 && stats.eliminationsMade == 10 && stats.lastGameEliminationsMade == 3);
   // A failing card costs only the detail.
   card.broken = true;
   assert(loadStatsForProfile(id, stats, &detailed) && !detailed && stats.gamesPlayed == 4);

@@ -337,6 +337,15 @@
               }
             },
             "description": "Shared team poison in 2HG; other values belong to this player. Commander tax is twice each command-zone cast count."
+          },
+          "eliminatedBy": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 16,
+            "description": "Explicitly credited opponent player number for this elimination; null for unknown or concession. Independent of controller and current turn."
           }
         }
       },

@@ -328,6 +328,10 @@ object AtlasWireParser {
         displayName = player.optionalString("displayName"),
         eliminated = player.boolean("eliminated"),
         conceded = player.optionalBoolean("conceded"),
+        eliminatedBy = player.optionalInt("eliminatedBy").also { source ->
+            if (source != null && (source !in 1..16 || source == player.int("playerNumber") ||
+                !player.boolean("eliminated") || player.optionalBoolean("conceded"))) malformed("Invalid elimination credit")
+        },
         counters = if (player.isAbsentOrNull("counters")) PlayerCounters() else parsePlayerCounters(player.obj("counters")),
         life = player.nullableInt("life"),
         turnsCompleted = player.uint32("turnsCompleted"),

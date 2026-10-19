@@ -11,6 +11,25 @@ import org.junit.Test
 class AtlasWireParserTest {
 
     @Test
+    fun `elimination credit is nullable and cannot name self or a concession`() {
+        assertNull(Fixtures.state("running.response.json").players[0].eliminatedBy)
+        val credited = Fixtures.state("running.response.json") {
+            getJSONArray("players").getJSONObject(0).put("eliminated", true).put("eliminatedBy", 2)
+        }
+        assertEquals(2, credited.players[0].eliminatedBy)
+        for (source in listOf(0, 1, 17)) assertThrows(AtlasWireException.Malformed::class.java) {
+            Fixtures.state("running.response.json") {
+                getJSONArray("players").getJSONObject(0).put("eliminated", true).put("eliminatedBy", source)
+            }
+        }
+        assertThrows(AtlasWireException.Malformed::class.java) {
+            Fixtures.state("running.response.json") {
+                getJSONArray("players").getJSONObject(0).put("eliminated", true).put("conceded", true).put("eliminatedBy", 2)
+            }
+        }
+    }
+
+    @Test
     fun `Magic counters rules and initiative parse with strict bounds`() {
         val c = JSONObject().put("poison", 3).put("energy", 4).put("experience", 5)
             .put("commanderCasts", org.json.JSONArray(listOf(2, 1))).put("cityBlessing", true)

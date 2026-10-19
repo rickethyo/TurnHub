@@ -13,6 +13,7 @@ struct GameResult {
   uint32_t durationMs = 0;
   TurnHubProfiles::LastGameResult result = TurnHubProfiles::LastGameResult::Loss;
   bool started = false;
+  uint32_t eliminationsMade = 0;
   uint32_t turns = 0;
   uint32_t turnMs = 0;
   uint32_t fastestTurnMs = 0;

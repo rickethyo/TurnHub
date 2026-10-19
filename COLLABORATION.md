@@ -53,6 +53,36 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and scope; unassigned |
 | TH-003 | High-resolution player artwork and fuller tablet UI | Android, assets, profiles, storage | Implemented in PR #86 | Owner acceptance; LCD layouts planned |
 
+## TH-029: Ten-player app games and elimination credit
+
+- Date / owner: 2026-10-19 / Codex on `codex/master`, baseline `726e1b1`.
+  Clean tree; fetched origin and checked open PRs (none). Owner requested ten
+  app players and elimination attribution in the general statistics engine.
+- Scope: Android standalone capacity, per-victim explicit elimination credit,
+  match recovery/history, connected controls/state, standalone import and shared
+  lifetime/last-game statistics. Bag of Doom rules remain a separate feature.
+- Feature gate: Atlas GameEngine owns connected credit; StandaloneGame owns
+  separate phone-hosted matches. Existing EliminateSeat Intent carries an
+  optional credited player, validated by the authoritative engine. Both owners
+  persist attribution with the match before completion statistics. Clients render
+  state and choose credit using labeled controls. State/control/import contracts
+  and statistics storage extend; no new dependency, artwork or third-party data.
+  Unknown causes and concessions award no credit; never infer a killer from
+  whose turn it is. Teammate/self credit is invalid. Credits count individual
+  opponents removed (a team contains two opponents).
+- Implementation: explicit `eliminatedBy` is captured before elimination finishes;
+  lifetime/last-game totals use the shared live/import aggregator. Source is
+  retained in recovery/history and shown in player/history/statistics views.
+  App/import limit is ten; import winner masks are 16-bit. Detailed statistics
+  schema 4 (88 bytes), core schema 3 (28 bytes), checkpoints schema 6 (+16 bytes
+  at capacity); prototype statistics layouts require reset, not migration.
+- Validation: Atlas host suites pass on the implementation before final added
+  regressions; the complete final suite is running. Adapter audit, client
+  contracts, docs links, design tokens and manual export pass. Local Gradle
+  downloaded through the session proxy but could not resolve Foojay 1.0.0;
+  use CI for Android compilation/JVM tests. No local device acceptance yet.
+  No merge or release authorized.
+
 ## New topic / reply template
 
 ### TH-NNN: Topic title

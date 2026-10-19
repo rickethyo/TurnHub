@@ -538,6 +538,7 @@ void handleProfileStats(WebServer &server) {
   response += ",\"gamesStarted\":" + String(stats.gamesStarted);
   response += ",\"gamesEliminated\":" + String(stats.gamesEliminated);
   response += ",\"gamesConceded\":" + String(stats.gamesConceded);
+  response += ",\"eliminationsMade\":" + String(stats.eliminationsMade);
   response += ",\"starGamesPlayed\":" + String(stats.starGamesPlayed);
   response += ",\"starGamesWon\":" + String(stats.starGamesWon);
   response += ",\"turnsCompleted\":" + String(stats.turnsCompleted);
@@ -550,6 +551,7 @@ void handleProfileStats(WebServer &server) {
   response += "},\"lastGame\":{\"result\":\"";
   response += TurnHubProfileStats::resultName(stats.lastGameResult);
   response += "\",\"durationMs\":" + String(stats.lastGameDurationMs);
+  response += ",\"eliminationsMade\":" + String(stats.lastGameEliminationsMade);
   response += ",\"turns\":" + String(stats.lastGameTurns);
   response += ",\"turnMs\":" + String(stats.lastGameTurnMs);
   response += ",\"averageTurnMs\":" + String(averageMs(stats.lastGameTurnMs, stats.lastGameTurns));

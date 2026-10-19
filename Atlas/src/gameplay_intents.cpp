@@ -356,7 +356,7 @@ IntentResult handleConcedeIntent(const Intent &intent, void *) {
 
   const bool conceded = intent.type == IntentType::Concede;
   bool gameFinished = false;
-  if (!table().game.eliminatePlayer(seat->playerNumber, nowMs, gameFinished, conceded)) {
+  if (!table().game.eliminatePlayer(seat->playerNumber, nowMs, gameFinished, conceded, intent.payload.eliminatedBy)) {
     if (restoreRunning && table().game.resume(nowMs)) table().hubState = HubState::Running;
     return IntentResult::reject(IntentStatus::Conflict, "Atlas rejected player removal");
   }

@@ -32,6 +32,8 @@ data class LocalPlayer(
     val life: Int = 0,
     val eliminated: Boolean = false,
     val conceded: Boolean = false,
+    /** Credited opponent index, or null when no player was credited. */
+    val eliminatedBy: Int? = null,
     val counters: PlayerCounters = PlayerCounters(),
     /** 1 for the first player out, 2 for the next, and so on. */
     val outOrder: Int? = null,
@@ -605,14 +607,15 @@ data class StandaloneGame(
 
     fun concede(index: Int, nowMs: Long): StandaloneGame = eliminate(index, nowMs, conceded = true)
 
-    fun eliminate(index: Int, nowMs: Long, conceded: Boolean = false): StandaloneGame {
+    fun eliminate(index: Int, nowMs: Long, conceded: Boolean = false, eliminatedBy: Int? = null): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated) return this
+        if (eliminatedBy != null && (conceded || eliminatedBy !in players.indices || eliminatedBy in mates(index))) return this
         // Teammates leave together.
         val leaving = mates(index).filter { !players[it].eliminated }
         val out = players.count { it.eliminated } + 1
         var game = copy(nextTurn = nextTurn.takeUnless { it in leaving }, players = players.mapIndexed { i, p ->
-            if (i in leaving) p.copy(eliminated = true, conceded = conceded, outOrder = out) else p
+            if (i in leaving) p.copy(eliminated = true, conceded = conceded, outOrder = out, eliminatedBy = eliminatedBy) else p
         }).bump().passStatuses(leaving)
         game.decided()?.let { return game.finish(it, nowMs) }
         if (active in leaving) {
@@ -986,6 +989,7 @@ data class StandaloneGame(
                     longestTurnMs = p.longestTurnMs,
                     outOrder = p.outOrder,
                     conceded = p.conceded,
+                    eliminatedBy = p.eliminatedBy,
                     commanderDamageReceived = p.commanderDamage.values.sumOf { it.sum() },
                     counters = p.counters,
                     commanderBySource = p.commanderDamage,
@@ -1042,6 +1046,7 @@ data class StandaloneGame(
                     participantId = (i + 1).toLong(),
                     eliminated = p.eliminated,
                     conceded = p.conceded,
+                    eliminatedBy = p.eliminatedBy?.plus(1),
                     counters = p.counters,
                     demerits = p.demerits,
                     extensionsAvailable = p.extensionsEarned - p.extensionsUsed,
@@ -1072,7 +1077,7 @@ data class StandaloneGame(
     }
 
     companion object {
-        const val MAX_PLAYERS = 8
+        const val MAX_PLAYERS = 10
         const val MAX_NAME = 32
         const val MAX_COMMANDER = 80
         /** A Scryfall card ID (a UUID). */

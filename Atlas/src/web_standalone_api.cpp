@@ -41,7 +41,7 @@ bool parseIndex(const String &text, uint8_t players, int8_t &value) {
 }
 
 // Comma-separated player indices ("0,1"); empty for none. Each at most once.
-bool parseIndexList(const String &text, uint8_t players, uint8_t &mask) {
+bool parseIndexList(const String &text, uint8_t players, uint16_t &mask) {
   mask = 0;
   if (!text.length()) return true;
   String item;
@@ -49,7 +49,7 @@ bool parseIndexList(const String &text, uint8_t players, uint8_t &mask) {
     if (i < text.length() && text[i] != ',') { item += text[i]; continue; }
     uint32_t index = 0;
     if (!parseCount(item, players - 1u, index) || (mask & (1u << index))) return false;
-    mask = static_cast<uint8_t>(mask | (1u << index));
+    mask = static_cast<uint16_t>(mask | (1u << index));
     item = "";
   }
   return true;
@@ -75,6 +75,9 @@ bool parseGame(WebServer &server, ImportedGame &game) {
     return false;
   }
   game.gameProfile = static_cast<uint8_t>(profile);
+  const String teams = server.arg("twoHeadedGiant");
+  if (teams.length() && teams != "0" && teams != "1") return false;
+  game.twoHeadedGiant = teams == "1";
   game.playerCount = static_cast<uint8_t>(players);
   if (!parseIndex(server.arg("starter"), game.playerCount, game.starter) ||
       !parseIndex(server.arg("winner"), game.playerCount, game.winner) ||
@@ -105,6 +108,7 @@ bool parseGame(WebServer &server, ImportedGame &game) {
     if (conceded.length() && conceded != "0" && conceded != "1") return false;
     player.conceded = conceded == "1";
     if (player.conceded && !player.outOrder) return false;
+    if (!parseIndex(playerField(server, "eliminatedBy", i), game.playerCount, player.eliminatedBy)) return false;
   }
   return true;
 }

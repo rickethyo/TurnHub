@@ -35,6 +35,8 @@ String recordDuration(uint32_t milliseconds) {
 
 void applyGameResult(ProfileStats &persistent, const GameResult &result) {
   ++persistent.gamesPlayed;
+  persistent.eliminationsMade += result.eliminationsMade;
+  persistent.lastGameEliminationsMade = result.eliminationsMade;
   persistent.lastGameProfile = result.gameProfile;
   persistent.totalGameMs += result.durationMs;
   persistent.lastGameResult = result.result;
@@ -104,6 +106,7 @@ uint8_t recordCompletedGame(
     GameResult result;
     result.gameProfile = static_cast<uint8_t>(game.settings().profile);
     result.durationMs = gameDurationMs;
+    result.eliminationsMade = game.eliminationsBy(seat->playerNumber);
     if (game.isWinner(seat->playerNumber)) {
       result.result = LastGameResult::Win;
     } else if (game.isEliminated(seat->playerNumber)) {
@@ -186,6 +189,7 @@ String buildTextReport(
   appendNumber(out, F("Games started first: "), stats.gamesStarted);
   appendNumber(out, F("Games eliminated: "), stats.gamesEliminated);
   appendNumber(out, F("Games conceded: "), stats.gamesConceded);
+  appendNumber(out, F("Opponents eliminated: "), stats.eliminationsMade);
   appendNumber(out, F("Star Commander games played: "), stats.starGamesPlayed);
   appendNumber(out, F("Star Commander games won: "), stats.starGamesWon);
   appendNumber(out, F("Completed turns: "), stats.turnsCompleted);
@@ -207,6 +211,7 @@ String buildTextReport(
 
   out += F("\nMost Recent Game\n----------------\n");
   appendLine(out, F("Result: "), String(resultName(stats.lastGameResult)));
+  appendNumber(out, F("Opponents eliminated: "), stats.lastGameEliminationsMade);
   appendLine(out, F("Game duration: "), stats.gamesPlayed == 0 ? String("—") : formatDuration(stats.lastGameDurationMs));
   appendNumber(out, F("Completed turns: "), stats.lastGameTurns);
   appendLine(out, F("Completed-turn time: "), formatDuration(stats.lastGameTurnMs));

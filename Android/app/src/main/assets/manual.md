@@ -67,7 +67,7 @@ Images are cropped and compressed on this device to at most 512 by 512 pixels an
 
 # 4. Setting Up a Game
 
-Open **Game**. The table preview shows the seats as players join, even before there are two.
+Open **Game**. The table preview shows the seats as players join, even before there are two. A local game supports up to ten players, within the chosen mode’s player limits.
 
 1. Add everyone who is playing: type a name, or pick a saved player.
 
@@ -207,7 +207,7 @@ Only one player can be monarch, and only one can have the initiative; claiming e
 
 Separate switches eliminate a player at zero life, at the poison limit (10, or 15 shared in Two-Headed Giant) and at 21 damage from one commander. All are on by default. Change them, and the poison limit, from the game menu at any time, including while paused. Turning a rule on checks the existing totals at once; turning it off does not bring anyone back. Switch the relevant rule off before a card changes how a player loses.
 
-Concede records a voluntary exit and Eliminate records a loss; both take the player out of turn order, and statistics count them separately.
+Concede records a voluntary exit and Eliminate records a loss; both take the player out of turn order, and statistics count them separately. For Eliminate, choose Elimination credit to name the opponent responsible, or No player credited. Concessions and automatic removals award no credit. A team removal counts as two opponents eliminated.
 
 # 6. Planechase
 
@@ -253,7 +253,7 @@ The game-over card offers:
 
 **History** lists every finished game with its winner, mode, starting life, and each player's final life, turns and how they went out. Tap a game for its details.
 
-**Statistics** lists every saved player, most wins first. Anyone at the table can open it; no PIN is needed. Tap a player for games played and won, draws, starts, eliminations, concessions, turns, total and average game and turn times, fastest and longest turns and their last game. **Share** sends their statistics as text.
+**Statistics** lists every saved player, most wins first. Anyone at the table can open it; no PIN is needed. Tap a player for games played and won, draws, starts, eliminations, concessions, turns, total and average game and turn times, fastest and longest turns and their last game. **Share** sends their statistics as text. Opponents eliminated counts explicitly credited removals across all game modes. Credit stays in history and shared results and imports with the match.
 
 The current game, players, personalization and history survive closing the app, and history is never pruned. Clearing the app's data or uninstalling it removes them all; there is no backup or export yet.
 

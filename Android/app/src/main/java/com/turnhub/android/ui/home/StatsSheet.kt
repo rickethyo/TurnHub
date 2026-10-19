@@ -119,7 +119,7 @@ private fun StatsSheet(stats: ProfileStatistics, error: String?, actions: Accoun
             if (!stats.detailed) {
                 Text(
                     "Detailed statistics (turn times and last-game details) are kept on the Atlas microSD card. No card " +
-                        "is inserted, so only games played and won, and the last result, are being recorded.",
+                        "is inserted, so games played and won, elimination credit, and the last result are being recorded.",
                     color = p.warn,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -132,6 +132,7 @@ private fun StatsSheet(stats: ProfileStatistics, error: String?, actions: Accoun
                 StatusRow("Started first", l.gamesStarted.toString())
                 StatusRow("Eliminated", l.gamesEliminated.toString())
                 StatusRow("Conceded", l.gamesConceded.toString())
+                StatusRow("Opponents eliminated", l.eliminationsMade.toString())
                 StatusRow("Completed turns", l.turnsCompleted.toString())
             }
             BrassCard {
@@ -149,6 +150,7 @@ private fun StatsSheet(stats: ProfileStatistics, error: String?, actions: Accoun
             BrassCard {
                 Eyebrow("Most recent game")
                 StatusRow("Result", g.result)
+                StatusRow("Opponents eliminated", g.eliminationsMade.toString())
                 StatusRow("Game duration", duration(g.durationMs, l.gamesPlayed > 0))
                 StatusRow("Completed turns", g.turns.toString())
                 StatusRow("Average turn", duration(g.averageTurnMs, g.turns > 0))

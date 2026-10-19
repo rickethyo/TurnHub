@@ -23,6 +23,14 @@ class TabletLayoutTest {
     }
 
     @Test
+    fun `ten players occupy two rows of five with every seat once`() {
+        val plan = placements(10)
+        assertEquals(listOf(0, 9, 8, 7, 6), plan.near)
+        assertEquals(listOf(1, 2, 3, 4, 5), plan.far)
+        assertEquals((0..9).toList(), (plan.near + plan.far).sorted())
+    }
+
+    @Test
     fun `Yu-Gi-Oh! counts life in hundreds`() {
         assertEquals(100 to 1000, lifeSteps(GameProfile.YUGIOH))
         assertEquals(1 to 5, lifeSteps(GameProfile.MTG_COMMANDER))

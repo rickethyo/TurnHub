@@ -87,6 +87,8 @@ class GameEngine {
   void setAutoEliminateAtZeroLife(bool enabled) { settings_.autoEliminateAtZeroLife = enabled; }
   bool resolveEliminationRules(uint32_t nowMs);
   bool hasConceded(uint8_t player) const;
+  uint8_t eliminatedBy(uint8_t player) const;
+  uint8_t eliminationsBy(uint8_t player) const;
 
   // --- Two-Headed Giant teams (game_profile.h) ---
   // Teams are neighbours in turn order: players 1+2 are team 1, 3+4 team 2.
@@ -156,7 +158,7 @@ class GameEngine {
   bool eliminatePlayer(
       uint8_t playerNumber,
       uint32_t nowMs,
-      bool &gameFinished, bool conceded = false);
+      bool &gameFinished, bool conceded = false, uint8_t eliminatedBy = 0);
 
   // Pauses and asks every other living player (not the claimant's teammate),
   // in controller order after the claimant's, to confirm. A denial resumes play when restoreRunning is set.
@@ -282,6 +284,7 @@ class GameEngine {
   PlayerStats stats_[MAX_PLAYERS];
   bool eliminated_[MAX_PLAYERS] = {};
   bool conceded_[MAX_PLAYERS] = {};
+  uint8_t eliminatedBy_[MAX_PLAYERS] = {};
   bool batchElimination_ = false;
   uint8_t playerCount_ = 0;
   uint8_t activeIndex_ = 0;
