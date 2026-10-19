@@ -34,6 +34,7 @@ import com.turnhub.android.domain.InvestigatorCard
 import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.domain.InvestigatorCardCatalogue
 import com.turnhub.android.domain.TablePlayer
+import com.turnhub.android.ui.components.Tone
 import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.theme.palette
 
@@ -117,7 +118,7 @@ private fun InvestigatorCardEditor(player: TablePlayer, slot: InvestigatorCardSl
     val canDeal = offers.isNotEmpty() || InvestigatorCardCatalogue.all.count { it.slot == slot && it.id !in reservedCardIds } >= 2
     AlertDialog(onDismissRequest = onDismiss, title = { Text("${player.investigator ?: player.label}: ${slot.label.lowercase()}") },
         text = {
-            Column(Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
+            Column(Modifier.fillMaxWidth().heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (drawTwo) {
                     Text("Draw two, pick one · house rule", style = MaterialTheme.typography.titleSmall)
@@ -132,7 +133,7 @@ private fun InvestigatorCardEditor(player: TablePlayer, slot: InvestigatorCardSl
                         offers.forEach { preset ->
                             ToneButton(if (catalogueId == preset.id) "✓ ${preset.name}" else preset.name, {
                                 choose(preset)
-                            }, modifier = Modifier.fillMaxWidth())
+                            }, modifier = Modifier.fillMaxWidth(), tone = if (catalogueId == preset.id) Tone.ACTIVE else Tone.NEUTRAL)
                             InvestigatorCardReferenceButton(preset.id)
                         }
                     }

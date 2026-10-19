@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -73,10 +74,11 @@ internal fun GuidedSetupDialog(
     val confirm = players.size * 2
     val at = step.coerceIn(0, confirm)
     val next = { step = if (backToConfirm) confirm else at + 1; backToConfirm = false }
-    Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)) {
+    // Edge to edge like the app behind it, and wide enough to use a tablet's width.
+    Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false, decorFitsSystemWindows = false)) {
         val p = palette
         Box(Modifier.fillMaxSize().tableBackground(p).safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
-            Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+            Column(Modifier.widthIn(max = 1000.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -131,14 +133,21 @@ private fun PlayerStep(summary: TableSummary, player: TablePlayer, actions: Tabl
         BrassCard {
             Eyebrow("Investigator")
             val art = rememberInvestigatorArt(player.investigator)
-            art?.let {
-                Image(it.image, "${player.investigator}'s portrait", Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(14.dp)),
-                    contentScale = ContentScale.Crop)
+            // The whole portrait beside the name: a full-width strip cropped heads off.
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                art?.let {
+                    Image(it.image, "${player.investigator}'s portrait",
+                        Modifier.height(220.dp).aspectRatio(it.image.width.toFloat() / it.image.height.coerceAtLeast(1))
+                            .clip(RoundedCornerShape(14.dp)),
+                        contentScale = ContentScale.Fit)
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(player.investigator ?: "Not chosen yet", color = if (player.investigator == null) p.muted else p.text,
+                        style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    ToneButton(if (player.investigator == null) "Choose your investigator" else "Change investigator",
+                        { choosingInvestigator = true }, Modifier.fillMaxWidth())
+                }
             }
-            Text(player.investigator ?: "Not chosen yet", color = if (player.investigator == null) p.muted else p.text,
-                style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-            ToneButton(if (player.investigator == null) "Choose your investigator" else "Change investigator",
-                { choosingInvestigator = true }, Modifier.fillMaxWidth())
         }
         if (choosingInvestigator) actions.investigator?.let { save ->
             val taken = summary.players.filter { it.playerNumber != player.playerNumber }

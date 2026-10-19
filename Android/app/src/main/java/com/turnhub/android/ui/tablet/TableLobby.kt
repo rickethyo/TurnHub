@@ -386,14 +386,10 @@ internal fun TableLobby(
     }
 }
 
-/** A small accent link under a player's name for the step their seat still needs. */
+/** A button under a player's name for the step their seat still needs (a bare link read as a label). */
 @Composable
 private fun SeatShortcut(label: String, description: String, enabled: Boolean, onClick: () -> Unit) {
-    Text("+ $label", color = if (enabled) palette.accent else palette.faint, style = MaterialTheme.typography.labelLarge,
-        modifier = Modifier
-            .clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
-            .semantics { contentDescription = description }
-            .padding(vertical = 4.dp))
+    ToneButton("+ $label", onClick, Modifier.padding(top = 4.dp).semantics { contentDescription = description }, enabled = enabled)
 }
 
 internal data class LobbyModeSettings(val profile: GameProfile?, val life: Int?, val teams: Boolean)
