@@ -47,7 +47,7 @@ class ClientState {
   struct Player {
     uint8_t number = 0, controller = INVALID_ID, slot = 0, team = 0;
     uint32_t participant = 0, turnsCompleted = 0;
-    bool eliminated = false, conceded = false;
+    bool eliminated = false, conceded = false, selfEliminated = false, eliminationPending = false;
     uint8_t eliminatedBy = 0;
     PlayerCounters counters{};
     int32_t life = 0;

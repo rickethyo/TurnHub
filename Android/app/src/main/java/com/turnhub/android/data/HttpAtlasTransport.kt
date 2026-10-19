@@ -136,6 +136,7 @@ class HttpAtlasTransport(
         expectedBootId: String?,
     ): ControlResult {
         val fields = buildList {
+            if (action == ControlAction.START) add("askEliminationSource" to "1")
             if (expectedRevision != null && expectedBootId != null) {
                 add("expectedRevision" to expectedRevision.toString())
                 add("expectedBootId" to expectedBootId)

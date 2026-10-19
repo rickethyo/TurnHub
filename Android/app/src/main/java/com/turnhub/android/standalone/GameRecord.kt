@@ -41,6 +41,7 @@ data class GameRecord(
         val conceded: Boolean = false,
         /** Index of the credited opponent in this immutable match; null for unknown/concession. */
         val eliminatedBy: Int? = null,
+        val selfEliminated: Boolean = false,
         val bagDrawn: Boolean = false,
         val counters: com.turnhub.android.protocol.PlayerCounters = com.turnhub.android.protocol.PlayerCounters(),
         val commanderBySource: Map<Int, List<Int>> = emptyMap(),
@@ -88,6 +89,7 @@ data class GameRecord(
                     put("conceded", p.conceded)
                     put("eliminatedBy", p.eliminatedBy ?: JSONObject.NULL)
                     put("bagDrawn", p.bagDrawn)
+                    put("selfEliminated", p.selfEliminated)
                     put("commanderDamageReceived", p.commanderDamageReceived)
                     put("counters", JSONObject().put("poison", p.counters.poison).put("energy", p.counters.energy)
                         .put("experience", p.counters.experience).put("commanderCasts", JSONArray(p.counters.commanderCasts))
@@ -125,6 +127,7 @@ data class GameRecord(
             add("conceded$i" to if (p.conceded) "1" else "0")
             add("eliminatedBy$i" to (p.eliminatedBy?.toString() ?: ""))
             add("bagDrawn$i" to if (p.bagDrawn) "1" else "0")
+            add("selfEliminated$i" to if (p.selfEliminated) "1" else "0")
         }
     }
 
@@ -163,6 +166,7 @@ data class GameRecord(
                         conceded = p.optBoolean("conceded"),
                         eliminatedBy = p.optIntOrNull("eliminatedBy"),
                         bagDrawn = p.optBoolean("bagDrawn"),
+                        selfEliminated = p.optBoolean("selfEliminated"),
                         commanderDamageReceived = p.optInt("commanderDamageReceived"),
                         counters = p.optJSONObject("counters")?.let { c -> com.turnhub.android.protocol.PlayerCounters(
                             c.optInt("poison"), c.optInt("energy"), c.optInt("experience"),
@@ -180,6 +184,7 @@ data class GameRecord(
                 require(record.winners.firstOrNull() == record.winner)
                 require(record.starter == null || record.starter in record.players.indices)
                 record.players.forEachIndexed { i, p ->
+                    require(!p.selfEliminated || (p.outOrder != null && !p.conceded && p.eliminatedBy == null && !p.bagDrawn))
                     require(!p.bagDrawn || (record.profile.bagOfDoom && p.outOrder != null && !p.conceded && p.eliminatedBy == null))
                     require(p.eliminatedBy == null || (p.outOrder != null && !p.conceded &&
                         p.eliminatedBy in record.players.indices && p.eliminatedBy != i &&

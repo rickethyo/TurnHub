@@ -17,6 +17,7 @@ void clearCheckpoint(GameCheckpoint &out) {
     out.stats[i] = PlayerStats{};
     out.eliminated[i] = false;
     out.conceded[i] = false;
+    out.selfEliminated[i] = out.eliminationPending[i] = false;
     out.eliminatedBy[i] = 0;
     out.counters[i] = PlayerCounters{};
     out.life[i] = 0;
@@ -46,6 +47,7 @@ bool validCheckpoint(const GameCheckpoint &s) {
     for (uint8_t i = 0; i + 1 < s.count; i += TEAM_SIZE)
       if (s.life[i] != s.life[i+1] || s.eliminated[i] != s.eliminated[i+1] || s.eliminatedBy[i] != s.eliminatedBy[i+1] || s.counters[i].poison != s.counters[i+1].poison) return false;
   uint8_t living = 0;
+  bool pendingAttribution = false;
   for (uint8_t i = 0; i < s.count; ++i) {
     const auto &p = s.players[i];
     if (p.playerNumber != i + 1 || p.controllerId >= MAX_CONTROLLERS ||
@@ -70,6 +72,11 @@ bool validCheckpoint(const GameCheckpoint &s) {
         (!magicRules(s.settings.profile) && !sameCounters(s.counters[i], PlayerCounters{})) ||
         (!commanderRules(s.settings.profile) && (s.counters[i].commanderCasts[0] || s.counters[i].commanderCasts[1]))) return false;
     if (s.conceded[i] && !s.eliminated[i]) return false;
+    if ((s.selfEliminated[i] || s.eliminationPending[i]) &&
+        (!s.eliminated[i] || s.conceded[i] || s.eliminatedBy[i] || (s.doom.drawn & doomBit(i + 1)))) return false;
+    if (s.eliminationPending[i] && (!s.settings.askEliminationSource || !s.paused || s.over || s.selfEliminated[i])) return false;
+    if (s.settings.twoHeadedGiant && (s.selfEliminated[i] != s.selfEliminated[i ^ 1] || s.eliminationPending[i] != s.eliminationPending[i ^ 1])) return false;
+    pendingAttribution |= s.eliminationPending[i];
     if ((s.doom.drawn & doomBit(i + 1)) && (s.conceded[i] || s.eliminatedBy[i])) return false;
     if (s.eliminatedBy[i] && (!s.eliminated[i] || s.conceded[i] ||
         s.eliminatedBy[i] > s.count || s.eliminatedBy[i] == i + 1 ||
@@ -86,7 +93,7 @@ bool validCheckpoint(const GameCheckpoint &s) {
   if (!validDoomBag(s.doom, s.settings.profile == GameProfile::DoomCommander, livingMask, s.count, s.paused)) return false;
   // A finished match without a winner is a draw (GameEngine::endInDraw).
   return (s.over ? (!s.winner || !s.eliminated[s.winner-1]) :
-      (living >= 2 && !s.eliminated[s.active]));
+      ((living >= 2 || pendingAttribution) && (!living || !s.eliminated[s.active])));
 }
 
 void GameEngine::checkpoint(GameCheckpoint &out, uint32_t nowMs) const {
@@ -103,6 +110,7 @@ void GameEngine::checkpoint(GameCheckpoint &out, uint32_t nowMs) const {
   for (uint8_t i = 0; i < playerCount_; ++i) {
     out.players[i] = players_[i]; out.stats[i] = stats_[i];
     out.conceded[i] = conceded_[i];
+    out.selfEliminated[i] = selfEliminated_[i]; out.eliminationPending[i] = eliminationPending_[i];
     out.eliminatedBy[i] = eliminatedBy_[i];
     out.counters[i] = counters_[i];
     out.eliminated[i] = eliminated_[i]; out.life[i] = life_[i];
@@ -130,6 +138,7 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
   for (uint8_t i = 0; i < s.count; ++i) {
     players_[i] = s.players[i]; stats_[i] = s.stats[i];
     conceded_[i] = s.conceded[i];
+    selfEliminated_[i] = s.selfEliminated[i]; eliminationPending_[i] = s.eliminationPending[i];
     eliminatedBy_[i] = s.eliminatedBy[i];
     counters_[i] = s.counters[i];
     if (counters_[i].commanderCasts[1]) partner_[i] = true;

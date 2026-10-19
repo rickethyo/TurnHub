@@ -210,7 +210,7 @@ backup is normal on a first write and must not emit a filesystem error. Cleanup
 failure after publication still leaves the new committed record readable.
 
 
-Match recovery is checkpoint schema 7. Elimination attribution: each player adds one byte for
+Match recovery is checkpoint schema 8. Elimination attribution: each player adds one byte for
 the credited opponent's player number (zero means unknown). Attribution is
 validated with the saved player list and restored paused. Detailed profile stats
 schema 4 is 88 bytes; core NVS stats schema 3 is 28 bytes, including lifetime and
@@ -229,3 +229,15 @@ The private selection is committed before resolution; recovering it never
 chooses another name. Profile statistics layouts do not change for this mode.
 Android commits a phone-hosted draw's complete snapshot synchronously before
 publishing its result; other local edits retain the normal save path.
+
+
+Explicit elimination attribution uses the existing exit byte: bit 0 eliminated,
+bit 1 conceded, bit 2 Self, bit 3 attribution pending. The profile byte reserves
+bit 0x20 for `askEliminationSource`. Record capacity remains 3,062 bytes. A pending
+source requires a paused unfinished interactive match and an eliminated,
+uncredited, non-conceding, non-bag victim. Self is mutually exclusive with
+pending/credited/conceded/bag exits. Team members share these flags and source.
+A pending match may have one or zero survivors; the final answer completes it.
+Completion persistence and statistics run only after all pending answers clear.
+Android persists the same flags/policy with the game and Self in history/imports;
+no new statistics layout is needed because Self has zero opponent credit.

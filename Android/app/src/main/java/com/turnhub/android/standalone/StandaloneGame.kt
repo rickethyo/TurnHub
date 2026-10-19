@@ -34,6 +34,8 @@ data class LocalPlayer(
     val conceded: Boolean = false,
     /** Credited opponent index, or null when no player was credited. */
     val eliminatedBy: Int? = null,
+    val selfEliminated: Boolean = false,
+    val eliminationPending: Boolean = false,
     val counters: PlayerCounters = PlayerCounters(),
     /** 1 for the first player out, 2 for the next, and so on. */
     val outOrder: Int? = null,
@@ -80,6 +82,7 @@ data class StandaloneGame(
     val profile: GameProfile = GameProfile.MTG_COMMANDER,
     val startingLife: Int = 40,
     val autoEliminateAtZeroLife: Boolean = true,
+    val askEliminationSource: Boolean = false,
     val autoEliminateAtPoisonLimit: Boolean = true,
     val autoEliminateAtCommanderDamage: Boolean = true,
     val poisonLimit: Int = 10,
@@ -321,6 +324,7 @@ data class StandaloneGame(
         }
         return copy(
             gameId = gameId,
+            askEliminationSource = askEliminationSource || profile.bagOfDoom,
             state = TableState.RUNNING,
             // Lorcana counts lore up from 0 to [startingLife]; Death May Die counts wounds up from 0.
             players = players.map { LocalPlayer(it.name, it.profileId, life = if (lorcana || deathMayDie) 0 else startingLife, localId = it.localId,
@@ -354,6 +358,7 @@ data class StandaloneGame(
             profile = profile,
             startingLife = startingLife,
             autoEliminateAtZeroLife = autoEliminateAtZeroLife,
+            askEliminationSource = askEliminationSource,
             autoEliminateAtPoisonLimit = autoEliminateAtPoisonLimit,
             autoEliminateAtCommanderDamage = autoEliminateAtCommanderDamage,
             poisonLimit = poisonLimit,
@@ -477,7 +482,7 @@ data class StandaloneGame(
     }
 
     /** Pauses a running game, or resumes a paused one. */
-    fun togglePause(nowMs: Long): StandaloneGame = if (doomBag.pending) this else when (state) {
+    fun togglePause(nowMs: Long): StandaloneGame = if (doomBag.pending || players.any { it.eliminationPending }) this else when (state) {
         TableState.RUNNING -> copy(state = TableState.PAUSED, elapsedMs = gameElapsedMs(nowMs), runningSinceMs = null).bump()
         TableState.PAUSED -> copy(state = TableState.RUNNING, runningSinceMs = nowMs).bump()
         else -> this
@@ -610,17 +615,17 @@ data class StandaloneGame(
 
     fun concede(index: Int, nowMs: Long): StandaloneGame = eliminate(index, nowMs, conceded = true)
 
-    fun eliminate(index: Int, nowMs: Long, conceded: Boolean = false, eliminatedBy: Int? = null): StandaloneGame {
+    fun eliminate(index: Int, nowMs: Long, conceded: Boolean = false, eliminatedBy: Int? = null, self: Boolean = false): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
-        if (!playing || player.eliminated) return this
+        if (!playing || player.eliminated || (self && (conceded || eliminatedBy != null))) return this
         if (eliminatedBy != null && (conceded || eliminatedBy !in players.indices || eliminatedBy in mates(index))) return this
         // Teammates leave together.
         val leaving = mates(index).filter { !players[it].eliminated }
         val out = players.count { it.eliminated } + 1
         var game = copy(nextTurn = nextTurn.takeUnless { it in leaving }, players = players.mapIndexed { i, p ->
-            if (i in leaving) p.copy(eliminated = true, conceded = conceded, outOrder = out, eliminatedBy = eliminatedBy) else p
+            if (i in leaving) p.copy(eliminated = true, conceded = conceded, outOrder = out, eliminatedBy = eliminatedBy, selfEliminated = self) else p
         }).bump().passStatuses(leaving).doomLeft(eliminatedBy?.plus(1) ?: 0)
-        game.decided()?.let { return game.finish(it, nowMs) }
+        if (game.players.none { it.eliminationPending }) game.decided()?.let { return game.finish(it, nowMs) }
         if (active in leaving) {
             val next = game.stagedNextTurn ?: (if (profile.cooperative) game.nextUp(leaving.last(), acted) else game.nextIn(leaving.last())) ?: return game
             game = game.copy(active = next, nextTurn = null, turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false,
@@ -645,14 +650,29 @@ data class StandaloneGame(
         if (targets.isEmpty()) return this
         var out = players.count { it.eliminated }
         var game = copy(players = players.mapIndexed { i, p ->
-            if (i in targets) p.copy(eliminated = true, conceded = false, outOrder = ++out) else p
+            if (i in targets) p.copy(eliminated = true, conceded = false, outOrder = ++out, eliminationPending = askEliminationSource && !profile.cooperative) else p
         }).passStatuses(targets).bump().doomLeft()
-        game.decided()?.let { return game.finish(it, nowMs) }
+        if (game.players.none { it.eliminationPending }) game.decided()?.let { return game.finish(it, nowMs) }
         if (active in targets) {
             game = game.copy(active = game.nextIn(mates(active!!).last()), turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false,
                 planechase = game.planechase.newTurn())
         }
-        return game
+        return if (game.players.any { it.eliminationPending }) game.copy(state = TableState.PAUSED,
+            elapsedMs = game.gameElapsedMs(nowMs), runningSinceMs = null) else game
+    }
+
+    /** Explicit attribution, independent of the active turn. Self and unknown never credit an opponent. */
+    fun resolveElimination(victim: Int, source: Int?, self: Boolean, nowMs: Long): StandaloneGame {
+        val i = victim - 1
+        val player = players.getOrNull(i) ?: return this
+        if (!playing || !player.eliminationPending || (self && source != null) ||
+            (source != null && (source !in players.indices || source in mates(i)))) return this
+        val group = mates(i)
+        var next = copy(players = players.mapIndexed { n, p -> if (n in group) p.copy(
+            eliminationPending = false, selfEliminated = self, eliminatedBy = source) else p }).bump()
+        if (source != null) next = next.doomLeft(source + 1)
+        if (next.players.none { it.eliminationPending }) next.decided()?.let { return next.finish(it, nowMs) }
+        return next
     }
 
     /**
@@ -661,7 +681,7 @@ data class StandaloneGame(
      */
     fun claimWin(index: Int, nowMs: Long): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
-        if (!playing || player.eliminated || doomBag.pending) return this
+        if (!playing || player.eliminated || doomBag.pending || players.any { it.eliminationPending }) return this
         return finish(if (profile.cooperative) players.indices.toList() else listOf(index), nowMs)
     }
 
@@ -922,6 +942,7 @@ data class StandaloneGame(
         winners = winners,
         elapsedMs = gameElapsedMs(nowMs),
         runningSinceMs = null,
+        players = players.map { it.copy(eliminationPending = false) },
     ).bump()
 
     private fun update(index: Int, change: (LocalPlayer) -> LocalPlayer): StandaloneGame =
@@ -994,6 +1015,7 @@ data class StandaloneGame(
                     outOrder = p.outOrder,
                     conceded = p.conceded,
                     eliminatedBy = p.eliminatedBy,
+                    selfEliminated = p.selfEliminated,
                     bagDrawn = doomBag.drawn and DoomRules.bit(i + 1) != 0,
                     commanderDamageReceived = p.commanderDamage.values.sumOf { it.sum() },
                     counters = p.counters,
@@ -1035,14 +1057,14 @@ data class StandaloneGame(
     fun doomCredit(victim: Int, source: Int, cycle: Long): StandaloneGame {
         val target = players.getOrNull(victim - 1) ?: return this
         if (!playing || !profile.bagOfDoom || cycle != doomBag.cycle || doomBag.selected != 0 ||
-            !target.eliminated || target.conceded || target.eliminatedBy != null ||
+            !target.eliminated || target.conceded || target.selfEliminated || target.eliminationPending || target.eliminatedBy != null ||
             source - 1 !in players.indices || source == victim || doomBag.drawn and DoomRules.bit(victim) != 0) return this
         return update(victim - 1) { it.copy(eliminatedBy = source - 1) }.doomLeft(source)
     }
 
     /** The store commits this complete outcome before StandaloneTable publishes it. */
     fun drawDoom(cycle: Long, nowMs: Long, random: Random = Random.Default): StandaloneGame {
-        if (state != TableState.PAUSED || !profile.bagOfDoom || !doomBag.pending || cycle != doomBag.cycle) return this
+        if (state != TableState.PAUSED || !profile.bagOfDoom || !doomBag.pending || cycle != doomBag.cycle || players.any { it.eliminationPending }) return this
         val candidates = players.indices.filter { !players[it].eliminated && doomBag.contains(it + 1) }
         val victim = if (doomBag.selected != 0) doomBag.selected else if (candidates.isEmpty()) 0 else candidates[random.nextInt(candidates.size)] + 1
         val next = if (victim == 0) this else copy(doomBag = doomBag.copy(selected = 0)).eliminate(victim - 1, nowMs)
@@ -1097,6 +1119,7 @@ data class StandaloneGame(
                     eliminated = p.eliminated,
                     conceded = p.conceded,
                     eliminatedBy = p.eliminatedBy?.plus(1),
+                    selfEliminated = p.selfEliminated, eliminationPending = p.eliminationPending,
                     counters = p.counters,
                     demerits = p.demerits,
                     extensionsAvailable = p.extensionsEarned - p.extensionsUsed,

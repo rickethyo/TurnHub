@@ -38,6 +38,7 @@ object TableSummaryMapper {
                 eliminated = player.eliminated,
                 conceded = player.conceded,
                 eliminatedBy = player.eliminatedBy,
+                selfEliminated = player.selfEliminated, eliminationPending = player.eliminationPending,
                 counters = player.counters,
                 life = player.life,
                 turnsCompleted = player.turnsCompleted,

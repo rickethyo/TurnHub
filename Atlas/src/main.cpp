@@ -278,6 +278,7 @@ void finalizeGameRules(const Intent &intent) {
   }
   leds.invalidateAll();
   if (table().game.gameOver()) finishGameState();
+  else if (table().game.paused()) table().hubState = HubState::Paused;
 }
 
 // Dispatcher observer: runs after every Intent, accepted or not.
@@ -319,6 +320,7 @@ bool configureIntentHandlers() {
       {IntentType::Concede, handleConcedeIntent},
       {IntentType::EliminateSeat, handleEliminateSeatIntent},
       {IntentType::DoomBag, handleDoomBagIntent},
+      {IntentType::ResolveElimination, handleResolveEliminationIntent},
       {IntentType::ClaimMonarch, handleClaimMonarchIntent},
       {IntentType::TogglePause, handleTogglePauseIntent},
       {IntentType::ClaimWin, handleClaimWinIntent},

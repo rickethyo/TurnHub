@@ -5468,11 +5468,102 @@ static void doomCommanderHttp() {
   auto credit=fields();credit["action"]="credit";credit["player"]=String(reserved);credit["source"]="1";
   assert(request("/api/control/doom",token(1),credit)==409);
   assert(request("/api/control/pause",token(1))==200 && table().hubState==HubState::Running);
+
+  uint8_t natural=2;while(table().game.isEliminated(natural)) ++natural;
+  assert(request("/api/control/life",token(natural),{{"delta","-40"}})==200);
+  assert(table().game.eliminationPending(natural) && table().hubState==HubState::Paused);
+  auto answer=fields();answer.erase("action");answer.erase("cycle");answer["player"]=String(natural);answer["source"]="0";answer["selfEliminated"]="1";
+  auto stale=answer;stale["expectedBootId"]="old";
+  assert(request("/api/control/elimination",token(natural),stale)==409);
+  assert(request("/api/control/elimination",token(natural),answer)==200);
+  assert(table().game.selfEliminated(natural) && !table().game.eliminationPending(natural));
+  assert(request("/api/control/elimination",token(natural),answer)==409);
+  assert(request("/api/v1/state",token(1),{},HTTP_GET)==200);saveClientFixture("elimination-self",server.body);
   enterEmptyLobby();table().nextGameSettings=GameSettings{};
   for(int i=0;i<6;++i) {
     request("/api/session/logout",tokens[i]);
     ProfileFixture::profiles.erase(ids[i].c_str());TurnHubAccounts::accounts.erase(ids[i].c_str());
   }
+}
+
+static void explicitEliminationAttribution() {
+  using namespace TurnHub;
+  GameEngine::setGameCompletedCallback([](const GameEngine &) { ++completedGames; });
+  PlayerSeat seats[6] = {};
+  for(uint8_t i=0;i<6;++i) { seats[i].controllerId=i; seats[i].slot=1; seats[i].playerNumber=i+1; }
+  GameSettings settings; settings.profile=GameProfile::Commander;settings.askEliminationSource=true;
+  GameEngine g; bool finished=false;
+  assert(g.start(seats,3,seats[0],1000,settings));
+  assert(g.changeLife(2,-40) && g.resolveEliminationRules(2000));
+  assert(g.paused() && g.eliminationPending(2) && !g.gameOver() && g.eliminatedBy(2)==0);
+  assert(!g.resume(2000) && !g.beginWinClaim(1,false,2000));
+  assert(!g.resolveElimination(2,2,false,2000) && !g.resolveElimination(2,1,true,2000));
+  // Player 3 earns the kill, although Player 1 owns the turn.
+  assert(g.resolveElimination(2,3,false,2100));
+  assert(g.eliminatedBy(2)==3 && g.eliminationsBy(3)==1 && g.eliminationsBy(1)==0);
+  assert(!g.resolveElimination(2,1,false,2100));
+  assert(g.resume(2200) && g.changeLife(1,-40) && g.resolveEliminationRules(3000));
+  const int before=completedGames;
+  assert(!g.gameOver() && completedGames==before && g.eliminationPending(1));
+  GameCheckpoint saved,decoded;g.checkpoint(saved,3000);
+  uint8_t bytes[GAME_CHECKPOINT_CAPACITY];const size_t size=encodeCheckpoint(saved,bytes,sizeof(bytes));
+  assert(size && decodeCheckpoint(bytes,size,decoded)==TurnHubStorage::Status::Ok);
+  GameEngine restored;assert(restored.restoreCheckpoint(decoded,9000) && restored.eliminationPending(1));
+  assert(restored.resolveElimination(1,0,true,9100) && restored.gameOver() && completedGames==before+1);
+  assert(restored.selfEliminated(1) && restored.eliminatedBy(1)==0 && restored.winnerPlayerNumber()==3);
+  restored.checkpoint(saved,9200);assert(validCheckpoint(saved));
+  decoded=saved;decoded.eliminationPending[0]=true;assert(!validCheckpoint(decoded));
+  // Unknown is an explicit answer and does not award speculative credit.
+  assert(g.start(seats,3,seats[0],1000,settings) && g.changeLife(2,-40) && g.resolveEliminationRules(2000));
+  assert(g.resolveElimination(2,0,false,2100) && !g.eliminationPending(2) && !g.selfEliminated(2));
+  // The whole batch can leave nobody; it still waits for every source, even all-out.
+  assert(g.changeLife(1,-40) && g.changeLife(3,-40) && g.resolveEliminationRules(2200));
+  g.checkpoint(saved,2300);assert(validCheckpoint(saved));
+  assert(g.resolveElimination(1,0,true,2400) && !g.gameOver());
+  assert(g.resolveElimination(3,0,false,2500) && g.gameOver() && g.endedInDraw());
+  // Self gives no bag reset; an off-turn credited player receives the reset.
+  settings.profile=GameProfile::DoomCommander;
+  assert(g.start(seats,6,seats[0],1000,settings) && g.changeLife(2,-40) && g.resolveEliminationRules(2000));
+  assert(g.resolveElimination(2,0,true,2100) && g.doomBag().cycle==1 && !g.creditDoomElimination(2,3,1));
+  assert(g.resume(2200) && g.changeLife(4,-40) && g.resolveEliminationRules(2300));
+  assert(g.resolveElimination(4,3,false,2400) && g.livingPlayerCount()==4 && !g.doomActive() && g.eliminationsBy(3)==1);
+  // Explicit manual Self is recorded before the normal completion path.
+  settings.profile=GameProfile::Commander;assert(g.start(seats,2,seats[0],1000,settings) && g.pause(2000));
+  assert(g.eliminatePlayer(2,2000,finished,false,0,true) && finished && g.selfEliminated(2));
+  GameEngine::setGameCompletedCallback(completed);
+}
+
+static void explicitAttributionHttp() {
+  using namespace TurnHub;
+  enterEmptyLobby();table().nextGameSettings=GameSettings{};fixtureRadio=false;testNow=1000;registerWebCallbacks();
+  String ids[2],tokens[2];
+  tokens[0]=registerPhone("Explicit One",ids[0]);tokens[1]=registerPhone("Explicit Two",ids[1]);
+  for(auto &token:tokens) assert(request("/api/session/join",token)==200);
+  assert(request("/api/control/start",tokens[0],{{"askEliminationSource","1"}})==200);
+  testNow+=3000;updateCountdown(testNow);assert(table().game.settings().askEliminationSource);
+  const auto p1=table().game.playerByNumber(1);const bool first=String(p1->profileId)==ids[0];
+  const String winnerToken=tokens[first?0:1],loserToken=tokens[first?1:0];
+  const String winnerId=ids[first?0:1];
+  const auto before=ProfileFixture::profiles[winnerId.c_str()].stats;
+  assert(request("/api/control/life",loserToken,{{"delta","-40"}})==200);
+  assert(table().game.eliminationPending(2) && !table().game.gameOver() && table().hubState==HubState::Paused);
+  assert(ProfileFixture::profiles[winnerId.c_str()].stats.gamesPlayed==before.gamesPlayed);
+  assert(request("/api/v1/state",loserToken,{},HTTP_GET)==200);saveClientFixture("elimination-final-pending",server.body);
+  std::map<std::string,String> answer={{"expectedBootId",TurnHubWebApi::internal::bootId},
+      {"expectedRevision",String(TurnHubWebApi::internal::readClientRevision())},{"player","2"},{"source","1"},{"selfEliminated","0"}};
+  assert(request("/api/control/elimination",loserToken,answer)==200 && table().game.gameOver());
+  const auto after=ProfileFixture::profiles[winnerId.c_str()].stats;
+  assert(after.gamesPlayed==before.gamesPlayed+1 && after.eliminationsMade==before.eliminationsMade+1);
+  assert(request("/api/control/elimination",loserToken,answer)==409);
+  assert(ProfileFixture::profiles[winnerId.c_str()].stats.eliminationsMade==after.eliminationsMade);
+  assert(request("/api/control/rematch",winnerToken)==200);
+  assert(request("/api/control/start",winnerToken,{{"askEliminationSource","1"}})==200);
+  testNow+=3000;updateCountdown(testNow);
+  assert(request("/api/control/eliminate",loserToken,{{"eliminatedBy","0"},{"selfEliminated","1"}})==200);
+  assert(table().game.gameOver() && table().game.selfEliminated(2) && !table().game.hasPendingElimination());
+  assert(ProfileFixture::profiles[winnerId.c_str()].stats.eliminationsMade==after.eliminationsMade);
+  enterEmptyLobby();table().nextGameSettings=GameSettings{};
+  for(int i=0;i<2;++i) { request("/api/session/logout",tokens[i]);ProfileFixture::profiles.erase(ids[i].c_str());TurnHubAccounts::accounts.erase(ids[i].c_str()); }
 }
 
 int main() {
@@ -5487,6 +5578,7 @@ int main() {
   GameEngine::setGameCompletedCallback(completed);
   eliminationCredit(); std::cout<<"PASS elimination credit, validation, team counts, recovery and shared statistics\n";
   doomCommanderEngine(); std::cout<<"PASS Bag of Doom rules, turn ownership, sealed recovery, reset and statistics\n";
+  explicitEliminationAttribution(); std::cout<<"PASS explicit off-turn attribution, Self, Unknown, deferred completion and recovery\n";
   dispatcherContract(); std::cout<<"PASS dispatcher contract\n";
   deliberatePairing(); std::cout<<"PASS deliberate pairing authorization, radio failure, timeout, rollover and gameplay exclusion\n";
   lobbyLifecycle(); std::cout<<"PASS lobby and lifecycle\n";
@@ -5516,6 +5608,7 @@ int main() {
   starCommanderVenue(); std::cout<<"PASS Star Commander venue: Game 1 Star Commander and Game 2 Commander stay separate\n";
   starCommanderTable(); std::cout<<"PASS Star Commander table: settings, 409 reasons, shared victory, state, statistics, rematch\n";
   doomCommanderHttp(); std::cout<<"PASS Bag of Doom HTTP authority, freshness, failed seal, retry, projection and result\n";
+  explicitAttributionHttp(); std::cout<<"PASS native opt-in, final attribution before stats, duplicate guard and explicit Self\n";
   starStandaloneImport(); std::cout<<"PASS Star Commander standalone import: every listed winner credited, invalid winner sets refused\n";
   lifeApprovalsAndCommander(); std::cout<<"PASS life approval authorization, deadlines, rollover, atomic Commander counters and lifecycle\n";
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";

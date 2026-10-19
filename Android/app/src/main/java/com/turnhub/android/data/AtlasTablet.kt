@@ -235,13 +235,20 @@ class AtlasTablet(
     }
 
     override suspend fun control(seat: TabletSeat, action: String): Boolean {
-        val response = post("/api/tablet/control", seat.fields + ("action" to action)) ?: return false
+        val response = post("/api/tablet/control", seat.fields + listOf("action" to action) + (if (action == "start") listOf("askEliminationSource" to "1") else emptyList())) ?: return false
+        if (response.ok) succeed() else fail(response)
+        return response.ok
+    }
+
+    override suspend fun resolveElimination(seat: TabletSeat, victim: Int, source: Int?, token: com.turnhub.android.protocol.GameActionToken): Boolean {
+        val response = post("/api/tablet/elimination", seat.fields + listOf("player" to "$victim", "source" to "${source ?: 0}",
+            "selfEliminated" to if (source == 0) "1" else "0", "expectedBootId" to token.bootId, "expectedRevision" to "${token.revision}")) ?: return false
         if (response.ok) succeed() else fail(response)
         return response.ok
     }
 
     override suspend fun doom(seat: TabletSeat, action: com.turnhub.android.protocol.DoomAction,
-        token: com.turnhub.android.protocol.DoomToken, player: Int, value: Int): Boolean {
+        token: com.turnhub.android.protocol.GameActionToken, player: Int, value: Int): Boolean {
         val fields = seat.fields + listOf("action" to action.wire, "cycle" to "${token.cycle}",
             "expectedRevision" to "${token.revision}", "expectedBootId" to token.bootId,
             "player" to "$player", "inBag" to "$value", "source" to "$value")
@@ -251,7 +258,7 @@ class AtlasTablet(
     }
 
     override suspend fun eliminate(seat: TabletSeat, eliminatedBy: Int?): Boolean {
-        val response = post("/api/tablet/control", seat.fields + listOf("action" to "eliminate", "eliminatedBy" to "${eliminatedBy ?: 0}")) ?: return false
+        val response = post("/api/tablet/control", seat.fields + listOf("action" to "eliminate", "eliminatedBy" to "${eliminatedBy ?: 0}", "selfEliminated" to if (eliminatedBy == 0) "1" else "0")) ?: return false
         if (response.ok) succeed() else fail(response)
         return response.ok
     }

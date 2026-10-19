@@ -30,6 +30,7 @@ struct ImportedPlayer {
   bool conceded = false;
   int8_t eliminatedBy = -1;
   bool bagDrawn = false;
+  bool selfEliminated = false;
 };
 
 struct ImportedGame {

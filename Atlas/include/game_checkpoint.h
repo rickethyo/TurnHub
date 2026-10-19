@@ -20,6 +20,8 @@ struct GameCheckpoint {
   PlayerStats stats[MAX_PLAYERS]{};
   bool eliminated[MAX_PLAYERS]{};
   bool conceded[MAX_PLAYERS]{};
+  bool selfEliminated[MAX_PLAYERS]{};
+  bool eliminationPending[MAX_PLAYERS]{};
   uint8_t eliminatedBy[MAX_PLAYERS]{};
   PlayerCounters counters[MAX_PLAYERS]{};
   int32_t life[MAX_PLAYERS]{};

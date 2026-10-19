@@ -100,6 +100,10 @@ class GameEngine {
   bool hasPendingLifeChanges() const;
   bool validEliminationCredit(uint8_t victim, uint8_t source) const;
   uint8_t eliminatedBy(uint8_t player) const;
+  bool selfEliminated(uint8_t player) const;
+  bool eliminationPending(uint8_t player) const;
+  bool hasPendingElimination() const;
+  bool resolveElimination(uint8_t victim, uint8_t source, bool self, uint32_t nowMs);
   uint8_t eliminationsBy(uint8_t player) const;
 
   // --- Two-Headed Giant teams (game_profile.h) ---
@@ -170,7 +174,7 @@ class GameEngine {
   bool eliminatePlayer(
       uint8_t playerNumber,
       uint32_t nowMs,
-      bool &gameFinished, bool conceded = false, uint8_t eliminatedBy = 0);
+      bool &gameFinished, bool conceded = false, uint8_t eliminatedBy = 0, bool self = false, bool attributionKnown = true);
 
   // Pauses and asks every other living player (not the claimant's teammate),
   // in controller order after the claimant's, to confirm. A denial resumes play when restoreRunning is set.
@@ -303,6 +307,8 @@ class GameEngine {
   PlayerStats stats_[MAX_PLAYERS];
   bool eliminated_[MAX_PLAYERS] = {};
   bool conceded_[MAX_PLAYERS] = {};
+  bool selfEliminated_[MAX_PLAYERS]{};
+  bool eliminationPending_[MAX_PLAYERS]{};
   uint8_t eliminatedBy_[MAX_PLAYERS] = {};
   bool batchElimination_ = false;
   uint8_t playerCount_ = 0;

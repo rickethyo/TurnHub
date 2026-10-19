@@ -251,7 +251,7 @@ class StandaloneTable(
         life?.let { next = next.setStartingLife(it) }
         next
     }
-    fun start() = edit { if (planarSelectionReady(it)) it.start(wallClock(), newId(), planarDeck = planarDeck(it)) else it }
+    fun start() = edit { if (planarSelectionReady(it)) it.copy(askEliminationSource = !it.profile.cooperative).start(wallClock(), newId(), planarDeck = planarDeck(it)) else it }
 
     // --- Planechase -----------------------------------------------------------------
 
@@ -370,8 +370,16 @@ class StandaloneTable(
 
     // --- the table ------------------------------------------------------------------
 
+    override suspend fun resolveElimination(seat: TabletSeat, victim: Int, source: Int?, token: com.turnhub.android.protocol.GameActionToken): Boolean {
+        val before = _state.value.game
+        if (before.gameId != token.bootId || before.revision != token.revision ||
+            StandaloneGame.indexOf(seat.moduleId) !in before.players.indices) return false
+        edit { it.resolveElimination(victim, source?.takeIf { n -> n > 0 }?.minus(1), source == 0, wallClock()) }
+        return _state.value.game !== before
+    }
+
     override suspend fun doom(seat: TabletSeat, action: com.turnhub.android.protocol.DoomAction,
-        token: com.turnhub.android.protocol.DoomToken, player: Int, value: Int): Boolean {
+        token: com.turnhub.android.protocol.GameActionToken, player: Int, value: Int): Boolean {
         val before = _state.value.game
         val index = StandaloneGame.indexOf(seat.moduleId)
         if (before.gameId != token.bootId || before.revision != token.revision ||
@@ -386,8 +394,8 @@ class StandaloneTable(
 
     override suspend fun eliminate(seat: TabletSeat, eliminatedBy: Int?): Boolean {
         val before = _state.value.game
-        if (eliminatedBy != null && eliminatedBy !in 1..before.players.size) return false
-        edit { it.eliminate(StandaloneGame.indexOf(seat.moduleId), wallClock(), eliminatedBy = eliminatedBy?.minus(1)) }
+        if (eliminatedBy != null && eliminatedBy !in 0..before.players.size) return false
+        edit { it.eliminate(StandaloneGame.indexOf(seat.moduleId), wallClock(), eliminatedBy = eliminatedBy?.takeIf { it > 0 }?.minus(1), self = eliminatedBy == 0) }
         return _state.value.game !== before
     }
 
@@ -538,6 +546,7 @@ class StandaloneTable(
             put("gameProfile", game.profile.wireValue)
             put("startingLife", game.startingLife)
             put("autoEliminateAtZeroLife", game.autoEliminateAtZeroLife)
+            put("askEliminationSource", game.askEliminationSource)
             put("active", game.active ?: JSONObject.NULL)
             put("starter", game.starter ?: JSONObject.NULL)
             put("winner", game.winner ?: JSONObject.NULL)
@@ -579,6 +588,8 @@ class StandaloneTable(
                         put("eliminated", p.eliminated)
                         put("conceded", p.conceded)
                         put("eliminatedBy", p.eliminatedBy ?: JSONObject.NULL)
+                        put("selfEliminated", p.selfEliminated)
+                        put("eliminationPending", p.eliminationPending)
                         put("counters", JSONObject().apply {
                             put("poison", p.counters.poison); put("energy", p.counters.energy); put("experience", p.counters.experience)
                             put("commanderCasts", JSONArray(p.counters.commanderCasts)); put("cityBlessing", p.counters.cityBlessing)
@@ -629,6 +640,7 @@ class StandaloneTable(
                 profile = GameProfile.fromWire(json.getString("gameProfile")) ?: error("Unsupported local game format"),
                 startingLife = json.getInt("startingLife"),
                 autoEliminateAtZeroLife = json.optBoolean("autoEliminateAtZeroLife", true),
+                askEliminationSource = json.optBoolean("askEliminationSource", true),
                 active = json.optIntOrNull("active"),
                 starter = json.optIntOrNull("starter"),
                 winner = json.optIntOrNull("winner"),
@@ -673,6 +685,7 @@ class StandaloneTable(
                         eliminated = p.getBoolean("eliminated"),
                         conceded = p.optBoolean("conceded"),
                         eliminatedBy = p.optIntOrNull("eliminatedBy"),
+                        selfEliminated = p.optBoolean("selfEliminated"), eliminationPending = p.optBoolean("eliminationPending"),
                         counters = p.optJSONObject("counters")?.let { c ->
                             com.turnhub.android.protocol.PlayerCounters(c.getInt("poison"), c.getInt("energy"), c.getInt("experience"),
                                 c.getJSONArray("commanderCasts").let { a -> List(2) { a.getInt(it) } }, c.getBoolean("cityBlessing"))
@@ -732,6 +745,8 @@ class StandaloneTable(
                 require(game.players.size <= StandaloneGame.MAX_PLAYERS)
                 require(DoomRules.valid(game))
                 game.players.forEachIndexed { i, p ->
+                    require(!p.selfEliminated || (p.eliminated && !p.conceded && p.eliminatedBy == null && !p.eliminationPending))
+                    require(!p.eliminationPending || (game.askEliminationSource && game.state == TableState.PAUSED && p.eliminated && !p.conceded && p.eliminatedBy == null))
                     require(p.eliminatedBy == null || (p.eliminated && !p.conceded &&
                         p.eliminatedBy in game.players.indices && p.eliminatedBy != i &&
                         (!game.twoHeadedGiant || p.eliminatedBy / 2 != i / 2)))

@@ -202,7 +202,7 @@ void handleCounters(WebServer &server);
 void handleCounterControl(WebServer &server, TurnHub::IntentType type);
 // Life or Commander request fields of a counter control; false when invalid.
 bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::IntentPayload &payload);
-bool freshDoomRequest(WebServer &server);
+bool freshGameActionRequest(WebServer &server);
 bool parseBoundedNumber(const String &text, int32_t min, int32_t max, int32_t &value);
 bool parseLifeInteger(const String &text, int32_t &value, bool negativeAllowed);
 // {"ok":true} or 409 with the seat callback's message.

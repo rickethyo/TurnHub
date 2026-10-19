@@ -52,6 +52,16 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   and the Sigils learn the new formats and import their games later, per the
   dev sequence. One Piece can reuse the Prize-card count if the owner wants it.
 
+### Elimination attribution and full-screen checks
+
+- Verify full-screen due/result windows on phone, foldable and tablet, including
+  large type/TalkBack, rotation, Back and Review life totals. Exercise manual and
+  automatic “Eliminated by?” prompts, off-turn/already-out sources, explicit Self
+  and Unknown, teams and simultaneous/all-out/final removals. Ensure nothing is
+  preselected, source questions take priority, and final history/stats wait for
+  the answer. Interrupt process/power with a pending source and retry from two
+  clients; the question survives and stale/duplicate answers cannot award credit.
+
 ### Bag of Doom acceptance
 
 - Play a ten-player phone-hosted and Atlas-connected Commander match. Check the

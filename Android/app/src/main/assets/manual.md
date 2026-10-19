@@ -155,9 +155,9 @@ Everyone begins in the bag. If another player loses life during your turn, your 
 
 The first bag check follows four complete turn cycles. Afterward, check once per cycle. The game pauses before the next turn. Resolve pending life requests, review who is In bag or Safe, then Draw from bag. A random name still in the bag is eliminated. An empty bag eliminates nobody. Every check refills the bag and resets immunity. Continue game resumes the next turn.
 
-Crediting an elimination refills the bag except for that player and moves its deadline to the living player before them. This starts a one-cycle check, even during the opening four cycles. Use Credit an earlier elimination after an automatic removal. Concessions and players drawn from the bag give nobody elimination credit. At four survivors, the bag switches off.
+Crediting an elimination refills the bag except for that player and moves its deadline to the living player before them. This starts a one-cycle check, even during the opening four cycles. Choose the actual opponent in “Eliminated by?”, including off-turn interactions. Self and Unknown give nobody credit and do not reset the bag. Credit an earlier elimination can correct an Unknown while the game continues. Concessions and players drawn from the bag give nobody elimination credit. At four survivors, the bag switches off.
 
-On the shared tablet, open Bag of Doom in the game menu. Personal phones show it in Game. Review life totals closes a due check so you can fix life entries, then reopen the bag. Draw results are saved before they appear; if saving fails, retry keeps the same reserved choice on Atlas. Reopening the panel cannot reroll a completed check. TurnHub uses reset-after-every-check rules, which may differ from another group’s version.
+A due bag check and its result open a full-screen pop-up on the shared tablet and on personal phones. Review life totals closes it so you can fix life entries; reopen Bag of Doom from the tablet menu or Game to finish the check. Answer any “Eliminated by?” question first. Draw results are saved before they appear; if saving fails, retry keeps the same reserved choice on Atlas. Reopening the panel cannot reroll a completed check. TurnHub uses reset-after-every-check rules.
 
 ## Naming Your Commander
 
@@ -221,7 +221,7 @@ Only one player can be monarch, and only one can have the initiative; claiming e
 
 Separate switches eliminate a player at zero life, at the poison limit (10, or 15 shared in Two-Headed Giant) and at 21 damage from one commander. All are on by default. Change them, and the poison limit, from the game menu at any time, including while paused. Turning a rule on checks the existing totals at once; turning it off does not bring anyone back. Switch the relevant rule off before a card changes how a player loses.
 
-Concede records a voluntary exit and Eliminate records a loss; both take the player out of turn order, and statistics count them separately. For Eliminate, choose Elimination credit to name the opponent responsible, or No player credited. Concessions and automatic removals award no credit. A team removal counts as two opponents eliminated.
+Concede records a voluntary exit and Eliminate records a loss. Eliminate opens a full-screen “Eliminated by?” question. Choose the actual opponent, Self, or Unknown; no answer is selected for you. Off-turn and already-eliminated opponents can receive credit. Self and Unknown award no opponent credit. Automatic removals in app-started games ask the same question and pause play. Even the final elimination waits for an answer before the result enters history and stats. Concessions and bag draws already have known causes and skip this question. Pending questions survive closing the app; answer them, then resume if the game continues.
 
 # 6. Planechase
 

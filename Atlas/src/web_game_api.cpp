@@ -379,15 +379,25 @@ void handleCounters(WebServer &server) {
 
 // RequestLifeChange: delta + target. RespondLifeChange: requestId + accept.
 // ChangeCounter: delta + source + commander.
-bool freshDoomRequest(WebServer &server) {
+bool freshGameActionRequest(WebServer &server) {
   if (!readClientRevision || server.arg("expectedBootId") != bootId ||
       server.arg("expectedRevision") != String(readClientRevision())) {
-    sendError(server, 409, "Fetch a fresh state before changing the bag"); return false;
+    sendError(server, 409, "The table changed. Review the current game and try again."); return false;
   }
   return true;
 }
 
 bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::IntentPayload &payload) {
+  if (type == TurnHub::IntentType::ResolveElimination) {
+    int32_t victim = 0, source = 0;
+    if (!parseBoundedNumber(server.arg("player"), 1, MAX_PLAYERS, victim) ||
+        !parseBoundedNumber(server.arg("source"), 0, MAX_PLAYERS, source)) return false;
+    const String self = server.arg("selfEliminated");
+    if (self != "0" && self != "1") return false;
+    payload.targetPlayer = static_cast<uint8_t>(victim); payload.eliminatedBy = static_cast<uint8_t>(source);
+    payload.flags = self == "1" ? 1 : 0;
+    return !payload.flags || !source;
+  }
   if (type == TurnHub::IntentType::DoomBag) {
     const String cycle = server.arg("cycle");
     uint64_t value = 0;
@@ -449,10 +459,10 @@ bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::I
 void handleCounterControl(WebServer &server, TurnHub::IntentType type) {
   WebSession *session = requireSession(server);
   if (!session) return;
-  if (type == TurnHub::IntentType::DoomBag && !freshDoomRequest(server)) return;
+  if ((type == TurnHub::IntentType::DoomBag || type == TurnHub::IntentType::ResolveElimination) && !freshGameActionRequest(server)) return;
   TurnHub::IntentPayload payload;
   if (!parseCounterPayload(server, type, payload)) {
-    sendError(server, 400, "Invalid life or Commander request");
+    sendError(server, 400, "Invalid game action");
     return;
   }
   String message = "Join the table first";
@@ -503,13 +513,22 @@ void runSeatControl(WebServer &server, uint8_t controllerId, uint8_t slot, WebCo
 
   String message;
   bool accepted = false;
-  if (control == WebControl::EliminateSeat && server.hasArg("eliminatedBy")) {
+  if (control == WebControl::Start && server.arg("askEliminationSource") == "1") {
+    TurnHub::IntentPayload payload; payload.flags = 1;
+    accepted = counterControlHandler && counterControlHandler(controllerId, slot, TurnHub::IntentType::StartGame, payload, message);
+  } else if (control == WebControl::EliminateSeat && server.hasArg("eliminatedBy")) {
     TurnHub::IntentPayload payload;
     int32_t source = 0;
     if (!parseBoundedNumber(server.arg("eliminatedBy"), 0, MAX_PLAYERS, source)) {
       sendError(server, 400, "Invalid credited player"); return;
     }
     payload.eliminatedBy = static_cast<uint8_t>(source);
+    payload.flags = 2;  // Explicit Unknown is also an answered source.
+    if (server.hasArg("selfEliminated")) {
+      const String self = server.arg("selfEliminated");
+      if ((self != "0" && self != "1") || (self == "1" && source)) { sendError(server, 400, "Invalid self elimination"); return; }
+      payload.flags |= self == "1" ? 1 : 0;
+    }
     accepted = counterControlHandler && counterControlHandler(controllerId, slot, TurnHub::IntentType::EliminateSeat, payload, message);
   } else {
     accepted = controlHandler(controllerId, slot, control, message);

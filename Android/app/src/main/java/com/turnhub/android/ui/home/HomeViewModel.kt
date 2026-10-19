@@ -757,7 +757,20 @@ class HomeViewModel(
         launchTable { playerSession.counter("/api/control/counter", listOf("counter" to kind, key to "$value", "commander" to "$commander"), "Counter updated.") }
     }
 
-    fun onDoom(action: com.turnhub.android.protocol.DoomAction, token: com.turnhub.android.protocol.DoomToken, player: Int, value: Int) {
+    fun onEliminate(source: Int?) {
+        launchTable { playerSession.counter("/api/control/eliminate", listOf("eliminatedBy" to "${source ?: 0}",
+            "selfEliminated" to if (source == 0) "1" else "0"), "Elimination recorded.") }
+    }
+
+    fun onResolveElimination(victim: Int, source: Int?, token: com.turnhub.android.protocol.GameActionToken) {
+        viewModelScope.launch(com.turnhub.android.data.ExpectedGame(token.game)) {
+            playerSession.counter("/api/control/elimination", listOf("player" to "$victim", "source" to "${source ?: 0}",
+                "selfEliminated" to if (source == 0) "1" else "0", "expectedBootId" to token.bootId,
+                "expectedRevision" to "${token.revision}"), "Elimination source recorded.")
+        }
+    }
+
+    fun onDoom(action: com.turnhub.android.protocol.DoomAction, token: com.turnhub.android.protocol.GameActionToken, player: Int, value: Int) {
         viewModelScope.launch(com.turnhub.android.data.ExpectedGame(token.game)) {
             playerSession.counter("/api/control/doom", listOf("action" to action.wire, "cycle" to "${token.cycle}",
                 "expectedRevision" to "${token.revision}", "expectedBootId" to token.bootId,

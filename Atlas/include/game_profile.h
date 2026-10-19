@@ -94,6 +94,7 @@ constexpr uint8_t PROFILE_BYTE_TEAMS = 0x80;
 constexpr uint32_t GAME_FLAG_TWO_HEADED_GIANT = 0x100;
 constexpr uint32_t GAME_FLAG_MANUAL_ELIMINATION = 0x200;
 constexpr uint8_t PROFILE_BYTE_MANUAL_ELIMINATION = 0x40;
+constexpr uint8_t PROFILE_BYTE_ASK_ELIMINATION = 0x20;
 
 constexpr uint32_t GAME_FLAG_MANUAL_POISON = 0x400;
 constexpr uint32_t GAME_FLAG_MANUAL_COMMANDER = 0x800;
@@ -127,6 +128,7 @@ struct GameSettings {
   // Official modes (officialRules) keep their official starting life, poison
   // limit and player count unless the table turns house rules on.
   bool houseRules = false;
+  bool askEliminationSource = false;
 };
 // Two-Headed Giant: Magic and Commander only (never Star Commander).
 inline bool teamsAllowed(GameProfile profile) {
@@ -184,7 +186,7 @@ inline bool validGameSettings(const GameSettings &settings) {
 }
 inline bool sameGameSettings(const GameSettings &a, const GameSettings &b) {
   return a.profile == b.profile && a.startingLife == b.startingLife && a.turnTimerMs == b.turnTimerMs &&
-      a.twoHeadedGiant == b.twoHeadedGiant && a.houseRules == b.houseRules &&
+      a.twoHeadedGiant == b.twoHeadedGiant && a.houseRules == b.houseRules && a.askEliminationSource == b.askEliminationSource &&
       a.autoEliminateAtZeroLife == b.autoEliminateAtZeroLife &&
       a.autoEliminateAtPoisonLimit == b.autoEliminateAtPoisonLimit &&
       a.autoEliminateAtCommanderDamage == b.autoEliminateAtCommanderDamage && a.poisonLimit == b.poisonLimit;
@@ -199,11 +201,13 @@ inline bool validStarTable(const GameSettings &settings, uint8_t playerCount) {
 }
 inline uint8_t profileByte(const GameSettings &settings) {
   return static_cast<uint8_t>(settings.profile) | (settings.twoHeadedGiant ? PROFILE_BYTE_TEAMS : 0) |
-      (settings.autoEliminateAtZeroLife ? 0 : PROFILE_BYTE_MANUAL_ELIMINATION);
+      (settings.autoEliminateAtZeroLife ? 0 : PROFILE_BYTE_MANUAL_ELIMINATION) |
+      (settings.askEliminationSource ? PROFILE_BYTE_ASK_ELIMINATION : 0);
 }
 inline void readProfileByte(uint8_t value, GameSettings &settings) {
-  settings.profile = static_cast<GameProfile>(value & static_cast<uint8_t>(~(PROFILE_BYTE_TEAMS | PROFILE_BYTE_MANUAL_ELIMINATION)));
+  settings.profile = static_cast<GameProfile>(value & static_cast<uint8_t>(~(PROFILE_BYTE_TEAMS | PROFILE_BYTE_MANUAL_ELIMINATION | PROFILE_BYTE_ASK_ELIMINATION)));
   settings.twoHeadedGiant = (value & PROFILE_BYTE_TEAMS) != 0;
+  settings.askEliminationSource = (value & PROFILE_BYTE_ASK_ELIMINATION) != 0;
   settings.autoEliminateAtZeroLife = (value & PROFILE_BYTE_MANUAL_ELIMINATION) == 0;
 }
 inline const char *gameProfileKey(GameProfile profile) {

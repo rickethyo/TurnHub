@@ -69,7 +69,7 @@ internal fun DoomBagPanel(summary: TableSummary, enabled: Boolean,
             }
         }
         if (summary.state in listOf(TableState.RUNNING, TableState.PAUSED)) {
-            val uncredited = summary.players.filter { it.eliminated && !it.conceded && it.eliminatedBy == null &&
+            val uncredited = summary.players.filter { it.eliminated && !it.conceded && !it.selfEliminated && !it.eliminationPending && it.eliminatedBy == null &&
                 bag.drawn and (1 shl (it.playerNumber - 1)) == 0 }
             if (uncredited.isNotEmpty()) DisclosureCard("Credit an earlier elimination") {
                 Text("Use this after an automatic removal. Credit resets the bag and its boundary. Each elimination can be credited once.", color = p.muted)

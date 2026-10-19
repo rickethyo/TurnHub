@@ -638,3 +638,37 @@ changes. Each venue game retains its independent bag and freshness guards.
 Standalone imports accept optional `bagDrawnN=0|1` for each zero-based player.
 True requires this format, an `outOrder`, no concession and no `eliminatedByN`.
 It records the exit reason without awarding an opponent an elimination.
+
+
+## Explicit elimination source
+
+Native `POST /api/control/start` and `POST /api/tablet/control?action=start`
+include `askEliminationSource=1`. It opts the match into pausing automatic
+removals until their sources are answered; Bag of Doom always enables it.
+State settings project `askEliminationSource`. Each player adds optional
+`selfEliminated` and `eliminationPending` booleans (absent means false).
+Pending attribution defers completion/statistics, including the last removal
+or an all-out batch. Resume, win claims and bag draws wait for these answers.
+
+`POST /api/control/elimination` (seated session, including eliminated players)
+and `POST /api/tablet/elimination` (Tablet access, acting `moduleId`/`slot`) take:
+
+- `player`: pending victim's 1-based player number.
+- `source`: chosen opponent's 1-based player number, or 0 for Unknown/Self.
+- `selfEliminated`: required 0 or 1; 1 requires `source=0`.
+- `expectedBootId`, `expectedRevision`: exact values from the rendered snapshot.
+
+Malformed fields return 400, stale/already-answered/inapplicable choices 409,
+and missing authorization 401/403. Any participant may answer, including an
+all-out table. Teammates answer together. An opponent can already be eliminated;
+self/teammate opponent credit is refused. Self and Unknown give no opponent
+credit or bag refill. The explicit opponent drives the credited-elimination bag
+reset, independently of the current turn. The last answer decides any pending
+outcome; otherwise play remains paused. No source is inferred or preselected.
+
+Manual `/api/control/eliminate` and tablet `action=eliminate` accept optional
+`selfEliminated=1` with `eliminatedBy=0`. Supplying `eliminatedBy` explicitly
+(including 0/Unknown) is an answered source before removal. An interactive Sigil
+removal without an explicit source queues the question. Concessions and bag
+victims never queue it. Standalone imports accept `selfEliminatedN=0|1`; true
+requires an exit order and no concession, bag-drawn flag or opponent credit.

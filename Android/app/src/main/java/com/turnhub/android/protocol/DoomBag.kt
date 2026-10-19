@@ -19,5 +19,5 @@ data class DoomBag(
 }
 
 /** Rejects an action from a different match, boot, cycle or stale screen. */
-data class DoomToken(val bootId: String, val revision: Long, val cycle: Long, val game: Int = 1)
+data class GameActionToken(val bootId: String, val revision: Long, val cycle: Long, val game: Int = 1)
 enum class DoomAction(val wire: String) { DRAW("draw"), ELIGIBILITY("eligibility"), CREDIT("credit") }

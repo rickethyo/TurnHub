@@ -1056,3 +1056,13 @@ CI Atlas compile target (`107ee30`): static RAM 102,260 / 327,680 bytes (31.2%);
 flash 1,285,813 / 1,966,080 bytes (65.4%). This board-less target is a compile
 measurement; S3 hardware memory/performance and ten-player device play remain
 unverified.
+
+
+## 2026-10-19: Full-screen checks and explicit elimination attribution
+
+Baseline `2c684c7`; firmware versions and statistics layouts unchanged. Atlas
+`src/*.cpp` source snapshot: 723,391 bytes. Checkpoint schema 8 uses two free
+bits in each exit byte for Self/pending and profile bit 0x20 for the interactive
+policy; maximum record remains 3,062 bytes. Engine/checkpoint/projection hold
+the extra flags; no media or dependency was added. Physical-device performance
+and acceptance remain unverified.

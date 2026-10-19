@@ -97,6 +97,8 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
     }
     changed |= update(p.eliminated, inGame_ && game.isEliminated(seat.playerNumber));
     changed |= update(p.conceded, inGame_ && game.hasConceded(seat.playerNumber));
+    changed |= update(p.selfEliminated, inGame_ && game.selfEliminated(seat.playerNumber));
+    changed |= update(p.eliminationPending, inGame_ && game.eliminationPending(seat.playerNumber));
     changed |= update(p.eliminatedBy, inGame_ ? game.eliminatedBy(seat.playerNumber) : uint8_t(0));
     const auto *counters = inGame_ ? game.countersForPlayer(seat.playerNumber) : nullptr;
     const PlayerCounters countersValue = counters ? *counters : PlayerCounters{};
@@ -187,6 +189,7 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   out += ",\"autoEliminateAtCommanderDamage\":"; out += settings_.autoEliminateAtCommanderDamage ? "true" : "false";
   out += ",\"poisonLimit\":"; out += String(settings_.poisonLimit);
   out += ",\"twoHeadedGiant\":"; out += settings_.twoHeadedGiant ? "true" : "false";
+  out += ",\"askEliminationSource\":"; out += settings_.askEliminationSource ? "true" : "false";
   out += ",\"houseRules\":"; out += settings_.houseRules ? "true" : "false";
   out += "},\"sampledAtMs\":"; out += String(nowMs);
   out += ",\"gameElapsedMs\":"; out += String(game.gameElapsedMs(nowMs));
@@ -233,6 +236,8 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
     out += ",\"commanderCasts\":["; out += String(p.counters.commanderCasts[0]); out += ','; out += String(p.counters.commanderCasts[1]);
     out += "],\"cityBlessing\":"; out += p.counters.cityBlessing ? "true" : "false"; out += '}';
     out += ",\"conceded\":"; out += p.conceded ? "true" : "false";
+    out += ",\"selfEliminated\":"; out += p.selfEliminated ? "true" : "false";
+    out += ",\"eliminationPending\":"; out += p.eliminationPending ? "true" : "false";
     out += ",\"eliminatedBy\":"; nullablePlayer(out, p.eliminatedBy);
     out += ",\"eliminated\":"; out += p.eliminated ? "true" : "false";
     out += ",\"life\":";

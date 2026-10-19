@@ -54,6 +54,7 @@ void GameEngine::reset() {
     stats_[i] = PlayerStats{};
     eliminated_[i] = false;
     conceded_[i] = false;
+    selfEliminated_[i] = eliminationPending_[i] = false;
     eliminatedBy_[i] = 0;
     counters_[i] = PlayerCounters{};
     life_[i] = 0;
@@ -365,6 +366,7 @@ bool GameEngine::start(
 
   reset();
   settings_ = settings;
+  settings_.askEliminationSource = settings.askEliminationSource || settings.profile == GameProfile::DoomCommander;
   playerCount_ = playerCount;
 
   for (uint8_t i = 0; i < playerCount_; ++i) {
@@ -372,6 +374,7 @@ bool GameEngine::start(
     life_[i] = settings_.startingLife;
     eliminated_[i] = false;
     conceded_[i] = false;
+    selfEliminated_[i] = eliminationPending_[i] = false;
     eliminatedBy_[i] = 0;
   }
 
@@ -446,7 +449,7 @@ bool GameEngine::pause(uint32_t nowMs) {
 }
 
 bool GameEngine::resume(uint32_t nowMs) {
-  if (doom_.pending) return false;
+  if (doom_.pending || hasPendingElimination()) return false;
   if (!running_ || !paused_ || gameOver_ || winClaimActive_ || doom_.selected) {
     return false;
   }
@@ -462,8 +465,9 @@ bool GameEngine::resume(uint32_t nowMs) {
 bool GameEngine::eliminatePlayer(
     uint8_t playerNumber,
     uint32_t nowMs,
-    bool &gameFinished, bool conceded, uint8_t creditedPlayer) {
+    bool &gameFinished, bool conceded, uint8_t creditedPlayer, bool self, bool attributionKnown) {
   gameFinished = false;
+  if (self && (conceded || creditedPlayer)) return false;
 
   if (!running_ || !paused_ || gameOver_ || winClaimActive_ || doom_.selected) {
     return false;
@@ -487,12 +491,16 @@ bool GameEngine::eliminatePlayer(
   eliminated_[index] = true;
   conceded_[index] = conceded;
   eliminatedBy_[index] = creditedPlayer;
+  selfEliminated_[index] = self;
+  eliminationPending_[index] = settings_.askEliminationSource && !attributionKnown && !conceded && !self && !creditedPlayer;
   cancelLifeChanges(playerNumber);
   // Two-Headed Giant: the team leaves together.
   if (mate >= 0 && !eliminated_[mate]) {
     eliminated_[mate] = true;
     conceded_[mate] = conceded;
     eliminatedBy_[mate] = creditedPlayer;
+    selfEliminated_[mate] = self;
+    eliminationPending_[mate] = eliminationPending_[index];
     cancelLifeChanges(players_[mate].playerNumber);
   }
 
@@ -514,10 +522,10 @@ bool GameEngine::eliminatePlayer(
   if (passMonarch) monarchPlayer_ = heir;
   if (passInitiative) initiativePlayer_ = heir;
 
-  if (!batchElimination_ && starCommander()) {
+  if (!batchElimination_ && !hasPendingElimination() && starCommander()) {
     // Star Commander never uses last-player-standing: its own policy decides.
     gameFinished = evaluateStarVictory(nowMs);
-  } else if (!batchElimination_ && livingSideCount() == 1) {
+  } else if (!batchElimination_ && !hasPendingElimination() && livingSideCount() == 1) {
     for (uint8_t i = 0; i < playerCount_; ++i) {
       if (!eliminated_[i]) {
         finishGame(players_[i].playerNumber, nowMs);
@@ -637,13 +645,40 @@ bool GameEngine::setDoomEligibility(uint8_t player, bool inBag, uint32_t cycle) 
 bool GameEngine::creditDoomElimination(uint8_t victim, uint8_t source, uint32_t cycle) {
   const int i = indexForPlayerNumber(victim);
   if (!running_ || gameOver_ || winClaimActive_ || !doomCommander() || doom_.selected || cycle != doom_.cycle ||
-      i < 0 || !eliminated_[i] || conceded_[i] || eliminatedBy_[i] || !source ||
+      i < 0 || !eliminated_[i] || conceded_[i] || selfEliminated_[i] || eliminationPending_[i] || eliminatedBy_[i] || !source ||
       !validEliminationCredit(victim, source) || (doom_.drawn & doomBit(victim))) return false;
   eliminatedBy_[i] = source; doomLeft(source); return true;
 }
+bool GameEngine::selfEliminated(uint8_t player) const {
+  const int i = indexForPlayerNumber(player); return i >= 0 && selfEliminated_[i];
+}
+bool GameEngine::eliminationPending(uint8_t player) const {
+  const int i = indexForPlayerNumber(player); return i >= 0 && eliminationPending_[i];
+}
+bool GameEngine::hasPendingElimination() const {
+  for (uint8_t i = 0; i < playerCount_; ++i) if (eliminationPending_[i]) return true;
+  return false;
+}
+bool GameEngine::resolveElimination(uint8_t victim, uint8_t source, bool self, uint32_t nowMs) {
+  const int i = indexForPlayerNumber(victim);
+  if (!running_ || gameOver_ || !paused_ || winClaimActive_ || doom_.selected || i < 0 ||
+      !eliminationPending_[i] || (self && source) || !validEliminationCredit(victim, source)) return false;
+  eliminationPending_[i] = false; selfEliminated_[i] = self; eliminatedBy_[i] = source;
+  const int mate = teammateIndex(i);
+  if (mate >= 0) { eliminationPending_[mate] = false; selfEliminated_[mate] = self; eliminatedBy_[mate] = source; }
+  if (source) doomLeft(source);
+  if (hasPendingElimination()) return true;
+  if (starCommander()) evaluateStarVictory(nowMs);
+  else if (!livingSideCount()) finishGame(0, nowMs);
+  else if (livingSideCount() == 1) {
+    for (uint8_t j = 0; j < playerCount_; ++j) if (!eliminated_[j]) { finishGame(players_[j].playerNumber, nowMs); break; }
+  }
+  return true;
+}
+
 bool GameEngine::prepareDoomDraw(uint32_t cycle, uint8_t pick) {
   if (!paused_ || gameOver_ || winClaimActive_ || !doomActive() || !doom_.pending ||
-      cycle != doom_.cycle || hasPendingLifeChanges()) return false;
+      cycle != doom_.cycle || hasPendingLifeChanges() || hasPendingElimination()) return false;
   if (doom_.selected) return true;  // Failed/uncertain saves never choose again.
   if (!doom_.atRisk) return true;
   if (pick >= doomCount(doom_.atRisk)) return false;
@@ -700,10 +735,18 @@ bool GameEngine::resolveEliminationRules(uint32_t nowMs) {
     if (!changed && restoreRunning) pause(nowMs);
     batchElimination_ = true;
     bool finished = false;
-    changed |= eliminatePlayer(players_[i].playerNumber, nowMs, finished);
+    const bool removed = eliminatePlayer(players_[i].playerNumber, nowMs, finished);
+    changed |= removed;
+    if (removed && settings_.askEliminationSource) {
+      eliminationPending_[i] = true;
+      const int mate = teammateIndex(i);
+      if (mate >= 0) eliminationPending_[mate] = true;
+    }
   }
   batchElimination_ = false;
   if (!changed) return false;
+  // Attribution must be saved before completion/statistics, including the last removal.
+  if (hasPendingElimination()) return true;
   // The whole batch is applied; only now is the outcome decided.
   if (starCommander()) {
     if (!evaluateStarVictory(nowMs) && restoreRunning) resume(nowMs);
@@ -762,6 +805,7 @@ void GameEngine::finishGameWithWinners(uint16_t winners, uint32_t nowMs) {
   paused_ = false;
   gameOver_ = true;
   doom_.pending = false; doom_.selected = doom_.pendingTurn = 0;
+  for (uint8_t i = 0; i < playerCount_; ++i) eliminationPending_[i] = false;
   cancelLifeChanges();
   clearWinClaim();
 
@@ -774,7 +818,7 @@ bool GameEngine::beginWinClaim(
     uint8_t playerNumber,
     bool restoreRunning,
     uint32_t nowMs) {
-  if (doom_.pending) return false;
+  if (doom_.pending || hasPendingElimination()) return false;
   if (!running_ || gameOver_ || winClaimActive_) {
     return false;
   }

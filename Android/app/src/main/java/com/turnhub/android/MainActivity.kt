@@ -498,6 +498,8 @@ class MainActivity : ComponentActivity() {
                                 onPlayerCounter = homeViewModel::onPlayerCounter,
                                 onEliminationRule = homeViewModel::onEliminationRule,
                                 onDoom = homeViewModel::onDoom,
+                                onEliminate = homeViewModel::onEliminate,
+                                onResolveElimination = homeViewModel::onResolveElimination,
                                 onSaveGameSettings = homeViewModel::onSaveGameSettings,
                                 onSetZeroLifeElimination = homeViewModel::onSetZeroLifeElimination,
                             ),

@@ -245,6 +245,7 @@ IntentResult handleTogglePauseIntent(const Intent &intent, void *);
 IntentResult handleConcedeIntent(const Intent &intent, void *);
 IntentResult handleClaimMonarchIntent(const Intent &intent, void *context);
 IntentResult handleEliminateSeatIntent(const Intent &intent, void *);
+IntentResult handleResolveEliminationIntent(const Intent &intent, void *);
 IntentResult handleDoomBagIntent(const Intent &intent, void *);
 IntentResult handleClaimWinIntent(const Intent &intent, void *);
 IntentResult handleConfirmWinIntent(const Intent &intent, void *);

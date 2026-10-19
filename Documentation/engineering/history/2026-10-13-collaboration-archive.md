@@ -1513,3 +1513,42 @@ management/invitations from TH-002 remain separate planned work.
   elimination selection (including duplicate names), stats/history/shares and
   recovery on phone/tablet; flash/reset prototype Atlas statistics for the new
   layouts. No merge or release performed.
+
+## TH-030: Bag of Doom Commander variant
+
+- Date / owner: 2026-10-19 / Codex on `codex/master`, baseline `e0af27b`.
+  Fetched origin; clean tree, #134 merged and no open PR. New reviewable slice.
+- Owner requested the game mode after ten-player and general elimination credit
+  landed. Implement Commander rules with a five-player minimum; app capacity
+  remains ten. Use the episode's community rule summary, with the reset
+  interpretation confirmed by the owner: reset after every check. Primary video is linked but its
+  spoken rules could not be retrieved; do not claim transcript verification.
+- Feature gate: Atlas GameEngine owns connected bag state and validates new
+  DoomBag Intents; StandaloneGame owns independent phone games. Both capture
+  life-loss immunity, a movable cycle boundary, pending checks and committed
+  results. Atlas checkpoints the selected draw before revealing/applying it;
+  standalone commits its complete snapshot synchronously before publishing. Clients only
+  render bag state and submit cycle/boot/revision-guarded draw/correction/credit
+  requests. Extend profile/state/control/import and recovery contracts; no new
+  dependencies or third-party assets. Text statuses, labeled controls, selected
+  semantics and reduced-motion presentation provide accessible alternatives.
+- Scope includes credited-elimination resets, no-credit bag removals, shutdown
+  at four survivors, empty checks, delayed life approvals, recovery/rematch,
+  stale/repeated draws, rules guidance and regression tests. No merge/release.
+- Implemented both authorities, tablet/personal controls, recovery schema 7 and
+  main elimination statistics integration. Rules/manual and source/IP notes
+  updated; no runtime dependencies or bundled media.
+- Implementation commits: `107ee30`, `67eaccd`; [PR #135](https://github.com/rickethyo/TurnHub/pull/135).
+- Validation: all four local ASan/UBSan host suites pass (unoptimized local
+  compiler override), including new rules, failed-save recovery, HTTP
+  authorization/freshness/retry and hidden reservations. Adapter audit, client
+  contracts (14 generated responses / 12 fixtures), docs, tokens, manual export
+  and whitespace pass. Manual pages 8–9 rendered and visually reviewed.
+  [Final CI](https://github.com/rickethyo/TurnHub/actions/runs/39262217598) passes
+  on `67eaccd`: optimized sanitizer suites/contracts, Android compilation/full JVM
+  suite/release bundle, firmware and LVGL. [iOS passes](https://github.com/rickethyo/TurnHub/actions/runs/39262217529).
+  CI caught an old unknown-format fixture using the newly valid ID 5; it now
+  uses ID 6. Bag-panel Back navigation and retention after credit are included.
+- Next owner: review/integrate #135 with a merge commit and retain `codex/master`.
+  Physical ten-player, accessibility, process-death and power-cut acceptance
+  remains open in STAGED_CHANGES.md. No merge or release performed.

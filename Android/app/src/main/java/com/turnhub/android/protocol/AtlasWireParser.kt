@@ -341,6 +341,8 @@ object AtlasWireParser {
         displayName = player.optionalString("displayName"),
         eliminated = player.boolean("eliminated"),
         conceded = player.optionalBoolean("conceded"),
+        selfEliminated = player.optionalBoolean("selfEliminated"),
+        eliminationPending = player.optionalBoolean("eliminationPending"),
         eliminatedBy = player.optionalInt("eliminatedBy").also { source ->
             if (source != null && (source !in 1..16 || source == player.int("playerNumber") ||
                 !player.boolean("eliminated") || player.optionalBoolean("conceded"))) malformed("Invalid elimination credit")
@@ -373,7 +375,10 @@ object AtlasWireParser {
                 windowMs = request.int("windowMs").toLong(),
             )
         },
-    )
+    ).also { parsed ->
+        if ((parsed.selfEliminated || parsed.eliminationPending) && (!parsed.eliminated || parsed.conceded || parsed.eliminatedBy != null) ||
+            (parsed.selfEliminated && parsed.eliminationPending)) malformed("Invalid elimination attribution")
+    }
 
     // --- strict field helpers -------------------------------------------------
 

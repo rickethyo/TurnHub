@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-030 | Bag of Doom Commander | Atlas, Android, protocol, recovery | Ready for review; CI passes | Owner / PR #135 |
+| TH-030 | Bag of Doom Commander | Atlas, Android, protocol, recovery | Active follow-up | Codex / explicit source + full-screen checks |
 | TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
@@ -56,44 +56,32 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 Ten-player app and general elimination credit landed in [PR #134](https://github.com/rickethyo/TurnHub/pull/134); acceptance remains in [Staged Changes](Documentation/engineering/STAGED_CHANGES.md).
 
-## TH-030: Bag of Doom Commander variant
+## TH-030: Full-screen bag checks and explicit elimination source
 
-- Date / owner: 2026-10-19 / Codex on `codex/master`, baseline `e0af27b`.
-  Fetched origin; clean tree, #134 merged and no open PR. New reviewable slice.
-- Owner requested the game mode after ten-player and general elimination credit
-  landed. Implement Commander rules with a five-player minimum; app capacity
-  remains ten. Use the episode's community rule summary, with the reset
-  interpretation confirmed by the owner: reset after every check. Primary video is linked but its
-  spoken rules could not be retrieved; do not claim transcript verification.
-- Feature gate: Atlas GameEngine owns connected bag state and validates new
-  DoomBag Intents; StandaloneGame owns independent phone games. Both capture
-  life-loss immunity, a movable cycle boundary, pending checks and committed
-  results. Atlas checkpoints the selected draw before revealing/applying it;
-  standalone commits its complete snapshot synchronously before publishing. Clients only
-  render bag state and submit cycle/boot/revision-guarded draw/correction/credit
-  requests. Extend profile/state/control/import and recovery contracts; no new
-  dependencies or third-party assets. Text statuses, labeled controls, selected
-  semantics and reduced-motion presentation provide accessible alternatives.
-- Scope includes credited-elimination resets, no-credit bag removals, shutdown
-  at four survivors, empty checks, delayed life approvals, recovery/rematch,
-  stale/repeated draws, rules guidance and regression tests. No merge/release.
-- Implemented both authorities, tablet/personal controls, recovery schema 7 and
-  main elimination statistics integration. Rules/manual and source/IP notes
-  updated; no runtime dependencies or bundled media.
-- Implementation commits: `107ee30`, `67eaccd`; [PR #135](https://github.com/rickethyo/TurnHub/pull/135).
-- Validation: all four local ASan/UBSan host suites pass (unoptimized local
-  compiler override), including new rules, failed-save recovery, HTTP
-  authorization/freshness/retry and hidden reservations. Adapter audit, client
-  contracts (14 generated responses / 12 fixtures), docs, tokens, manual export
-  and whitespace pass. Manual pages 8–9 rendered and visually reviewed.
-  [Final CI](https://github.com/rickethyo/TurnHub/actions/runs/39262217598) passes
-  on `67eaccd`: optimized sanitizer suites/contracts, Android compilation/full JVM
-  suite/release bundle, firmware and LVGL. [iOS passes](https://github.com/rickethyo/TurnHub/actions/runs/39262217529).
-  CI caught an old unknown-format fixture using the newly valid ID 5; it now
-  uses ID 6. Bag-panel Back navigation and retention after credit are included.
-- Next owner: review/integrate #135 with a merge commit and retain `codex/master`.
-  Physical ten-player, accessibility, process-death and power-cut acceptance
-  remains open in STAGED_CHANGES.md. No merge or release performed.
+- Owner / baseline: Codex, `codex/master`, `2c684c7` (PR #135 merged).
+  Clean tree, fetched origin, no open PR. Owner's first playtest requested a
+  full-screen bag check and an explicit “Eliminated by?” question with Self.
+- Feature gate: GameEngine / StandaloneGame own pending attribution and Self
+  metadata. App-started games pause automatic removals and defer the outcome /
+  statistics until pending sources are answered. New ResolveElimination Intent
+  validates victim, opponent/self/unknown choice and snapshot freshness. Recovery
+  and local snapshots persist the pending question and answer; checkpoint exit
+  flags add Self/pending bits. Explicit manual removal asks before committing.
+  Bag draws/concessions are already known and never ask or infer turn ownership.
+- Renderers: shared full-screen Compose prompts on tablet and personal Game.
+  Named player choices include off-turn and eliminated opponents; Self/Unknown
+  give no opponent credit or bag reset. No source is preselected. Contracts and
+  local history/import preserve Self. App start opts into the interactive flow;
+  starts without the policy keep immediate uncredited automatic removal
+  outside Bag of Doom. No new
+  dependency/media; large labeled controls, scrolling, TalkBack and safe insets.
+- Implementation complete; local four-suite ASan/UBSan host run, client
+  contracts, adapter audit, docs, tokens and manual export pass. Added general
+  HTTP final-elimination statistics coverage (syntax-checked; CI pending) and
+  JVM cases for off-turn/Self/Unknown, all-out/teams, recovery, rematches and
+  stale answers. Android build/JVM checks will run in the new PR; local Gradle
+  remains blocked by the previously recorded Foojay resolution issue.
+- New PR needed because #135 was merged. No merge or release authorization.
 
 ## New topic / reply template
 

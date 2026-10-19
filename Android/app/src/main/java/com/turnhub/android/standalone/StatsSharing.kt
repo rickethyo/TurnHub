@@ -68,6 +68,7 @@ fun GameRecord.shareSummary(formatName: String): String {
             if (p.extensionsUsed > 0) append(" · ${p.extensionsUsed} extensions used")
             if (place != null) append(" · $place")
             if (p.bagDrawn) append(" · Bag of Doom")
+            if (p.selfEliminated) append(" · eliminated by self")
             p.eliminatedBy?.let { source -> players.getOrNull(source)?.let { append(" · eliminated by ${it.name}") } }
             appendLine()
         }
