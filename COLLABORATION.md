@@ -980,4 +980,8 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   shows only for Death May Die (also hidden while the Game tab shows Atlas) and is
   redrawn to the app's polish: summoning-circle header, track path with sliding
   marker, symbol sigils, stage ladder, wound ring, rules folded into a disclosure.
+- Merged as #142. Follow-up (owner, from a playtester): optional pass-the-device
+  **Guided setup** for every device game, ending on a confirm screen with Start
+  or back to the setup menu (`ui/tablet/GuidedSetup.kt`; GAMEPLAY.md "Guided
+  setup"). Device playtest pending.
 

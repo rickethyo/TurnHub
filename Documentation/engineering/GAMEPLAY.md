@@ -180,6 +180,16 @@ loss condition; Commander damage totals alone do not trigger elimination.
   formats Atlas runs. The Magic format's tile is "Standard"; its game modes are
   Free-for-all and Two-Headed Giant, and Star Commander shows only under
   Commander (`GameMode.availableFor`).
+- **Guided setup** (owner, 2026-10-19, idea from a playtester; device game only,
+  optional, *needs a playtest*): under the game choice, **Guided setup: pass the
+  device** goes round the seats. Each player gets a "Pass the device to" screen
+  (or Skip), then their own choices: Death May Die investigator, sanity
+  condition and enabled relic; other games tile card or commander. Saved
+  players also get tile color and photo. A confirm screen lists everyone's choices
+  and what is still missing, with Edit per player, **Start the game** (the
+  normal Start path, so first-player choice and the setup gate still apply)
+  and **Back to the setup menu**, which keeps every choice
+  (`ui/tablet/GuidedSetup.kt`, using the lobby's `TableLobbyActions`).
 - Custom starting life 0 to 1,000,000 (custom modes or house rules). Any
   seated player may change the next game's settings in the lobby
   (`ConfigureGame`); a running match keeps what it captured at start, and a

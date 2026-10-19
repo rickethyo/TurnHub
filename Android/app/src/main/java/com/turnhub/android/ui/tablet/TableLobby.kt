@@ -105,6 +105,7 @@ internal fun TableLobby(
     val officialMode = officialRules(settings.profile, settings.twoHeadedGiant)
     val official = officialMode.takeIf { actions.houseRules != null }
     val locked = official != null && !settings.houseRules
+    var guided by rememberSaveable { mutableStateOf(false) }
     Box(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.safeDrawingPadding()), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -287,6 +288,14 @@ internal fun TableLobby(
                     }
                 }
                 extraSettings()
+                // Optional: the device goes round the table and each player makes their own choices.
+                if (phoneHosted && players.isNotEmpty()) {
+                    ToneButton("Guided setup: pass the device", { guided = true }, Modifier.fillMaxWidth(), enabled = enabled)
+                    Text(if (settings.profile.deathMayDie) "Each player picks their investigator, sanity condition" +
+                        (if (summary.useRelics) " and relic" else "") + " in turn, then everyone confirms."
+                        else "Each player picks their own tile card and color in turn, then everyone confirms.",
+                        color = p.faint, style = MaterialTheme.typography.bodySmall)
+                }
             }
             // Rules fold away behind a title that already says the usual answer.
             val ruleSummary = listOfNotNull(
@@ -354,6 +363,9 @@ internal fun TableLobby(
             startHint?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
             var askingFirst by rememberSaveable { mutableStateOf(false) }
             val startWith = actions.startWith?.takeIf { !settings.profile.cooperative }
+            if (guided) GuidedSetupDialog(summary, actions, enabled && startReady, startHint,
+                onStart = { guided = false; if (startWith != null) askingFirst = true else actions.start() },
+                onClose = { guided = false })
             if (askingFirst && startWith != null) FirstPlayerPicker(players, settings.twoHeadedGiant,
                 { player -> askingFirst = false; startWith(player) }) { askingFirst = false }
             StartTableButton(players.size, settings.twoHeadedGiant, enabled && startReady, settings.profile.starCommander,
