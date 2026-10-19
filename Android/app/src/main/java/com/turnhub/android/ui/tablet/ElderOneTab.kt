@@ -515,7 +515,7 @@ private fun StoryRules() {
 
 /** Picks an Elder One or episode by box, or takes a typed name; Clear unsets it. */
 @Composable
-private fun StoryPickerDialog(title: String, groups: List<StoryGroup>, current: String?, onSave: (String?) -> Unit, onDismiss: () -> Unit) {
+internal fun StoryPickerDialog(title: String, groups: List<StoryGroup>, current: String?, onSave: (String?) -> Unit, onDismiss: () -> Unit) {
     val p = palette
     var query by rememberSaveable { mutableStateOf("") }
     val search = query.trim()

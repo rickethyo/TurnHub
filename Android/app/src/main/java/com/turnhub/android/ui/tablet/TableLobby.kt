@@ -71,6 +71,9 @@ internal data class TableLobbyActions(
     val investigator: ((player: TablePlayer, name: String?) -> Unit)? = null,
     val dealInvestigatorCards: ((TablePlayer, InvestigatorCardSlot) -> Unit)? = null,
     val investigatorCard: ((TablePlayer, InvestigatorCardSlot, InvestigatorCard?) -> Unit)? = null,
+    /** Death May Die: names (or clears, null) the Elder One and the episode; null hides them in guided setup. */
+    val elderOne: ((String?) -> Unit)? = null,
+    val episode: ((String?) -> Unit)? = null,
 )
 
 @OptIn(ExperimentalLayoutApi::class)

@@ -182,15 +182,18 @@ loss condition; Commander damage totals alone do not trigger elimination.
   Commander (`GameMode.availableFor`).
 - **Guided setup** (owner, 2026-10-19, idea from a playtester; device game only,
   optional, *needs a playtest*): under the game choice, **Guided setup: pass the
-  device** goes round the seats. Each player gets a "Pass the device to" screen
+  device** goes round the seats. Death May Die opens on a Story step for the
+  whole table: the Elder One and episode (optional, the Elder One tab's picker).
+  Each player then gets a "Pass the device to" screen
   (or Skip), then their own choices: Death May Die investigator, sanity
   condition and enabled relic; other games tile card or commander. Saved
-  players also get tile color and photo. A confirm screen lists everyone's choices
-  and what is still missing, with Edit per player, **Start the game** (the
-  normal Start path, so first-player choice and the setup gate still apply)
-  and **Back to the setup menu**, which keeps every choice
+  players also get tile color and photo. A confirm screen lists the story,
+  everyone's choices and what is still missing, with Edit for each, **Start the
+  game** (the normal Start path, so first-player choice and the setup gate
+  still apply) and **Back to the setup menu**, which keeps every choice
   (`ui/tablet/GuidedSetup.kt`, using the lobby's `TableLobbyActions`). It fills
-  the screen edge to edge; portraits are cropped toward the top so faces show.
+  the screen edge to edge and shows each investigator's whole portrait; table
+  tiles crop art toward the top so faces show.
 - Custom starting life 0 to 1,000,000 (custom modes or house rules). Any
   seated player may change the next game's settings in the lobby
   (`ConfigureGame`); a running match keeps what it captured at start, and a

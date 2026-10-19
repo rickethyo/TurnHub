@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.turnhub.android.domain.DeathMayDieStory
 import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
@@ -68,10 +69,13 @@ internal fun GuidedSetupDialog(
     onClose: () -> Unit,
 ) {
     val players = summary.players.sortedBy { it.playerNumber }
-    // Steps: per player a hand-off screen then their choices, and the confirm screen last.
+    // Death May Die opens on the table's shared Story choices, before the device goes round.
+    val story = summary.settings.profile.deathMayDie && actions.elderOne != null && actions.episode != null
+    val first = if (story) 1 else 0
+    // Steps: the Story step, per player a hand-off screen then their choices, and the confirm screen last.
     var step by rememberSaveable { mutableStateOf(0) }
     var backToConfirm by rememberSaveable { mutableStateOf(false) }
-    val confirm = players.size * 2
+    val confirm = first + players.size * 2
     val at = step.coerceIn(0, confirm)
     val next = { step = if (backToConfirm) confirm else at + 1; backToConfirm = false }
     // Edge to edge like the app behind it, and wide enough to use a tablet's width.
@@ -82,19 +86,57 @@ internal fun GuidedSetupDialog(
                 verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        if (at < confirm) "Guided setup · player ${at / 2 + 1} of ${players.size}" else "Guided setup · confirm",
+                        when {
+                            at < first -> "Guided setup · the story"
+                            at < confirm -> "Guided setup · player ${(at - first) / 2 + 1} of ${players.size}"
+                            else -> "Guided setup · confirm"
+                        },
                         color = p.muted, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f),
                     )
                     TextButton(onClose) { Text("Exit") }
                 }
-                val player = players.getOrNull(at / 2)
+                val player = players.getOrNull((at - first) / 2)
                 when {
+                    at < first -> StoryStep(summary, actions, back = backToConfirm, onDone = next)
                     player == null || at >= confirm -> ConfirmStep(summary, players, startReady, startHint,
-                        onEdit = { index -> step = index * 2 + 1; backToConfirm = true }, onStart = onStart, onBack = onClose)
-                    at % 2 == 0 -> HandOffStep(player, onReady = { step = at + 1 }, onSkip = { step = at + 2 })
+                        onEditStory = if (story) ({ step = 0; backToConfirm = true }) else null,
+                        onEdit = { index -> step = first + index * 2 + 1; backToConfirm = true }, onStart = onStart, onBack = onClose)
+                    (at - first) % 2 == 0 -> HandOffStep(player, onReady = { step = at + 1 }, onSkip = { step = at + 2 })
                     else -> PlayerStep(summary, player, actions, last = at + 1 == confirm || backToConfirm, onDone = next)
                 }
             }
+        }
+    }
+}
+
+/** Death May Die: the Elder One and episode the whole table plays, chosen once before the device goes round. */
+@Composable
+private fun StoryStep(summary: TableSummary, actions: TableLobbyActions, back: Boolean, onDone: () -> Unit) {
+    val p = palette
+    val elder = summary.elder
+    var picking by rememberSaveable { mutableStateOf<String?>(null) }
+    Text("The story", color = p.text, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
+    Text("Choose the Elder One and episode from the box you are playing. Both are optional, and the Elder One tab can change them later.",
+        color = p.muted)
+    BrassCard {
+        Eyebrow("Elder One")
+        Text(elder?.elderOne ?: "Not chosen", color = if (elder?.elderOne == null) p.muted else p.text,
+            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        ToneButton(if (elder?.elderOne == null) "Choose the Elder One" else "Change the Elder One", { picking = "elder" }, Modifier.fillMaxWidth())
+    }
+    BrassCard {
+        Eyebrow("Episode")
+        Text(elder?.episode ?: "Not chosen", color = if (elder?.episode == null) p.muted else p.text,
+            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        ToneButton(if (elder?.episode == null) "Choose the episode" else "Change the episode", { picking = "episode" }, Modifier.fillMaxWidth())
+    }
+    AccentButton(if (back) "Done: review the table" else "Next: pass the device round", onDone, Modifier.fillMaxWidth())
+    when (picking) {
+        "elder" -> actions.elderOne?.let { save ->
+            StoryPickerDialog("Elder One", DeathMayDieStory.elderOnes, elder?.elderOne, { save(it); picking = null }) { picking = null }
+        }
+        "episode" -> actions.episode?.let { save ->
+            StoryPickerDialog("Episode", DeathMayDieStory.episodes, elder?.episode, { save(it); picking = null }) { picking = null }
         }
     }
 }
@@ -207,6 +249,7 @@ private fun ConfirmStep(
     players: List<TablePlayer>,
     startReady: Boolean,
     startHint: String?,
+    onEditStory: (() -> Unit)?,
     onEdit: (Int) -> Unit,
     onStart: () -> Unit,
     onBack: () -> Unit,
@@ -217,6 +260,18 @@ private fun ConfirmStep(
         modifier = Modifier.semantics { heading() })
     Text(settings.profile.displayName() + if (settings.twoHeadedGiant) " · Two-Headed Giant" else "", color = p.muted,
         style = MaterialTheme.typography.titleMedium)
+    onEditStory?.let { edit ->
+        BrassCard {
+            Eyebrow("The story")
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("Elder One: ${summary.elder?.elderOne ?: "not chosen"}", color = p.text, style = MaterialTheme.typography.bodyLarge)
+                    Text("Episode: ${summary.elder?.episode ?: "not chosen"}", color = p.text, style = MaterialTheme.typography.bodyLarge)
+                }
+                TextButton(edit) { Text("Edit") }
+            }
+        }
+    }
     BrassCard {
         Eyebrow("At the table")
         players.forEachIndexed { index, player ->
