@@ -114,7 +114,8 @@ internal fun TableLobby(
                 AppVersionLabel()
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { headerActions() }
             }
-            introduction?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
+            // The app's Game tab opens straight on the table; the tagline is for the full-screen lobby.
+            introduction?.takeIf { !embedded }?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
             feedback()
             BrassCard {
                 Eyebrow("At the table") {
@@ -285,9 +286,21 @@ internal fun TableLobby(
                         }
                     }
                 }
+                extraSettings()
             }
-            BrassCard {
-                Eyebrow("Rules")
+            // Rules fold away behind a title that already says the usual answer.
+            val ruleSummary = listOfNotNull(
+                "Rules",
+                when {
+                    settings.profile.deathMayDie -> null
+                    settings.profile.pokemon -> "${settings.startingLife} Prize cards"
+                    settings.profile.lorcana -> "${settings.startingLife} lore to win"
+                    else -> "${settings.startingLife} life"
+                },
+                if (!settings.turnTimerEnabled) "No turn timer" else "${com.turnhub.android.domain.TurnTimerStatus.settingLabel(settings.turnTimerMs)} turns",
+                "house rules".takeIf { official != null && settings.houseRules },
+            ).joinToString(" · ")
+            DisclosureCard(ruleSummary) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(when {
                         settings.profile.cooperative -> "Co-op: everyone wins or loses together"
@@ -337,7 +350,6 @@ internal fun TableLobby(
                 if (settings.profile.countsLife) {
                     SetupSwitch("Automatic elimination at zero life", null, settings.autoEliminateAtZeroLife, settingsEnabled, actions.zeroLife)
                 }
-                extraSettings()
             }
             startHint?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
             var askingFirst by rememberSaveable { mutableStateOf(false) }
