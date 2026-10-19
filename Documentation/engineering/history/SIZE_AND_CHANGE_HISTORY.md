@@ -1052,4 +1052,7 @@ Baseline `e0af27b`; firmware versions unchanged. Source snapshot: Atlas
 10,811 raw bytes. Match checkpoint schema 7 adds 22 fixed header bytes,
 raising the maximum 16-player record from 3,040 to 3,062 bytes. Statistics
 layouts and radio payloads are unchanged. No new dependencies or bundled media.
-Firmware flash/RAM and ten-player device performance remain unmeasured.
+CI Atlas compile target (`107ee30`): static RAM 102,260 / 327,680 bytes (31.2%);
+flash 1,285,813 / 1,966,080 bytes (65.4%). This board-less target is a compile
+measurement; S3 hardware memory/performance and ten-player device play remain
+unverified.

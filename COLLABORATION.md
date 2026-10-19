@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-030 | Bag of Doom Commander | Atlas, Android, protocol, recovery | Ready for review; final CI running | Codex / PR #135 |
+| TH-030 | Bag of Doom Commander | Atlas, Android, protocol, recovery | Ready for review; CI passes | Owner / PR #135 |
 | TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
@@ -80,15 +80,20 @@ Ten-player app and general elimination credit landed in [PR #134](https://github
 - Implemented both authorities, tablet/personal controls, recovery schema 7 and
   main elimination statistics integration. Rules/manual and source/IP notes
   updated; no runtime dependencies or bundled media.
-- Local ASan/UBSan scenarios pass (unoptimized local compiler override); includes
-  new rule, persistence-failure, HTTP authorization/freshness/retry and hidden
-  reservation cases. Client contracts, adapters, docs, tokens and manual export
-  pass; manual pages 8–9 rendered and visually reviewed. All four local host suites pass. Android compilation, full JVM suite/release bundle, Atlas firmware, LVGL and iOS pass in CI on `107ee30`.
-  CI caught an outdated unknown-format fixture (ID 5 is now valid); corrected
-  it to ID 6 and reran local storage/profile/OTA suites successfully. A follow-up
-  also closes the bag panel on Back and retains it after an elimination credit.
-  [PR #135](https://github.com/rickethyo/TurnHub/pull/135) targets master; final CI pending. Physical acceptance
-  remains open in STAGED_CHANGES.md. No merge/release performed.
+- Implementation commits: `107ee30`, `67eaccd`; [PR #135](https://github.com/rickethyo/TurnHub/pull/135).
+- Validation: all four local ASan/UBSan host suites pass (unoptimized local
+  compiler override), including new rules, failed-save recovery, HTTP
+  authorization/freshness/retry and hidden reservations. Adapter audit, client
+  contracts (14 generated responses / 12 fixtures), docs, tokens, manual export
+  and whitespace pass. Manual pages 8–9 rendered and visually reviewed.
+  [Final CI](https://github.com/rickethyo/TurnHub/actions/runs/39262217598) passes
+  on `67eaccd`: optimized sanitizer suites/contracts, Android compilation/full JVM
+  suite/release bundle, firmware and LVGL. [iOS passes](https://github.com/rickethyo/TurnHub/actions/runs/39262217529).
+  CI caught an old unknown-format fixture using the newly valid ID 5; it now
+  uses ID 6. Bag-panel Back navigation and retention after credit are included.
+- Next owner: review/integrate #135 with a merge commit and retain `codex/master`.
+  Physical ten-player, accessibility, process-death and power-cut acceptance
+  remains open in STAGED_CHANGES.md. No merge or release performed.
 
 ## New topic / reply template
 
