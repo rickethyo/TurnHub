@@ -1,6 +1,7 @@
 package com.turnhub.android.ui.tablet
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -110,6 +111,22 @@ internal fun TableLobby(
             }
             introduction?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
             feedback()
+            // The game and mode come first: they set the shape of the table preview below.
+            BrassCard {
+                Eyebrow("Game")
+                if (!settingsEnabled) Text("Add a player to choose the game.", color = p.muted)
+                GamePicker(settings.profile, settingsEnabled, phoneHosted) { profile ->
+                    actions.settings(profile, StandaloneGame.defaultLife(profile, settings.twoHeadedGiant && profile.magicRules), null)
+                }
+                if (settings.profile.magicRules) {
+                    GameModeChips(settings.profile, GameMode.of(settings.profile, settings.twoHeadedGiant), settingsEnabled) { mode ->
+                        if (mode != GameMode.of(settings.profile, settings.twoHeadedGiant)) {
+                            val change = settingsForMode(settings.profile, mode)
+                            actions.settings(change.profile, change.life, change.teams)
+                        }
+                    }
+                }
+            }
             BrassCard {
                 Eyebrow("At the table") {
                     TextButton(onClick = actions.clear, enabled = enabled && players.any(actions.canRemove)) { Text("Clear all") }
@@ -161,8 +178,19 @@ internal fun TableLobby(
                             Column(Modifier.weight(1f)) {
                                 Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1,
                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                                if (investigators) Text(player.investigator ?: "No investigator yet", color = p.muted,
-                                    style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic)
+                                // The usual next step for an empty seat is one tap away, outside the menu.
+                                if (investigators) {
+                                    if (player.investigator != null) Text(player.investigator, color = p.muted,
+                                        style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic)
+                                    else SeatShortcut("Choose investigator", "Choose ${player.label}'s investigator", enabled) {
+                                        choosingInvestigator = player.playerNumber
+                                    }
+                                }
+                                if (actions.commander != null && settings.profile.commanderRules && player.commander == null) {
+                                    SeatShortcut("Name commander", "Name ${player.label}'s commander", enabled) {
+                                        namingCommander = player.playerNumber
+                                    }
+                                }
                                 player.namedCommander?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
                                 // The tile card shows as soon as it is saved; its credit follows once the art arrives.
                                 val art = rememberCommanderArt(player.commander, player.commanderArt)
@@ -254,19 +282,7 @@ internal fun TableLobby(
                     } ?: starterHint, color = p.muted, style = MaterialTheme.typography.bodySmall)
             }
             BrassCard {
-                Eyebrow("Game")
-                if (!settingsEnabled) Text("Add a player to choose the game.", color = p.muted)
-                GamePicker(settings.profile, settingsEnabled, phoneHosted) { profile ->
-                    actions.settings(profile, StandaloneGame.defaultLife(profile, settings.twoHeadedGiant && profile.magicRules), null)
-                }
-                if (settings.profile.magicRules) {
-                    GameModeChips(settings.profile, GameMode.of(settings.profile, settings.twoHeadedGiant), settingsEnabled) { mode ->
-                        if (mode != GameMode.of(settings.profile, settings.twoHeadedGiant)) {
-                            val change = settingsForMode(settings.profile, mode)
-                            actions.settings(change.profile, change.life, change.teams)
-                        }
-                    }
-                }
+                Eyebrow("Rules")
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(when {
                         settings.profile.cooperative -> "Co-op: everyone wins or loses together"
@@ -333,6 +349,16 @@ internal fun TableLobby(
             footer()
         }
     }
+}
+
+/** A small accent link under a player's name for the step their seat still needs. */
+@Composable
+private fun SeatShortcut(label: String, description: String, enabled: Boolean, onClick: () -> Unit) {
+    Text("+ $label", color = if (enabled) palette.accent else palette.faint, style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier
+            .clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+            .semantics { contentDescription = description }
+            .padding(vertical = 4.dp))
 }
 
 internal data class LobbyModeSettings(val profile: GameProfile?, val life: Int?, val teams: Boolean)
