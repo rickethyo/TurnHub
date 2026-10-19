@@ -91,6 +91,18 @@ internal fun turnPanelHeight(unit: TableUnit, summary: TableSummary, narrow: Boo
 }
 
 /**
+ * Room every panel keeps for [TurnPanelLines] while the game runs, in dp: the action row is
+ * reserved whether or not this panel holds the turn, so passing never moves the number.
+ */
+internal fun turnPanelReserve(unit: TableUnit, summary: TableSummary, narrow: Boolean): Float {
+    val shown = turnPanelHeight(unit, summary, narrow)
+    if (summary.settings.profile.cooperative || summary.state != TableState.RUNNING || unit.out) return shown
+    val actions = TurnAction.of(summary.settings.profile).size
+    val row = if (actions == 0) 0f else if (narrow && actions > 2) 96f else 48f
+    return maxOf(shown, row + if (unit.members.any { it.turn.conditions.isNotEmpty() }) 26f else 0f)
+}
+
+/**
  * Under the number: the Active Pokémon's Special Conditions and, while it's this
  * player's turn, the first-turn rule and the once-per-turn actions to tick off.
  */

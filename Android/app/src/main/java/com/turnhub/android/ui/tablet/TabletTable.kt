@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -893,12 +895,14 @@ private fun PlayerPanel(
         // Pokémon and Lorcana: the number is prizes or lore, with turn reminders under it.
         val cardGame = !profile.countsLife
         val turnHeight = if (cardGame) turnPanelHeight(unit, summary, maxWidth < 420.dp) else 0f
+        // Turn lines keep their room on every panel, so the number stays put when the turn passes.
+        val turnRoom = if (cardGame) maxOf(turnHeight, turnPanelReserve(unit, summary, maxWidth < 420.dp)) else 0f
         val planarCompact = compact && active && !out && summary.state == TableState.RUNNING && onPlanarRoll != null && maxWidth < 300.dp
         // Column measures the actual action bar first. Life gestures only occupy the
         // remaining area; gaps around Pass can never fall through to life controls.
         Column(Modifier.fillMaxSize()) {
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
-                val between = (maxHeight.value - turnHeight - 52f).coerceAtLeast(24f)
+                val between = (maxHeight.value - turnRoom - 52f).coerceAtLeast(24f)
                 // Room for the lines under the number, so a short panel shrinks the number instead of
                 // squashing those lines to slivers.
                 val demerits = unit.members.first().demerits
@@ -906,9 +910,13 @@ private fun PlayerPanel(
                     (if (summary.settings.profile.magicRules) unit.members.count { m -> counterChips(m.counters, summary.initiativePlayerNumber == m.playerNumber,
                         summary.settings.profile.commanderRules, summary.settings.poisonLimit).isNotEmpty() } * 30f else 0f) +
                     (if (summary.settings.profile.commanderRules && unit.members.any { m -> m.commanderDamage.any { d -> d.damage.any { it > 0 } } }) 26f else 0f)
+                // The room those lines may need is kept from the start of the game, so the first counter or
+                // commander damage doesn't shrink or lift the number; only more than that grows the band.
+                val linesRoom = maxOf(linesBelow, (if (summary.star) 22f else 0f) + (if (cardGame) 20f else 0f) +
+                    (if (summary.settings.profile.magicRules) 30f else 0f) + (if (summary.settings.profile.commanderRules) 26f else 0f))
                 val lifeSize = minOf(
                     minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f,
-                    (between - linesBelow) * .8f,
+                    (between - linesRoom) * .8f,
                 ).coerceIn(24f, 160f)
                 Row(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
                     HoldHalf("−", stepLabel(profile, name, small, adding = false), !out,
@@ -952,7 +960,7 @@ private fun PlayerPanel(
                 }
 
                 Column(
-                    Modifier.align(Alignment.Center).padding(top = 44.dp, bottom = 8.dp + turnHeight.dp)
+                    Modifier.align(Alignment.Center).padding(top = 44.dp, bottom = 8.dp + turnRoom.dp)
                         .alpha(if (out) .45f else 1f)
                         .clearAndSetSemantics {
                             contentDescription = scoreDescription(profile, name, life, summary.settings.startingLife)
@@ -975,17 +983,21 @@ private fun PlayerPanel(
                                     .padding(horizontal = 10.dp, vertical = 1.dp))
                         }
                     }
-                    scoreCaption(profile, life, summary.settings.startingLife)?.let {
-                        Text(it, color = p.muted, style = MaterialTheme.typography.labelLarge)
-                    }
-                    CommanderSummary(unit, summary, offlineCommander)
-                    if (demerits > 0) Text("Demerits · $demerits", color = p.text, style = MaterialTheme.typography.labelMedium)
-                    StarProgressLine(unit, summary, panelWidth)
-                    if (summary.settings.profile.magicRules) {
-                        unit.members.forEach { member ->
-                            CounterChips(member.counters, summary.initiativePlayerNumber == member.playerNumber,
-                                summary.settings.profile.commanderRules, summary.settings.poisonLimit,
-                                Modifier.padding(top = 4.dp), compact = true, commanderRarity = rememberCommanderArt(member.namedCommander, member.commanderArt)?.rarity)
+                    // A fixed band under the number: lines appearing in it never move the number.
+                    Column(Modifier.height(linesRoom.dp).wrapContentHeight(Alignment.Top, unbounded = true),
+                        horizontalAlignment = Alignment.CenterHorizontally) {
+                        scoreCaption(profile, life, summary.settings.startingLife)?.let {
+                            Text(it, color = p.muted, style = MaterialTheme.typography.labelLarge)
+                        }
+                        CommanderSummary(unit, summary, offlineCommander)
+                        if (demerits > 0) Text("Demerits · $demerits", color = p.text, style = MaterialTheme.typography.labelMedium)
+                        StarProgressLine(unit, summary, panelWidth)
+                        if (summary.settings.profile.magicRules) {
+                            unit.members.forEach { member ->
+                                CounterChips(member.counters, summary.initiativePlayerNumber == member.playerNumber,
+                                    summary.settings.profile.commanderRules, summary.settings.poisonLimit,
+                                    Modifier.padding(top = 4.dp), compact = true, commanderRarity = rememberCommanderArt(member.namedCommander, member.commanderArt)?.rarity)
+                            }
                         }
                     }
                 }
@@ -1012,8 +1024,9 @@ private fun PlayerPanel(
                         PlanarDieButton(onPlanarRoll!!, true, Modifier.weight(1f))
                     }
                 } else {
+                    // As tall as Pass on every panel, so the bar doesn't grow when this panel's turn starts.
                     Row(
-                        Modifier.fillMaxWidth(),
+                        Modifier.fillMaxWidth().heightIn(min = 64.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
