@@ -2,6 +2,13 @@ package com.turnhub.android.ui.tablet
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -204,8 +211,7 @@ internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, st
 }
 
 /** How the seat map is explained in both lobbies. */
-internal const val SEAT_MAP_HINT = "This is how the table will look. Drag a player onto another seat to swap them, " +
-    "or tap two seats. Turns go clockwise in number order."
+internal const val SEAT_MAP_HINT = "Drag a player onto another seat, or tap two seats, to swap them. Turns go clockwise in number order."
 
 /** A cooperative game's table is one upright list, and any player still to go may take the next turn. */
 internal const val COOP_MAP_HINT = "At the table, players are listed top to bottom in this order, all facing the same way. Tap two players to swap them. " +
@@ -263,8 +269,26 @@ internal fun GamePicker(selected: GameProfile, enabled: Boolean, phoneHosted: Bo
     }
 }
 
+/**
+ * The game picker folded to the chosen game: one tile that opens the full list. Choosing a
+ * game folds it again, so the setup screen stays short once the game is set.
+ */
 @Composable
-private fun GameTile(choice: GameChoice, selected: Boolean, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
+internal fun FoldingGamePicker(selected: GameProfile, enabled: Boolean, phoneHosted: Boolean, onSelect: (GameProfile) -> Unit) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    val current = FORMATS.firstOrNull { formatSelected(selected, it.profile) }
+    if (open || current == null) {
+        GamePicker(selected, enabled, phoneHosted) { profile -> open = false; onSelect(profile) }
+        if (current != null) TextButton(onClick = { open = false }) { Text("Keep ${current.label}") }
+    } else {
+        GameTile(current, true, enabled, Modifier.fillMaxWidth(), trailing = "Change",
+            description = "Game: ${current.label}. Change the game") { open = true }
+    }
+}
+
+@Composable
+private fun GameTile(choice: GameChoice, selected: Boolean, enabled: Boolean, modifier: Modifier,
+    trailing: String? = null, description: String? = null, onClick: () -> Unit) {
     val p = palette
     val shape = RoundedCornerShape(14.dp)
     val stripe = when (choice.family) {
@@ -279,7 +303,9 @@ private fun GameTile(choice: GameChoice, selected: Boolean, enabled: Boolean, mo
             .clip(shape)
             .background(if (selected) p.accentSoft else p.surface)
             .border(if (selected) 2.dp else 1.dp, if (selected) p.accent else p.line, shape)
-            .selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+            .then(if (trailing == null) Modifier.selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+                else Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+                    .semantics { description?.let { contentDescription = it } })
             .alpha(if (enabled) 1f else .5f)
             .height(IntrinsicSize.Min),
         verticalAlignment = Alignment.CenterVertically,
@@ -289,7 +315,9 @@ private fun GameTile(choice: GameChoice, selected: Boolean, enabled: Boolean, mo
             Text(choice.label, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(choice.detail, color = p.muted, style = MaterialTheme.typography.bodySmall)
         }
-        if (selected) Text("✓", color = p.accent, style = MaterialTheme.typography.titleMedium,
+        if (trailing != null) Text(trailing, color = p.accent, style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(end = 14.dp))
+        else if (selected) Text("✓", color = p.accent, style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 12.dp))
     }
 }

@@ -54,6 +54,11 @@ internal data class TableLobbyActions(
     val canEditBackground: (TablePlayer) -> Boolean = { true },
     /** Picks who goes first; null hides the choice. */
     val chooseStarter: ((TablePlayer) -> Unit)? = null,
+    /**
+     * Sets who goes first (null: random) and starts. When given, Start asks who goes first
+     * full screen and the setup rows carry no First chips.
+     */
+    val startWith: ((TablePlayer?) -> Unit)? = null,
     /** House rules for official modes; null hides the choice. */
     val houseRules: ((Boolean) -> Unit)? = null,
     val timerRules: ((com.turnhub.android.domain.LocalTimerRules) -> Unit)? = null,
@@ -109,24 +114,9 @@ internal fun TableLobby(
                 AppVersionLabel()
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { headerActions() }
             }
-            introduction?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
+            // The app's Game tab opens straight on the table; the tagline is for the full-screen lobby.
+            introduction?.takeIf { !embedded }?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
             feedback()
-            // The game and mode come first: they set the shape of the table preview below.
-            BrassCard {
-                Eyebrow("Game")
-                if (!settingsEnabled) Text("Add a player to choose the game.", color = p.muted)
-                GamePicker(settings.profile, settingsEnabled, phoneHosted) { profile ->
-                    actions.settings(profile, StandaloneGame.defaultLife(profile, settings.twoHeadedGiant && profile.magicRules), null)
-                }
-                if (settings.profile.magicRules) {
-                    GameModeChips(settings.profile, GameMode.of(settings.profile, settings.twoHeadedGiant), settingsEnabled) { mode ->
-                        if (mode != GameMode.of(settings.profile, settings.twoHeadedGiant)) {
-                            val change = settingsForMode(settings.profile, mode)
-                            actions.settings(change.profile, change.life, change.teams)
-                        }
-                    }
-                }
-            }
             BrassCard {
                 Eyebrow("At the table") {
                     TextButton(onClick = actions.clear, enabled = enabled && players.any(actions.canRemove)) { Text("Clear all") }
@@ -206,7 +196,7 @@ internal fun TableLobby(
                                 style = MaterialTheme.typography.labelMedium)
                             // One row per player: the label never changes width, and the rest sits in one menu,
                             // so choosing who goes first or a card never reflows the list.
-                            actions.chooseStarter?.let { choose ->
+                            actions.chooseStarter?.takeIf { actions.startWith == null }?.let { choose ->
                                 val first = summary.starterPlayerNumber == player.playerNumber
                                 FilterChip(selected = first, onClick = { choose(player) }, enabled = enabled,
                                     label = { Text("First") },
@@ -276,13 +266,41 @@ internal fun TableLobby(
                         }
                     }
                 }
-                if (actions.chooseStarter != null && players.size >= 2) Text(
+                if (actions.chooseStarter != null && actions.startWith == null && players.size >= 2) Text(
                     summary.players.firstOrNull { it.playerNumber == summary.starterPlayerNumber }?.let {
                         "${it.label}${if (settings.twoHeadedGiant) "'s team" else ""} goes first."
                     } ?: starterHint, color = p.muted, style = MaterialTheme.typography.bodySmall)
             }
+            // The game folds to one tile once chosen; the mode stays one tap away.
             BrassCard {
-                Eyebrow("Rules")
+                Eyebrow("Game")
+                if (!settingsEnabled) Text("Add a player to choose the game.", color = p.muted)
+                FoldingGamePicker(settings.profile, settingsEnabled, phoneHosted) { profile ->
+                    actions.settings(profile, StandaloneGame.defaultLife(profile, settings.twoHeadedGiant && profile.magicRules), null)
+                }
+                if (settings.profile.magicRules) {
+                    GameModeChips(settings.profile, GameMode.of(settings.profile, settings.twoHeadedGiant), settingsEnabled) { mode ->
+                        if (mode != GameMode.of(settings.profile, settings.twoHeadedGiant)) {
+                            val change = settingsForMode(settings.profile, mode)
+                            actions.settings(change.profile, change.life, change.teams)
+                        }
+                    }
+                }
+                extraSettings()
+            }
+            // Rules fold away behind a title that already says the usual answer.
+            val ruleSummary = listOfNotNull(
+                "Rules",
+                when {
+                    settings.profile.deathMayDie -> null
+                    settings.profile.pokemon -> "${settings.startingLife} Prize cards"
+                    settings.profile.lorcana -> "${settings.startingLife} lore to win"
+                    else -> "${settings.startingLife} life"
+                },
+                if (!settings.turnTimerEnabled) "No turn timer" else "${com.turnhub.android.domain.TurnTimerStatus.settingLabel(settings.turnTimerMs)} turns",
+                "house rules".takeIf { official != null && settings.houseRules },
+            ).joinToString(" · ")
+            DisclosureCard(ruleSummary) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(when {
                         settings.profile.cooperative -> "Co-op: everyone wins or loses together"
@@ -332,11 +350,16 @@ internal fun TableLobby(
                 if (settings.profile.countsLife) {
                     SetupSwitch("Automatic elimination at zero life", null, settings.autoEliminateAtZeroLife, settingsEnabled, actions.zeroLife)
                 }
-                extraSettings()
             }
             startHint?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
+            var askingFirst by rememberSaveable { mutableStateOf(false) }
+            val startWith = actions.startWith?.takeIf { !settings.profile.cooperative }
+            if (askingFirst && startWith != null) FirstPlayerPicker(players, settings.twoHeadedGiant,
+                { player -> askingFirst = false; startWith(player) }) { askingFirst = false }
             StartTableButton(players.size, settings.twoHeadedGiant, enabled && startReady, settings.profile.starCommander,
-                official?.players?.takeIf { locked }, settings.profile.bagOfDoom, actions.start)
+                official?.players?.takeIf { locked }, settings.profile.bagOfDoom) {
+                if (startWith != null) askingFirst = true else actions.start()
+            }
             // In the app, sounds and bug reports live in Settings and the banner; the
             // full-screen lobby has neither, so it keeps them at the bottom.
             if (!embedded) {

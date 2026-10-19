@@ -38,6 +38,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.stateDescription
@@ -145,17 +146,20 @@ fun LocalLibraryScreen(
                             val totals = state.library.totals(player.localId)
                             var open by rememberSaveable(player.localId) { mutableStateOf(false) }
                             BrassCard {
-                                Column {
-                                    Text(player.name, color = p.text, style = MaterialTheme.typography.titleMedium)
-                                    Text("ID ${player.profileId}", color = p.muted, style = MaterialTheme.typography.bodySmall)
-                                }
-                                Text("${totals.played} played · ${totals.won} won · ${totals.draws} draws", color = p.muted)
-                                if (table != null) {
-                                    ToneButton(if (open) "Close settings" else "Edit player", { open = !open }, Modifier.fillMaxWidth().semantics {
+                                // One compact row per player; Edit opens the settings in place.
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(player.name, color = p.text, style = MaterialTheme.typography.titleMedium)
+                                        Text("${totals.played} played · ${totals.won} won · ${totals.draws} draws", color = p.muted,
+                                            style = MaterialTheme.typography.bodySmall)
+                                        Text("ID ${player.profileId}", color = p.faint, style = MaterialTheme.typography.labelSmall)
+                                    }
+                                    if (table != null) TextButton(onClick = { open = !open }, modifier = Modifier.semantics {
+                                        contentDescription = if (open) "Done editing ${player.name}" else "Edit ${player.name}"
                                         stateDescription = if (open) "Expanded" else "Collapsed"
-                                    })
-                                    if (open) LocalAccountEditor(player, table, importState, canLink, onLinkAccount)
+                                    }) { Text(if (open) "Done" else "Edit") }
                                 }
+                                if (table != null && open) LocalAccountEditor(player, table, importState, canLink, onLinkAccount)
                             }
                         }
                     }
@@ -196,9 +200,9 @@ fun LocalLibraryScreen(
                                     DeliveryStatus.REJECTED -> "Atlas import needs attention"
                                 }, color = if (delivery.status == DeliveryStatus.REJECTED) p.warn else p.muted,
                                     style = MaterialTheme.typography.labelMedium)
-                                ToneButton(if (open) "Hide details" else if (canReviewImport) "Details and import" else "Game details", { open = !open }, Modifier.fillMaxWidth().semantics {
+                                TextButton(onClick = { open = !open }, modifier = Modifier.align(Alignment.End).semantics {
                                     stateDescription = if (open) "Expanded" else "Collapsed"
-                                })
+                                }) { Text(if (open) "Hide details" else if (canReviewImport) "Details and import" else "Details") }
                                 if (open) {
                                     val score = when {
                                         record.profile.pokemon -> "prizes left"
