@@ -71,6 +71,9 @@ internal data class TableLobbyActions(
     val investigator: ((player: TablePlayer, name: String?) -> Unit)? = null,
     val dealInvestigatorCards: ((TablePlayer, InvestigatorCardSlot) -> Unit)? = null,
     val investigatorCard: ((TablePlayer, InvestigatorCardSlot, InvestigatorCard?) -> Unit)? = null,
+    /** Death May Die: names (or clears, null) the Elder One and the episode; null hides them in guided setup. */
+    val elderOne: ((String?) -> Unit)? = null,
+    val episode: ((String?) -> Unit)? = null,
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -105,8 +108,9 @@ internal fun TableLobby(
     val officialMode = officialRules(settings.profile, settings.twoHeadedGiant)
     val official = officialMode.takeIf { actions.houseRules != null }
     val locked = official != null && !settings.houseRules
+    var guided by rememberSaveable { mutableStateOf(false) }
     Box(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.safeDrawingPadding()), contentAlignment = Alignment.TopCenter) {
-        Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+        Column(Modifier.widthIn(max = 880.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (!embedded) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Full-screen table", color = p.text, style = MaterialTheme.typography.headlineSmall,
@@ -120,6 +124,34 @@ internal fun TableLobby(
             BrassCard {
                 Eyebrow("At the table") {
                     TextButton(onClick = actions.clear, enabled = enabled && players.any(actions.canRemove)) { Text("Clear all") }
+                }
+                // The picker comes first: players added from it fill in below, so the
+                // name field and saved chips never move under a finger (owner, 2026-10-19).
+                var name by rememberSaveable { mutableStateOf("") }
+                val add = {
+                    if (enabled && canAdd && name.isNotBlank()) { actions.add(name.trim()); name = "" }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(name, { name = it.take(StandaloneGame.MAX_NAME) }, label = { Text("Player's name") },
+                        singleLine = true, enabled = enabled && canAdd,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { add() }),
+                        modifier = Modifier.weight(1f))
+                    ToneButton("Add", add, enabled = enabled && canAdd && name.isNotBlank())
+                }
+                if (savedPlayers.isNotEmpty()) {
+                    Text(savedTitle, color = p.muted, style = MaterialTheme.typography.labelLarge)
+                    Text(identityHint, color = p.faint, style = MaterialTheme.typography.bodySmall)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        savedPlayers.forEach { player ->
+                            SuggestionChip(onClick = { actions.select(player) }, label = {
+                                Column {
+                                    Text(player.name.ifBlank { "Unnamed" })
+                                    Text("ID ${player.displayId}", style = MaterialTheme.typography.bodySmall)
+                                }
+                            },
+                                enabled = enabled && canAdd)
+                        }
+                    }
                 }
                 // The preview takes the mode's shape from the first player: the star's five
                 // seats, or Two-Headed Giant's split team panels, filling in as players join.
@@ -160,7 +192,8 @@ internal fun TableLobby(
                 val investigators = settings.profile.deathMayDie && actions.investigator != null
                 players.forEach { player ->
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        // Top-aligned: the number sits beside the name, whatever the buttons under the name hold.
+                        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             val hue = com.turnhub.android.ui.components.playerColor(player.color, p.avatarColor(player.playerNumber))
                             Box(Modifier.size(30.dp).background(hue, CircleShape), contentAlignment = Alignment.Center) {
                                 Text("${player.playerNumber}", color = com.turnhub.android.ui.components.colorInk(hue), style = MaterialTheme.typography.labelLarge)
@@ -168,16 +201,17 @@ internal fun TableLobby(
                             Column(Modifier.weight(1f)) {
                                 Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1,
                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                                // The usual next step for an empty seat is one tap away, outside the menu.
+                                // The usual next step for an empty seat is one tap away, outside the menu. The same
+                                // button then shows the chosen investigator, so choosing never moves the rows below.
                                 if (investigators) {
-                                    if (player.investigator != null) Text(player.investigator, color = p.muted,
-                                        style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic)
-                                    else SeatShortcut("Choose investigator", "Choose ${player.label}'s investigator", enabled) {
+                                    SeatShortcut(player.investigator ?: "+ Choose investigator",
+                                        player.investigator?.let { "${player.label}'s investigator: $it. Change investigator" }
+                                            ?: "Choose ${player.label}'s investigator", enabled) {
                                         choosingInvestigator = player.playerNumber
                                     }
                                 }
                                 if (actions.commander != null && settings.profile.commanderRules && player.commander == null) {
-                                    SeatShortcut("Name commander", "Name ${player.label}'s commander", enabled) {
+                                    SeatShortcut("+ Name commander", "Name ${player.label}'s commander", enabled) {
                                         namingCommander = player.playerNumber
                                     }
                                 }
@@ -240,32 +274,6 @@ internal fun TableLobby(
                         }
                     }
                 }
-                var name by rememberSaveable { mutableStateOf("") }
-                val add = {
-                    if (enabled && canAdd && name.isNotBlank()) { actions.add(name.trim()); name = "" }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(name, { name = it.take(StandaloneGame.MAX_NAME) }, label = { Text("Player's name") },
-                        singleLine = true, enabled = enabled && canAdd,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { add() }),
-                        modifier = Modifier.weight(1f))
-                    ToneButton("Add", add, enabled = enabled && canAdd && name.isNotBlank())
-                }
-                if (savedPlayers.isNotEmpty()) {
-                    Text(savedTitle, color = p.muted, style = MaterialTheme.typography.labelLarge)
-                    Text(identityHint, color = p.faint, style = MaterialTheme.typography.bodySmall)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        savedPlayers.forEach { player ->
-                            SuggestionChip(onClick = { actions.select(player) }, label = {
-                                Column {
-                                    Text(player.name.ifBlank { "Unnamed" })
-                                    Text("ID ${player.displayId}", style = MaterialTheme.typography.bodySmall)
-                                }
-                            },
-                                enabled = enabled && canAdd)
-                        }
-                    }
-                }
                 if (actions.chooseStarter != null && actions.startWith == null && players.size >= 2) Text(
                     summary.players.firstOrNull { it.playerNumber == summary.starterPlayerNumber }?.let {
                         "${it.label}${if (settings.twoHeadedGiant) "'s team" else ""} goes first."
@@ -287,6 +295,14 @@ internal fun TableLobby(
                     }
                 }
                 extraSettings()
+                // Optional: the device goes round the table and each player makes their own choices.
+                if (phoneHosted && players.isNotEmpty()) {
+                    ToneButton("Guided setup: pass the device", { guided = true }, Modifier.fillMaxWidth(), enabled = enabled)
+                    Text(if (settings.profile.deathMayDie) "Each player picks their investigator, sanity condition" +
+                        (if (summary.useRelics) " and relic" else "") + " in turn, then everyone confirms."
+                        else "Each player picks their own tile card and color in turn, then everyone confirms.",
+                        color = p.faint, style = MaterialTheme.typography.bodySmall)
+                }
             }
             // Rules fold away behind a title that already says the usual answer.
             val ruleSummary = listOfNotNull(
@@ -354,6 +370,9 @@ internal fun TableLobby(
             startHint?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
             var askingFirst by rememberSaveable { mutableStateOf(false) }
             val startWith = actions.startWith?.takeIf { !settings.profile.cooperative }
+            if (guided) GuidedSetupDialog(summary, actions, enabled && startReady, startHint,
+                onStart = { guided = false; if (startWith != null) askingFirst = true else actions.start() },
+                onClose = { guided = false })
             if (askingFirst && startWith != null) FirstPlayerPicker(players, settings.twoHeadedGiant,
                 { player -> askingFirst = false; startWith(player) }) { askingFirst = false }
             StartTableButton(players.size, settings.twoHeadedGiant, enabled && startReady, settings.profile.starCommander,
@@ -374,14 +393,10 @@ internal fun TableLobby(
     }
 }
 
-/** A small accent link under a player's name for the step their seat still needs. */
+/** A button under a player's name for the step their seat still needs (a bare link read as a label). */
 @Composable
 private fun SeatShortcut(label: String, description: String, enabled: Boolean, onClick: () -> Unit) {
-    Text("+ $label", color = if (enabled) palette.accent else palette.faint, style = MaterialTheme.typography.labelLarge,
-        modifier = Modifier
-            .clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
-            .semantics { contentDescription = description }
-            .padding(vertical = 4.dp))
+    ToneButton(label, onClick, Modifier.padding(top = 4.dp).semantics { contentDescription = description }, enabled = enabled, maxLines = 1)
 }
 
 internal data class LobbyModeSettings(val profile: GameProfile?, val life: Int?, val teams: Boolean)

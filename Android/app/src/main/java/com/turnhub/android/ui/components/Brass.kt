@@ -43,6 +43,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -260,21 +261,33 @@ fun ToneButton(
     modifier: Modifier = Modifier,
     tone: Tone = Tone.NEUTRAL,
     enabled: Boolean = true,
+    /** 1 keeps a row's height fixed whatever the label says; long labels end in an ellipsis. */
+    maxLines: Int = Int.MAX_VALUE,
 ) {
     val p = palette
-    val color = if (tone == Tone.NEUTRAL) p.text else toneColor(tone)
-    // Modern: a tinted fill with no outline (High contrast keeps one).
+    // Brass and High contrast keep their outlined look. In the modern themes a neutral
+    // button is an opaque accent tint with an accent edge (owner, 2026-10-19: the
+    // translucent gray read as part of the card, or vanished over tile art).
     val outlined = p.ornament || p.bg == Color.Black
+    val neutral = tone == Tone.NEUTRAL
+    val color = when {
+        neutral && outlined -> p.text
+        neutral -> p.accent
+        else -> toneColor(tone)
+    }
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
         shape = RoundedCornerShape(if (p.ornament) 12.dp else DesignTokens.Radius.md),
-        border = if (outlined) BorderStroke(1.dp, if (enabled) (if (tone == Tone.NEUTRAL) p.lineStrong else color.copy(alpha = .7f)) else p.line) else null,
+        border = when {
+            !enabled -> if (outlined) BorderStroke(1.dp, p.line) else null
+            outlined -> BorderStroke(1.dp, if (neutral) p.lineStrong else color.copy(alpha = .7f))
+            else -> BorderStroke(1.dp, color.copy(alpha = .45f))
+        },
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = when {
                 outlined -> p.surface2
-                tone == Tone.NEUTRAL -> p.fillStrong
-                else -> color.copy(alpha = .14f)
+                else -> color.copy(alpha = .14f).compositeOver(p.surface)
             },
             contentColor = color,
             disabledContainerColor = p.surface2.copy(alpha = .5f),
@@ -283,7 +296,8 @@ fun ToneButton(
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
         modifier = modifier.heightIn(min = 48.dp),
     ) {
-        Text(text, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        Text(text, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = maxLines,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 

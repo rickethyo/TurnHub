@@ -1,6 +1,10 @@
 package com.turnhub.android.ui.tablet
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -71,10 +75,16 @@ internal fun InvestigatorAbilities(
             ToneButton("Edit abilities", { editing = true }, enabled = editable)
             ToneButton(if (previewUpgrades) "Current abilities" else "Preview upgrades", { previewUpgrades = !previewUpgrades })
         }
+        // A threshold is a moment the table must act on, so it is a bordered alert that names
+        // the condition and its rules, not a line of small print (owner, 2026-10-19).
         when {
-            board.insanity == InvestigatorDashboard.MAX_INSANITY -> Text("Consumed by madness. Resolve the investigator's death from their menu.", color = p.bad)
-            board.atThreshold -> Text("Insanity threshold: resolve ${board.sanityCondition?.name ?: "your insanity card"} and advance one skill. Apply its effects on the board.", color = p.text,
-                style = MaterialTheme.typography.bodySmall)
+            board.insanity == InvestigatorDashboard.MAX_INSANITY ->
+                SanityAlert("☠ Consumed by madness", "${player.investigator ?: player.label} goes insane. Confirm the death from their menu.", null, p.bad)
+            board.atThreshold -> board.sanityCondition.let { condition ->
+                SanityAlert("⚠ Insanity threshold: ${condition?.name ?: "sanity condition"}",
+                    "Resolve ${condition?.name ?: "your sanity condition"} now, then advance one skill.",
+                    condition?.rules?.takeIf { it.isNotBlank() }, p.warn)
+            }
         }
         InvestigatorCards(player, summary.bootId, editable, references = summary.investigatorReferences, useRelics = summary.useRelics, onAssign = onCard)
         skills.forEachIndexed { slot, skill ->
@@ -152,4 +162,18 @@ private fun InvestigatorSkillEditor(player: TablePlayer, skills: List<Investigat
             onSave(List(count) { i -> InvestigatorSkill(fields[i * 5].trim(), fields.subList(i * 5 + 1, i * 5 + 5).toList()) })
         }) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+}
+
+/** A high-contrast alert on the investigator's panel: a heading, what to do, and the card's rules. Words carry it, not color. */
+@Composable
+private fun SanityAlert(title: String, action: String, rules: String?, edge: androidx.compose.ui.graphics.Color) {
+    val p = palette
+    Column(Modifier.fillMaxWidth().background(p.surface, RoundedCornerShape(14.dp))
+        .border(3.dp, edge, RoundedCornerShape(14.dp)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(title, color = p.text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black,
+            modifier = Modifier.semantics { heading(); liveRegion = LiveRegionMode.Assertive })
+        Text(action, color = p.text, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+        rules?.let { Text(it, color = p.text, style = MaterialTheme.typography.bodyMedium) }
+    }
 }

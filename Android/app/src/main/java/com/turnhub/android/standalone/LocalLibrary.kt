@@ -70,6 +70,15 @@ data class LocalLibrary(
             } ?: player
         })
 
+    /**
+     * Death May Die games by Elder One (unrecorded ones under "Unrecorded Elder One"),
+     * most played first, with how many the investigators won and lost.
+     */
+    fun elderOneRecord(): List<ElderOneResult> = history.filter { it.profile.deathMayDie }
+        .groupBy { it.elderOne ?: UNRECORDED_ELDER_ONE }
+        .map { (name, games) -> ElderOneResult(name, games.count { !it.draw }, games.count { it.draw }) }
+        .sortedWith(compareByDescending<ElderOneResult> { it.won + it.lost }.thenBy { it.elderOne })
+
     fun totals(localId: String): LocalTotals {
         val matches = history.filter { r -> r.players.any { it.localId == localId } }
         return LocalTotals(matches.size, matches.count { r -> r.won(r.players.indexOfFirst { it.localId == localId }) },
@@ -237,3 +246,7 @@ data class LocalImportState(
     val busy: Boolean = false,
     val message: String? = null,
 )
+
+data class ElderOneResult(val elderOne: String, val won: Int, val lost: Int)
+
+const val UNRECORDED_ELDER_ONE = "Unrecorded Elder One"

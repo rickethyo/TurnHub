@@ -78,15 +78,31 @@ loss condition; Commander damage totals alone do not trigger elimination.
   within the search/filter, excludes other players' picks and opens a preview;
   **Use investigator** commits it. Every row also opens this preview. Missing
   signature effects remain explicit; a community-guide link supplies references.
-  Matching Wounds and Stress counters are reminders that never knock anyone
-  out. A tile shows the investigator's
+  Matching Wounds and Stress counters (owner, 2026-10-19): stress stops at 5
+  and wounds at 6, the death wound. The engine clamps both
+  (`DeathMayDie.MAX_STRESS`, `DEATH_WOUNDS`). The sixth wound shows a death
+  alert on the panel with an armed "died" button that sends the menu's
+  elimination, so nobody is knocked out by a mis-tap, and the
+  before-summoning loss rule still applies. A Fire counter (0 to 9,
+  `InvestigatorDashboard.fire`) sits beside them; while it holds tokens the
+  panel reminds the player to roll that many black dice at End of Turn, with a
+  button that discards them. **Rest: heal 3** (Safe space only) offers every
+  split of 3 between stress and wounds and sends ordinary −1 steps. Each Death
+  May Die game in History records its Elder One, episode and investigators, and
+  the Games list sums wins and losses by Elder One (`LocalLibrary.elderOneRecord`).
+  In the lobby each player row
+  keeps one height: the investigator button shows the chosen name, and the
+  two card buttons stay on one line. The player's-name field and saved-player
+  chips sit at the top of "At the table", so players added from them fill in
+  below and the picker never moves under a finger. A tile shows the investigator's
   picture from the community wiki where it has one (Seasons 1 to 4 core
   investigators; a dashboard's portrait is cropped out), and the Game tab
   lists the players the same way.
   Each dashboard saves its sanity loss (0–20) and three base skill levels (1–4), with up to five added skills.
   Sanity loss stops at thresholds 4, 8, 12, 15, 18 and 19; bonus dice appear at
-  8, 15, 18 and 19. Thresholds remind the player to resolve their insanity card
-  and upgrade a skill; level choices remain manual for companions and corrections.
+  8, 15, 18 and 19. A threshold shows a bordered alert on the investigator's panel
+  that names the sanity condition, prints its rules and says to resolve it and
+  upgrade a skill; level choices remain manual for companions and corrections.
   Reaching 20 does not automatically eliminate anyone: resolve the printed
   dashboard and game conditions through the player's menu. The ten core-box
   investigators have offline skill-effect summaries checked against their
@@ -180,6 +196,20 @@ loss condition; Commander damage totals alone do not trigger elimination.
   formats Atlas runs. The Magic format's tile is "Standard"; its game modes are
   Free-for-all and Two-Headed Giant, and Star Commander shows only under
   Commander (`GameMode.availableFor`).
+- **Guided setup** (owner, 2026-10-19, idea from a playtester; device game only,
+  optional, *needs a playtest*): under the game choice, **Guided setup: pass the
+  device** goes round the seats. Death May Die opens on a Story step for the
+  whole table: the Elder One and episode (optional, the Elder One tab's picker).
+  Each player then gets a "Pass the device to" screen
+  (or Skip), then their own choices: Death May Die investigator, sanity
+  condition and enabled relic; other games tile card or commander. Saved
+  players also get tile color and photo. A confirm screen lists the story,
+  everyone's choices and what is still missing, with Edit for each, **Start the
+  game** (the normal Start path, so first-player choice and the setup gate
+  still apply) and **Back to the setup menu**, which keeps every choice
+  (`ui/tablet/GuidedSetup.kt`, using the lobby's `TableLobbyActions`). It fills
+  the screen edge to edge and shows each investigator's whole portrait; table
+  tiles crop art toward the top so faces show.
 - Custom starting life 0 to 1,000,000 (custom modes or house rules). Any
   seated player may change the next game's settings in the lobby
   (`ConfigureGame`); a running match keeps what it captured at start, and a

@@ -1,7 +1,11 @@
 package com.turnhub.android.ui.tablet
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.semantics.heading
+import com.turnhub.android.domain.DeathMayDie
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -17,6 +21,10 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -179,22 +187,103 @@ internal fun InvestigatorTracks(
     onWound: (Int) -> Unit,
     onMark: (TablePlayer, String, Int) -> Unit,
     modifier: Modifier,
+    /** Sends `eliminate` for the player; null leaves the sixth-wound alert without its button. */
+    onAction: ((TablePlayer, String) -> Unit)? = null,
 ) {
     val member = unit.members.first()
     val live = summary.state == TableState.RUNNING && !unit.out
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Tracker("Wounds", wounds, member.label, "wound", live, live && wounds < StandaloneGame.MAX_LIFE) { onWound(it) }
-            Tracker("Stress", member.stress, member.label, "stress", live, live) { onMark(member, StandaloneGame.STRESS_KIND, it) }
+            Tracker("Wounds", wounds, DeathMayDie.DEATH_WOUNDS, member.label, "wound", live) { onWound(it) }
+            Tracker("Stress", member.stress, DeathMayDie.MAX_STRESS, member.label, "stress", live) { onMark(member, StandaloneGame.STRESS_KIND, it) }
+            Tracker("Fire", member.dashboard.fire, com.turnhub.android.domain.InvestigatorDashboard.MAX_FIRE, member.label, "fire token", live,
+                alarmAtMax = false) { onMark(member, StandaloneGame.FIRE_KIND, it) }
         }
+        if (member.dashboard.fire > 0 && live) FireReminder(member, onMark)
+        if (live && (wounds > 0 || member.stress > 0)) RestButton(member, wounds, onWound) { onMark(member, StandaloneGame.STRESS_KIND, it) }
+        if (wounds >= DeathMayDie.DEATH_WOUNDS && !unit.out) DeathAlert(member, summary, onAction)
         RoundStatus(unit, summary, onMark, Modifier)
     }
 }
 
-/** One counter: −, its name over its number, +. Every counter has the same width, so a pair lines up. */
+/**
+ * The sixth wound kills (owner, 2026-10-19). It never removes anyone by itself: the alert
+ * asks the table to confirm with an armed button, so a mis-tap on + isn't a death.
+ */
 @Composable
-private fun Tracker(name: String, value: Int, player: String, noun: String, live: Boolean, canAdd: Boolean, onStep: (Int) -> Unit) {
+private fun DeathAlert(member: TablePlayer, summary: TableSummary, onAction: ((TablePlayer, String) -> Unit)?) {
+    val p = palette
+    val losesGame = summary.elder?.takeIf { it.inUse }?.summoned == false
+    Column(Modifier.fillMaxWidth().background(p.surface, RoundedCornerShape(14.dp))
+        .border(2.dp, p.bad, RoundedCornerShape(14.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("☠ ${DeathMayDie.DEATH_WOUNDS} wounds: ${member.investigator ?: member.label} dies", color = p.bad,
+            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black,
+            modifier = Modifier.semantics { heading(); liveRegion = LiveRegionMode.Assertive })
+        Text(if (losesGame) "The Elder One is still on the Summoning track, so this loses the game. Remove a wound if it was a mistake."
+            else "Confirm the death, or remove a wound if it was a mistake.", color = p.text, style = MaterialTheme.typography.bodyMedium)
+        onAction?.let { act ->
+            ArmedButton("${member.label} died", if (losesGame) "Tap again: the investigators lose" else "Tap again: ${member.label} is out",
+                Tone.BAD) { act(member, "eliminate") }
+        }
+    }
+}
+
+/**
+ * The Rest action (Safe space only): heal 3, split between stress and wounds as the player
+ * likes. It sends the same −1 steps as the counters, so nothing new reaches the engine.
+ */
+@Composable
+private fun RestButton(member: TablePlayer, wounds: Int, onWound: (Int) -> Unit, onStress: (Int) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    com.turnhub.android.ui.components.ToneButton("Rest: heal 3", { open = true })
+    if (!open) return
+    val stress = member.stress
+    // Every split of 3 heals the player can use; with less to heal, the most that can be.
+    val splits = (0..3).map { s -> minOf(s, stress) to minOf(3 - s, wounds) }.distinct()
+        .filter { (s, w) -> s + w == minOf(3, stress + wounds) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { open = false },
+        title = { Text("${member.investigator ?: member.label} rests") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Safe space only. Heal 3 in any mix of stress and wounds.", color = palette.muted)
+                splits.forEach { (s, w) ->
+                    com.turnhub.android.ui.components.ToneButton(listOfNotNull(
+                        "$s stress".takeIf { s > 0 }, "$w wound${if (w == 1) "" else "s"}".takeIf { w > 0 }).joinToString(" + "), {
+                        repeat(s) { onStress(-1) }
+                        repeat(w) { onWound(-1) }
+                        open = false
+                    }, Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton({ open = false }) { Text("Cancel") } },
+    )
+}
+
+/** End of Turn, step 2 (Fire!): one black die per fire token on the board, then they're discarded. */
+@Composable
+private fun FireReminder(member: TablePlayer, onMark: (TablePlayer, String, Int) -> Unit) {
+    val p = palette
+    val fire = member.dashboard.fire
+    Column(Modifier.fillMaxWidth().background(p.surface, RoundedCornerShape(14.dp))
+        .border(2.dp, p.warn, RoundedCornerShape(14.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("🔥 On fire: $fire token${if (fire == 1) "" else "s"}", color = p.text,
+            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, modifier = Modifier.semantics { heading() })
+        Text("At End of Turn, roll $fire black ${if (fire == 1) "die" else "dice"}, take what they show, then discard the fire.",
+            color = p.text, style = MaterialTheme.typography.bodyMedium)
+        com.turnhub.android.ui.components.ToneButton("Rolled: discard the fire", { onMark(member, StandaloneGame.FIRE_KIND, -fire) },
+            Modifier.fillMaxWidth(), tone = Tone.WARN)
+    }
+}
+
+/** One counter: −, its name over its number out of [max], +. Every counter has the same width, so a pair lines up. */
+@Composable
+private fun Tracker(name: String, value: Int, max: Int, player: String, noun: String, live: Boolean, alarmAtMax: Boolean = true,
+                    onStep: (Int) -> Unit) {
     val p = palette
     Row(Modifier.background(p.surface.copy(alpha = .9f), RoundedCornerShape(99.dp)).padding(4.dp),
         verticalAlignment = Alignment.CenterVertically) {
@@ -202,9 +291,12 @@ private fun Tracker(name: String, value: Int, player: String, noun: String, live
         Column(Modifier.widthIn(min = 76.dp).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
             horizontalAlignment = Alignment.CenterHorizontally) {
             Text(name, color = p.muted, style = MaterialTheme.typography.labelMedium)
-            Text("$value", color = p.text, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text("$value", color = if (alarmAtMax && value >= max) p.bad else p.text, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                Text(" / $max", color = p.muted, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(bottom = 3.dp))
+            }
         }
-        StepButton("+", "$player: add a $noun", canAdd) { onStep(1) }
+        StepButton("+", "$player: add a $noun", live && value < max) { onStep(1) }
     }
 }
 
@@ -290,7 +382,7 @@ private fun DeathMayDieMenuItems(member: TablePlayer, summary: TableSummary, onA
             Text("Round $round · " + if (waiting.isEmpty()) "the last turn of the round" else "still to go: ${waiting.joinToString { it.label }}",
                 color = p.muted)
         }
-        Text("Wounds on the panel are a reminder; the dashboard says when an investigator dies.",
+        Text("Stress stops at ${DeathMayDie.MAX_STRESS}. The ${DeathMayDie.DEATH_WOUNDS}th wound kills: confirm it below or on the panel.",
             color = p.faint, style = MaterialTheme.typography.bodySmall)
         ArmedButton("We killed the Elder One", "Tap again: the investigators win", Tone.GOOD) { onAction(member, "win") }
         // With the Elder One tracked in its tab, the engine knows whether this loses the game.

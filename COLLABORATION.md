@@ -980,4 +980,14 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   shows only for Death May Die (also hidden while the Game tab shows Atlas) and is
   redrawn to the app's polish: summoning-circle header, track path with sliding
   marker, symbol sigils, stage ladder, wound ring, rules folded into a disclosure.
+- Merged as #142. Follow-up (owner, from a playtester): optional pass-the-device
+  **Guided setup** for every device game, ending on a confirm screen with Start
+  or back to the setup menu (`ui/tablet/GuidedSetup.kt`; GAMEPLAY.md "Guided
+  setup"). Device playtest pending.
+- Follow-up (owner, "All three" after a gap review): fire tokens with an End of
+  Turn reminder, a Rest (heal 3) action, story history (Elder One, episode,
+  investigators and outcome on each `GameRecord`, plus a by-Elder-One tally), and
+  named episode tokens on the Elder One tab (`ElderOneTrack.tokens`, names kept
+  for a rematch, counts cleared). Validation: new `ElderOneTest` cases; CI build.
+  Device playtest pending.
 

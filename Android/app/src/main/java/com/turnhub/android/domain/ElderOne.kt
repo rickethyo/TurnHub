@@ -36,6 +36,8 @@ data class ElderOneTrack(
     val stageHealth: Map<Int, Int> = emptyMap(),
     /** Summoning symbols in the Mythos discard pile since the last advance (0 to 2). */
     val symbols: Int = 0,
+    /** The episode's own tokens (gates, seals and so on), named by the table, in the order added. */
+    val tokens: List<EpisodeToken> = emptyList(),
 ) {
     /** The ritual is disrupted and the Elder One is on the board: wounds count. */
     val vulnerable: Boolean get() = summoned && ritualDisrupted
@@ -113,8 +115,26 @@ data class ElderOneTrack(
      */
     fun defeatStage(): ElderOneTrack = if (!vulnerable || stage >= FINAL_STAGE) this else copy(stage = stage + 1, stageWounds = 0)
 
-    /** A new match: the same Elder One and episode, back at the start of the track. */
-    fun fresh(): ElderOneTrack = ElderOneTrack(elderOne = elderOne, episode = episode)
+    /** A new match: the same Elder One, episode and token names, back at the start of the track with no tokens out. */
+    fun fresh(): ElderOneTrack = ElderOneTrack(elderOne = elderOne, episode = episode, tokens = tokens.map { it.copy(count = 0) })
+
+    /** A new kind of episode token; a blank, repeated (any case) or one-too-many name changes nothing. */
+    fun withToken(name: String): ElderOneTrack {
+        val clean = clean(name) ?: return this
+        if (tokens.size >= MAX_TOKENS || tokens.any { it.name.equals(clean, ignoreCase = true) }) return this
+        return copy(tokens = tokens + EpisodeToken(clean))
+    }
+
+    fun withoutToken(index: Int): ElderOneTrack =
+        if (index !in tokens.indices) this else copy(tokens = tokens.filterIndexed { i, _ -> i != index })
+
+    /** Tokens of kind [index] out on the board, from 0 to [MAX_TOKEN_COUNT]. */
+    fun token(index: Int, delta: Int): ElderOneTrack {
+        val token = tokens.getOrNull(index) ?: return this
+        val next = (token.count + delta).coerceIn(0, MAX_TOKEN_COUNT)
+        return if (next == token.count) this
+        else copy(tokens = tokens.mapIndexed { i, t -> if (i == index) t.copy(count = next) else t })
+    }
 
     /** One line for the menu bar and Game tab, e.g. "Hastur · Stage 2 · 4/12 wounds". */
     fun headline(): String = listOfNotNull(
@@ -131,10 +151,14 @@ data class ElderOneTrack(
         const val SYMBOLS_TO_ADVANCE = 3
         const val MAX_WOUNDS = 99
         const val MAX_NAME = 40
+        const val MAX_TOKENS = 6
+        const val MAX_TOKEN_COUNT = 99
+        /** Names to start from; the table can type any other. */
+        val SUGGESTED_TOKENS = listOf("Gate", "Seal", "Elder Sign", "Clue", "Ritual")
 
         fun stageName(stage: Int): String = if (stage >= FINAL_STAGE) "Final stage" else "Stage $stage"
 
-        private fun clean(name: String?): String? = name?.trim()?.take(MAX_NAME)?.takeIf { it.isNotEmpty() }
+        internal fun clean(name: String?): String? = name?.trim()?.take(MAX_NAME)?.takeIf { it.isNotEmpty() }
     }
 }
 
@@ -180,3 +204,6 @@ object DeathMayDieStory {
         StoryGroup("Epic Episodes", listOf("R'lyeh Rising", "Godzilla Rising", "Godzilla vs. Cthulhu")),
     )
 }
+
+/** One kind of episode token and how many are out. */
+data class EpisodeToken(val name: String, val count: Int = 0)

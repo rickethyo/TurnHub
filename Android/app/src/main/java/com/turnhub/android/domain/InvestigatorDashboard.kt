@@ -11,11 +11,13 @@ data class InvestigatorDashboard(
     val sanityCondition: InvestigatorCard? = null,
     val relic: InvestigatorCard? = null,
     val cardOffers: Map<InvestigatorCardSlot, List<String>> = emptyMap(),
+    /** Fire tokens on the investigator board: added when leaving a burning space, rolled and discarded at End of Turn. */
+    val fire: Int = 0,
 ) {
     fun skills(investigator: String?): List<InvestigatorSkill> =
         customSkills.takeIf { it.size in 3..MAX_SKILLS } ?: InvestigatorSkills.forInvestigator(investigator)
 
-    fun fresh(clearCards: Boolean = false): InvestigatorDashboard = copy(insanity = 0, skillLevels = List(3) { 1 },
+    fun fresh(clearCards: Boolean = false): InvestigatorDashboard = copy(insanity = 0, fire = 0, skillLevels = List(3) { 1 },
         customSkills = customSkills.take(3), cardOffers = cardOffers.takeUnless { clearCards }.orEmpty(),
         sanityCondition = sanityCondition.takeUnless { clearCards }, relic = relic.takeUnless { clearCards })
 
@@ -36,6 +38,7 @@ data class InvestigatorDashboard(
 
     companion object {
         const val MAX_INSANITY = 20
+        const val MAX_FIRE = 9
         val THRESHOLDS = listOf(4, 8, 12, 15, 18, 19)
         val BONUS_THRESHOLDS = listOf(8, 15, 18, 19)
         const val MAX_SKILLS = 8

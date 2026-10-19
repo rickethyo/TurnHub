@@ -34,6 +34,8 @@ import com.turnhub.android.domain.InvestigatorCard
 import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.domain.InvestigatorCardCatalogue
 import com.turnhub.android.domain.TablePlayer
+import com.turnhub.android.ui.components.AccentButton
+import com.turnhub.android.ui.components.Tone
 import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.theme.palette
 
@@ -48,11 +50,14 @@ internal fun InvestigatorCards(player: TablePlayer, gameId: String, enabled: Boo
     val p = palette
     val slots = InvestigatorCardSlot.entries.filter { it != InvestigatorCardSlot.RELIC || useRelics }
     var editing by rememberSaveable(player.participantId, player.investigator, gameId) { mutableStateOf<InvestigatorCardSlot?>(null) }
-    if (compact) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    // Compact (the lobby's player rows): one line per button, side by side, so choosing a card
+    // never changes the row's height and moves the players below it.
+    if (compact) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         slots.forEach { slot ->
             val card = player.dashboard.card(slot)
-            ToneButton(card?.let { "${slot.label}: ${it.name}" } ?: "Assign ${slot.label.lowercase()}",
-                { editing = slot }, enabled = enabled, modifier = Modifier.semantics {
+            val short = if (slot == InvestigatorCardSlot.SANITY_CONDITION) "Sanity" else slot.label
+            ToneButton(card?.let { "$short: ${it.name}" } ?: "Assign ${slot.label.lowercase()}",
+                { editing = slot }, enabled = enabled, maxLines = 1, modifier = Modifier.weight(1f).semantics {
                     contentDescription = "${player.label}, ${slot.label}: ${card?.name ?: "unassigned"}. Edit assignment"
                 })
         }
@@ -117,7 +122,7 @@ private fun InvestigatorCardEditor(player: TablePlayer, slot: InvestigatorCardSl
     val canDeal = offers.isNotEmpty() || InvestigatorCardCatalogue.all.count { it.slot == slot && it.id !in reservedCardIds } >= 2
     AlertDialog(onDismissRequest = onDismiss, title = { Text("${player.investigator ?: player.label}: ${slot.label.lowercase()}") },
         text = {
-            Column(Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
+            Column(Modifier.fillMaxWidth().heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (drawTwo) {
                     Text("Draw two, pick one · house rule", style = MaterialTheme.typography.titleSmall)
@@ -130,9 +135,9 @@ private fun InvestigatorCardEditor(player: TablePlayer, slot: InvestigatorCardSl
                     if (!physical && offers.isNotEmpty()) {
                         Text("This pair stays fixed for this match. Choose one, then Save.")
                         offers.forEach { preset ->
-                            ToneButton(if (catalogueId == preset.id) "✓ ${preset.name}" else preset.name, {
+                            ToneButton(if (catalogueId == preset.id) "✓ ${preset.name} (chosen)" else preset.name, {
                                 choose(preset)
-                            }, modifier = Modifier.fillMaxWidth())
+                            }, modifier = Modifier.fillMaxWidth(), tone = if (catalogueId == preset.id) Tone.ACTIVE else Tone.NEUTRAL)
                             InvestigatorCardReferenceButton(preset.id)
                         }
                     }
@@ -178,7 +183,7 @@ private fun InvestigatorCardEditor(player: TablePlayer, slot: InvestigatorCardSl
                 if (card != null) TextButton(onClick = { onSave(null) }) { Text("Remove ${slot.label.lowercase()}") }
             }
         },
-        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onSave(InvestigatorCard(name, rules, catalogueId, transformed, frontHash, backHash)) }) { Text("Save") } },
+        confirmButton = { AccentButton("Save", { onSave(InvestigatorCard(name, rules, catalogueId, transformed, frontHash, backHash)) }, enabled = name.isNotBlank()) },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
     if (choosing) InvestigatorCardPicker(slot, catalogueId, onDismiss = { choosing = false }, references = references, onPick = { preset ->
         if (preset != null) choose(preset) else catalogueId = null

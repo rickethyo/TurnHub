@@ -297,6 +297,8 @@ fun StandaloneLobby(
             investigator = { player, name -> table.setInvestigator(player.playerNumber - 1, name) },
             dealInvestigatorCards = { player, slot -> table.dealInvestigatorCards(player.playerNumber - 1, slot) },
             investigatorCard = { player, slot, card -> table.setInvestigatorCard(player.playerNumber - 1, slot, card) },
+            elderOne = table::setElderOne,
+            episode = table::setEpisode,
             zeroLife = table::setZeroLifeElimination,
             houseRules = table::setHouseRules,
             chooseStarter = { table.chooseStarter(it.playerNumber - 1) },
