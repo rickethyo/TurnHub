@@ -39,6 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-030 | Bag of Doom Commander | Atlas, Android, protocol, recovery | Ready for review; CI passes | Owner / PR #135 |
 | TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
@@ -53,45 +54,46 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and scope; unassigned |
 | TH-003 | High-resolution player artwork and fuller tablet UI | Android, assets, profiles, storage | Implemented in PR #86 | Owner acceptance; LCD layouts planned |
 
-## TH-029: Ten-player app games and elimination credit
+Ten-player app and general elimination credit landed in [PR #134](https://github.com/rickethyo/TurnHub/pull/134); acceptance remains in [Staged Changes](Documentation/engineering/STAGED_CHANGES.md).
 
-- Date / owner: 2026-10-19 / Codex on `codex/master`, baseline `726e1b1`.
-  Clean tree; fetched origin and checked open PRs (none). Owner requested ten
-  app players and elimination attribution in the general statistics engine.
-- Scope: Android standalone capacity, per-victim explicit elimination credit,
-  match recovery/history, connected controls/state, standalone import and shared
-  lifetime/last-game statistics. Bag of Doom rules remain a separate feature.
-- Feature gate: Atlas GameEngine owns connected credit; StandaloneGame owns
-  separate phone-hosted matches. Existing EliminateSeat Intent carries an
-  optional credited player, validated by the authoritative engine. Both owners
-  persist attribution with the match before completion statistics. Clients render
-  state and choose credit using labeled controls. State/control/import contracts
-  and statistics storage extend; no new dependency, artwork or third-party data.
-  Unknown causes and concessions award no credit; never infer a killer from
-  whose turn it is. Teammate/self credit is invalid. Credits count individual
-  opponents removed (a team contains two opponents).
-- Implementation: explicit `eliminatedBy` is captured before elimination finishes;
-  lifetime/last-game totals use the shared live/import aggregator. Source is
-  retained in recovery/history and shown in player/history/statistics views.
-  App/import limit is ten; import winner masks are 16-bit. Detailed statistics
-  schema 4 (88 bytes), core schema 3 (28 bytes), checkpoints schema 6 (+16 bytes
-  at capacity); prototype statistics layouts require reset, not migration.
-- Implementation commits: `fa276ed` and `665e7ce`, [PR #134](https://github.com/rickethyo/TurnHub/pull/134).
-  Follow-up validation runs before clearing a pending pass or pausing the table;
-  invalid credit cannot disturb queued actions. Team checkpoint credit must agree.
-  Source choices include player numbers so duplicate names remain distinguishable.
-- Validation: [CI passes](https://github.com/rickethyo/TurnHub/actions/runs/39234776248)
-  for `665e7ce`: Android compilation, complete JVM suite and release bundle,
-  Atlas host suites/contracts, firmware and LVGL. [iOS checks pass](https://github.com/rickethyo/TurnHub/actions/runs/39234776242).
-  Local sanitizer host suites, adapter audit, client contracts, docs links,
-  design tokens, manual export and whitespace checks pass. Manual DOCX rendered
-  and visually reviewed on pages 3, 11 and 13. Local Gradle could not resolve
-  Foojay 1.0.0; Android verification comes from CI.
-- Next owner: review/integrate #134 with a merge commit and retain `codex/master`.
-  Physical acceptance: ten-player layout with large text/TalkBack, explicit
-  elimination selection (including duplicate names), stats/history/shares and
-  recovery on phone/tablet; flash/reset prototype Atlas statistics for the new
-  layouts. No merge or release performed.
+## TH-030: Bag of Doom Commander variant
+
+- Date / owner: 2026-10-19 / Codex on `codex/master`, baseline `e0af27b`.
+  Fetched origin; clean tree, #134 merged and no open PR. New reviewable slice.
+- Owner requested the game mode after ten-player and general elimination credit
+  landed. Implement Commander rules with a five-player minimum; app capacity
+  remains ten. Use the episode's community rule summary, with the reset
+  interpretation confirmed by the owner: reset after every check. Primary video is linked but its
+  spoken rules could not be retrieved; do not claim transcript verification.
+- Feature gate: Atlas GameEngine owns connected bag state and validates new
+  DoomBag Intents; StandaloneGame owns independent phone games. Both capture
+  life-loss immunity, a movable cycle boundary, pending checks and committed
+  results. Atlas checkpoints the selected draw before revealing/applying it;
+  standalone commits its complete snapshot synchronously before publishing. Clients only
+  render bag state and submit cycle/boot/revision-guarded draw/correction/credit
+  requests. Extend profile/state/control/import and recovery contracts; no new
+  dependencies or third-party assets. Text statuses, labeled controls, selected
+  semantics and reduced-motion presentation provide accessible alternatives.
+- Scope includes credited-elimination resets, no-credit bag removals, shutdown
+  at four survivors, empty checks, delayed life approvals, recovery/rematch,
+  stale/repeated draws, rules guidance and regression tests. No merge/release.
+- Implemented both authorities, tablet/personal controls, recovery schema 7 and
+  main elimination statistics integration. Rules/manual and source/IP notes
+  updated; no runtime dependencies or bundled media.
+- Implementation commits: `107ee30`, `67eaccd`; [PR #135](https://github.com/rickethyo/TurnHub/pull/135).
+- Validation: all four local ASan/UBSan host suites pass (unoptimized local
+  compiler override), including new rules, failed-save recovery, HTTP
+  authorization/freshness/retry and hidden reservations. Adapter audit, client
+  contracts (14 generated responses / 12 fixtures), docs, tokens, manual export
+  and whitespace pass. Manual pages 8–9 rendered and visually reviewed.
+  [Final CI](https://github.com/rickethyo/TurnHub/actions/runs/39262217598) passes
+  on `67eaccd`: optimized sanitizer suites/contracts, Android compilation/full JVM
+  suite/release bundle, firmware and LVGL. [iOS passes](https://github.com/rickethyo/TurnHub/actions/runs/39262217529).
+  CI caught an old unknown-format fixture using the newly valid ID 5; it now
+  uses ID 6. Bag-panel Back navigation and retention after credit are included.
+- Next owner: review/integrate #135 with a merge commit and retain `codex/master`.
+  Physical ten-player, accessibility, process-death and power-cut acceptance
+  remains open in STAGED_CHANGES.md. No merge or release performed.
 
 ## New topic / reply template
 

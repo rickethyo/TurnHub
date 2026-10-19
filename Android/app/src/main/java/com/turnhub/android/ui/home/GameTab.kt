@@ -132,6 +132,7 @@ data class GameActions(
     val onCommanderDamage: (source: Int, commander: Int, delta: Int) -> Unit = { _, _, _ -> },
     val onPlayerCounter: (String, Int, Int) -> Unit = { _, _, _ -> },
     val onEliminationRule: (String, Int) -> Unit = { _, _ -> },
+    val onDoom: (com.turnhub.android.protocol.DoomAction, com.turnhub.android.protocol.DoomToken, Int, Int) -> Unit = { _, _, _, _ -> },
     val onSetZeroLifeElimination: (Boolean) -> Unit = {},
     val onSaveGameSettings: (profile: String?, startingLife: Int?, turnTimerMs: Long?, twoHeadedGiant: Boolean?, houseRules: Boolean?) -> Unit =
         { _, _, _, _, _ -> },
@@ -162,6 +163,14 @@ fun GameTab(
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         StageCard(summary, me?.playerNumber, nowMs, labelFor, reduceMotion)
         IncomingLifeRequest(summary, me, nowMs, labelFor, actions)
+        summary.doomBag?.let { bag ->
+            BrassCard {
+                Text("Bag of Doom", color = p.text, style = MaterialTheme.typography.titleMedium)
+                com.turnhub.android.ui.tablet.DoomBagPanel(summary, me != null && !me.eliminated && uiState.player?.busy != true) { action, player, value ->
+                    actions.onDoom(action, com.turnhub.android.protocol.DoomToken(summary.bootId, summary.revision, bag.cycle, summary.game), player, value)
+                }
+            }
+        }
         SeatCard(uiState, summary, me, actions, reduceMotion)
         if (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED ||
             summary.state == TableState.GAME_OVER
@@ -1143,7 +1152,7 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
     val chosenTimer = if (custom) customMs else timer
     var teams by remember(current.twoHeadedGiant) { mutableStateOf(current.twoHeadedGiant) }
     // Star Commander never has teams.
-    val teamsAllowed = profile.magicRules && !profile.starCommander
+    val teamsAllowed = profile.magicRules && !profile.starCommander && !profile.bagOfDoom
     // Official modes keep the official life and player count unless house rules are on (Atlas enforces it).
     var house by remember(current.houseRules) { mutableStateOf(current.houseRules) }
     val official = com.turnhub.android.standalone.officialRules(profile, teams && teamsAllowed)
@@ -1153,7 +1162,7 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
     fun defaultLife(choice: GameProfile, withTeams: Boolean) = when (choice) {
         GameProfile.MTG -> if (withTeams) "30" else "20"
         GameProfile.MTG_COMMANDER -> if (withTeams) "60" else "40"
-        GameProfile.MTG_STAR_COMMANDER -> "40"
+        GameProfile.MTG_STAR_COMMANDER, GameProfile.MTG_BAG_OF_DOOM -> "40"
         GameProfile.YUGIOH -> "8000"
         GameProfile.POKEMON -> "6"
         GameProfile.LORCANA -> "20"

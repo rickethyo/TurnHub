@@ -29,6 +29,7 @@ struct ImportedPlayer {
   uint8_t outOrder = 0;
   bool conceded = false;
   int8_t eliminatedBy = -1;
+  bool bagDrawn = false;
 };
 
 struct ImportedGame {

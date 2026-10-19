@@ -1,0 +1,178 @@
+{
+  "protocolVersion": "0.1",
+  "atlasId": "THA-025448410001",
+  "bootId": "0123456789ABCDEF0123456789ABCDEF",
+  "revision": 57,
+  "state": "PAUSED",
+  "hostModuleId": null,
+  "starterPlayer": 1,
+  "activePlayer": 1,
+  "winnerPlayer": null,
+  "winnerPlayers": [],
+  "monarchPlayer": null,
+  "initiativePlayer": null,
+  "settings": {
+    "profile": "mtg_bag_of_doom",
+    "startingLife": 40,
+    "turnTimerMs": 0,
+    "autoEliminateAtZeroLife": true,
+    "autoEliminateAtPoisonLimit": true,
+    "autoEliminateAtCommanderDamage": true,
+    "poisonLimit": 10,
+    "twoHeadedGiant": false
+  },
+  "sampledAtMs": 3605000,
+  "gameElapsedMs": 3540000,
+  "turnElapsedMs": 95000,
+  "turnTimer": {
+    "phase": "NORMAL",
+    "remainingMs": null
+  },
+  "pending": {
+    "passPlayer": null,
+    "passGraceRemainingMs": 0,
+    "winClaimPlayer": null,
+    "winConfirmationPlayer": null,
+    "eliminationTargetPlayer": null
+  },
+  "nudge": null,
+  "players": [
+    {
+      "playerNumber": 1,
+      "moduleId": 0,
+      "slot": 1,
+      "team": null,
+      "displayName": "Ana",
+      "participantId": 41,
+      "turnsCompleted": 9,
+      "counters": {
+        "poison": 0,
+        "energy": 0,
+        "experience": 0,
+        "commanderCasts": [
+          1,
+          0
+        ],
+        "cityBlessing": false
+      },
+      "conceded": false,
+      "eliminated": false,
+      "life": 40,
+      "commanderDamage": [],
+      "lifeRequest": null,
+      "eliminatedBy": null
+    },
+    {
+      "playerNumber": 2,
+      "moduleId": 1,
+      "slot": 1,
+      "team": null,
+      "displayName": "Ben",
+      "participantId": 42,
+      "turnsCompleted": 9,
+      "counters": {
+        "poison": 0,
+        "energy": 0,
+        "experience": 0,
+        "commanderCasts": [
+          1,
+          0
+        ],
+        "cityBlessing": false
+      },
+      "conceded": false,
+      "eliminated": false,
+      "life": 40,
+      "commanderDamage": [],
+      "lifeRequest": null,
+      "eliminatedBy": null
+    },
+    {
+      "playerNumber": 3,
+      "moduleId": 2,
+      "slot": 1,
+      "team": null,
+      "displayName": "Cai",
+      "participantId": 43,
+      "turnsCompleted": 9,
+      "counters": {
+        "poison": 0,
+        "energy": 0,
+        "experience": 0,
+        "commanderCasts": [
+          1,
+          0
+        ],
+        "cityBlessing": false
+      },
+      "conceded": false,
+      "eliminated": false,
+      "life": 40,
+      "commanderDamage": [],
+      "lifeRequest": null,
+      "eliminatedBy": null
+    },
+    {
+      "playerNumber": 4,
+      "moduleId": 3,
+      "slot": 1,
+      "team": null,
+      "displayName": "Dee",
+      "participantId": 44,
+      "turnsCompleted": 6,
+      "counters": {
+        "poison": 0,
+        "energy": 0,
+        "experience": 0,
+        "commanderCasts": [
+          1,
+          0
+        ],
+        "cityBlessing": false
+      },
+      "conceded": false,
+      "eliminated": false,
+      "life": 40,
+      "commanderDamage": [],
+      "lifeRequest": null,
+      "eliminatedBy": null
+    },
+    {
+      "playerNumber": 5,
+      "moduleId": 4,
+      "slot": 1,
+      "team": null,
+      "displayName": "Eli",
+      "participantId": 45,
+      "turnsCompleted": 8,
+      "counters": {
+        "poison": 0,
+        "energy": 0,
+        "experience": 0,
+        "commanderCasts": [
+          1,
+          0
+        ],
+        "cityBlessing": false
+      },
+      "conceded": false,
+      "eliminated": false,
+      "life": 40,
+      "commanderDamage": [],
+      "lifeRequest": null,
+      "eliminatedBy": null
+    }
+  ],
+  "doomBag": {
+    "atRisk": 21,
+    "drawn": 0,
+    "boundary": 5,
+    "warmup": 0,
+    "cycle": 1,
+    "pending": true,
+    "pendingTurn": 5,
+    "sealed": false,
+    "lastDraw": 0,
+    "lastCheck": 0
+  }
+}

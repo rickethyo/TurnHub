@@ -243,12 +243,18 @@ internal fun TabletTable(
     var flipped by rememberSaveable { mutableStateOf(false) }
     val starLayout = rememberStarLayout()
     var menuOpen by remember { mutableStateOf(false) }
-    BackHandler(enabled = passToTurn != null || playerMenu != null || menuOpen) {
+    var bagOpen by rememberSaveable(summary.bootId, summary.game) { mutableStateOf(false) }
+    var reviewedBagCycle by rememberSaveable(summary.bootId, summary.game) { mutableStateOf(0L) }
+    var dismissedBagCheck by rememberSaveable(summary.bootId, summary.game) { mutableStateOf(0L) }
+    val bag = summary.doomBag
+    val bagAutomatic = bag != null && ((bag.pending && reviewedBagCycle != bag.cycle) || bag.lastCheck > dismissedBagCheck)
+    fun dismissBag() { bagOpen = false; reviewedBagCycle = bag?.cycle ?: 0; dismissedBagCheck = bag?.lastCheck ?: 0 }
+    BackHandler(enabled = passToTurn != null || playerMenu != null || menuOpen || (bag != null && (bagOpen || bagAutomatic))) {
         if (passToTurn != null) passToTurn = null
-        else {
+        else if (playerMenu != null || menuOpen) {
             playerMenu = null
             menuOpen = false
-        }
+        } else dismissBag()
     }
 
     LaunchedEffect(summary.revision) { sent.removeAll { it.acked && it.sentAtRevision != summary.revision } }
@@ -530,6 +536,26 @@ internal fun TabletTable(
             })
         }
 
+        if (bag != null && (bagOpen || bagAutomatic) && !menuOpen && playerMenu == null &&
+            summary.pending.eliminationTargetPlayer == null &&
+            summary.state in listOf(TableState.RUNNING, TableState.PAUSED)) {
+            Overlay("Bag of Doom", null, onDismiss = { dismissBag() }) {
+                DoomBagPanel(summary, !isOffline && !tablet.busy) { action, player, value ->
+                    val actor = summary.players.firstOrNull { !it.eliminated }?.seat()
+                    if (actor != null) {
+                        bagOpen = true
+                        haptics.tick()
+                        controls { doom(actor, action, com.turnhub.android.protocol.DoomToken(summary.bootId, summary.revision, bag.cycle, summary.game), player, value) }
+                    }
+                }
+                if (!bag.pending && summary.state == TableState.PAUSED) {
+                    AccentButton("Continue game", {
+                        dismissBag(); send(summary.players.firstOrNull { !it.eliminated }?.seat(), "pause")
+                    }, Modifier.fillMaxWidth(), enabled = !isOffline)
+                }
+                ToneButton(if (bag.pending) "Review life totals" else "Close", { dismissBag() }, Modifier.fillMaxWidth())
+            }
+        }
         val anySeat = summary.anySeat()
         val activeSeat = summary.players.firstOrNull { it.playerNumber == summary.activePlayerNumber }?.seat() ?: anySeat
         when (summary.state) {
@@ -600,6 +626,9 @@ internal fun TabletTable(
             summary.pending.eliminationTargetPlayer == null) {
                 Overlay("Game menu", null, onDismiss = { menuOpen = false }) {
                     GameClockLine(summary)
+                    if (summary.doomBag != null) AccentButton("Bag of Doom · ${summary.players.count { !it.eliminated && summary.doomBag.contains(it.playerNumber) }} at risk", {
+                        menuOpen = false; bagOpen = true
+                    }, Modifier.fillMaxWidth())
                     if (summary.settings.profile.deathMayDie) DeathMayDieTurnPhasesButton()
                     val paused = summary.state == TableState.PAUSED
                     AccentButton(if (paused) "Resume game" else "Pause game", {
@@ -690,7 +719,7 @@ private fun Hub(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit) {
     ) {
         Text(if (summary.state == TableState.PAUSED) "Paused" else clock, color = p.text,
             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text(summary.round?.let { "Round $it" } ?: "Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
+        Text(if (summary.doomBag?.pending == true) "Bag check due" else summary.round?.let { "Round $it" } ?: "Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -899,6 +928,10 @@ private fun PlayerPanel(
                             Text(it, color = p.muted, style = MaterialTheme.typography.labelMedium, fontStyle = FontStyle.Italic,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
+                    }
+                    if (summary.doomBag != null && summary.players.count { !it.eliminated } > 4 && !out) {
+                        val risk = summary.doomBag.contains(unit.members.first().playerNumber)
+                        Tag(if (risk) "In bag" else "Safe", if (risk) p.warn else p.good, p.surface)
                     }
                     if (active) Tag("Turn", p.active, p.onActive)
                     if (out) Tag(if (unit.members.any { it.conceded }) "Conceded" else "Eliminated", p.bad, p.surface)

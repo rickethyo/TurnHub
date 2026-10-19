@@ -1472,3 +1472,44 @@ management/invitations from TH-002 remain separate planned work.
   claimed.
 - Next owner: PR review and device acceptance; shared-engine/authority work
   follows the staged design separately.
+
+
+## 2026-10-19: Ten-player app games and elimination credit (PR #134)
+
+- Date / owner: 2026-10-19 / Codex on `codex/master`, baseline `726e1b1`.
+  Clean tree; fetched origin and checked open PRs (none). Owner requested ten
+  app players and elimination attribution in the general statistics engine.
+- Scope: Android standalone capacity, per-victim explicit elimination credit,
+  match recovery/history, connected controls/state, standalone import and shared
+  lifetime/last-game statistics. Bag of Doom rules remain a separate feature.
+- Feature gate: Atlas GameEngine owns connected credit; StandaloneGame owns
+  separate phone-hosted matches. Existing EliminateSeat Intent carries an
+  optional credited player, validated by the authoritative engine. Both owners
+  persist attribution with the match before completion statistics. Clients render
+  state and choose credit using labeled controls. State/control/import contracts
+  and statistics storage extend; no new dependency, artwork or third-party data.
+  Unknown causes and concessions award no credit; never infer a killer from
+  whose turn it is. Teammate/self credit is invalid. Credits count individual
+  opponents removed (a team contains two opponents).
+- Implementation: explicit `eliminatedBy` is captured before elimination finishes;
+  lifetime/last-game totals use the shared live/import aggregator. Source is
+  retained in recovery/history and shown in player/history/statistics views.
+  App/import limit is ten; import winner masks are 16-bit. Detailed statistics
+  schema 4 (88 bytes), core schema 3 (28 bytes), checkpoints schema 6 (+16 bytes
+  at capacity); prototype statistics layouts require reset, not migration.
+- Implementation commits: `fa276ed` and `665e7ce`, [PR #134](https://github.com/rickethyo/TurnHub/pull/134).
+  Follow-up validation runs before clearing a pending pass or pausing the table;
+  invalid credit cannot disturb queued actions. Team checkpoint credit must agree.
+  Source choices include player numbers so duplicate names remain distinguishable.
+- Validation: [CI passes](https://github.com/rickethyo/TurnHub/actions/runs/39234776248)
+  for `665e7ce`: Android compilation, complete JVM suite and release bundle,
+  Atlas host suites/contracts, firmware and LVGL. [iOS checks pass](https://github.com/rickethyo/TurnHub/actions/runs/39234776242).
+  Local sanitizer host suites, adapter audit, client contracts, docs links,
+  design tokens, manual export and whitespace checks pass. Manual DOCX rendered
+  and visually reviewed on pages 3, 11 and 13. Local Gradle could not resolve
+  Foojay 1.0.0; Android verification comes from CI.
+- Outcome: owner merged #134 as `e0af27b`; permanent branch retained.
+  Physical acceptance: ten-player layout with large text/TalkBack, explicit
+  elimination selection (including duplicate names), stats/history/shares and
+  recovery on phone/tablet; flash/reset prototype Atlas statistics for the new
+  layouts. No merge or release performed.

@@ -114,6 +114,15 @@ fun modeRules(profile: GameProfile, teams: Boolean): ModeRules = officialRules(p
             "The game is also lost when the Summoning track reaches its last space, or when every investigator is dead or insane.",
             "Each panel counts that player's wounds as a reminder; their dashboard decides when they die.",
         ))
+        profile.bagOfDoom -> ModeRules("Commander · Bag of Doom (custom)", null, listOf(
+            "A custom Commander variant for five or more players, inspired by Game Knights' ten-player game. Start at 40 life; normal Commander rules apply.",
+            "Everyone begins in the bag. When another player loses life on your turn, your name comes out, even if they paid that life themselves. Your own life loss does not save you.",
+            "The first bag check follows the fourth full turn cycle. Then check once per cycle. A random name still in the bag is eliminated; an empty bag eliminates nobody. Each check refills the bag.",
+            "Crediting an elimination refills the bag except for that player and moves the boundary to the living player before them. The new check is after one cycle at that boundary, including during the opening grace period.",
+            "Use the bag panel to correct missed life entries or credit an automatic removal. Concessions and bag-drawn players give no elimination credit. At four survivors the bag switches off.",
+            "A bag check pauses play. Resolve pending life approvals, review entries, then Draw. The saved result cannot be rerolled by reopening the panel. Continue resumes the next turn.",
+            "TurnHub uses the community summary's reset-every-check interpretation. Episode: https://www.youtube.com/watch?v=CvyRDmwOeCs ; summary: https://www.reddit.com/r/EDH/comments/1sng1au/commandzones_10_player_game/",
+        ))
         profile.starCommander -> ModeRules("Star Commander (custom)", null, listOf(
             "A five-player Commander variant played by many groups; it is not part of Magic's official rules.",
             "Each player starts at 40 life.",

@@ -1,11 +1,13 @@
 #pragma once
 #include "game_profile.h"
+#include "doom_bag.h"
 #include "turnhub_types.h"
 
 namespace TurnHub {
 // Serialization DTO only. GameEngine remains the sole live game state owner.
 struct GameCheckpoint {
   GameSettings settings{};
+  DoomBag doom{};
   uint8_t count = 0, active = 0, starter = 0, winner = 0, monarch = 0, initiative = 0;
   bool paused = false, over = false;
   // Every winner (bit playerNumber - 1); winner is its lowest bit. Several

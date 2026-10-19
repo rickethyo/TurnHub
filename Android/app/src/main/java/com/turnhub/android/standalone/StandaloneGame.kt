@@ -123,6 +123,7 @@ data class StandaloneGame(
     val turnStartedAtElapsedMs: Long = 0,
     /** Planechase: the planar deck, die and counters ([Planechase]); off unless the table turns it on. */
     val planechase: Planechase = Planechase(),
+    val doomBag: com.turnhub.android.protocol.DoomBag = com.turnhub.android.protocol.DoomBag(),
     /** Pokémon: what the last Pokémon Checkup did, shown until the table dismisses it; empty when nothing happened. */
     val pokemonCheckup: List<String> = emptyList(),
     /** Cooperative games (Death May Die): the players who have taken their turn this [round]. */
@@ -164,6 +165,7 @@ data class StandaloneGame(
     /** Required player count and all selected setup references are ready. */
     val canStart: Boolean get() = when {
         !investigatorCardsReady -> false
+        profile.bagOfDoom -> players.size >= 5 && !twoHeadedGiant
         star -> players.size == StarCommander.PLAYERS
         locked?.players != null -> players.size == locked?.players
         else -> players.size >= 2 && (!twoHeadedGiant || (players.size >= 4 && players.size % 2 == 0))
@@ -218,7 +220,7 @@ data class StandaloneGame(
     fun setFormat(profile: GameProfile, startingLife: Int? = null): StandaloneGame {
         if (state != TableState.LOBBY) return this
         // Star Commander has no teams: choosing it turns Two-Headed Giant off.
-        val teams = twoHeadedGiant && profile.magicRules && !profile.starCommander
+        val teams = twoHeadedGiant && profile.magicRules && !profile.starCommander && !profile.bagOfDoom
         return copy(
             profile = profile,
             twoHeadedGiant = teams,
@@ -241,7 +243,7 @@ data class StandaloneGame(
 
     /** The game mode: Two-Headed Giant (Magic and Commander, not Star Commander) or standard; lobby only. */
     fun setTwoHeadedGiant(on: Boolean): StandaloneGame {
-        if (state != TableState.LOBBY || on == twoHeadedGiant || (on && (!magic || star))) return this
+        if (state != TableState.LOBBY || on == twoHeadedGiant || (on && (!magic || star || profile.bagOfDoom))) return this
         return copy(
             twoHeadedGiant = on,
             startingLife = defaultLife(profile, on),
@@ -324,6 +326,7 @@ data class StandaloneGame(
             players = players.map { LocalPlayer(it.name, it.profileId, life = if (lorcana || deathMayDie) 0 else startingLife, localId = it.localId,
                 commander = it.commander, commanderArt = it.commanderArt, cardOnly = it.cardOnly, investigator = it.investigator,
                 dashboard = it.dashboard.fresh()) },
+            doomBag = if (profile.bagOfDoom) DoomRules.start(first + 1, (1 shl players.size) - 1, players.size) else com.turnhub.android.protocol.DoomBag(),
             active = first,
             starter = first,
             winner = null,
@@ -442,7 +445,7 @@ data class StandaloneGame(
             timeoutHandled = false,
             planechase = planechase.newTurn(),
             acted = if (profile.cooperative) acted + team else acted,
-        ).bump().closeRound()
+        ).bump().closeRound().doomPassed(holder + 1, nowMs)
     }
 
     /**
@@ -474,7 +477,7 @@ data class StandaloneGame(
     }
 
     /** Pauses a running game, or resumes a paused one. */
-    fun togglePause(nowMs: Long): StandaloneGame = when (state) {
+    fun togglePause(nowMs: Long): StandaloneGame = if (doomBag.pending) this else when (state) {
         TableState.RUNNING -> copy(state = TableState.PAUSED, elapsedMs = gameElapsedMs(nowMs), runningSinceMs = null).bump()
         TableState.PAUSED -> copy(state = TableState.RUNNING, runningSinceMs = nowMs).bump()
         else -> this
@@ -503,7 +506,7 @@ data class StandaloneGame(
             return if (lore >= startingLife) gained.finish(listOf(index), nowMs) else gained
         }
         val life = (player.life.toLong() + delta).coerceIn(-MAX_LIFE.toLong(), MAX_LIFE.toLong()).toInt()
-        return updateTeam(index) { it.copy(life = life) }.resolveEliminationRules(nowMs)
+        return updateTeam(index) { it.copy(life = life) }.doomLifeLoss(index + 1, life - player.life).resolveEliminationRules(nowMs)
     }
 
     /**
@@ -524,7 +527,7 @@ data class StandaloneGame(
         // Damage is counted per player; in Two-Headed Giant it comes off the team's life.
         return update(index) { it.copy(commanderDamage = it.commanderDamage + (source to updated)) }
             .updateTeam(index) { it.copy(life = it.life - applied) }
-            .resolveEliminationRules(nowMs)
+            .doomLifeLoss(index + 1, -applied).resolveEliminationRules(nowMs)
     }
 
     /** The player leaves the game; when one is left standing, they win. */
@@ -616,7 +619,7 @@ data class StandaloneGame(
         val out = players.count { it.eliminated } + 1
         var game = copy(nextTurn = nextTurn.takeUnless { it in leaving }, players = players.mapIndexed { i, p ->
             if (i in leaving) p.copy(eliminated = true, conceded = conceded, outOrder = out, eliminatedBy = eliminatedBy) else p
-        }).bump().passStatuses(leaving)
+        }).bump().passStatuses(leaving).doomLeft(eliminatedBy?.plus(1) ?: 0)
         game.decided()?.let { return game.finish(it, nowMs) }
         if (active in leaving) {
             val next = game.stagedNextTurn ?: (if (profile.cooperative) game.nextUp(leaving.last(), acted) else game.nextIn(leaving.last())) ?: return game
@@ -643,7 +646,7 @@ data class StandaloneGame(
         var out = players.count { it.eliminated }
         var game = copy(players = players.mapIndexed { i, p ->
             if (i in targets) p.copy(eliminated = true, conceded = false, outOrder = ++out) else p
-        }).passStatuses(targets).bump()
+        }).passStatuses(targets).bump().doomLeft()
         game.decided()?.let { return game.finish(it, nowMs) }
         if (active in targets) {
             game = game.copy(active = game.nextIn(mates(active!!).last()), turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false,
@@ -658,7 +661,7 @@ data class StandaloneGame(
      */
     fun claimWin(index: Int, nowMs: Long): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
-        if (!playing || player.eliminated) return this
+        if (!playing || player.eliminated || doomBag.pending) return this
         return finish(if (profile.cooperative) players.indices.toList() else listOf(index), nowMs)
     }
 
@@ -913,6 +916,7 @@ data class StandaloneGame(
 
     private fun finish(winners: List<Int>, nowMs: Long): StandaloneGame = copy(
         state = TableState.GAME_OVER,
+        doomBag = doomBag.copy(pending = false, pendingTurn = 0, selected = 0, sealed = false),
         nextTurn = null,
         winner = winners.firstOrNull(),
         winners = winners,
@@ -977,7 +981,7 @@ data class StandaloneGame(
             winner = winner,
             winners = winners,
             twoHeadedGiant = twoHeadedGiant,
-            players = players.map { p ->
+            players = players.mapIndexed { i, p ->
                 GameRecord.Player(
                     name = p.name,
                     localId = p.localId,
@@ -990,6 +994,7 @@ data class StandaloneGame(
                     outOrder = p.outOrder,
                     conceded = p.conceded,
                     eliminatedBy = p.eliminatedBy,
+                    bagDrawn = doomBag.drawn and DoomRules.bit(i + 1) != 0,
                     commanderDamageReceived = p.commanderDamage.values.sumOf { it.sum() },
                     counters = p.counters,
                     commanderBySource = p.commanderDamage,
@@ -998,6 +1003,50 @@ data class StandaloneGame(
                 )
             },
         )
+    }
+
+    private fun doomLiving(): Int = players.indices.filter { !players[it].eliminated }.fold(0) { mask, i -> mask or DoomRules.bit(i + 1) }
+
+    private fun doomLifeLoss(target: Int, applied: Int): StandaloneGame {
+        if (!profile.bagOfDoom || applied >= 0 || Integer.bitCount(doomLiving()) <= 4) return this
+        val owner = if (doomBag.pending) doomBag.pendingTurn else active?.plus(1) ?: 0
+        if (owner == target || doomLiving() and DoomRules.bit(owner) == 0) return this
+        return copy(doomBag = doomBag.copy(atRisk = doomBag.atRisk and DoomRules.bit(owner).inv()))
+    }
+
+    private fun doomPassed(player: Int, nowMs: Long): StandaloneGame {
+        if (!profile.bagOfDoom || Integer.bitCount(doomLiving()) <= 4) return this
+        val bag = DoomRules.pass(doomBag, player)
+        return if (!bag.pending) copy(doomBag = bag) else copy(doomBag = bag, state = TableState.PAUSED,
+            elapsedMs = gameElapsedMs(nowMs), runningSinceMs = null)
+    }
+
+    private fun doomLeft(credited: Int = 0): StandaloneGame =
+        if (!profile.bagOfDoom) this else copy(doomBag = DoomRules.leave(doomBag, doomLiving(), players.size, credited))
+
+    fun doomEligibility(player: Int, inBag: Boolean, cycle: Long): StandaloneGame {
+        if (!playing || !profile.bagOfDoom || cycle != doomBag.cycle || doomBag.selected != 0 ||
+            Integer.bitCount(doomLiving()) <= 4 || doomLiving() and DoomRules.bit(player) == 0) return this
+        val mask = if (inBag) doomBag.atRisk or DoomRules.bit(player) else doomBag.atRisk and DoomRules.bit(player).inv()
+        return if (mask == doomBag.atRisk) this else copy(doomBag = doomBag.copy(atRisk = mask)).bump()
+    }
+
+    /** Allows a natural/automatic removal to receive explicit credit before the match ends. */
+    fun doomCredit(victim: Int, source: Int, cycle: Long): StandaloneGame {
+        val target = players.getOrNull(victim - 1) ?: return this
+        if (!playing || !profile.bagOfDoom || cycle != doomBag.cycle || doomBag.selected != 0 ||
+            !target.eliminated || target.conceded || target.eliminatedBy != null ||
+            source - 1 !in players.indices || source == victim || doomBag.drawn and DoomRules.bit(victim) != 0) return this
+        return update(victim - 1) { it.copy(eliminatedBy = source - 1) }.doomLeft(source)
+    }
+
+    /** The store commits this complete outcome before StandaloneTable publishes it. */
+    fun drawDoom(cycle: Long, nowMs: Long, random: Random = Random.Default): StandaloneGame {
+        if (state != TableState.PAUSED || !profile.bagOfDoom || !doomBag.pending || cycle != doomBag.cycle) return this
+        val candidates = players.indices.filter { !players[it].eliminated && doomBag.contains(it + 1) }
+        val victim = if (doomBag.selected != 0) doomBag.selected else if (candidates.isEmpty()) 0 else candidates[random.nextInt(candidates.size)] + 1
+        val next = if (victim == 0) this else copy(doomBag = doomBag.copy(selected = 0)).eliminate(victim - 1, nowMs)
+        return next.copy(doomBag = DoomRules.checked(doomBag, victim, next.doomLiving(), players.size)).bump()
     }
 
     // --- drawing it with the tablet screen ---------------------------------------------
@@ -1033,6 +1082,7 @@ data class StandaloneGame(
             gameElapsedMs = elapsed,
             turnElapsedMs = (elapsed - turnStartedAtElapsedMs).coerceAtLeast(0),
             turnTimer = turnTimer(nowMs),
+            doomBag = doomBag.takeIf { profile.bagOfDoom && state != TableState.LOBBY },
             localTimerRules = timerRules,
             turnExtensionMs = turnExtensionMs,
             receivedAtMs = monoNowMs,
@@ -1093,7 +1143,7 @@ data class StandaloneGame(
         /** A Two-Headed Giant team's total is 30 for Magic and 60 for Commander. */
         fun defaultLife(profile: GameProfile, twoHeadedGiant: Boolean = false): Int = when (profile) {
             GameProfile.MTG_COMMANDER -> if (twoHeadedGiant) 60 else 40
-            GameProfile.MTG_STAR_COMMANDER -> 40
+            GameProfile.MTG_STAR_COMMANDER, GameProfile.MTG_BAG_OF_DOOM -> 40
             GameProfile.MTG -> if (twoHeadedGiant) 30 else 20
             GameProfile.YUGIOH -> 8000
             GameProfile.POKEMON -> 6

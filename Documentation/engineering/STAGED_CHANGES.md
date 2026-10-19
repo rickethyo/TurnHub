@@ -52,6 +52,18 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   and the Sigils learn the new formats and import their games later, per the
   dev sequence. One Piece can reuse the Prize-card count if the owner wants it.
 
+### Bag of Doom acceptance
+
+- Play a ten-player phone-hosted and Atlas-connected Commander match. Check the
+  fourth-cycle pause from a non-first starter, later one-cycle checks, life
+  payments/Commander damage, delayed approvals and explicit corrections.
+  Confirm credited/unknown removals, concessions, boundary removal and the
+  four-survivor shutoff. Try two phones drawing simultaneously and stale
+  requests after switching games. Interrupt power/process before and after a
+  draw: a reserved name/result must survive, with no reroll or credited bag kill.
+  Verify ten panels, the scrolling bag overlay, rotation, large text and TalkBack.
+  Automated checks do not close this physical-device acceptance item.
+
 ### Stability and diagnostics
 
 - **Android device acceptance:** complete the stabilization gate above. Include

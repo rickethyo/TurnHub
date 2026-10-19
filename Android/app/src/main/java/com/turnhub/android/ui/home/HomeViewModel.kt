@@ -757,6 +757,14 @@ class HomeViewModel(
         launchTable { playerSession.counter("/api/control/counter", listOf("counter" to kind, key to "$value", "commander" to "$commander"), "Counter updated.") }
     }
 
+    fun onDoom(action: com.turnhub.android.protocol.DoomAction, token: com.turnhub.android.protocol.DoomToken, player: Int, value: Int) {
+        viewModelScope.launch(com.turnhub.android.data.ExpectedGame(token.game)) {
+            playerSession.counter("/api/control/doom", listOf("action" to action.wire, "cycle" to "${token.cycle}",
+                "expectedRevision" to "${token.revision}", "expectedBootId" to token.bootId,
+                "player" to "$player", "inBag" to "$value", "source" to "$value"), "Bag updated.")
+        }
+    }
+
     fun onEliminationRule(field: String, value: Int) {
         launchTable { playerSession.counter("/api/game/settings", listOf(field to "$value"), "Elimination settings updated.") }
     }

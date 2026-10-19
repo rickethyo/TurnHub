@@ -35,6 +35,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
   changed |= update(state_, state);
   changed |= update(inGame_, game.hasPlayers());
   const auto &settings = inGame_ ? game.settings() : nextSettings;
+  if (!sameDoomBag(doom_, game.doomBag())) { doom_ = game.doomBag(); changed = true; }
   changed |= update(settings_.profile, settings.profile);
   changed |= update(settings_.startingLife, settings.startingLife);
   changed |= update(settings_.turnTimerMs, settings.turnTimerMs);
@@ -162,6 +163,20 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
     out += String(number);
   }
   out += ']';
+  out += ",\"doomBag\":";
+  if (!inGame_ || settings_.profile != GameProfile::DoomCommander) out += "null";
+  else {
+    out += "{\"atRisk\":"; out += String(doom_.atRisk);
+    out += ",\"drawn\":"; out += String(doom_.drawn);
+    out += ",\"boundary\":"; out += String(doom_.boundary);
+    out += ",\"warmup\":"; out += String(doom_.warmup);
+    out += ",\"cycle\":"; out += String(doom_.cycle);
+    out += ",\"pending\":"; out += doom_.pending ? "true" : "false";
+    out += ",\"pendingTurn\":"; out += String(doom_.pendingTurn);
+    out += ",\"sealed\":"; out += doom_.selected ? "true" : "false";
+    out += ",\"lastDraw\":"; out += String(doom_.lastDraw);
+    out += ",\"lastCheck\":"; out += String(doom_.lastCheck); out += '}';
+  }
   out += ",\"monarchPlayer\":"; nullablePlayer(out, monarch_);
   out += ",\"initiativePlayer\":"; nullablePlayer(out, initiative_);
   out += ",\"settings\":{\"profile\":\""; out += gameProfileKey(settings_.profile);

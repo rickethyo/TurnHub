@@ -210,9 +210,22 @@ backup is normal on a first write and must not emit a filesystem error. Cleanup
 failure after publication still leaves the new committed record readable.
 
 
-Elimination attribution is checkpoint schema 6: each player adds one byte for
+Match recovery is checkpoint schema 7. Elimination attribution: each player adds one byte for
 the credited opponent's player number (zero means unknown). Attribution is
 validated with the saved player list and restored paused. Detailed profile stats
 schema 4 is 88 bytes; core NVS stats schema 3 is 28 bytes, including lifetime and
 last-game elimination counts. Statistics layouts require a prototype factory
 reset; unreadable records are preserved rather than migrated or overwritten.
+
+
+Bag of Doom adds a 22-byte header: two 16-bit masks (at-risk and drawn, each stored as a 32-bit word),
+boundary, warmup, pending flag, pending turn owner, sealed selection and last
+drawn player (one byte each), then cycle and last-check (32-bit each). The
+maximum checkpoint is 3,062 bytes (66-byte header, per-player 59 bytes plus
+8 per opponent, CRC-32). Validation requires living membership, a valid
+boundary, a paused pending check, and uncredited/non-conceding drawn players.
+A selection must be in the pending bag. Outside this variant the bag is empty.
+The private selection is committed before resolution; recovering it never
+chooses another name. Profile statistics layouts do not change for this mode.
+Android commits a phone-hosted draw's complete snapshot synchronously before
+publishing its result; other local edits retain the normal save path.

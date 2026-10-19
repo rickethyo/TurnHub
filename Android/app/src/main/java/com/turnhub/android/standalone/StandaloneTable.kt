@@ -32,6 +32,8 @@ interface StandaloneStore {
     fun loadLibrary(): String?
     /** Production stores both keys in one preference transaction. */
     fun saveSnapshot(game: String, library: String): Boolean
+    /** A random outcome must reach durable storage before it is revealed. */
+    fun commitSnapshot(game: String, library: String): Boolean = saveSnapshot(game, library)
     /** Copies unreadable saved data aside before a fresh start; false if it could not be kept. */
     fun keepUnreadable(): Boolean = false
 }
@@ -57,6 +59,9 @@ class PreferencesStandaloneStore(context: Context) : StandaloneStore {
     override fun loadLibrary(): String? = prefs.getString("library", null)
     override fun saveSnapshot(game: String, library: String): Boolean = prefs.edit()
         .putString("game", game).putString("library", library).apply().let { true }
+
+    override fun commitSnapshot(game: String, library: String): Boolean = prefs.edit()
+        .putString("game", game).putString("library", library).commit()
 
     // Both keys go in one editor, so the swap is atomic; the old data stays under *_unreadable.
     override fun keepUnreadable(): Boolean = prefs.edit()
@@ -365,6 +370,20 @@ class StandaloneTable(
 
     // --- the table ------------------------------------------------------------------
 
+    override suspend fun doom(seat: TabletSeat, action: com.turnhub.android.protocol.DoomAction,
+        token: com.turnhub.android.protocol.DoomToken, player: Int, value: Int): Boolean {
+        val before = _state.value.game
+        val index = StandaloneGame.indexOf(seat.moduleId)
+        if (before.gameId != token.bootId || before.revision != token.revision ||
+            before.players.getOrNull(index)?.eliminated != false) return false
+        edit { game -> when (action) {
+            com.turnhub.android.protocol.DoomAction.DRAW -> game.drawDoom(token.cycle, wallClock(), planarRandom)
+            com.turnhub.android.protocol.DoomAction.ELIGIBILITY -> if (value in 0..1) game.doomEligibility(player, value == 1, token.cycle) else game
+            com.turnhub.android.protocol.DoomAction.CREDIT -> game.doomCredit(player, value, token.cycle)
+        } }
+        return _state.value.game !== before
+    }
+
     override suspend fun eliminate(seat: TabletSeat, eliminatedBy: Int?): Boolean {
         val before = _state.value.game
         if (eliminatedBy != null && eliminatedBy !in 1..before.players.size) return false
@@ -464,7 +483,13 @@ class StandaloneTable(
 
     private fun publish(next: StandaloneState): Boolean {
         if (_state.value.storageProblem != null) return false
-        val saved = runCatching { store.saveSnapshot(gameToJson(next.game).toString(), next.library.toJson().toString()) }
+        val saved = runCatching {
+            val gameJson = gameToJson(next.game).toString()
+            val libraryJson = next.library.toJson().toString()
+            if (next.game.doomBag.lastCheck > _state.value.game.doomBag.lastCheck)
+                store.commitSnapshot(gameJson, libraryJson)
+            else store.saveSnapshot(gameJson, libraryJson)
+        }
             .getOrDefault(false)
         if (!saved) {
             _state.update { it.copy(storageProblem = "Couldn't save local play. Close and reopen the app before continuing; do not clear app data.") }
@@ -539,6 +564,7 @@ class StandaloneTable(
             put("turnStartedAtElapsedMs", game.turnStartedAtElapsedMs)
             put("revision", game.revision)
             put("planechase", game.planechase.toJson())
+            put("doomBag", game.doomBag.toSavedJson())
             put("pokemonCheckup", JSONArray(game.pokemonCheckup))
             put("acted", JSONArray(game.acted.sorted()))
             put("round", game.round)
@@ -630,6 +656,7 @@ class StandaloneTable(
                 runningSinceMs = json.optLongOrNull("runningSinceMs"),
                 turnStartedAtElapsedMs = json.getLong("turnStartedAtElapsedMs"),
                 revision = json.getLong("revision"),
+                doomBag = json.optJSONObject("doomBag")?.let(::doomFromJson) ?: com.turnhub.android.protocol.DoomBag(),
                 planechase = json.optJSONObject("planechase")?.let { Planechase.fromJson(it) } ?: Planechase(),
                 pokemonCheckup = json.optJSONArray("pokemonCheckup")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(),
                 acted = json.optIntList("acted")?.filter { it in 0 until players.length() }?.toSet().orEmpty(),
@@ -703,6 +730,7 @@ class StandaloneTable(
                 },
             ).also { game ->
                 require(game.players.size <= StandaloneGame.MAX_PLAYERS)
+                require(DoomRules.valid(game))
                 game.players.forEachIndexed { i, p ->
                     require(p.eliminatedBy == null || (p.eliminated && !p.conceded &&
                         p.eliminatedBy in game.players.indices && p.eliminatedBy != i &&

@@ -6,6 +6,7 @@
 namespace TurnHub {
 void clearCheckpoint(GameCheckpoint &out) {
   out.settings = GameSettings{};
+  out.doom = DoomBag{};
   out.monarch = out.initiative = 0;
   out.count = out.active = out.starter = out.winner = 0;
   out.winners = 0;
@@ -27,7 +28,7 @@ bool validCheckpoint(const GameCheckpoint &s) {
   if (!validGameSettings(s.settings) || s.count > MAX_PLAYERS) return false;
   if (s.initiative && (s.initiative > s.count || s.eliminated[s.initiative-1] || !magicRules(s.settings.profile))) return false;
   if (s.monarch && (s.monarch > s.count || s.eliminated[s.monarch-1] || !magicRules(s.settings.profile))) return false;
-  if (!s.count) return !s.over && !s.winner && !s.winners;
+  if (!s.count) return !s.over && !s.winner && !s.winners && sameDoomBag(s.doom, DoomBag{});
   if (s.count < 2 || s.active >= s.count || !s.starter || s.starter > s.count ||
       s.winner > s.count || (!s.over && s.winner)) return false;
   if (!validTeamTable(s.settings, s.count) || !validStarTable(s.settings, s.count)) return false;
@@ -69,6 +70,7 @@ bool validCheckpoint(const GameCheckpoint &s) {
         (!magicRules(s.settings.profile) && !sameCounters(s.counters[i], PlayerCounters{})) ||
         (!commanderRules(s.settings.profile) && (s.counters[i].commanderCasts[0] || s.counters[i].commanderCasts[1]))) return false;
     if (s.conceded[i] && !s.eliminated[i]) return false;
+    if ((s.doom.drawn & doomBit(i + 1)) && (s.conceded[i] || s.eliminatedBy[i])) return false;
     if (s.eliminatedBy[i] && (!s.eliminated[i] || s.conceded[i] ||
         s.eliminatedBy[i] > s.count || s.eliminatedBy[i] == i + 1 ||
         (s.settings.twoHeadedGiant && (s.eliminatedBy[i] - 1) / 2 == i / 2))) return false;
@@ -79,6 +81,9 @@ bool validCheckpoint(const GameCheckpoint &s) {
           // Star Commander allies never deal each other Commander damage.
           (s.settings.profile == GameProfile::StarCommander && s.damage[i][j][c] && starAllied(i + 1, j + 1))) return false;
   }
+  uint16_t livingMask = 0;
+  for (uint8_t i = 0; i < s.count; ++i) if (!s.eliminated[i]) livingMask |= doomBit(i + 1);
+  if (!validDoomBag(s.doom, s.settings.profile == GameProfile::DoomCommander, livingMask, s.count, s.paused)) return false;
   // A finished match without a winner is a draw (GameEngine::endInDraw).
   return (s.over ? (!s.winner || !s.eliminated[s.winner-1]) :
       (living >= 2 && !s.eliminated[s.active]));
@@ -88,6 +93,7 @@ void GameEngine::checkpoint(GameCheckpoint &out, uint32_t nowMs) const {
   clearCheckpoint(out);
   if (!hasPlayers()) return;
   out.settings = settings_;
+  out.doom = doom_;
   out.count = playerCount_; out.active = activeIndex_; out.starter = starterPlayer_;
   out.monarch = monarchPlayer_;
   out.initiative = initiativePlayer_;
@@ -109,6 +115,7 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
   if (!validCheckpoint(s)) return false;
   reset();
   if (!s.count) return true;
+  doom_ = s.doom;
   settings_ = s.settings; playerCount_ = s.count; activeIndex_ = s.active;
   monarchPlayer_ = s.monarch;
   initiativePlayer_ = s.initiative;

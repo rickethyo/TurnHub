@@ -16,6 +16,7 @@ enum class GameProfile(val wireValue: String) {
      * wins once both enemies are out ([com.turnhub.android.domain.StarCommander]).
      */
     MTG_STAR_COMMANDER("mtg_star_commander"),
+    MTG_BAG_OF_DOOM("mtg_bag_of_doom"),
     YUGIOH("yugioh"),
     /**
      * Pokémon TCG: each player counts the Prize cards they have left, from 6;
@@ -35,11 +36,13 @@ enum class GameProfile(val wireValue: String) {
     DEATH_MAY_DIE("death_may_die"),
     ;
 
-    /** Commander rules (Commander damage, commander casts, 40 life): Commander and Star Commander. */
-    val commanderRules: Boolean get() = this == MTG_COMMANDER || this == MTG_STAR_COMMANDER
+    /** Commander rules (Commander damage, commander casts, 40 life): Commander and its variants. */
+    val commanderRules: Boolean get() = this == MTG_COMMANDER || this == MTG_STAR_COMMANDER || this == MTG_BAG_OF_DOOM
 
     /** Magic rules (poison, energy, monarch, initiative...): every Magic format. */
     val magicRules: Boolean get() = this == MTG || commanderRules
+
+    val bagOfDoom: Boolean get() = this == MTG_BAG_OF_DOOM
 
     val starCommander: Boolean get() = this == MTG_STAR_COMMANDER
 

@@ -9,6 +9,7 @@
 
 #include "turnhub_types.h"
 #include "game_profile.h"
+#include "doom_bag.h"
 
 namespace TurnHub {
 
@@ -34,6 +35,8 @@ struct LifeChangeRequest {
   uint8_t target = 0;
   int32_t delta = 0;
   LifeChangeState state = LifeChangeState::None;
+  uint8_t doomOwner = 0;
+  uint32_t doomCycle = 0;
   uint32_t windowMs = LIFE_APPROVAL_MS;  // The recipient's approval window.
 };
 
@@ -87,6 +90,14 @@ class GameEngine {
   void setAutoEliminateAtZeroLife(bool enabled) { settings_.autoEliminateAtZeroLife = enabled; }
   bool resolveEliminationRules(uint32_t nowMs);
   bool hasConceded(uint8_t player) const;
+  const DoomBag &doomBag() const { return doom_; }
+  bool doomCommander() const { return settings_.profile == GameProfile::DoomCommander; }
+  bool doomActive() const { return doomCommander() && livingPlayerCount() > 4; }
+  bool setDoomEligibility(uint8_t player, bool inBag, uint32_t cycle);
+  bool creditDoomElimination(uint8_t victim, uint8_t source, uint32_t cycle);
+  bool prepareDoomDraw(uint32_t cycle, uint8_t pick);
+  bool resolveDoomDraw(uint32_t nowMs);
+  bool hasPendingLifeChanges() const;
   bool validEliminationCredit(uint8_t victim, uint8_t source) const;
   uint8_t eliminatedBy(uint8_t player) const;
   uint8_t eliminationsBy(uint8_t player) const;
@@ -260,6 +271,12 @@ class GameEngine {
   uint8_t livingSideCount() const;
   bool canChangeLife(uint8_t player, int32_t delta) const;
   void settleLifeChange(LifeChangeRequest &request, LifeChangeState outcome);
+  bool changeLifeForTurn(uint8_t player, int32_t delta, uint8_t turnPlayer);
+  uint16_t doomLiving() const;
+  uint8_t doomTurnPlayer() const;
+  void doomLifeLoss(uint8_t target, int32_t delta, uint8_t owner);
+  void doomPassed(uint8_t player, uint32_t nowMs);
+  void doomLeft(uint8_t credited = 0);
 
   void clearWinClaim();
   void finishGame(uint8_t winnerPlayer, uint32_t nowMs);
@@ -275,6 +292,7 @@ class GameEngine {
 
   PlayerSeat players_[MAX_PLAYERS];
   GameSettings settings_{};
+  DoomBag doom_{};
   int32_t life_[MAX_PLAYERS] = {};
   int32_t commanderDamage_[MAX_PLAYERS][MAX_PLAYERS][COMMANDERS_PER_PLAYER] = {};
   uint32_t matchGeneration_ = 0;

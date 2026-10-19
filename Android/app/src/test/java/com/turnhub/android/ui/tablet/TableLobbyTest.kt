@@ -13,6 +13,13 @@ class TableLobbyTest {
         assertEquals(LobbyModeSettings(GameProfile.MTG_COMMANDER, 40, false), settingsForMode(GameProfile.MTG_STAR_COMMANDER, GameMode.STANDARD))
     }
 
+    @Test fun `bag mode stays under commander and returns to regular commander`() {
+        assertEquals(LobbyModeSettings(GameProfile.MTG_BAG_OF_DOOM, 40, false), settingsForMode(GameProfile.MTG_COMMANDER, GameMode.BAG_OF_DOOM))
+        assertEquals(LobbyModeSettings(GameProfile.MTG_COMMANDER, 40, false), settingsForMode(GameProfile.MTG_BAG_OF_DOOM, GameMode.STANDARD))
+        assertEquals(GameMode.BAG_OF_DOOM, GameMode.of(GameProfile.MTG_BAG_OF_DOOM, false))
+        assertEquals(true, formatSelected(GameProfile.MTG_BAG_OF_DOOM, GameProfile.MTG_COMMANDER))
+    }
+
     @Test fun `standard magic doesn't offer commander-only modes`() {
         assertEquals(listOf(GameMode.STANDARD, GameMode.TWO_HEADED_GIANT), GameMode.availableFor(GameProfile.MTG))
         assertEquals(GameMode.entries, GameMode.availableFor(GameProfile.MTG_COMMANDER))

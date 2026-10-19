@@ -33,6 +33,7 @@ void GameEngine::reset() {
   settings_ = GameSettings{};
   batchElimination_ = false;
   playerCount_ = 0;
+  doom_ = DoomBag{};
   activeIndex_ = 0;
   starterPlayer_ = 0;
   monarchPlayer_ = initiativePlayer_ = 0;
@@ -71,16 +72,21 @@ int32_t GameEngine::lifeTotal(uint8_t playerNumber) const {
 
 bool GameEngine::canChangeLife(uint8_t playerNumber, int32_t delta) const {
   const int index = indexForPlayerNumber(playerNumber);
-  if (index < 0 || gameOver_ || (!running_ && !paused_) || winClaimActive_ || eliminated_[index]) return false;
+  if (index < 0 || gameOver_ || (!running_ && !paused_) || winClaimActive_ || eliminated_[index] || doom_.selected) return false;
   const int64_t total = static_cast<int64_t>(life_[index]) + delta;
   return delta != 0 && delta >= -LIFE_LIMIT && delta <= LIFE_LIMIT &&
       total >= -LIFE_LIMIT && total <= LIFE_LIMIT;
 }
 
 bool GameEngine::changeLife(uint8_t playerNumber, int32_t delta) {
+  return changeLifeForTurn(playerNumber, delta, doomTurnPlayer());
+}
+
+bool GameEngine::changeLifeForTurn(uint8_t playerNumber, int32_t delta, uint8_t owner) {
   if (!canChangeLife(playerNumber, delta)) return false;
   const int index = indexForPlayerNumber(playerNumber);
   life_[index] += delta;
+  doomLifeLoss(playerNumber, delta, owner);
   const int mate = teammateIndex(index);
   if (mate >= 0) life_[mate] = life_[index];  // One shared team total.
   return true;
@@ -199,6 +205,8 @@ bool GameEngine::requestLifeChange(uint8_t actor, uint8_t target, int32_t delta,
   request.target = target;
   request.delta = delta;
   request.state = LifeChangeState::Pending;
+  request.doomOwner = doomTurnPlayer();
+  request.doomCycle = doom_.cycle;
   request.windowMs = windowMs;
   return true;
 }
@@ -206,7 +214,7 @@ bool GameEngine::requestLifeChange(uint8_t actor, uint8_t target, int32_t delta,
 void GameEngine::settleLifeChange(LifeChangeRequest &request, LifeChangeState outcome) {
   if (outcome == LifeChangeState::Rejected) { request.state = outcome; return; }
   const int from = indexForPlayerNumber(request.actor);
-  request.state = from >= 0 && !eliminated_[from] && changeLife(request.target, request.delta)
+  request.state = from >= 0 && !eliminated_[from] && changeLifeForTurn(request.target, request.delta, request.doomCycle == doom_.cycle ? request.doomOwner : 0)
       ? outcome : LifeChangeState::Failed;
 }
 
@@ -262,6 +270,7 @@ bool GameEngine::changeCommanderDamage(uint8_t recipient, uint8_t source, uint8_
   if (lastHits_[to].source == source && lastHits_[to].commander == commander)
     lastHits_[to] = CommanderHit{};
   life_[to] -= delta;
+  doomLifeLoss(recipient, -delta, doomTurnPlayer());
   const int mate = teammateIndex(to);
   if (mate >= 0) life_[mate] = life_[to];  // Per-player damage, team life.
   commanderDamage_[to][from][commander - 1] = static_cast<int32_t>(total);
@@ -377,6 +386,10 @@ bool GameEngine::start(
   running_ = true;
   paused_ = false;
   gameOver_ = false;
+  if (doomCommander()) {
+    doom_.atRisk = doomLiving(); doom_.boundary = doomPrevious(starterPlayer_, doom_.atRisk, playerCount_);
+    doom_.warmup = 4; doom_.cycle = 1;
+  }
   gameStartedAtMs_ = nowMs;
   turnStartedAtMs_ = nowMs;
   return true;
@@ -415,8 +428,10 @@ bool GameEngine::passTurn(
     }
   }
 
+  const uint8_t passed = active->playerNumber;
   activeIndex_ = static_cast<uint8_t>(next);
   turnStartedAtMs_ = nowMs;
+  doomPassed(passed, nowMs);
   return true;
 }
 
@@ -431,7 +446,8 @@ bool GameEngine::pause(uint32_t nowMs) {
 }
 
 bool GameEngine::resume(uint32_t nowMs) {
-  if (!running_ || !paused_ || gameOver_ || winClaimActive_) {
+  if (doom_.pending) return false;
+  if (!running_ || !paused_ || gameOver_ || winClaimActive_ || doom_.selected) {
     return false;
   }
 
@@ -449,7 +465,7 @@ bool GameEngine::eliminatePlayer(
     bool &gameFinished, bool conceded, uint8_t creditedPlayer) {
   gameFinished = false;
 
-  if (!running_ || !paused_ || gameOver_ || winClaimActive_) {
+  if (!running_ || !paused_ || gameOver_ || winClaimActive_ || doom_.selected) {
     return false;
   }
 
@@ -479,6 +495,8 @@ bool GameEngine::eliminatePlayer(
     eliminatedBy_[mate] = creditedPlayer;
     cancelLifeChanges(players_[mate].playerNumber);
   }
+
+  doomLeft(creditedPlayer);
 
   if (wasActive) {
     const int next = nextLivingIndex(activeIndex_);
@@ -527,7 +545,7 @@ const PlayerCounters *GameEngine::countersForPlayer(uint8_t playerNumber) const 
 
 bool GameEngine::changePlayerCounter(uint8_t playerNumber, CounterKind kind, int32_t value, uint8_t commander) {
   const int index = indexForPlayerNumber(playerNumber);
-  if (index < 0 || eliminated_[index] || !running_ || gameOver_ || winClaimActive_ || !magicRules(settings_.profile)) return false;
+  if (index < 0 || eliminated_[index] || !running_ || gameOver_ || winClaimActive_ || doom_.selected || !magicRules(settings_.profile)) return false;
   auto &c = counters_[index];
   if (kind == CounterKind::Initiative) {
     if (value != 0 && value != 1) return false;
@@ -574,6 +592,78 @@ bool GameEngine::setEliminationSettings(const GameSettings &settings) {
 bool GameEngine::hasConceded(uint8_t player) const {
   const int index = indexForPlayerNumber(player);
   return index >= 0 && conceded_[index];
+}
+
+uint16_t GameEngine::doomLiving() const {
+  uint16_t mask = 0;
+  for (uint8_t i = 0; i < playerCount_; ++i) if (!eliminated_[i]) mask |= doomBit(players_[i].playerNumber);
+  return mask;
+}
+uint8_t GameEngine::doomTurnPlayer() const { return doom_.pending ? doom_.pendingTurn : activePlayerNumber(); }
+void GameEngine::doomLifeLoss(uint8_t target, int32_t delta, uint8_t owner) {
+  if (doomActive() && delta < 0 && owner != target && (doomLiving() & doomBit(owner)))
+    doom_.atRisk &= ~doomBit(owner);
+}
+void GameEngine::doomPassed(uint8_t player, uint32_t nowMs) {
+  if (!doomActive() || doom_.boundary != player) return;
+  if (doom_.warmup) --doom_.warmup;
+  if (!doom_.warmup) { doom_.pending = true; doom_.pendingTurn = player; pause(nowMs); }
+}
+void GameEngine::doomLeft(uint8_t credited) {
+  if (!doomCommander()) return;
+  const uint16_t living = doomLiving();
+  if (!doomActive()) {
+    doom_.atRisk = 0; doom_.boundary = doom_.warmup = doom_.pendingTurn = doom_.selected = 0; doom_.pending = false;
+    return;
+  }
+  if (credited) {
+    doom_.atRisk = living & ~doomBit(credited); doom_.boundary = doomPrevious(credited, living, playerCount_);
+    doom_.warmup = doom_.pendingTurn = doom_.selected = 0; doom_.pending = false; ++doom_.cycle;
+  } else {
+    doom_.atRisk &= living;
+    if (!(living & doomBit(doom_.boundary))) doom_.boundary = doomPrevious(doom_.boundary, living, playerCount_);
+  }
+}
+bool GameEngine::hasPendingLifeChanges() const {
+  for (uint8_t i = 0; i < playerCount_; ++i) if (lifeChanges_[i].state == LifeChangeState::Pending) return true;
+  return false;
+}
+bool GameEngine::setDoomEligibility(uint8_t player, bool inBag, uint32_t cycle) {
+  if (!running_ || gameOver_ || winClaimActive_ || !doomActive() || doom_.selected ||
+      cycle != doom_.cycle || !(doomLiving() & doomBit(player))) return false;
+  if (inBag) doom_.atRisk |= doomBit(player); else doom_.atRisk &= ~doomBit(player);
+  return true;
+}
+bool GameEngine::creditDoomElimination(uint8_t victim, uint8_t source, uint32_t cycle) {
+  const int i = indexForPlayerNumber(victim);
+  if (!running_ || gameOver_ || winClaimActive_ || !doomCommander() || doom_.selected || cycle != doom_.cycle ||
+      i < 0 || !eliminated_[i] || conceded_[i] || eliminatedBy_[i] || !source ||
+      !validEliminationCredit(victim, source) || (doom_.drawn & doomBit(victim))) return false;
+  eliminatedBy_[i] = source; doomLeft(source); return true;
+}
+bool GameEngine::prepareDoomDraw(uint32_t cycle, uint8_t pick) {
+  if (!paused_ || gameOver_ || winClaimActive_ || !doomActive() || !doom_.pending ||
+      cycle != doom_.cycle || hasPendingLifeChanges()) return false;
+  if (doom_.selected) return true;  // Failed/uncertain saves never choose again.
+  if (!doom_.atRisk) return true;
+  if (pick >= doomCount(doom_.atRisk)) return false;
+  for (uint8_t p = 1; p <= playerCount_; ++p) if (doom_.atRisk & doomBit(p)) {
+    if (!pick--) { doom_.selected = p; return true; }
+  }
+  return false;
+}
+bool GameEngine::resolveDoomDraw(uint32_t nowMs) {
+  if (!doomActive() || !paused_ || !doom_.pending || hasPendingLifeChanges() ||
+      (doom_.atRisk && !doom_.selected)) return false;
+  const uint8_t victim = doom_.selected;
+  const uint32_t check = doom_.cycle;
+  doom_.selected = 0;
+  if (victim) { bool finished = false; if (!eliminatePlayer(victim, nowMs, finished)) return false; }
+  doom_.drawn |= doomBit(victim);
+  doom_.lastDraw = victim; doom_.lastCheck = check; doom_.cycle = check + 1;
+  doom_.atRisk = doomActive() ? doomLiving() : 0;
+  doom_.warmup = doom_.pendingTurn = 0; doom_.pending = false;
+  return true;
 }
 
 bool GameEngine::validEliminationCredit(uint8_t victim, uint8_t source) const {
@@ -671,6 +761,7 @@ void GameEngine::finishGameWithWinners(uint16_t winners, uint32_t nowMs) {
   pauseStartedAtMs_ = 0;
   paused_ = false;
   gameOver_ = true;
+  doom_.pending = false; doom_.selected = doom_.pendingTurn = 0;
   cancelLifeChanges();
   clearWinClaim();
 
@@ -683,6 +774,7 @@ bool GameEngine::beginWinClaim(
     uint8_t playerNumber,
     bool restoreRunning,
     uint32_t nowMs) {
+  if (doom_.pending) return false;
   if (!running_ || gameOver_ || winClaimActive_) {
     return false;
   }

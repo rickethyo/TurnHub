@@ -240,6 +240,16 @@ class AtlasTablet(
         return response.ok
     }
 
+    override suspend fun doom(seat: TabletSeat, action: com.turnhub.android.protocol.DoomAction,
+        token: com.turnhub.android.protocol.DoomToken, player: Int, value: Int): Boolean {
+        val fields = seat.fields + listOf("action" to action.wire, "cycle" to "${token.cycle}",
+            "expectedRevision" to "${token.revision}", "expectedBootId" to token.bootId,
+            "player" to "$player", "inBag" to "$value", "source" to "$value")
+        val response = post("/api/tablet/doom", fields) ?: return false
+        if (response.ok) succeed() else fail(response)
+        return response.ok
+    }
+
     override suspend fun eliminate(seat: TabletSeat, eliminatedBy: Int?): Boolean {
         val response = post("/api/tablet/control", seat.fields + listOf("action" to "eliminate", "eliminatedBy" to "${eliminatedBy ?: 0}")) ?: return false
         if (response.ok) succeed() else fail(response)
