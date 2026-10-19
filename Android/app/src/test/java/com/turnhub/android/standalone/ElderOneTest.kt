@@ -83,7 +83,8 @@ class ElderOneTest {
         assertEquals(2, t.stage)
         // Moving back is a correction: it stays on the board.
         assertTrue(t.advance(-1).summoned)
-        assertSame(ElderOneTrack(), ElderOneTrack().advance(-1))
+        val start = ElderOneTrack()
+        assertSame(start, start.advance(-1))
     }
 
     @Test fun `the ritual summons it and makes it mortal, stage by stage`() {
