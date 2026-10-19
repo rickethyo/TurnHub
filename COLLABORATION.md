@@ -976,4 +976,8 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   health is typed by the table (no card data bundled).
 - Validation: `ElderOneTest` plus the existing Death May Die JVM tests. Device
   playtest pending.
+- Merged as #141; owner confirmed "scenes" are episodes. Follow-up (owner): the tab
+  shows only for Death May Die (also hidden while the Game tab shows Atlas) and is
+  redrawn to the app's polish: summoning-circle header, track path with sliding
+  marker, symbol sigils, stage ladder, wound ring, rules folded into a disclosure.
 
