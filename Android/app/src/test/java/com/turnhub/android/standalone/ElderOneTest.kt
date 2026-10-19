@@ -2,6 +2,8 @@ package com.turnhub.android.standalone
 
 import com.turnhub.android.domain.DeathMayDieStory
 import com.turnhub.android.domain.ElderOneTrack
+import com.turnhub.android.domain.EpisodeToken
+import com.turnhub.android.domain.InvestigatorDashboard
 import com.turnhub.android.domain.InvestigatorCard
 import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.protocol.GameProfile
@@ -176,5 +178,49 @@ class ElderOneTest {
         val episodes = DeathMayDieStory.episodes.flatMap { it.names }
         assertEquals(episodes.size, episodes.distinct().size)
         assertTrue((elders + episodes).all { it.length <= ElderOneTrack.MAX_NAME })
+    }
+
+    @Test fun `fire tokens are counted, capped, saved and cleared by a rematch`() {
+        val g = game()
+        val burning = g.changeCounter(0, StandaloneGame.FIRE_KIND, 3)
+        assertEquals(3, burning.players[0].dashboard.fire)
+        assertEquals(InvestigatorDashboard.MAX_FIRE, burning.changeCounter(0, StandaloneGame.FIRE_KIND, 99).players[0].dashboard.fire)
+        assertEquals(0, burning.changeCounter(0, StandaloneGame.FIRE_KIND, -3).players[0].dashboard.fire)
+        assertSame(g, g.changeCounter(0, StandaloneGame.FIRE_KIND, -1))
+        assertEquals(3, StandaloneTable.gameFromJson(StandaloneTable.gameToJson(burning)).players[0].dashboard.fire)
+        assertEquals(0, burning.claimWin(0, 20).rematch(30, "e", Random(0)).players[0].dashboard.fire)
+    }
+
+    @Test fun `episode tokens are named once, counted in play and kept by name for a rematch`() {
+        val named = lobby().nameEpisodeToken(" Gate ").nameEpisodeToken("gate").nameEpisodeToken("Seal")
+        assertEquals(listOf("Gate", "Seal"), named.elder.tokens.map { it.name })
+        // Counting waits for the game.
+        assertSame(named, named.changeEpisodeToken(0, 1))
+        val g = ready(named).chooseStarter(0).start(0, "d", Random(0)).changeEpisodeToken(0, 1).changeEpisodeToken(0, 1)
+        assertEquals(2, g.elder.tokens[0].count)
+        assertSame(g, g.changeEpisodeToken(1, -1))
+        assertSame(g, g.changeEpisodeToken(7, 1))
+        assertEquals(g.elder, StandaloneTable.gameFromJson(StandaloneTable.gameToJson(g)).elder)
+        assertEquals(listOf(EpisodeToken("Gate"), EpisodeToken("Seal")), g.claimWin(0, 20).rematch(30, "e", Random(0)).elder.tokens)
+        assertEquals(listOf("Seal"), g.removeEpisodeToken(0).elder.tokens.map { it.name })
+        val full = (1..10).fold(ElderOneTrack()) { t, i -> t.withToken("T$i") }
+        assertEquals(ElderOneTrack.MAX_TOKENS, full.tokens.size)
+    }
+
+    @Test fun `history keeps the Elder One, episode and investigators of a finished game`() {
+        val g = ready(lobby()).setElderOne("Hastur").setEpisode("Tomes of Madness").chooseStarter(0).start(0, "d", Random(0))
+        val lost = g.eliminate(1, 10)
+        val record = lost.record()!!
+        assertEquals("Hastur", record.elderOne)
+        assertEquals("Tomes of Madness", record.episode)
+        assertEquals("Investigator 0", record.players[0].investigator)
+        assertEquals("Elder One: Hastur · Episode: Tomes of Madness", record.storyLine)
+        val restored = GameRecord.fromJson(record.toJson())!!
+        assertEquals(record, restored)
+        val won = ready(lobby()).setElderOne("Hastur").chooseStarter(0).start(0, "f", Random(0)).claimWin(0, 10).record()!!
+        val untracked = ready(lobby()).chooseStarter(0).start(0, "g", Random(0)).claimWin(0, 10).record()!!
+        assertEquals(listOf(ElderOneResult("Hastur", 1, 1), ElderOneResult(UNRECORDED_ELDER_ONE, 1, 0)),
+            LocalLibrary(history = listOf(record, won, untracked)).elderOneRecord())
+        assertNull(untracked.storyLine)
     }
 }

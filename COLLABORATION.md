@@ -984,4 +984,10 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   **Guided setup** for every device game, ending on a confirm screen with Start
   or back to the setup menu (`ui/tablet/GuidedSetup.kt`; GAMEPLAY.md "Guided
   setup"). Device playtest pending.
+- Follow-up (owner, "All three" after a gap review): fire tokens with an End of
+  Turn reminder, a Rest (heal 3) action, story history (Elder One, episode,
+  investigators and outcome on each `GameRecord`, plus a by-Elder-One tally), and
+  named episode tokens on the Elder One tab (`ElderOneTrack.tokens`, names kept
+  for a rematch, counts cleared). Validation: new `ElderOneTest` cases; CI build.
+  Device playtest pending.
 

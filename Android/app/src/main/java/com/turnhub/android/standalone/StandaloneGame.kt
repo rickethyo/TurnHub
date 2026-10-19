@@ -575,6 +575,11 @@ data class StandaloneGame(
                 else update(index) { it.copy(dashboard = it.dashboard.copy(
                     skillLevels = it.dashboard.skills(it.investigator).indices.map { i -> if (i == slot) value else it.dashboard.skillLevels.getOrElse(i) { 1 } })) }
             }
+            FIRE_KIND -> {
+                val fire = (player.dashboard.fire + value).coerceIn(0, com.turnhub.android.domain.InvestigatorDashboard.MAX_FIRE)
+                if (!playing || player.eliminated || value == 0 || fire == player.dashboard.fire) this
+                else update(index) { it.copy(dashboard = it.dashboard.copy(fire = fire)) }
+            }
             STRESS_KIND -> {
                 val stress = (player.stress + value).coerceIn(0, com.turnhub.android.domain.DeathMayDie.MAX_STRESS)
                 if (!playing || player.eliminated || value == 0 || stress == player.stress) this
@@ -730,6 +735,13 @@ data class StandaloneGame(
     fun setElderOne(name: String?): StandaloneGame = editElder(setup = true) { it.withElderOne(name) }
 
     fun setEpisode(name: String?): StandaloneGame = editElder(setup = true) { it.withEpisode(name) }
+
+    /** Episode tokens: named in setup or during the game, counted during it. */
+    fun nameEpisodeToken(name: String): StandaloneGame = editElder(setup = true) { it.withToken(name) }
+
+    fun removeEpisodeToken(index: Int): StandaloneGame = editElder(setup = true) { it.withoutToken(index) }
+
+    fun changeEpisodeToken(index: Int, delta: Int): StandaloneGame = editElder(setup = false) { it.token(index, delta) }
 
     /**
      * A change to the Story board during the game ([ElderOneTrack]). The Progression token
@@ -1049,9 +1061,12 @@ data class StandaloneGame(
             winner = winner,
             winners = winners,
             twoHeadedGiant = twoHeadedGiant,
+            elderOne = elder.elderOne.takeIf { deathMayDie },
+            episode = elder.episode.takeIf { deathMayDie },
             players = players.mapIndexed { i, p ->
                 GameRecord.Player(
                     name = p.name,
+                    investigator = p.investigator.takeIf { deathMayDie },
                     localId = p.localId,
                     profileId = p.profileId,
                     finalLife = p.life,
@@ -1236,6 +1251,7 @@ data class StandaloneGame(
         const val TAKE_TURN_KIND = "take-turn"
         /** Counter kind for Death May Die's stress tokens. */
         const val STRESS_KIND = "stress"
+        const val FIRE_KIND = "fire"
         const val INSANITY_KIND = "insanity"
         const val SKILL_KIND = "investigator-skill"
 

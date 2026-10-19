@@ -120,6 +120,7 @@ fun ElderOneTab(state: StandaloneState, table: StandaloneTable, reduceMotion: Bo
                 SummoningCard(elder, running, reduceMotion, table)
                 if (elder.summoned) StageCard(elder, running, reduceMotion, table)
                 else RitualCard(running, table)
+                EpisodeTokensCard(elder, counting = running, table)
                 BrassCard { DeathMayDieTurnPhasesButton() }
                 StoryRules()
             }
@@ -132,6 +133,7 @@ fun ElderOneTab(state: StandaloneState, table: StandaloneTable, reduceMotion: Bo
                     Text("Choosing an Elder One also means an investigator lost before it is summoned ends the game, as the rules say.",
                         color = palette.muted, style = MaterialTheme.typography.bodyMedium)
                 }
+                EpisodeTokensCard(elder, counting = false, table)
                 StoryRules()
             }
         }
@@ -141,6 +143,54 @@ fun ElderOneTab(state: StandaloneState, table: StandaloneTable, reduceMotion: Bo
             { table.setElderOne(it); picking = null }) { picking = null }
         "episode" -> StoryPickerDialog("Episode", DeathMayDieStory.episodes, elder.episode,
             { table.setEpisode(it); picking = null }) { picking = null }
+    }
+}
+
+/**
+ * The episode's own tokens (gates, seals and so on): the table names them, in setup or
+ * during the game, and counts them while it plays. Each count is a number, never only a picture.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun EpisodeTokensCard(elder: ElderOneTrack, counting: Boolean, table: StandaloneTable) {
+    val p = palette
+    var naming by rememberSaveable { mutableStateOf(false) }
+    BrassCard {
+        Eyebrow("Episode tokens")
+        if (elder.tokens.isEmpty()) Text("Add a counter for each token your episode uses, like gates or seals.", color = p.muted,
+            style = MaterialTheme.typography.bodyMedium)
+        elder.tokens.forEachIndexed { index, token ->
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.inset).padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(token.name, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f))
+                StepButton("−", "Remove a ${token.name} token", counting && token.count > 0) { table.changeEpisodeToken(index, -1) }
+                Text("${token.count}", color = p.text, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.widthIn(min = 40.dp).semantics { contentDescription = "${token.count} ${token.name}"; liveRegion = LiveRegionMode.Polite })
+                StepButton("+", "Add a ${token.name} token", counting && token.count < ElderOneTrack.MAX_TOKEN_COUNT) { table.changeEpisodeToken(index, 1) }
+                if (token.count == 0) TextButton({ table.removeEpisodeToken(index) }) { Text("Remove") }
+            }
+        }
+        if (elder.tokens.size < ElderOneTrack.MAX_TOKENS) {
+            val unused = ElderOneTrack.SUGGESTED_TOKENS.filter { name -> elder.tokens.none { it.name.equals(name, ignoreCase = true) } }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                unused.forEach { name -> ToneButton("+ $name", { table.nameEpisodeToken(name) }) }
+                ToneButton("+ Other…", { naming = true })
+            }
+        }
+    }
+    if (naming) {
+        var name by rememberSaveable { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { naming = false },
+            title = { Text("Name the token") },
+            text = {
+                OutlinedTextField(name, { name = it.take(ElderOneTrack.MAX_NAME) }, singleLine = true, label = { Text("Token") })
+            },
+            confirmButton = { TextButton({ table.nameEpisodeToken(name); naming = false }, enabled = name.isNotBlank()) { Text("Add") } },
+            dismissButton = { TextButton({ naming = false }) { Text("Cancel") } },
+        )
     }
 }
 

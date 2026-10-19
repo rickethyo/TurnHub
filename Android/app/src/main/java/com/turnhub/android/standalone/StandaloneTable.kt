@@ -248,6 +248,9 @@ class StandaloneTable(
     fun changeElder(change: (com.turnhub.android.domain.ElderOneTrack) -> com.turnhub.android.domain.ElderOneTrack) =
         edit { it.changeElder(wallClock(), change) }
     fun killElderOne() = edit { it.killElderOne(wallClock()) }
+    fun nameEpisodeToken(name: String) = edit { it.nameEpisodeToken(name) }
+    fun removeEpisodeToken(index: Int) = edit { it.removeEpisodeToken(index) }
+    fun changeEpisodeToken(index: Int, delta: Int) = edit { it.changeEpisodeToken(index, delta) }
     fun setDrawTwoCards(on: Boolean) = edit { it.setDrawTwoCards(on) }
     fun dealInvestigatorCards(index: Int, slot: com.turnhub.android.domain.InvestigatorCardSlot) = edit { it.dealInvestigatorCards(index, slot) }
     /** One settings update from the shared lobby, preserving unspecified fields. */
@@ -546,12 +549,19 @@ class StandaloneTable(
             put("stageWounds", elder.stageWounds)
             put("stageHealth", JSONObject().apply { elder.stageHealth.forEach { (stage, health) -> put("$stage", health) } })
             put("symbols", elder.symbols)
+            put("tokens", JSONArray().apply { elder.tokens.forEach { put(JSONObject().put("name", it.name).put("count", it.count)) } })
         }
 
         /** Out-of-range saved values fall back to a fresh track rather than an impossible one. */
         private fun elderFromJson(json: JSONObject): com.turnhub.android.domain.ElderOneTrack {
-            val fresh = com.turnhub.android.domain.ElderOneTrack()
-                .withElderOne(json.optStringOrNull("elderOne")).withEpisode(json.optStringOrNull("episode"))
+            val tokens = json.optJSONArray("tokens")
+            val named = (0 until (tokens?.length() ?: 0)).fold(com.turnhub.android.domain.ElderOneTrack()
+                .withElderOne(json.optStringOrNull("elderOne")).withEpisode(json.optStringOrNull("episode"))) { track, i ->
+                val token = tokens?.optJSONObject(i) ?: return@fold track
+                val withName = track.withToken(token.optString("name"))
+                if (withName === track) track else withName.token(withName.tokens.lastIndex, token.optInt("count"))
+            }
+            val fresh = named
             val track = com.turnhub.android.domain.ElderOneTrack
             val space = json.optInt("space", track.START_SPACE)
             val stage = json.optInt("stage", 1)
@@ -653,6 +663,7 @@ class StandaloneTable(
                             put("sanityCondition", investigatorCardToJson(p.dashboard.sanityCondition))
                             put("relic", investigatorCardToJson(p.dashboard.relic))
                             put("insanity", p.dashboard.insanity)
+                            put("fire", p.dashboard.fire)
                             put("skillLevels", JSONArray(p.dashboard.skillLevels))
                             put("cardOffers", JSONObject().apply {
                                 p.dashboard.cardOffers.forEach { (slot, ids) -> put(slot.name, JSONArray(ids)) }
@@ -758,6 +769,7 @@ class StandaloneTable(
                             }.orEmpty()
                             com.turnhub.android.domain.InvestigatorDashboard(
                                 insanity = d.optInt("insanity").coerceIn(0, com.turnhub.android.domain.InvestigatorDashboard.MAX_INSANITY),
+                                fire = d.optInt("fire").coerceIn(0, com.turnhub.android.domain.InvestigatorDashboard.MAX_FIRE),
                                 skillLevels = List(skills.size.coerceAtLeast(3)) { slot -> d.optJSONArray("skillLevels")?.optInt(slot, 1)?.coerceIn(1, 4) ?: 1 },
                                 customSkills = skills,
                                 cardOffers = com.turnhub.android.domain.InvestigatorCardSlot.entries.mapNotNull { slot ->

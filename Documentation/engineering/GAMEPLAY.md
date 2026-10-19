@@ -83,7 +83,14 @@ loss condition; Commander damage totals alone do not trigger elimination.
   (`DeathMayDie.MAX_STRESS`, `DEATH_WOUNDS`). The sixth wound shows a death
   alert on the panel with an armed "died" button that sends the menu's
   elimination, so nobody is knocked out by a mis-tap, and the
-  before-summoning loss rule still applies. In the lobby each player row
+  before-summoning loss rule still applies. A Fire counter (0 to 9,
+  `InvestigatorDashboard.fire`) sits beside them; while it holds tokens the
+  panel reminds the player to roll that many black dice at End of Turn, with a
+  button that discards them. **Rest: heal 3** (Safe space only) offers every
+  split of 3 between stress and wounds and sends ordinary −1 steps. Each Death
+  May Die game in History records its Elder One, episode and investigators, and
+  the Games list sums wins and losses by Elder One (`LocalLibrary.elderOneRecord`).
+  In the lobby each player row
   keeps one height: the investigator button shows the chosen name, and the
   two card buttons stay on one line. The player's-name field and saved-player
   chips sit at the top of "At the table", so players added from them fill in
