@@ -73,6 +73,8 @@ data class TableSummary(
     val pokemonCheckup: List<String> = emptyList(),
     /** Cooperative games (Death May Die, phone-hosted): the round being played; null otherwise. */
     val round: Int? = null,
+    /** Phone-hosted Death May Die: the Elder One, episode and Story board; null otherwise. */
+    val elder: ElderOneTrack? = null,
     /** Phone engine's eligible recipients after the active investigator finishes this turn. */
     val passPlayerNumbers: List<Int> = emptyList(),
     /** Phone engine's staged recipient; the current turn continues until Pass. */

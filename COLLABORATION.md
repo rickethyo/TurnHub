@@ -962,3 +962,18 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   `CardGameControls.kt` and `InvestigatorPicker.kt`.
 - Validation: `DeathMayDieTest` JVM tests; CI runs the build (no Android SDK
   in the cloud container). Device playtest pending.
+
+## 2026-10-19 — Claude: Death May Die setup gate and Elder One tab
+
+- Owner: Claude on `claude/death-may-die-mode-biwa1i`, baseline `09255d9`
+  (#140). Owner request: block Start until every player has an investigator and
+  sanity condition (plus relic when enabled), and add a tab tracking the Elder
+  One and "scenes" (read as the episode; owner to confirm).
+- `StandaloneGame.setupMissing` drives `canStart` and the setup hint. The new
+  `ElderOneTrack` (`domain/ElderOne.kt`) lives on `StandaloneGame.elder`, saved
+  under `elder`, mirrored to `TableSummary.elder`; UI in `ui/tablet/ElderOneTab.kt`
+  behind `HomeTab.ELDER`. Track and stage rules from the CMON rulebook; stage
+  health is typed by the table (no card data bundled).
+- Validation: `ElderOneTest` plus the existing Death May Die JVM tests. Device
+  playtest pending.
+

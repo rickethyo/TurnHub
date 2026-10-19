@@ -295,7 +295,7 @@ private fun StageCard(summary: TableSummary, myNumber: Int?, nowMs: Long, labelF
         }
         TableState.STARTING -> "Starting" to "The game begins in a moment"
         TableState.RUNNING -> (if (myTurn) "Your turn" else active?.let { "$it's turn" } ?: "Running") to
-            (summary.round?.let { "Round $it" }
+            (summary.round?.let { round -> listOfNotNull("Round $round", summary.elder?.takeIf { it.inUse }?.headline()).joinToString(" · ") }
                 ?: "Turn ${summary.players.firstOrNull { it.playerNumber == summary.activePlayerNumber }?.let { it.turnsCompleted + 1 } ?: "—"}")
         TableState.PAUSED -> "Paused" to when {
             summary.pending.winConfirmationPlayer != null ->

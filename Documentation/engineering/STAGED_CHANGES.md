@@ -95,7 +95,9 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 - **Recent Android flows:** playtest the cancellable start countdown, practice
   table, Pass/action-strip edge taps and holds (including drags out of life,
   interrupted holds, narrow/rotated panels, large text and compact Planechase),
-  Death May Die active-investigator focus, skill/sanity markers and
+  Death May Die active-investigator focus, the investigator/condition/relic Start
+  gate, the Elder One tab (symbols, track, ritual, stages, armed losses/win),
+  skill/sanity markers and
   reference editing/recovery, draw-two physical/app choices and stable pairs after
   cancel/recovery/rematch, added fourth/fifth skills and marker preservation,
   investigator random/filter/preview and turn-phase reminders, device-wide

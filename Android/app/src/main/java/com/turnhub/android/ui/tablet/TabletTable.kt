@@ -749,6 +749,12 @@ private fun HubBar(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit
     ) {
         summary.round?.let { Text("Round $it", color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
         Text(if (summary.state == TableState.PAUSED) "Paused" else clock, color = p.muted, style = MaterialTheme.typography.titleSmall)
+        // Death May Die: where the Elder One stands, once the table tracks it.
+        summary.elder?.takeIf { it.inUse }?.let { elder ->
+            Text(if (elder.summoned) com.turnhub.android.domain.ElderOneTrack.stageName(elder.stage)
+                else "Track ${elder.space}/${com.turnhub.android.domain.ElderOneTrack.LAST_SPACE}",
+                color = p.muted, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+        }
         Spacer(Modifier.weight(1f))
         Text("Game menu", color = p.text, style = MaterialTheme.typography.labelLarge)
     }

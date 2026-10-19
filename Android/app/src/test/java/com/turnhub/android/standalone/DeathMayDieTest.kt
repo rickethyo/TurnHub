@@ -21,9 +21,11 @@ class DeathMayDieTest {
     private fun lobby(players: Int = 3) =
         (1..players).fold(StandaloneGame().setFormat(GameProfile.DEATH_MAY_DIE)) { g, i -> g.addPlayer("P$i") }
 
+    /** Start needs an investigator (any not yet chosen gets a placeholder) and a sanity condition for everyone. */
     private fun assigned(g: StandaloneGame) = g.players.indices.fold(g) { next, i ->
-        next.setInvestigatorCard(i, com.turnhub.android.domain.InvestigatorCardSlot.SANITY_CONDITION,
-            com.turnhub.android.domain.InvestigatorCard("Condition $i"))
+        (if (next.players[i].investigator == null) next.setInvestigator(i, "Investigator $i") else next)
+            .setInvestigatorCard(i, com.turnhub.android.domain.InvestigatorCardSlot.SANITY_CONDITION,
+                com.turnhub.android.domain.InvestigatorCard("Condition $i"))
     }
     private fun game(players: Int = 3) = assigned(lobby(players)).start(0, "d", First)
 
