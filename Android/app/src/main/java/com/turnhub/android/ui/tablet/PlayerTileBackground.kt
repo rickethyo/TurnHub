@@ -53,7 +53,9 @@ internal fun PlayerTileBackground(background: TileBackground, seatColor: Color, 
     }
     Box(modifier.background(p.surface).background(brush)) {
         if (art != null) {
-            Image(art.image, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            // Portraits and card art keep their top (the face) when a wide tile crops them.
+            Image(art.image, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
+                alignment = PORTRAIT_FOCUS)
             // Dim enough for the life total and controls to stay readable over any art.
             Box(Modifier.fillMaxSize().background(p.surface.copy(alpha = .55f)))
             // Kept to the panel's outer third so a long credit ends before the centre controls.

@@ -1,6 +1,8 @@
 package com.turnhub.android.ui.tablet
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -107,7 +109,7 @@ internal fun TableLobby(
     val locked = official != null && !settings.houseRules
     var guided by rememberSaveable { mutableStateOf(false) }
     Box(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.safeDrawingPadding()), contentAlignment = Alignment.TopCenter) {
-        Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+        Column(Modifier.widthIn(max = 880.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (!embedded) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Full-screen table", color = p.text, style = MaterialTheme.typography.headlineSmall,
@@ -389,11 +391,18 @@ internal fun TableLobby(
 /** A small accent link under a player's name for the step their seat still needs. */
 @Composable
 private fun SeatShortcut(label: String, description: String, enabled: Boolean, onClick: () -> Unit) {
-    Text("+ $label", color = if (enabled) palette.accent else palette.faint, style = MaterialTheme.typography.labelLarge,
+    val p = palette
+    val pill = androidx.compose.foundation.shape.RoundedCornerShape(99.dp)
+    Text("+ $label", color = if (enabled) p.onAccent else p.faint, style = MaterialTheme.typography.labelLarge,
+        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
         modifier = Modifier
+            .padding(top = 4.dp)
+            .heightIn(min = 36.dp)
+            .clip(pill)
+            .background(if (enabled) p.accentBrush else androidx.compose.ui.graphics.SolidColor(p.fillStrong), pill)
             .clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
             .semantics { contentDescription = description }
-            .padding(vertical = 4.dp))
+            .padding(horizontal = 14.dp, vertical = 8.dp))
 }
 
 internal data class LobbyModeSettings(val profile: GameProfile?, val life: Int?, val teams: Boolean)

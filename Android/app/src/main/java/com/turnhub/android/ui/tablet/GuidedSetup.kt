@@ -73,10 +73,10 @@ internal fun GuidedSetupDialog(
     val confirm = players.size * 2
     val at = step.coerceIn(0, confirm)
     val next = { step = if (backToConfirm) confirm else at + 1; backToConfirm = false }
-    Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)) {
+    Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false, decorFitsSystemWindows = false)) {
         val p = palette
         Box(Modifier.fillMaxSize().tableBackground(p).safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
-            Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+            Column(Modifier.widthIn(max = 880.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -96,6 +96,9 @@ internal fun GuidedSetupDialog(
         }
     }
 }
+
+/** Where a cropped portrait stays anchored: near the top, where faces are. */
+internal val PORTRAIT_FOCUS = androidx.compose.ui.BiasAlignment(0f, -0.7f)
 
 /** A big "pass to" card, so the next player knows the device is theirs. */
 @Composable
@@ -132,8 +135,8 @@ private fun PlayerStep(summary: TableSummary, player: TablePlayer, actions: Tabl
             Eyebrow("Investigator")
             val art = rememberInvestigatorArt(player.investigator)
             art?.let {
-                Image(it.image, "${player.investigator}'s portrait", Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(14.dp)),
-                    contentScale = ContentScale.Crop)
+                Image(it.image, "${player.investigator}'s portrait", Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(14.dp)),
+                    contentScale = ContentScale.Crop, alignment = PORTRAIT_FOCUS)
             }
             Text(player.investigator ?: "Not chosen yet", color = if (player.investigator == null) p.muted else p.text,
                 style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)

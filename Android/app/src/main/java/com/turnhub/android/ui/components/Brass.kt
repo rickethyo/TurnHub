@@ -265,15 +265,22 @@ fun ToneButton(
     val color = if (tone == Tone.NEUTRAL) p.text else toneColor(tone)
     // Modern: a tinted fill with no outline (High contrast keeps one).
     val outlined = p.ornament || p.bg == Color.Black
+    // Neutral buttons carry a soft accent tint and edge, so they never read as gray panels.
+    val neutralEdge = p.accent.copy(alpha = .45f)
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
         shape = RoundedCornerShape(if (p.ornament) 12.dp else DesignTokens.Radius.md),
-        border = if (outlined) BorderStroke(1.dp, if (enabled) (if (tone == Tone.NEUTRAL) p.lineStrong else color.copy(alpha = .7f)) else p.line) else null,
+        border = when {
+            !enabled -> if (outlined) BorderStroke(1.dp, p.line) else null
+            outlined -> BorderStroke(1.dp, if (tone == Tone.NEUTRAL) p.lineStrong else color.copy(alpha = .7f))
+            tone == Tone.NEUTRAL -> BorderStroke(1.dp, neutralEdge)
+            else -> null
+        },
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = when {
                 outlined -> p.surface2
-                tone == Tone.NEUTRAL -> p.fillStrong
+                tone == Tone.NEUTRAL -> p.accentSoft
                 else -> color.copy(alpha = .14f)
             },
             contentColor = color,

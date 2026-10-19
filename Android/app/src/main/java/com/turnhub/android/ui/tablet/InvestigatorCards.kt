@@ -34,6 +34,8 @@ import com.turnhub.android.domain.InvestigatorCard
 import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.domain.InvestigatorCardCatalogue
 import com.turnhub.android.domain.TablePlayer
+import com.turnhub.android.ui.components.AccentButton
+import com.turnhub.android.ui.components.Tone
 import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.theme.palette
 
@@ -130,9 +132,9 @@ private fun InvestigatorCardEditor(player: TablePlayer, slot: InvestigatorCardSl
                     if (!physical && offers.isNotEmpty()) {
                         Text("This pair stays fixed for this match. Choose one, then Save.")
                         offers.forEach { preset ->
-                            ToneButton(if (catalogueId == preset.id) "✓ ${preset.name}" else preset.name, {
+                            ToneButton(if (catalogueId == preset.id) "✓ ${preset.name} (chosen)" else preset.name, {
                                 choose(preset)
-                            }, modifier = Modifier.fillMaxWidth())
+                            }, modifier = Modifier.fillMaxWidth(), tone = if (catalogueId == preset.id) Tone.GOOD else Tone.NEUTRAL)
                             InvestigatorCardReferenceButton(preset.id)
                         }
                     }
@@ -178,7 +180,7 @@ private fun InvestigatorCardEditor(player: TablePlayer, slot: InvestigatorCardSl
                 if (card != null) TextButton(onClick = { onSave(null) }) { Text("Remove ${slot.label.lowercase()}") }
             }
         },
-        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onSave(InvestigatorCard(name, rules, catalogueId, transformed, frontHash, backHash)) }) { Text("Save") } },
+        confirmButton = { AccentButton("Save", { onSave(InvestigatorCard(name, rules, catalogueId, transformed, frontHash, backHash)) }, enabled = name.isNotBlank()) },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
     if (choosing) InvestigatorCardPicker(slot, catalogueId, onDismiss = { choosing = false }, references = references, onPick = { preset ->
         if (preset != null) choose(preset) else catalogueId = null
