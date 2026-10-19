@@ -192,13 +192,14 @@ fun HomeScreen(
     val canSettings = info?.has(com.turnhub.android.protocol.AccountPermission.ADMIN) == true
     val canPeople = canSettings || info?.has(com.turnhub.android.protocol.AccountPermission.GAME_MASTER) == true
     val canDev = info?.has(com.turnhub.android.protocol.AccountPermission.DEVELOPER) == true
+    var atlasGame by rememberSaveable { mutableStateOf(false) }
     val planes = localState.game.profile.magicRules
-    val elderOne = localState.game.profile.deathMayDie
+    // Atlas doesn't run Death May Die, so the tab is for this device's own game only.
+    val elderOne = localState.game.profile.deathMayDie && !atlasGame
     val tabs = HomeTab.entries.filter { (it != HomeTab.PLANES || planes) && (it != HomeTab.ELDER || elderOne) }
     // Leaving Magic hides the Planes tab (Death May Die the Elder One tab); whoever was on it goes back to Game.
     androidx.compose.runtime.LaunchedEffect(planes) { if (!planes && tab == HomeTab.PLANES) tab = HomeTab.GAME }
     androidx.compose.runtime.LaunchedEffect(elderOne) { if (!elderOne && tab == HomeTab.ELDER) tab = HomeTab.GAME }
-    var atlasGame by rememberSaveable { mutableStateOf(false) }
     var playersPage by rememberSaveable { mutableStateOf("Device") }
     val pageState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     androidx.activity.compose.BackHandler(enabled = tab != HomeTab.GAME && !setup.visible) { tab = HomeTab.GAME }

@@ -108,7 +108,7 @@ loss condition; Commander damage totals alone do not trigger elimination.
   enabled in setup, every investigator also needs a **Relic**. Disabled relic
   slots are hidden, and turning the option off clears relic assignments and offers.
   The **Elder One** tab (owner, 2026-10-19; shown only while Death May Die is the
-  device game, like Planes for Magic) records the Elder One and episode, chosen
+  device game and the Game tab isn't showing Atlas, like Planes for Magic) records the Elder One and episode, chosen
   from `DeathMayDieStory` (community wiki; any name can be typed) in setup or
   during play, and follows the Story board (`domain/ElderOne.kt`, CMON rulebook):
   a **Summoning symbols** count where the third advances the Elder One and empties
@@ -121,7 +121,11 @@ loss condition; Commander damage totals alone do not trigger elimination.
   armed **We killed the Elder One** on the Final stage is a shared win. Moves
   that end the game are armed (tap twice); corrections (back a space, undo
   summon or disruption before wounds) are available. Card effects stay on the
-  physical cards. The menu bar and Game tab show the track space or stage.
+  physical cards. The tab opens on a header naming the Elder One and episode over a
+  summoning circle (green on the track, red once summoned, gold when banished),
+  then the track as a path with a sliding marker, three Summoning-symbol sigils, a
+  stage ladder and a wound ring; text carries every state, and Reduce motion
+  stills the animation. The menu bar and Game tab show the track space or stage.
   Choices survive back-to-setup and rematch; progress resets.
   **Draw two, pick one** is a separate setup-only house-rule switch, off by default,
   applying to conditions and enabled relics. Each editor offers **Deal two in app**
