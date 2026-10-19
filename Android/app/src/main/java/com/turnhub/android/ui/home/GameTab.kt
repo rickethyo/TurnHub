@@ -167,11 +167,12 @@ fun GameTab(
     var dismissed by androidx.compose.runtime.saveable.rememberSaveable(summary.bootId, summary.game) { mutableStateOf(0L) }
     val bag = summary.doomBag
     val pendingSource = summary.players.firstOrNull { it.eliminationPending }
-    if (me != null && pendingSource != null) com.turnhub.android.ui.tablet.EliminationSourceDialog(
+    var sourceOpen by androidx.compose.runtime.saveable.rememberSaveable(summary.bootId, summary.game, pendingSource?.playerNumber) { mutableStateOf(true) }
+    if (me != null && pendingSource != null && sourceOpen) com.turnhub.android.ui.tablet.EliminationSourceDialog(
         summary, pendingSource, true, uiState.player?.busy != true, onConfirm = { source ->
             actions.onResolveElimination(pendingSource.playerNumber, source,
                 com.turnhub.android.protocol.GameActionToken(summary.bootId, summary.revision, bag?.cycle ?: 0, summary.game))
-        })
+        }, onCancel = { sourceOpen = false })
     if (pendingSource == null && bag != null && summary.state in listOf(TableState.RUNNING, TableState.PAUSED) &&
         (bagOpen || (bag.pending && reviewed != bag.cycle) || bag.lastCheck > dismissed)) {
         fun closeBag() { bagOpen = false; reviewed = bag.cycle; dismissed = bag.lastCheck }
@@ -184,6 +185,10 @@ fun GameTab(
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         StageCard(summary, me?.playerNumber, nowMs, labelFor, reduceMotion)
         IncomingLifeRequest(summary, me, nowMs, labelFor, actions)
+        if (pendingSource != null) BrassCard {
+            Text("Elimination source needed · ${pendingSource.label}", color = p.text, style = MaterialTheme.typography.titleMedium)
+            ToneButton("Eliminated by?", { sourceOpen = true }, Modifier.fillMaxWidth(), enabled = me != null)
+        }
         summary.doomBag?.let { bag ->
             BrassCard {
                 Text(if (bag.pending) "Bag check due" else "Bag of Doom", color = p.text, style = MaterialTheme.typography.titleMedium)
@@ -470,7 +475,7 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (summary.hasTurn(me.playerNumber) && summary.state == TableState.RUNNING) StatusBadge("Your turn", Tone.ACTIVE)
                 if (summary.monarchPlayerNumber == me.playerNumber) MonarchBadge()
-                if (me.eliminated) StatusBadge(if (me.conceded) "Conceded" else "Eliminated", Tone.BAD)
+                if (me.eliminated) StatusBadge(if (me.conceded) "Conceded" else if (me.selfEliminated) "Eliminated by self" else "Eliminated", Tone.BAD)
                 if (summary.isWinner(me.playerNumber)) StatusBadge("Winner", Tone.ACCENT)
                 if (summary.star && summary.state != TableState.LOBBY) {
                     val seats = summary.starSeats()

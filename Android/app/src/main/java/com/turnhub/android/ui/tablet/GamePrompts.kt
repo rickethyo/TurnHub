@@ -44,7 +44,7 @@ internal fun EliminationSourceDialog(summary: TableSummary, victim: TablePlayer,
     enabled: Boolean, onConfirm: (Int?) -> Unit, onCancel: () -> Unit = {}) {
     val p = palette
     var choice by rememberSaveable(summary.bootId, summary.game, victim.playerNumber, pending) { mutableStateOf<Int?>(null) }
-    FullScreenGamePrompt("Eliminated by?", if (pending) ({}) else onCancel) {
+    FullScreenGamePrompt("Eliminated by?", onCancel) {
         Text("${victim.playerNumber}. ${victim.label}", color = p.text, style = MaterialTheme.typography.headlineSmall)
         Text("Choose the actual player, including off-turn effects. Self and Unknown award no opponent credit.", color = p.muted)
         val choices = listOf(0 to if (victim.team == null) "Self" else "Self / own team", -1 to "Unknown / no player credited") +
@@ -57,7 +57,7 @@ internal fun EliminationSourceDialog(summary: TableSummary, victim: TablePlayer,
         AccentButton(if (pending) "Record elimination source" else "Confirm elimination", {
             choice?.let { onConfirm(it.takeIf { n -> n >= 0 }) }
         }, Modifier.fillMaxWidth(), enabled = enabled && choice != null)
-        if (!pending) ToneButton("Cancel", onCancel, Modifier.fillMaxWidth())
+        ToneButton(if (pending) "Review game" else "Cancel", onCancel, Modifier.fillMaxWidth())
     }
 }
 

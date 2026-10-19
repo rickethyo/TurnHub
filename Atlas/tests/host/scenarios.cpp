@@ -5494,6 +5494,8 @@ static void explicitEliminationAttribution() {
   GameSettings settings; settings.profile=GameProfile::Commander;settings.askEliminationSource=true;
   GameEngine g; bool finished=false;
   assert(g.start(seats,3,seats[0],1000,settings));
+  GameSettings live = g.settings(); live.askEliminationSource = false; live.autoEliminateAtCommanderDamage = false;
+  assert(g.setEliminationSettings(live) && g.settings().askEliminationSource);
   assert(g.changeLife(2,-40) && g.resolveEliminationRules(2000));
   assert(g.paused() && g.eliminationPending(2) && !g.gameOver() && g.eliminatedBy(2)==0);
   assert(!g.resume(2000) && !g.beginWinClaim(1,false,2000));

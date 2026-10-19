@@ -202,7 +202,8 @@ App-started games pause automatic removals for the same question; a pending
 answer is authoritative match state, saved for recovery. All-out batches and
 final eliminations defer victory/completion statistics until every source is
 answered. Answering preserves the paused state when the match continues; resume
-when ready. Concessions and bag draws already have known causes and skip the
+when ready. Review game closes the question without answering; the Game card
+or table menu reopens it and completion still waits. Concessions and bag draws already have known causes and skip the
 question. TurnHub never infers a source from the active turn or life-change
 sender. An explicit Unknown is a completed answer. Boot/revision guards and a
 pending-victim check reject stale and duplicate answers.

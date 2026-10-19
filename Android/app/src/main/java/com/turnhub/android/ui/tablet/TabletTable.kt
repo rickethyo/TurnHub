@@ -248,6 +248,8 @@ internal fun TabletTable(
     var reviewedBagCycle by rememberSaveable(summary.bootId, summary.game) { mutableStateOf(0L) }
     var dismissedBagCheck by rememberSaveable(summary.bootId, summary.game) { mutableStateOf(0L) }
     val bag = summary.doomBag
+    val attribution = summary.players.firstOrNull { it.eliminationPending }
+    var sourceOpen by rememberSaveable(summary.bootId, summary.game, attribution?.playerNumber) { mutableStateOf(true) }
     val bagAutomatic = bag != null && ((bag.pending && reviewedBagCycle != bag.cycle) || bag.lastCheck > dismissedBagCheck)
     fun dismissBag() { bagOpen = false; reviewedBagCycle = bag?.cycle ?: 0; dismissedBagCheck = bag?.lastCheck ?: 0 }
     BackHandler(enabled = passToTurn != null || playerMenu != null || menuOpen || (bag != null && (bagOpen || bagAutomatic))) {
@@ -489,7 +491,7 @@ internal fun TabletTable(
                         send(seat, action)
                     },
                     onEliminate = { member, _ ->
-                        if (isOffline) controls.refuseOffline() else manualRemoval = member.playerNumber
+                        if (isOffline) controls { refuseOffline() } else manualRemoval = member.playerNumber
                         playerMenu = null
                     },
                     onCommander = { member, source, which, delta ->
@@ -536,9 +538,8 @@ internal fun TabletTable(
             })
         }
 
-        val attribution = summary.players.firstOrNull { it.eliminationPending }
         val manualVictim = summary.players.firstOrNull { it.playerNumber == manualRemoval && !it.eliminated }
-        val sourceVictim = attribution ?: manualVictim
+        val sourceVictim = attribution?.takeIf { sourceOpen } ?: manualVictim
         if (sourceVictim != null) EliminationSourceDialog(summary, sourceVictim, attribution != null,
             enabled = !isOffline && !tablet.busy, onConfirm = { source ->
                 val token = com.turnhub.android.protocol.GameActionToken(summary.bootId, summary.revision, bag?.cycle ?: 0, summary.game)
@@ -546,8 +547,8 @@ internal fun TabletTable(
                     val actor = summary.players.firstOrNull { !it.eliminated } ?: sourceVictim
                     controls { resolveElimination(actor.seat(), sourceVictim.playerNumber, source, token) }
                 } else { controls { eliminate(sourceVictim.seat(), source) }; manualRemoval = null }
-            }, onCancel = { manualRemoval = null })
-        if (bag != null && sourceVictim == null && (bagOpen || bagAutomatic) && !menuOpen && playerMenu == null &&
+            }, onCancel = { if (attribution != null) sourceOpen = false else manualRemoval = null })
+        if (bag != null && attribution == null && sourceVictim == null && (bagOpen || bagAutomatic) && !menuOpen && playerMenu == null &&
             summary.pending.eliminationTargetPlayer == null &&
             summary.state in listOf(TableState.RUNNING, TableState.PAUSED)) {
             DoomBagDialog(summary, !isOffline && !tablet.busy, onAction = { action, player, value ->
@@ -629,6 +630,9 @@ internal fun TabletTable(
             summary.pending.eliminationTargetPlayer == null) {
                 Overlay("Game menu", null, onDismiss = { menuOpen = false }) {
                     GameClockLine(summary)
+                    if (attribution != null) AccentButton("Eliminated by? · ${attribution.label}", {
+                        menuOpen = false; sourceOpen = true
+                    }, Modifier.fillMaxWidth())
                     if (summary.doomBag != null) AccentButton("Bag of Doom · ${summary.players.count { !it.eliminated && summary.doomBag.contains(it.playerNumber) }} at risk", {
                         menuOpen = false; bagOpen = true
                     }, Modifier.fillMaxWidth())
@@ -722,7 +726,7 @@ private fun Hub(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit) {
     ) {
         Text(if (summary.state == TableState.PAUSED) "Paused" else clock, color = p.text,
             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text(if (summary.doomBag?.pending == true) "Bag check due" else summary.round?.let { "Round $it" } ?: "Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
+        Text(if (summary.players.any { it.eliminationPending }) "Eliminated by?" else if (summary.doomBag?.pending == true) "Bag check due" else summary.round?.let { "Round $it" } ?: "Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
     }
 }
 

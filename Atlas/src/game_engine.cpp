@@ -593,7 +593,9 @@ bool GameEngine::setEliminationSettings(const GameSettings &settings) {
   if (!validGameSettings(settings) || settings.profile != settings_.profile || settings.startingLife != settings_.startingLife ||
       settings.turnTimerMs != settings_.turnTimerMs || settings.twoHeadedGiant != settings_.twoHeadedGiant ||
       settings.houseRules != settings_.houseRules || !followsOfficialRules(settings)) return false;
+  const bool ask = settings_.askEliminationSource;
   settings_ = settings;
+  settings_.askEliminationSource = ask;  // Live rule toggles do not change the match's attribution policy.
   return true;
 }
 
