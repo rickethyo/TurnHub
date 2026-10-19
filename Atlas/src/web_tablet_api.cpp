@@ -253,12 +253,12 @@ void handleTabletSettings(WebServer &server) {
 // request to that seat).
 void handleTabletCounter(WebServer &server, TurnHub::IntentType type) {
   if (!requireTablet(server)) return;
-  if (type == TurnHub::IntentType::DoomBag && !freshDoomRequest(server)) return;
+  if ((type == TurnHub::IntentType::DoomBag || type == TurnHub::IntentType::ResolveElimination) && !freshGameActionRequest(server)) return;
   uint8_t module = 0, slot = 1;
   if (!tabletSeat(server, module, slot)) return;
   TurnHub::IntentPayload payload;
   if (!parseCounterPayload(server, type, payload)) {
-    sendError(server, 400, "Invalid life or Commander request");
+    sendError(server, 400, "Invalid game action");
     return;
   }
   String message = "That player is not at the table";

@@ -215,6 +215,7 @@ fun LocalLibraryScreen(
                                     record.players.forEachIndexed { index, player ->
                                         Text("${index + 1}. ${player.name}: ${player.finalLife} $score · ${player.turnsCompleted} turns" +
                                             if (player.outOrder != null) (if (player.conceded) " · Conceded" else " · Eliminated") else "", color = p.text)
+                                        if (player.selfEliminated) Text("Eliminated by self", color = p.muted)
                                         if (player.bagDrawn) Text("Drawn from the Bag of Doom", color = p.muted)
                                         player.eliminatedBy?.let { source -> record.players.getOrNull(source)?.let {
                                             Text("Eliminated by ${it.name}", color = p.muted)

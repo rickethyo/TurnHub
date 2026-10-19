@@ -744,6 +744,7 @@ IntentResult handleStartIntent(const Intent &intent, void *) {
     if (!touchscreen && intent.actor.origin != IntentOrigin::Browser && table().lobby.startArmedBy() != module) {
       return IntentResult::reject(IntentStatus::InvalidState, "Start is not armed");
     }
+    if (intent.payload.flags & 1) table().nextGameSettings.askEliminationSource = true;
     beginCountdown();
   }
   return IntentResult::accept();
@@ -932,7 +933,7 @@ void confirmElimination(const PlayerSeat &target, bool conceded) {
   const uint8_t eliminatedNumber = target.playerNumber;
   const uint8_t sigilId = target.controllerId;
   bool gameFinished = false;
-  if (!table().game.eliminatePlayer(eliminatedNumber, millis(), gameFinished, conceded)) return;
+  if (!table().game.eliminatePlayer(eliminatedNumber, millis(), gameFinished, conceded, 0, false, false)) return;
 
   table().eliminationTargetPlayer = 0;
   audio.playerEliminated(sigilId);

@@ -144,6 +144,8 @@ data class TablePlayer(
     val conceded: Boolean = false,
     /** Credited opponent player number; null for unknown/concession. */
     val eliminatedBy: Int? = null,
+    val selfEliminated: Boolean = false,
+    val eliminationPending: Boolean = false,
     val counters: PlayerCounters = PlayerCounters(),
     /** Null in the lobby. */
     val life: Int?,

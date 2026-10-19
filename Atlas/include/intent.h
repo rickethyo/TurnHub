@@ -20,6 +20,7 @@ enum class IntentType : uint8_t {
   Resume,
   TogglePause,
   Concede,
+  ResolveElimination, // targetPlayer, eliminatedBy (0 unknown), flags bit 0: self.
   DoomBag, // flags: 0 draw, 1 eligibility, 2 elimination credit; requestId: bag cycle.
   EliminateSeat,  // actor leaves; optional payload.eliminatedBy earns elimination credit.
   ClaimMonarch,

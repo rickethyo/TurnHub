@@ -134,7 +134,8 @@ ImportResult importGame(const ImportedGame &game) {
   // or changing any statistics. Names remain display labels.
   for (uint8_t i = 0; i < game.playerCount; ++i) {
     const auto &p = game.players[i];
-    if ((p.bagDrawn && (game.gameProfile != static_cast<uint8_t>(TurnHub::GameProfile::DoomCommander) ||
+    if ((p.selfEliminated && (!p.outOrder || p.conceded || p.eliminatedBy >= 0 || p.bagDrawn)) ||
+        (p.bagDrawn && (game.gameProfile != static_cast<uint8_t>(TurnHub::GameProfile::DoomCommander) ||
           !p.outOrder || p.conceded || p.eliminatedBy >= 0)) ||
         (p.conceded && !p.outOrder) || p.eliminatedBy < -1 ||
         (p.eliminatedBy >= 0 && (!p.outOrder || p.conceded || p.eliminatedBy == i || p.eliminatedBy >= game.playerCount ||

@@ -191,13 +191,28 @@ loss condition; Commander damage totals alone do not trigger elimination.
 Standalone app tables support up to ten players. Atlas's standalone importer
 accepts ten-player records and a 16-bit winner set.
 
-The shared-table player menu's Eliminate action offers explicit **Elimination
-credit**, including **No player credited**. The chosen opponent is captured before
-any completion callback. Concessions and automatic removals have no credit;
-TurnHub never infers responsibility from the active turn or a life-change author.
-Self and teammate credit are rejected. An already-eliminated opponent can be
-credited, for effects that resolve after their departure. A team removal counts
-as two individual opponents eliminated, credited to the chosen player.
+The app's manual Eliminate action opens a full-screen **Eliminated by?**
+question before removing the player. No answer is preselected: choose any
+opponent, **Self** (own team in Two-Headed Giant), or **Unknown**. Off-turn and
+already-eliminated opponents can receive credit. Self is recorded separately,
+awards no opponent credit and never refills the bag. Teammate/self opponent
+credit is rejected. A team removal credits two opponents to the chosen player.
+
+App-started games pause automatic removals for the same question; a pending
+answer is authoritative match state, saved for recovery. All-out batches and
+final eliminations defer victory/completion statistics until every source is
+answered. Answering preserves the paused state when the match continues; resume
+when ready. Review game closes the question without answering; the Game card
+or table menu reopens it and completion still waits. Concessions and bag draws already have known causes and skip the
+question. TurnHub never infers a source from the active turn or life-change
+sender. An explicit Unknown is a completed answer. Boot/revision guards and a
+pending-victim check reject stale and duplicate answers.
+
+Native starts opt into this interactive policy (`askEliminationSource`); Bag of
+Doom always enables it. Starts without that policy retain immediate, uncredited
+automatic removal. A Sigil's manual removal in an interactive match queues the
+same app question when no explicit source was supplied. Manual app choices are
+captured before removal and therefore before any completion callback.
 
 Credit is scoped to immutable match player order, independent of controllers or
 names. It survives interrupted-match recovery and travels in finished history,
@@ -312,16 +327,18 @@ GameEngine on Atlas and StandaloneGame on a phone-hosted table.
   credited later. Each check increments the bag cycle, even an empty check.
 - A credited elimination refills the bag except for the credited player and
   moves its boundary to their living predecessor. It starts a one-cycle check,
-  including a kill during the initial grace period. Concession/unknown-credit
-  removal just removes the name. The bag panel can credit an earlier automatic
+  including a kill during the initial grace period. Concession, Self and Unknown
+  removal just remove the name. The bag panel can credit an earlier automatic
   removal once, before the game ends, using the same statistics attribution.
 - With four or fewer survivors, bag checks stop and Commander continues.
   Rematches reset the bag. Alternate win claims wait until the pending check is
   resolved; the table can still explicitly end without a winner.
-- The shared-tablet overlay and personal-phone Game panel show named In bag /
+- Full-screen modal windows on the shared tablet and personal-phone Game view
+  open automatically for a due check and its result. They show named In bag /
   Safe entries, corrections, the boundary, the last result and a Draw control.
   They send semantic requests; only the authority selects. Continue resumes
-  the paused game. Review life totals closes the overlay without drawing.
+  the paused game. Review life totals closes the window without drawing.
+  Pending source questions take priority over the bag check.
   Boot, revision and cycle guards reject stale or duplicate requests.
 - Atlas durably checkpoints a private selection before revealing it. Failed or
   uncertain saves keep that selection sealed; retries and reboot recover the
@@ -369,7 +386,7 @@ switch applies (`commanderRules()` / `magicRules()` in `game_profile.h`).
   are unchanged and name one winner.
 - **Shared winners** are a winner set (`winnerMask_`), sent as `winnerPlayers`
   next to `winnerPlayer` (the lowest winner) in the state, kept in recovery
-  schema 7, and credited to each winner's statistics. A shared win is never a
+  schema 8, and credited to each winner's statistics. A shared win is never a
   draw. Standalone records carry `winners`, and the Atlas import accepts the
   `winners` field. In Two-Headed Giant `winnerPlayers` lists both teammates.
 - **Statistics** count Star games separately (`starGamesPlayed`,
@@ -669,7 +686,7 @@ settings remain reachable during pause.
 Connected counters use the existing ChangeCounter intent with CounterKind,
 validated by GameEngine and the living-seat/table-decision handler. Settings use
 ConfigureGame; the common post-intent rule finalizer resolves automatic losses
-before projecting/checkpointing. Settings schema 3 and checkpoint schema 7
+before projecting/checkpointing. Settings schema 3 and checkpoint schema 8
 persist rules, counters and initiative. The HTTP state is a read model; no
 radio change. Native connected clients require Atlas for the new actions while
 disconnected (they do not replay status/counter changes). Standalone games own

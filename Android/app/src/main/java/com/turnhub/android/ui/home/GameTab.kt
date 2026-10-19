@@ -132,7 +132,9 @@ data class GameActions(
     val onCommanderDamage: (source: Int, commander: Int, delta: Int) -> Unit = { _, _, _ -> },
     val onPlayerCounter: (String, Int, Int) -> Unit = { _, _, _ -> },
     val onEliminationRule: (String, Int) -> Unit = { _, _ -> },
-    val onDoom: (com.turnhub.android.protocol.DoomAction, com.turnhub.android.protocol.DoomToken, Int, Int) -> Unit = { _, _, _, _ -> },
+    val onEliminate: (Int?) -> Unit = {},
+    val onResolveElimination: (Int, Int?, com.turnhub.android.protocol.GameActionToken) -> Unit = { _, _, _ -> },
+    val onDoom: (com.turnhub.android.protocol.DoomAction, com.turnhub.android.protocol.GameActionToken, Int, Int) -> Unit = { _, _, _, _ -> },
     val onSetZeroLifeElimination: (Boolean) -> Unit = {},
     val onSaveGameSettings: (profile: String?, startingLife: Int?, turnTimerMs: Long?, twoHeadedGiant: Boolean?, houseRules: Boolean?) -> Unit =
         { _, _, _, _, _ -> },
@@ -160,15 +162,37 @@ fun GameTab(
 ) {
     val me = uiState.me()
     val p = palette
+    var bagOpen by androidx.compose.runtime.saveable.rememberSaveable(summary.bootId, summary.game) { mutableStateOf(false) }
+    var reviewed by androidx.compose.runtime.saveable.rememberSaveable(summary.bootId, summary.game) { mutableStateOf(0L) }
+    var dismissed by androidx.compose.runtime.saveable.rememberSaveable(summary.bootId, summary.game) { mutableStateOf(0L) }
+    val bag = summary.doomBag
+    val pendingSource = summary.players.firstOrNull { it.eliminationPending }
+    var sourceOpen by androidx.compose.runtime.saveable.rememberSaveable(summary.bootId, summary.game, pendingSource?.playerNumber) { mutableStateOf(true) }
+    if (me != null && pendingSource != null && sourceOpen) com.turnhub.android.ui.tablet.EliminationSourceDialog(
+        summary, pendingSource, true, uiState.player?.busy != true, onConfirm = { source ->
+            actions.onResolveElimination(pendingSource.playerNumber, source,
+                com.turnhub.android.protocol.GameActionToken(summary.bootId, summary.revision, bag?.cycle ?: 0, summary.game))
+        }, onCancel = { sourceOpen = false })
+    if (pendingSource == null && bag != null && summary.state in listOf(TableState.RUNNING, TableState.PAUSED) &&
+        (bagOpen || (bag.pending && reviewed != bag.cycle) || bag.lastCheck > dismissed)) {
+        fun closeBag() { bagOpen = false; reviewed = bag.cycle; dismissed = bag.lastCheck }
+        com.turnhub.android.ui.tablet.DoomBagDialog(summary, me != null && !me.eliminated && uiState.player?.busy != true,
+            onAction = { action, player, value ->
+                bagOpen = true
+                actions.onDoom(action, com.turnhub.android.protocol.GameActionToken(summary.bootId, summary.revision, bag.cycle, summary.game), player, value)
+            }, onResume = { closeBag(); actions.onControl(ControlAction.PAUSE_RESUME) }, onDismiss = { closeBag() })
+    }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         StageCard(summary, me?.playerNumber, nowMs, labelFor, reduceMotion)
         IncomingLifeRequest(summary, me, nowMs, labelFor, actions)
+        if (pendingSource != null) BrassCard {
+            Text("Elimination source needed · ${pendingSource.label}", color = p.text, style = MaterialTheme.typography.titleMedium)
+            ToneButton("Eliminated by?", { sourceOpen = true }, Modifier.fillMaxWidth(), enabled = me != null)
+        }
         summary.doomBag?.let { bag ->
             BrassCard {
-                Text("Bag of Doom", color = p.text, style = MaterialTheme.typography.titleMedium)
-                com.turnhub.android.ui.tablet.DoomBagPanel(summary, me != null && !me.eliminated && uiState.player?.busy != true) { action, player, value ->
-                    actions.onDoom(action, com.turnhub.android.protocol.DoomToken(summary.bootId, summary.revision, bag.cycle, summary.game), player, value)
-                }
+                Text(if (bag.pending) "Bag check due" else "Bag of Doom", color = p.text, style = MaterialTheme.typography.titleMedium)
+                ToneButton("Open bag", { if (pendingSource != null) sourceOpen = true else bagOpen = true }, Modifier.fillMaxWidth())
             }
         }
         SeatCard(uiState, summary, me, actions, reduceMotion)
@@ -404,10 +428,10 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
     val name = (panel?.session as? PlayerSessionState.SignedIn)?.name ?: "Not signed in"
     var confirmConcede by remember { mutableStateOf(false) }
     var confirmEliminate by remember { mutableStateOf(false) }
-    if (confirmEliminate) {
-        ConfirmDialog(title = "Eliminate yourself?", text = "Record a loss and leave this game.", confirm = "Eliminate",
-            onConfirm = { confirmEliminate = false; actions.onControl(ControlAction.ELIMINATE) },
-            onDismiss = { confirmEliminate = false })
+    if (confirmEliminate && me != null) {
+        com.turnhub.android.ui.tablet.EliminationSourceDialog(summary, me, false, panel?.busy != true,
+            onConfirm = { source -> confirmEliminate = false; actions.onEliminate(source) },
+            onCancel = { confirmEliminate = false })
     }
     var confirmReset by remember { mutableStateOf(false) }
     if (confirmConcede) {
@@ -451,7 +475,7 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (summary.hasTurn(me.playerNumber) && summary.state == TableState.RUNNING) StatusBadge("Your turn", Tone.ACTIVE)
                 if (summary.monarchPlayerNumber == me.playerNumber) MonarchBadge()
-                if (me.eliminated) StatusBadge(if (me.conceded) "Conceded" else "Eliminated", Tone.BAD)
+                if (me.eliminated) StatusBadge(if (me.conceded) "Conceded" else if (me.selfEliminated) "Eliminated by self" else "Eliminated", Tone.BAD)
                 if (summary.isWinner(me.playerNumber)) StatusBadge("Winner", Tone.ACCENT)
                 if (summary.star && summary.state != TableState.LOBBY) {
                     val seats = summary.starSeats()

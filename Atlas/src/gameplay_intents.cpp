@@ -363,7 +363,7 @@ IntentResult handleConcedeIntent(const Intent &intent, void *) {
   }
 
   bool gameFinished = false;
-  if (!table().game.eliminatePlayer(seat->playerNumber, nowMs, gameFinished, conceded, intent.payload.eliminatedBy)) {
+  if (!table().game.eliminatePlayer(seat->playerNumber, nowMs, gameFinished, conceded, intent.payload.eliminatedBy, (intent.payload.flags & 1) != 0, (intent.payload.flags & 2) != 0)) {
     if (restoreRunning && table().game.resume(nowMs)) table().hubState = HubState::Running;
     return IntentResult::reject(IntentStatus::Conflict, "Atlas rejected player removal");
   }
@@ -385,6 +385,19 @@ IntentResult handleConcedeIntent(const Intent &intent, void *) {
 
 IntentResult handleEliminateSeatIntent(const Intent &intent, void *context) {
   return handleConcedeIntent(intent, context);
+}
+
+IntentResult handleResolveEliminationIntent(const Intent &intent, void *) {
+  // Any participant may answer, including the eliminated player/all-out table.
+  if (!seatForIntentActor(intent)) return rejectMissingSeat();
+  if (!gameInProgress() || tableDecisionPending() || table().pendingPass.active ||
+      !table().game.resolveElimination(intent.payload.targetPlayer, intent.payload.eliminatedBy,
+          (intent.payload.flags & 1) != 0, millis()))
+    return IntentResult::reject(IntentStatus::Conflict, "That elimination has changed or was already answered");
+  if (table().game.gameOver()) finishGameState();
+  else table().hubState = HubState::Paused;
+  leds.invalidateAll();
+  return IntentResult::accept("Elimination source recorded");
 }
 
 // The selected name stays internal until its checkpoint has committed. A retry

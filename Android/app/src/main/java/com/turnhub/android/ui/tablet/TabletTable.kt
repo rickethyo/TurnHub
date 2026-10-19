@@ -231,6 +231,7 @@ internal fun TabletTable(
     var nextId by remember { mutableStateOf(0L) }
     // One player's menu at a time, full screen and turned to face that player.
     var playerMenu by remember { mutableStateOf<String?>(null) }
+    var manualRemoval by rememberSaveable(summary.bootId, summary.game) { mutableStateOf<Int?>(null) }
     var passToTurn by remember { mutableStateOf<CooperativeTurn?>(null) }
     val cooperativeTurn = summary.cooperativeTurn()
     LaunchedEffect(cooperativeTurn, summary.nextTurnPlayerNumber) {
@@ -247,6 +248,8 @@ internal fun TabletTable(
     var reviewedBagCycle by rememberSaveable(summary.bootId, summary.game) { mutableStateOf(0L) }
     var dismissedBagCheck by rememberSaveable(summary.bootId, summary.game) { mutableStateOf(0L) }
     val bag = summary.doomBag
+    val attribution = summary.players.firstOrNull { it.eliminationPending }
+    var sourceOpen by rememberSaveable(summary.bootId, summary.game, attribution?.playerNumber) { mutableStateOf(true) }
     val bagAutomatic = bag != null && ((bag.pending && reviewedBagCycle != bag.cycle) || bag.lastCheck > dismissedBagCheck)
     fun dismissBag() { bagOpen = false; reviewedBagCycle = bag?.cycle ?: 0; dismissedBagCheck = bag?.lastCheck ?: 0 }
     BackHandler(enabled = passToTurn != null || playerMenu != null || menuOpen || (bag != null && (bagOpen || bagAutomatic))) {
@@ -487,9 +490,8 @@ internal fun TabletTable(
                         if (action == "concede" || action == "eliminate" || action == "win") playerMenu = null
                         send(seat, action)
                     },
-                    onEliminate = { member, source ->
-                        if (isOffline) controls { refuseOffline() }
-                        else controls { eliminate(member.seat(), source) }
+                    onEliminate = { member, _ ->
+                        if (isOffline) controls { refuseOffline() } else manualRemoval = member.playerNumber
                         playerMenu = null
                     },
                     onCommander = { member, source, which, delta ->
@@ -536,25 +538,27 @@ internal fun TabletTable(
             })
         }
 
-        if (bag != null && (bagOpen || bagAutomatic) && !menuOpen && playerMenu == null &&
+        val manualVictim = summary.players.firstOrNull { it.playerNumber == manualRemoval && !it.eliminated }
+        val sourceVictim = if (attribution != null) attribution.takeIf { sourceOpen } else manualVictim
+        if (sourceVictim != null) EliminationSourceDialog(summary, sourceVictim, attribution != null,
+            enabled = !isOffline && !tablet.busy, onConfirm = { source ->
+                val token = com.turnhub.android.protocol.GameActionToken(summary.bootId, summary.revision, bag?.cycle ?: 0, summary.game)
+                if (attribution != null) {
+                    val actor = summary.players.firstOrNull { !it.eliminated } ?: sourceVictim
+                    controls { resolveElimination(actor.seat(), sourceVictim.playerNumber, source, token) }
+                } else { controls { eliminate(sourceVictim.seat(), source) }; manualRemoval = null }
+            }, onCancel = { if (attribution != null) sourceOpen = false else manualRemoval = null })
+        if (bag != null && attribution == null && sourceVictim == null && (bagOpen || bagAutomatic) && !menuOpen && playerMenu == null &&
             summary.pending.eliminationTargetPlayer == null &&
             summary.state in listOf(TableState.RUNNING, TableState.PAUSED)) {
-            Overlay("Bag of Doom", null, onDismiss = { dismissBag() }) {
-                DoomBagPanel(summary, !isOffline && !tablet.busy) { action, player, value ->
-                    val actor = summary.players.firstOrNull { !it.eliminated }?.seat()
-                    if (actor != null) {
-                        bagOpen = true
-                        haptics.tick()
-                        controls { doom(actor, action, com.turnhub.android.protocol.DoomToken(summary.bootId, summary.revision, bag.cycle, summary.game), player, value) }
-                    }
+            DoomBagDialog(summary, !isOffline && !tablet.busy, onAction = { action, player, value ->
+                val actor = summary.players.firstOrNull { !it.eliminated }?.seat()
+                if (actor != null) {
+                    bagOpen = true; haptics.tick()
+                    controls { doom(actor, action, com.turnhub.android.protocol.GameActionToken(summary.bootId, summary.revision, bag.cycle, summary.game), player, value) }
                 }
-                if (!bag.pending && summary.state == TableState.PAUSED) {
-                    AccentButton("Continue game", {
-                        dismissBag(); send(summary.players.firstOrNull { !it.eliminated }?.seat(), "pause")
-                    }, Modifier.fillMaxWidth(), enabled = !isOffline)
-                }
-                ToneButton(if (bag.pending) "Review life totals" else "Close", { dismissBag() }, Modifier.fillMaxWidth())
-            }
+            }, onResume = { dismissBag(); send(summary.players.firstOrNull { !it.eliminated }?.seat(), "pause") },
+                onDismiss = { dismissBag() })
         }
         val anySeat = summary.anySeat()
         val activeSeat = summary.players.firstOrNull { it.playerNumber == summary.activePlayerNumber }?.seat() ?: anySeat
@@ -626,8 +630,11 @@ internal fun TabletTable(
             summary.pending.eliminationTargetPlayer == null) {
                 Overlay("Game menu", null, onDismiss = { menuOpen = false }) {
                     GameClockLine(summary)
+                    if (attribution != null) AccentButton("Eliminated by? · ${attribution.label}", {
+                        menuOpen = false; sourceOpen = true
+                    }, Modifier.fillMaxWidth())
                     if (summary.doomBag != null) AccentButton("Bag of Doom · ${summary.players.count { !it.eliminated && summary.doomBag.contains(it.playerNumber) }} at risk", {
-                        menuOpen = false; bagOpen = true
+                        menuOpen = false; if (attribution != null) sourceOpen = true else bagOpen = true
                     }, Modifier.fillMaxWidth())
                     if (summary.settings.profile.deathMayDie) DeathMayDieTurnPhasesButton()
                     val paused = summary.state == TableState.PAUSED
@@ -719,7 +726,7 @@ private fun Hub(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit) {
     ) {
         Text(if (summary.state == TableState.PAUSED) "Paused" else clock, color = p.text,
             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text(if (summary.doomBag?.pending == true) "Bag check due" else summary.round?.let { "Round $it" } ?: "Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
+        Text(if (summary.players.any { it.eliminationPending }) "Eliminated by?" else if (summary.doomBag?.pending == true) "Bag check due" else summary.round?.let { "Round $it" } ?: "Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -934,7 +941,7 @@ private fun PlayerPanel(
                         Tag(if (risk) "In bag" else "Safe", if (risk) p.warn else p.good, p.surface)
                     }
                     if (active) Tag("Turn", p.active, p.onActive)
-                    if (out) Tag(if (unit.members.any { it.conceded }) "Conceded" else "Eliminated", p.bad, p.surface)
+                    if (out) Tag(if (unit.members.any { it.conceded }) "Conceded" else if (unit.members.any { it.selfEliminated }) "Eliminated by self" else "Eliminated", p.bad, p.surface)
                     unit.members.first().eliminatedBy?.let { source ->
                         summary.players.firstOrNull { it.playerNumber == source }?.let { Text("By ${it.label}", color = p.muted) }
                     }
@@ -1605,20 +1612,7 @@ private fun PlayerMenuItems(
                 ArmedButton(if (team) "Our team concedes" else "Concede", "Tap again to concede", Tone.BAD) {
                     onControl(member.seat(), "concede")
                 }
-                var credited by rememberSaveable(member.participantId) { mutableStateOf<Int?>(null) }
-                Text("Elimination credit", color = p.text, style = MaterialTheme.typography.titleSmall)
-                Text("Choose who eliminated ${if (team) "this team" else member.label}. Conceding awards no credit.", color = p.muted)
-                ToneButton(if (credited == null) "✓ No player credited" else "No player credited", { credited = null }, Modifier.fillMaxWidth().semantics { selected = credited == null })
-                summary.players.filter { candidate -> candidate.playerNumber != member.playerNumber &&
-                    (member.team == null || candidate.team != member.team) }.forEach { candidate ->
-                    ToneButton((if (credited == candidate.playerNumber) "✓ " else "") + "${candidate.playerNumber}. ${candidate.label}",
-                        { credited = candidate.playerNumber }, Modifier.fillMaxWidth().semantics { selected = credited == candidate.playerNumber })
-                }
-                key(credited) {
-                    ArmedButton(if (team) "Eliminate this team" else "Eliminate", "Tap again to eliminate", Tone.BAD) {
-                        onEliminate(member, credited)
-                    }
-                }
+                ToneButton(if (team) "Eliminate this team…" else "Eliminate…", { onEliminate(member, null) }, Modifier.fillMaxWidth())
             }
         }
     }

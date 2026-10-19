@@ -107,6 +107,9 @@ bool parseGame(WebServer &server, ImportedGame &game) {
     const String conceded = playerField(server, "conceded", i);
     if (conceded.length() && conceded != "0" && conceded != "1") return false;
     player.conceded = conceded == "1";
+    const String self = playerField(server, "selfEliminated", i);
+    if (self.length() && self != "0" && self != "1") return false;
+    player.selfEliminated = self == "1";
     if (player.conceded && !player.outOrder) return false;
     const String bagDrawn = playerField(server, "bagDrawn", i);
     if (bagDrawn.length() && bagDrawn != "0" && bagDrawn != "1") return false;

@@ -346,6 +346,14 @@
             "minimum": 1,
             "maximum": 16,
             "description": "Explicitly credited opponent player number for this elimination; null for unknown or concession. Independent of controller and current turn."
+          },
+          "selfEliminated": {
+            "type": "boolean",
+            "description": "Explicit Self / own team answer. No opponent receives credit."
+          },
+          "eliminationPending": {
+            "type": "boolean",
+            "description": "An automatic removal awaits explicit opponent, Self or Unknown attribution; the game is paused and completion/statistics are deferred."
           }
         }
       },
@@ -406,6 +414,10 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 1000000
+        },
+        "askEliminationSource": {
+          "type": "boolean",
+          "description": "App-started games pause automatic removals until an explicit source is recorded, before completion/statistics. Bag of Doom always enables this."
         }
       }
     },

@@ -18,7 +18,7 @@ internal object DoomRules {
             bag.drawn and living != 0 || bag.selected != 0 || bag.sealed) return false
         if (bag.lastDraw != 0 && bag.drawn and bit(bag.lastDraw) == 0) return false
         if (game.players.indices.any { bag.drawn and bit(it + 1) != 0 &&
-                (game.players[it].conceded || game.players[it].eliminatedBy != null) }) return false
+                (game.players[it].conceded || game.players[it].selfEliminated || game.players[it].eliminationPending || game.players[it].eliminatedBy != null) }) return false
         if (Integer.bitCount(living) <= 4) return bag.atRisk == 0 && bag.boundary == 0 && bag.warmup == 0 &&
             !bag.pending && bag.pendingTurn == 0 && bag.selected == 0
         if (living and bit(bag.boundary) == 0) return false

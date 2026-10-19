@@ -10,7 +10,7 @@ using TurnHub::serialLog;
 namespace TurnHub {
 namespace {
 constexpr uint32_t MAGIC = 0x50434854; // THCP, explicit little-endian wire bytes
-constexpr uint32_t SCHEMA = 7;
+constexpr uint32_t SCHEMA = 8;
 constexpr uint32_t CLOCK_CHECKPOINT_MS = 60000;
 // Wire layout (little-endian): magic, schema, 12 header bytes (including monarch, initiative, loss flags and the
 // 16-bit winner set), 6 header words, 22 bag bytes,
@@ -82,7 +82,7 @@ size_t encodeCheckpoint(const GameCheckpoint &s, uint8_t *bytes, size_t capacity
     const auto &counters = s.counters[i];
     w.word(counters.poison); w.word(counters.energy); w.word(counters.experience);
     w.word(counters.commanderCasts[0]); w.word(counters.commanderCasts[1]); w.byte(counters.cityBlessing);
-    w.byte((s.eliminated[i] ? 1 : 0) | (s.conceded[i] ? 2 : 0)); w.word(static_cast<uint32_t>(s.life[i])); w.byte(s.eliminatedBy[i]);
+    w.byte((s.eliminated[i] ? 1 : 0) | (s.conceded[i] ? 2 : 0) | (s.selfEliminated[i] ? 4 : 0) | (s.eliminationPending[i] ? 8 : 0)); w.word(static_cast<uint32_t>(s.life[i])); w.byte(s.eliminatedBy[i]);
     for (uint8_t j=0;j<s.count;++j) for (uint8_t c=0;c<2;++c)
       w.word(static_cast<uint32_t>(s.damage[i][j][c]));
   }
@@ -138,9 +138,10 @@ TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameC
       c.commanderCasts[0] = static_cast<int32_t>(r.word()); c.commanderCasts[1] = static_cast<int32_t>(r.word()); c.cityBlessing = r.flag();
     }
     const uint8_t exitFlags = r.byte();
-    if (exitFlags > (schema == 1 ? 1 : 3)) return Status::Corrupt;
+    if (exitFlags > (schema >= 8 ? 15 : schema == 1 ? 1 : 3)) return Status::Corrupt;
     s.eliminated[i] = (exitFlags & 1) != 0;
-    s.conceded[i] = (exitFlags & 2) != 0; s.life[i]=static_cast<int32_t>(r.word());
+    s.conceded[i] = (exitFlags & 2) != 0;
+    s.selfEliminated[i] = (exitFlags & 4) != 0; s.eliminationPending[i] = (exitFlags & 8) != 0; s.life[i]=static_cast<int32_t>(r.word());
     if (schema >= 6) s.eliminatedBy[i] = r.byte();
     for (uint8_t j=0;j<s.count;++j) for (uint8_t c=0;c<2;++c)
       s.damage[i][j][c]=static_cast<int32_t>(r.word());
