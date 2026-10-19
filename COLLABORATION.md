@@ -76,12 +76,22 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
   App/import limit is ten; import winner masks are 16-bit. Detailed statistics
   schema 4 (88 bytes), core schema 3 (28 bytes), checkpoints schema 6 (+16 bytes
   at capacity); prototype statistics layouts require reset, not migration.
-- Validation: Atlas host suites pass on the implementation before final added
-  regressions; the complete final suite is running. Adapter audit, client
-  contracts, docs links, design tokens and manual export pass. Local Gradle
-  downloaded through the session proxy but could not resolve Foojay 1.0.0;
-  use CI for Android compilation/JVM tests. No local device acceptance yet.
-  No merge or release authorized.
+- Implementation commits: `fa276ed` and `665e7ce`, [PR #134](https://github.com/rickethyo/TurnHub/pull/134).
+  Follow-up validation runs before clearing a pending pass or pausing the table;
+  invalid credit cannot disturb queued actions. Team checkpoint credit must agree.
+  Source choices include player numbers so duplicate names remain distinguishable.
+- Validation: [CI passes](https://github.com/rickethyo/TurnHub/actions/runs/39234776248)
+  for `665e7ce`: Android compilation, complete JVM suite and release bundle,
+  Atlas host suites/contracts, firmware and LVGL. [iOS checks pass](https://github.com/rickethyo/TurnHub/actions/runs/39234776242).
+  Local sanitizer host suites, adapter audit, client contracts, docs links,
+  design tokens, manual export and whitespace checks pass. Manual DOCX rendered
+  and visually reviewed on pages 3, 11 and 13. Local Gradle could not resolve
+  Foojay 1.0.0; Android verification comes from CI.
+- Next owner: review/integrate #134 with a merge commit and retain `codex/master`.
+  Physical acceptance: ten-player layout with large text/TalkBack, explicit
+  elimination selection (including duplicate names), stats/history/shares and
+  recovery on phone/tablet; flash/reset prototype Atlas statistics for the new
+  layouts. No merge or release performed.
 
 ## New topic / reply template
 

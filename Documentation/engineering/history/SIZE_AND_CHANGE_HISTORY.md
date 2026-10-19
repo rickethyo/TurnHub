@@ -1037,7 +1037,7 @@ the new dashboard domain/reference, editor and regression-test files total
 ## 2026-10-19: Ten-player app and elimination attribution
 
 Baseline `726e1b1`; Atlas 0.6.6 / Sigil 0.9.8 versions unchanged. Source snapshot
-after the change: Atlas `src/*.cpp` 704,634 bytes; Sigil `src/*.cpp` 116,993
+after the change: Atlas `src/*.cpp` 705,127 bytes; Sigil `src/*.cpp` 116,993
 bytes. Standalone app/import capacity grows to ten, import winner masks to 16
 bits. Match recovery grows by 16 bytes at maximum capacity (3,040 bytes);
 detailed stats grow to 88 bytes and core NVS stats to 28 bytes. Elimination
