@@ -78,15 +78,22 @@ loss condition; Commander damage totals alone do not trigger elimination.
   within the search/filter, excludes other players' picks and opens a preview;
   **Use investigator** commits it. Every row also opens this preview. Missing
   signature effects remain explicit; a community-guide link supplies references.
-  Matching Wounds and Stress counters are reminders that never knock anyone
-  out. A tile shows the investigator's
+  Matching Wounds and Stress counters (owner, 2026-10-19): stress stops at 5
+  and wounds at 6, the death wound. The engine clamps both
+  (`DeathMayDie.MAX_STRESS`, `DEATH_WOUNDS`). The sixth wound shows a death
+  alert on the panel with an armed "died" button that sends the menu's
+  elimination, so nobody is knocked out by a mis-tap, and the
+  before-summoning loss rule still applies. In the lobby each player row
+  keeps one height: the investigator button shows the chosen name, and the
+  two card buttons stay on one line. A tile shows the investigator's
   picture from the community wiki where it has one (Seasons 1 to 4 core
   investigators; a dashboard's portrait is cropped out), and the Game tab
   lists the players the same way.
   Each dashboard saves its sanity loss (0–20) and three base skill levels (1–4), with up to five added skills.
   Sanity loss stops at thresholds 4, 8, 12, 15, 18 and 19; bonus dice appear at
-  8, 15, 18 and 19. Thresholds remind the player to resolve their insanity card
-  and upgrade a skill; level choices remain manual for companions and corrections.
+  8, 15, 18 and 19. A threshold shows a bordered alert on the investigator's panel
+  that names the sanity condition, prints its rules and says to resolve it and
+  upgrade a skill; level choices remain manual for companions and corrections.
   Reaching 20 does not automatically eliminate anyone: resolve the printed
   dashboard and game conditions through the player's menu. The ten core-box
   investigators have offline skill-effect summaries checked against their

@@ -10,6 +10,12 @@ package com.turnhub.android.domain
 data class InvestigatorBox(val title: String, val investigators: List<String>)
 
 object DeathMayDie {
+    /** The dashboard's stress track holds 5 (owner, 2026-10-19). */
+    const val MAX_STRESS = 5
+
+    /** Five wounds is the most an investigator survives; the sixth kills them (owner, 2026-10-19). */
+    const val DEATH_WOUNDS = 6
+
     val boxes: List<InvestigatorBox> = listOf(
         InvestigatorBox("Season 1 (core box)", listOf(
             "Ahmed Yasin", "Borden", "Elizabeth Ives", "Fatima Safar", "John Morgan", "Lord Adam Benchley",

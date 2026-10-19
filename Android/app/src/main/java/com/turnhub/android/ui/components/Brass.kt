@@ -261,6 +261,8 @@ fun ToneButton(
     modifier: Modifier = Modifier,
     tone: Tone = Tone.NEUTRAL,
     enabled: Boolean = true,
+    /** 1 keeps a row's height fixed whatever the label says; long labels end in an ellipsis. */
+    maxLines: Int = Int.MAX_VALUE,
 ) {
     val p = palette
     // Brass and High contrast keep their outlined look. In the modern themes a neutral
@@ -294,7 +296,8 @@ fun ToneButton(
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
         modifier = modifier.heightIn(min = 48.dp),
     ) {
-        Text(text, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        Text(text, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = maxLines,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 

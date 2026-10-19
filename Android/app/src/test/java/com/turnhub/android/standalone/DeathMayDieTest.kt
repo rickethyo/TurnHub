@@ -42,6 +42,22 @@ class DeathMayDieTest {
         assertEquals(TableState.RUNNING, hurt.changeLife(0, 40).state)
     }
 
+    @Test fun `stress stops at five and wounds at the sixth, which never kills on its own`() {
+        val g = game()
+        val stressed = (1..8).fold(g) { next, _ -> next.changeCounter(0, StandaloneGame.STRESS_KIND, 1) }
+        assertEquals(DeathMayDie.MAX_STRESS, stressed.players[0].stress)
+        assertSame(stressed, stressed.changeCounter(0, StandaloneGame.STRESS_KIND, 1))
+        assertEquals(4, stressed.changeCounter(0, StandaloneGame.STRESS_KIND, -1).players[0].stress)
+        val wounded = g.changeLife(0, 5).changeLife(0, 1)
+        assertEquals(DeathMayDie.DEATH_WOUNDS, wounded.players[0].life)
+        assertSame(wounded, wounded.changeLife(0, 1))
+        assertEquals(DeathMayDie.DEATH_WOUNDS, g.changeLife(0, 40).players[0].life)
+        // The sixth wound is shown, and the death is confirmed through the menu's elimination path.
+        assertFalse(wounded.players[0].eliminated)
+        assertEquals(TableState.RUNNING, wounded.state)
+        assertEquals(5, wounded.changeLife(0, -1).players[0].life)
+    }
+
     @Test fun `each round tracks who has taken their turn and starts over once everyone has`() {
         val g = game()
         assertEquals(1, g.round)

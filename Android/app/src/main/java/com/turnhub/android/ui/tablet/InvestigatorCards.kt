@@ -50,11 +50,14 @@ internal fun InvestigatorCards(player: TablePlayer, gameId: String, enabled: Boo
     val p = palette
     val slots = InvestigatorCardSlot.entries.filter { it != InvestigatorCardSlot.RELIC || useRelics }
     var editing by rememberSaveable(player.participantId, player.investigator, gameId) { mutableStateOf<InvestigatorCardSlot?>(null) }
-    if (compact) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    // Compact (the lobby's player rows): one line per button, side by side, so choosing a card
+    // never changes the row's height and moves the players below it.
+    if (compact) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         slots.forEach { slot ->
             val card = player.dashboard.card(slot)
-            ToneButton(card?.let { "${slot.label}: ${it.name}" } ?: "Assign ${slot.label.lowercase()}",
-                { editing = slot }, enabled = enabled, modifier = Modifier.semantics {
+            val short = if (slot == InvestigatorCardSlot.SANITY_CONDITION) "Sanity" else slot.label
+            ToneButton(card?.let { "$short: ${it.name}" } ?: "Assign ${slot.label.lowercase()}",
+                { editing = slot }, enabled = enabled, maxLines = 1, modifier = Modifier.weight(1f).semantics {
                     contentDescription = "${player.label}, ${slot.label}: ${card?.name ?: "unassigned"}. Edit assignment"
                 })
         }

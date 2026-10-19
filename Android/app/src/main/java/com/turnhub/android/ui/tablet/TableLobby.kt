@@ -172,16 +172,17 @@ internal fun TableLobby(
                             Column(Modifier.weight(1f)) {
                                 Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1,
                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                                // The usual next step for an empty seat is one tap away, outside the menu.
+                                // The usual next step for an empty seat is one tap away, outside the menu. The same
+                                // button then shows the chosen investigator, so choosing never moves the rows below.
                                 if (investigators) {
-                                    if (player.investigator != null) Text(player.investigator, color = p.muted,
-                                        style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic)
-                                    else SeatShortcut("Choose investigator", "Choose ${player.label}'s investigator", enabled) {
+                                    SeatShortcut(player.investigator ?: "+ Choose investigator",
+                                        player.investigator?.let { "${player.label}'s investigator: $it. Change investigator" }
+                                            ?: "Choose ${player.label}'s investigator", enabled) {
                                         choosingInvestigator = player.playerNumber
                                     }
                                 }
                                 if (actions.commander != null && settings.profile.commanderRules && player.commander == null) {
-                                    SeatShortcut("Name commander", "Name ${player.label}'s commander", enabled) {
+                                    SeatShortcut("+ Name commander", "Name ${player.label}'s commander", enabled) {
                                         namingCommander = player.playerNumber
                                     }
                                 }
@@ -392,7 +393,7 @@ internal fun TableLobby(
 /** A button under a player's name for the step their seat still needs (a bare link read as a label). */
 @Composable
 private fun SeatShortcut(label: String, description: String, enabled: Boolean, onClick: () -> Unit) {
-    ToneButton("+ $label", onClick, Modifier.padding(top = 4.dp).semantics { contentDescription = description }, enabled = enabled)
+    ToneButton(label, onClick, Modifier.padding(top = 4.dp).semantics { contentDescription = description }, enabled = enabled, maxLines = 1)
 }
 
 internal data class LobbyModeSettings(val profile: GameProfile?, val life: Int?, val teams: Boolean)

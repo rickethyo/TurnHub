@@ -1091,7 +1091,7 @@ private fun InvestigatorPanelContent(
             if (unit.out) Tag(if (member.conceded) "Conceded" else "Eliminated", p.bad, p.surface)
         }
         InvestigatorTracks(unit, summary, wounds, onWound, onMark,
-            Modifier.fillMaxWidth().alpha(if (unit.out) .45f else 1f))
+            Modifier.fillMaxWidth().alpha(if (unit.out) .45f else 1f)) { who, action -> onControl(who.seat(), action) }
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             MenuButton(member.label, true, onOpenMenu)
@@ -1500,7 +1500,7 @@ private fun PlayerMenu(
             if (summary.settings.profile.deathMayDie) {
                 val member = unit.members.first()
                 InvestigatorTracks(unit, summary, member.life ?: 0, { onLife(member, it) },
-                    { who, kind, value -> onCounter(who, kind, value, 1) }, Modifier.fillMaxWidth())
+                    { who, kind, value -> onCounter(who, kind, value, 1) }, Modifier.fillMaxWidth()) { who, action -> onControl(who.seat(), action) }
                 InvestigatorAbilities(member, summary,
                     onInsanity = { onCounter(member, StandaloneGame.INSANITY_KIND, it, 1) },
                     onLevel = { slot, level -> onCounter(member, StandaloneGame.SKILL_KIND, level, slot + 1) },

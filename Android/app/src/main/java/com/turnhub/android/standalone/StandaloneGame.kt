@@ -513,9 +513,9 @@ data class StandaloneGame(
             val taken = update(index) { it.copy(life = prizes) }
             return if (prizes == 0) taken.finish(listOf(index), nowMs) else taken
         }
-        // Death May Die counts wounds up from 0; the dashboard says when an investigator dies.
+        // Death May Die counts wounds up from 0 to the sixth, which kills: the table confirms the death.
         if (deathMayDie) {
-            val wounds = (player.life + delta).coerceIn(0, MAX_LIFE)
+            val wounds = (player.life + delta).coerceIn(0, com.turnhub.android.domain.DeathMayDie.DEATH_WOUNDS)
             return if (wounds == player.life) this else update(index) { it.copy(life = wounds) }
         }
         // Lorcana counts lore up: reaching the goal wins at once.
@@ -576,8 +576,8 @@ data class StandaloneGame(
                     skillLevels = it.dashboard.skills(it.investigator).indices.map { i -> if (i == slot) value else it.dashboard.skillLevels.getOrElse(i) { 1 } })) }
             }
             STRESS_KIND -> {
-                val stress = player.stress + value
-                if (!playing || player.eliminated || value == 0 || stress !in 0..MAX_LIFE) this
+                val stress = (player.stress + value).coerceIn(0, com.turnhub.android.domain.DeathMayDie.MAX_STRESS)
+                if (!playing || player.eliminated || value == 0 || stress == player.stress) this
                 else update(index) { it.copy(stress = stress) }
             }
             else -> this
