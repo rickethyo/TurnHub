@@ -48,7 +48,14 @@ data class LocalLibrary(
     val history: List<GameRecord> = emptyList(),
     val deliveries: List<MatchDelivery> = emptyList(),
     val planarDecks: List<PlanarSelection> = emptyList(),
+    val investigatorReferences: Map<String, com.turnhub.android.domain.InvestigatorCard> = emptyMap(),
 ) {
+    fun withInvestigatorReference(id: String, card: com.turnhub.android.domain.InvestigatorCard): LocalLibrary {
+        val entry = com.turnhub.android.domain.InvestigatorCardCatalogue.find(id) ?: return this
+        val clean = card.normalized(entry.slot)?.takeIf { it.catalogueId == id } ?: return this
+        return if (investigatorReferences[id] == clean) this else copy(investigatorReferences = investigatorReferences + (id to clean))
+    }
+
     /** Only a verified destination link joins local decoration to a connected player. */
     fun linkedPlayer(atlasId: String, profileId: String?): SavedLocalPlayer? =
         if (atlasId.isBlank() || profileId == null) null else players.firstOrNull { player ->
@@ -146,6 +153,7 @@ data class LocalLibrary(
                     .put("atlasId", it.atlasId).put("profileId", it.profileId)) } })
                 .put("credential", p.credential?.let { JSONObject().put("salt", it.salt).put("hash", it.hash) } ?: JSONObject.NULL)) }
         })
+        put("investigatorReferences", JSONObject().apply { investigatorReferences.forEach { (id, card) -> put(id, card.toJson()) } })
         put("planarDecks", JSONArray().apply { planarDecks.forEach { put(it.toJson()) } })
         put("history", JSONArray().apply { history.forEach { put(it.toJson()) } })
         put("deliveries", JSONArray().apply {
@@ -167,7 +175,13 @@ data class LocalLibrary(
             val history = json.getJSONArray("history")
             val deliveries = json.getJSONArray("deliveries")
             val decks = json.optJSONArray("planarDecks") ?: JSONArray()
+            val references = json.optJSONObject("investigatorReferences")
             return LocalLibrary(
+                investigatorReferences = references?.keys()?.asSequence()?.mapNotNull { id ->
+                    val entry = com.turnhub.android.domain.InvestigatorCardCatalogue.find(id) ?: return@mapNotNull null
+                    val card = references.optJSONObject(id)?.let { com.turnhub.android.domain.InvestigatorCard.fromJson(it, entry.slot) }
+                    card?.takeIf { it.catalogueId == id }?.let { id to it }
+                }?.toMap().orEmpty(),
                 planarDecks = (0 until decks.length()).map { PlanarSelection.fromJson(decks.getJSONObject(it)) },
                 players = (0 until players.length()).map { i -> players.getJSONObject(i).let {
                     val links = it.optJSONArray("links") ?: JSONArray()

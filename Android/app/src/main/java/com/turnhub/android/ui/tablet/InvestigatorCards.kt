@@ -43,6 +43,7 @@ import com.turnhub.android.ui.theme.palette
 internal fun InvestigatorCards(player: TablePlayer, gameId: String, enabled: Boolean, compact: Boolean = false, useRelics: Boolean = false,
     drawTwo: Boolean = false, onDeal: ((InvestigatorCardSlot) -> Unit)? = null,
     reservedCardIds: Set<String> = emptySet(),
+    references: Map<String, InvestigatorCard> = emptyMap(),
     onAssign: (InvestigatorCardSlot, InvestigatorCard?) -> Unit) {
     val p = palette
     val slots = InvestigatorCardSlot.entries.filter { it != InvestigatorCardSlot.RELIC || useRelics }
@@ -68,13 +69,23 @@ internal fun InvestigatorCards(player: TablePlayer, gameId: String, enabled: Boo
                 }
                 Text(card?.name ?: "Unassigned", color = p.text, fontWeight = FontWeight.SemiBold)
                 card?.rules?.takeIf { it.isNotEmpty() }?.let { Text(it, color = p.text, style = MaterialTheme.typography.bodyMedium) }
+                if (card != null) {
+                    Text(if (slot == InvestigatorCardSlot.RELIC) "Starting face · " +
+                        (if (card.rulesVerified) "checked" else "needs verification") else ruleReviewStatus(card, slot),
+                        color = p.muted, style = MaterialTheme.typography.bodySmall)
+                    if (slot == InvestigatorCardSlot.RELIC) {
+                        Text("Transformed face · " + (if (card.transformedRulesVerified) "checked" else "needs verification"),
+                            color = p.muted, style = MaterialTheme.typography.bodySmall)
+                        Text(card.transformedRules.ifBlank { "Transformed rules missing — check your card." }, color = p.text)
+                    }
+                }
                 InvestigatorCardReferenceButton(card?.catalogueId)
             }
         }
     }
     editing?.takeIf { it in slots }?.let { slot ->
         key(player.participantId, player.investigator, gameId, slot) {
-            InvestigatorCardEditor(player, slot, player.dashboard.card(slot), drawTwo, reservedCardIds, onDeal?.let { deal -> { deal(slot) } }, onDismiss = { editing = null }, onSave = {
+            InvestigatorCardEditor(player, slot, player.dashboard.card(slot), drawTwo, reservedCardIds, references, onDeal?.let { deal -> { deal(slot) } }, onDismiss = { editing = null }, onSave = {
                 if (enabled) onAssign(slot, it)
                 editing = null
             })
@@ -84,10 +95,21 @@ internal fun InvestigatorCards(player: TablePlayer, gameId: String, enabled: Boo
 
 @Composable
 private fun InvestigatorCardEditor(player: TablePlayer, slot: InvestigatorCardSlot, card: InvestigatorCard?,
-    drawTwo: Boolean, reservedCardIds: Set<String>, onDeal: (() -> Unit)?, onDismiss: () -> Unit, onSave: (InvestigatorCard?) -> Unit) {
+    drawTwo: Boolean, reservedCardIds: Set<String>, references: Map<String, InvestigatorCard>, onDeal: (() -> Unit)?, onDismiss: () -> Unit, onSave: (InvestigatorCard?) -> Unit) {
     var name by rememberSaveable { mutableStateOf(card?.name.orEmpty()) }
     var rules by rememberSaveable { mutableStateOf(card?.rules.orEmpty()) }
     var catalogueId by rememberSaveable { mutableStateOf(card?.catalogueId) }
+    var transformed by rememberSaveable { mutableStateOf(card?.transformedRules.orEmpty()) }
+    var frontHash by rememberSaveable { mutableStateOf(card?.verifiedRulesHash) }
+    var backHash by rememberSaveable { mutableStateOf(card?.verifiedTransformedRulesHash) }
+    fun choose(preset: com.turnhub.android.domain.InvestigatorCardPreset) {
+        if (preset.id != catalogueId) {
+            val draft = references[preset.id] ?: preset.card()
+            rules = draft.rules; transformed = draft.transformedRules
+            frontHash = draft.verifiedRulesHash; backHash = draft.verifiedTransformedRulesHash
+        }
+        name = preset.name; catalogueId = preset.id
+    }
     var choosing by rememberSaveable { mutableStateOf(card == null && !drawTwo) }
     var physical by rememberSaveable { mutableStateOf(false) }
     var physicalNames by rememberSaveable { mutableStateOf(listOf("", "")) }
@@ -109,7 +131,7 @@ private fun InvestigatorCardEditor(player: TablePlayer, slot: InvestigatorCardSl
                         Text("This pair stays fixed for this match. Choose one, then Save.")
                         offers.forEach { preset ->
                             ToneButton(if (catalogueId == preset.id) "✓ ${preset.name}" else preset.name, {
-                                name = preset.name; catalogueId = preset.id; rules = ""
+                                choose(preset)
                             }, modifier = Modifier.fillMaxWidth())
                             InvestigatorCardReferenceButton(preset.id)
                         }
@@ -121,11 +143,12 @@ private fun InvestigatorCardEditor(player: TablePlayer, slot: InvestigatorCardSl
                                 physicalNames = physicalNames.mapIndexed { j, old -> if (i == j) value.take(InvestigatorCard.MAX_NAME) else old }
                             }, label = { Text("Physical draw ${i + 1}") }, modifier = Modifier.fillMaxWidth())
                             TextButton(enabled = physicalNames.all { it.isNotBlank() }, onClick = {
-                                name = physicalNames[i].trim()
-                                catalogueId = InvestigatorCardCatalogue.all.firstOrNull {
-                                    it.slot == slot && it.name.equals(name, ignoreCase = true)
-                                }?.id
-                                rules = ""
+                                val preset = InvestigatorCardCatalogue.all.firstOrNull {
+                                    it.slot == slot && it.name.equals(physicalNames[i].trim(), ignoreCase = true)
+                                }
+                                if (preset != null) choose(preset) else {
+                                    name = physicalNames[i].trim(); catalogueId = null; rules = ""; transformed = ""; frontHash = null; backHash = null
+                                }
                             }) { Text("Choose draw ${i + 1}") }
                         }
                     }
@@ -137,19 +160,28 @@ private fun InvestigatorCardEditor(player: TablePlayer, slot: InvestigatorCardSl
                     if (!InvestigatorCardCatalogue.find(catalogueId)?.name.equals(name.trim(), ignoreCase = true)) catalogueId = null
                 }, label = { Text("Name") },
                     modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(rules, { rules = it.take(InvestigatorCard.MAX_RULES) }, label = { Text("Rules / notes") },
-                    modifier = Modifier.fillMaxWidth(), minLines = 4)
+                val current = InvestigatorCard(name, rules, catalogueId, transformed, frontHash, backHash)
+                InvestigatorRuleFields(current, slot) { changed ->
+                    rules = changed.rules; transformed = changed.transformedRules
+                    frontHash = changed.verifiedRulesHash; backHash = changed.verifiedTransformedRulesHash
+                }
+                val savedReference = references[catalogueId] ?: InvestigatorCardCatalogue.find(catalogueId)?.card()
+                if (savedReference != null && ((rules.isBlank() && savedReference.rules.isNotBlank()) ||
+                    (slot == InvestigatorCardSlot.RELIC && transformed.isBlank() && savedReference.transformedRules.isNotBlank()))) {
+                    ToneButton("Fill missing rules from reference", {
+                        if (rules.isBlank()) { rules = savedReference.rules; frontHash = savedReference.verifiedRulesHash }
+                        if (slot == InvestigatorCardSlot.RELIC && transformed.isBlank()) {
+                            transformed = savedReference.transformedRules; backHash = savedReference.verifiedTransformedRulesHash
+                        }
+                    })
+                }
                 if (card != null) TextButton(onClick = { onSave(null) }) { Text("Remove ${slot.label.lowercase()}") }
             }
         },
-        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onSave(InvestigatorCard(name, rules, catalogueId)) }) { Text("Save") } },
+        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onSave(InvestigatorCard(name, rules, catalogueId, transformed, frontHash, backHash)) }) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
-    if (choosing) InvestigatorCardPicker(slot, catalogueId, onDismiss = { choosing = false }, onPick = { preset ->
-        if (preset != null) {
-            if (preset.id != catalogueId) rules = ""
-            name = preset.name
-        }
-        catalogueId = preset?.id
+    if (choosing) InvestigatorCardPicker(slot, catalogueId, onDismiss = { choosing = false }, references = references, onPick = { preset ->
+        if (preset != null) choose(preset) else catalogueId = null
         choosing = false
     })
 }

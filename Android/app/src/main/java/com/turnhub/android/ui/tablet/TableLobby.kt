@@ -215,7 +215,7 @@ internal fun TableLobby(
                             }
                         }
                         if (investigators) actions.investigatorCard?.let { assign ->
-                            InvestigatorCards(player, summary.bootId, enabled, compact = true, useRelics = summary.useRelics, drawTwo = summary.drawTwoCards,
+                            InvestigatorCards(player, summary.bootId, enabled, compact = true, references = summary.investigatorReferences, useRelics = summary.useRelics, drawTwo = summary.drawTwoCards,
                                 onDeal = actions.dealInvestigatorCards?.let { deal -> { slot -> deal(player, slot) } },
                                 reservedCardIds = summary.players.flatMap { p -> p.dashboard.cardOffers.values.flatten() +
                                     InvestigatorCardSlot.entries.mapNotNull { p.dashboard.card(it)?.catalogueId } }.toSet(),

@@ -133,7 +133,20 @@ loss condition; Commander damage totals alone do not trigger elimination.
   downloaded only when opened, cached on the device and credited to CMON and
   BoardGameGeek. Failed downloads can be retried; missing images never block
   assignment. Other entries link their community source and accept typed notes.
-  No card rules text or artwork is bundled. Recovery saves the selected catalogue
+  The catalogue includes original, unverified mechanical reminders for 20 of 35
+  conditions and both faces of 10 of 20 relics. Exact card prose and artwork are
+  not bundled. Missing/uncertain effects stay blank, labeled for card/scan review.
+  **Review condition & relic rules** in setup browses the full catalogue without
+  assigning a player. Correct the draft from a physical card (including relic flip
+  requirements), check each face independently, then **Save reference**. LocalLibrary
+  owns these device-wide references; they survive recovery/rematch and prefill
+  future choices. Existing match notes are independent and remain unchanged.
+  Match editors also support physical checks; **Fill missing rules from reference**
+  fills only blank fields. A content fingerprint binds each check to that card's
+  name and face text; edits invalidate the matching check, and blank text cannot
+  be checked. Source review never marks a physical check. Checking has no effect
+  on start readiness, markers, flips or printed effects. See the complete
+  [physical-card review checklist](DEATH_MAY_DIE_CARD_REVIEW.md). Recovery saves the selected catalogue
   ID with each card; a renamed card becomes a custom entry, and unknown or
   wrong-slot references are discarded without losing entered names/notes.
   Everyone wins together ("We killed the Elder One") or loses together ("We

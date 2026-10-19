@@ -1,6 +1,6 @@
 package com.turnhub.android.domain
 
-/** Factual names and links only. No card rules or artwork are bundled. */
+/** Factual names/links with original, unverified mechanical reminders; no card art or verbatim prose bundled. */
 data class InvestigatorCardPreset(
     val id: String,
     val slot: InvestigatorCardSlot,
@@ -10,7 +10,9 @@ data class InvestigatorCardPreset(
     val imageId: String? = null,
     val aliases: List<String> = emptyList(),
 ) {
-    fun card() = InvestigatorCard(name, catalogueId = id)
+    fun card() = InvestigatorCardRules.draft(id).let { draft ->
+        InvestigatorCard(name, rules = draft?.rules.orEmpty(), catalogueId = id, transformedRules = draft?.transformedRules.orEmpty())
+    }
 }
 
 /** First community catalogue; custom assignments remain available for missing cards. */
