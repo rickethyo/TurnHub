@@ -10,13 +10,13 @@ using TurnHub::serialLog;
 namespace TurnHub {
 namespace {
 constexpr uint32_t MAGIC = 0x50434854; // THCP, explicit little-endian wire bytes
-constexpr uint32_t SCHEMA = 6;
+constexpr uint32_t SCHEMA = 7;
 constexpr uint32_t CLOCK_CHECKPOINT_MS = 60000;
 // Wire layout (little-endian): magic, schema, 12 header bytes (including monarch, initiative, loss flags and the
-// 16-bit winner set), 6 header words,
+// 16-bit winner set), 6 header words, 22 bag bytes,
 // then per player: 3 bytes, participant word, 9-byte profile ID, 4 stat words,
 // 5 counter words, blessing byte, eliminated byte, life word and count x 2 Commander damage words; CRC-32 last.
-constexpr size_t HEADER_SIZE = 4 + 4 + 12 + 6 * 4;
+constexpr size_t HEADER_SIZE = 4 + 4 + 12 + 6 * 4 + 22;
 constexpr size_t CRC_SIZE = 4;
 constexpr size_t MIN_RECORD_SIZE = HEADER_SIZE + CRC_SIZE;
 constexpr size_t PLAYER_SIZE = 3 + 4 + sizeof(PlayerSeat::profileId) + 4 * 4 + 1 + 4 + 22;
@@ -69,6 +69,10 @@ size_t encodeCheckpoint(const GameCheckpoint &s, uint8_t *bytes, size_t capacity
   w.word(static_cast<uint32_t>(s.settings.poisonLimit));
   w.word(static_cast<uint32_t>(s.settings.startingLife));
   w.word(s.gameElapsed); w.word(s.turnElapsed); w.word(s.settings.turnTimerMs); w.word(s.nextRequestId);
+  const auto &bag = s.doom;
+  w.word(bag.atRisk); w.word(bag.drawn);
+  w.byte(bag.boundary); w.byte(bag.warmup); w.byte(bag.pending); w.byte(bag.pendingTurn);
+  w.byte(bag.selected); w.byte(bag.lastDraw); w.word(bag.cycle); w.word(bag.lastCheck);
   for (uint8_t i=0;i<s.count;++i) {
     const auto &p=s.players[i]; const auto &stats=s.stats[i];
     w.byte(p.playerNumber); w.byte(p.controllerId); w.byte(p.slot); w.word(p.participantId);
@@ -115,6 +119,13 @@ TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameC
   s.settings.startingLife=static_cast<int32_t>(r.word());
   s.gameElapsed=r.word(); s.turnElapsed=r.word(); s.settings.turnTimerMs=r.word(); s.nextRequestId=r.word();
   if (s.count>MAX_PLAYERS) return Status::Corrupt;
+  if (schema >= 7) {
+    const uint32_t risk = r.word(), drawn = r.word();
+    if (risk > UINT16_MAX || drawn > UINT16_MAX) return Status::Corrupt;
+    s.doom.atRisk = static_cast<uint16_t>(risk); s.doom.drawn = static_cast<uint16_t>(drawn);
+    s.doom.boundary = r.byte(); s.doom.warmup = r.byte(); s.doom.pending = r.flag(); s.doom.pendingTurn = r.byte();
+    s.doom.selected = r.byte(); s.doom.lastDraw = r.byte(); s.doom.cycle = r.word(); s.doom.lastCheck = r.word();
+  }
   for (uint8_t i=0;i<s.count;++i) {
     auto &p=s.players[i]; auto &stats=s.stats[i];
     p.playerNumber=r.byte(); p.controllerId=r.byte(); p.slot=r.byte(); p.participantId=r.word();

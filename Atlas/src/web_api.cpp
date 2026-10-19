@@ -263,6 +263,7 @@ const Route ROUTES[] = {
   {"/api/control/back-to-setup", HTTP_POST, controlRoute<WebControl::BackToSetup>},
   {"/api/control/count-game", HTTP_POST, controlRoute<WebControl::CountShortGame>},
   {"/api/control/nudge", HTTP_POST, controlRoute<WebControl::Nudge>},
+  {"/api/control/doom", HTTP_POST, counterRoute<TurnHub::IntentType::DoomBag>},
   // Tablet mode: one shared table screen acting for any seated player.
   {"/api/standalone/import", HTTP_POST, handleStandaloneImport},
   {"/api/tablet/enable", HTTP_POST, handleTabletEnable},
@@ -271,6 +272,7 @@ const Route ROUTES[] = {
   {"/api/tablet/unseat", HTTP_POST, handleTabletUnseat},
   {"/api/tablet/control", HTTP_POST, handleTabletControl},
   {"/api/tablet/life", HTTP_POST, handleTabletLife},
+  {"/api/tablet/doom", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::DoomBag>},
   {"/api/tablet/settings", HTTP_POST, handleTabletSettings},
   {"/api/tablet/life/respond", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::RespondLifeChange>},
   {"/api/tablet/commander", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::ChangeCounter>},

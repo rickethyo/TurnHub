@@ -108,6 +108,9 @@ bool parseGame(WebServer &server, ImportedGame &game) {
     if (conceded.length() && conceded != "0" && conceded != "1") return false;
     player.conceded = conceded == "1";
     if (player.conceded && !player.outOrder) return false;
+    const String bagDrawn = playerField(server, "bagDrawn", i);
+    if (bagDrawn.length() && bagDrawn != "0" && bagDrawn != "1") return false;
+    player.bagDrawn = bagDrawn == "1";
     if (!parseIndex(playerField(server, "eliminatedBy", i), game.playerCount, player.eliminatedBy)) return false;
   }
   return true;

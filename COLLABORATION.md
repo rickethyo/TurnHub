@@ -39,6 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-030 | Bag of Doom Commander | Atlas, Android, protocol, recovery | Active | Codex / implementation |
 | TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
@@ -92,6 +93,37 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
   elimination selection (including duplicate names), stats/history/shares and
   recovery on phone/tablet; flash/reset prototype Atlas statistics for the new
   layouts. No merge or release performed.
+
+## TH-030: Bag of Doom Commander variant
+
+- Date / owner: 2026-10-19 / Codex on `codex/master`, baseline `e0af27b`.
+  Fetched origin; clean tree, #134 merged and no open PR. New reviewable slice.
+- Owner requested the game mode after ten-player and general elimination credit
+  landed. Implement Commander rules with a five-player minimum; app capacity
+  remains ten. Use the episode's community rule summary, with the reset
+  interpretation confirmed by the owner: reset after every check. Primary video is linked but its
+  spoken rules could not be retrieved; do not claim transcript verification.
+- Feature gate: Atlas GameEngine owns connected bag state and validates new
+  DoomBag Intents; StandaloneGame owns independent phone games. Both capture
+  life-loss immunity, a movable cycle boundary, pending checks and committed
+  results. Atlas checkpoints the selected draw before revealing/applying it;
+  standalone commits its complete snapshot synchronously before publishing. Clients only
+  render bag state and submit cycle/boot/revision-guarded draw/correction/credit
+  requests. Extend profile/state/control/import and recovery contracts; no new
+  dependencies or third-party assets. Text statuses, labeled controls, selected
+  semantics and reduced-motion presentation provide accessible alternatives.
+- Scope includes credited-elimination resets, no-credit bag removals, shutdown
+  at four survivors, empty checks, delayed life approvals, recovery/rematch,
+  stale/repeated draws, rules guidance and regression tests. No merge/release.
+- Implemented both authorities, tablet/personal controls, recovery schema 7 and
+  main elimination statistics integration. Rules/manual and source/IP notes
+  updated; no runtime dependencies or bundled media.
+- Local ASan/UBSan scenarios pass (unoptimized local compiler override); includes
+  new rule, persistence-failure, HTTP authorization/freshness/retry and hidden
+  reservation cases. Client contracts, adapters, docs, tokens and manual export
+  pass; manual pages 8–9 rendered and visually reviewed. Remaining host storage
+  suites and full Android compilation/JVM tests are running. Physical acceptance
+  remains open in STAGED_CHANGES.md. No merge/release performed.
 
 ## New topic / reply template
 

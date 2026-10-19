@@ -321,7 +321,7 @@ internal fun TableLobby(
             }
             startHint?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
             StartTableButton(players.size, settings.twoHeadedGiant, enabled && startReady, settings.profile.starCommander,
-                official?.players?.takeIf { locked }, actions.start)
+                official?.players?.takeIf { locked }, settings.profile.bagOfDoom, actions.start)
             // In the app, sounds and bug reports live in Settings and the banner; the
             // full-screen lobby has neither, so it keeps them at the bottom.
             if (!embedded) {
@@ -341,8 +341,9 @@ internal data class LobbyModeSettings(val profile: GameProfile?, val life: Int?,
 /** Both authorities receive the same format/life/team request for a mode change. */
 internal fun settingsForMode(current: GameProfile, mode: GameMode): LobbyModeSettings {
     val profile = when {
+        mode == GameMode.BAG_OF_DOOM -> GameProfile.MTG_BAG_OF_DOOM
         mode == GameMode.STAR_COMMANDER -> GameProfile.MTG_STAR_COMMANDER
-        current.starCommander -> GameProfile.MTG_COMMANDER
+        current.starCommander || current.bagOfDoom -> GameProfile.MTG_COMMANDER
         else -> null
     }
     val teams = mode == GameMode.TWO_HEADED_GIANT

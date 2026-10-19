@@ -253,6 +253,7 @@ void handleTabletSettings(WebServer &server) {
 // request to that seat).
 void handleTabletCounter(WebServer &server, TurnHub::IntentType type) {
   if (!requireTablet(server)) return;
+  if (type == TurnHub::IntentType::DoomBag && !freshDoomRequest(server)) return;
   uint8_t module = 0, slot = 1;
   if (!tabletSeat(server, module, slot)) return;
   TurnHub::IntentPayload payload;

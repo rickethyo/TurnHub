@@ -104,6 +104,7 @@ ImportResult importGame(const ImportedGame &game) {
   ImportResult result;
   if (!validRecordId(game.recordId) || game.playerCount < 2 || game.playerCount > MAX_IMPORT_PLAYERS ||
       game.gameProfile >= static_cast<uint8_t>(TurnHub::GameProfile::Count) ||
+      (game.gameProfile == static_cast<uint8_t>(TurnHub::GameProfile::DoomCommander) && game.playerCount < 5) ||
       (game.twoHeadedGiant && (game.playerCount < 4 || game.playerCount % 2 ||
           !TurnHub::teamsAllowed(static_cast<TurnHub::GameProfile>(game.gameProfile)))) ||
       game.winner >= static_cast<int8_t>(game.playerCount) || game.starter >= static_cast<int8_t>(game.playerCount) ||
@@ -133,7 +134,9 @@ ImportResult importGame(const ImportedGame &game) {
   // or changing any statistics. Names remain display labels.
   for (uint8_t i = 0; i < game.playerCount; ++i) {
     const auto &p = game.players[i];
-    if ((p.conceded && !p.outOrder) || p.eliminatedBy < -1 ||
+    if ((p.bagDrawn && (game.gameProfile != static_cast<uint8_t>(TurnHub::GameProfile::DoomCommander) ||
+          !p.outOrder || p.conceded || p.eliminatedBy >= 0)) ||
+        (p.conceded && !p.outOrder) || p.eliminatedBy < -1 ||
         (p.eliminatedBy >= 0 && (!p.outOrder || p.conceded || p.eliminatedBy == i || p.eliminatedBy >= game.playerCount ||
             (game.twoHeadedGiant && p.eliminatedBy / 2 == i / 2)))) return result;
     const String &id = game.players[i].profileId;

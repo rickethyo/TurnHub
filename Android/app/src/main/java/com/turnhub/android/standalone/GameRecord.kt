@@ -41,6 +41,7 @@ data class GameRecord(
         val conceded: Boolean = false,
         /** Index of the credited opponent in this immutable match; null for unknown/concession. */
         val eliminatedBy: Int? = null,
+        val bagDrawn: Boolean = false,
         val counters: com.turnhub.android.protocol.PlayerCounters = com.turnhub.android.protocol.PlayerCounters(),
         val commanderBySource: Map<Int, List<Int>> = emptyMap(),
         val demerits: Int = 0,
@@ -86,6 +87,7 @@ data class GameRecord(
                     put("outOrder", p.outOrder ?: JSONObject.NULL)
                     put("conceded", p.conceded)
                     put("eliminatedBy", p.eliminatedBy ?: JSONObject.NULL)
+                    put("bagDrawn", p.bagDrawn)
                     put("commanderDamageReceived", p.commanderDamageReceived)
                     put("counters", JSONObject().put("poison", p.counters.poison).put("energy", p.counters.energy)
                         .put("experience", p.counters.experience).put("commanderCasts", JSONArray(p.counters.commanderCasts))
@@ -122,6 +124,7 @@ data class GameRecord(
             add("out$i" to "${p.outOrder ?: 0}")
             add("conceded$i" to if (p.conceded) "1" else "0")
             add("eliminatedBy$i" to (p.eliminatedBy?.toString() ?: ""))
+            add("bagDrawn$i" to if (p.bagDrawn) "1" else "0")
         }
     }
 
@@ -159,6 +162,7 @@ data class GameRecord(
                         outOrder = p.optIntOrNull("outOrder"),
                         conceded = p.optBoolean("conceded"),
                         eliminatedBy = p.optIntOrNull("eliminatedBy"),
+                        bagDrawn = p.optBoolean("bagDrawn"),
                         commanderDamageReceived = p.optInt("commanderDamageReceived"),
                         counters = p.optJSONObject("counters")?.let { c -> com.turnhub.android.protocol.PlayerCounters(
                             c.optInt("poison"), c.optInt("energy"), c.optInt("experience"),
@@ -170,11 +174,13 @@ data class GameRecord(
                 },
             ).also { record ->
                 require(record.recordId.isNotBlank() && record.players.size in 2..StandaloneGame.MAX_PLAYERS)
+                require(!record.profile.bagOfDoom || (record.players.size >= 5 && !record.twoHeadedGiant))
                 require(record.winner == null || record.winner in record.players.indices)
                 require(record.winners.all { it in record.players.indices } && record.winners.distinct().size == record.winners.size)
                 require(record.winners.firstOrNull() == record.winner)
                 require(record.starter == null || record.starter in record.players.indices)
                 record.players.forEachIndexed { i, p ->
+                    require(!p.bagDrawn || (record.profile.bagOfDoom && p.outOrder != null && !p.conceded && p.eliminatedBy == null))
                     require(p.eliminatedBy == null || (p.outOrder != null && !p.conceded &&
                         p.eliminatedBy in record.players.indices && p.eliminatedBy != i &&
                         (!record.twoHeadedGiant || p.eliminatedBy / 2 != i / 2)))

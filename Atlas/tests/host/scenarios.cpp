@@ -5333,6 +5333,148 @@ static void eliminationCredit() {
   GameEngine::setGameCompletedCallback(completed);
 }
 
+static void doomCommanderEngine() {
+  using namespace TurnHub;
+  using TurnHubStorage::Status;
+  PlayerSeat seats[10] = {};
+  for (uint8_t i=0;i<10;++i) { seats[i].playerNumber=i+1; seats[i].controllerId=i; seats[i].slot=1; if(i>=8) snprintf(seats[i].profileId,sizeof(seats[i].profileId),"%08x",i+1); }
+  GameSettings settings; settings.profile=GameProfile::DoomCommander; settings.startingLife=40;
+  GameEngine game;
+  assert(commanderRules(settings.profile) && !teamsAllowed(settings.profile));
+  assert(!game.start(seats,4,seats[0],1000,settings));
+  assert(game.start(seats,10,seats[2],1000,settings));
+  assert(game.doomBag().atRisk==1023 && game.doomBag().boundary==2 && game.doomBag().warmup==4);
+  // A fetchland/other life payment on this turn saves the turn owner, not its payer.
+  assert(game.changeLife(3,-1) && (game.doomBag().atRisk & doomBit(3)));
+  assert(game.changeLife(4,-1) && !(game.doomBag().atRisk & doomBit(3)));
+  assert(game.changeLife(4,1) && !(game.doomBag().atRisk & doomBit(3)));
+  // Commander damage is life loss, regardless of whose commander dealt it.
+  assert(game.passTurn(2,1100) && game.changeCommanderDamage(5,6,1,1));
+  assert(!(game.doomBag().atRisk & doomBit(4)));
+  // A delayed life approval belongs to the turn on which it was requested.
+  assert(game.requestLifeChange(4,6,-1,1200));
+  uint32_t request=game.lifeChangeFor(6)->id;
+  assert(game.passTurn(3,1300) && game.respondLifeChange(6,request,true,1400));
+  assert(game.doomBag().atRisk & doomBit(5));
+  uint32_t now=2000;
+  for(int i=2;i<40;++i) { assert(!game.paused()); assert(game.passTurn(game.activePlayerNumber()-1,now++)); }
+  assert(game.paused() && game.doomBag().pending && game.doomBag().pendingTurn==2 && game.activePlayerNumber()==3);
+  assert(!game.resume(now) && !game.passTurn(2,now) && !game.beginWinClaim(1,false,now));
+  assert(!game.prepareDoomDraw(99,0));
+  // Approvals block sealing; an accepted life change can still correct the last turn.
+  assert(game.requestLifeChange(2,7,-1,now));
+  assert(!game.prepareDoomDraw(1,0));
+  assert(game.respondLifeChange(7,game.lifeChangeFor(7)->id,true,++now));
+  assert(!(game.doomBag().atRisk & doomBit(2)));
+  assert(game.prepareDoomDraw(1,0));
+  uint8_t chosen=game.doomBag().selected;
+  assert(chosen && game.prepareDoomDraw(1,7) && game.doomBag().selected==chosen);
+  assert(!game.changeLife(8,-1) && !game.setDoomEligibility(8,false,1));
+  bool finished=false; assert(!game.eliminatePlayer(8,now,finished));
+  // A failed durable save reveals nothing. A saved reservation survives reboot.
+  MemoryBlobs blobs; GameEngine empty; Lobby lobby; GameRecovery recovery(blobs);
+  assert(recovery.load(empty,lobby,now)==Status::NotFound);
+  blobs.failWrites=true; assert(recovery.save(game,now)==Status::IoError);
+  assert(game.doomBag().selected==chosen && !game.isEliminated(chosen));
+  blobs.failWrites=false; assert(recovery.save(game,now)==Status::Ok);
+  GameEngine restored; Lobby restoredLobby; GameRecovery reboot(blobs);
+  assert(reboot.load(restored,restoredLobby,now+10000)==Status::Ok);
+  assert(restored.doomBag().selected==chosen && restored.prepareDoomDraw(1,0));
+  assert(restored.resolveDoomDraw(now+10000) && restored.isEliminated(chosen));
+  assert(restored.eliminatedBy(chosen)==0 && restored.doomBag().lastDraw==chosen && restored.doomBag().cycle==2);
+  assert(restored.doomBag().atRisk==(1023 & ~doomBit(chosen)) && !restored.doomBag().pending);
+  assert(!restored.prepareDoomDraw(1,0) && !restored.creditDoomElimination(chosen,2,2));
+  GameCheckpoint saved, decoded; restored.checkpoint(saved,now+10000);
+  uint8_t bytes[GAME_CHECKPOINT_CAPACITY]; size_t size=encodeCheckpoint(saved,bytes,sizeof(bytes));
+  assert(size && decodeCheckpoint(bytes,size,decoded)==Status::Ok && sameDoomBag(saved.doom,decoded.doom));
+  decoded.eliminatedBy[chosen-1]=2; assert(!validCheckpoint(decoded));
+  decoded=saved; decoded.doom.atRisk|=doomBit(chosen); assert(!validCheckpoint(decoded));
+  decoded=saved; decoded.doom.drawn|=doomBit(10); assert(!validCheckpoint(decoded));
+  // Empty checks also reset every survivor's immunity.
+  assert(restored.resume(now));
+  for(uint8_t p=1;p<=10;++p) if(!restored.isEliminated(p)) assert(restored.setDoomEligibility(p,false,2));
+  do { assert(restored.passTurn(restored.activePlayerNumber()-1,++now)); } while(!restored.paused());
+  assert(restored.prepareDoomDraw(2,0) && restored.resolveDoomDraw(now));
+  assert(restored.doomBag().lastDraw==0 && restored.doomBag().lastCheck==2 && restored.doomBag().atRisk==(1023 & ~doomBit(chosen)));
+  // Early credited kills remove the grace period and move the boundary.
+  assert(game.start(seats,7,seats[0],now,settings));
+  assert(game.pause(now) && game.eliminatePlayer(4,now,finished,false,2));
+  assert(game.doomBag().cycle==2 && game.doomBag().warmup==0 && game.doomBag().boundary==1);
+  assert(game.doomBag().atRisk==(127 & ~doomBit(4) & ~doomBit(2)) && game.eliminationsBy(2)==1);
+  assert(game.eliminatePlayer(6,now,finished));
+  assert(game.creditDoomElimination(6,3,2) && !game.creditDoomElimination(6,2,3));
+  assert(game.doomBag().boundary==2 && !(game.doomBag().atRisk & doomBit(3)));
+  assert(game.eliminatePlayer(7,now,finished,true));
+  assert(game.livingPlayerCount()==4 && !game.doomActive() && !game.doomBag().atRisk && !game.doomBag().boundary);
+  game.checkpoint(saved,now); assert(validCheckpoint(saved));
+  game.reset(); assert(sameDoomBag(game.doomBag(),DoomBag{}));
+}
+
+static void doomCommanderHttp() {
+  using namespace TurnHub;
+  enterEmptyLobby(); fixtureRadio=false; testNow=1000; registerWebCallbacks();
+  testBlobs.erase("checkpoint"); checkpointReadError=openError=setError=injectedCommitError=ESP_OK;
+  assert(beginGameRecovery(table().game,table().lobby,testNow)==TurnHubStorage::Status::NotFound);
+  String ids[6],tokens[6];
+  for(int i=0;i<6;++i) tokens[i]=registerPhone((String("Bag Seat ")+String(i)).c_str(),ids[i]);
+  for(int i=0;i<4;++i) assert(request("/api/session/join",tokens[i])==200);
+  assert(request("/api/game/settings",tokens[0],{{"gameProfile","mtg_bag_of_doom"},{"startingLife","40"}})==200);
+  assert(request("/api/control/start",tokens[0])==409 && server.body.find("at least five")!=std::string::npos);
+  for(int i=4;i<6;++i) assert(request("/api/session/join",tokens[i])==200);
+  assert(request("/api/control/start",tokens[0])==200);
+  testNow+=3000; updateCountdown(testNow);
+  auto token=[&](uint8_t player) {
+    for(int i=0;i<6;++i) if(ids[i]==table().game.playerByNumber(player)->profileId) return tokens[i];
+    assert(false);return String();
+  };
+  assert(table().game.activePlayerNumber()==1);
+  assert(request("/api/control/life",token(2),{{"delta","-1"}})==200);
+  assert(!(table().game.doomBag().atRisk & doomBit(1)));
+  for(int i=0;i<24;++i) {
+    assert(request("/api/control/pass",token(table().game.activePlayerNumber()))==200);
+    testNow+=PASS_GRACE_MS; updatePendingPass(testNow);
+  }
+  assert(table().hubState==HubState::Paused && table().game.doomBag().pending);
+  assert(request("/api/v1/state",token(1),{},HTTP_GET)==200);
+  saveClientFixture("bag-of-doom-pending",server.body);
+  auto fields=[&]() { return std::map<std::string,String>{{"expectedBootId",TurnHubWebApi::internal::bootId},
+      {"expectedRevision",String(TurnHubWebApi::internal::readClientRevision())},{"cycle",String(table().game.doomBag().cycle)},{"action","draw"}}; };
+  auto old=fields();
+  assert(request("/api/control/doom","",old)==401);
+  assert(request("/api/control/doom",token(1),{{"action","draw"},{"cycle","1"}})==409);
+  auto bad=fields();bad["expectedBootId"]="old";
+  assert(request("/api/control/doom",token(1),bad)==409);
+  bad=fields();bad["cycle"]="4294967296";
+  assert(request("/api/control/doom",token(1),bad)==400);
+  bad=fields();bad["action"]="eligibility";bad["player"]="2";bad["inBag"]="2";
+  assert(request("/api/control/doom",token(1),bad)==400);
+  assert(request("/api/tablet/doom",token(1),fields())==403);
+  // Failed reservation save reveals no name and leaves the table paused.
+  setError=ESP_ERR_NVS_INVALID_HANDLE;
+  assert(request("/api/control/doom",token(1),fields())==409);
+  const uint8_t reserved=table().game.doomBag().selected;
+  assert(reserved && !table().game.isEliminated(reserved));
+  setError=ESP_OK;
+  assert(request("/api/v1/state",token(1),{},HTTP_GET)==200);
+  assert(server.body.find("\"sealed\":true")!=std::string::npos && server.body.find("\"selected\"")==std::string::npos);
+  saveClientFixture("bag-of-doom-sealed",server.body);
+  assert(request("/api/control/doom",token(1),old)==409);
+  auto retry=fields();assert(request("/api/control/doom",token(1),retry)==200);
+  assert(table().game.doomBag().lastDraw==reserved && table().game.isEliminated(reserved));
+  assert(table().game.eliminatedBy(reserved)==0 && !table().game.doomBag().pending);
+  assert(request("/api/control/doom",token(1),retry)==409);
+  assert(request("/api/v1/state",token(1),{},HTTP_GET)==200);
+  saveClientFixture("bag-of-doom-result",server.body);
+  auto credit=fields();credit["action"]="credit";credit["player"]=String(reserved);credit["source"]="1";
+  assert(request("/api/control/doom",token(1),credit)==409);
+  assert(request("/api/control/pause",token(1))==200 && table().hubState==HubState::Running);
+  enterEmptyLobby();table().nextGameSettings=GameSettings{};
+  for(int i=0;i<6;++i) {
+    request("/api/session/logout",tokens[i]);
+    ProfileFixture::profiles.erase(ids[i].c_str());TurnHubAccounts::accounts.erase(ids[i].c_str());
+  }
+}
+
 int main() {
   // These scenarios exercise the presence code; tableCodeOptional() covers
   // the default (off).
@@ -5344,6 +5486,7 @@ int main() {
   observeClientState(); intents.setObserver(observeIntent);
   GameEngine::setGameCompletedCallback(completed);
   eliminationCredit(); std::cout<<"PASS elimination credit, validation, team counts, recovery and shared statistics\n";
+  doomCommanderEngine(); std::cout<<"PASS Bag of Doom rules, turn ownership, sealed recovery, reset and statistics\n";
   dispatcherContract(); std::cout<<"PASS dispatcher contract\n";
   deliberatePairing(); std::cout<<"PASS deliberate pairing authorization, radio failure, timeout, rollover and gameplay exclusion\n";
   lobbyLifecycle(); std::cout<<"PASS lobby and lifecycle\n";
@@ -5372,6 +5515,7 @@ int main() {
   starCommanderSigils(); std::cout<<"PASS Star Commander Sigils: five-player start, lobby order, fixed seats, enemy-only picker, refused ally hits\n";
   starCommanderVenue(); std::cout<<"PASS Star Commander venue: Game 1 Star Commander and Game 2 Commander stay separate\n";
   starCommanderTable(); std::cout<<"PASS Star Commander table: settings, 409 reasons, shared victory, state, statistics, rematch\n";
+  doomCommanderHttp(); std::cout<<"PASS Bag of Doom HTTP authority, freshness, failed seal, retry, projection and result\n";
   starStandaloneImport(); std::cout<<"PASS Star Commander standalone import: every listed winner credited, invalid winner sets refused\n";
   lifeApprovalsAndCommander(); std::cout<<"PASS life approval authorization, deadlines, rollover, atomic Commander counters and lifecycle\n";
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";

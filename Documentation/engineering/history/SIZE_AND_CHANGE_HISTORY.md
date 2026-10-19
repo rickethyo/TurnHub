@@ -1043,3 +1043,13 @@ bits. Match recovery grows by 16 bytes at maximum capacity (3,040 bytes);
 detailed stats grow to 88 bytes and core NVS stats to 28 bytes. Elimination
 credit is recorded before completion and uses the common statistics path.
 No firmware RAM/flash measurement was taken for this snapshot.
+
+
+## 2026-10-19: Commander Bag of Doom
+
+Baseline `e0af27b`; firmware versions unchanged. Source snapshot: Atlas
+`src/*.cpp` 716,491 bytes; the three new Android bag model/rules/panel files
+10,811 raw bytes. Match checkpoint schema 7 adds 22 fixed header bytes,
+raising the maximum 16-player record from 3,040 to 3,062 bytes. Statistics
+layouts and radio payloads are unchanged. No new dependencies or bundled media.
+Firmware flash/RAM and ten-player device performance remain unmeasured.

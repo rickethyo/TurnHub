@@ -318,6 +318,7 @@ bool configureIntentHandlers() {
       {IntentType::Resume, handleResumeIntent},
       {IntentType::Concede, handleConcedeIntent},
       {IntentType::EliminateSeat, handleEliminateSeatIntent},
+      {IntentType::DoomBag, handleDoomBagIntent},
       {IntentType::ClaimMonarch, handleClaimMonarchIntent},
       {IntentType::TogglePause, handleTogglePauseIntent},
       {IntentType::ClaimWin, handleClaimWinIntent},

@@ -369,7 +369,8 @@
             "mtg",
             "mtg_commander",
             "yugioh",
-            "mtg_star_commander"
+            "mtg_star_commander",
+            "mtg_bag_of_doom"
           ]
         },
         "startingLife": {
@@ -384,7 +385,7 @@
           "maximum": 3600000
         },
         "twoHeadedGiant": {
-          "description": "Two-Headed Giant (mtg and mtg_commander only, never mtg_star_commander): teams of two neighbours in turn order (players 1+2, 3+4, ...) share one life total and one turn; either teammate may pass. startingLife is the team total. Absent from older firmware; treat as false.",
+          "description": "Two-Headed Giant (mtg and mtg_commander only, never mtg_star_commander or mtg_bag_of_doom): teams of two neighbours in turn order (players 1+2, 3+4, ...) share one life total and one turn; either teammate may pass. startingLife is the team total. Absent from older firmware; treat as false.",
           "type": "boolean"
         },
         "houseRules": {
@@ -578,6 +579,74 @@
       "minimum": 1,
       "maximum": 16,
       "description": "The one living initiative holder in a Magic game, independent of monarch."
+    },
+    "doomBag": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "atRisk",
+        "drawn",
+        "boundary",
+        "warmup",
+        "cycle",
+        "pending",
+        "pendingTurn",
+        "sealed",
+        "lastDraw",
+        "lastCheck"
+      ],
+      "properties": {
+        "atRisk": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "drawn": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "boundary": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "warmup": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "cycle": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "pending": {
+          "type": "boolean"
+        },
+        "pendingTurn": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "sealed": {
+          "type": "boolean"
+        },
+        "lastDraw": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "lastCheck": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "description": "Bag of Doom only, after match start. Player masks use bit (playerNumber - 1); 0 in player fields means none. A sealed draw must retry the same reserved selection, which is never exposed here. Each completed check increments cycle and refills immunity."
     }
   }
 }

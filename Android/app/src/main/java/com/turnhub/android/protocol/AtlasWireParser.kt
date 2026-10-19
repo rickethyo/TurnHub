@@ -85,6 +85,7 @@ object AtlasWireParser {
                 monarchPlayer = root.optionalInt("monarchPlayer"),
                 initiativePlayer = root.optionalInt("initiativePlayer"),
                 settings = parseSettings(settings, profileKey),
+                doomBag = if (root.isAbsentOrNull("doomBag")) null else parseDoomBag(root.obj("doomBag")),
                 sampledAtMs = root.uint32("sampledAtMs"),
                 gameElapsedMs = root.uint32("gameElapsedMs"),
                 turnElapsedMs = root.uint32("turnElapsedMs"),
@@ -316,6 +317,18 @@ object AtlasWireParser {
         winClaimPlayer = pending.optionalInt("winClaimPlayer"),
         winConfirmationPlayer = pending.optionalInt("winConfirmationPlayer"),
         eliminationTargetPlayer = pending.optionalInt("eliminationTargetPlayer"),
+    )
+
+    private fun parseDoomBag(j: JSONObject): DoomBag = DoomBag(
+        drawn = j.int("drawn").also { if (it !in 0..65535) malformed("Invalid bag eliminations") },
+        atRisk = j.int("atRisk").also { if (it !in 0..65535) malformed("Invalid bag mask") },
+        boundary = j.int("boundary").also { if (it !in 0..16) malformed("Invalid bag boundary") },
+        warmup = j.int("warmup").also { if (it !in 0..4) malformed("Invalid bag warmup") },
+        cycle = j.uint32("cycle").also { if (it == 0L) malformed("Invalid bag cycle") }, pending = j.boolean("pending"),
+        pendingTurn = j.int("pendingTurn").also { if (it !in 0..16) malformed("Invalid bag turn") },
+        sealed = j.boolean("sealed"),
+        lastDraw = j.int("lastDraw").also { if (it !in 0..16) malformed("Invalid bag result") },
+        lastCheck = j.uint32("lastCheck"),
     )
 
     private fun parsePlayer(player: JSONObject) = Player(

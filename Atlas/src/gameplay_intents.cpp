@@ -4,6 +4,7 @@
 // before it mutates GameEngine or the table-decision state in atlas_app.h.
 
 #include "atlas_app.h"
+#include "game_recovery.h"
 #include "account_access.h"
 #include "profile_store.h"
 #include "runtime_diagnostics.h"
@@ -175,7 +176,8 @@ IntentResult handleCommitPassIntent(const Intent &intent, void *) {
   serialLog.print("|ORIGIN|");
   serialLog.println(intentOriginName(committing.origin));
 
-  if (current != nullptr) {
+  if (table().game.paused()) { table().hubState = HubState::Paused; audio.pause(gameAudioMask()); }
+  if (current != nullptr && !table().game.paused()) {
     audio.turnPassed(committing.seat.controllerId, current->controllerId);
     cueTeammate(TurnHub::AudioCue::TurnStarted, current->playerNumber, current->controllerId);
   }
@@ -310,7 +312,8 @@ IntentResult handleMasterPassIntent(const Intent &intent, void *) {
   }
   const PlayerSeat *next = table().game.activePlayer();
   logMasterPass(passing.playerNumber, next != nullptr ? next->playerNumber : 0, intent.actor.origin);
-  if (next != nullptr) {
+  if (table().game.paused()) { table().hubState = HubState::Paused; audio.pause(gameAudioMask()); }
+  if (next != nullptr && !table().game.paused()) {
     audio.turnPassed(passing.controllerId, next->controllerId);
     cueTeammate(TurnHub::AudioCue::TurnStarted, next->playerNumber, next->controllerId);
   }
@@ -382,6 +385,43 @@ IntentResult handleConcedeIntent(const Intent &intent, void *) {
 
 IntentResult handleEliminateSeatIntent(const Intent &intent, void *context) {
   return handleConcedeIntent(intent, context);
+}
+
+// The selected name stays internal until its checkpoint has committed. A retry
+// after a failed/uncertain write always seals/resolves that same selection.
+IntentResult handleDoomBagIntent(const Intent &intent, void *) {
+  const auto *seat = seatForIntentActor(intent);
+  if (!seat || table().game.isEliminated(seat->playerNumber)) return rejectMissingSeat();
+  if (!gameInProgress() || tableDecisionPending() || table().pendingPass.active)
+    return IntentResult::reject(IntentStatus::Conflict, "Resolve the current table action first");
+  auto &game = table().game;
+  const auto &p = intent.payload;
+  if (p.flags == 1) {
+    if (!game.setDoomEligibility(p.targetPlayer, p.value != 0, p.requestId))
+      return IntentResult::reject(IntentStatus::Conflict, "Bag entry changed or cannot be edited");
+    return IntentResult::accept("Bag entry updated");
+  }
+  if (p.flags == 2) {
+    if (!game.creditDoomElimination(p.targetPlayer, p.counterSource, p.requestId))
+      return IntentResult::reject(IntentStatus::Conflict, "That elimination cannot receive credit");
+    return IntentResult::accept("Elimination credited; bag updated");
+  }
+  if (p.flags != 0) return IntentResult::reject(IntentStatus::Unsupported, "Unknown bag action");
+  const uint8_t count = TurnHub::doomCount(game.doomBag().atRisk);
+  uint8_t pick = 0;
+  if (count && !game.doomBag().selected) {
+    const uint32_t limit = UINT32_MAX - UINT32_MAX % count;
+    uint32_t sample = 0; do { sample = esp_random(); } while (sample >= limit);
+    pick = static_cast<uint8_t>(sample % count);
+  }
+  if (!game.prepareDoomDraw(p.requestId, pick))
+    return IntentResult::reject(IntentStatus::Conflict, "Bag check is not ready; resolve pending life requests first");
+  if (game.doomBag().selected && TurnHub::checkpointGame(game, millis()) != TurnHubStorage::Status::Ok)
+    return IntentResult::reject(IntentStatus::Conflict, "Could not save the draw. Retry keeps the same choice");
+  if (!game.resolveDoomDraw(millis()))
+    return IntentResult::reject(IntentStatus::Conflict, "Could not resolve the bag check");
+  leds.invalidateAll();
+  return IntentResult::accept(game.doomBag().lastDraw ? "Bag draw recorded; player eliminated" : "Everyone is safe; bag reset");
 }
 
 // --- Win claims -------------------------------------------------------------------

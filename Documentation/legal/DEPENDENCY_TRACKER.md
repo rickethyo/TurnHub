@@ -140,3 +140,12 @@ are development-only rasterization tools pinned in `tools/artwork-requirements.t
 They generate alpha masks from TurnHub's original SVG artwork and are not linked
 or bundled into Atlas or Android. CI provenance checking uses stdlib only.
 No third-party artwork or new production image/crop library is introduced.
+
+
+Bag of Doom is an independently implemented custom Commander rules variant.
+References: [Game Knights episode](https://www.youtube.com/watch?v=CvyRDmwOeCs)
+and [community rules summary](https://www.reddit.com/r/EDH/comments/1sng1au/commandzones_10_player_game/).
+Only factual source links and independently worded instructions are included;
+no episode media, artwork, logos or transcript. No runtime dependency or bundled
+third-party asset is introduced. TurnHub's reset-after-every-check interpretation
+is stated explicitly; there is no endorsement or official-format claim.

@@ -89,6 +89,8 @@ Open **Game**. The table preview shows the seats as players join, even before th
 
 - **Two-Headed Giant:** teams of two (Magic or Commander).
 
+Bag of Doom: five or more Commander players, with a bag that eliminates a random eligible player after timed turn cycles.
+
 - **Star Commander:** exactly five players.
 
 - **Yu-Gi-Oh!:** 8000 life, two players.
@@ -144,6 +146,18 @@ Each of the five players has two allies, the players seated on either side, and 
 - Each panel shows Enemies out 1/2. **Star layout** (in the lobby, or Sound & display in the table menu) seats the game in the star itself, each panel facing its player; it suits a tablet.
 
 - When the game ends, **Sean Mode** offers a rematch that reseats the same five players so your allies become your enemies.
+
+## Bag of Doom
+
+Choose Commander, then Bag of Doom under Game mode. This custom variant needs at least five players; a phone-hosted table supports ten. Everyone starts at 40 life with normal Commander rules. It is inspired by Game Knights’ ten-player game.
+
+Everyone begins in the bag. If another player loses life during your turn, your name comes out—even if they paid that life themselves. Your own life loss does not save you. Commander damage counts. Correct a mistaken entry in the bag panel; healing or undoing damage does not put your name back automatically.
+
+The first bag check follows four complete turn cycles. Afterward, check once per cycle. The game pauses before the next turn. Resolve pending life requests, review who is In bag or Safe, then Draw from bag. A random name still in the bag is eliminated. An empty bag eliminates nobody. Every check refills the bag and resets immunity. Continue game resumes the next turn.
+
+Crediting an elimination refills the bag except for that player and moves its deadline to the living player before them. This starts a one-cycle check, even during the opening four cycles. Use Credit an earlier elimination after an automatic removal. Concessions and players drawn from the bag give nobody elimination credit. At four survivors, the bag switches off.
+
+On the shared tablet, open Bag of Doom in the game menu. Personal phones show it in Game. Review life totals closes a due check so you can fix life entries, then reopen the bag. Draw results are saved before they appear; if saving fails, retry keeps the same reserved choice on Atlas. Reopening the panel cannot reroll a completed check. TurnHub uses reset-after-every-check rules, which may differ from another group’s version.
 
 ## Naming Your Commander
 

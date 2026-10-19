@@ -11,6 +11,9 @@ interface TableControls {
     /** Remove this seat, optionally crediting another player number (null = unknown). */
     suspend fun eliminate(seat: TabletSeat, eliminatedBy: Int?): Boolean
 
+    suspend fun doom(seat: TabletSeat, action: com.turnhub.android.protocol.DoomAction,
+        token: com.turnhub.android.protocol.DoomToken, player: Int = 0, value: Int = 0): Boolean
+
     /** A phone-hosted cooperative turn ends only after its recipient is chosen. */
     suspend fun passTo(turn: com.turnhub.android.domain.CooperativeTurn, playerNumber: Int): Boolean {
         error("Pass to requires a phone-hosted cooperative game")

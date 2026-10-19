@@ -727,7 +727,8 @@ IntentResult handleStartIntent(const Intent &intent, void *) {
         "Two-Headed Giant needs an even number of players, at least 4");
   }
   if (!TurnHub::validStarTable(table().nextGameSettings, table().lobby.playerCount())) {
-    return IntentResult::reject(IntentStatus::InvalidState, "Star Commander needs exactly five players.");
+    return IntentResult::reject(IntentStatus::InvalidState, table().nextGameSettings.profile == TurnHub::GameProfile::DoomCommander
+        ? "Bag of Doom needs at least five players" : "Star Commander needs exactly five players.");
   }
   if (!TurnHub::validOfficialTable(table().nextGameSettings, table().lobby.playerCount())) {
     return IntentResult::reject(IntentStatus::InvalidState, table().nextGameSettings.twoHeadedGiant

@@ -134,7 +134,7 @@ snapshots. Firmware before the timer omits both fields; treat that as off.
 `turnTimer {presetsMs, minMs, maxMs, warningMs, longTurnMs}` alongside the
 existing fields. `POST /api/game/settings` accepts `turnTimerMs`; omitted fields
 keep their current values. `twoHeadedGiant` (`0` or `1`, `mtg` and `mtg_commander`
-only, never `mtg_star_commander`; GET returns it with the suggested `teamLife` per profile) turns on
+only, never `mtg_star_commander` or `mtg_bag_of_doom`; GET returns it with the suggested `teamLife` per profile) turns on
 Two-Headed Giant: neighbours in turn order are teams of two with one shared life
 total and one turn (see the state schema's `team`). Changing to another profile
 without sending it turns it off. Any seated player may change settings (there is no
@@ -420,8 +420,8 @@ otherwise), form fields:
 - `atlasId`: required destination hardware ID, exactly this Atlas’s `/api/v1/info`
   identity. A foreign/missing ID is rejected before importing anything.
 - `recordId`: 8-48 characters of letters, digits and `-` (the app uses a UUID).
-- `gameProfile`: `generic`, `mtg`, `mtg_commander`, `yugioh` or `mtg_star_commander`.
-- `durationMs`: 0 to 604800000. `players`: 2 to 8.
+- `gameProfile`: `generic`, `mtg`, `mtg_commander`, `yugioh`, `mtg_star_commander` or `mtg_bag_of_doom`.
+- `durationMs`: 0 to 604800000. `players`: 2 to 10.
 - `starter`, `winner`: a player index, or empty for none (no winner is a draw).
   `winner` is the first winner.
 - `winners` (optional, 2026-10-13): every winner as comma-separated player
@@ -488,7 +488,7 @@ local history regardless of import.
 `POST /api/control/monarch` declares the authenticated seated player monarch.
 The tablet equivalent is action `monarch` at `/api/tablet/control`, using the
 normal module, slot and game scope. Both require a living player in a running
-or paused `mtg`/`mtg_commander`/`mtg_star_commander` game; invalid game/seat state returns 409.
+or paused `mtg`/`mtg_commander`/`mtg_star_commander`/`mtg_bag_of_doom` game; invalid game/seat state returns 409.
 Declaring monarch transfers the crown immediately, with at most one holder
 per game. `GET /api/v1/state` reports nullable `monarchPlayer` (1-based individual
 player number), absent on older firmware. When that player leaves play it
@@ -524,7 +524,7 @@ the official starting life and poison limit, as the standalone app does
 Giant `mtg` 30 and 15, `yugioh` 8000. Atlas saves those values whatever life or
 limit the request carries (200), and refuses a live poison-limit change (409).
 Start is refused (409) unless official Two-Headed Giant has exactly four players
-and a Yu-Gi-Oh! Duel two. Custom modes (`generic`, `mtg_star_commander`,
+and a Yu-Gi-Oh! Duel two. Custom modes (`generic`, `mtg_star_commander`, `mtg_bag_of_doom`,
 Two-Headed Giant `mtg_commander`) stay editable. In Two-Headed Giant a
 teammate is never a source of Commander damage (409).
 
@@ -598,3 +598,43 @@ validated before any receipt or statistics writes. `winners` supports indices
 0–9 without truncation. Profile statistics return `eliminationsMade` in both
 `lifetime` and `lastGame`; lifetime counts individual opponents removed, not
 matches, and is retained without an SD card.
+
+
+## Bag of Doom
+
+`gameProfile` / `settings.profile` / `lastGameType` accept `mtg_bag_of_doom`,
+a custom Commander variant for at least five players without teams. See
+[gameplay rules](../Documentation/engineering/GAMEPLAY.md#commander--bag-of-doom).
+State adds optional `doomBag` (null outside a started Bag of Doom match):
+
+| Field | Meaning |
+| --- | --- |
+| `atRisk`, `drawn` | 16-bit masks; bit `playerNumber - 1`. Living eligible names, and historical bag victims respectively. |
+| `boundary` | Player whose turn ends the current cycle; 0 when off. |
+| `warmup` | Opening complete cycles still required, 0–4. |
+| `cycle` | Positive uint32 bag generation, incremented by each check or credited kill while active. |
+| `pending`, `pendingTurn` | Check due; life edits still belong to the turn that just ended. |
+| `sealed` | A private choice was reserved. Only retrying that draw or explicitly ending the match is allowed. |
+| `lastDraw`, `lastCheck` | Last completed result and cycle. `lastDraw=0` means everyone was safe; `lastCheck=0` means no check yet. |
+
+`POST /api/control/doom` requires a signed-in living participant.
+`POST /api/tablet/doom` requires Tablet access and an acting living
+`moduleId`/`slot`. Both require **exact** `expectedBootId`, `expectedRevision`
+and positive uint32 `cycle` from the displayed snapshot. Authentication failures
+are 401/403, stale or inapplicable actions 409, malformed action fields 400.
+
+| `action` | Extra form fields | Transition |
+| --- | --- | --- |
+| `eligibility` | `player` (1–16), `inBag` (0 or 1) | Correct a living player's membership before sealing. |
+| `credit` | `player` (removed victim), `source` (credited opponent), both 1–16 | Credit an uncredited non-conceding, non-bag removal once; reset active bag/boundary. |
+| `draw` | None | Resolve a due paused check after life approvals; authority chooses, saves, removes and refills. |
+
+Clients never select a victim. Atlas saves a hidden reservation before revealing
+the result; storage failure returns 409 and retry uses the same reservation.
+Only `sealed` is projected. Resume/claim-win is refused while a check is due.
+A resolved check remains paused until the usual resume action. No radio payload
+changes. Each venue game retains its independent bag and freshness guards.
+
+Standalone imports accept optional `bagDrawnN=0|1` for each zero-based player.
+True requires this format, an `outOrder`, no concession and no `eliminatedByN`.
+It records the exit reason without awarding an opponent an elimination.

@@ -29,6 +29,7 @@ data class TableSummary(
     val revision: Long,
     val state: TableState,
     val settings: TableSettings,
+    val doomBag: com.turnhub.android.protocol.DoomBag? = null,
     val host: ControllerHandle?,
     val starterPlayerNumber: Int?,
     val activePlayerNumber: Int?,

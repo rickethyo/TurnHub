@@ -285,6 +285,57 @@ option for the Magic and Commander profiles (`GameSettings::twoHeadedGiant`,
   no new firmware: Atlas sends the team's life and turn in the existing
   display packets.
 
+## Commander · Bag of Doom
+
+*Implemented; automated regression coverage, physical playtest pending.*
+`mtg_bag_of_doom` (`GameProfile::DoomCommander`, Android `MTG_BAG_OF_DOOM`)
+uses normal Commander life, damage, counters and last-player-standing victory.
+Start with at least five players and no teams; the standalone app supports ten.
+The Game mode selector offers it under Commander. Its bag state belongs to
+GameEngine on Atlas and StandaloneGame on a phone-hosted table.
+
+- Every living player begins in the bag. An actual negative life change to
+  another living player makes the current turn's owner safe, including life
+  payments and Commander damage. Own life loss does not. Healing or undoing a
+  life entry does not retract immunity: use the explicit bag correction.
+- The first check follows four complete turn cycles from the chosen starter.
+  Afterward check after each cycle. The living predecessor of the starter is
+  initially the boundary; removing that boundary moves it backward to the next
+  living predecessor. Passing the boundary pauses play before the next turn.
+  Pending life approvals retain the original turn owner and bag cycle; they
+  must settle before a draw. A late approval cannot grant immunity in a newer
+  cycle. While the check is pending, life edits apply to the just-finished turn.
+- Each check uniformly chooses one living name still in the bag, or nobody if
+  all are safe. The bag then refills for all survivors, resetting immunity.
+  A drawn player is eliminated through the usual removal path, gives no player
+  credit, and is marked in local history/sharing/imports. Their name cannot be
+  credited later. Each check increments the bag cycle, even an empty check.
+- A credited elimination refills the bag except for the credited player and
+  moves its boundary to their living predecessor. It starts a one-cycle check,
+  including a kill during the initial grace period. Concession/unknown-credit
+  removal just removes the name. The bag panel can credit an earlier automatic
+  removal once, before the game ends, using the same statistics attribution.
+- With four or fewer survivors, bag checks stop and Commander continues.
+  Rematches reset the bag. Alternate win claims wait until the pending check is
+  resolved; the table can still explicitly end without a winner.
+- The shared-tablet overlay and personal-phone Game panel show named In bag /
+  Safe entries, corrections, the boundary, the last result and a Draw control.
+  They send semantic requests; only the authority selects. Continue resumes
+  the paused game. Review life totals closes the overlay without drawing.
+  Boot, revision and cycle guards reject stale or duplicate requests.
+- Atlas durably checkpoints a private selection before revealing it. Failed or
+  uncertain saves keep that selection sealed; retries and reboot recover the
+  same name. Life/counter/removal/eligibility edits freeze once sealed. The
+  projection exposes only `sealed`, never the unrevealed name. A phone-hosted
+  draw commits the entire result to preferences before publishing it; a failed
+  write blocks local play without revealing the result.
+
+Rules reference: [Game Knights' ten-player episode](https://www.youtube.com/watch?v=CvyRDmwOeCs)
+and [community summary](https://www.reddit.com/r/EDH/comments/1sng1au/commandzones_10_player_game/).
+Written summaries differ; the owner explicitly selected **reset immunity after
+every check**. This is TurnHub's custom interpretation, not an official Magic
+format. No episode imagery, audio, logos or transcript is bundled.
+
 ## Star Commander
 
 *Implemented 2026-10-13 (owner request); host and JVM tests only, needs a
@@ -318,7 +369,7 @@ switch applies (`commanderRules()` / `magicRules()` in `game_profile.h`).
   are unchanged and name one winner.
 - **Shared winners** are a winner set (`winnerMask_`), sent as `winnerPlayers`
   next to `winnerPlayer` (the lowest winner) in the state, kept in recovery
-  schema 6, and credited to each winner's statistics. A shared win is never a
+  schema 7, and credited to each winner's statistics. A shared win is never a
   draw. Standalone records carry `winners`, and the Atlas import accepts the
   `winners` field. In Two-Headed Giant `winnerPlayers` lists both teammates.
 - **Statistics** count Star games separately (`starGamesPlayed`,
@@ -618,7 +669,7 @@ settings remain reachable during pause.
 Connected counters use the existing ChangeCounter intent with CounterKind,
 validated by GameEngine and the living-seat/table-decision handler. Settings use
 ConfigureGame; the common post-intent rule finalizer resolves automatic losses
-before projecting/checkpointing. Settings schema 3 and checkpoint schema 6
+before projecting/checkpointing. Settings schema 3 and checkpoint schema 7
 persist rules, counters and initiative. The HTTP state is a read model; no
 radio change. Native connected clients require Atlas for the new actions while
 disconnected (they do not replay status/counter changes). Standalone games own

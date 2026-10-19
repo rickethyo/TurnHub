@@ -379,7 +379,40 @@ void handleCounters(WebServer &server) {
 
 // RequestLifeChange: delta + target. RespondLifeChange: requestId + accept.
 // ChangeCounter: delta + source + commander.
+bool freshDoomRequest(WebServer &server) {
+  if (!readClientRevision || server.arg("expectedBootId") != bootId ||
+      server.arg("expectedRevision") != String(readClientRevision())) {
+    sendError(server, 409, "Fetch a fresh state before changing the bag"); return false;
+  }
+  return true;
+}
+
 bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::IntentPayload &payload) {
+  if (type == TurnHub::IntentType::DoomBag) {
+    const String cycle = server.arg("cycle");
+    uint64_t value = 0;
+    if (!cycle.length() || cycle.length() > 10) return false;
+    for (size_t i = 0; i < cycle.length(); ++i) {
+      if (cycle[i] < '0' || cycle[i] > '9') return false;
+      value = value * 10 + cycle[i] - '0';
+    }
+    if (!value || value > UINT32_MAX) return false;
+    payload.requestId = static_cast<uint32_t>(value);
+    const String action = server.arg("action");
+    if (action == "draw") return true;
+    int32_t player = 0;
+    if (!parseBoundedNumber(server.arg("player"), 1, MAX_PLAYERS, player)) return false;
+    payload.targetPlayer = static_cast<uint8_t>(player);
+    if (action == "eligibility") {
+      payload.flags = 1; return parseBoundedNumber(server.arg("inBag"), 0, 1, payload.value);
+    }
+    if (action == "credit") {
+      payload.flags = 2;
+      if (!parseBoundedNumber(server.arg("source"), 1, MAX_PLAYERS, player)) return false;
+      payload.counterSource = static_cast<uint8_t>(player); return true;
+    }
+    return false;
+  }
   if (type == TurnHub::IntentType::RespondLifeChange) return parseLifeResponse(server, payload);
   int32_t number = 0;
   if (type == TurnHub::IntentType::ChangeCounter && server.hasArg("counter")) {
@@ -416,6 +449,7 @@ bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::I
 void handleCounterControl(WebServer &server, TurnHub::IntentType type) {
   WebSession *session = requireSession(server);
   if (!session) return;
+  if (type == TurnHub::IntentType::DoomBag && !freshDoomRequest(server)) return;
   TurnHub::IntentPayload payload;
   if (!parseCounterPayload(server, type, payload)) {
     sendError(server, 400, "Invalid life or Commander request");

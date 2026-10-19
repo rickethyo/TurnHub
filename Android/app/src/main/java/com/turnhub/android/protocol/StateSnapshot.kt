@@ -23,6 +23,7 @@ data class StateSnapshot(
     val activePlayer: Int?,
     val winnerPlayer: Int?,
     val settings: TableSettings,
+    val doomBag: DoomBag? = null,
     val sampledAtMs: Long,
     val gameElapsedMs: Long,
     val turnElapsedMs: Long,

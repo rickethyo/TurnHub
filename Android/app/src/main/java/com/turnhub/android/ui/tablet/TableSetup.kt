@@ -129,12 +129,14 @@ enum class GameMode(val label: String, val detail: String) {
     // "Free-for-all": the Standard tile is the Magic format, so the mode needs its own word.
     STANDARD("Free-for-all", "Everyone for themselves."),
     TWO_HEADED_GIANT("Two-Headed Giant", "Players next to each other play as teams of two (1 and 2, 3 and 4, and so on), sharing life, poison and the turn."),
+    BAG_OF_DOOM("Bag of Doom", "Five or more players. Escape the bag when another player loses life on your turn; bag checks begin after four cycles and stop at four survivors."),
     STAR_COMMANDER("Star Commander", "Five players. Your neighbors are allies who can't deal you Commander damage; " +
         "win when both players across the star are out."),
     ;
 
     companion object {
         fun of(profile: GameProfile, twoHeadedGiant: Boolean): GameMode = when {
+            profile.bagOfDoom -> BAG_OF_DOOM
             profile.starCommander -> STAR_COMMANDER
             twoHeadedGiant -> TWO_HEADED_GIANT
             else -> STANDARD
@@ -142,7 +144,7 @@ enum class GameMode(val label: String, val detail: String) {
 
         /** Star Commander is a Commander variant: Standard Magic offers only free-for-all and Two-Headed Giant. */
         fun availableFor(profile: GameProfile): List<GameMode> =
-            if (profile.commanderRules) entries else entries.filter { it != STAR_COMMANDER }
+            if (profile.commanderRules) entries else entries.filter { it != STAR_COMMANDER && it != BAG_OF_DOOM }
     }
 }
 
@@ -151,7 +153,7 @@ enum class GameMode(val label: String, val detail: String) {
  * Commander, and tapping Commander then keeps it (Standard leaves Star).
  */
 internal fun formatSelected(current: GameProfile, chip: GameProfile): Boolean =
-    current == chip || (current.starCommander && chip == GameProfile.MTG_COMMANDER)
+    current == chip || ((current.starCommander || current.bagOfDoom) && chip == GameProfile.MTG_COMMANDER)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -178,15 +180,17 @@ internal fun GameModeChips(profile: GameProfile, selected: GameMode, enabled: Bo
  */
 @Composable
 internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, star: Boolean = false,
-    exactPlayers: Int? = null, onStart: () -> Unit) {
+    exactPlayers: Int? = null, bag: Boolean = false, onStart: () -> Unit) {
     val ready = when {
         star -> players == StarCommander.PLAYERS
+        bag -> players >= 5
         exactPlayers != null -> players == exactPlayers
         else -> players >= 2 && (!teams || (players >= 4 && players % 2 == 0))
     }
     AccentButton(
         when {
             star && !ready -> "Star Commander needs exactly five players."
+            bag && !ready -> "Bag of Doom needs at least five players."
             exactPlayers != null && !ready && teams -> "Two-Headed Giant is two teams of two: add exactly four players"
             exactPlayers != null && !ready -> "This game is for exactly $exactPlayers players"
             players < 2 -> "Add two players to start"

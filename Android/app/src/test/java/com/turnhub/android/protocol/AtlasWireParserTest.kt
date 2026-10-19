@@ -448,4 +448,21 @@ class AtlasWireParserTest {
         assertEquals(2, state.winnerPlayers.size)
         assertEquals(state.winnerPlayer, state.winnerPlayers.first())
     }
+    @Test fun `bag state preserves masks and sealed flag and rejects invalid shapes`() {
+        val body = Fixtures.text("bag-of-doom.response.json")
+        val parsed = AtlasWireParser.parseState(body)
+        assertEquals(GameProfile.MTG_BAG_OF_DOOM, parsed.settings.profile)
+        assertEquals(21, parsed.doomBag!!.atRisk)
+        assertEquals(true, parsed.doomBag.pending)
+        assertEquals(0, parsed.doomBag.selected)
+        for (value in listOf(-1, 65536)) {
+            val bad = JSONObject(body).apply { getJSONObject("doomBag").put("atRisk", value) }
+            assertTrue(runCatching { AtlasWireParser.parseState(bad.toString()) }.isFailure)
+        }
+        assertTrue(runCatching { AtlasWireParser.parseState(JSONObject(body).put("doomBag", "bad").toString()) }.isFailure)
+        assertEquals(true, AtlasWireParser.parseState(JSONObject(body).apply {
+            getJSONObject("doomBag").put("sealed", true)
+        }.toString()).doomBag!!.sealed)
+    }
+
 }

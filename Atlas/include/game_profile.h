@@ -3,15 +3,15 @@
 #include <string.h>
 
 namespace TurnHub {
-enum class GameProfile : uint8_t { Generic, Magic, Commander, Yugioh, StarCommander, Count };
+enum class GameProfile : uint8_t { Generic, Magic, Commander, Yugioh, StarCommander, DoomCommander, Count };
 
 // Commander rules (Commander damage, commander casts and partners): Commander
-// and Star Commander.
+// and its Star Commander / Bag of Doom variants.
 inline bool commanderRules(GameProfile profile) {
-  return profile == GameProfile::Commander || profile == GameProfile::StarCommander;
+  return profile == GameProfile::Commander || profile == GameProfile::StarCommander || profile == GameProfile::DoomCommander;
 }
 // Magic rules (monarch, initiative, poison, energy, experience, city's
-// blessing): Magic and both Commander formats.
+// blessing): Magic and every Commander variant.
 inline bool magicRules(GameProfile profile) {
   return profile == GameProfile::Magic || commanderRules(profile);
 }
@@ -194,7 +194,8 @@ inline bool validTeamTable(const GameSettings &settings, uint8_t playerCount) {
       (playerCount >= TEAM_MIN_PLAYERS && playerCount % TEAM_SIZE == 0);
 }
 inline bool validStarTable(const GameSettings &settings, uint8_t playerCount) {
-  return settings.profile != GameProfile::StarCommander || playerCount == STAR_PLAYERS;
+  return (settings.profile != GameProfile::StarCommander || playerCount == STAR_PLAYERS) &&
+      (settings.profile != GameProfile::DoomCommander || playerCount >= 5);
 }
 inline uint8_t profileByte(const GameSettings &settings) {
   return static_cast<uint8_t>(settings.profile) | (settings.twoHeadedGiant ? PROFILE_BYTE_TEAMS : 0) |
@@ -211,6 +212,7 @@ inline const char *gameProfileKey(GameProfile profile) {
     case GameProfile::Commander: return "mtg_commander";
     case GameProfile::Yugioh: return "yugioh";
     case GameProfile::StarCommander: return "mtg_star_commander";
+    case GameProfile::DoomCommander: return "mtg_bag_of_doom";
     default: return "generic";
   }
 }
