@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-030 | Bag of Doom Commander | Atlas, Android, protocol, recovery | Ready for review; final UI check running | Codex / PR #136 |
+| TH-030 | Bag of Doom Commander | Atlas, Android, protocol, recovery | Ready for review; CI passes | Owner / PR #136 |
 | TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
@@ -87,9 +87,12 @@ Ten-player app and general elimination credit landed in [PR #134](https://github
   before stats, Self/Unknown/off-turn sources, all-out/teams, recovery, rematches,
   stale answers and preserving the policy during live rule toggles. The first
   Android compile caught a callback invocation; corrected in `50b5c20`.
-- Final UI follow-up keeps source priority when Review game interrupts a manual
-  removal and directs Open bag to the outstanding source question. CI rerun
-  pending. Physical-device acceptance remains in STAGED_CHANGES.md. Owner
+- Final UI follow-up `6bd6b27` keeps source priority when Review game interrupts
+  a manual removal and directs Open bag to the outstanding source question.
+  [Final CI passes](https://github.com/rickethyo/TurnHub/actions/runs/39274068620),
+  including Android/JVM/release bundle, optimized host suites/contracts, firmware
+  and LVGL; [iOS passes](https://github.com/rickethyo/TurnHub/actions/runs/39274067918).
+  Physical-device acceptance remains in STAGED_CHANGES.md. Owner
   integrates #136 with a merge commit and retains `codex/master`; no merge or
   release performed.
 
