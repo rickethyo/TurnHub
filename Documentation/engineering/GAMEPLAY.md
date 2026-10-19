@@ -189,7 +189,8 @@ loss condition; Commander damage totals alone do not trigger elimination.
   and what is still missing, with Edit per player, **Start the game** (the
   normal Start path, so first-player choice and the setup gate still apply)
   and **Back to the setup menu**, which keeps every choice
-  (`ui/tablet/GuidedSetup.kt`, using the lobby's `TableLobbyActions`).
+  (`ui/tablet/GuidedSetup.kt`, using the lobby's `TableLobbyActions`). It fills
+  the screen edge to edge; portraits are cropped toward the top so faces show.
 - Custom starting life 0 to 1,000,000 (custom modes or house rules). Any
   seated player may change the next game's settings in the lobby
   (`ConfigureGame`); a running match keeps what it captured at start, and a

@@ -107,7 +107,7 @@ internal fun TableLobby(
     val locked = official != null && !settings.houseRules
     var guided by rememberSaveable { mutableStateOf(false) }
     Box(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.safeDrawingPadding()), contentAlignment = Alignment.TopCenter) {
-        Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+        Column(Modifier.widthIn(max = 880.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (!embedded) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Full-screen table", color = p.text, style = MaterialTheme.typography.headlineSmall,
