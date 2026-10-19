@@ -80,7 +80,7 @@ internal fun TableLobby(
     savedTitle: String,
     introduction: String? = null,
     /** Who goes first when nobody is chosen, in this table's words. */
-    starterHint: String = "Tap First? to choose who goes first.",
+    starterHint: String = "Tap First to choose who goes first.",
     headerActions: @Composable FlowRowScope.() -> Unit = {},
     feedback: @Composable () -> Unit = {},
     footer: @Composable ColumnScope.() -> Unit = {},
@@ -159,7 +159,8 @@ internal fun TableLobby(
                                 Text("${player.playerNumber}", color = com.turnhub.android.ui.components.colorInk(hue), style = MaterialTheme.typography.labelLarge)
                             }
                             Column(Modifier.weight(1f)) {
-                                Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                                Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                 if (investigators) Text(player.investigator ?: "No investigator yet", color = p.muted,
                                     style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic)
                                 player.namedCommander?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
@@ -167,51 +168,49 @@ internal fun TableLobby(
                                 val art = rememberCommanderArt(player.commander, player.commanderArt)
                                 player.commander?.let { card ->
                                     Text(listOfNotNull(art?.cardName ?: card, art?.let { "Art: ${it.artist} (${it.source})" }).joinToString(" · "),
-                                        color = p.faint, style = MaterialTheme.typography.labelSmall)
+                                        color = p.faint, style = MaterialTheme.typography.labelSmall, maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                 }
                             }
                             if (settings.twoHeadedGiant) Text("Team ${(player.playerNumber + 1) / 2}", color = p.muted,
                                 style = MaterialTheme.typography.labelMedium)
                             if (player.controller.kind == ControllerHandle.Kind.PHYSICAL) Text("Sigil", color = p.muted,
                                 style = MaterialTheme.typography.labelMedium)
-                        }
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            // One row per player: the label never changes width, and the rest sits in one menu,
+                            // so choosing who goes first or a card never reflows the list.
                             actions.chooseStarter?.let { choose ->
                                 val first = summary.starterPlayerNumber == player.playerNumber
                                 FilterChip(selected = first, onClick = { choose(player) }, enabled = enabled,
-                                    label = { Text(if (first) "Goes first" else "First?") },
+                                    label = { Text("First") },
                                     colors = FilterChipDefaults.filterChipColors(selectedContainerColor = p.accentSoft),
                                     modifier = Modifier.semantics {
                                         contentDescription = if (first) "${player.label} goes first. Tap to clear" else "Make ${player.label} go first"
                                     })
                             }
-                            if (investigators) {
-                                TextButton(onClick = { choosingInvestigator = player.playerNumber }, enabled = enabled,
-                                    modifier = Modifier.semantics { contentDescription = "Choose ${player.label}'s investigator" }) {
-                                    Text(if (player.investigator == null) "Choose investigator" else "Change investigator")
+                            val items = buildList<Pair<String, () -> Unit>> {
+                                if (investigators) add((if (player.investigator == null) "Choose investigator" else "Change investigator") to
+                                    { choosingInvestigator = player.playerNumber })
+                                if (actions.commander != null) add(when {
+                                    player.commander == null -> if (settings.profile.commanderRules) "Name commander" else "Choose tile card"
+                                    player.namedCommander != null -> "Change commander"
+                                    else -> "Change tile card"
+                                } to { namingCommander = player.playerNumber })
+                                actions.background?.takeIf { actions.canEditBackground(player) }?.let { edit ->
+                                    add("Tile color & photo" to { edit(player) })
                                 }
+                                if (actions.canRemove(player)) add("Remove ${player.label}" to { actions.remove(player) })
                             }
-                            if (actions.commander != null) {
-                                val commanderRules = settings.profile.commanderRules
-                                TextButton(onClick = { namingCommander = player.playerNumber }, enabled = enabled,
-                                    modifier = Modifier.semantics {
-                                        contentDescription = if (commanderRules) "Name ${player.label}'s commander or pick a card for their tile"
-                                        else "Pick a card for ${player.label}'s tile"
-                                    }) {
-                                    Text(when {
-                                        player.commander == null -> if (commanderRules) "Name commander" else "Choose tile card"
-                                        player.namedCommander != null -> "Change commander"
-                                        else -> "Change tile card"
-                                    })
+                            var menu by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(onClick = { menu = true }, enabled = enabled && items.isNotEmpty(),
+                                    modifier = Modifier.semantics { contentDescription = "Options for ${player.label}" }) {
+                                    Text("⋯", color = if (items.isEmpty()) p.faint else p.text, style = MaterialTheme.typography.titleLarge)
                                 }
-                            }
-                            actions.background?.takeIf { actions.canEditBackground(player) }?.let { edit ->
-                                TextButton(onClick = { edit(player) }, enabled = enabled,
-                                    modifier = Modifier.semantics { contentDescription = "Choose the color or photo behind ${player.label}'s tile" }) { Text("Tile color & photo") }
-                            }
-                            if (actions.canRemove(player)) IconButton(onClick = { actions.remove(player) }, enabled = enabled,
-                                modifier = Modifier.semantics { contentDescription = "Remove ${player.label}" }) {
-                                Text("×", color = p.muted, style = MaterialTheme.typography.titleLarge)
+                                DropdownMenu(menu, { menu = false }) {
+                                    items.forEach { (label, act) ->
+                                        DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; act() })
+                                    }
+                                }
                             }
                         }
                         if (investigators) actions.investigatorCard?.let { assign ->
