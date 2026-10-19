@@ -3455,6 +3455,15 @@ static void tabletMode() {
   const String winnerId=waiting==m1?avaId:benId;
   assert(ProfileFixture::profiles[winnerId].stats.gamesPlayed==1 && ProfileFixture::profiles[winnerId].stats.gamesWon==1);
 
+  // Shared-table credit uses the same authenticated intent as the player's phone.
+  assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","rematch"}})==200);
+  assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","start"}})==200);
+  testNow+=3000; updateCountdown(testNow);
+  assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","eliminate"},{"eliminatedBy","1"}})==409);
+  assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","eliminate"},{"eliminatedBy","2"}})==200);
+  assert(table().game.eliminatedBy(1)==2 && table().game.eliminationsBy(2)==1);
+  assert(ProfileFixture::profiles[benId].stats.lastGameEliminationsMade==1);
+
   // Leaving tablet mode revokes the shared credential.
   assert(request("/api/tablet/disable",tablet)==200);
   assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","rematch"}})==401);
@@ -4425,12 +4434,15 @@ static void standaloneImport() {
     {"recordId","0f8e5c2a-1111-4222-8333-444455556666"},{"atlasId",TurnHubWebApi::internal::atlasHardwareId()},
     {"gameProfile","mtg_commander"},{"durationMs","1800000"},{"players","2"},{"starter","1"},{"winner","0"},
     {"name0","Ana"},{"profile0",anaId},{"turns0","6"},{"turnMs0","600000"},{"fastest0","30000"},{"longest0","200000"},{"out0","0"},
-    {"name1","ben import"},{"profile1",benId},{"turns1","6"},{"turnMs1","500000"},{"fastest1","20000"},{"longest1","150000"},{"out1","1"},
+    {"eliminatedBy1","0"},{"name1","ben import"},{"profile1",benId},{"turns1","6"},{"turnMs1","500000"},{"fastest1","20000"},{"longest1","150000"},{"out1","1"},
   };
   const auto anaBefore=ProfileFixture::profiles[anaId.c_str()].stats;
   const auto benBefore=ProfileFixture::profiles[benId.c_str()].stats;
   assert(request("/api/standalone/import","",record)==401);
-  auto bad=record; bad["winner"]="2"; assert(request("/api/standalone/import",ana,bad)==400);
+  auto bad=record; bad["eliminatedBy1"]="1"; assert(request("/api/standalone/import",ana,bad)==400);
+  bad=record; bad["conceded1"]="1"; assert(request("/api/standalone/import",ana,bad)==400);
+  bad=record; bad["eliminatedBy0"]="1"; assert(request("/api/standalone/import",ana,bad)==400);
+  bad=record; bad["winner"]="2"; assert(request("/api/standalone/import",ana,bad)==400);
   bad=record; bad["recordId"]="x"; assert(request("/api/standalone/import",ana,bad)==400);
   bad=record; bad["players"]="1"; assert(request("/api/standalone/import",ana,bad)==400);
   bad=record; bad["atlasId"]="THA-OTHER"; assert(request("/api/standalone/import",ana,bad)==400);
@@ -4453,6 +4465,7 @@ static void standaloneImport() {
   assert(anaStats.gamesPlayed==anaBefore.gamesPlayed+1 && anaStats.gamesWon==anaBefore.gamesWon+1);
   assert(anaStats.lastGameResult==TurnHubProfiles::LastGameResult::Win && anaStats.lastGameTurns==6);
   assert(anaStats.lastGameProfile==static_cast<uint8_t>(TurnHub::GameProfile::Commander));
+  assert(anaStats.eliminationsMade==anaBefore.eliminationsMade+1 && anaStats.lastGameEliminationsMade==1);
   const auto &benStats=ProfileFixture::profiles[benId.c_str()].stats;
   assert(benStats.gamesPlayed==benBefore.gamesPlayed+1 && benStats.gamesWon==benBefore.gamesWon);
   assert(benStats.gamesEliminated==benBefore.gamesEliminated+1 && benStats.gamesStarted==benBefore.gamesStarted+1);
@@ -4856,7 +4869,12 @@ static void zeroLifeAndExitReasons() {
   assert(request("/api/control/start",c)==200); testNow+=3000; updateCountdown(testNow);
   assert(request("/api/control/concede",a)==200);
   assert(table().game.hasConceded(1) && table().hubState==HubState::Running);
-  assert(request("/api/control/eliminate",b)==200 && !table().game.hasConceded(2));
+  assert(request("/api/control/pass",b)==200 && table().pendingPass.active);
+  assert(request("/api/control/eliminate",b,{{"eliminatedBy","2"}})==409 && table().pendingPass.active);
+  assert(request("/api/control/eliminate",b,{{"eliminatedBy","17"}})==400);
+  assert(request("/api/control/eliminate",b,{{"eliminatedBy","3"}})==200 && !table().game.hasConceded(2));
+  assert(table().game.eliminatedBy(2)==3 && ProfileFixture::profiles[cId.c_str()].stats.lastGameEliminationsMade==1);
+  assert(request("/api/session/stats",c,{},HTTP_GET)==200 && server.body.find("\"eliminationsMade\":1")!=std::string::npos);
   assert(ProfileFixture::profiles[aId.c_str()].stats.lastGameResult==LastGameResult::Conceded);
   assert(ProfileFixture::profiles[aId.c_str()].stats.gamesConceded==1);
   assert(ProfileFixture::profiles[bId.c_str()].stats.lastGameResult==LastGameResult::Eliminated);
@@ -5255,6 +5273,66 @@ static void starStandaloneImport() {
   TurnHubStandalone::useImportStore(nullptr);
 }
 
+static void tenPlayerImportCredit() {
+  using namespace TurnHubStandalone;
+  MemoryBlobs blobs; useImportStore(&blobs);
+  ImportedGame record; record.recordId="ten-player-credit"; record.playerCount=10;
+  record.winner=9; record.winners=1u<<9; record.durationMs=90000;
+  for (uint8_t i=0;i<10;++i) {
+    record.players[i].profileId=TurnHubProfiles::createProfile();
+    record.players[i].name=String("Ten ")+String(i);
+    if(i<9) { record.players[i].outOrder=i+1; record.players[i].eliminatedBy=9; }
+  }
+  auto invalid=record; invalid.players[0].eliminatedBy=0;
+  assert(importGame(invalid).status==ImportStatus::Invalid && blobs.blobs.empty());
+  const auto result=importGame(record); assert(result.status==ImportStatus::Imported && result.credited==10);
+  const auto &stats=ProfileFixture::profiles[record.players[9].profileId.c_str()].stats;
+  assert(stats.gamesWon==1 && stats.eliminationsMade==9 && stats.lastGameEliminationsMade==9);
+  assert(importGame(record).status==ImportStatus::Duplicate && stats.eliminationsMade==9);
+  for (uint8_t i=0;i<10;++i) ProfileFixture::profiles.erase(record.players[i].profileId.c_str());
+  useImportStore(nullptr);
+}
+
+static void eliminationCredit() {
+  using namespace TurnHub;
+  GameEngine::setGameCompletedCallback(nullptr);
+  PlayerSeat seats[] = {PlayerSeat{1,0}, PlayerSeat{2,1}, PlayerSeat{3,2}};
+  GameEngine g;
+  assert(g.start(seats,3,seats[0],1000));
+  assert(g.pause(2000));
+  bool finished=false;
+  assert(!g.eliminatePlayer(2,2000,finished,false,2)); // self
+  assert(!g.eliminatePlayer(2,2000,finished,false,4)); // unknown
+  assert(!g.eliminatePlayer(2,2000,finished,true,1)); // concession
+  assert(g.eliminatePlayer(2,2000,finished,false,1) && !finished);
+  assert(g.eliminatedBy(2)==1 && g.eliminationsBy(1)==1);
+  assert(!g.eliminatePlayer(2,2000,finished,false,1)); // no duplicate
+  GameCheckpoint checkpoint; g.checkpoint(checkpoint,2100);
+  uint8_t bytes[GAME_CHECKPOINT_CAPACITY];
+  const auto size=encodeCheckpoint(checkpoint,bytes,sizeof(bytes)); assert(size);
+  GameCheckpoint decoded; assert(decodeCheckpoint(bytes,size,decoded)==TurnHubStorage::Status::Ok);
+  GameEngine restored; assert(restored.restoreCheckpoint(decoded,5000));
+  assert(restored.paused() && restored.eliminatedBy(2)==1 && restored.eliminationsBy(1)==1);
+  auto bad=decoded; bad.eliminatedBy[0]=2; assert(!validCheckpoint(bad));
+  bad=decoded; bad.eliminatedBy[1]=2; assert(!validCheckpoint(bad));
+  assert(restored.eliminatePlayer(3,6000,finished,false,1) && finished);
+  assert(restored.eliminationsBy(1)==2);
+  TurnHubProfiles::ProfileStats totals;
+  TurnHubProfileStats::GameResult result; result.eliminationsMade=restored.eliminationsBy(1);
+  TurnHubProfileStats::applyGameResult(totals,result);
+  assert(totals.eliminationsMade==2 && totals.lastGameEliminationsMade==2);
+  result.eliminationsMade=0; TurnHubProfileStats::applyGameResult(totals,result);
+  assert(totals.eliminationsMade==2 && totals.lastGameEliminationsMade==0);
+  PlayerSeat teams[] = {PlayerSeat{1,0},PlayerSeat{2,1},PlayerSeat{3,2},PlayerSeat{4,3}};
+  GameSettings settings; settings.profile=GameProfile::Commander; settings.twoHeadedGiant=true;
+  assert(g.start(teams,4,teams[0],1000,settings) && g.pause(2000));
+  assert(!g.eliminatePlayer(3,2000,finished,false,4));
+  assert(g.eliminatePlayer(3,2000,finished,false,1) && finished);
+  assert(g.eliminatedBy(3)==1 && g.eliminatedBy(4)==1 && g.eliminationsBy(1)==2);
+  g.checkpoint(checkpoint,2000); checkpoint.eliminatedBy[3]=0; assert(!validCheckpoint(checkpoint));
+  GameEngine::setGameCompletedCallback(completed);
+}
+
 int main() {
   // These scenarios exercise the presence code; tableCodeOptional() covers
   // the default (off).
@@ -5265,6 +5343,7 @@ int main() {
   assert(configureIntentHandlers());
   observeClientState(); intents.setObserver(observeIntent);
   GameEngine::setGameCompletedCallback(completed);
+  eliminationCredit(); std::cout<<"PASS elimination credit, validation, team counts, recovery and shared statistics\n";
   dispatcherContract(); std::cout<<"PASS dispatcher contract\n";
   deliberatePairing(); std::cout<<"PASS deliberate pairing authorization, radio failure, timeout, rollover and gameplay exclusion\n";
   lobbyLifecycle(); std::cout<<"PASS lobby and lifecycle\n";
@@ -5308,6 +5387,7 @@ int main() {
   batteryGauge(); std::cout<<"PASS battery gauge curve, smoothing, low warning and /api/devices\n";
   chargingEstimate(); std::cout<<"PASS charging estimate: no jump on USB, counted climb, never down, full only after the limit\n";
   powerSource(); std::cout<<"PASS power source: USB pulled and plugged in, slow discharge, no cell, started on the cell\n";
+  tenPlayerImportCredit(); std::cout<<"PASS ten-player imports, high winner bit, elimination credit and retry deduplication\n";
   standaloneImport(); std::cout<<"PASS standalone import: exact Atlas/profile scope, no name fallback, invalid mapping, duplicates, storage failure, draw\n";
   tabletMode(); std::cout<<"PASS tablet mode: presence code, Tablet access role, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";

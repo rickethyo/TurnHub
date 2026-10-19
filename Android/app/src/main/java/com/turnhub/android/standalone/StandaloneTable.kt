@@ -365,6 +365,13 @@ class StandaloneTable(
 
     // --- the table ------------------------------------------------------------------
 
+    override suspend fun eliminate(seat: TabletSeat, eliminatedBy: Int?): Boolean {
+        val before = _state.value.game
+        if (eliminatedBy != null && eliminatedBy !in 1..before.players.size) return false
+        edit { it.eliminate(StandaloneGame.indexOf(seat.moduleId), wallClock(), eliminatedBy = eliminatedBy?.minus(1)) }
+        return _state.value.game !== before
+    }
+
     override suspend fun control(seat: TabletSeat, action: String): Boolean {
         val index = StandaloneGame.indexOf(seat.moduleId)
         val now = wallClock()
@@ -545,6 +552,7 @@ class StandaloneTable(
                         put("life", p.life)
                         put("eliminated", p.eliminated)
                         put("conceded", p.conceded)
+                        put("eliminatedBy", p.eliminatedBy ?: JSONObject.NULL)
                         put("counters", JSONObject().apply {
                             put("poison", p.counters.poison); put("energy", p.counters.energy); put("experience", p.counters.experience)
                             put("commanderCasts", JSONArray(p.counters.commanderCasts)); put("cityBlessing", p.counters.cityBlessing)
@@ -637,6 +645,7 @@ class StandaloneTable(
                         life = p.getInt("life"),
                         eliminated = p.getBoolean("eliminated"),
                         conceded = p.optBoolean("conceded"),
+                        eliminatedBy = p.optIntOrNull("eliminatedBy"),
                         counters = p.optJSONObject("counters")?.let { c ->
                             com.turnhub.android.protocol.PlayerCounters(c.getInt("poison"), c.getInt("energy"), c.getInt("experience"),
                                 c.getJSONArray("commanderCasts").let { a -> List(2) { a.getInt(it) } }, c.getBoolean("cityBlessing"))
@@ -692,7 +701,14 @@ class StandaloneTable(
                         },
                     )
                 },
-            )
+            ).also { game ->
+                require(game.players.size <= StandaloneGame.MAX_PLAYERS)
+                game.players.forEachIndexed { i, p ->
+                    require(p.eliminatedBy == null || (p.eliminated && !p.conceded &&
+                        p.eliminatedBy in game.players.indices && p.eliminatedBy != i &&
+                        (!game.twoHeadedGiant || p.eliminatedBy / 2 != i / 2)))
+                }
+            }
         }
     }
 }

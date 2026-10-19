@@ -6,8 +6,7 @@ import org.json.JSONObject
 /**
  * The signed-in profile's statistics from `GET /api/session/stats`, as the
  * portal's Statistics page shows them. Times are milliseconds; Atlas computes
- * the averages. Without a microSD card ([detailed] false) only games played and
- * won, the last result and the last game type are recorded.
+ * the averages. Without a microSD card ([detailed] false) games played and won, elimination credit, the last result and the last game type are recorded.
  */
 data class ProfileStatistics(
     val name: String,
@@ -31,6 +30,7 @@ data class ProfileStatistics(
         val totalGameMs: Long,
         val averageGameMs: Long,
         val gamesConceded: Long = 0,
+        val eliminationsMade: Long = 0,
     )
 
     data class LastGame(
@@ -40,6 +40,7 @@ data class ProfileStatistics(
         val averageTurnMs: Long,
         val fastestTurnMs: Long,
         val longestTurnMs: Long,
+        val eliminationsMade: Long = 0,
     )
 
     /** Private: counts only for a PIN-verified owner, otherwise the reason they are hidden. */
@@ -67,6 +68,7 @@ data class ProfileStatistics(
                     gamesStarted = l.optLong("gamesStarted"),
                     gamesEliminated = l.optLong("gamesEliminated"),
                     gamesConceded = l.optLong("gamesConceded"),
+                    eliminationsMade = l.optLong("eliminationsMade"),
                     turnsCompleted = l.optLong("turnsCompleted"),
                     totalTurnMs = l.optLong("totalTurnMs"),
                     averageTurnMs = l.optLong("averageTurnMs"),
@@ -76,6 +78,7 @@ data class ProfileStatistics(
                     averageGameMs = l.optLong("averageGameMs"),
                 ),
                 lastGame = LastGame(
+                    eliminationsMade = g.optLong("eliminationsMade"),
                     result = g.optString("result").ifBlank { "None" },
                     durationMs = g.optLong("durationMs"),
                     turns = g.optLong("turns"),

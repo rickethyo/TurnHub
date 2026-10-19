@@ -1032,3 +1032,14 @@ skill levels, sanity loss and editable ability references persist with the
 phone-hosted game. The change adds 642 lines and removes 29 across 15 files;
 the new dashboard domain/reference, editor and regression-test files total
 22,813 raw bytes. No firmware version, protocol or runtime dependency changes.
+
+
+## 2026-10-19: Ten-player app and elimination attribution
+
+Baseline `726e1b1`; Atlas 0.6.6 / Sigil 0.9.8 versions unchanged. Source snapshot
+after the change: Atlas `src/*.cpp` 705,127 bytes; Sigil `src/*.cpp` 116,993
+bytes. Standalone app/import capacity grows to ten, import winner masks to 16
+bits. Match recovery grows by 16 bytes at maximum capacity (3,040 bytes);
+detailed stats grow to 88 bytes and core NVS stats to 28 bytes. Elimination
+credit is recorded before completion and uses the common statistics path.
+No firmware RAM/flash measurement was taken for this snapshot.

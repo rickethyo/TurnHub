@@ -215,6 +215,9 @@ fun LocalLibraryScreen(
                                     record.players.forEachIndexed { index, player ->
                                         Text("${index + 1}. ${player.name}: ${player.finalLife} $score · ${player.turnsCompleted} turns" +
                                             if (player.outOrder != null) (if (player.conceded) " · Conceded" else " · Eliminated") else "", color = p.text)
+                                        player.eliminatedBy?.let { source -> record.players.getOrNull(source)?.let {
+                                            Text("Eliminated by ${it.name}", color = p.muted)
+                                        } }
                                         if (player.demerits > 0 || player.extensionsUsed > 0) {
                                             Text("${player.demerits} demerits · ${player.extensionsUsed} extensions used", color = p.muted)
                                         }

@@ -9,7 +9,7 @@ namespace TurnHubStorage { class BlobStore; }
 
 namespace TurnHubProfiles {
 
-constexpr uint16_t STATS_SCHEMA_VERSION = 3;
+constexpr uint16_t STATS_SCHEMA_VERSION = 4;
 constexpr size_t PROFILE_ID_LENGTH = TurnHubIdentity::ProfileId::length;
 
 enum class LastGameResult : uint8_t {
@@ -50,6 +50,8 @@ struct ProfileStats {
   // format stays identifiable apart from Commander (schema 3).
   uint32_t starGamesPlayed = 0;
   uint32_t starGamesWon = 0;
+  uint32_t eliminationsMade = 0;
+  uint32_t lastGameEliminationsMade = 0;
 };
 
 // Private moderation history: Game Master actions taken against this profile.

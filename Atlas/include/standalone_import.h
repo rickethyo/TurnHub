@@ -14,7 +14,7 @@
 // a replay is not counted twice while its receipt remains in the 64-ID ring.
 namespace TurnHubStandalone {
 
-constexpr uint8_t MAX_IMPORT_PLAYERS = 8;
+constexpr uint8_t MAX_IMPORT_PLAYERS = 10;
 constexpr size_t MAX_RECORD_ID_LENGTH = 48;
 
 struct ImportedPlayer {
@@ -28,6 +28,7 @@ struct ImportedPlayer {
   // 1 for the first player out; 0 for anyone still in at the end.
   uint8_t outOrder = 0;
   bool conceded = false;
+  int8_t eliminatedBy = -1;
 };
 
 struct ImportedGame {
@@ -39,7 +40,8 @@ struct ImportedGame {
   int8_t winner = -1;
   // Every winner (bit per player index), for a shared Star Commander victory.
   // 0 means winner alone; otherwise it includes winner, the first winner.
-  uint8_t winners = 0;
+  uint16_t winners = 0;
+  bool twoHeadedGiant = false;
   uint8_t playerCount = 0;
   ImportedPlayer players[MAX_IMPORT_PLAYERS];
 };

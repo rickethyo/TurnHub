@@ -186,6 +186,26 @@ loss condition; Commander damage totals alone do not trigger elimination.
 - Lifetime statistics are not yet split by game (staged), apart from the
   Star Commander counters below.
 
+## Elimination credit
+
+Standalone app tables support up to ten players. Atlas's standalone importer
+accepts ten-player records and a 16-bit winner set.
+
+The shared-table player menu's Eliminate action offers explicit **Elimination
+credit**, including **No player credited**. The chosen opponent is captured before
+any completion callback. Concessions and automatic removals have no credit;
+TurnHub never infers responsibility from the active turn or a life-change author.
+Self and teammate credit are rejected. An already-eliminated opponent can be
+credited, for effects that resolve after their departure. A team removal counts
+as two individual opponents eliminated, credited to the chosen player.
+
+Credit is scoped to immutable match player order, independent of controllers or
+names. It survives interrupted-match recovery and travels in finished history,
+shares and imports. Lifetime and last-game **Opponents eliminated** totals use the
+same completion/import path as other statistics, including short-game gating and
+import duplicate handling. Atlas retains these totals in core NVS with no SD
+card. A win claim does not fabricate eliminations of the remaining players.
+
 ## Zero-life elimination and exit reasons
 
 In the Android full-screen table, life taps and holds are confined to the area
@@ -298,11 +318,11 @@ switch applies (`commanderRules()` / `magicRules()` in `game_profile.h`).
   are unchanged and name one winner.
 - **Shared winners** are a winner set (`winnerMask_`), sent as `winnerPlayers`
   next to `winnerPlayer` (the lowest winner) in the state, kept in recovery
-  schema 5, and credited to each winner's statistics. A shared win is never a
+  schema 6, and credited to each winner's statistics. A shared win is never a
   draw. Standalone records carry `winners`, and the Atlas import accepts the
   `winners` field. In Two-Headed Giant `winnerPlayers` lists both teammates.
 - **Statistics** count Star games separately (`starGamesPlayed`,
-  `starGamesWon`, also counted in the totals), in the SD record (schema 3) and
+  `starGamesWon`, also counted in the totals), in the SD record (schema 4) and
   the NVS core record (schema 2). Older stats records read as corrupt and need
   a factory reset (no migrations before release). Local app statistics show the
   same pair.
@@ -565,7 +585,7 @@ resolve the card’s combat and draw rules themselves.
 Atlas owns this singleton in GameEngine. Authenticated seat controls converge
 on ClaimMonarch; the domain rejects other formats, players out of the game,
 and inactive matches. The state projection exposes nullable `monarchPlayer`,
-and schema 3 checkpoints preserve it. Android standalone maintains and recovers
+and checkpoints preserve it. Android standalone maintains and recovers
 the equivalent singleton for its separate local game. No radio change.
 
 ## Magic counters, commander tax and statuses
@@ -598,7 +618,7 @@ settings remain reachable during pause.
 Connected counters use the existing ChangeCounter intent with CounterKind,
 validated by GameEngine and the living-seat/table-decision handler. Settings use
 ConfigureGame; the common post-intent rule finalizer resolves automatic losses
-before projecting/checkpointing. Settings schema 3 and checkpoint schema 4
+before projecting/checkpointing. Settings schema 3 and checkpoint schema 6
 persist rules, counters and initiative. The HTTP state is a read model; no
 radio change. Native connected clients require Atlas for the new actions while
 disconnected (they do not replay status/counter changes). Standalone games own

@@ -96,6 +96,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
     }
     changed |= update(p.eliminated, inGame_ && game.isEliminated(seat.playerNumber));
     changed |= update(p.conceded, inGame_ && game.hasConceded(seat.playerNumber));
+    changed |= update(p.eliminatedBy, inGame_ ? game.eliminatedBy(seat.playerNumber) : uint8_t(0));
     const auto *counters = inGame_ ? game.countersForPlayer(seat.playerNumber) : nullptr;
     const PlayerCounters countersValue = counters ? *counters : PlayerCounters{};
     if (!sameCounters(p.counters, countersValue)) { p.counters = countersValue; changed = true; }
@@ -217,6 +218,7 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
     out += ",\"commanderCasts\":["; out += String(p.counters.commanderCasts[0]); out += ','; out += String(p.counters.commanderCasts[1]);
     out += "],\"cityBlessing\":"; out += p.counters.cityBlessing ? "true" : "false"; out += '}';
     out += ",\"conceded\":"; out += p.conceded ? "true" : "false";
+    out += ",\"eliminatedBy\":"; nullablePlayer(out, p.eliminatedBy);
     out += ",\"eliminated\":"; out += p.eliminated ? "true" : "false";
     out += ",\"life\":";
     if (inGame_) out += String(p.life); else out += "null";

@@ -8,6 +8,9 @@ package com.turnhub.android.data
 interface TableControls {
     /** `pass`, `pause`, `concede`, `win`, `confirm`, `deny`, `rematch` or `reset` (Atlas also takes the lobby ones). */
     suspend fun control(seat: TabletSeat, action: String): Boolean
+    /** Remove this seat, optionally crediting another player number (null = unknown). */
+    suspend fun eliminate(seat: TabletSeat, eliminatedBy: Int?): Boolean
+
     /** A phone-hosted cooperative turn ends only after its recipient is chosen. */
     suspend fun passTo(turn: com.turnhub.android.domain.CooperativeTurn, playerNumber: Int): Boolean {
         error("Pass to requires a phone-hosted cooperative game")

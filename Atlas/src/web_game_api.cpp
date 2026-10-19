@@ -468,7 +468,19 @@ void runSeatControl(WebServer &server, uint8_t controllerId, uint8_t slot, WebCo
   }
 
   String message;
-  if (!controlHandler(controllerId, slot, control, message)) {
+  bool accepted = false;
+  if (control == WebControl::EliminateSeat && server.hasArg("eliminatedBy")) {
+    TurnHub::IntentPayload payload;
+    int32_t source = 0;
+    if (!parseBoundedNumber(server.arg("eliminatedBy"), 0, MAX_PLAYERS, source)) {
+      sendError(server, 400, "Invalid credited player"); return;
+    }
+    payload.eliminatedBy = static_cast<uint8_t>(source);
+    accepted = counterControlHandler && counterControlHandler(controllerId, slot, TurnHub::IntentType::EliminateSeat, payload, message);
+  } else {
+    accepted = controlHandler(controllerId, slot, control, message);
+  }
+  if (!accepted) {
     sendControlResult(server, 409, "REJECTED",
         message.length() ? message : String("Control is not available right now"));
     return;

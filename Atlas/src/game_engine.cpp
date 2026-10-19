@@ -53,6 +53,7 @@ void GameEngine::reset() {
     stats_[i] = PlayerStats{};
     eliminated_[i] = false;
     conceded_[i] = false;
+    eliminatedBy_[i] = 0;
     counters_[i] = PlayerCounters{};
     life_[i] = 0;
     lifeChanges_[i] = LifeChangeRequest{};
@@ -362,6 +363,7 @@ bool GameEngine::start(
     life_[i] = settings_.startingLife;
     eliminated_[i] = false;
     conceded_[i] = false;
+    eliminatedBy_[i] = 0;
   }
 
   const int starterIndex = indexForSeat(starter);
@@ -444,7 +446,7 @@ bool GameEngine::resume(uint32_t nowMs) {
 bool GameEngine::eliminatePlayer(
     uint8_t playerNumber,
     uint32_t nowMs,
-    bool &gameFinished, bool conceded) {
+    bool &gameFinished, bool conceded, uint8_t creditedPlayer) {
   gameFinished = false;
 
   if (!running_ || !paused_ || gameOver_ || winClaimActive_) {
@@ -452,6 +454,7 @@ bool GameEngine::eliminatePlayer(
   }
 
   const int index = indexForPlayerNumber(playerNumber);
+  if ((conceded && creditedPlayer) || !validEliminationCredit(playerNumber, creditedPlayer)) return false;
   if (index < 0 || eliminated_[index]) {
     return false;
   }
@@ -467,11 +470,13 @@ bool GameEngine::eliminatePlayer(
   const bool passInitiative = sameTeam(initiativePlayer_, playerNumber);
   eliminated_[index] = true;
   conceded_[index] = conceded;
+  eliminatedBy_[index] = creditedPlayer;
   cancelLifeChanges(playerNumber);
   // Two-Headed Giant: the team leaves together.
   if (mate >= 0 && !eliminated_[mate]) {
     eliminated_[mate] = true;
     conceded_[mate] = conceded;
+    eliminatedBy_[mate] = creditedPlayer;
     cancelLifeChanges(players_[mate].playerNumber);
   }
 
@@ -569,6 +574,24 @@ bool GameEngine::setEliminationSettings(const GameSettings &settings) {
 bool GameEngine::hasConceded(uint8_t player) const {
   const int index = indexForPlayerNumber(player);
   return index >= 0 && conceded_[index];
+}
+
+bool GameEngine::validEliminationCredit(uint8_t victim, uint8_t source) const {
+  return indexForPlayerNumber(victim) >= 0 &&
+      (!source || (indexForPlayerNumber(source) >= 0 && !sameTeam(source, victim)));
+}
+
+uint8_t GameEngine::eliminatedBy(uint8_t player) const {
+  const int i = indexForPlayerNumber(player);
+  return i >= 0 ? eliminatedBy_[i] : 0;
+}
+
+uint8_t GameEngine::eliminationsBy(uint8_t player) const {
+  if (indexForPlayerNumber(player) < 0) return 0;
+  uint8_t count = 0;
+  for (uint8_t i = 0; i < playerCount_; ++i)
+    if (eliminated_[i] && !conceded_[i] && eliminatedBy_[i] == player) ++count;
+  return count;
 }
 
 bool GameEngine::resolveEliminationRules(uint32_t nowMs) {

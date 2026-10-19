@@ -70,7 +70,8 @@ bool archived(const String &profileId) {
 
 TurnHubProfiles::LastGameResult resultFor(const ImportedGame &game, uint8_t index) {
   using TurnHubProfiles::LastGameResult;
-  if (game.winner == static_cast<int8_t>(index) || (game.winners & (1u << index))) return LastGameResult::Win;
+  if (game.winner == static_cast<int8_t>(index) || (game.winners & (1u << index)) ||
+      (game.twoHeadedGiant && game.winner >= 0 && game.winner / 2 == index / 2)) return LastGameResult::Win;
   if (game.players[index].outOrder > 0) return game.players[index].conceded ? LastGameResult::Conceded : LastGameResult::Eliminated;
   if (game.winner < 0) return LastGameResult::Draw;
   return LastGameResult::Loss;
@@ -103,6 +104,8 @@ ImportResult importGame(const ImportedGame &game) {
   ImportResult result;
   if (!validRecordId(game.recordId) || game.playerCount < 2 || game.playerCount > MAX_IMPORT_PLAYERS ||
       game.gameProfile >= static_cast<uint8_t>(TurnHub::GameProfile::Count) ||
+      (game.twoHeadedGiant && (game.playerCount < 4 || game.playerCount % 2 ||
+          !TurnHub::teamsAllowed(static_cast<TurnHub::GameProfile>(game.gameProfile)))) ||
       game.winner >= static_cast<int8_t>(game.playerCount) || game.starter >= static_cast<int8_t>(game.playerCount) ||
       // The winner set lists real players and starts at the first winner.
       (game.winners && (game.winner < 0 || (game.winners >> game.playerCount) ||
@@ -129,7 +132,10 @@ ImportResult importGame(const ImportedGame &game) {
   // Exact identities only. Validate the whole mapping before taking the receipt
   // or changing any statistics. Names remain display labels.
   for (uint8_t i = 0; i < game.playerCount; ++i) {
-    if (game.players[i].conceded && !game.players[i].outOrder) return result;
+    const auto &p = game.players[i];
+    if ((p.conceded && !p.outOrder) || p.eliminatedBy < -1 ||
+        (p.eliminatedBy >= 0 && (!p.outOrder || p.conceded || p.eliminatedBy == i || p.eliminatedBy >= game.playerCount ||
+            (game.twoHeadedGiant && p.eliminatedBy / 2 == i / 2)))) return result;
     const String &id = game.players[i].profileId;
     bool bad = id.length() == 0 || !TurnHubProfiles::profileExists(id) || archived(id);
     for (uint8_t j = 0; j < i; ++j) bad = bad || game.players[j].profileId == id;
@@ -162,6 +168,8 @@ ImportResult importGame(const ImportedGame &game) {
     played.durationMs = game.durationMs;
     played.result = resultFor(game, i);
     played.started = game.starter == static_cast<int8_t>(i);
+    for (uint8_t victim = 0; victim < game.playerCount; ++victim)
+      if (game.players[victim].eliminatedBy == i) ++played.eliminationsMade;
     played.turns = player.turnsCompleted;
     played.turnMs = player.turnMs;
     played.fastestTurnMs = player.fastestTurnMs;

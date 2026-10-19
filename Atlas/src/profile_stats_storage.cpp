@@ -5,11 +5,10 @@
 namespace TurnHubProfiles {
 using TurnHubStorage::Status;
 
-// The record is the ESP32's struct image. Schema 3 (2026-10-13) appended the
-// Star Commander counts (80 bytes). Earlier 72-byte records are not migrated
-// (no compatibility before release): they read as corrupt and are never
-// overwritten, like any other unreadable record.
-static_assert(sizeof(ProfileStats) == 80, "statistics size changed");
+// The record is the ESP32's struct image. Schema 4 is 88 bytes, including
+// lifetime and last-game elimination credit. Older layouts are not migrated
+// before release; unreadable records are preserved.
+static_assert(sizeof(ProfileStats) == 88, "statistics size changed");
 static_assert(offsetof(ProfileStats, schemaVersion) == 64, "schema offset changed");
 static_assert(offsetof(ProfileStats, lastGameResult) == 66, "result offset changed");
 static_assert(offsetof(ProfileStats, starGamesPlayed) == 72, "Star Commander offset changed");
@@ -85,8 +84,8 @@ Status writeStoredModerationStats(TurnHubStorage::BlobStore &store, const char *
 }
 
 namespace {
-constexpr uint8_t CORE_SCHEMA = 2;
-constexpr size_t CORE_RECORD_SIZE = 20;
+constexpr uint8_t CORE_SCHEMA = 3;
+constexpr size_t CORE_RECORD_SIZE = 28;
 }  // namespace
 
 Status readCoreStats(TurnHubStorage::BlobStore &store, const char *key, CoreStats &stats) {
@@ -106,6 +105,8 @@ Status readCoreStats(TurnHubStorage::BlobStore &store, const char *key, CoreStat
   stats.gamesWon = readLe32(data + 8);
   stats.starGamesPlayed = readLe32(data + 12);
   stats.starGamesWon = readLe32(data + 16);
+  stats.eliminationsMade = readLe32(data + 20);
+  stats.lastGameEliminationsMade = readLe32(data + 24);
   return Status::Ok;
 }
 
@@ -123,6 +124,8 @@ Status writeCoreStats(TurnHubStorage::BlobStore &store, const char *key, const C
   writeLe32(data + 8, stats.gamesWon);
   writeLe32(data + 12, stats.starGamesPlayed);
   writeLe32(data + 16, stats.starGamesWon);
+  writeLe32(data + 20, stats.eliminationsMade);
+  writeLe32(data + 24, stats.lastGameEliminationsMade);
   return store.write(key, data, sizeof(data));
 }
 }  // namespace TurnHubProfiles

@@ -580,3 +580,21 @@ retains both histories and sends local match records through the existing import
 validator rather than copying computed lifetime totals. New accounts copy
 personalization using ordinary APIs; card availability, size limits and Admin
 image review remain enforced. Existing accounts retain their personalization.
+
+
+## Elimination attribution
+
+`POST /api/control/eliminate` and the shared-table equivalent
+`POST /api/tablet/control` (`action=eliminate`) accept optional `eliminatedBy`:
+`0` for no player credited, or a real opponent's 1-based player number. Atlas
+validates source identity, refuses self/teammate credit, and captures it before
+elimination completion. Omitted means unknown. Concessions award no credit.
+Live state players expose nullable `eliminatedBy` with the same numbering.
+
+Standalone imports accept up to **10** players and optional `twoHeadedGiant=0|1`.
+Each `eliminatedByN` is a **0-based match index**, or empty for unknown; only a
+non-conceding removed player may have an opponent credited. Attribution is
+validated before any receipt or statistics writes. `winners` supports indices
+0–9 without truncation. Profile statistics return `eliminationsMade` in both
+`lifetime` and `lastGame`; lifetime counts individual opponents removed, not
+matches, and is retained without an SD card.

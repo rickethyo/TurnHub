@@ -41,6 +41,7 @@ data class LocalStats(
     /** Star Commander games, counted apart too: played and won (shared victories included). */
     val starPlayed: Int = 0,
     val starWon: Int = 0,
+    val eliminationsMade: Int = 0,
 )
 
 data class LocalLibrary(
@@ -92,6 +93,7 @@ data class LocalLibrary(
             fastestTurnMs = mine.map { it.fastestTurnMs }.filter { it > 0 }.minOrNull() ?: 0,
             longestTurnMs = mine.maxOfOrNull { it.longestTurnMs } ?: 0,
             averageGameMs = if (seats.isNotEmpty()) seats.sumOf { it.first.durationMs } / seats.size else 0,
+            eliminationsMade = seats.sumOf { (r, i) -> r.eliminationsBy(i) },
             starPlayed = seats.count { (r, _) -> r.profile.starCommander },
             starWon = seats.count { (r, i) -> r.profile.starCommander && r.won(i) },
         )
@@ -110,7 +112,7 @@ data class LocalLibrary(
             com.turnhub.android.data.ProfileStatistics.Lifetime(count, stats.totals.won.toLong(), stats.started.toLong(),
                 stats.eliminated.toLong(), stats.turnsCompleted.toLong(), seats.sumOf { it.first.players[it.second].turnMs },
                 stats.averageTurnMs, stats.fastestTurnMs, stats.longestTurnMs, seats.sumOf { it.first.durationMs },
-                stats.averageGameMs, stats.conceded.toLong()),
+                stats.averageGameMs, stats.conceded.toLong(), stats.eliminationsMade.toLong()),
             com.turnhub.android.data.ProfileStatistics.LastGame(when {
                 last == null -> "None"
                 last.first.draw -> "Draw"
@@ -120,7 +122,7 @@ data class LocalLibrary(
                 else -> "Loss"
             }, last?.first?.durationMs ?: 0, seat?.turnsCompleted?.toLong() ?: 0,
                 if (seat != null && seat.turnsCompleted > 0) seat.turnMs / seat.turnsCompleted else 0,
-                seat?.fastestTurnMs ?: 0, seat?.longestTurnMs ?: 0),
+                seat?.fastestTurnMs ?: 0, seat?.longestTurnMs ?: 0, last?.let { it.first.eliminationsBy(it.second).toLong() } ?: 0),
             com.turnhub.android.data.ProfileStatistics.Moderation(false, 0, 0, "Local games have no remote moderation."))
     }
 

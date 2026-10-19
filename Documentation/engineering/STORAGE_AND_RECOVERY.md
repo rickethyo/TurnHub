@@ -47,7 +47,7 @@ prefix plus the profile ID.
 | Physical-use and stats-privacy policy | `a` + id | `profile_store.cpp` |
 | Account permissions, archive, nudge mute, reconnect-required | `u` + id; first Admin in `acctadmin` | `account_access.h` |
 | Private moderation counts | `o` + id | `profile_stats_storage.h` |
-| Core statistics (games played and won, last result and format) | `c` + id | `profile_stats_storage.h` |
+| Core statistics (games played/won, elimination credit, last result and format) | `c` + id | `profile_stats_storage.h` |
 | Per-player Sigil accessibility (sound, light style, hold times) | `x` + id | `accessibility_prefs.h` |
 | Device names | `d` + MAC | `profile_store.cpp` |
 | Next-game settings (format, starting life, turn timer) | `gamecfg` | `game_settings_store.h` |
@@ -208,3 +208,11 @@ a retry. This does not relax the 48 KiB image bound or review authorization.
 SD replacement checks backup existence before cleanup or rollback; a missing
 backup is normal on a first write and must not emit a filesystem error. Cleanup
 failure after publication still leaves the new committed record readable.
+
+
+Elimination attribution is checkpoint schema 6: each player adds one byte for
+the credited opponent's player number (zero means unknown). Attribution is
+validated with the saved player list and restored paused. Detailed profile stats
+schema 4 is 88 bytes; core NVS stats schema 3 is 28 bytes, including lifetime and
+last-game elimination counts. Statistics layouts require a prototype factory
+reset; unreadable records are preserved rather than migrated or overwritten.

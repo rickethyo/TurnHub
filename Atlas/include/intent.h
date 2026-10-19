@@ -20,7 +20,7 @@ enum class IntentType : uint8_t {
   Resume,
   TogglePause,
   Concede,
-  EliminateSeat,
+  EliminateSeat,  // actor leaves; optional payload.eliminatedBy earns elimination credit.
   ClaimMonarch,
   ClaimWin,
   ConfirmWin,
@@ -197,6 +197,7 @@ struct IntentPayload {
   int32_t value = 0;
   uint32_t flags = 0; // ChangeCounter: CounterKind; ConfigureGame: profile and rule flags.
   uint32_t requestId = 0; // RespondLifeChange: exact pending approval.
+  uint8_t eliminatedBy = 0; // EliminateSeat: credited opponent, 0 for unknown.
   uint8_t counterSource = 0; // ChangeCounter: owner of the commander.
   uint8_t counterSlot = 1; // ChangeCounter: commander 1 or 2.
   int32_t poisonLimit = 10; // ConfigureGame: live loss threshold.

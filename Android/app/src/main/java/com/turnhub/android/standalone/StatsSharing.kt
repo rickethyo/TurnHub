@@ -32,6 +32,7 @@ fun LocalLibrary.statsShareText(localId: String): String {
         appendLine("${t.played} games · ${t.won} wins ($rate%)${if (t.draws > 0) " · ${t.draws} draws" else ""}")
         appendLine("Went first ${stats.started} · knocked out ${stats.eliminated} · conceded ${stats.conceded}")
         appendLine("${stats.turnsCompleted} turns · average ${f(stats.averageTurnMs)} · fastest ${f(stats.fastestTurnMs)} · longest ${f(stats.longestTurnMs)}")
+        appendLine("Opponents eliminated ${stats.eliminationsMade}")
         appendLine("Average game ${f(stats.averageGameMs)}")
         if (stats.starPlayed > 0) appendLine("Star Commander: ${stats.starPlayed} played · ${stats.starWon} won")
         append("Tracked with TurnHub")
@@ -66,6 +67,7 @@ fun GameRecord.shareSummary(formatName: String): String {
             if (p.demerits > 0) append(" · ${p.demerits} demerits")
             if (p.extensionsUsed > 0) append(" · ${p.extensionsUsed} extensions used")
             if (place != null) append(" · $place")
+            p.eliminatedBy?.let { source -> players.getOrNull(source)?.let { append(" · eliminated by ${it.name}") } }
             appendLine()
         }
         append("Played with TurnHub")

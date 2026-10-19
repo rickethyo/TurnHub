@@ -70,6 +70,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
@@ -479,6 +480,11 @@ internal fun TabletTable(
                     onControl = { seat, action ->
                         if (action == "concede" || action == "eliminate" || action == "win") playerMenu = null
                         send(seat, action)
+                    },
+                    onEliminate = { member, source ->
+                        if (isOffline) controls { refuseOffline() }
+                        else controls { eliminate(member.seat(), source) }
+                        playerMenu = null
                     },
                     onCommander = { member, source, which, delta ->
                         haptics.tick()
@@ -896,6 +902,9 @@ private fun PlayerPanel(
                     }
                     if (active) Tag("Turn", p.active, p.onActive)
                     if (out) Tag(if (unit.members.any { it.conceded }) "Conceded" else "Eliminated", p.bad, p.surface)
+                    unit.members.first().eliminatedBy?.let { source ->
+                        summary.players.firstOrNull { it.playerNumber == source }?.let { Text("By ${it.label}", color = p.muted) }
+                    }
                 }
 
                 unit.members.firstOrNull { it.playerNumber == summary.monarchPlayerNumber }?.let { monarch ->
@@ -1387,6 +1396,7 @@ private fun PlayerMenu(
     summary: TableSummary,
     onClose: () -> Unit,
     onControl: (TabletSeat, String) -> Unit,
+    onEliminate: (TablePlayer, Int?) -> Unit,
     onCommander: (TablePlayer, Int, Int, Int) -> Unit,
     onCounter: (TablePlayer, String, Int, Int) -> Unit,
     onLife: (TablePlayer, Int) -> Unit,
@@ -1438,7 +1448,7 @@ private fun PlayerMenu(
                     onLevel = { slot, level -> onCounter(member, StandaloneGame.SKILL_KIND, level, slot + 1) },
                     onEdit = { onEditSkills(member, it) }, onCard = { slot, card -> onInvestigatorCard(member, slot, card) })
             }
-            PlayerMenuItems(unit, summary, partners, onControl, onCommander, onCounter, offlineCommander)
+            PlayerMenuItems(unit, summary, partners, onControl, onEliminate, onCommander, onCounter, offlineCommander)
         }
         AccentButton("Done", onClose, Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp))
     }
@@ -1450,6 +1460,7 @@ private fun PlayerMenuItems(
     summary: TableSummary,
     partners: MutableList<Int>,
     onControl: (TabletSeat, String) -> Unit,
+    onEliminate: (TablePlayer, Int?) -> Unit,
     onCommander: (TablePlayer, Int, Int, Int) -> Unit,
     onCounter: (TablePlayer, String, Int, Int) -> Unit,
     offlineCommander: (Long, Int, Int) -> Int,
@@ -1561,8 +1572,19 @@ private fun PlayerMenuItems(
                 ArmedButton(if (team) "Our team concedes" else "Concede", "Tap again to concede", Tone.BAD) {
                     onControl(member.seat(), "concede")
                 }
-                ArmedButton(if (team) "Eliminate this team" else "Eliminate", "Tap again to eliminate", Tone.BAD) {
-                    onControl(member.seat(), "eliminate")
+                var credited by rememberSaveable(member.participantId) { mutableStateOf<Int?>(null) }
+                Text("Elimination credit", color = p.text, style = MaterialTheme.typography.titleSmall)
+                Text("Choose who eliminated ${if (team) "this team" else member.label}. Conceding awards no credit.", color = p.muted)
+                ToneButton(if (credited == null) "✓ No player credited" else "No player credited", { credited = null }, Modifier.fillMaxWidth().semantics { selected = credited == null })
+                summary.players.filter { candidate -> candidate.playerNumber != member.playerNumber &&
+                    (member.team == null || candidate.team != member.team) }.forEach { candidate ->
+                    ToneButton((if (credited == candidate.playerNumber) "✓ " else "") + "${candidate.playerNumber}. ${candidate.label}",
+                        { credited = candidate.playerNumber }, Modifier.fillMaxWidth().semantics { selected = credited == candidate.playerNumber })
+                }
+                key(credited) {
+                    ArmedButton(if (team) "Eliminate this team" else "Eliminate", "Tap again to eliminate", Tone.BAD) {
+                        onEliminate(member, credited)
+                    }
                 }
             }
         }

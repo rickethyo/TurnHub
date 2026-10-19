@@ -83,6 +83,7 @@ fun StatsScreen(
                         val f = TableClock::format
                         Text("Went first ${stats.started} · knocked out ${stats.eliminated} · conceded ${stats.conceded}", color = p.muted)
                         Text("${stats.turnsCompleted} turns · average ${f(stats.averageTurnMs)} · fastest ${f(stats.fastestTurnMs)} · longest ${f(stats.longestTurnMs)}", color = p.muted)
+                        Text("Opponents eliminated ${stats.eliminationsMade}", color = p.muted)
                         Text("Average game ${f(stats.averageGameMs)}", color = p.muted)
                         if (stats.starPlayed > 0) Text("Star Commander: ${stats.starPlayed} played · ${stats.starWon} won", color = p.muted)
                         val full = state.library.profileStatistics(row.player.localId)

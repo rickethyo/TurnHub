@@ -39,6 +39,8 @@ data class GameRecord(
         val commanderDamageReceived: Int,
         val localId: String? = null,
         val conceded: Boolean = false,
+        /** Index of the credited opponent in this immutable match; null for unknown/concession. */
+        val eliminatedBy: Int? = null,
         val counters: com.turnhub.android.protocol.PlayerCounters = com.turnhub.android.protocol.PlayerCounters(),
         val commanderBySource: Map<Int, List<Int>> = emptyMap(),
         val demerits: Int = 0,
@@ -49,6 +51,8 @@ data class GameRecord(
     fun won(index: Int): Boolean = (winners.ifEmpty { listOfNotNull(winner) }).any { w ->
         index == w || (twoHeadedGiant && index / 2 == w / 2)
     }
+
+    fun eliminationsBy(index: Int): Int = players.count { it.outOrder != null && !it.conceded && it.eliminatedBy == index }
 
     /** Counted in history and stats without asking: long enough not to be a test game or a wrong setup. */
     fun counted(minimumMs: Long = StandaloneGame.SHORT_GAME_MS): Boolean = durationMs >= minimumMs
@@ -81,6 +85,7 @@ data class GameRecord(
                     put("longestTurnMs", p.longestTurnMs)
                     put("outOrder", p.outOrder ?: JSONObject.NULL)
                     put("conceded", p.conceded)
+                    put("eliminatedBy", p.eliminatedBy ?: JSONObject.NULL)
                     put("commanderDamageReceived", p.commanderDamageReceived)
                     put("counters", JSONObject().put("poison", p.counters.poison).put("energy", p.counters.energy)
                         .put("experience", p.counters.experience).put("commanderCasts", JSONArray(p.counters.commanderCasts))
@@ -100,6 +105,7 @@ data class GameRecord(
         add("atlasId" to atlasId)
         add("recordId" to recordId)
         add("gameProfile" to profile.wireValue)
+        add("twoHeadedGiant" to if (twoHeadedGiant) "1" else "0")
         add("durationMs" to "${durationMs.coerceIn(0, MAX_DURATION_MS)}")
         add("players" to "${players.size}")
         add("starter" to (starter?.toString() ?: ""))
@@ -115,6 +121,7 @@ data class GameRecord(
             add("longest$i" to "${p.longestTurnMs.coerceIn(0, DAY_MS)}")
             add("out$i" to "${p.outOrder ?: 0}")
             add("conceded$i" to if (p.conceded) "1" else "0")
+            add("eliminatedBy$i" to (p.eliminatedBy?.toString() ?: ""))
         }
     }
 
@@ -151,6 +158,7 @@ data class GameRecord(
                         longestTurnMs = p.optLong("longestTurnMs"),
                         outOrder = p.optIntOrNull("outOrder"),
                         conceded = p.optBoolean("conceded"),
+                        eliminatedBy = p.optIntOrNull("eliminatedBy"),
                         commanderDamageReceived = p.optInt("commanderDamageReceived"),
                         counters = p.optJSONObject("counters")?.let { c -> com.turnhub.android.protocol.PlayerCounters(
                             c.optInt("poison"), c.optInt("energy"), c.optInt("experience"),
@@ -166,6 +174,11 @@ data class GameRecord(
                 require(record.winners.all { it in record.players.indices } && record.winners.distinct().size == record.winners.size)
                 require(record.winners.firstOrNull() == record.winner)
                 require(record.starter == null || record.starter in record.players.indices)
+                record.players.forEachIndexed { i, p ->
+                    require(p.eliminatedBy == null || (p.outOrder != null && !p.conceded &&
+                        p.eliminatedBy in record.players.indices && p.eliminatedBy != i &&
+                        (!record.twoHeadedGiant || p.eliminatedBy / 2 != i / 2)))
+                }
             }
         }.getOrNull()
     }

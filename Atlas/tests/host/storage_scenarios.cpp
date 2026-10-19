@@ -62,11 +62,12 @@ void existingRecords() {
   assert(readStoredStats(store, key, out) == Status::NotFound);
   assert(out.gamesPlayed == 91);  // Repository never publishes partial/default reads.
 
-  // Seed an ESP32 schema 3 byte image independently of the struct encoder.
-  std::vector<uint8_t> legacy(80, 0);
+  // Seed an ESP32 schema 4 byte image independently of the struct encoder.
+  std::vector<uint8_t> legacy(88, 0);
   legacy[0] = 0x78; legacy[1] = 0x56; legacy[2] = 0x34; legacy[3] = 0x12;
-  legacy[16] = 17; legacy[20] = 4; legacy[64] = 3;
+  legacy[16] = 17; legacy[20] = 4; legacy[64] = 4;
   legacy[66] = static_cast<uint8_t>(LastGameResult::Win);
+  legacy[80] = 9; legacy[84] = 3;
   legacy[72] = 5; legacy[76] = 2;  // Star Commander games played and won.
   FakeNvs::blobs[key] = legacy;
   assert(readStoredStats(store, key, out) == Status::Ok);
@@ -74,6 +75,7 @@ void existingRecords() {
   assert(out.gamesPlayed == 17 && out.gamesWon == 4);
   assert(out.lastGameResult == LastGameResult::Win);
   assert(out.starGamesPlayed == 5 && out.starGamesWon == 2);
+  assert(out.eliminationsMade == 9 && out.lastGameEliminationsMade == 3);
   assert(FakeNvs::writes == 0 && FakeNvs::blobs[key] == legacy);
   // Fault after the successful size probes, during the actual value read.
   FakeNvs::failReadAt = FakeNvs::reads + 3;
@@ -118,13 +120,15 @@ void coreStatsRecords() {
   core.gamesPlayed = 0x01020304; core.gamesWon = 7;
   core.lastGameResult = LastGameResult::Draw; core.lastGameProfile = 2;
   core.starGamesPlayed = 3; core.starGamesWon = 0x0100;
+  core.eliminationsMade = 0x0102; core.lastGameEliminationsMade = 3;
   assert(writeCoreStats(store, "cABCDEFGH", core) == Status::Ok);
-  const std::vector<uint8_t> expected = {2, 4, 2, 0, 4, 3, 2, 1, 7, 0, 0, 0, 3, 0, 0, 0, 0, 1, 0, 0};
+  const std::vector<uint8_t> expected = {3, 4, 2, 0, 4, 3, 2, 1, 7, 0, 0, 0, 3, 0, 0, 0, 0, 1, 0, 0, 2, 1, 0, 0, 3, 0, 0, 0};
   assert(FakeNvs::blobs["cABCDEFGH"] == expected);  // Little-endian, portable.
   CoreStats back;
   assert(readCoreStats(store, "cABCDEFGH", back) == Status::Ok && back.gamesPlayed == 0x01020304 &&
       back.gamesWon == 7 && back.lastGameResult == LastGameResult::Draw && back.lastGameProfile == 2 &&
-      back.starGamesPlayed == 3 && back.starGamesWon == 0x0100);
+      back.starGamesPlayed == 3 && back.starGamesWon == 0x0100 &&
+      back.eliminationsMade == 0x0102 && back.lastGameEliminationsMade == 3);
   FakeNvs::blobs["cABCDEFGH"][0] = 9;
   assert(readCoreStats(store, "cABCDEFGH", back) == Status::UnsupportedSchema);
   assert(writeCoreStats(store, "cABCDEFGH", core) == Status::UnsupportedSchema);  // Never overwritten.
@@ -158,12 +162,12 @@ void protectedRecords() {
   std::vector<uint8_t> retired(72, 0);
   retired[64] = 2;
   reject(retired, Status::Corrupt);
-  std::vector<uint8_t> future(80, 0);
-  future[64] = 4;
+  std::vector<uint8_t> future(88, 0);
+  future[64] = 5;
   reject(future, Status::UnsupportedSchema);
   future[64] = 2;
   reject(future, Status::UnsupportedSchema);
-  future[64] = 3; future[66] = 255;
+  future[64] = 4; future[66] = 255;
   reject(future, Status::Corrupt);
 
   FakeNvs::readError = ESP_ERR_NVS_TYPE_MISMATCH;
@@ -175,7 +179,7 @@ void protectedRecords() {
   assert(FakeNvs::writes == 0);
   FakeNvs::readError = ESP_OK;
   ProfileStats invalid;
-  invalid.schemaVersion = 4;
+  invalid.schemaVersion = 5;
   assert(writeStoredStats(store, "s12345678", invalid) == Status::UnsupportedSchema);
   assert(FakeNvs::writes == 0);
 }
