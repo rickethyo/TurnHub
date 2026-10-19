@@ -301,6 +301,13 @@ fun StandaloneLobby(
             houseRules = table::setHouseRules,
             chooseStarter = { table.chooseStarter(it.playerNumber - 1) },
             start = startCountdown,
+            startWith = { player ->
+                // Choosing the chosen player again clears the choice, which is how Random is set.
+                val current = table.state.value.game.starter
+                val target = player?.let { it.playerNumber - 1 }
+                if (current != target) table.chooseStarter(target ?: current)
+                startCountdown()
+            },
             background = { editingLocalId = game.players.getOrNull(it.playerNumber - 1)?.localId },
             canEditBackground = { player -> game.players.getOrNull(player.playerNumber - 1)?.localId in state.library.players.map { it.localId } },
         ),
@@ -310,7 +317,6 @@ fun StandaloneLobby(
         canAdd = game.players.size < StandaloneGame.MAX_PLAYERS,
         identityHint = "Choose a saved player to keep their results together. Matching names can have different account IDs.",
         savedTitle = "Saved on this device",
-        starterHint = "First player: random. Tap First to choose.",
         introduction = "One screen. Many rivals. Your table.",
         embedded = embedded,
         phoneHosted = true,

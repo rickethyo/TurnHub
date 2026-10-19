@@ -343,6 +343,17 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
             zeroLife = { on -> seat?.let { actions.run { setAutoEliminateAtZeroLife(it, on) } } },
             start = { seat?.let { actions.run { control(it, "start") } } },
             chooseStarter = { player -> actions.run { control(player.seat(), "starter") } },
+            startWith = { player ->
+                seat?.let { starter ->
+                    val current = summary.starterPlayerNumber
+                    // Atlas clears a choice made again: that is how Random is set before starting.
+                    val toggle = players.firstOrNull { it.playerNumber == (player?.playerNumber ?: current) }
+                    actions.run {
+                        val ok = if (toggle != null && current != player?.playerNumber) control(toggle.seat(), "starter") else true
+                        if (ok) control(starter, "start")
+                    }
+                }
+            },
             houseRules = { on -> seat?.let { actions.run { saveSettings(it, null, null, null, houseRules = on) } } },
             background = onEditBackground,
             canEditBackground = canEditBackground,
@@ -353,7 +364,6 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
         canAdd = true,
         identityHint = "A new name gets an account without a PIN. Sigils can join too.",
         savedTitle = "Saved players",
-        starterHint = "First player: random. Tap First to choose.",
         headerActions = {
             TextButton(onClick = onClose) { Text("Back", color = p.muted) }
             TextButton(onClick = { confirmLeave = true }) { Text("Leave tablet mode", color = p.bad) }
