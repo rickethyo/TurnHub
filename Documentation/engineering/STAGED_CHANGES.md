@@ -52,6 +52,11 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   and the Sigils learn the new formats and import their games later, per the
   dev sequence. One Piece can reuse the Prize-card count if the owner wants it.
 
+- **Atlas Magic counters** (owner, 2026-10-20; *Planned*): treasure, rad
+  and day/night are phone-hosted only (`GAMEPLAY.md`). Atlas gains them in its
+  `PlayerCounters`, a table-wide day/night state, the counter route, the
+  recovery record and the state schema, then the app shows them in connected play.
+
 ### Elimination attribution and full-screen checks
 
 - Verify full-screen due/result windows on phone, foldable and tablet, including
@@ -184,6 +189,11 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   on Atlas. Authorized shared-tablet life edits must preserve the personal
   controller's approval requirements. Existing credential/re-entry acceptance
   is tracked above.
+- **Saved decks per player** (owner, 2026-10-20; *Planned*, idea only): let a
+  local account keep a few named decks (commander and tile art), pick one when
+  seating the player, and favourite players so they stay at the top. Statistics
+  could then split by deck. Plan: Statistics and Accounts docs first; it needs
+  an Atlas counterpart per the local-account parity rule.
 - **Administration follow-ups:** revisit HTTPS and optional home-Wi-Fi update
   fetching after S3 maintenance contracts settle. The latter needs explicit
   Admin configuration, verified downloads, sufficient heap/CA trust and return

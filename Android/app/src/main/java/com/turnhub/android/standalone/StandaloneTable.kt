@@ -420,6 +420,9 @@ class StandaloneTable(
                 "concede" -> game.concede(index, now)
                 "eliminate" -> game.eliminate(index, now)
                 "monarch" -> game.claimMonarch(index)
+                "day" -> game.setDayNight(com.turnhub.android.domain.DayNight.DAY)
+                "night" -> game.setDayNight(com.turnhub.android.domain.DayNight.NIGHT)
+                "day-night-clear" -> game.setDayNight(com.turnhub.android.domain.DayNight.NEITHER)
                 "win" -> game.claimWin(index, now)
                 "draw" -> game.endWithoutWinner(now)
                 "rematch" -> if (planarSelectionReady(game)) game.rematch(now, newId(), planarDeck = planarDeck(game)) else game
@@ -604,6 +607,7 @@ class StandaloneTable(
             put("winners", JSONArray(game.winners))
             put("monarch", game.monarch ?: JSONObject.NULL)
             put("initiative", game.initiative ?: JSONObject.NULL)
+            put("dayNight", game.dayNight.name)
             put("autoEliminateAtPoisonLimit", game.autoEliminateAtPoisonLimit)
             put("autoEliminateAtCommanderDamage", game.autoEliminateAtCommanderDamage)
             put("poisonLimit", game.poisonLimit)
@@ -645,6 +649,7 @@ class StandaloneTable(
                         put("counters", JSONObject().apply {
                             put("poison", p.counters.poison); put("energy", p.counters.energy); put("experience", p.counters.experience)
                             put("commanderCasts", JSONArray(p.counters.commanderCasts)); put("cityBlessing", p.counters.cityBlessing)
+                            put("treasure", p.counters.treasure); put("rad", p.counters.rad)
                         })
                         put("outOrder", p.outOrder ?: JSONObject.NULL)
                         put("turnsCompleted", p.turnsCompleted)
@@ -701,6 +706,8 @@ class StandaloneTable(
                 winners = json.optIntList("winners") ?: listOfNotNull(json.optIntOrNull("winner")),
                 monarch = json.optIntOrNull("monarch"),
                 initiative = json.optIntOrNull("initiative"),
+                dayNight = com.turnhub.android.domain.DayNight.entries.firstOrNull { it.name == json.optString("dayNight") }
+                    ?: com.turnhub.android.domain.DayNight.NEITHER,
                 autoEliminateAtPoisonLimit = json.optBoolean("autoEliminateAtPoisonLimit", true),
                 autoEliminateAtCommanderDamage = json.optBoolean("autoEliminateAtCommanderDamage", true),
                 poisonLimit = json.optInt("poisonLimit", 10),
@@ -742,7 +749,8 @@ class StandaloneTable(
                         selfEliminated = p.optBoolean("selfEliminated"), eliminationPending = p.optBoolean("eliminationPending"),
                         counters = p.optJSONObject("counters")?.let { c ->
                             com.turnhub.android.protocol.PlayerCounters(c.getInt("poison"), c.getInt("energy"), c.getInt("experience"),
-                                c.getJSONArray("commanderCasts").let { a -> List(2) { a.getInt(it) } }, c.getBoolean("cityBlessing"))
+                                c.getJSONArray("commanderCasts").let { a -> List(2) { a.getInt(it) } }, c.getBoolean("cityBlessing"),
+                                treasure = c.optInt("treasure").coerceAtLeast(0), rad = c.optInt("rad").coerceAtLeast(0))
                         } ?: com.turnhub.android.protocol.PlayerCounters(),
                         outOrder = p.optIntOrNull("outOrder"),
                         turnsCompleted = p.getInt("turnsCompleted"),

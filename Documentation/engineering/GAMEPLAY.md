@@ -722,6 +722,14 @@ holder's initiative passes like the monarch (CR 725.4). City’s blessing
 is independently declared by each player; clearing it is an explicit correction.
 TurnHub does not count permanents, resolve the Undercity or enforce card effects.
 
+Phone-hosted games (Android standalone) also keep treasure and rad counters per
+player and the table's day or night (CR 726), set from the game menu and shown
+on the centre disc. The phone can't see spells cast, so the table switches day
+and night by hand; once set it never returns to neither, apart from a
+correction. Atlas doesn't track these yet (`STAGED_CHANGES.md`), so connected
+play hides them. A player knocked out is the existing elimination, with its
+"Eliminated by" source.
+
 Each commander’s casts from the command zone are tracked separately. Its next
 cast tax is derived as twice the count; first cast has no tax. Counting a second
 commander’s casts enables partners in Atlas. A minus corrects an accidental cast.
