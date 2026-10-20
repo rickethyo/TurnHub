@@ -34,6 +34,14 @@ data class InvestigatorDashboard(
     }
 
     val bonusDice: Int get() = BONUS_THRESHOLDS.count { insanity >= it }
+
+    /**
+     * Skill level-ups earned but not yet taken: every Insanity Threshold reached levels up one
+     * skill, after the insanity card activates (rulebook p. 8). Corrections that lower insanity
+     * or raise a skill by hand simply bring this back to 0.
+     */
+    val pendingLevelUps: Int get() =
+        (THRESHOLDS.count { insanity >= it } - skillLevels.sumOf { (it - 1).coerceAtLeast(0) }).coerceAtLeast(0)
     val atThreshold: Boolean get() = insanity in THRESHOLDS
 
     companion object {

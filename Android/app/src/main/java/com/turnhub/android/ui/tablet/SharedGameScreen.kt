@@ -25,11 +25,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,6 +79,9 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
     var invitation by remember { mutableStateOf("") }
     var scanning by remember { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
+    // An investigator device can look at the Elder One board and back; the session, its seat and
+    // any pending retry stay as they are (owner, 2026-10-20).
+    var elderView by rememberSaveable { mutableStateOf(false) }
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { scanning = it }
     fun close() { if (!state.busy) { if (state.remote != null) confirmLeave = true else onClose() } }
     fun scan() {
@@ -128,7 +133,11 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
                     if (state.uncertain) Notice("The host hasn't confirmed your last action. Retry it to find out whether it was saved.", p.warn) {
                         ToneButton("Retry last action", { requestNetwork(model::retry) }, Modifier.fillMaxWidth(), tone = Tone.WARN, enabled = !state.busy)
                     }
-                    if (state.role == "elder") ElderOneDisplay(remote, reduceMotion) else InvestigatorRemote(state, model)
+                    if (state.role != "elder") Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ViewChoice("My investigator", !elderView, Modifier.weight(1f)) { elderView = false }
+                        ViewChoice("Elder One · read only", elderView, Modifier.weight(1f)) { elderView = true }
+                    }
+                    if (state.role == "elder" || elderView) ElderOneDisplay(remote, reduceMotion) else InvestigatorRemote(state, model)
                 }
                 else -> {
                     val hostable = local.profile.lanSupported
@@ -175,6 +184,13 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
             "The game and its history remain on the host. Your separate local game is unchanged.") },
         confirmButton = { ToneButton("Leave", { model.leave(); confirmLeave = false; onClose() }) },
         dismissButton = { ToneButton("Stay", { confirmLeave = false }) })
+}
+
+/** One of the investigator device's two views; the chosen one is filled and says so to TalkBack. */
+@Composable
+private fun ViewChoice(label: String, chosen: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val m = modifier.semantics { selected = chosen }
+    if (chosen) AccentButton(label, onClick, m) else ToneButton(label, onClick, m)
 }
 
 private fun gameStatus(game: StandaloneGame) = when (game.state) {
@@ -407,6 +423,7 @@ private fun InvestigatorRemote(state: LanUiState, model: LanViewModel) {
     val board = player.dashboard
     val enabled = state.online && !state.busy && !state.uncertain && !player.eliminated &&
         game.state in listOf(TableState.RUNNING, TableState.PAUSED)
+    InvestigatorPortrait(player)
     if (game.state == TableState.LOBBY) Notice("You're in. Your controls unlock when the host starts the game.", p.info,
         title = "Waiting for the host to start")
     else TurnCard(game, seat, player, enabled, model)
@@ -417,24 +434,27 @@ private fun InvestigatorRemote(state: LanUiState, model: LanViewModel) {
         p.bad, Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
         title = "☠ ${player.investigator ?: player.name} dies") {
         if (enabled) ArmedButton("Confirm investigator death", "Tap again: ${player.investigator ?: player.name} is out", Tone.BAD) { model.act("eliminate") }
-    } else if (board.atThreshold) Notice("Resolve ${board.sanityCondition?.name ?: "your sanity condition"} now, then advance one skill.",
-        p.warn, title = "⚠ Insanity threshold")
+    } else if (board.pendingLevelUps > 0) ThresholdAlert(player.investigator ?: player.name, board, board.skills(player.investigator), enabled) { slot, level ->
+        model.act("skill", level, slot + 1)
+    }
     BrassCard {
         Eyebrow("Tracks")
         // Two tiles a row where they fit with room for − and +; one a row on a phone's cover screen.
         BoxWithConstraints(Modifier.fillMaxWidth()) { FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp), maxItemsInEachRow = if (maxWidth < 480.dp) 1 else 2) {
             val tile = Modifier.weight(1f).fillMaxRowHeight()
-            TrackTile("Wounds", "wound", player.life, DeathMayDie.DEATH_WOUNDS, p.bad, enabled, tile) { model.act("wounds", it) }
-            TrackTile("Stress", "stress", player.stress, DeathMayDie.MAX_STRESS, p.info, enabled, tile) { model.act("stress", it) }
-            TrackTile("Fire", "fire token", board.fire, InvestigatorDashboard.MAX_FIRE, p.warn, enabled, tile, alarmAtMax = false) { model.act("fire", it) }
-            TrackTile("Insanity", "insanity", board.insanity, InvestigatorDashboard.MAX_INSANITY, p.accent, enabled, tile,
+            TrackTile("🩸 Wounds", "wound", player.life, DeathMayDie.DEATH_WOUNDS, p.bad, enabled, tile) { model.act("wounds", it) }
+            TrackTile("⚡ Stress", "stress", player.stress, DeathMayDie.MAX_STRESS, p.info, enabled, tile) { model.act("stress", it) }
+            // The End of Turn reminder sits under the Fire track it belongs to (owner, 2026-10-20).
+            TrackTile("🔥 Fire", "fire token", board.fire, InvestigatorDashboard.MAX_FIRE, p.warn, enabled, tile, alarmAtMax = false,
+                caption = if (board.fire > 0) "At End of Turn, roll ${board.fire} black ${if (board.fire == 1) "die" else "dice"}, then discard the fire."
+                    else null) { model.act("fire", it) }
+            TrackTile("🌀 Insanity", "insanity", board.insanity, InvestigatorDashboard.MAX_INSANITY, p.accent, enabled, tile,
                 caption = "Bonus dice +${board.bonusDice}") { model.act("insanity", it) }
         } }
-        if (board.fire > 0) Text("🔥 At End of Turn, roll ${board.fire} black ${if (board.fire == 1) "die" else "dice"}, then discard the fire.",
-            color = p.text, style = MaterialTheme.typography.bodyMedium)
     }
     val skills = board.skills(player.investigator)
+    var correcting by rememberSaveable(player.investigator) { mutableStateOf(false) }
     if (skills.isNotEmpty()) BrassCard {
         Eyebrow("Skills")
         skills.forEachIndexed { index, skill ->
@@ -446,21 +466,17 @@ private fun InvestigatorRemote(state: LanUiState, model: LanViewModel) {
                         modifier = Modifier.weight(1f))
                     StatusBadge("Level $level", Tone.ACCENT)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    (1..4).forEach { value ->
-                        FilterChip(selected = value == level, onClick = { model.act("skill", value, index + 1) }, enabled = enabled,
-                            label = { Text("$value", fontWeight = FontWeight.Bold) },
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = "${skill.name}, level $value" })
-                    }
-                }
+                // Levels rise from the threshold alert; the chips only fix a mistake (owner, 2026-10-20).
+                if (correcting) SkillLevelChips(skill.name, level, enabled) { model.act("skill", it, index + 1) }
                 skill.levels.take(level).forEachIndexed { earlier, rules ->
                     if (rules.isNotBlank()) Text("${earlier + 1}: $rules", color = p.text, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
+        TextButton({ correcting = !correcting }) { Text(if (correcting) "Done correcting skill levels" else "Correct skill levels") }
     }
-    listOfNotNull(board.sanityCondition?.let { "Sanity condition" to it }, board.relic.takeIf { game.useRelics }?.let { "Relic" to it })
-        .forEach { (slot, card) -> CardPanel(slot, card) }
+    board.sanityCondition?.let { CardPanel("🌀 Insanity card", it, p.accent) }
+    board.relic.takeIf { game.useRelics }?.let { CardPanel("✦ Relic", it, p.warn) }
 }
 
 /** Whose turn it is, and this investigator's one turn action, first on the screen. */
@@ -511,13 +527,14 @@ private fun TrackTile(name: String, noun: String, value: Int, max: Int, hue: Col
     val p = palette
     val full = alarmAtMax && value >= max
     val shape = RoundedCornerShape(18.dp)
-    Column(modifier.clip(shape).background(p.inset).border(1.dp, if (full) p.bad else p.line, shape).padding(12.dp),
+    Column(modifier.clip(shape).background(Brush.verticalGradient(listOf(hue.copy(alpha = .16f), p.inset)))
+        .border(if (full) 2.dp else 1.dp, if (full) p.bad else hue.copy(alpha = .55f), shape).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             StepButton("−", "Remove a $noun", enabled && value > 0) { onStep(-1) }
             Column(Modifier.weight(1f).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
                 horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(name.uppercase(), color = p.muted, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp), maxLines = 1)
+                Text(name.uppercase(), color = p.text, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp), maxLines = 1)
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text("$value", color = if (full) p.bad else p.text, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
                     Text(" / $max", color = p.muted, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(bottom = 4.dp))
@@ -526,7 +543,8 @@ private fun TrackTile(name: String, noun: String, value: Int, max: Int, hue: Col
             StepButton("+", "Add a $noun", enabled && value < max) { onStep(1) }
         }
         TrackBar(value, max, hue)
-        caption?.let { Text(it, color = p.muted, style = MaterialTheme.typography.labelMedium, modifier = Modifier.align(Alignment.CenterHorizontally)) }
+        caption?.let { Text(it, color = p.text, style = MaterialTheme.typography.labelMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.align(Alignment.CenterHorizontally)) }
     }
 }
 
@@ -544,10 +562,14 @@ private fun TrackBar(value: Int, max: Int, hue: Color) {
 }
 
 @Composable
-private fun CardPanel(slot: String, card: InvestigatorCard) {
+private fun CardPanel(slot: String, card: InvestigatorCard, hue: Color) {
     val p = palette
-    BrassCard {
-        Eyebrow(slot)
+    val shape = RoundedCornerShape(22.dp)
+    // The insanity card and the relic each wear their own color and mark, so they're told apart at a glance.
+    Column(Modifier.fillMaxWidth().clip(shape).background(Brush.verticalGradient(listOf(hue.copy(alpha = .22f), p.surface)))
+        .border(2.dp, hue, shape).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(slot.uppercase(), color = hue, style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 1.5.sp), fontWeight = FontWeight.Black,
+            modifier = Modifier.semantics { heading() })
         Text(card.name, color = p.text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text(card.rules.ifBlank { "Refer to the physical card." }, color = p.text, style = MaterialTheme.typography.bodyMedium)
         if (card.transformedRules.isNotBlank()) {
@@ -558,6 +580,21 @@ private fun CardPanel(slot: String, card: InvestigatorCard) {
             }
         }
         InvestigatorCardReferenceButton(card.catalogueId)
+    }
+}
+
+/** The investigator's picture and name at the top of their device, when the wiki has one. */
+@Composable
+private fun InvestigatorPortrait(player: LocalPlayer) {
+    val p = palette
+    val art = rememberInvestigatorArt(player.investigator) ?: return
+    val shape = RoundedCornerShape(22.dp)
+    Box(Modifier.fillMaxWidth().height(220.dp).clip(shape).border(1.dp, p.line, shape)) {
+        Image(art.image, contentDescription = "${art.cardName}, art by ${art.artist}", Modifier.fillMaxSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = Alignment.TopCenter)
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .7f)))))
+        Text(player.investigator ?: player.name, color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black,
+            modifier = Modifier.align(Alignment.BottomStart).padding(16.dp))
     }
 }
 

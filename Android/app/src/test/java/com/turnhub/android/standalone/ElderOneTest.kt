@@ -3,6 +3,8 @@ package com.turnhub.android.standalone
 import com.turnhub.android.domain.DeathMayDieStory
 import com.turnhub.android.domain.ElderOneTrack
 import com.turnhub.android.domain.EpisodeToken
+import com.turnhub.android.domain.EnemyCard
+import com.turnhub.android.domain.EnemyGroup
 import com.turnhub.android.domain.InvestigatorDashboard
 import com.turnhub.android.domain.InvestigatorCard
 import com.turnhub.android.domain.InvestigatorCardSlot
@@ -222,5 +224,44 @@ class ElderOneTest {
         assertEquals(listOf(ElderOneResult("Hastur", 1, 1), ElderOneResult(UNRECORDED_ELDER_ONE, 1, 0)),
             LocalLibrary(history = listOf(record, won, untracked)).elderOneRecord())
         assertNull(untracked.storyLine)
+    }
+
+    @Test fun `each insanity threshold owes one skill level-up until it is taken`() {
+        val board = InvestigatorDashboard()
+        assertEquals(0, board.pendingLevelUps)
+        val first = board.changeInsanity(4)
+        assertEquals(1, first.pendingLevelUps)
+        assertEquals(0, first.copy(skillLevels = listOf(2, 1, 1)).pendingLevelUps)
+        val second = first.copy(skillLevels = listOf(2, 1, 1)).changeInsanity(4)
+        assertEquals(8, second.insanity)
+        assertEquals(1, second.pendingLevelUps)
+        // A correction back below the threshold owes nothing.
+        assertEquals(0, second.changeInsanity(-1).pendingLevelUps)
+    }
+
+    @Test fun `enemies are numbered, wounded, saved and cleared by a rematch`() {
+        val cultist = EnemyCard("Cultist", 2, 1, EnemyGroup.MINION)
+        val setup = lobby().addEnemy(cultist).addEnemy(cultist.copy(name = " cultist "))
+        assertEquals(listOf("Cultist 1", "cultist 2"), setup.elder.enemies.map { it.label })
+        assertSame(setup, setup.woundEnemy(0, 1))
+        assertSame(setup, setup.addEnemy(cultist.copy(health = 0)))
+        val g = ready(setup).chooseStarter(0).start(0, "d", Random(0))
+            .addEnemy(EnemyCard("Fire Vampire", 4, 2, EnemyGroup.EPISODE, "Leaves fire")).woundEnemy(0, 5)
+        assertTrue(g.elder.enemies[0].dead)
+        assertEquals(2, g.elder.enemies[0].wounds)
+        assertEquals(g.elder, StandaloneTable.gameFromJson(StandaloneTable.gameToJson(g)).elder)
+        val removed = g.removeEnemy(0).addEnemy(cultist)
+        assertEquals(listOf("cultist 2", "Fire Vampire 1", "Cultist 1"), removed.elder.enemies.map { it.label })
+        assertTrue(g.claimWin(0, 20).rematch(30, "e", Random(0)).elder.enemies.isEmpty())
+    }
+
+    @Test fun `enemy cards typed once are kept on the device by name`() {
+        val cultist = EnemyCard("Cultist", 2, 1, EnemyGroup.MINION)
+        val library = LocalLibrary().withEnemy(cultist).withEnemy(cultist.copy(name = "CULTIST", health = 3))
+            .withEnemy(EnemyCard("Byakhee", 3, 2, EnemyGroup.EPISODE))
+        assertEquals(listOf("CULTIST" to 3, "Byakhee" to 3), library.enemies.map { it.name to it.health })
+        assertEquals(library.enemies, LocalLibrary.fromJson(library.toJson()).enemies)
+        assertEquals(listOf("Byakhee"), library.withoutEnemy("cultist").enemies.map { it.name })
+        assertSame(library, library.withEnemy(cultist.copy(dice = 99)))
     }
 }

@@ -758,6 +758,13 @@ data class StandaloneGame(
 
     fun changeEpisodeToken(index: Int, delta: Int): StandaloneGame = editElder(setup = false) { it.token(index, delta) }
 
+    /** Minions and episode monsters: placed in setup or during the game, wounded during it. */
+    fun addEnemy(card: com.turnhub.android.domain.EnemyCard): StandaloneGame = editElder(setup = true) { it.withEnemy(card) }
+
+    fun removeEnemy(index: Int): StandaloneGame = editElder(setup = true) { it.withoutEnemy(index) }
+
+    fun woundEnemy(index: Int, delta: Int): StandaloneGame = editElder(setup = false) { it.woundEnemy(index, delta) }
+
     /**
      * A change to the Story board during the game ([ElderOneTrack]). The Progression token
      * reaching the last space loses the game; defeating the Final stage is [killElderOne].

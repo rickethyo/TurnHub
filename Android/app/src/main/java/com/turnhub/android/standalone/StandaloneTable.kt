@@ -251,6 +251,21 @@ class StandaloneTable(
     fun nameEpisodeToken(name: String) = edit { it.nameEpisodeToken(name) }
     fun removeEpisodeToken(index: Int) = edit { it.removeEpisodeToken(index) }
     fun changeEpisodeToken(index: Int, delta: Int) = edit { it.changeEpisodeToken(index, delta) }
+    /** Places a figure and keeps its card's stats on this device for later games. */
+    fun addEnemy(card: com.turnhub.android.domain.EnemyCard): Boolean {
+        val before = _state.value
+        val clean = card.normalized() ?: return false
+        val game = before.game.addEnemy(clean)
+        if (game === before.game) return false
+        return publish(before.copy(game = game, library = before.library.withEnemy(clean)))
+    }
+    fun forgetEnemy(name: String) {
+        val before = _state.value
+        val library = before.library.withoutEnemy(name)
+        if (library !== before.library) publish(before.copy(library = library))
+    }
+    fun removeEnemy(index: Int) = edit { it.removeEnemy(index) }
+    fun woundEnemy(index: Int, delta: Int) = edit { it.woundEnemy(index, delta) }
     fun setDrawTwoCards(on: Boolean) = edit { it.setDrawTwoCards(on) }
     fun dealInvestigatorCards(index: Int, slot: com.turnhub.android.domain.InvestigatorCardSlot) = edit { it.dealInvestigatorCards(index, slot) }
     /** One settings update from the shared lobby, preserving unspecified fields. */
@@ -606,6 +621,16 @@ class StandaloneTable(
     }
 
     companion object {
+        internal fun enemyCardToJson(card: com.turnhub.android.domain.EnemyCard): JSONObject = JSONObject()
+            .put("name", card.name).put("health", card.health).put("dice", card.dice).put("group", card.group.name)
+            .apply { if (card.ability.isNotEmpty()) put("ability", card.ability) }
+
+        /** Null for anything out of range, so a bad record is dropped rather than shown. */
+        internal fun enemyCardFromJson(json: JSONObject): com.turnhub.android.domain.EnemyCard? = runCatching {
+            com.turnhub.android.domain.EnemyCard(json.getString("name"), json.getInt("health"), json.getInt("dice"),
+                com.turnhub.android.domain.EnemyGroup.valueOf(json.getString("group")), json.optString("ability")).normalized()
+        }.getOrNull()
+
         private fun elderToJson(elder: com.turnhub.android.domain.ElderOneTrack): JSONObject = JSONObject().apply {
             put("elderOne", elder.elderOne ?: JSONObject.NULL)
             put("episode", elder.episode ?: JSONObject.NULL)
@@ -617,6 +642,7 @@ class StandaloneTable(
             put("stageHealth", JSONObject().apply { elder.stageHealth.forEach { (stage, health) -> put("$stage", health) } })
             put("symbols", elder.symbols)
             put("tokens", JSONArray().apply { elder.tokens.forEach { put(JSONObject().put("name", it.name).put("count", it.count)) } })
+            put("enemies", JSONArray().apply { elder.enemies.forEach { put(enemyCardToJson(it.card).put("number", it.number).put("wounds", it.wounds)) } })
         }
 
         /** Out-of-range saved values fall back to a fresh track rather than an impossible one. */
@@ -628,7 +654,16 @@ class StandaloneTable(
                 val withName = track.withToken(token.optString("name"))
                 if (withName === track) track else withName.token(withName.tokens.lastIndex, token.optInt("count"))
             }
-            val fresh = named
+            val figures = json.optJSONArray("enemies")
+            val fresh = (0 until (figures?.length() ?: 0)).fold(named) { t, i ->
+                val figure = figures?.optJSONObject(i) ?: return@fold t
+                val card = enemyCardFromJson(figure) ?: return@fold t
+                val number = figure.optInt("number", 1)
+                if (number !in 1..com.turnhub.android.domain.ElderOneTrack.MAX_ENEMIES || t.enemies.any { it.card.name.equals(card.name, ignoreCase = true) && it.number == number } ||
+                    t.enemies.size >= com.turnhub.android.domain.ElderOneTrack.MAX_ENEMIES) return@fold t
+                t.copy(enemies = t.enemies + com.turnhub.android.domain.EnemyFigure(card, number,
+                    figure.optInt("wounds").coerceIn(0, card.health)))
+            }
             val track = com.turnhub.android.domain.ElderOneTrack
             val space = json.optInt("space", track.START_SPACE)
             val stage = json.optInt("stage", 1)

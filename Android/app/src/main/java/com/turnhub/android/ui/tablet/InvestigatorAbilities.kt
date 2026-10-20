@@ -61,6 +61,7 @@ internal fun InvestigatorAbilities(
     val editable = !player.eliminated && summary.state in listOf(TableState.RUNNING, TableState.PAUSED)
     var editing by rememberSaveable(player.participantId, player.investigator) { mutableStateOf(false) }
     var previewUpgrades by rememberSaveable(player.participantId, player.investigator) { mutableStateOf(false) }
+    var correcting by rememberSaveable(player.participantId, player.investigator) { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
             itemVerticalAlignment = Alignment.CenterVertically) {
@@ -80,11 +81,7 @@ internal fun InvestigatorAbilities(
         when {
             board.insanity == InvestigatorDashboard.MAX_INSANITY ->
                 SanityAlert("☠ Consumed by madness", "${player.investigator ?: player.label} goes insane. Confirm the death from their menu.", null, p.bad)
-            board.atThreshold -> board.sanityCondition.let { condition ->
-                SanityAlert("⚠ Insanity threshold: ${condition?.name ?: "sanity condition"}",
-                    "Resolve ${condition?.name ?: "your sanity condition"} now, then advance one skill.",
-                    condition?.rules?.takeIf { it.isNotBlank() }, p.warn)
-            }
+            board.pendingLevelUps > 0 -> ThresholdAlert(player.investigator ?: player.label, board, skills, editable, onLevel)
         }
         InvestigatorCards(player, summary.bootId, editable, references = summary.investigatorReferences, useRelics = summary.useRelics, onAssign = onCard)
         skills.forEachIndexed { slot, skill ->
@@ -92,14 +89,8 @@ internal fun InvestigatorAbilities(
             Column(Modifier.fillMaxWidth().background(p.surface.copy(alpha = .94f), RoundedCornerShape(14.dp)).padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("${skill.name} · Level $level", color = p.text, fontWeight = FontWeight.SemiBold)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    (1..4).forEach { choice ->
-                        FilterChip(selected = level == choice, onClick = { onLevel(slot, choice) }, enabled = editable,
-                            label = { Text("$choice") }, modifier = Modifier.heightIn(min = 48.dp).semantics {
-                                contentDescription = "${player.label}, ${skill.name}, level $choice"
-                            })
-                    }
-                }
+                // Levels go up from the threshold alert; these chips only fix a mistake (owner, 2026-10-20).
+                if (correcting) SkillLevelChips("${player.label}, ${skill.name}", level, editable) { onLevel(slot, it) }
                 val effects = skill.levels.take(if (previewUpgrades) 4 else level)
                 if (effects.all { it.isBlank() }) Text("Add this skill's effects from your dashboard with Edit abilities.",
                     color = p.muted, style = MaterialTheme.typography.bodySmall)
@@ -108,6 +99,9 @@ internal fun InvestigatorAbilities(
                         color = if (i >= level) p.muted else p.text, style = MaterialTheme.typography.bodyMedium)
                 }
             }
+        }
+        if (skills.isNotEmpty()) TextButton({ correcting = !correcting }) {
+            Text(if (correcting) "Done correcting skill levels" else "Correct skill levels")
         }
     }
     if (editing) InvestigatorSkillEditor(player, skills, onDismiss = { editing = false }, onSave = {
@@ -162,6 +156,53 @@ private fun InvestigatorSkillEditor(player: TablePlayer, skills: List<Investigat
             onSave(List(count) { i -> InvestigatorSkill(fields[i * 5].trim(), fields.subList(i * 5 + 1, i * 5 + 5).toList()) })
         }) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+}
+
+/** Level chips 1 to 4, for correcting a skill marker by hand. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun SkillLevelChips(label: String, level: Int, enabled: Boolean, onLevel: (Int) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        (1..4).forEach { choice ->
+            FilterChip(selected = level == choice, onClick = { onLevel(choice) }, enabled = enabled,
+                label = { Text("$choice", fontWeight = FontWeight.Bold) }, modifier = Modifier.heightIn(min = 48.dp).semantics {
+                    contentDescription = "$label, level $choice"
+                })
+        }
+    }
+}
+
+/**
+ * An Insanity Threshold to resolve (rulebook p. 8): the insanity card activates, then one skill
+ * levels up. The alert names the card and its rules, and each skill that can still rise is a
+ * button; choosing one is the Resolve step, and the alert leaves once no level-up is owed.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun ThresholdAlert(name: String, board: InvestigatorDashboard, skills: List<InvestigatorSkill>, enabled: Boolean,
+    onLevel: (Int, Int) -> Unit) {
+    val p = palette
+    val condition = board.sanityCondition
+    Column(Modifier.fillMaxWidth().background(p.surface, RoundedCornerShape(14.dp))
+        .border(3.dp, p.warn, RoundedCornerShape(14.dp)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("⚠ Insanity threshold: $name", color = p.text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black,
+            modifier = Modifier.semantics { heading(); liveRegion = LiveRegionMode.Assertive })
+        Text("1. Resolve ${condition?.name ?: "your sanity condition"}.", color = p.text, style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold)
+        condition?.rules?.takeIf { it.isNotBlank() }?.let { Text(it, color = p.text, style = MaterialTheme.typography.bodyMedium) }
+        Text(if (board.pendingLevelUps > 1) "2. Level up ${board.pendingLevelUps} skills, one at a time." else "2. Level up one skill:",
+            color = p.text, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            skills.forEachIndexed { slot, skill ->
+                val level = board.skillLevels.getOrElse(slot) { 1 }
+                if (level < 4) ToneButton("Resolve: ${skill.name} to level ${level + 1}", { onLevel(slot, level + 1) },
+                    enabled = enabled, tone = com.turnhub.android.ui.components.Tone.WARN)
+            }
+        }
+        if (skills.indices.all { board.skillLevels.getOrElse(it) { 1 } >= 4 }) Text("Every skill is at level 4, so nothing levels up.",
+            color = p.muted, style = MaterialTheme.typography.bodyMedium)
+    }
 }
 
 /** A high-contrast alert on the investigator's panel: a heading, what to do, and the card's rules. Words carry it, not color. */

@@ -36,7 +36,9 @@ shared; either teammate may pass the team turn. Switching views keeps polling
 and pending retry state. Commander names are public; account identity, local
 artwork and libraries remain private.
 
-Death May Die guests only control their claimed investigator, including off-turn corrections;
+Death May Die investigator devices switch between **My investigator** and **Elder One · read only**
+(the Elder One display, minions and monsters included) without leaving or releasing their seat
+(owner, 2026-10-20). Death May Die guests only control their claimed investigator, including off-turn corrections;
 setup/reference changes stay on the host; guests can confirm their own death. Both devices
 therefore see the same markers, chosen skills and card rules. Disconnects disable
 guest controls and retain their last view until reconnection. A lost reply is

@@ -70,6 +70,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.turnhub.android.domain.DeathMayDieStory
 import com.turnhub.android.domain.ElderOneTrack
+import com.turnhub.android.domain.EnemyCard
+import com.turnhub.android.domain.EnemyFigure
+import com.turnhub.android.domain.EnemyGroup
 import com.turnhub.android.domain.StoryGroup
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.standalone.StandaloneState
@@ -120,6 +123,10 @@ fun ElderOneTab(state: StandaloneState, table: StandaloneTable, reduceMotion: Bo
                 SummoningCard(elder, running, reduceMotion, table)
                 if (elder.summoned) StageCard(elder, running, reduceMotion, table)
                 else RitualCard(running, table)
+                // The Story board's order: the Elder One's stages, its minions under them, then
+                // the episode's monsters and tokens (rulebook p. 6).
+                EnemiesCard(EnemyGroup.MINION, elder, state.library.enemies, running, table)
+                EnemiesCard(EnemyGroup.EPISODE, elder, state.library.enemies, running, table)
                 EpisodeTokensCard(elder, counting = running, table)
                 BrassCard { DeathMayDieTurnPhasesButton() }
                 StoryRules()
@@ -133,6 +140,8 @@ fun ElderOneTab(state: StandaloneState, table: StandaloneTable, reduceMotion: Bo
                     Text("Choosing an Elder One also means an investigator lost before it is summoned ends the game, as the rules say.",
                         color = palette.muted, style = MaterialTheme.typography.bodyMedium)
                 }
+                EnemiesCard(EnemyGroup.MINION, elder, state.library.enemies, false, table)
+                EnemiesCard(EnemyGroup.EPISODE, elder, state.library.enemies, false, table)
                 EpisodeTokensCard(elder, counting = false, table)
                 StoryRules()
             }
@@ -167,10 +176,106 @@ internal fun ElderOneDisplay(game: com.turnhub.android.standalone.StandaloneGame
         WoundRing(elder, reduceMotion)
         Text("${ElderOneTrack.stageName(elder.stage)} · ${elder.stageWounds}/${elder.health ?: "?"} wounds", color = palette.text)
     }
+    EnemyGroup.entries.forEach { group ->
+        val figures = elder.enemies.filter { it.card.group == group }
+        if (figures.isNotEmpty()) BrassCard {
+            Eyebrow(group.label)
+            figures.forEach { EnemyRow(it, wounding = false, onWound = {}, onRemove = null) }
+        }
+    }
     if (elder.tokens.isNotEmpty()) BrassCard {
         Eyebrow("Episode tokens")
         elder.tokens.forEach { Text("${it.name}: ${it.count}", color = palette.text, style = MaterialTheme.typography.titleLarge) }
     }
+}
+
+/**
+ * One group of enemies on the map. The table adds a figure from a card it has typed in before,
+ * or types a new card's name, health and dice once; this device keeps the card for later games.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun EnemiesCard(group: EnemyGroup, elder: ElderOneTrack, saved: List<EnemyCard>, wounding: Boolean, table: StandaloneTable) {
+    val p = palette
+    var adding by rememberSaveable(group) { mutableStateOf<String?>(null) }
+    val figures = elder.enemies.withIndex().filter { it.value.card.group == group }
+    val known = saved.filter { it.group == group }
+    BrassCard {
+        Eyebrow(group.label)
+        if (figures.isEmpty()) Text(if (group == EnemyGroup.MINION) "Cultists and the Elder One's special monster, as they reach the map."
+            else "The episode's monsters, as they reach the map.", color = p.muted, style = MaterialTheme.typography.bodyMedium)
+        figures.forEach { (index, figure) ->
+            EnemyRow(figure, wounding, onWound = { table.woundEnemy(index, it) }) { table.removeEnemy(index) }
+        }
+        if (elder.enemies.size < ElderOneTrack.MAX_ENEMIES) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            known.forEach { card -> ToneButton("+ ${card.name}", { table.addEnemy(card) }) }
+            if (group == EnemyGroup.MINION) EnemyCard.SUGGESTED.map { it.first }.filter { name -> known.none { it.name.equals(name, ignoreCase = true) } }
+                .forEach { name -> ToneButton("+ $name…", { adding = name }) }
+            ToneButton(if (group == EnemyGroup.MINION) "+ Other minion…" else "+ Monster…", { adding = "" })
+        }
+        if (known.isNotEmpty()) Text("Saved cards on this device add a figure in one tap. Type a saved name again to change its stats.",
+            color = p.muted, style = MaterialTheme.typography.bodySmall)
+    }
+    adding?.let { start -> EnemyCardDialog(group, start, saved, onDismiss = { adding = null }) { table.addEnemy(it); adding = null } }
+}
+
+/** A figure: its name and number, wounds out of health with − / +, its attack dice, and Remove. */
+@Composable
+private fun EnemyRow(figure: EnemyFigure, wounding: Boolean, onWound: (Int) -> Unit, onRemove: (() -> Unit)?) {
+    val p = palette
+    val shape = RoundedCornerShape(16.dp)
+    Column(Modifier.fillMaxWidth().clip(shape).background(p.inset).border(if (figure.dead) 2.dp else 1.dp, if (figure.dead) p.bad else p.line, shape)
+        .padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(figure.label, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Attacks with ${figure.card.dice} ${if (figure.card.dice == 1) "die" else "dice"}" + if (figure.dead) " · Killed" else "",
+                    color = if (figure.dead) p.bad else p.muted, style = MaterialTheme.typography.labelMedium)
+            }
+            if (wounding) StepButton("−", "Remove a wound from ${figure.label}", figure.wounds > 0) { onWound(-1) }
+            Text("${figure.wounds}/${figure.card.health}", color = if (figure.dead) p.bad else p.text, style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Black, modifier = Modifier.semantics {
+                    contentDescription = "${figure.label}: ${figure.wounds} of ${figure.card.health} wounds"; liveRegion = LiveRegionMode.Polite
+                })
+            if (wounding) StepButton("+", "Wound ${figure.label}", !figure.dead) { onWound(1) }
+        }
+        if (figure.card.ability.isNotEmpty()) Text(figure.card.ability, color = p.text, style = MaterialTheme.typography.bodySmall)
+        onRemove?.let { remove -> TextButton(remove, Modifier.align(Alignment.End)) { Text(if (figure.dead) "Remove the body" else "Remove from the map") } }
+    }
+}
+
+/** Typing in a card once: name, health, attack dice and (optionally) its ability. */
+@Composable
+private fun EnemyCardDialog(group: EnemyGroup, start: String, saved: List<EnemyCard>, onDismiss: () -> Unit, onSave: (EnemyCard) -> Unit) {
+    var name by rememberSaveable { mutableStateOf(start) }
+    var health by rememberSaveable { mutableStateOf("") }
+    var dice by rememberSaveable { mutableStateOf("") }
+    var ability by rememberSaveable { mutableStateOf("") }
+    val card = EnemyCard(name, health.toIntOrNull() ?: 0, dice.toIntOrNull() ?: -1, group, ability).normalized()
+    val existing = saved.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (group == EnemyGroup.MINION) "Add a minion" else "Add a monster") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Copy these from the enemy's card. This device remembers them for next time.", color = palette.muted,
+                    style = MaterialTheme.typography.bodyMedium)
+                OutlinedTextField(name, { name = it.take(ElderOneTrack.MAX_NAME) }, singleLine = true, label = { Text("Name") })
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(health, { health = it.filter(Char::isDigit).take(2) }, Modifier.weight(1f), singleLine = true,
+                        label = { Text("Health") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    OutlinedTextField(dice, { dice = it.filter(Char::isDigit).take(2) }, Modifier.weight(1f), singleLine = true,
+                        label = { Text("Attack dice") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                }
+                OutlinedTextField(ability, { ability = it.take(EnemyCard.MAX_ABILITY) }, label = { Text("Ability (optional)") }, minLines = 2)
+                existing?.let { Text("Saved before: ${it.health} health, ${it.dice} dice. Adding replaces those stats.", color = palette.muted,
+                    style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = { TextButton({ card?.let(onSave) }, enabled = card != null) { Text("Add to the map") } },
+        dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
+    )
 }
 
 /**
@@ -397,7 +502,7 @@ private fun TrackPath(space: Int, reduceMotion: Boolean) {
                             .border(if (here) 3.dp else 1.5.dp, if (here) p.text else color.copy(alpha = if (passed) .95f else .55f), CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(if (n == last) "✕" else "$n", color = if (here) p.surface else if (passed) color else p.text,
+                        Text(if (n == last) "✺" else "$n", color = if (here) p.surface else if (passed) color else p.text,
                             fontWeight = if (here) FontWeight.Black else FontWeight.SemiBold,
                             style = if (here) MaterialTheme.typography.titleMedium else MaterialTheme.typography.labelLarge)
                     }
