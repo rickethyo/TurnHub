@@ -5,7 +5,8 @@ Yu-Gi-Oh!, Pokémon, Lorcana and Death May Die for devices on the same Wi-Fi,
 from the lobby on. Choose **Game → Play together → Host game**. In standard
 joining the host shows a join code like `abc-123` on Play together, the Game tab
 and the Table tab; a guest chooses **Game → Play together**, types it, and picks
-their player (or an Elder One display/investigator for Death May Die). A host whose device setting **Guests
+their player (or an Elder One display/investigator for Death May Die, or a Planes
+display when a Magic game uses Planechase). A host whose device setting **Guests
 must scan a QR code** is on shows a QR invitation instead, and guests must scan
 it. Sharing lasts through the lobby, the match and rematches until the host
 stops it, without deleting its game.
@@ -16,7 +17,7 @@ stops it, without deleting its game.
 |---|---|
 | Rules, match state and outcomes | Existing host `StandaloneGame` through `StandaloneTable` |
 | Network sessions and authorization | `LanSessions`, called on the same main dispatcher as host UI |
-| Commands | Owned-seat TCG life/score, counters, Commander damage received, pass/extension, monarch and explicit own win/concede/elimination; DMD markers, skills and turn handoff; existing game validators |
+| Commands | Planechase buttons for the active player (any Magic seat or the Planes display); owned-seat TCG life/score, counters, Commander damage received, pass/extension, monarch and explicit own win/concede/elimination; DMD markers, skills and turn handoff; existing game validators |
 | Freshness/retry validation | Exact match/revision and per-session immutable action UUID receipts |
 | Persistence/history/statistics | Host only; commit before network acknowledgement |
 | Rendering | Existing table `PlayerPanel`/`PlayerMenu` for TCG personal controls; read-only full-table panels; DMD investigator controls/`ElderOneDisplay` |
@@ -27,10 +28,14 @@ stops it, without deleting its game.
 Guests render the host's public match snapshot. They do not create a local match,
 change their saved players, persist remote history or receive account credentials.
 The host retains all player and game controls, including setup, lifecycle,
-Planechase and Bag of Doom resolution. TCG guests use their selected player
+Planechase setup and Bag of Doom resolution. TCG guests use their selected player
 panel and counter/Commander menu. **Table · read only** shows every player;
 **My player** returns to their controls without leaving, rejoining or releasing
 their seat. Table panels have disabled score/turn controls and no editing menus.
+A guest's life taps gather for 0.7 s and go to the host as one change, and a
+tap in flight leaves the controls as they are. Every panel, on the host and the
+guests, shows the running change (like "+1" or "−3") for 3 s after the last
+change, whichever device made it (owner, 2026-10-20).
 Two-Headed Giant guests have personal counters while life and poison remain
 shared; either teammate may pass the team turn. Switching views keeps polling
 and pending retry state. Guest panels draw each seat's color, avatar,
@@ -40,6 +45,18 @@ players to confirm it in turn order, as a Sigil's does (owner, 2026-10-20).
 The host may show only one player's panel (**Show on this device** in the game
 menu) when the group has no central display; a claim made there waits the same
 way, and the current confirmer's panel joins the view while they answer.
+
+When a Magic game uses Planechase, a guest may join as the **Planes display** (no
+seat), and each Magic seat gains a **Planes** view beside **Table · read only**
+(owner, 2026-10-20), so a second tablet can show the planes while another shows
+the table. It is the host's Planes tab live from the snapshot: the face-up plane
+with its counters, the last roll and the same buttons (roll, planeswalk, chaos,
+resolve a phenomenon, counters). Like the host's tab they act for the active
+player; the host rolls the die and validates every action. The snapshot carries
+the face-up cards, counters and die, never the deck order or the host's deck
+choice. Each guest downloads the card text and art from Scryfall itself, as the
+host does. The ability to use a second screen may later become a premium
+upgrade; the plane cards themselves stay free everywhere (owner, 2026-10-20).
 
 Death May Die investigator devices switch between **My investigator** and **Elder One · read only**
 (the Elder One display, minions and monsters included) without leaving or releasing their seat

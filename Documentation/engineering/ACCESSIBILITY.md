@@ -262,7 +262,7 @@ Inventory as of 2026-09-24, in use since (owner, 2026-10-02).
 | Browser feedback sound, vibration and volume | Portal My Account > Browser feedback | This browser | Sound and vibration on, medium volume |
 | Android high contrast | Android 14+ Settings > Accessibility > Contrast | Operating system | Follows the OS; a raised level switches the app to fixed high-contrast colors |
 | Android text size, TalkBack, live announcements | Operating system | - | Follows the OS |
-| Android game sounds and volume | Table setup, table menu and My account | This phone (`turnhub_ui`) | On at 50%; silent/vibrate mode and media volume apply |
+| Android game sounds and volume | Table setup, table menu and My account | This phone (`turnhub_ui`) | On at 50%; they play on vibrate; silent mode and media volume apply |
 
 The five Sigil settings are *per-player* (owner decision, 2026-09-24): they follow
 the player to whichever Sigil they sit at. Browser presentation choices stay

@@ -168,6 +168,37 @@ class LanSessionsTest {
                 .put("kind", kind).put("value", value).put("slot", 0).put("actionId", id)
     }
 
+    @Test fun `a planes display and the seats run the host's planes without seeing its deck`() {
+        val deck = listOf(PlanarCard("plane-a"), PlanarCard("plane-b"), PlanarCard("plane-c"))
+        val f = Fixture(StandaloneGame().setFormat(GameProfile.MTG_COMMANDER).setPlanechase(true)
+            .addPlayer("A").addPlayer("B").chooseStarter(0).start(1_000, "shared-match", planarDeck = deck))
+        val joined = f.join("planes", 0)
+        assertEquals("ok", joined.getString("code"))
+        val planar = joined.getJSONObject("game").getJSONObject("planechase")
+        assertEquals(0, planar.getJSONArray("deck").length())
+        assertEquals("plane-a", planar.getJSONArray("faceUp").getJSONObject(0).getString("id"))
+        val display = joined.getString("token")
+        // The display only sends planar actions; they act for the active player.
+        assertEquals("forbidden", f.sessions.handle(f.action(display, "life", -1)).getString("code"))
+        assertEquals("ok", f.sessions.handle(f.action(display, "planar-counter", 1).put("slot", 1)).getString("code"))
+        assertEquals(1, f.table.state.value.game.planechase.counters["plane-a"])
+        assertEquals("rejected", f.sessions.handle(f.action(display, "planar-counter", 1).put("slot", 2)).getString("code"))
+        assertEquals("ok", f.sessions.handle(f.action(display, "planar-walk", 0)).getString("code"))
+        assertEquals("plane-b", f.table.state.value.game.planechase.faceUp.single().id)
+        // A seat may press them too, on anyone's turn, like the host's own Planes tab.
+        val b = f.join("player", 2).getString("token")
+        assertEquals("ok", f.sessions.handle(f.action(b, "planar-chaos", 0)).getString("code"))
+        assertEquals(1, f.table.state.value.game.planechase.chaos)
+        assertEquals("ok", f.sessions.handle(f.action(display, "planar-roll", 0)).getString("code"))
+        assertEquals(0, f.table.state.value.game.planechase.lastRoll?.player)
+        // Not without Planechase, and never in Death May Die or other games.
+        assertEquals("invalid", Fixture(tcg(GameProfile.POKEMON)).join("planes", 0).getString("code"))
+        val off = Fixture(tcg(GameProfile.MTG))
+        val offDisplay = off.join("planes", 0).getString("token")
+        assertEquals("rejected", off.sessions.handle(off.action(offDisplay, "planar-roll", 0)).getString("code"))
+        assertEquals("invalid", Fixture().join("planes", 0).getString("code"))
+    }
+
     @Test fun `a guest's win claim waits for the other players in turn order and a denial withdraws it`() {
         val f = Fixture(StandaloneGame().setFormat(GameProfile.MTG_COMMANDER)
             .addPlayer("A").addPlayer("B").addPlayer("C").chooseStarter(0).start(1_000, "shared-match"))

@@ -47,6 +47,7 @@ import com.turnhub.android.standalone.PlanarCard
 import com.turnhub.android.standalone.PlanarDeckSource
 import com.turnhub.android.standalone.PlanarFace
 import com.turnhub.android.standalone.Planechase
+import com.turnhub.android.standalone.StandaloneGame
 import com.turnhub.android.standalone.StandaloneState
 import com.turnhub.android.standalone.StandaloneTable
 import com.turnhub.android.ui.components.AccentButton
@@ -142,7 +143,7 @@ fun PlanesTab(state: StandaloneState, table: StandaloneTable) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         if (playing && planar.enabled) {
-            PlanarPlay(state, table, cards)
+            PlanarPlay(game, PlanarControls.of(table), cards) { LateDeck(table, cards) }
         } else {
             if (playing) BrassCard { Text("This game isn't using Planechase. Turn it on here before the next game.", color = palette.muted) }
             PlanarSetup(state, table, cards)
@@ -226,12 +227,65 @@ private fun LateDeck(table: StandaloneTable, cards: Map<String, PlaneInfo>?) {
     }
 }
 
+/**
+ * What the Planes tab's buttons do: the host's own table, or a guest sending them to the
+ * host. Either way they act for the active player. [enabled] is false while a guest can't send.
+ */
+internal class PlanarControls(
+    val roll: (fromEffect: Boolean) -> Unit,
+    val planeswalk: () -> Unit,
+    val resolvePhenomenon: () -> Unit,
+    val chaosEnsues: () -> Unit,
+    val topToBottom: () -> Unit,
+    val changeCounter: (card: String, delta: Int) -> Unit,
+    val enabled: Boolean = true,
+) {
+    companion object {
+        fun of(table: StandaloneTable) = PlanarControls({ table.rollPlanarDie(fromEffect = it) }, table::planeswalk,
+            table::resolvePhenomenon, table::chaosEnsues, table::planarTopToBottom, table::changePlaneCounter)
+    }
+}
+
+/**
+ * A joined device's Planes screen: the host's face-up plane, die and counters, live from its
+ * snapshot, with the same buttons as the host's tab. The card text and art come from Scryfall
+ * on this device, like the host's; the host keeps the deck and rolls the die.
+ */
 @Composable
-private fun PlanarPlay(state: StandaloneState, table: StandaloneTable, cards: Map<String, PlaneInfo>?) {
-    val p = palette
-    val game = state.game
+internal fun SharedPlanes(game: StandaloneGame, controls: PlanarControls, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     val planar = game.planechase
-    val running = game.state == TableState.RUNNING
+    val cards = PlaneLibrary.cards
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { PlaneLibrary.known(context) }
+    PlanesDownloadWhenNeeded(planar)
+    Column(
+        modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        when {
+            !planar.enabled -> BrassCard { Text("This game isn't using Planechase. The host turns it on in Game setup.", color = palette.muted) }
+            game.state == TableState.LOBBY -> BrassCard { Text("The planes appear when the host starts the game.", color = palette.muted) }
+            game.state == TableState.GAME_OVER -> BrassCard { Text("Game over. The planes return with the next game.", color = palette.muted) }
+            else -> {
+                if (!planar.physical && cards == null) BrassCard {
+                    Text(if (PlaneLibrary.problem != null) "The plane cards didn't download to this device. Check its internet, then retry."
+                        else "Downloading the plane cards to this device…", color = palette.muted)
+                    if (PlaneLibrary.problem != null) ToneButton("Retry download", { scope.launch { PlaneLibrary.download(context) } })
+                }
+                PlanarPlay(game, controls, cards, lateDeck = null)
+            }
+        }
+        PlanarCredit()
+    }
+}
+
+@Composable
+private fun PlanarPlay(game: StandaloneGame, controls: PlanarControls, cards: Map<String, PlaneInfo>?,
+    lateDeck: (@Composable () -> Unit)?) {
+    val p = palette
+    val planar = game.planechase
+    val running = game.state == TableState.RUNNING && controls.enabled
     val controller = game.active?.let { game.players.getOrNull(it)?.name }
     // Chaos and physical planeswalks show for a few seconds after they happen (not when the tab opens).
     var seenChaos by remember { mutableStateOf(planar.chaos) }
@@ -266,15 +320,15 @@ private fun PlanarPlay(state: StandaloneState, table: StandaloneTable, cards: Ma
     if (planar.physical) {
         BrassCard(highlight = if (walkNow) p.accent else null) {
             Text("Your own cards", color = p.text, style = MaterialTheme.typography.titleLarge)
-            if (planar.source == PlanarDeckSource.DIGITAL) LateDeck(table, cards)
+            if (planar.source == PlanarDeckSource.DIGITAL) lateDeck?.invoke()
             Text(if (walkNow) "Planeswalk! Put the plane on the bottom and turn over the next one."
                 else "Keep the face-up plane where everyone can read it.", color = if (walkNow) p.text else p.muted,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-            PlaneCounters(planar.counters[Planechase.PHYSICAL_PLANE] ?: 0) { table.changePlaneCounter(Planechase.PHYSICAL_PLANE, it) }
+            PlaneCounters(planar.counters[Planechase.PHYSICAL_PLANE] ?: 0, controls.enabled) { controls.changeCounter(Planechase.PHYSICAL_PLANE, it) }
         }
     } else {
         planar.faceUp.forEach { card ->
-            PlaneCardView(cards?.get(card.id), card, planar.counters[card.id] ?: 0, chaosNow) { table.changePlaneCounter(card.id, it) }
+            PlaneCardView(cards?.get(card.id), card, planar.counters[card.id] ?: 0, chaosNow, controls.enabled) { controls.changeCounter(card.id, it) }
         }
     }
 
@@ -294,20 +348,20 @@ private fun PlanarPlay(state: StandaloneState, table: StandaloneTable, cards: Ma
             }, color = p.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
         if (planar.phenomenonPending) {
-            AccentButton("Done: planeswalk away", table::resolvePhenomenon, Modifier.fillMaxWidth(), enabled = running)
+            AccentButton("Done: planeswalk away", controls.resolvePhenomenon, Modifier.fillMaxWidth(), enabled = running)
         } else {
             val cost = game.active?.let { planar.cost(it) } ?: 0
-            AccentButton("Roll the planar die: {$cost}", { table.rollPlanarDie() }, Modifier.fillMaxWidth(), enabled = running)
+            AccentButton("Roll the planar die: {$cost}", { controls.roll(false) }, Modifier.fillMaxWidth(), enabled = running)
         }
     }
 
     DisclosureCard("When a card says so") {
-        ToneButton("Roll for a card (free)", { table.rollPlanarDie(fromEffect = true) }, Modifier.fillMaxWidth(),
+        ToneButton("Roll for a card (free)", { controls.roll(true) }, Modifier.fillMaxWidth(),
             enabled = running && !planar.phenomenonPending)
-        ToneButton("Planeswalk", table::planeswalk, Modifier.fillMaxWidth(), enabled = running)
-        ToneButton("Chaos ensues", table::chaosEnsues, Modifier.fillMaxWidth(), enabled = running && !planar.phenomenonPending)
+        ToneButton("Planeswalk", controls.planeswalk, Modifier.fillMaxWidth(), enabled = running)
+        ToneButton("Chaos ensues", controls.chaosEnsues, Modifier.fillMaxWidth(), enabled = running && !planar.phenomenonPending)
         if (!planar.physical) {
-            ToneButton("Put the top card on the bottom", table::planarTopToBottom, Modifier.fillMaxWidth(), enabled = running)
+            ToneButton("Put the top card on the bottom", controls.topToBottom, Modifier.fillMaxWidth(), enabled = running)
         }
     }
 }
@@ -320,7 +374,7 @@ private fun dieFace(face: PlanarFace): String = when (face) {
 }
 
 @Composable
-private fun PlaneCardView(info: PlaneInfo?, card: PlanarCard, counters: Int, chaosNow: Boolean, onCounter: (Int) -> Unit) {
+private fun PlaneCardView(info: PlaneInfo?, card: PlanarCard, counters: Int, chaosNow: Boolean, enabled: Boolean, onCounter: (Int) -> Unit) {
     val p = palette
     val context = LocalContext.current
     BrassCard(highlight = if (chaosNow) p.warn else null) {
@@ -346,18 +400,18 @@ private fun PlaneCardView(info: PlaneInfo?, card: PlanarCard, counters: Int, cha
             }
             Text("Art by ${info.artist}. Card from Scryfall.", color = p.faint, style = MaterialTheme.typography.bodySmall)
         }
-        if (!card.phenomenon) PlaneCounters(counters, onCounter)
+        if (!card.phenomenon) PlaneCounters(counters, enabled, onCounter)
     }
 }
 
 @Composable
-private fun PlaneCounters(count: Int, onChange: (Int) -> Unit) {
+private fun PlaneCounters(count: Int, enabled: Boolean, onChange: (Int) -> Unit) {
     val p = palette
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Counters on this plane", color = p.muted, modifier = Modifier.weight(1f))
-        ToneButton("−", { onChange(-1) }, enabled = count > 0)
+        ToneButton("−", { onChange(-1) }, enabled = enabled && count > 0)
         Text("$count", color = p.text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        ToneButton("+", { onChange(1) }, tone = Tone.ACCENT)
+        ToneButton("+", { onChange(1) }, tone = Tone.ACCENT, enabled = enabled)
     }
 }
 

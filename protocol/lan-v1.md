@@ -65,7 +65,8 @@ incompatible data stops joining rather than starting a local game.
 | `command` | `token`, `actionId`, `match`, `revision`, `kind`, `value`, `slot`, optional `source`, optional `looksId` | Player/investigator: request an own-seat edit |
 | `leave` | `token` | Release this guest session |
 
-`role` is `player` for a TCG seat; Death May Die accepts `elder` with `player: 0`,
+`role` is `player` for a TCG seat, or `planes` with `player: 0` for a Magic
+table's Planes display; Death May Die accepts `elder` with `player: 0`,
 or `investigator` with a current one-based player number. The host rejects roles
 from another game family. It binds a player session to that player's name and
 renumbers it as lobby changes move the player; if the player is removed, the
@@ -77,7 +78,8 @@ released when processing a new join. A live guest polls once per second.
 Repeated `joinId` UUIDs return the same token for the same role/seat. A successful
 join returns `token`; authenticated snapshots return `game` and `claimed`
 (one-based investigator seats). The token, rather than any submitted player
-field, owns the investigator. Elder guests cannot submit commands.
+field, owns the investigator. Elder guests cannot submit commands; Planes
+display guests submit only the planar commands below.
 
 Join, poll and command acknowledgements also return the session's current
 one-based `player`, so guest controls follow lobby reseating. A hosted format
@@ -95,6 +97,7 @@ score gestures, Pass button or actionable turn chips.
 | `poison`, `energy`, `experience`, `treasure`, `rad`, `commander-casts` | −1 or +1 | 0/1; commander casts may use 2 | 0 |
 | `city-blessing`, `initiative` | 0 or 1 | 0/1 | 0 |
 | `turn-action:<enum>`, `pokemon-condition:<enum>` | 0 or 1 | 0 | 0 |
+| `rad-resolve` | Nonlands milled, 0 up to the owned player's rad (only while their rad trigger is due) | 0 | 0 |
 | `pass`, `extend-turn`, `win`, `confirm`, `deny`, `concede`, `eliminate`, `monarch` | 0 | 0 | 0 |
 
 A guest's `win` opens a claim (`winClaim`, `winConfirmed` in the game JSON) that
@@ -108,10 +111,26 @@ counter bounds, Commander allies and all outcomes. The authenticated player is
 always the recipient; `source` selects only whose Commander dealt damage. In
 Two-Headed Giant, life/poison apply to the team and either teammate may pass;
 other counters stay personal. Setup, pause/reset/rematch, day/night, Planechase
-and Bag of Doom resolution remain host-only. Commander names and chosen art
-printings (public card IDs) are included in public snapshots; account IDs and the
-Planechase deck stay private.
+setup and Bag of Doom resolution remain host-only. Commander names and chosen art
+printings (public card IDs) are included in public snapshots, and so are
+Planechase's face-up cards, counters, roll costs and last roll (public Scryfall
+card IDs); account IDs, the planar deck's order and the host's deck choice stay
+private (`deck` is always empty).
 `source` defaults to 0 for existing DMD clients and is part of immutable receipts.
+
+### Planechase commands
+
+Any Magic seat or the Planes display may send these, as anyone at the host can
+press the Planes tab: each acts for the active player (their team in
+Two-Headed Giant), and the host's engine checks the planar turn, a running
+match and a pending phenomenon. The host rolls the die. They are `rejected`
+without Planechase on.
+
+| `kind` | `value` | `slot` |
+|---|---|---|
+| `planar-roll` | 0 paid roll, 1 free roll for a card's effect | 0 |
+| `planar-walk`, `planar-chaos`, `planar-resolve`, `planar-bottom` | 0 | 0 |
+| `planar-counter` | −1 or +1 | 0 the table's own physical plane, else the one-based face-up card |
 
 ### Death May Die commands
 

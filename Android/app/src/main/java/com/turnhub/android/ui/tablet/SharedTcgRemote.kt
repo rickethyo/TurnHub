@@ -10,8 +10,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.turnhub.android.domain.TableClock
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.lan.LanUiState
@@ -35,6 +39,10 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     val game = state.remote ?: return
     val p = palette
     var tableView by rememberSaveable { mutableStateOf(false) }
+    // The Planes screen, from a seat or as the planes display (owner, 2026-10-20).
+    var planesChosen by rememberSaveable { mutableStateOf(false) }
+    val planesDisplay = state.role == "planes"
+    val planesView = planesDisplay || planesChosen && game.planechase.enabled
     var menu by rememberSaveable { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
     var confirmElimination by remember { mutableStateOf(false) }
@@ -45,23 +53,70 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     // Either teammate may pass. Keep the full host summary for the table and
     // show the claimed teammate as the personal panel's actor during their turn.
     val personal = if (own != null && summary.hasTurn(own.playerNumber)) summary.copy(activePlayerNumber = own.playerNumber) else summary
-    val enabled = state.online && !state.busy && !state.uncertain && own != null && !own.eliminated &&
+    // A tap in flight leaves the controls as they are, so the screen doesn't flash on every
+    // change (owner, 2026-10-20); only a lost reply holds them until Retry.
+    val enabled = state.online && !(state.uncertain && !state.busy) && own != null && !own.eliminated &&
         game.state in listOf(TableState.RUNNING, TableState.PAUSED)
+    // Life taps gather for a moment and go to the host as one change, as on the table, so
+    // quick taps all count and the number moves at once.
+    val scope = rememberCoroutineScope()
+    val latest by rememberUpdatedState(state)
+    var unsent by remember { mutableStateOf(0) }
+    var gathering by remember { mutableStateOf<Job?>(null) }
+    /** The sent change and the snapshot revision it was sent against, until a newer snapshot carries it. */
+    var sending by remember { mutableStateOf<Pair<Int, Long>?>(null) }
+    LaunchedEffect(sending) { if (sending != null) { delay(2_000); sending = null } }
+    val inFlight = sending?.takeIf { state.busy || game.revision == it.second }?.first ?: 0
+    fun bump(delta: Int) {
+        if (tableView || planesView || !enabled) return
+        unsent += delta
+        haptics.tick()
+        gathering?.cancel()
+        gathering = scope.launch {
+            delay(LIFE_GATHER_MS)
+            // Wait out another command still in flight, then send the whole change once.
+            while (latest.busy) delay(100)
+            val total = unsent
+            val revision = latest.remote?.revision ?: return@launch
+            unsent = 0
+            if (total == 0 || !latest.online) return@launch
+            sending = total to revision
+            model.act("life", total)
+        }
+    }
     // Navigation changes only this composable; token, polling and pending commands stay in the model.
     BackHandler {
-        when { menu -> menu = false; tableView -> tableView = false; else -> confirmLeave = true }
+        when { menu -> menu = false; planesView && !planesDisplay -> planesChosen = false; tableView -> tableView = false; else -> confirmLeave = true }
     }
     fun act(kind: String, value: Int = 0, slot: Int = 0, source: Int = 0) {
-        if (!tableView && enabled) model.act(kind, value, slot, source)
+        if (!tableView && !planesView && enabled) model.act(kind, value, slot, source)
     }
+    val planar = game.planechase
+    // Planar buttons act for the active player on the host, from any seat or the display.
+    val planarControls = PlanarControls(
+        roll = { model.act("planar-roll", if (it) 1 else 0) },
+        planeswalk = { model.act("planar-walk") },
+        resolvePhenomenon = { model.act("planar-resolve") },
+        chaosEnsues = { model.act("planar-chaos") },
+        topToBottom = { model.act("planar-bottom") },
+        changeCounter = { card, delta ->
+            val slot = if (card == com.turnhub.android.standalone.Planechase.PHYSICAL_PLANE) 0 else planar.faceUp.indexOfFirst { it.id == card } + 1
+            if (slot >= 0) model.act("planar-counter", delta, slot)
+        },
+        enabled = state.online && !state.busy && !state.uncertain && (planesDisplay || own != null),
+    )
     Column(Modifier.fillMaxSize().background(p.bg).safeDrawingPadding().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ToneButton(if (tableView) "My player" else "Table · read only", {
-                menu = false; tableView = !tableView
+            if (!planesDisplay) ToneButton(if (tableView && !planesView) "My player" else "Table · read only", {
+                menu = false; tableView = !tableView || planesView; planesChosen = false
             }, Modifier.weight(1f))
+            if (!planesDisplay && planar.enabled) ToneButton(if (planesView) "My player" else "Planes", {
+                menu = false; tableView = false; planesChosen = !planesChosen
+            }, Modifier.weight(1f))
+            if (planesDisplay) Spacer(Modifier.weight(1f))
             ToneButton("Leave", { confirmLeave = true })
         }
-        Text("${sharedGameTitle(game)} · ${if (tableView) "Table · read only" else own?.label ?: "My player"} · ${if (!state.online) "Disconnected · last update" else if (state.busy) "Sending…" else "Connected"}",
+        Text("${sharedGameTitle(game)} · ${if (planesDisplay) "Planes display" else if (planesView) "Planes" else if (tableView) "Table · read only" else own?.label ?: "My player"} · ${if (!state.online) "Disconnected · last update" else if (state.busy) "Sending…" else "Connected"}",
             color = if (state.online) p.muted else p.warn, style = MaterialTheme.typography.labelLarge)
         state.message?.let { Text(it, color = p.warn) }
         when (game.state) {
@@ -89,41 +144,46 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             color = p.warn)
         else if (claimDenied && game.state == TableState.RUNNING || claimDenied && game.state == TableState.PAUSED)
             Text("Your win claim was denied. Play continues.", color = p.warn)
-        val visible = if (tableView) tableUnits(summary) else listOfNotNull(own?.let { TableUnit("own", listOf(it)) })
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val columns = if (tableView && maxWidth >= 600.dp && visible.size > 2) 2 else 1
-            val rows = visible.chunked(columns)
-            // A narrow screen can't fit every panel with its life total: scroll at a readable height.
-            val scroll = rows.size > 1 && (maxHeight - 6.dp * (rows.size - 1)) / rows.size < MIN_REMOTE_PANEL
-            Column(if (scroll) Modifier.fillMaxSize().verticalScroll(rememberScrollState()) else Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                rows.forEach { row ->
-                    Row((if (scroll) Modifier.height(MIN_REMOTE_PANEL) else Modifier.weight(1f)).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        row.forEach { unit ->
-                            Box(Modifier.weight(1f).fillMaxHeight()) {
-                                PlayerPanel(unit, if (tableView) summary else personal, unit.lifeSeat.life ?: 0, 0,
-                                    onOpenMenu = { if (enabled && !tableView) menu = true }, onPlanarRoll = null,
-                                    onBump = { act("life", it) }, onControl = { _, action -> act(action) },
-                                    onTurnMark = { _, kind, value -> act(kind, value) },
-                                    onSkillLevel = { _, _, _ -> }, onEditSkills = { _, _ -> }, onInvestigatorCard = { _, _, _ -> },
-                                    investigatorFocused = false, onRespond = { _, _, _ -> }, offlineCommander = { _, _, _ -> 0 },
-                                    haptics = haptics, reduceMotion = reduceMotion, controlsEnabled = enabled && !tableView)
+        if (planesView) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            SharedPlanes(game, planarControls)
+        } else {
+            val visible = if (tableView) tableUnits(summary) else listOfNotNull(own?.let { TableUnit("own", listOf(it)) })
+            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                val columns = if (tableView && maxWidth >= 600.dp && visible.size > 2) 2 else 1
+                val rows = visible.chunked(columns)
+                // A narrow screen can't fit every panel with its life total: scroll at a readable height.
+                val scroll = rows.size > 1 && (maxHeight - 6.dp * (rows.size - 1)) / rows.size < MIN_REMOTE_PANEL
+                Column(if (scroll) Modifier.fillMaxSize().verticalScroll(rememberScrollState()) else Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    rows.forEach { row ->
+                        Row((if (scroll) Modifier.height(MIN_REMOTE_PANEL) else Modifier.weight(1f)).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            row.forEach { unit ->
+                                Box(Modifier.weight(1f).fillMaxHeight()) {
+                                    PlayerPanel(unit, if (tableView) summary else personal,
+                                        (unit.lifeSeat.life ?: 0) + if (tableView) 0 else unsent + inFlight,
+                                        onOpenMenu = { if (enabled && !tableView) menu = true }, onPlanarRoll = null,
+                                        onBump = { bump(it) }, onControl = { _, action -> act(action) },
+                                        onTurnMark = { _, kind, value -> act(kind, value) },
+                                        onSkillLevel = { _, _, _ -> }, onEditSkills = { _, _ -> }, onInvestigatorCard = { _, _, _ -> },
+                                        investigatorFocused = false, onRespond = { _, _, _ -> }, offlineCommander = { _, _, _ -> 0 },
+                                        haptics = haptics, reduceMotion = reduceMotion, controlsEnabled = enabled && !tableView)
+                                }
                             }
+                            if (row.size < columns) Spacer(Modifier.weight(1f))
                         }
-                        if (row.size < columns) Spacer(Modifier.weight(1f))
                     }
                 }
-            }
-            if (menu && !tableView && own != null) {
-                PlayerMenu(TableUnit("own", listOf(own)), partners, personal,
-                    onClose = { menu = false }, onControl = { _, action -> act(action) },
-                    onEliminate = { _, _ -> menu = false; confirmElimination = true },
-                    onCommander = { _, source, commander, delta -> act("commander", delta, commander, source) },
-                    onCounter = { _, kind, value, slot -> act(kind, value,
-                        if (kind.startsWith(StandaloneGame.ACTION_KIND) || kind.startsWith(StandaloneGame.CONDITION_KIND)) 0 else slot) },
-                    onLife = { _, delta -> act("life", delta) }, onEditSkills = { _, _ -> },
-                    onInvestigatorCard = { _, _, _ -> }, offlineCommander = { _, _, _ -> 0 }, controlsEnabled = enabled)
+                if (menu && !tableView && own != null) {
+                    PlayerMenu(TableUnit("own", listOf(own)), partners, personal,
+                        onClose = { menu = false }, onControl = { _, action -> act(action) },
+                        onEliminate = { _, _ -> menu = false; confirmElimination = true },
+                        onCommander = { _, source, commander, delta -> act("commander", delta, commander, source) },
+                        onCounter = { _, kind, value, slot -> act(kind, value,
+                            if (kind.startsWith(StandaloneGame.ACTION_KIND) || kind.startsWith(StandaloneGame.CONDITION_KIND)) 0 else slot) },
+                        onLife = { _, delta -> act("life", delta) }, onEditSkills = { _, _ -> },
+                        onInvestigatorCard = { _, _, _ -> }, offlineCommander = { _, _, _ -> 0 }, controlsEnabled = enabled)
+                }
             }
         }
     }
@@ -144,6 +204,8 @@ internal fun TableSummary.withLooks(looks: List<com.turnhub.android.standalone.L
         val look = looks.getOrNull(player.playerNumber - 1) ?: return@map player
         player.copy(avatar = look.icon(), color = look.color, tileBackground = look.tileBackground)
     })
+
+private const val LIFE_GATHER_MS = 700L
 
 /** The shortest table panel that still shows its name band and the whole life total. */
 private val MIN_REMOTE_PANEL = 200.dp

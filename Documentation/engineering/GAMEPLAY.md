@@ -743,6 +743,13 @@ correction. Atlas doesn't track these yet (`STAGED_CHANGES.md`), so connected
 play hides them. A player knocked out is the existing elimination, with its
 "Eliminated by" source.
 
+Rad counters (CR 727): when a turn begins, each player of that turn with rad
+counters gets **Resolve rad** on their panel, on the table and on their own
+phone: "Mill X. How many nonlands?" (X is their rad). Their answer takes that
+much life and that many rad counters; **None** just clears it. The reminder
+lasts until answered or the next turn (owner, 2026-10-20). TurnHub doesn't see
+the cards, so the player mills and counts.
+
 Each commander’s casts from the command zone are tracked separately. Its next
 cast tax is derived as twice the count; first cast has no tax. Counting a second
 commander’s casts enables partners in Atlas. A minus corrects an accidental cast.
