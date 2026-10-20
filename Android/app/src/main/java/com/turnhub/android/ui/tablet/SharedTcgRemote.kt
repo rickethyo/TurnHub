@@ -12,6 +12,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -98,6 +101,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
         planeswalk = { model.act("planar-walk") },
         resolvePhenomenon = { model.act("planar-resolve") },
         chaosEnsues = { model.act("planar-chaos") },
+        reverseTurnOrder = { model.act("planar-reverse", if (it) 1 else 0) },
         topToBottom = { model.act("planar-bottom") },
         changeCounter = { card, delta ->
             val slot = if (card == com.turnhub.android.standalone.Planechase.PHYSICAL_PLANE) 0 else planar.faceUp.indexOfFirst { it.id == card } + 1
@@ -121,10 +125,27 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
         state.message?.let { Text(it, color = p.warn) }
         when (game.state) {
             TableState.LOBBY -> Text("Waiting for the host to start. Your seat stays connected.", color = p.text)
-            TableState.PAUSED -> Text("Paused by the table", color = p.warn)
+            TableState.PAUSED -> Text(if (summary.doomBag?.pending == true) "Bag check: the host draws from the bag before the next turn."
+                else "Paused by the table", color = p.warn, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
             TableState.GAME_OVER -> Text(if (game.winners.isEmpty()) "Game over" else "Winner: " +
                 game.winners.mapNotNull { game.players.getOrNull(it)?.name }.joinToString(), color = p.text)
             else -> Unit
+        }
+        // Bag of Doom: each check's result stays until this device closes it (the host draws).
+        summary.doomBag?.takeIf { it.lastCheck > 0 }?.let { bag ->
+            var seen by rememberSaveable(game.gameId) { mutableStateOf(0L) }
+            if (bag.lastCheck > seen) {
+                val drawn = summary.players.firstOrNull { it.playerNumber == bag.lastDraw }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(when {
+                        bag.lastDraw == 0 -> "Bag check: everyone was safe."
+                        bag.lastDraw == state.player -> "The bag drew you. You're out of this game."
+                        else -> "The bag drew ${drawn?.label ?: "Player ${bag.lastDraw}"}. They're out."
+                    }, color = p.warn, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f)
+                        .semantics { liveRegion = LiveRegionMode.Assertive })
+                    ToneButton("OK", { seen = bag.lastCheck })
+                }
+            }
         }
         // Every tap is briefly in flight; only a lost reply adds a row, so the panel doesn't jump.
         if (state.uncertain && !state.busy) ToneButton("Retry last action", model::retry)

@@ -120,6 +120,8 @@ data class StandaloneGame(
     val initiative: Int? = null,
     /** Magic: day and night (CR 726), table-wide. */
     val dayNight: DayNight = DayNight.NEITHER,
+    /** Turns go counterclockwise, for cards that reverse turn order (owner, 2026-10-20); off at each start. */
+    val turnOrderReversed: Boolean = false,
     /**
      * A win claimed from a player's own device, waiting on the other players as a Sigil's claim
      * waits on Atlas (owner, 2026-10-20): the claimant's index, and who has confirmed so far.
@@ -365,6 +367,7 @@ data class StandaloneGame(
             monarch = null,
             initiative = null,
             dayNight = DayNight.NEITHER,
+            turnOrderReversed = false,
             startedAtMs = nowMs,
             elapsedMs = 0,
             runningSinceMs = nowMs,
@@ -455,7 +458,7 @@ data class StandaloneGame(
     private fun advanceTurn(nowMs: Long, reward: Boolean, random: Random = Random.Default, nextPlayer: Int? = null): StandaloneGame {
         val holder = active ?: return this
         val team = mates(holder)
-        val next = nextPlayer ?: stagedNextTurn ?: (if (profile.cooperative) nextUp(team.last(), acted + team) else nextIn(team.last())) ?: return this
+        val next = nextPlayer ?: stagedNextTurn ?: (if (profile.cooperative) nextUp(team.last(), acted + team) else nextAfter(team)) ?: return this
         val now = gameElapsedMs(nowMs)
         val took = (now - turnStartedAtElapsedMs).coerceAtLeast(0)
         val earn = reward && timerRules.earnExtensions && turnTimerMs > 0 && !timeoutHandled && turnExtensionMs == 0L &&
@@ -578,6 +581,10 @@ data class StandaloneGame(
     fun setDayNight(next: DayNight): StandaloneGame =
         if (!playing || !magic || next == dayNight) this else copy(dayNight = next).bump()
 
+    /** A card reverses turn order, or a later one (or a correction) sets it back. Not in cooperative games, which choose who goes next. */
+    fun setTurnOrderReversed(on: Boolean): StandaloneGame =
+        if (!playing || profile.cooperative || on == turnOrderReversed) this else copy(turnOrderReversed = on).bump()
+
     fun claimMonarch(index: Int): StandaloneGame {
         if (!playing || index !in players.indices || players[index].eliminated ||
             !magic || monarch == index) return this
@@ -693,7 +700,7 @@ data class StandaloneGame(
         }).bump().passStatuses(leaving).doomLeft(eliminatedBy?.plus(1) ?: 0)
         if (game.players.none { it.eliminationPending }) game.decided()?.let { return game.finish(it, nowMs) }
         if (active in leaving) {
-            val next = game.stagedNextTurn ?: (if (profile.cooperative) game.nextUp(leaving.last(), acted) else game.nextIn(leaving.last())) ?: return game
+            val next = game.stagedNextTurn ?: (if (profile.cooperative) game.nextUp(leaving.last(), acted) else game.nextAfter(leaving)) ?: return game
             game = game.copy(active = next, nextTurn = null, turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false,
                 planechase = game.planechase.newTurn())
         }
@@ -720,7 +727,7 @@ data class StandaloneGame(
         }).passStatuses(targets).bump().doomLeft()
         if (game.players.none { it.eliminationPending }) game.decided()?.let { return game.finish(it, nowMs) }
         if (active in targets) {
-            game = game.copy(active = game.nextIn(mates(active!!).last()), turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false,
+            game = game.copy(active = game.nextAfter(mates(active!!)), turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false,
                 planechase = game.planechase.newTurn())
         }
         return if (game.players.any { it.eliminationPending }) game.copy(state = TableState.PAUSED,
@@ -1143,6 +1150,18 @@ data class StandaloneGame(
         .map { (index + it) % players.size }
         .firstOrNull { !players[it].eliminated && it != index }
 
+    /**
+     * Who follows [team]'s turn: clockwise, or counterclockwise once turn order is reversed.
+     * A team's turn is held by its first player.
+     */
+    private fun nextAfter(team: List<Int>): Int? {
+        if (!turnOrderReversed) return nextIn(team.last())
+        val from = team.first()
+        val next = (1..players.size).map { Math.floorMod(from - it, players.size) }
+            .firstOrNull { !players[it].eliminated && it !in team } ?: return null
+        return mates(next).first()
+    }
+
     /** The finished match as Atlas will import it; null until it ends. */
     fun record(): GameRecord? {
         if (state != TableState.GAME_OVER || gameId.isEmpty()) return null
@@ -1258,6 +1277,7 @@ data class StandaloneGame(
             monarchPlayerNumber = monarch?.plus(1),
             initiativePlayerNumber = initiative?.plus(1),
             dayNight = dayNight.takeIf { magic },
+            turnOrderReversed = turnOrderReversed,
             pending = PendingDecisions(null, 0, openWinClaim?.plus(1), winConfirmer?.plus(1), null),
             gameElapsedMs = elapsed,
             turnElapsedMs = (elapsed - turnStartedAtElapsedMs).coerceAtLeast(0),

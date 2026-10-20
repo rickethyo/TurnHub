@@ -46,6 +46,13 @@ The host may show only one player's panel (**Show on this device** in the game
 menu) when the group has no central display; a claim made there waits the same
 way, and the current confirmer's panel joins the view while they answer.
 
+In Bag of Doom, life a guest enters counts like the host's own entries (another
+player's loss makes the turn's owner safe). Guest panels show In bag/Safe; during
+a check the guest says the host draws before the next turn, and each check's
+result (who was drawn, or everyone safe) stays until the guest taps OK
+(owner, 2026-10-20). The draw, corrections and credits stay on the host, and an
+undrawn selection never leaves it.
+
 When a Magic game uses Planechase, a guest may join as the **Planes display** (no
 seat), and each Magic seat gains a **Planes** view beside **Table · read only**
 (owner, 2026-10-20), so a second tablet can show the planes while another shows

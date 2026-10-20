@@ -252,6 +252,27 @@ class StandaloneGameTest {
     }
 
     @Test
+    fun `reversed turn order goes counterclockwise until set back and resets each game`() {
+        val game = threePlayers()
+        assertEquals(0, game.active)
+        val reversed = game.setTurnOrderReversed(true)
+        assertTrue(reversed.toSummary(2_000, 2_000).turnOrderReversed)
+        assertEquals(reversed, StandaloneTable.gameFromJson(StandaloneTable.gameToJson(reversed)))
+        val back = reversed.pass(0, 2_000)
+        assertEquals(2, back.active)
+        assertEquals(1, back.pass(2, 3_000).active)
+        assertEquals(0, back.setTurnOrderReversed(false).pass(2, 3_000).active)
+        // An eliminated player is skipped either way.
+        assertEquals(1, reversed.eliminate(2, 2_000).pass(0, 3_000).active)
+        assertEquals(false, back.claimWin(2, 4_000).rematch(5_000, "g2", firstSeat).turnOrderReversed)
+        // Two-Headed Giant: the turn goes to the other team, held by its first player.
+        val teams = teams().start(1_000, "t1", firstSeat).setTurnOrderReversed(true)
+        assertEquals(0, teams.active)
+        assertEquals(2, teams.pass(1, 2_000).active)
+        assertEquals(0, teams.pass(1, 2_000).pass(3, 3_000).active)
+    }
+
+    @Test
     fun `counter corrections reject negative overflow format and inactive seats`() {
         val game = threePlayers()
         assertSame(game, game.changeCounter(0, "energy", -1))
