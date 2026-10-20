@@ -986,7 +986,7 @@ internal fun PlayerPanel(
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
-                    if (summary.doomBag != null && summary.players.count { !it.eliminated } > 4 && !out) {
+                    if (summary.doomBag != null && summary.players.count { !it.eliminated } > 2 && !out) {
                         val risk = summary.doomBag.contains(unit.members.first().playerNumber)
                         Tag(if (risk) "In bag" else "Safe", if (risk) p.warn else p.good, p.surface)
                     }

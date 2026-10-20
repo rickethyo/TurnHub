@@ -136,7 +136,7 @@ enum class GameMode(val label: String, val detail: String) {
     // "Free-for-all": the Standard tile is the Magic format, so the mode needs its own word.
     STANDARD("Free-for-all", "Everyone for themselves."),
     TWO_HEADED_GIANT("Two-Headed Giant", "Players next to each other play as teams of two (1 and 2, 3 and 4, and so on), sharing life, poison and the turn."),
-    BAG_OF_DOOM("Bag of Doom", "Five or more players. Escape the bag when another player loses life on your turn; bag checks begin after four cycles and stop at four survivors."),
+    BAG_OF_DOOM("Bag of Doom", "Five or more players. Escape the bag when another player loses life on your turn; bag checks begin after four cycles and stop at two survivors."),
     STAR_COMMANDER("Star Commander", "Five players. Your neighbors are allies who can't deal you Commander damage; " +
         "win when both players across the star are out."),
     ;

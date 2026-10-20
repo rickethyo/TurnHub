@@ -944,7 +944,7 @@ class StandaloneTable(
                         },
                     )
                 },
-            ).also { game ->
+            ).let(DoomRules::resume).also { game ->
                 require(game.players.size <= StandaloneGame.MAX_PLAYERS)
                 require(DoomRules.valid(game))
                 game.players.forEachIndexed { i, p ->

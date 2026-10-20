@@ -34,7 +34,7 @@ internal fun DoomBagPanel(summary: TableSummary, enabled: Boolean,
     val bag = summary.doomBag ?: return
     val p = palette
     val living = summary.players.filter { !it.eliminated }
-    val active = living.size > 4 && summary.state in listOf(TableState.RUNNING, TableState.PAUSED)
+    val active = living.size > 2 && summary.state in listOf(TableState.RUNNING, TableState.PAUSED)
     val pendingLife = summary.players.any { it.lifeRequest?.state == LifeRequestState.PENDING }
     val canEdit = enabled && active && !bag.sealed
     fun name(n: Int) = summary.players.firstOrNull { it.playerNumber == n }?.let { "${it.playerNumber}. ${it.label}" } ?: "Player $n"

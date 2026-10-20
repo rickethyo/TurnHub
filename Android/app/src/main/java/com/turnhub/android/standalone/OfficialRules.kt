@@ -122,7 +122,7 @@ fun modeRules(profile: GameProfile, teams: Boolean): ModeRules = officialRules(p
             "Everyone begins in the bag. When another player loses life on your turn, your name comes out, even if they paid that life themselves. Your own life loss does not save you.",
             "The first bag check follows the fourth full turn cycle. Then check once per cycle. A random name still in the bag is eliminated; an empty bag eliminates nobody. Each check refills the bag.",
             "Crediting an elimination refills the bag except for that player and moves the boundary to the living player before them. The new check is after one cycle at that boundary, including during the opening grace period.",
-            "Use the bag panel to correct missed life entries or credit an automatic removal. Concessions and bag-drawn players give no elimination credit. At four survivors the bag switches off.",
+            "Use the bag panel to correct missed life entries or credit an automatic removal. Concessions and bag-drawn players give no elimination credit. At two survivors the bag switches off.",
             "A bag check pauses play. Resolve pending life approvals, review entries, then Draw. The saved result cannot be rerolled by reopening the panel. Continue resumes the next turn.",
             "TurnHub uses the community summary's reset-every-check interpretation. Episode: https://www.youtube.com/watch?v=CvyRDmwOeCs ; summary: https://www.reddit.com/r/EDH/comments/1sng1au/commandzones_10_player_game/",
         ))
