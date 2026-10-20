@@ -365,7 +365,8 @@ data class StandaloneGame(
             acted = emptySet(),
             round = 1,
             nextTurn = null,
-            elder = elder.fresh(),
+            // Figures placed during setup are on the map when play begins.
+            elder = elder.fresh().copy(enemies = elder.enemies),
         ).bump()
     }
 
