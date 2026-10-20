@@ -164,6 +164,12 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 
 ### Accounts, portal and app
 
+- **Shared Death May Die devices:** physical two-/multi-device Wi-Fi, Android
+  keystore TLS, QR/paste pairing, investigator ownership and Elder One display
+  checks; reconnect, screen lock/background, rotation, process death, large
+  text and TalkBack acceptance ([Shared devices](SHARED_DEVICES.md)). Hosting
+  is a candidate upgrade; billing/entitlements/pricing remain separate work.
+
 - **Common engine and full phone takeover:** implement the portable engine,
   validated handoff, fenced phone authority, reconnect reconciliation and
   durable completion receipts in [Shared table authority](TABLE_AUTHORITY.md).

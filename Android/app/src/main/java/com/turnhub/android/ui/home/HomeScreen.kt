@@ -158,6 +158,8 @@ fun HomeScreen(
     onAtlasEnabled: (Boolean) -> Unit = {},
     localState: com.turnhub.android.standalone.StandaloneState = com.turnhub.android.standalone.StandaloneState(),
     localTable: com.turnhub.android.standalone.StandaloneTable? = null,
+    onOpenSharedGame: (() -> Unit)? = null,
+    sharedGameHosting: Boolean = false,
 ) {
     PresenceCodeDialog(admin, adminActions)
     uiState.wifiPrompt?.let { prompt ->
@@ -265,6 +267,8 @@ fun HomeScreen(
                 BrandBar(uiState, running = summary?.state == TableState.RUNNING, reduceMotion = reduceMotion,
                     report = reportContext,
                     onManualClick = { showManual = true })
+                if (onOpenSharedGame != null && !setup.visible && tab == HomeTab.GAME && !atlasGame)
+                    TextButton(onClick = onOpenSharedGame) { Text(if (sharedGameHosting) "Play together · Hosting" else "Play together · Host or join") }
             }
         },
         bottomBar = {

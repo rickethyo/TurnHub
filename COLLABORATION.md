@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-030 | Bag-check prompt dismissal | Android tablet/personal UI | Ready for review; CI passes | Owner / PR #137 |
+| TH-031 | Death May Die shared devices | Android LAN, authority, UI | Ready for review; CI passes | Owner / PR #145 and physical acceptance |
 | TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
@@ -58,30 +58,59 @@ Bag of Doom full-screen checks and explicit elimination sources landed in [PR #1
 
 Ten-player app and general elimination credit landed in [PR #134](https://github.com/rickethyo/TurnHub/pull/134); acceptance remains in [Staged Changes](Documentation/engineering/STAGED_CHANGES.md).
 
-## TH-030: Bag-check prompt dismissal regression
+## TH-031: Death May Die shared devices
 
-- Owner / baseline: Codex on `codex/master`, `2f68856` / accepted master
-  `b0f72b7`. Clean tree, current master fetched, no open PR or overlapping scope.
-- Owner screenshot shows a paused due check as only the center badge. Source
-  inspection identifies a reproducible suppression: closing a preview or result
-  records the current cycle as reviewed even though its check is not yet due.
-- Scope: share presentation-only bag review state between tablet and personal
-  Game; acknowledge pending checks only while pending. Keep result acknowledgement
-  separate; the center badge directly reopens a pending bag check. Outstanding
-  source questions retain their existing Game menu entry point.
-  Compose owns this saveable window state; authoritative gameplay, actions,
-  validation, storage, contracts, dependencies and statistics are unchanged.
-- Implemented in `dbd39c6`, `896f9a8`; [PR #137](https://github.com/rickethyo/TurnHub/pull/137).
-  Five regression cases cover preview -> due, result -> next due, life-total
-  review, manual reopen and credited-cycle changes. [CI passes on `896f9a8`](https://github.com/rickethyo/TurnHub/actions/runs/39291955190),
-  including Android compilation/full JVM suite/release bundle and the always-run
-  host/contract/documentation guards. Unchanged firmware/simulator builds skip.
-  Docs, manual export, design tokens and whitespace also pass locally; local
-  Gradle could not resolve the configured Foojay plugin. Manual text/export
-  synchronized; updated DOCX page layout and physical UI remain unverified.
-- Owner supplied Build 414 then clarified a PR had not been merged. The source
-  suppression bug is independently reproducible; no claim the screenshot proves
-  it was triggered. Owner reviews/integrates #137; no merge or release by Codex.
+- Date / owner: 2026-10-20, Codex on `codex/master`, clean baseline `65e0c41`
+  (Claude's Death May Die/Elder One work merged through #143; #144 integrated).
+  Current master fetched and fast-forwarded; no open PR or overlapping scope.
+- Owner requests same-network host/client devices: an Elder One display and
+  personal investigator cards, with investigator controls confirmed. Hosting
+  is a candidate paid upgrade; recommend host entitlement with free joining.
+  Billing, pricing, Atlas handoff and common-engine extraction are separate.
+- Feature gate: existing host StandaloneTable/StandaloneGame own rules,
+  persistence, outcomes/history. New versioned LAN session commands validate
+  invitation/session, client capability, owned seat, match/revision and action
+  UUID. Mutations serialize with host UI; persist before replying. Clients only
+  render snapshots and request their own investigator changes, never run or
+  persist a second game or award statistics. Elder One clients are read-only.
+- TLS with an Android-keystore host certificate pinned by a shared invitation;
+  session-scoped random credentials, bounded frames/connections/receipt cache,
+  explicit revoke/stop, no discovery/cloud account or new runtime dependency.
+  QR/paste invitation avoids trusting a server discovered on the LAN. App-local
+  foreground hosting, explicit disconnected state and retry of uncertain commands;
+  no client promotion or queued offline edits. Rotation retains the session,
+  process death requires a new invitation. Use existing LAN/camera permissions.
+- Renderers: host/join page plus dedicated Elder One/investigator views with
+  labeled controls and connection status, large text/scrolling and safe insets.
+  Keep hosting behind an injectable capability boundary; joining independent.
+  Automated authority/authorization/retry/staleness/storage/transport regressions
+  plus Android CI; two-device/TalkBack/background acceptance remains physical.
+
+### 2026-10-20 — Codex: TH-031 implementation validation
+
+- Implementation ready locally: one host-only rule/history/storage authority;
+  QR/paste pairing, pinned TLS, role/seat sessions, bounded frames/JSON depth
+  and immutable command receipts, stale rejection, durable remote commits,
+  disconnected/uncertain command UI and explicit revoke/stop. Own investigator
+  controls include counters, levels, staged/pass recipient and death confirmation.
+- Local Kotlin/JVM compilation with Android Context/ViewModel/network integration
+  stubs runs the actual domain, protocol, standalone authority and LAN core.
+  110 tests pass, including 16 new LAN tests and existing DMD, Elder One,
+  standalone-game, Bag of Doom and elimination-prompt suites. Pinned TLS uses
+  real loopback sockets with an ephemeral test-only keytool certificate.
+  Android/Compose compilation and the full JVM suite pass in CI;
+  physical keystore/device acceptance remains open.
+- Docs, design tokens, manual export and whitespace checks pass; updated DOCX
+  page layout is unverified. No new runtime dependency, firmware or billing.
+  Hosting defaults enabled behind LanHostingAccess; free joining is independent.
+- Implemented in `57a7ae1`, [PR #145](https://github.com/rickethyo/TurnHub/pull/145).
+  [Final CI passes](https://github.com/rickethyo/TurnHub/actions/runs/39354130177):
+  Android/full JVM/release bundle, optimized Atlas host suites/contracts and
+  firmware; [iOS regression CI passes](https://github.com/rickethyo/TurnHub/actions/runs/39354130136).
+  Unchanged Sigil/LVGL builds skip. No new CI run needed for this docs-only
+  validation record. Owner reviews/integrates with a merge commit and retains
+  `codex/master`; no merge/release or Play publication performed by Codex.
+
 
 ## New topic / reply template
 
@@ -990,4 +1019,3 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   named episode tokens on the Elder One tab (`ElderOneTrack.tokens`, names kept
   for a rematch, counts cleared). Validation: new `ElderOneTest` cases; CI build.
   Device playtest pending.
-

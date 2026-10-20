@@ -482,13 +482,44 @@ class StandaloneTable(
 
     // --- plumbing -------------------------------------------------------------------
 
+    /** LAN capabilities already select the seat. Freshness and mode are rechecked here. */
+    internal fun applyLanAction(action: com.turnhub.android.lan.LanAction): Boolean {
+        val game = _state.value.game
+        if (_state.value.storageProblem != null || !game.profile.deathMayDie || game.gameId != action.match ||
+            game.revision != action.revision || action.player !in 1..game.players.size ||
+            game.state !in listOf(TableState.RUNNING, TableState.PAUSED)) return false
+        val index = action.player - 1
+        val valid = when (action.kind) {
+            "wounds", "stress", "fire", "insanity" -> action.value in listOf(-1, 1) && action.slot == 0
+            "skill" -> action.value in 1..4 && action.slot in 1..com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILLS
+            "take-turn", "eliminate" -> action.value == 0 && action.slot == 0
+            "pass" -> action.value in 1..game.players.size && action.slot == 0
+            else -> false
+        }
+        if (!valid) return false
+        val now = wallClock()
+        val next = when (action.kind) {
+            "wounds" -> if (action.value in -1..1) game.changeLife(index, action.value, now) else game
+            "stress", "fire", "insanity" -> if (action.value in -1..1) game.changeCounter(index, action.kind, action.value, nowMs = now) else game
+            "skill" -> game.changeCounter(index, StandaloneGame.SKILL_KIND, action.value, action.slot, now)
+            "take-turn" -> game.changeCounter(index, StandaloneGame.TAKE_TURN_KIND, 1, nowMs = now)
+            "pass" -> if (game.active == index) game.cooperativeTurn()?.let { game.passTo(it, action.value, now) } ?: game else game
+            "eliminate" -> game.eliminate(index, now)
+            else -> game
+        }
+        return publishGame(next, durable = true)
+    }
+
     private fun edit(change: (StandaloneGame) -> StandaloneGame) {
+        publishGame(change(_state.value.game))
+    }
+
+    private fun publishGame(after: StandaloneGame, durable: Boolean = false): Boolean {
         val before = _state.value.game
-        val after = change(before)
-        if (after === before) return
+        if (after === before) return false
         val record = after.record()?.takeIf { (before.state != TableState.GAME_OVER || before.gameId != after.gameId) && it.counted(shortGameMs) }
         val library = record?.let { _state.value.library.withRecord(it) } ?: _state.value.library
-        publish(_state.value.copy(game = after, library = library))
+        return publish(_state.value.copy(game = after, library = library), durable)
     }
 
     /** Leaves a blocked store: keeps the unreadable data aside, then starts empty. */
@@ -501,12 +532,12 @@ class StandaloneTable(
         return saved
     }
 
-    private fun publish(next: StandaloneState): Boolean {
+    private fun publish(next: StandaloneState, durable: Boolean = false): Boolean {
         if (_state.value.storageProblem != null) return false
         val saved = runCatching {
             val gameJson = gameToJson(next.game).toString()
             val libraryJson = next.library.toJson().toString()
-            if (next.game.doomBag.lastCheck > _state.value.game.doomBag.lastCheck)
+            if (durable || next.game.doomBag.lastCheck > _state.value.game.doomBag.lastCheck)
                 store.commitSnapshot(gameJson, libraryJson)
             else store.saveSnapshot(gameJson, libraryJson)
         }

@@ -30,6 +30,11 @@ that Atlas validates and credits to its own profiles under the existing import
 contract. Android implements this mode ([Android/README.md](../../Android/README.md));
 iOS is at the foundation stage ([development framework](IOS_DEVELOPMENT.md)).
 
+An Android standalone Death May Die host may serve [shared devices](SHARED_DEVICES.md).
+That host alone runs the standalone engine and persists the match/results. Guest
+apps render snapshots and send authenticated own-investigator requests; they
+never become another authority, save remote results or take over on disconnect.
+
 They may:
 
 - Capture input.

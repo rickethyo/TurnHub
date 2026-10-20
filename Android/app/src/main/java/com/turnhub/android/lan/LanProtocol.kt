@@ -1,0 +1,52 @@
+package com.turnhub.android.lan
+
+import org.json.JSONObject
+import java.net.URI
+import java.security.MessageDigest
+import java.security.SecureRandom
+
+internal const val LAN_VERSION = 1
+internal const val LAN_MAX_FRAME = 512 * 1024
+
+/** An invitation is a bearer capability. Never log it or keep it in saved state. */
+internal data class LanInvite(val address: String, val port: Int, val pin: String, val session: String, val key: String) {
+    fun encode() = "turnhub://join/$LAN_VERSION/$address/$port/$pin/$session/$key"
+    override fun toString() = "LanInvite($address:$port)"
+
+    companion object {
+        fun parse(text: String): LanInvite {
+            require(text.length <= 512)
+            val uri = URI(text.trim())
+            require(uri.scheme == "turnhub" && uri.host == "join" && uri.rawQuery == null && uri.fragment == null && uri.userInfo == null)
+            val p = uri.path.split('/').drop(1)
+            require(p.size == 6 && p[0] == "$LAN_VERSION" && privateIpv4(p[1]))
+            val port = p[2].toIntOrNull()?.takeIf { it in 1024..65535 } ?: error("Invalid port")
+            require(p[3].matches(Regex("[0-9a-f]{64}")) && p[4].matches(Regex("[0-9a-f]{32}")) && p[5].matches(Regex("[0-9a-f]{64}")))
+            return LanInvite(p[1], port, p[3], p[4], p[5])
+        }
+    }
+}
+
+internal fun privateIpv4(address: String): Boolean {
+    val parts = address.split('.')
+    if (parts.size != 4 || parts.any { !it.matches(Regex("0|[1-9][0-9]{0,2}")) || it.toInt() !in 0..255 }) return false
+    val a = parts.map(String::toInt)
+    return a[0] == 10 || (a[0] == 172 && a[1] in 16..31) ||
+        (a[0] == 192 && a[1] == 168) || (a[0] == 169 && a[1] == 254)
+}
+
+internal fun randomLanSecret(bytes: Int = 32): String = ByteArray(bytes).also { SecureRandom().nextBytes(it) }.hex()
+internal fun ByteArray.hex() = joinToString("") { "%02x".format(it.toInt() and 255) }
+internal fun sameSecret(a: String, b: String) = MessageDigest.isEqual(a.toByteArray(Charsets.UTF_8), b.toByteArray(Charsets.UTF_8))
+internal fun JSONObject.text(key: String): String = (get(key) as? String) ?: error("Expected text")
+internal fun JSONObject.integer(key: String): Long {
+    val value = get(key)
+    require(value is Int || value is Long)
+    return (value as Number).toLong()
+}
+
+/** The host infers the player from the authenticated session, never a request's seat. */
+internal data class LanAction(val match: String, val revision: Long, val player: Int, val kind: String, val value: Int, val slot: Int)
+internal data class LanGuest(val token: String, val role: String, val player: Int) {
+    override fun toString() = "LanGuest($role, player=$player)"
+}

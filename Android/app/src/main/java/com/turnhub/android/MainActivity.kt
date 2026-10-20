@@ -103,6 +103,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val lanViewModel: com.turnhub.android.lan.LanViewModel by viewModels {
+        viewModelFactory { initializer { com.turnhub.android.lan.LanViewModel(applicationContext, standaloneViewModel.table) } }
+    }
+    private var sharedGameOpen by mutableStateOf(false)
+    private var pendingSharedAction: (() -> Unit)? = null
+    private val sharedNetworkPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val action = pendingSharedAction
+        pendingSharedAction = null
+        if (granted) action?.invoke() else lanViewModel.permissionDenied()
+    }
+    private fun requestSharedNetwork(action: () -> Unit) {
+        if (Build.VERSION.SDK_INT >= LOCAL_NETWORK_PERMISSION_SDK &&
+            checkSelfPermission(Manifest.permission.ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED) {
+            pendingSharedAction = action
+            sharedNetworkPermission.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+        } else action()
+    }
+
     // Rejoin silently only when permission is already available. A fresh
     // install must reach device play without an Atlas permission dialog.
     private fun findTableOnLaunch(restart: Boolean = false) {
@@ -271,6 +289,7 @@ class MainActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putBoolean("device_play_open", standalone)
         outState.putBoolean("local_stats_open", localStats)
+        outState.putBoolean("shared_game_open", sharedGameOpen)
         outState.putString("atlas_action", pendingAtlasAction.name)
         super.onSaveInstanceState(outState)
     }
@@ -310,12 +329,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        lanViewModel.setForeground(true)
         turnNotifier.clear()
         homeViewModel.onPresentationForeground(!standalone && !localStats)
     }
 
     override fun onStop() {
         super.onStop()
+        if (!isChangingConfigurations) lanViewModel.setForeground(false)
         homeViewModel.onPresentationForeground(false)
         if (!isChangingConfigurations) turnNotifier.show(homeViewModel.liveTurn.value)
     }
@@ -359,6 +380,7 @@ class MainActivity : ComponentActivity() {
         // Edge to edge from the first frame; the theme corrects the bar icons below.
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        sharedGameOpen = savedInstanceState?.getBoolean("shared_game_open") == true
         homeViewModel.standalone = standaloneViewModel.table
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -405,11 +427,20 @@ class MainActivity : ComponentActivity() {
                     ) {
                         val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
                         val localState by standaloneViewModel.table.state.collectAsStateWithLifecycle()
+                        val lanState by lanViewModel.state.collectAsStateWithLifecycle()
+                        androidx.compose.runtime.DisposableEffect(lanState.host != null || lanState.remote != null) {
+                            if (lanState.host != null || lanState.remote != null)
+                                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                            onDispose { window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+                        }
                         LaunchedEffect(standalone, localStats) {
                             homeViewModel.onPresentationForeground(!standalone && !localStats && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
                         }
                         val shellState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
-                        if (localStats) {
+                        if (sharedGameOpen || lanState.remote != null) {
+                            com.turnhub.android.ui.tablet.SharedGameScreen(lanState, localState.game, lanViewModel,
+                                ::requestSharedNetwork, reduceMotion, onClose = { sharedGameOpen = false })
+                        } else if (localStats) {
                             com.turnhub.android.ui.tablet.StatsScreen(localState, onClose = { localStats = false },
                                 onShareStats = ::shareStats)
                         } else if (standalone) {
@@ -424,6 +455,8 @@ class MainActivity : ComponentActivity() {
                             onTabRequestHandled = { requestedHomeTab = null },
                             localState = localState,
                             localTable = standaloneViewModel.table,
+                            onOpenSharedGame = { sharedGameOpen = true },
+                            sharedGameHosting = lanState.host != null,
                             onFollowGame = homeViewModel::onFollowGame,
                             onAtlasOpened = homeViewModel::onAtlasOpened,
                             atlasEnabled = atlasEnabled,

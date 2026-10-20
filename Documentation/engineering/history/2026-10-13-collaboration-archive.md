@@ -1592,3 +1592,29 @@ management/invitations from TH-002 remain separate planned work.
   Physical-device acceptance remains in STAGED_CHANGES.md. Owner merged
   #136 as `b0f72b7`; `codex/master` is retained and synchronized. No release
   performed by Codex.
+
+## TH-030: Bag-check prompt dismissal regression
+
+- Owner / baseline: Codex on `codex/master`, `2f68856` / accepted master
+  `b0f72b7`. Clean tree, current master fetched, no open PR or overlapping scope.
+- Owner screenshot shows a paused due check as only the center badge. Source
+  inspection identifies a reproducible suppression: closing a preview or result
+  records the current cycle as reviewed even though its check is not yet due.
+- Scope: share presentation-only bag review state between tablet and personal
+  Game; acknowledge pending checks only while pending. Keep result acknowledgement
+  separate; the center badge directly reopens a pending bag check. Outstanding
+  source questions retain their existing Game menu entry point.
+  Compose owns this saveable window state; authoritative gameplay, actions,
+  validation, storage, contracts, dependencies and statistics are unchanged.
+- Implemented in `dbd39c6`, `896f9a8`; [PR #137](https://github.com/rickethyo/TurnHub/pull/137).
+  Five regression cases cover preview -> due, result -> next due, life-total
+  review, manual reopen and credited-cycle changes. [CI passes on `896f9a8`](https://github.com/rickethyo/TurnHub/actions/runs/39291955190),
+  including Android compilation/full JVM suite/release bundle and the always-run
+  host/contract/documentation guards. Unchanged firmware/simulator builds skip.
+  Docs, manual export, design tokens and whitespace also pass locally; local
+  Gradle could not resolve the configured Foojay plugin. Manual text/export
+  synchronized; updated DOCX page layout and physical UI remain unverified.
+- Owner supplied Build 414 then clarified a PR had not been merged. The source
+  suppression bug is independently reproducible; no claim the screenshot proves
+  it was triggered. Owner merged #137; no merge or release performed by Codex. Physical
+  acceptance stays in STAGED_CHANGES.md.

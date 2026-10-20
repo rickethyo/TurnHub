@@ -117,6 +117,18 @@ Review condition & relic rules in setup lets you check the full catalogue withou
 
 Phases of your turn is available in setup, on the active investigator and in Game menu. Open it whenever needed for the action, Mythos, safe Discovery or enemy-attack, and end-of-turn sequence. It is a reminder only; close it and use Pass when finished. Follow episode and expansion exceptions from your physical game.
 
+### Play together on the same Wi-Fi
+
+One TurnHub device can host Death May Die while other Android devices show the Elder One board or their own investigator cards. Start the game on the host, then open Game > Play together > Host game. Keep the host app open; it saves the game and its result. Atlas and internet access are not required.
+
+On another device connected to the same Wi-Fi, choose Game > Play together. Scan the host’s invitation, or paste a copied invitation and tap Find game. Choose Use as Elder One display or the investigator you play. Only one guest device can control each investigator. The host retains all controls. Share invitations only with your table.
+
+The Elder One display follows the host’s track, ritual, stage, wounds and episode tokens. Investigator devices show their skills and assigned cards, including both relic faces. Players can change wounds, stress, fire, insanity and skill levels, stage their next turn, choose a pass recipient, and confirm their investigator’s death. Card assignment and reference edits remain on the host.
+
+Connection loss keeps the last display and disables edits. If a reply is lost, use Retry last action; do not enter the change a second time. Returning to the host app allows guests to reconnect. If the host closes, changes Wi-Fi, starts another game or restarts sharing, a fresh invitation may be needed. Guests never take over or save a duplicate match or statistics.
+
+Game > Play together on the host lists connected devices and lets you disconnect one or Stop sharing. Stopping sharing keeps the local game. Back to game leaves hosting active. Nearby devices permission is needed on Android 17 or later; camera permission is optional for scanning. Guest-isolated Wi-Fi can prevent devices from reaching each other.
+
 ## Two-Headed Giant
 
 Players 1 and 2 are a team, then 3 and 4, and so on; change the seats to change the teams. It needs an even number of players, at least 4 (official Two-Headed Giant is two teams of two).
