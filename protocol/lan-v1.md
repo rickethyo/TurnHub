@@ -46,8 +46,13 @@ Every envelope contains integer `v: 1` and the invitation's string `session`.
 Requests contain `op`. Responses contain `code`. Integers reject strings and
 fractions. A different session/version is invalid. This prototype's match
 projection uses the host's current standalone game JSON, without `localId` or
-`profileId`. The library, account credentials, links, history and artwork are
-never sent. Both apps must understand this protocol and its match projection;
+`profileId`. The library, account credentials, links and history are never sent.
+Each snapshot carries `looksId`; when it differs from the `looksId` a `poll` or
+`command` supplied, it also carries `looks`: one entry per seat in player order,
+`null` or that seat's public color, avatar and panel background (the
+`LocalPersonalization` JSON without thumbnail or motion preference). Background
+and avatar images are included while all looks fit in 320 KiB; otherwise image
+backgrounds fall back to a gradient of the seat's color. Both apps must understand this protocol and its match projection;
 incompatible data stops joining rather than starting a local game.
 
 ## Requests
@@ -56,8 +61,8 @@ incompatible data stops joining rather than starting a local game.
 |---|---|---|
 | `preview` | `key` | Invitation: view the match before choosing a role |
 | `join` | `key`, `joinId`, `role`, `player` | Invitation: acquire a session |
-| `poll` | `token` | Authenticated guest: get latest snapshot |
-| `command` | `token`, `actionId`, `match`, `revision`, `kind`, `value`, `slot`, optional `source` | Player/investigator: request an own-seat edit |
+| `poll` | `token`, optional `looksId` | Authenticated guest: get latest snapshot |
+| `command` | `token`, `actionId`, `match`, `revision`, `kind`, `value`, `slot`, optional `source`, optional `looksId` | Player/investigator: request an own-seat edit |
 | `leave` | `token` | Release this guest session |
 
 `role` is `player` for a TCG seat; Death May Die accepts `elder` with `player: 0`,
@@ -90,15 +95,22 @@ score gestures, Pass button or actionable turn chips.
 | `poison`, `energy`, `experience`, `treasure`, `rad`, `commander-casts` | −1 or +1 | 0/1; commander casts may use 2 | 0 |
 | `city-blessing`, `initiative` | 0 or 1 | 0/1 | 0 |
 | `turn-action:<enum>`, `pokemon-condition:<enum>` | 0 or 1 | 0 | 0 |
-| `pass`, `extend-turn`, `win`, `concede`, `eliminate`, `monarch` | 0 | 0 | 0 |
+| `pass`, `extend-turn`, `win`, `confirm`, `deny`, `concede`, `eliminate`, `monarch` | 0 | 0 | 0 |
+
+A guest's `win` opens a claim (`winClaim`, `winConfirmed` in the game JSON) that
+the other living players (other teams in Two-Headed Giant) answer one at a time
+in turn order after the claimant with `confirm` or `deny`, as Atlas asks for a
+Sigil's claim. A denial withdraws it; the last confirmation ends the match.
+Cooperative games and a table with nobody left to ask win at once.
 
 The existing standalone engine validates format, active turn/team, living seat,
 counter bounds, Commander allies and all outcomes. The authenticated player is
 always the recipient; `source` selects only whose Commander dealt damage. In
 Two-Headed Giant, life/poison apply to the team and either teammate may pass;
 other counters stay personal. Setup, pause/reset/rematch, day/night, Planechase
-and Bag of Doom resolution remain host-only. Commander names are included in
-public snapshots; local artwork/account IDs and the Planechase deck stay private.
+and Bag of Doom resolution remain host-only. Commander names and chosen art
+printings (public card IDs) are included in public snapshots; account IDs and the
+Planechase deck stay private.
 `source` defaults to 0 for existing DMD clients and is part of immutable receipts.
 
 ### Death May Die commands

@@ -1092,6 +1092,12 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
 - Also fixed master's red "Android manual asset" check: the Word App Manual now
   carries Codex's Play together text, so `export_manual.py --check` passes.
 - Validation: new `ElderOneTest` cases; CI build. Device playtest pending.
+- Follow-up from the owner's first playtest: guests now draw the host's seat looks
+  (color, avatar, background, commander art; `looks`/`looksId` in LAN v1, images
+  sent only when they change and only while they fit 320 KiB); a guest's win
+  claim waits for the other players in turn order like a Sigil's
+  (`requestWin`/`answerWinClaim`, `winClaim` persisted); the host table can show
+  one player's panel (**Show on this device**), where a win waits the same way.
 
 ## TH-032: TCG shared players and read-only table
 

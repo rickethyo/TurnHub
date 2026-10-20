@@ -439,6 +439,10 @@ class StandaloneTable(
                 "night" -> game.setDayNight(com.turnhub.android.domain.DayNight.NIGHT)
                 "day-night-clear" -> game.setDayNight(com.turnhub.android.domain.DayNight.NEITHER)
                 "win" -> game.claimWin(index, now)
+                // A player's own view (the host's single-player view) asks the others first.
+                "claim-win" -> game.requestWin(index, now)
+                "confirm" -> game.answerWinClaim(index, true, now)
+                "deny" -> game.answerWinClaim(index, false, now)
                 "draw" -> game.endWithoutWinner(now)
                 "rematch" -> if (planarSelectionReady(game)) game.rematch(now, newId(), planarDeck = planarDeck(game)) else game
                 "sean-mode" -> if (planarSelectionReady(game)) game.seanModeRematch(now, newId(), planarDeck = planarDeck(game)) else game
@@ -538,10 +542,13 @@ class StandaloneTable(
                 game.changeLife(index, action.value, now)
             action.kind == "commander" && action.slot in 1..2 && action.source in 1..game.players.size && action.value in listOf(-1, 1) ->
                 game.commanderDamage(index, action.source - 1, action.slot, action.value, now)
-            simple && action.kind in setOf("pass", "extend-turn", "win", "concede", "eliminate", "monarch") -> when (action.kind) {
+            simple && action.kind in setOf("pass", "extend-turn", "win", "confirm", "deny", "concede", "eliminate", "monarch") -> when (action.kind) {
                 "pass" -> game.pass(index, now)
                 "extend-turn" -> game.extendTurn(index, now)
-                "win" -> game.claimWin(index, now)
+                // A guest's claim waits on the other players, as a Sigil's does (owner, 2026-10-20).
+                "win" -> game.requestWin(index, now)
+                "confirm" -> game.answerWinClaim(index, true, now)
+                "deny" -> game.answerWinClaim(index, false, now)
                 "concede" -> game.concede(index, now)
                 "eliminate" -> game.eliminate(index, now)
                 "monarch" -> game.claimMonarch(index)
@@ -707,6 +714,7 @@ class StandaloneTable(
             put("monarch", game.monarch ?: JSONObject.NULL)
             put("initiative", game.initiative ?: JSONObject.NULL)
             put("dayNight", game.dayNight.name)
+            game.winClaim?.let { put("winClaim", it); put("winConfirmed", JSONArray(game.winConfirmed.sorted())) }
             put("autoEliminateAtPoisonLimit", game.autoEliminateAtPoisonLimit)
             put("autoEliminateAtCommanderDamage", game.autoEliminateAtCommanderDamage)
             put("poisonLimit", game.poisonLimit)
@@ -807,6 +815,8 @@ class StandaloneTable(
                 initiative = json.optIntOrNull("initiative"),
                 dayNight = com.turnhub.android.domain.DayNight.entries.firstOrNull { it.name == json.optString("dayNight") }
                     ?: com.turnhub.android.domain.DayNight.NEITHER,
+                winClaim = json.optIntOrNull("winClaim")?.takeIf { it in 0 until players.length() },
+                winConfirmed = json.optIntList("winConfirmed")?.filter { it in 0 until players.length() }?.toSet().orEmpty(),
                 autoEliminateAtPoisonLimit = json.optBoolean("autoEliminateAtPoisonLimit", true),
                 autoEliminateAtCommanderDamage = json.optBoolean("autoEliminateAtCommanderDamage", true),
                 poisonLimit = json.optInt("poisonLimit", 10),

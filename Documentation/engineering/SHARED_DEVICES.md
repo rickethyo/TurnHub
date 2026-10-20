@@ -33,8 +33,13 @@ panel and counter/Commander menu. **Table · read only** shows every player;
 their seat. Table panels have disabled score/turn controls and no editing menus.
 Two-Headed Giant guests have personal counters while life and poison remain
 shared; either teammate may pass the team turn. Switching views keeps polling
-and pending retry state. Commander names are public; account identity, local
-artwork and libraries remain private.
+and pending retry state. Guest panels draw each seat's color, avatar,
+background and commander art as the host does (owner, 2026-10-20); account
+identity and libraries remain private. A guest's win claim waits for the other
+players to confirm it in turn order, as a Sigil's does (owner, 2026-10-20).
+The host may show only one player's panel (**Show on this device** in the game
+menu) when the group has no central display; a claim made there waits the same
+way, and the current confirmer's panel joins the view while they answer.
 
 Death May Die investigator devices switch between **My investigator** and **Elder One · read only**
 (the Elder One display, minions and monsters included) without leaving or releasing their seat

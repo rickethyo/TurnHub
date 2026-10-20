@@ -11,6 +11,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.domain.TableClock
+import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.lan.LanUiState
 import com.turnhub.android.lan.LanViewModel
 import com.turnhub.android.protocol.TableState
@@ -37,7 +38,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     var confirmElimination by remember { mutableStateOf(false) }
     val partners = remember { mutableStateListOf<Int>() }
     val haptics = rememberHaptics()
-    val summary = game.toSummary(System.currentTimeMillis(), TableClock.nowMs())
+    val summary = game.toSummary(System.currentTimeMillis(), TableClock.nowMs()).withLooks(state.looks)
     val own = summary.players.firstOrNull { it.playerNumber == state.player }
     // Either teammate may pass. Keep the full host summary for the table and
     // show the claimed teammate as the personal panel's actor during their turn.
@@ -115,3 +116,10 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
         confirmButton = { ToneButton("Eliminate", { confirmElimination = false; act("eliminate") }, enabled = enabled && !tableView) },
         dismissButton = { ToneButton("Cancel", { confirmElimination = false }) })
 }
+
+/** The host's colors, avatars and panel backgrounds on the guest's panels (by player order). */
+internal fun TableSummary.withLooks(looks: List<com.turnhub.android.standalone.LocalPersonalization?>): TableSummary =
+    if (looks.isEmpty()) this else copy(players = players.map { player ->
+        val look = looks.getOrNull(player.playerNumber - 1) ?: return@map player
+        player.copy(avatar = look.icon(), color = look.color, tileBackground = look.tileBackground)
+    })

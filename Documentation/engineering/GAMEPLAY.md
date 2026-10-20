@@ -562,6 +562,9 @@ and caching, with no new dependency; browsing can download uncached preview art.
 - **Win claims** need the other living players to confirm, in Atlas's player
   order; a denial resumes play. **Concede** and Game Master removal eliminate
   through the same flow.
+  In a phone-hosted game the same rule covers a claim from a guest's device or
+  the host's single-player view (`StandaloneGame.requestWin`, owner,
+  2026-10-20); the host's whole-table **Win** remains the table's own decision.
 
 ## Turn timer
 

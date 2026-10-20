@@ -1,5 +1,8 @@
 package com.turnhub.android.lan
 
+import com.turnhub.android.domain.TileBackground
+import com.turnhub.android.domain.TileBackgroundStyle
+import com.turnhub.android.standalone.LocalPersonalization
 import com.turnhub.android.standalone.StandaloneGame
 import com.turnhub.android.standalone.StandaloneTable
 import org.json.JSONObject
@@ -17,6 +20,8 @@ internal class LanSessions(
     private val unavailable: () -> Boolean = { false },
     private val now: () -> Long = { System.nanoTime() / 1_000_000 },
     private val secret: () -> String = { randomLanSecret() },
+    /** Each seat's color, avatar and panel background, in player order (null: the default look). */
+    private val looks: () -> List<LocalPersonalization?> = { emptyList() },
 ) {
     private val sharedProfile = game().profile
     private data class Receipt(val payload: String, val code: String)
@@ -50,7 +55,11 @@ internal class LanSessions(
         return false
     }
 
+    /** The looks version the current request already holds; images are sent only when it changes. */
+    private var heldLooks = ""
+
     fun handle(request: JSONObject): JSONObject = try {
+        heldLooks = request.optString("looksId")
         require(request.integer("v") == LAN_VERSION.toLong() && request.text("session") == session)
         reseat()
         if (!sharedProfile.lanSupported || game().profile != sharedProfile) reply("ended")
@@ -128,15 +137,44 @@ internal class LanSessions(
 
     private fun snapshot(code: String): JSONObject {
         val current = game()
-        // Only this public match leaves the host; never its library, credentials,
-        // profile links, historical games, player artwork or local account IDs.
+        // Only this public match and the seats' looks leave the host; never its library,
+        // credentials, profile links, historical games or local account IDs. The commander
+        // printing is a public card reference, so guests draw the same commander art.
         val public = current.copy(planechase = com.turnhub.android.standalone.Planechase(),
-            players = current.players.map { it.copy(localId = null, profileId = null, commanderArt = null) })
-        return reply(code).put("game", StandaloneTable.gameToJson(public))
+            players = current.players.map { it.copy(localId = null, profileId = null) })
+        val reply = reply(code).put("game", StandaloneTable.gameToJson(public))
             .put("claimed", org.json.JSONArray(guests.map { it.player }.filter { it > 0 }))
+        val (id, encoded) = publicLooks(current.players.size)
+        reply.put("looksId", id)
+        if (id != heldLooks) reply.put("looks", encoded)
+        return reply
+    }
+
+    /**
+     * The seats' public looks, so a guest draws the same panels as the host. Only color, avatar
+     * and background leave the host; images fall back to a gradient of the seat's color when
+     * they would not fit comfortably in one frame.
+     */
+    private fun publicLooks(count: Int): Pair<String, org.json.JSONArray> {
+        val seats = looks().take(count).let { it + List(count - it.size) { null } }
+        fun encode(images: Boolean) = org.json.JSONArray(seats.map { look ->
+            look?.let { full ->
+                val background = full.tileBackground.let { b ->
+                    if (images || b.style != TileBackgroundStyle.IMAGE) b else TileBackground(TileBackgroundStyle.GRADIENT, b.color ?: full.color)
+                }.let { if (it.style == TileBackgroundStyle.IMAGE) it else it.copy(image = null) }
+                LocalPersonalization(full.color, full.avatar, full.image?.takeIf { images }, tileBackground = background).toJson()
+            } ?: JSONObject.NULL
+        })
+        val encoded = encode(true).takeIf { it.toString().length <= MAX_LOOKS } ?: encode(false)
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(encoded.toString().toByteArray(Charsets.UTF_8))
+        return digest.take(12).joinToString("") { "%02x".format(it) } to encoded
     }
 
     private fun reply(code: String) = JSONObject().put("v", LAN_VERSION).put("session", session).put("code", code)
 
-    private companion object { const val MAX_FAILURES = 10 }
+    private companion object {
+        const val MAX_FAILURES = 10
+        /** Looks share the 512 KiB frame with the game itself. */
+        const val MAX_LOOKS = 320 * 1024
+    }
 }

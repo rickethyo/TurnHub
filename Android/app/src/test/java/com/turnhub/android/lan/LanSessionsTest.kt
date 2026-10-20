@@ -3,6 +3,7 @@ package com.turnhub.android.lan
 import com.turnhub.android.domain.InvestigatorCard
 import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.protocol.GameProfile
+import com.turnhub.android.protocol.TableState
 import com.turnhub.android.standalone.*
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -156,14 +157,69 @@ class LanSessionsTest {
         val table = StandaloneTable(store, wallClock = { 90_000 }, shortGameMs = 0)
         var unavailable = false
         var now = 0L
+        var looks: List<LocalPersonalization?> = emptyList()
         val sessions = LanSessions("session", "invitation-key", { table.state.value.game }, table::applyLanAction,
-            unavailable = { unavailable || table.state.value.storageProblem != null }, now = { now })
+            unavailable = { unavailable || table.state.value.storageProblem != null }, now = { now }, looks = { looks })
         fun request(op: String) = JSONObject().put("v", LAN_VERSION).put("session", "session").put("op", op)
         fun join(role: String = "investigator", player: Int = 1, id: String = UUID.randomUUID().toString()) =
             sessions.handle(request("join").put("key", "invitation-key").put("role", role).put("player", player).put("joinId", id))
         fun action(token: String, kind: String = "wounds", value: Int = 1, id: String = UUID.randomUUID().toString()) =
             request("command").put("token", token).put("match", table.state.value.game.gameId).put("revision", table.state.value.game.revision)
                 .put("kind", kind).put("value", value).put("slot", 0).put("actionId", id)
+    }
+
+    @Test fun `a guest's win claim waits for the other players in turn order and a denial withdraws it`() {
+        val f = Fixture(StandaloneGame().setFormat(GameProfile.MTG_COMMANDER)
+            .addPlayer("A").addPlayer("B").addPlayer("C").chooseStarter(0).start(1_000, "shared-match"))
+        val a = f.join("player", 1).getString("token")
+        val b = f.join("player", 2).getString("token")
+        val c = f.join("player", 3).getString("token")
+        assertEquals("ok", f.sessions.handle(f.action(a, "win", 0)).getString("code"))
+        var game = f.table.state.value.game
+        assertEquals(TableState.RUNNING, game.state)
+        assertEquals(0, game.openWinClaim); assertEquals(1, game.winConfirmer)
+        // Only the current confirmer answers; C waits for B.
+        assertEquals("rejected", f.sessions.handle(f.action(c, "confirm", 0)).getString("code"))
+        assertEquals("ok", f.sessions.handle(f.action(b, "confirm", 0)).getString("code"))
+        assertEquals(2, f.table.state.value.game.winConfirmer)
+        assertEquals("ok", f.sessions.handle(f.action(c, "deny", 0)).getString("code"))
+        game = f.table.state.value.game
+        assertNull(game.openWinClaim); assertEquals(TableState.RUNNING, game.state)
+        // A second claim, confirmed by both, ends the match for the claimant.
+        f.sessions.handle(f.action(a, "win", 0))
+        f.sessions.handle(f.action(b, "confirm", 0))
+        f.sessions.handle(f.action(c, "confirm", 0))
+        game = f.table.state.value.game
+        assertEquals(TableState.GAME_OVER, game.state); assertEquals(0, game.winner)
+        // The claim survives a restart of the host app while it is open.
+        val open = StandaloneGame().setFormat(GameProfile.MTG_COMMANDER).addPlayer("A").addPlayer("B").chooseStarter(0)
+            .start(1_000, "m").requestWin(1, 2_000)
+        assertEquals(1, open.openWinClaim)
+        assertEquals(open.winConfirmer, StandaloneTable.gameFromJson(StandaloneTable.gameToJson(open)).winConfirmer)
+        // The last confirmer knocked out: the claim lapses and claiming again wins at once.
+        val lapsed = open.eliminate(0, 3_000)
+        assertTrue(lapsed.state == TableState.GAME_OVER || lapsed.openWinClaim == null)
+    }
+
+    @Test fun `guests receive the seats' looks and commander art, with images only when their version changes`() {
+        val f = Fixture(tcg(GameProfile.MTG_COMMANDER).setCommander(0, "Atraxa", "0b2b3b0a-1c2d-4e5f-8a9b-0c1d2e3f4a5b"))
+        val image = java.util.Base64.getEncoder().encodeToString(ByteArray(64) { 1 })
+        f.looks = listOf(LocalPersonalization(color = "#123456", avatar = "cat",
+            tileBackground = com.turnhub.android.domain.TileBackground(com.turnhub.android.domain.TileBackgroundStyle.IMAGE, "#654321", image)), null)
+        val joined = f.join("player", 2)
+        assertEquals("0b2b3b0a-1c2d-4e5f-8a9b-0c1d2e3f4a5b", StandaloneTable.gameFromJson(joined.getJSONObject("game")).players[0].commanderArt)
+        val looks = joined.getJSONArray("looks")
+        assertEquals(2, looks.length()); assertTrue(looks.isNull(1))
+        val first = LocalPersonalization.fromJson(looks.getJSONObject(0))
+        assertEquals("#123456", first.color); assertEquals("cat", first.avatar); assertEquals(image, first.tileBackground.image)
+        assertFalse(joined.toString().contains("private-"))
+        val id = joined.getString("looksId")
+        val token = joined.getString("token")
+        val same = f.sessions.handle(f.request("poll").put("token", token).put("looksId", id))
+        assertFalse(same.has("looks")); assertEquals(id, same.getString("looksId"))
+        f.looks = listOf(null, LocalPersonalization(color = "#000000"))
+        val changed = f.sessions.handle(f.request("poll").put("token", token).put("looksId", id))
+        assertTrue(changed.getJSONArray("looks").isNull(0))
     }
 
     @Test fun `invitation and session authentication gate every snapshot`() {

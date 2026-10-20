@@ -244,6 +244,9 @@ internal fun TabletTable(
         mutableStateListOf<Int>()
     }
     var flipped by rememberSaveable { mutableStateOf(false) }
+    // The phone-hosted table can show one player's panel, for a group with no centre display
+    // whose host plays from their own device like everyone else (owner, 2026-10-20).
+    var soloKey by rememberSaveable(summary.bootId) { mutableStateOf<String?>(null) }
     val starLayout = rememberStarLayout()
     var menuOpen by remember { mutableStateOf(false) }
     var bagPrompt by rememberBagPromptState(summary)
@@ -343,7 +346,13 @@ internal fun TabletTable(
         }
     }
 
-    val units = tableUnits(summary)
+    val allUnits = tableUnits(summary)
+    val soloOffered = standalone && !summary.settings.profile.cooperative
+    // In one player's view a win claim's current confirmer joins it, so they can answer here.
+    val units = soloKey?.takeIf { soloOffered }?.let { key ->
+        allUnits.filter { u -> u.key == key || u.members.any { it.playerNumber == summary.pending.winConfirmationPlayer } }
+    }?.takeIf { list -> list.any { it.key == soloKey } } ?: allUnits
+    val solo = units.size < allUnits.size
     val turn = if (flipped) 180 else 0
     // Official modes keep their limits unless house rules are on (Atlas enforces the same).
     val limitsLocked = !summary.settings.houseRules &&
@@ -489,7 +498,8 @@ internal fun TabletTable(
                     onClose = { playerMenu = null },
                     onControl = { seat, action ->
                         if (action == "concede" || action == "eliminate" || action == "win") playerMenu = null
-                        send(seat, action)
+                        // From one player's view a win waits on the others, like a guest device's claim.
+                        send(seat, if (action == "win" && solo) "claim-win" else action)
                     },
                     onEliminate = { member, _ ->
                         if (isOffline) controls { refuseOffline() } else manualRemoval = member.playerNumber
@@ -665,6 +675,15 @@ internal fun TabletTable(
                     DisclosureCard("Sound & display") {
                         com.turnhub.android.ui.components.GameSoundControls()
                         ToneButton("Turn panels around", { flipped = !flipped; menuOpen = false }, Modifier.fillMaxWidth())
+                        if (soloOffered) {
+                            Text("Show on this device", color = p.muted, style = MaterialTheme.typography.titleSmall)
+                            ToneButton(if (soloKey == null) "✓ Whole table" else "Whole table", { soloKey = null; menuOpen = false },
+                                Modifier.fillMaxWidth())
+                            allUnits.forEach { unit ->
+                                ToneButton(if (soloKey == unit.key) "✓ Only ${unit.name}" else "Only ${unit.name}",
+                                    { soloKey = unit.key; menuOpen = false }, Modifier.fillMaxWidth())
+                            }
+                        }
                         if (summary.settings.profile.starCommander) {
                             SetupSwitch("Star layout", STAR_LAYOUT_HINT, starLayout.on, true, starLayout.set)
                         }
