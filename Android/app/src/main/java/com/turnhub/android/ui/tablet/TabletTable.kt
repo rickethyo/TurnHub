@@ -642,6 +642,13 @@ internal fun TabletTable(
                     AccentButton(if (paused) "Resume game" else "Pause game", {
                         menuOpen = false; send(activeSeat, "pause")
                     }, Modifier.fillMaxWidth(), enabled = !isOffline && activeSeat != null)
+                    summary.dayNight?.let { dayNight ->
+                        DisclosureCard(com.turnhub.android.ui.components.dayNightLabel(dayNight)?.let { "Day & night · $it" } ?: "Day & night") {
+                            com.turnhub.android.ui.components.DayNightControls(dayNight, !isOffline && anySeat != null) { action ->
+                                send(anySeat, action)
+                            }
+                        }
+                    }
                     DisclosureCard("Table tools") {
                         TableToolsCard(summary, reduceMotion) { haptics.tick() }
                     }
@@ -727,7 +734,7 @@ private fun Hub(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit) {
     ) {
         Text(if (summary.state == TableState.PAUSED) "Paused" else clock, color = p.text,
             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text(if (summary.players.any { it.eliminationPending }) "Eliminated by?" else if (summary.doomBag?.pending == true) "Bag check due" else summary.round?.let { "Round $it" } ?: "Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
+        Text(if (summary.players.any { it.eliminationPending }) "Eliminated by?" else if (summary.doomBag?.pending == true) "Bag check due" else summary.round?.let { "Round $it" } ?: com.turnhub.android.ui.components.dayNightLabel(summary.dayNight) ?: "Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -754,6 +761,9 @@ private fun HubBar(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit
             Text(if (elder.summoned) com.turnhub.android.domain.ElderOneTrack.stageName(elder.stage)
                 else "Track ${elder.space}/${com.turnhub.android.domain.ElderOneTrack.LAST_SPACE}",
                 color = p.muted, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+        }
+        com.turnhub.android.ui.components.dayNightLabel(summary.dayNight)?.let {
+            Text(it, color = p.muted, style = MaterialTheme.typography.titleSmall, maxLines = 1)
         }
         Spacer(Modifier.weight(1f))
         Text("Game menu", color = p.text, style = MaterialTheme.typography.labelLarge)
@@ -1562,7 +1572,8 @@ private fun PlayerMenuItems(
                     summary.settings.profile.commanderRules, showPoison = !team, commanderName = member.namedCommander,
                     commanderRarity = rememberCommanderArt(member.namedCommander, member.commanderArt)?.rarity,
                     partnerEnabled = member.playerNumber in partners,
-                    onPartnerChange = { on -> if (on) partners.add(member.playerNumber) else partners.remove(member.playerNumber) }) { kind, value, commander -> onCounter(member, kind, value, commander) }
+                    onPartnerChange = { on -> if (on) partners.add(member.playerNumber) else partners.remove(member.playerNumber) },
+                    phoneCounters = summary.dayNight != null) { kind, value, commander -> onCounter(member, kind, value, commander) }
                 ToneButton(
                     if (unit.members.size > 1) "${member.label}: I’m the monarch" else "I’m the monarch",
                     { onControl(member.seat(), "monarch") }, Modifier.fillMaxWidth(), tone = Tone.ACCENT,

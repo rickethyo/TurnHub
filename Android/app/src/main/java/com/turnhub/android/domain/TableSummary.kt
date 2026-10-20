@@ -83,6 +83,11 @@ data class TableSummary(
     val useRelics: Boolean = false,
     val drawTwoCards: Boolean = false,
     val investigatorReferences: Map<String, InvestigatorCard> = emptyMap(),
+    /**
+     * Phone-hosted Magic: day and night (CR 726), and the counters only the phone
+     * keeps (treasure, rad). Null when the host doesn't track them (Atlas).
+     */
+    val dayNight: DayNight? = null,
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding
@@ -124,6 +129,9 @@ data class TableSummary(
             // Commander damage is combat damage, and a Two-Headed Giant team never attacks itself (CR 805.10).
             !(settings.twoHeadedGiant && (receiver - 1) / 2 == (source - 1) / 2)
 }
+
+/** Day and night (CR 726): neither until a daybound or nightbound card appears, then day or night for the rest of the game. */
+enum class DayNight { NEITHER, DAY, NIGHT }
 
 /** A controller seat: handle + slot. How `/api/seats` names are matched to players. */
 data class SeatKey(val moduleId: Int, val slot: Int)

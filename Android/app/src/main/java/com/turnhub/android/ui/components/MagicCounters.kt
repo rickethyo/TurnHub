@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.turnhub.android.domain.DayNight
 import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.PlayerCounters
 import com.turnhub.android.protocol.TableSettings
@@ -52,6 +53,8 @@ fun magicStatus(c: PlayerCounters, initiative: Boolean): String = buildList {
     if (c.cityBlessing) add("City’s blessing")
     if (c.energy > 0) add("Energy ${c.energy}")
     if (c.experience > 0) add("Experience ${c.experience}")
+    if (c.treasure > 0) add("Treasure ${c.treasure}")
+    if (c.rad > 0) add("Rad ${c.rad}")
 }.joinToString(" · ")
 
 /** One counter as a chip: a symbol and value, with its name unless [compact]. Words always ride along for TalkBack. */
@@ -63,6 +66,8 @@ internal fun counterChips(c: PlayerCounters, initiative: Boolean, commander: Boo
     if (c.cityBlessing) add(CounterChip("✦", null, "City’s blessing", Tone.ACCENT))
     if (c.energy > 0) add(CounterChip("⚡", "${c.energy}", "Energy", Tone.INFO))
     if (c.experience > 0) add(CounterChip("★", "${c.experience}", "Experience", Tone.GOOD))
+    if (c.treasure > 0) add(CounterChip("◈", "${c.treasure}", "Treasure", Tone.ACCENT))
+    if (c.rad > 0) add(CounterChip("☢", "${c.rad}", "Rad", Tone.WARN))
     if (commander) for (n in 1..2) {
         val tax = c.commanderTax(n)
         if (tax > 0) add(CounterChip("", "+$tax", "Commander $n tax", Tone.NEUTRAL, DesignTokens.Icons.commander))
@@ -130,6 +135,8 @@ fun MagicCountersEditor(counters: PlayerCounters, initiative: Boolean, commander
     commanderRarity: String? = null,
     partnerEnabled: Boolean? = null,
     onPartnerChange: ((Boolean) -> Unit)? = null,
+    /** Treasure and rad: kept only by phone-hosted games until Atlas tracks them. */
+    phoneCounters: Boolean = false,
     onChange: (kind: String, value: Int, commander: Int) -> Unit,
 ) {
     var localPartner by rememberSaveable(commanderName) { mutableStateOf(false) }
@@ -138,6 +145,12 @@ fun MagicCountersEditor(counters: PlayerCounters, initiative: Boolean, commander
         if (showPoison) CounterRow("Poison", counters.poison, enabled, "☠", Tone.WARN) { onChange("poison", it, 1) }
         CounterRow("Energy", counters.energy, enabled, "⚡", Tone.INFO) { onChange("energy", it, 1) }
         CounterRow("Experience", counters.experience, enabled, "★", Tone.GOOD) { onChange("experience", it, 1) }
+        if (phoneCounters) {
+            CounterRow("Treasure", counters.treasure, enabled, "◈", Tone.ACCENT) { onChange("treasure", it, 1) }
+            CounterRow("Rad", counters.rad, enabled, "☢", Tone.WARN) { onChange("rad", it, 1) }
+            if (counters.rad > 0) Text("At the start of your first main phase, mill ${counters.rad}. For each nonland card milled, lose 1 life and remove a rad counter.",
+                color = palette.muted, style = MaterialTheme.typography.bodySmall)
+        }
         ToneButton(if (initiative) "Release initiative" else "I have the initiative",
             { onChange("initiative", if (initiative) 0 else 1, 1) }, Modifier.fillMaxWidth(), enabled = enabled)
         ToneButton(if (counters.cityBlessing) "Clear city’s blessing (correction)" else "I have the city’s blessing",
@@ -262,4 +275,31 @@ private fun commanderIconColor(rarity: String?) = when (rarity) {
     "rare" -> palette.rarityRare
     "mythic" -> palette.rarityMythic
     else -> palette.text
+}
+
+/**
+ * Day and night for the whole table (CR 726). The phone can't see spells cast, so
+ * the table switches it: day turns to night after a turn with no spells from its
+ * active player, and night to day after a turn with two or more.
+ */
+@Composable
+fun DayNightControls(dayNight: DayNight, enabled: Boolean, onSet: (action: String) -> Unit) {
+    Text(when (dayNight) {
+        DayNight.NEITHER -> "Neither day nor night yet. It becomes day when a daybound or nightbound card appears."
+        DayNight.DAY -> "☀ It’s day. If the active player casts no spells this turn, it becomes night next turn."
+        DayNight.NIGHT -> "☾ It’s night. If the active player casts two or more spells this turn, it becomes day next turn."
+    }, color = palette.text, style = MaterialTheme.typography.bodyMedium)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ToneButton("☀ Day", { onSet("day") }, Modifier.weight(1f), tone = Tone.ACCENT, enabled = enabled && dayNight != DayNight.DAY)
+        ToneButton("☾ Night", { onSet("night") }, Modifier.weight(1f), tone = Tone.INFO, enabled = enabled && dayNight != DayNight.NIGHT)
+    }
+    // Once it is day or night it never goes back (CR 726.2); clearing only undoes a mistaken tap.
+    if (dayNight != DayNight.NEITHER) ToneButton("Clear (correction)", { onSet("day-night-clear") }, Modifier.fillMaxWidth(), enabled = enabled)
+}
+
+/** The table's day or night, in a word, for the centre disc; null before either. */
+fun dayNightLabel(dayNight: DayNight?): String? = when (dayNight) {
+    DayNight.DAY -> "☀ Day"
+    DayNight.NIGHT -> "☾ Night"
+    else -> null
 }

@@ -2,6 +2,7 @@ package com.turnhub.android.standalone
 
 import com.turnhub.android.data.TabletSeat
 import com.turnhub.android.data.RawResponse
+import com.turnhub.android.domain.DayNight
 import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.TableState
@@ -211,6 +212,23 @@ class StandaloneGameTest {
         assertNull(reset.initiative)
         assertEquals(com.turnhub.android.protocol.PlayerCounters(), reset.players[0].counters)
         assertEquals(17, reset.poisonLimit)
+    }
+
+    @Test
+    fun `treasure rad and day or night are kept and survive recovery`() {
+        val game = threePlayers().changeCounter(0, "treasure", 3).changeCounter(0, "treasure", -1)
+            .changeCounter(1, "rad", 4).setDayNight(DayNight.DAY).setDayNight(DayNight.NIGHT)
+        assertEquals(2, game.players[0].counters.treasure)
+        assertEquals(4, game.players[1].counters.rad)
+        assertSame(game, game.changeCounter(0, "rad", -1))
+        assertEquals(DayNight.NIGHT, game.toSummary(2_000, 2_000).dayNight)
+        val restored = StandaloneTable.gameFromJson(StandaloneTable.gameToJson(game))
+        assertEquals(game, restored)
+        // A new game starts with neither; a game without Magic rules never reports it.
+        assertEquals(DayNight.NEITHER, game.claimWin(0, 3_000).rematch(4_000, "g2", firstSeat).dayNight)
+        val generic = game.reset().setFormat(GameProfile.GENERIC).start(3_000, "g3", firstSeat)
+        assertSame(generic, generic.setDayNight(DayNight.DAY))
+        assertNull(generic.toSummary(3_000, 3_000).dayNight)
     }
 
     @Test

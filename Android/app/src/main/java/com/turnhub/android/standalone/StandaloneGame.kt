@@ -2,6 +2,7 @@ package com.turnhub.android.standalone
 
 import com.turnhub.android.domain.ControllerHandle
 import com.turnhub.android.domain.CooperativeTurn
+import com.turnhub.android.domain.DayNight
 import com.turnhub.android.domain.ElderOneTrack
 import com.turnhub.android.domain.InvestigatorCard
 import com.turnhub.android.domain.InvestigatorCardSlot
@@ -117,6 +118,8 @@ data class StandaloneGame(
     /** One individual player, even when teams share life. */
     val monarch: Int? = null,
     val initiative: Int? = null,
+    /** Magic: day and night (CR 726), table-wide. */
+    val dayNight: DayNight = DayNight.NEITHER,
     /** Wall clock when the match started. */
     val startedAtMs: Long = 0,
     /** Game time banked before [runningSinceMs]. */
@@ -350,6 +353,7 @@ data class StandaloneGame(
             winners = emptyList(),
             monarch = null,
             initiative = null,
+            dayNight = DayNight.NEITHER,
             startedAtMs = nowMs,
             elapsedMs = 0,
             runningSinceMs = nowMs,
@@ -551,6 +555,13 @@ data class StandaloneGame(
     }
 
     /** The player leaves the game; when one is left standing, they win. */
+    /**
+     * Magic: it becomes day or night (CR 726). The table sets it by hand, as the
+     * phone can't see spells cast; [DayNight.NEITHER] only corrects a mistaken tap.
+     */
+    fun setDayNight(next: DayNight): StandaloneGame =
+        if (!playing || !magic || next == dayNight) this else copy(dayNight = next).bump()
+
     fun claimMonarch(index: Int): StandaloneGame {
         if (!playing || index !in players.indices || players[index].eliminated ||
             !magic || monarch == index) return this
@@ -602,6 +613,8 @@ data class StandaloneGame(
             "poison" -> c.poison
             "energy" -> c.energy
             "experience" -> c.experience
+            "treasure" -> c.treasure
+            "rad" -> c.rad
             "commander-casts" -> {
                 if (!profile.commanderRules || commander !in 1..2) return this
                 c.commanderCasts[commander-1]
@@ -616,6 +629,8 @@ data class StandaloneGame(
             "poison" -> c.copy(poison = next)
             "energy" -> c.copy(energy = next)
             "experience" -> c.copy(experience = next)
+            "treasure" -> c.copy(treasure = next)
+            "rad" -> c.copy(rad = next)
             else -> c.copy(commanderCasts = c.commanderCasts.toMutableList().also { it[commander-1] = next })
         }
         return update(index) { it.copy(counters = updated) }.resolveEliminationRules(nowMs)
@@ -1162,6 +1177,7 @@ data class StandaloneGame(
             winnerPlayerNumbers = winners.map { it + 1 },
             monarchPlayerNumber = monarch?.plus(1),
             initiativePlayerNumber = initiative?.plus(1),
+            dayNight = dayNight.takeIf { magic },
             pending = PendingDecisions(null, 0, null, null, null),
             gameElapsedMs = elapsed,
             turnElapsedMs = (elapsed - turnStartedAtElapsedMs).coerceAtLeast(0),
