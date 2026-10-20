@@ -3,6 +3,7 @@ package com.turnhub.android.lan
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.turnhub.android.standalone.LocalPersonalization
 import com.turnhub.android.standalone.StandaloneGame
 import com.turnhub.android.standalone.StandaloneTable
 import kotlinx.coroutines.*
@@ -36,6 +37,9 @@ internal data class LanUiState(
     val busy: Boolean = false,
     val uncertain: Boolean = false,
     val message: String? = null,
+    /** The host's public look for each seat, by player index, so guest panels match the table. */
+    val looks: List<LocalPersonalization?> = emptyList(),
+    val looksId: String = "",
 )
 
 internal class LanViewModel(
@@ -89,7 +93,12 @@ internal class LanViewModel(
                 val code = if (qrOnly) null else LanJoinCode.generate()
                 val key = code ?: randomLanSecret()
                 val core = LanSessions(session, key, { table.state.value.game }, table::applyLanAction,
-                    unavailable = { !foreground || table.state.value.storageProblem != null })
+                    unavailable = { !foreground || table.state.value.storageProblem != null },
+                    looks = {
+                        val state = table.state.value
+                        val saved = state.library.players.associate { it.localId to it.personalization }
+                        state.game.players.map { saved[it.localId] }
+                    })
                 sessions = core
                 val invitation = withContext(Dispatchers.IO) {
                     val wifi = currentLanWifi(context)
@@ -193,7 +202,8 @@ internal class LanViewModel(
                 val game = readGame(reply)
                 token = reply.text("token")
                 generation++
-                _state.update { it.copy(remote = game, role = role, player = reply.optInt("player", player), preview = null, online = true, busy = false, message = null) }
+                _state.update { it.copy(remote = game, role = role, player = reply.optInt("player", player), preview = null, online = true, busy = false, message = null)
+                    .withLooks(reply) }
                 startPolling(generation)
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
@@ -210,7 +220,7 @@ internal class LanViewModel(
                 val invitation = invite ?: break
                 val credential = token ?: break
                 try {
-                    val reply = request(invitation, base(invitation, "poll").put("token", credential))
+                    val reply = request(invitation, base(invitation, "poll").put("token", credential).put("looksId", _state.value.looksId))
                     if (epoch == generation) receive(reply)
                 } catch (error: Exception) {
                     if (error is CancellationException) throw error
@@ -226,7 +236,7 @@ internal class LanViewModel(
         val invitation = invite ?: return
         if (!state.online || state.busy || pending != null || state.role !in setOf("investigator", "player")) return
         pending = base(invitation, "command").put("token", token).put("actionId", UUID.randomUUID().toString())
-            .put("match", game.gameId).put("revision", game.revision).put("kind", kind).put("value", value).put("slot", slot).put("source", source)
+            .put("match", game.gameId).put("revision", game.revision).put("kind", kind).put("value", value).put("slot", slot).put("source", source).put("looksId", state.looksId)
         retry()
     }
 
@@ -278,6 +288,8 @@ internal class LanViewModel(
             player = reply.optInt("player", before.player),
             remote = game?.takeIf { before.remote == null || it.revision >= before.remote.revision } ?: before.remote,
             online = online,
+            looks = if (reply.has("looks")) readLooks(reply) else before.looks,
+            looksId = if (reply.has("looks")) reply.optString("looksId") else before.looksId,
             message = when (code) {
                 "ok" -> if (before.uncertain) before.message else null
                 "stale" -> "The table changed before this edit arrived. Review the latest values and try again."
@@ -296,6 +308,15 @@ internal class LanViewModel(
         }
     }
     private fun base(invitation: LanInvite, op: String) = JSONObject().put("v", LAN_VERSION).put("session", invitation.session).put("op", op)
+    private fun LanUiState.withLooks(reply: JSONObject) =
+        if (reply.has("looks")) copy(looks = readLooks(reply), looksId = reply.optString("looksId")) else this
+    /** A look the guest can't read is just the default panel; it never blocks the game. */
+    private fun readLooks(reply: JSONObject): List<LocalPersonalization?> {
+        val array = reply.optJSONArray("looks") ?: return emptyList()
+        return (0 until minOf(array.length(), 10)).map { i ->
+            array.optJSONObject(i)?.let { runCatching { LocalPersonalization.fromJson(it) }.getOrNull() }
+        }
+    }
     private fun readGame(reply: JSONObject): StandaloneGame = StandaloneTable.gameFromJson(reply.getJSONObject("game")).also {
         require(it.profile.lanSupported && it.players.size in 0..10)
     }

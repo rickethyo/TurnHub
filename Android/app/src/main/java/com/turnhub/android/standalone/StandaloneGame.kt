@@ -120,6 +120,12 @@ data class StandaloneGame(
     val initiative: Int? = null,
     /** Magic: day and night (CR 726), table-wide. */
     val dayNight: DayNight = DayNight.NEITHER,
+    /**
+     * A win claimed from a player's own device, waiting on the other players as a Sigil's claim
+     * waits on Atlas (owner, 2026-10-20): the claimant's index, and who has confirmed so far.
+     */
+    val winClaim: Int? = null,
+    val winConfirmed: Set<Int> = emptySet(),
     /** Wall clock when the match started. */
     val startedAtMs: Long = 0,
     /** Game time banked before [runningSinceMs]. */
@@ -365,7 +371,10 @@ data class StandaloneGame(
             acted = emptySet(),
             round = 1,
             nextTurn = null,
-            elder = elder.fresh(),
+            winClaim = null,
+            winConfirmed = emptySet(),
+            // Figures placed during setup are on the map when play begins.
+            elder = elder.fresh().copy(enemies = elder.enemies),
         ).bump()
     }
 
@@ -711,6 +720,46 @@ data class StandaloneGame(
     }
 
     /**
+     * The open claim's claimant, while its match is still played and someone is left to ask.
+     * A claim whose last confirmer was knocked out simply lapses; claiming again then wins.
+     */
+    val openWinClaim: Int? get() = winClaim?.takeIf {
+        playing && players.getOrNull(it)?.eliminated == false && confirmerFor(it) != null
+    }
+
+    /**
+     * Who confirms next: the other living players (other teams in Two-Headed Giant) in turn
+     * order after the claimant, as Atlas asks them. Null when no claim is open.
+     */
+    val winConfirmer: Int? get() = openWinClaim?.let(::confirmerFor)
+
+    private fun confirmerFor(claimant: Int): Int? =
+        (1 until players.size).map { (claimant + it) % players.size }.firstOrNull { i ->
+            !players[i].eliminated && i !in winConfirmed && !(twoHeadedGiant && i / 2 == claimant / 2)
+        }
+
+    /**
+     * A claim from a player's own device. Cooperative games, and a table where nobody else is
+     * left to ask, win at once; otherwise the others confirm one at a time ([answerWinClaim]).
+     */
+    fun requestWin(index: Int, nowMs: Long): StandaloneGame {
+        val player = players.getOrNull(index) ?: return this
+        if (!playing || player.eliminated || openWinClaim != null || doomBag.pending || players.any { it.eliminationPending }) return this
+        if (profile.cooperative) return claimWin(index, nowMs)
+        val asked = copy(winClaim = index, winConfirmed = emptySet())
+        return if (asked.winConfirmer == null) claimWin(index, nowMs) else asked.bump()
+    }
+
+    /** The current confirmer's answer: a denial withdraws the claim; the last confirmation wins it. */
+    fun answerWinClaim(index: Int, accept: Boolean, nowMs: Long): StandaloneGame {
+        val claimant = openWinClaim ?: return this
+        if (index != winConfirmer) return this
+        if (!accept) return copy(winClaim = null, winConfirmed = emptySet()).bump()
+        val next = copy(winConfirmed = winConfirmed + index)
+        return if (next.winConfirmer == null) next.claimWin(claimant, nowMs) else next.bump()
+    }
+
+    /**
      * The table agreed this player won (the claim is armed on the panel, so one tap can't end a game).
      * In a cooperative game every player wins together, the fallen too.
      */
@@ -757,6 +806,13 @@ data class StandaloneGame(
     fun removeEpisodeToken(index: Int): StandaloneGame = editElder(setup = true) { it.withoutToken(index) }
 
     fun changeEpisodeToken(index: Int, delta: Int): StandaloneGame = editElder(setup = false) { it.token(index, delta) }
+
+    /** Minions and episode monsters: placed in setup or during the game, wounded during it. */
+    fun addEnemy(card: com.turnhub.android.domain.EnemyCard): StandaloneGame = editElder(setup = true) { it.withEnemy(card) }
+
+    fun removeEnemy(index: Int): StandaloneGame = editElder(setup = true) { it.withoutEnemy(index) }
+
+    fun woundEnemy(index: Int, delta: Int): StandaloneGame = editElder(setup = false) { it.woundEnemy(index, delta) }
 
     /**
      * A change to the Story board during the game ([ElderOneTrack]). The Progression token
@@ -1007,6 +1063,8 @@ data class StandaloneGame(
 
     private fun finish(winners: List<Int>, nowMs: Long): StandaloneGame = copy(
         state = TableState.GAME_OVER,
+        winClaim = null,
+        winConfirmed = emptySet(),
         doomBag = doomBag.copy(pending = false, pendingTurn = 0, selected = 0, sealed = false),
         nextTurn = null,
         winner = winners.firstOrNull(),
@@ -1178,7 +1236,7 @@ data class StandaloneGame(
             monarchPlayerNumber = monarch?.plus(1),
             initiativePlayerNumber = initiative?.plus(1),
             dayNight = dayNight.takeIf { magic },
-            pending = PendingDecisions(null, 0, null, null, null),
+            pending = PendingDecisions(null, 0, openWinClaim?.plus(1), winConfirmer?.plus(1), null),
             gameElapsedMs = elapsed,
             turnElapsedMs = (elapsed - turnStartedAtElapsedMs).coerceAtLeast(0),
             turnTimer = turnTimer(nowMs),

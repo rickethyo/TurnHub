@@ -50,7 +50,24 @@ data class LocalLibrary(
     val deliveries: List<MatchDelivery> = emptyList(),
     val planarDecks: List<PlanarSelection> = emptyList(),
     val investigatorReferences: Map<String, com.turnhub.android.domain.InvestigatorCard> = emptyMap(),
+    /** Death May Die enemy cards typed in at the table, kept for the next game, by name. */
+    val enemies: List<com.turnhub.android.domain.EnemyCard> = emptyList(),
 ) {
+    /** Saves or updates (by name, any case) an enemy card's stats. */
+    fun withEnemy(card: com.turnhub.android.domain.EnemyCard): LocalLibrary {
+        val clean = card.normalized() ?: return this
+        val index = enemies.indexOfFirst { it.name.equals(clean.name, ignoreCase = true) }
+        return when {
+            index >= 0 && enemies[index] == clean -> this
+            index >= 0 -> copy(enemies = enemies.mapIndexed { i, e -> if (i == index) clean else e })
+            enemies.size >= MAX_ENEMY_CARDS -> this
+            else -> copy(enemies = enemies + clean)
+        }
+    }
+
+    fun withoutEnemy(name: String): LocalLibrary =
+        if (enemies.none { it.name.equals(name, ignoreCase = true) }) this else copy(enemies = enemies.filterNot { it.name.equals(name, ignoreCase = true) })
+
     fun withInvestigatorReference(id: String, card: com.turnhub.android.domain.InvestigatorCard): LocalLibrary {
         val entry = com.turnhub.android.domain.InvestigatorCardCatalogue.find(id) ?: return this
         val clean = card.normalized(entry.slot)?.takeIf { it.catalogueId == id } ?: return this
@@ -166,6 +183,7 @@ data class LocalLibrary(
         })
         put("investigatorReferences", JSONObject().apply { investigatorReferences.forEach { (id, card) -> put(id, card.toJson()) } })
         put("planarDecks", JSONArray().apply { planarDecks.forEach { put(it.toJson()) } })
+        put("enemies", JSONArray().apply { enemies.forEach { put(StandaloneTable.enemyCardToJson(it)) } })
         put("history", JSONArray().apply { history.forEach { put(it.toJson()) } })
         put("deliveries", JSONArray().apply {
             deliveries.forEach { d -> put(JSONObject().apply {
@@ -187,7 +205,10 @@ data class LocalLibrary(
             val deliveries = json.getJSONArray("deliveries")
             val decks = json.optJSONArray("planarDecks") ?: JSONArray()
             val references = json.optJSONObject("investigatorReferences")
+            val enemies = json.optJSONArray("enemies") ?: JSONArray()
             return LocalLibrary(
+                enemies = (0 until enemies.length()).mapNotNull { enemies.optJSONObject(it)?.let { e -> StandaloneTable.enemyCardFromJson(e) } }
+                    .distinctBy { it.name.lowercase(java.util.Locale.ROOT) }.take(MAX_ENEMY_CARDS),
                 investigatorReferences = references?.keys()?.asSequence()?.mapNotNull { id ->
                     val entry = com.turnhub.android.domain.InvestigatorCardCatalogue.find(id) ?: return@mapNotNull null
                     val card = references.optJSONObject(id)?.let { com.turnhub.android.domain.InvestigatorCard.fromJson(it, entry.slot) }
@@ -250,3 +271,5 @@ data class LocalImportState(
 data class ElderOneResult(val elderOne: String, val won: Int, val lost: Int)
 
 const val UNRECORDED_ELDER_ONE = "Unrecorded Elder One"
+
+const val MAX_ENEMY_CARDS = 80

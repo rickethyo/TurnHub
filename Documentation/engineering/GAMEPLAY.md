@@ -90,6 +90,16 @@ loss condition; Commander damage totals alone do not trigger elimination.
   split of 3 between stress and wounds and sends ordinary −1 steps. Each Death
   May Die game in History records its Elder One, episode and investigators, and
   the Games list sums wins and losses by Elder One (`LocalLibrary.elderOneRecord`).
+  Each Insanity Threshold reached owes one skill level-up (rulebook p. 8;
+  `InvestigatorDashboard.pendingLevelUps`). While one is owed, the threshold
+  alert (host panel and investigator device) names the insanity card and shows a
+  **Resolve** button per skill that can rise; level chips appear only under
+  **Correct skill levels** (owner, 2026-10-20). The Elder One tab follows the
+  Story board's order: track, stages, then **Elder One minions** and **Episode
+  monsters** (`ElderOneTrack.enemies`, numbered figures with wounds out of
+  health) and episode tokens. No stat list is published, so an enemy card's
+  name, health and attack dice are typed once and kept on the device
+  (`LocalLibrary.enemies`); a rematch clears the map.
   In the lobby each player row
   keeps one height: the investigator button shows the chosen name, and the
   two card buttons stay on one line. The player's-name field and saved-player
@@ -552,6 +562,9 @@ and caching, with no new dependency; browsing can download uncached preview art.
 - **Win claims** need the other living players to confirm, in Atlas's player
   order; a denial resumes play. **Concede** and Game Master removal eliminate
   through the same flow.
+  In a phone-hosted game the same rule covers a claim from a guest's device or
+  the host's single-player view (`StandaloneGame.requestWin`, owner,
+  2026-10-20); the host's whole-table **Win** remains the table's own decision.
 
 ## Turn timer
 

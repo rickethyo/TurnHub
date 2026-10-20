@@ -251,6 +251,21 @@ class StandaloneTable(
     fun nameEpisodeToken(name: String) = edit { it.nameEpisodeToken(name) }
     fun removeEpisodeToken(index: Int) = edit { it.removeEpisodeToken(index) }
     fun changeEpisodeToken(index: Int, delta: Int) = edit { it.changeEpisodeToken(index, delta) }
+    /** Places a figure and keeps its card's stats on this device for later games. */
+    fun addEnemy(card: com.turnhub.android.domain.EnemyCard): Boolean {
+        val before = _state.value
+        val clean = card.normalized() ?: return false
+        val game = before.game.addEnemy(clean)
+        if (game === before.game) return false
+        return publish(before.copy(game = game, library = before.library.withEnemy(clean)))
+    }
+    fun forgetEnemy(name: String) {
+        val before = _state.value
+        val library = before.library.withoutEnemy(name)
+        if (library !== before.library) publish(before.copy(library = library))
+    }
+    fun removeEnemy(index: Int) = edit { it.removeEnemy(index) }
+    fun woundEnemy(index: Int, delta: Int) = edit { it.woundEnemy(index, delta) }
     fun setDrawTwoCards(on: Boolean) = edit { it.setDrawTwoCards(on) }
     fun dealInvestigatorCards(index: Int, slot: com.turnhub.android.domain.InvestigatorCardSlot) = edit { it.dealInvestigatorCards(index, slot) }
     /** One settings update from the shared lobby, preserving unspecified fields. */
@@ -424,6 +439,10 @@ class StandaloneTable(
                 "night" -> game.setDayNight(com.turnhub.android.domain.DayNight.NIGHT)
                 "day-night-clear" -> game.setDayNight(com.turnhub.android.domain.DayNight.NEITHER)
                 "win" -> game.claimWin(index, now)
+                // A player's own view (the host's single-player view) asks the others first.
+                "claim-win" -> game.requestWin(index, now)
+                "confirm" -> game.answerWinClaim(index, true, now)
+                "deny" -> game.answerWinClaim(index, false, now)
                 "draw" -> game.endWithoutWinner(now)
                 "rematch" -> if (planarSelectionReady(game)) game.rematch(now, newId(), planarDeck = planarDeck(game)) else game
                 "sean-mode" -> if (planarSelectionReady(game)) game.seanModeRematch(now, newId(), planarDeck = planarDeck(game)) else game
@@ -523,10 +542,13 @@ class StandaloneTable(
                 game.changeLife(index, action.value, now)
             action.kind == "commander" && action.slot in 1..2 && action.source in 1..game.players.size && action.value in listOf(-1, 1) ->
                 game.commanderDamage(index, action.source - 1, action.slot, action.value, now)
-            simple && action.kind in setOf("pass", "extend-turn", "win", "concede", "eliminate", "monarch") -> when (action.kind) {
+            simple && action.kind in setOf("pass", "extend-turn", "win", "confirm", "deny", "concede", "eliminate", "monarch") -> when (action.kind) {
                 "pass" -> game.pass(index, now)
                 "extend-turn" -> game.extendTurn(index, now)
-                "win" -> game.claimWin(index, now)
+                // A guest's claim waits on the other players, as a Sigil's does (owner, 2026-10-20).
+                "win" -> game.requestWin(index, now)
+                "confirm" -> game.answerWinClaim(index, true, now)
+                "deny" -> game.answerWinClaim(index, false, now)
                 "concede" -> game.concede(index, now)
                 "eliminate" -> game.eliminate(index, now)
                 "monarch" -> game.claimMonarch(index)
@@ -606,6 +628,16 @@ class StandaloneTable(
     }
 
     companion object {
+        internal fun enemyCardToJson(card: com.turnhub.android.domain.EnemyCard): JSONObject = JSONObject()
+            .put("name", card.name).put("health", card.health).put("dice", card.dice).put("group", card.group.name)
+            .apply { if (card.ability.isNotEmpty()) put("ability", card.ability) }
+
+        /** Null for anything out of range, so a bad record is dropped rather than shown. */
+        internal fun enemyCardFromJson(json: JSONObject): com.turnhub.android.domain.EnemyCard? = runCatching {
+            com.turnhub.android.domain.EnemyCard(json.getString("name"), json.getInt("health"), json.getInt("dice"),
+                com.turnhub.android.domain.EnemyGroup.valueOf(json.getString("group")), json.optString("ability")).normalized()
+        }.getOrNull()
+
         private fun elderToJson(elder: com.turnhub.android.domain.ElderOneTrack): JSONObject = JSONObject().apply {
             put("elderOne", elder.elderOne ?: JSONObject.NULL)
             put("episode", elder.episode ?: JSONObject.NULL)
@@ -617,6 +649,7 @@ class StandaloneTable(
             put("stageHealth", JSONObject().apply { elder.stageHealth.forEach { (stage, health) -> put("$stage", health) } })
             put("symbols", elder.symbols)
             put("tokens", JSONArray().apply { elder.tokens.forEach { put(JSONObject().put("name", it.name).put("count", it.count)) } })
+            put("enemies", JSONArray().apply { elder.enemies.forEach { put(enemyCardToJson(it.card).put("number", it.number).put("wounds", it.wounds)) } })
         }
 
         /** Out-of-range saved values fall back to a fresh track rather than an impossible one. */
@@ -628,7 +661,16 @@ class StandaloneTable(
                 val withName = track.withToken(token.optString("name"))
                 if (withName === track) track else withName.token(withName.tokens.lastIndex, token.optInt("count"))
             }
-            val fresh = named
+            val figures = json.optJSONArray("enemies")
+            val fresh = (0 until (figures?.length() ?: 0)).fold(named) { t, i ->
+                val figure = figures?.optJSONObject(i) ?: return@fold t
+                val card = enemyCardFromJson(figure) ?: return@fold t
+                val number = figure.optInt("number", 1)
+                if (number !in 1..com.turnhub.android.domain.ElderOneTrack.MAX_ENEMIES || t.enemies.any { it.card.name.equals(card.name, ignoreCase = true) && it.number == number } ||
+                    t.enemies.size >= com.turnhub.android.domain.ElderOneTrack.MAX_ENEMIES) return@fold t
+                t.copy(enemies = t.enemies + com.turnhub.android.domain.EnemyFigure(card, number,
+                    figure.optInt("wounds").coerceIn(0, card.health)))
+            }
             val track = com.turnhub.android.domain.ElderOneTrack
             val space = json.optInt("space", track.START_SPACE)
             val stage = json.optInt("stage", 1)
@@ -672,6 +714,7 @@ class StandaloneTable(
             put("monarch", game.monarch ?: JSONObject.NULL)
             put("initiative", game.initiative ?: JSONObject.NULL)
             put("dayNight", game.dayNight.name)
+            game.winClaim?.let { put("winClaim", it); put("winConfirmed", JSONArray(game.winConfirmed.sorted())) }
             put("autoEliminateAtPoisonLimit", game.autoEliminateAtPoisonLimit)
             put("autoEliminateAtCommanderDamage", game.autoEliminateAtCommanderDamage)
             put("poisonLimit", game.poisonLimit)
@@ -772,6 +815,8 @@ class StandaloneTable(
                 initiative = json.optIntOrNull("initiative"),
                 dayNight = com.turnhub.android.domain.DayNight.entries.firstOrNull { it.name == json.optString("dayNight") }
                     ?: com.turnhub.android.domain.DayNight.NEITHER,
+                winClaim = json.optIntOrNull("winClaim")?.takeIf { it in 0 until players.length() },
+                winConfirmed = json.optIntList("winConfirmed")?.filter { it in 0 until players.length() }?.toSet().orEmpty(),
                 autoEliminateAtPoisonLimit = json.optBoolean("autoEliminateAtPoisonLimit", true),
                 autoEliminateAtCommanderDamage = json.optBoolean("autoEliminateAtCommanderDamage", true),
                 poisonLimit = json.optInt("poisonLimit", 10),

@@ -38,6 +38,8 @@ data class ElderOneTrack(
     val symbols: Int = 0,
     /** The episode's own tokens (gates, seals and so on), named by the table, in the order added. */
     val tokens: List<EpisodeToken> = emptyList(),
+    /** Minions and episode monsters on the map, in the order they arrived. */
+    val enemies: List<EnemyFigure> = emptyList(),
 ) {
     /** The ritual is disrupted and the Elder One is on the board: wounds count. */
     val vulnerable: Boolean get() = summoned && ritualDisrupted
@@ -128,6 +130,25 @@ data class ElderOneTrack(
     fun withoutToken(index: Int): ElderOneTrack =
         if (index !in tokens.indices) this else copy(tokens = tokens.filterIndexed { i, _ -> i != index })
 
+    /** A figure of [card] arrives, numbered after the others of its kind on the map. */
+    fun withEnemy(card: EnemyCard): ElderOneTrack {
+        val clean = card.normalized() ?: return this
+        if (enemies.size >= MAX_ENEMIES) return this
+        val taken = enemies.filter { it.card.name.equals(clean.name, ignoreCase = true) }.map { it.number }.toSet()
+        return copy(enemies = enemies + EnemyFigure(clean, generateSequence(1) { it + 1 }.first { it !in taken }))
+    }
+
+    /** Wounds on figure [index]; it stays on the map at its health until the table removes it. */
+    fun woundEnemy(index: Int, delta: Int): ElderOneTrack {
+        val figure = enemies.getOrNull(index) ?: return this
+        val next = (figure.wounds + delta).coerceIn(0, figure.card.health)
+        return if (next == figure.wounds) this else copy(enemies = enemies.mapIndexed { i, f -> if (i == index) f.copy(wounds = next) else f })
+    }
+
+    /** The figure dies or leaves the map. */
+    fun withoutEnemy(index: Int): ElderOneTrack =
+        if (index !in enemies.indices) this else copy(enemies = enemies.filterIndexed { i, _ -> i != index })
+
     /** Tokens of kind [index] out on the board, from 0 to [MAX_TOKEN_COUNT]. */
     fun token(index: Int, delta: Int): ElderOneTrack {
         val token = tokens.getOrNull(index) ?: return this
@@ -153,6 +174,7 @@ data class ElderOneTrack(
         const val MAX_NAME = 40
         const val MAX_TOKENS = 6
         const val MAX_TOKEN_COUNT = 99
+        const val MAX_ENEMIES = 30
         /** Names to start from; the table can type any other. */
         val SUGGESTED_TOKENS = listOf("Gate", "Seal", "Elder Sign", "Clue", "Ritual")
 

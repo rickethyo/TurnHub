@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Preview build in Mardi Gras colors (owner, 2026-10-20, for Mobile, Alabama):
+  bright parade purple and green in diagonal halves behind the gold gear, apart
+  from the Play app's graphite.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108l-108,108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="54"
+                android:endY="54">
+                <item android:offset="0" android:color="#FFB23CFF" />
+                <item android:offset="1" android:color="#FF8A1FD6" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M108,0v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="54"
+                android:startY="54"
+                android:endX="108"
+                android:endY="108">
+                <item android:offset="0" android:color="#FF19C24A" />
+                <item android:offset="1" android:color="#FF0A9A3A" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

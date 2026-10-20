@@ -1079,6 +1079,26 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   QR-only hid it from code search. Lobby joining is JVM-tested only (the tablet's
   live match was left running).
 
+## 2026-10-20 — Claude: Death May Die second batch
+
+- Owner: Claude on `claude/death-may-die-mode-biwa1i` from master `b5a4e3b` plus
+  `codex/master` #148 (docs only, reviewed and merged in). Owner list: threshold
+  Resolve button, fire reminder under the Fire track, skill levels hidden until a
+  threshold, distinct insanity/relic cards and tracks with investigator art, a
+  read-only Elder One view on investigator devices, and minions/episode monsters
+  on the Elder One tab, typed once from the card and saved (no public stat list
+  found; BoardGameGeek's API refuses anonymous requests). The board layout
+  already matched the rulebook (4 green spaces, 3 red, the circle; 4 stages).
+- Also fixed master's red "Android manual asset" check: the Word App Manual now
+  carries Codex's Play together text, so `export_manual.py --check` passes.
+- Validation: new `ElderOneTest` cases; CI build. Device playtest pending.
+- Follow-up from the owner's first playtest: guests now draw the host's seat looks
+  (color, avatar, background, commander art; `looks`/`looksId` in LAN v1, images
+  sent only when they change and only while they fit 320 KiB); a guest's win
+  claim waits for the other players in turn order like a Sigil's
+  (`requestWin`/`answerWinClaim`, `winClaim` persisted); the host table can show
+  one player's panel (**Show on this device**), where a win waits the same way.
+
 ## TH-032: TCG shared players and read-only table
 
 - Date / owner: 2026-10-19, Codex, `codex/master`, clean merged baseline

@@ -244,6 +244,9 @@ internal fun TabletTable(
         mutableStateListOf<Int>()
     }
     var flipped by rememberSaveable { mutableStateOf(false) }
+    // The phone-hosted table can show one player's panel, for a group with no centre display
+    // whose host plays from their own device like everyone else (owner, 2026-10-20).
+    var soloKey by rememberSaveable(summary.bootId) { mutableStateOf<String?>(null) }
     val starLayout = rememberStarLayout()
     var menuOpen by remember { mutableStateOf(false) }
     var bagPrompt by rememberBagPromptState(summary)
@@ -343,7 +346,13 @@ internal fun TabletTable(
         }
     }
 
-    val units = tableUnits(summary)
+    val allUnits = tableUnits(summary)
+    val soloOffered = standalone && !summary.settings.profile.cooperative
+    // In one player's view a win claim's current confirmer joins it, so they can answer here.
+    val units = soloKey?.takeIf { soloOffered }?.let { key ->
+        allUnits.filter { u -> u.key == key || u.members.any { it.playerNumber == summary.pending.winConfirmationPlayer } }
+    }?.takeIf { list -> list.any { it.key == soloKey } } ?: allUnits
+    val solo = units.size < allUnits.size
     val turn = if (flipped) 180 else 0
     // Official modes keep their limits unless house rules are on (Atlas enforces the same).
     val limitsLocked = !summary.settings.houseRules &&
@@ -357,14 +366,19 @@ internal fun TabletTable(
         val focused = units.indexOfFirst { !it.out && it.members.any { member -> summary.hasTurn(member.playerNumber) } }
             .takeIf { it >= 0 } ?: units.indexOfFirst { !it.out }.coerceAtLeast(0)
         // The middle panel of a side with an odd count meets the centre disc at its inner (top) edge.
-        val underHub = if (star || list) emptySet()
+        val underHub = if (star || list || solo) emptySet()
             else listOf(plan.near, plan.far).filter { it.size % 2 == 1 }.map { it[it.size / 2] }.toSet()
         fun degreesOf(index: Int) = when {
-            list -> 0
+            list || solo -> 0
             // A player's full-screen menu turns to the nearest side of their star seat.
             star -> Math.floorMod(Math.round(starSpot(index).degrees / 90f) * 90, 360)
             landscape -> if (index in plan.far) 180 else 0
             else -> if (index in plan.far) 90 else 270
+        }
+        fun openHub() {
+            haptics.tick()
+            if (attribution == null && bag?.pending == true) bagPrompt = bagPrompt.open()
+            else menuOpen = true
         }
         val panel: @Composable (Int, Int, Modifier) -> Unit = { index, degrees, modifier ->
             val unit = units[index]
@@ -441,6 +455,13 @@ internal fun TabletTable(
                         }
                     }
                 }
+            } else if (solo) {
+                // One player's view: upright panels under the slim menu bar, so no centre disc
+                // covers the life total.
+                Column(Modifier.fillMaxSize().padding(4.dp)) {
+                    HubBar(summary, Modifier.fillMaxWidth().padding(4.dp)) { openHub() }
+                    units.indices.forEach { panel(it, 0, Modifier.weight(1f).fillMaxWidth()) }
+                }
             } else if (star) {
                 StarTable(panel)
             } else if (landscape) {
@@ -469,11 +490,7 @@ internal fun TabletTable(
                 }
             }
 
-            if (!list) Hub(summary, Modifier.align(Alignment.Center)) {
-                haptics.tick()
-                if (attribution == null && bag?.pending == true) bagPrompt = bagPrompt.open()
-                else menuOpen = true
-            }
+            if (!list && !solo) Hub(summary, Modifier.align(Alignment.Center)) { openHub() }
         }
 
         val menuIndex = units.indexOfFirst { it.key == playerMenu }
@@ -489,7 +506,8 @@ internal fun TabletTable(
                     onClose = { playerMenu = null },
                     onControl = { seat, action ->
                         if (action == "concede" || action == "eliminate" || action == "win") playerMenu = null
-                        send(seat, action)
+                        // From one player's view a win waits on the others, like a guest device's claim.
+                        send(seat, if (action == "win" && solo) "claim-win" else action)
                     },
                     onEliminate = { member, _ ->
                         if (isOffline) controls { refuseOffline() } else manualRemoval = member.playerNumber
@@ -665,6 +683,15 @@ internal fun TabletTable(
                     DisclosureCard("Sound & display") {
                         com.turnhub.android.ui.components.GameSoundControls()
                         ToneButton("Turn panels around", { flipped = !flipped; menuOpen = false }, Modifier.fillMaxWidth())
+                        if (soloOffered) {
+                            Text("Show on this device", color = p.muted, style = MaterialTheme.typography.titleSmall)
+                            ToneButton(if (soloKey == null) "✓ Whole table" else "Whole table", { soloKey = null; menuOpen = false },
+                                Modifier.fillMaxWidth())
+                            allUnits.forEach { unit ->
+                                ToneButton(if (soloKey == unit.key) "✓ Only ${unit.name}" else "Only ${unit.name}",
+                                    { soloKey = unit.key; menuOpen = false }, Modifier.fillMaxWidth())
+                            }
+                        }
                         if (summary.settings.profile.starCommander) {
                             SetupSwitch("Star layout", STAR_LAYOUT_HINT, starLayout.on, true, starLayout.set)
                         }
