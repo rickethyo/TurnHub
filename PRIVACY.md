@@ -26,7 +26,7 @@ reports are described below.
   choose sharing: Android's own backup, if you have it turned on, may copy
   them to your Google account (saved Atlas passwords and sign-in secrets are
   excluded); and you can choose to copy a player and their results to an
-  Atlas. Shared Death May Die games also send the current match to guests you
+  Atlas. Shared TCG and Death May Die games also send the current match to guests you
   invite on your Wi-Fi, as described below.
 - **On your phone, with an Atlas.** The app remembers the Atlas Wi-Fi password and, if you
   turn on automatic sign-in, your profile's PIN or password. That secret is
@@ -51,10 +51,10 @@ reports are described below.
 
 ## Shared games on your Wi-Fi
 
-When you host Death May Die, devices using your join code or QR invitation
-receive the current table: player names, investigators, assigned card/skill notes and verification
-markers, wounds/counters, turns and the Elder One/episode board. Investigator
-guests can request changes to their own investigator; the host validates and
+When you host a TCG or Death May Die game, devices using your join code or QR invitation
+receive the current table: player names, commander names, investigators, assigned card/skill notes and verification
+markers, wounds/counters, turns and the Elder One/episode board. Player/investigator
+guests can request changes to their own player; the host validates and
 saves them. Your account credentials, profile links, local library, historical
 games and player pictures are not sent. Guests hold the shared view in memory
 without saving it as their own match/history or awarding their own statistics.

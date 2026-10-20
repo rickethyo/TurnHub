@@ -1,8 +1,10 @@
 # Phone-hosted shared game, version 1
 
-Android's Death May Die shared-device transport is independent of Atlas HTTP
-and ESP-NOW. A standalone Death May Die table has one host, from its lobby on. Guests display
-the Elder One board or control one investigator. They do not run a game engine,
+Android's shared-device transport is independent of Atlas HTTP and ESP-NOW.
+Magic variants, Yu-Gi-Oh!, Pokémon, Lorcana and Death May Die have one standalone
+host, from the lobby on. TCG guests control one player and may inspect the full
+table read-only without changing their session. Death May Die guests display
+the Elder One board or control one investigator. Guests do not run a game engine,
 save a match/history, award statistics, or take over when the host disappears.
 
 ## Invitation and transport
@@ -55,11 +57,12 @@ incompatible data stops joining rather than starting a local game.
 | `preview` | `key` | Invitation: view the match before choosing a role |
 | `join` | `key`, `joinId`, `role`, `player` | Invitation: acquire a session |
 | `poll` | `token` | Authenticated guest: get latest snapshot |
-| `command` | `token`, `actionId`, `match`, `revision`, `kind`, `value`, `slot` | Investigator: request an own-seat edit |
+| `command` | `token`, `actionId`, `match`, `revision`, `kind`, `value`, `slot`, optional `source` | Player/investigator: request an own-seat edit |
 | `leave` | `token` | Release this guest session |
 
-`role` is `elder` with `player: 0`, or `investigator` with a current one-based
-player number. The host binds an investigator session to that player's name and
+`role` is `player` for a TCG seat; Death May Die accepts `elder` with `player: 0`,
+or `investigator` with a current one-based player number. The host rejects roles
+from another game family. It binds a player session to that player's name and
 renumbers it as lobby changes move the player; if the player is removed, the
 next authenticated request returns `released` once and the guest chooses again.
 A session lasts through the lobby, matches and rematches; commands apply only
@@ -70,6 +73,35 @@ Repeated `joinId` UUIDs return the same token for the same role/seat. A successf
 join returns `token`; authenticated snapshots return `game` and `claimed`
 (one-based investigator seats). The token, rather than any submitted player
 field, owns the investigator. Elder guests cannot submit commands.
+
+Join, poll and command acknowledgements also return the session's current
+one-based `player`, so guest controls follow lobby reseating. A hosted format
+change ends the session; lobby/matches/rematches within the same format keep it.
+TCG table/personal navigation is local presentation state: it neither joins a
+second seat nor changes the token or poll loop. The table exposes no edit menus,
+score gestures, Pass button or actionable turn chips.
+
+### TCG commands
+
+| `kind` | `value` | `slot` | `source` |
+|---|---|---|---|
+| `life` | Nonzero delta −10000…10000 (life, prizes or lore) | 0 | 0 |
+| `commander` | −1 or +1, damage received by the owned player | Commander 1 or 2 | One-based source player |
+| `poison`, `energy`, `experience`, `treasure`, `rad`, `commander-casts` | −1 or +1 | 0/1; commander casts may use 2 | 0 |
+| `city-blessing`, `initiative` | 0 or 1 | 0/1 | 0 |
+| `turn-action:<enum>`, `pokemon-condition:<enum>` | 0 or 1 | 0 | 0 |
+| `pass`, `extend-turn`, `win`, `concede`, `eliminate`, `monarch` | 0 | 0 | 0 |
+
+The existing standalone engine validates format, active turn/team, living seat,
+counter bounds, Commander allies and all outcomes. The authenticated player is
+always the recipient; `source` selects only whose Commander dealt damage. In
+Two-Headed Giant, life/poison apply to the team and either teammate may pass;
+other counters stay personal. Setup, pause/reset/rematch, day/night, Planechase
+and Bag of Doom resolution remain host-only. Commander names are included in
+public snapshots; local artwork/account IDs and the Planechase deck stay private.
+`source` defaults to 0 for existing DMD clients and is part of immutable receipts.
+
+### Death May Die commands
 
 | Command `kind` | `value` | `slot` |
 |---|---|---|
@@ -109,13 +141,13 @@ keeps that exact request pending and disables other edits. Retry uses its same
 ID and base revision. Stale edits are rejected with the latest snapshot; the
 player reviews current values before submitting a new edit. Disconnection shows
 the last snapshot with controls disabled. Polling reconnects to the same session;
-revocation, rematch or process death requires joining again. No offline edits
+revocation or process death requires joining again. No offline edits
 are queued. Leaving with an uncertain reply explicitly warns the player to
 check the host before entering a replacement edit.
 
 Codes: `ok`, `invalid`, `unauthorized`, `forbidden`, `claimed`, `full`, `stale`,
 `rejected`, `unavailable`, `renew`, `released`, `locked`, `ended` (the host left
-Death May Die). Unauthenticated errors carry no match
+the hosted format). Unauthenticated errors carry no match
 data. When the host app is backgrounded or cannot save, it returns `unavailable`.
 Hosting keeps the screen awake but does not run a foreground service; keep the
 host app open. Switching back to it allows existing guests to reconnect. Changing

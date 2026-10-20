@@ -114,6 +114,11 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   download/deck selection/offline recovery. Check art credits, legibility,
   missing assets and TalkBack. Verify bug-report prefilled values and editable
   form/attachment submission on phone and tablet without automatic submission.
+- **TCG shared-device acceptance:** verify personal score/counters/Commander damage,
+  team turn controls, lobby/rematch reseating and read-only table switching without
+  reconnecting. Exercise stale/lost replies, host background/death, large text and
+  TalkBack. Tablet-only verification does not establish two-physical-device Wi-Fi
+  routing acceptance. See [shared devices](SHARED_DEVICES.md).
 - **Multi-phone stability:** run C06 below; measure CPU/heap/SD/radio behavior
   with current polling and visibility optimizations. S3/second-radio changes
   are not a demonstrated fix. Procedures: [Diagnostics](DIAGNOSTICS.md).

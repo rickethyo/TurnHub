@@ -823,7 +823,7 @@ private fun BackToSetup(summary: TableSummary, onConfirm: () -> Unit) {
 }
 
 @Composable
-private fun PlayerPanel(
+internal fun PlayerPanel(
     unit: TableUnit,
     summary: TableSummary,
     life: Int,
@@ -843,6 +843,7 @@ private fun PlayerPanel(
     haptics: TurnHubHaptics,
     reduceMotion: Boolean = false,
     underHub: Boolean = false,
+    controlsEnabled: Boolean = true,
 ) {
     val p = palette
     val tracks = summary.settings.profile.deathMayDie
@@ -935,9 +936,9 @@ private fun PlayerPanel(
                     (between - linesRoom) * .8f,
                 ).coerceIn(24f, 160f)
                 Row(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
-                    HoldHalf("−", stepLabel(profile, name, small, adding = false), !out,
+                    HoldHalf("−", stepLabel(profile, name, small, adding = false), !out && controlsEnabled,
                         { onBump(-small) }, { onBump(-big) }, Alignment.CenterStart, Modifier.weight(1f).fillMaxHeight())
-                    HoldHalf("+", stepLabel(profile, name, small, adding = true), !out,
+                    HoldHalf("+", stepLabel(profile, name, small, adding = true), !out && controlsEnabled,
                         { onBump(small) }, { onBump(big) }, Alignment.CenterEnd, Modifier.weight(1f).fillMaxHeight())
                 }
 
@@ -1021,7 +1022,7 @@ private fun PlayerPanel(
                 if (cardGame && !out) {
                     TurnPanelLines(unit, summary, onTurnMark,
                         Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp)
-                            .padding(bottom = 8.dp))
+                            .padding(bottom = 8.dp), enabled = controlsEnabled)
                 }
             }
             Column(Modifier.fillMaxWidth().padding(top = 12.dp)
@@ -1046,9 +1047,10 @@ private fun PlayerPanel(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        MenuButton(name, compact, onOpenMenu)
+                        if (controlsEnabled) MenuButton(name, compact, onOpenMenu)
+                        else Text(name, color = p.muted, style = MaterialTheme.typography.labelLarge)
                         val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
-                        val canPass = actor != null && !out && summary.state == TableState.RUNNING
+                        val canPass = controlsEnabled && actor != null && !out && summary.state == TableState.RUNNING
                         if (canPass && actor != null) {
                             val passing = summary.pending.passPlayer != null && unit.members.any { it.playerNumber == summary.pending.passPlayer }
                             HoldToPass(passing, { onControl(actor.seat(), "pass") }, haptics,
@@ -1065,7 +1067,7 @@ private fun PlayerPanel(
             }
         }
 
-        Prompt(unit, summary, onControl, onRespond, Modifier.align(Alignment.BottomCenter))
+        if (controlsEnabled) Prompt(unit, summary, onControl, onRespond, Modifier.align(Alignment.BottomCenter))
     }
 }
 
@@ -1458,7 +1460,7 @@ private fun Prompt(
  * the ✕, the Done button at the bottom, or Back.
  */
 @Composable
-private fun PlayerMenu(
+internal fun PlayerMenu(
     unit: TableUnit,
     partners: MutableList<Int>,
     summary: TableSummary,
@@ -1471,6 +1473,7 @@ private fun PlayerMenu(
     onEditSkills: (TablePlayer, List<com.turnhub.android.domain.InvestigatorSkill>) -> Unit,
     onInvestigatorCard: (TablePlayer, InvestigatorCardSlot, InvestigatorCard?) -> Unit,
     offlineCommander: (Long, Int, Int) -> Int,
+    controlsEnabled: Boolean = true,
 ) {
     val p = palette
     val hue = unit.members.first().color?.let { Color(android.graphics.Color.parseColor(it)) }
@@ -1504,7 +1507,17 @@ private fun PlayerMenu(
                 .widthIn(max = 640.dp)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 8.dp),
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .then(if (controlsEnabled) Modifier else Modifier.clearAndSetSemantics {
+                    disabled(); contentDescription = "Waiting for the host. Player controls are unavailable."
+                }.pointerInput(Unit) {
+                    awaitEachGesture {
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            event.changes.forEach { it.consume() }
+                        } while (event.changes.any { it.pressed })
+                    }
+                }),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (summary.settings.profile.deathMayDie) {

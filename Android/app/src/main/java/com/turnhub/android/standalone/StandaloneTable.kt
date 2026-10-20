@@ -485,10 +485,12 @@ class StandaloneTable(
     /** LAN capabilities already select the seat. Freshness and mode are rechecked here. */
     internal fun applyLanAction(action: com.turnhub.android.lan.LanAction): Boolean {
         val game = _state.value.game
-        if (_state.value.storageProblem != null || !game.profile.deathMayDie || game.gameId != action.match ||
+        if (_state.value.storageProblem != null || game.gameId != action.match ||
             game.revision != action.revision || action.player !in 1..game.players.size ||
             game.state !in listOf(TableState.RUNNING, TableState.PAUSED)) return false
         val index = action.player - 1
+        if (!game.profile.deathMayDie) return applyTcgLanAction(game, index, action)
+        if (action.source != 0) return false
         val valid = when (action.kind) {
             "wounds", "stress", "fire", "insanity" -> action.value in listOf(-1, 1) && action.slot == 0
             "skill" -> action.value in 1..4 && action.slot in 1..com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILLS
@@ -505,6 +507,37 @@ class StandaloneTable(
             "take-turn" -> game.changeCounter(index, StandaloneGame.TAKE_TURN_KIND, 1, nowMs = now)
             "pass" -> if (game.active == index) game.cooperativeTurn()?.let { game.passTo(it, action.value, now) } ?: game else game
             "eliminate" -> game.eliminate(index, now)
+            else -> game
+        }
+        return publishGame(next, durable = true)
+    }
+
+    /** Own-seat capability adapter; all gameplay transitions remain in StandaloneGame. */
+    private fun applyTcgLanAction(game: StandaloneGame, index: Int, action: com.turnhub.android.lan.LanAction): Boolean {
+        if (!(game.profile.magicRules || game.profile.pokemon || game.profile.lorcana ||
+                game.profile == GameProfile.YUGIOH)) return false
+        val now = wallClock()
+        val simple = action.value == 0 && action.slot == 0 && action.source == 0
+        val next = when {
+            action.kind == "life" && action.slot == 0 && action.source == 0 && action.value != 0 && action.value in -10_000..10_000 ->
+                game.changeLife(index, action.value, now)
+            action.kind == "commander" && action.slot in 1..2 && action.source in 1..game.players.size && action.value in listOf(-1, 1) ->
+                game.commanderDamage(index, action.source - 1, action.slot, action.value, now)
+            simple && action.kind in setOf("pass", "extend-turn", "win", "concede", "eliminate", "monarch") -> when (action.kind) {
+                "pass" -> game.pass(index, now)
+                "extend-turn" -> game.extendTurn(index, now)
+                "win" -> game.claimWin(index, now)
+                "concede" -> game.concede(index, now)
+                "eliminate" -> game.eliminate(index, now)
+                "monarch" -> game.claimMonarch(index)
+                else -> game
+            }
+            action.source == 0 && action.slot in 0..2 && action.kind in setOf("poison", "energy", "experience", "treasure", "rad",
+                "commander-casts", "city-blessing", "initiative") && action.value in -1..1 ->
+                game.changeCounter(index, action.kind, action.value, action.slot.coerceAtLeast(1), now)
+            action.source == 0 && action.slot == 0 && action.value in 0..1 &&
+                (action.kind.startsWith(StandaloneGame.ACTION_KIND) || action.kind.startsWith(StandaloneGame.CONDITION_KIND)) ->
+                game.changeCounter(index, action.kind, action.value, nowMs = now)
             else -> game
         }
         return publishGame(next, durable = true)
