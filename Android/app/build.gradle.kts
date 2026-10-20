@@ -26,6 +26,7 @@ android {
         versionCode = (findProperty("turnhub.versionCode") as String?)?.toInt() ?: 1
         versionName = "0.1.0"
         manifestPlaceholders["appLabel"] = "@string/app_name"
+        manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher"
     }
 
     // Play upload key for release bundles, read from the environment so the
@@ -51,6 +52,8 @@ android {
                 applicationIdSuffix = ".preview"
                 versionNameSuffix = "-preview"
                 manifestPlaceholders["appLabel"] = "TurnHub Preview"
+                // Teal behind the gold gear: told apart from the Play app (graphite) at a glance.
+                manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher_preview"
             }
         }
         release {
