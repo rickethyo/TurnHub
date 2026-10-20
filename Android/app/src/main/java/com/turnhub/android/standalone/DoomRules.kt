@@ -19,12 +19,27 @@ internal object DoomRules {
         if (bag.lastDraw != 0 && bag.drawn and bit(bag.lastDraw) == 0) return false
         if (game.players.indices.any { bag.drawn and bit(it + 1) != 0 &&
                 (game.players[it].conceded || game.players[it].selfEliminated || game.players[it].eliminationPending || game.players[it].eliminatedBy != null) }) return false
-        if (Integer.bitCount(living) <= 4) return bag.atRisk == 0 && bag.boundary == 0 && bag.warmup == 0 &&
+        if (!on(living)) return bag.atRisk == 0 && bag.boundary == 0 && bag.warmup == 0 &&
             !bag.pending && bag.pendingTurn == 0 && bag.selected == 0
         if (living and bit(bag.boundary) == 0) return false
         if (bag.pending && (game.state != com.turnhub.android.protocol.TableState.PAUSED || bag.warmup != 0 || bag.pendingTurn !in 1..count)) return false
         if (!bag.pending && (bag.pendingTurn != 0 || bag.selected != 0)) return false
         return bag.selected == 0 || bag.contains(bag.selected)
+    }
+
+    /** The bag runs until only [LAST_SURVIVORS] players are left. */
+    const val LAST_SURVIVORS = 2
+    fun on(living: Int) = Integer.bitCount(living) > LAST_SURVIVORS
+
+    /** A game saved after the bag switched off at four survivors restarts it: one cycle, then a check. */
+    fun resume(game: StandaloneGame): StandaloneGame {
+        val bag = game.doomBag
+        val active = game.active ?: return game
+        if (!game.profile.bagOfDoom || bag.cycle == 0L || bag.boundary != 0 || bag.pending || game.twoHeadedGiant ||
+            game.state !in listOf(com.turnhub.android.protocol.TableState.RUNNING, com.turnhub.android.protocol.TableState.PAUSED)) return game
+        val living = game.players.indices.filter { !game.players[it].eliminated }.fold(0) { mask, i -> mask or bit(i + 1) }
+        if (!on(living) || living and bit(active + 1) == 0) return game
+        return game.copy(doomBag = bag.copy(atRisk = living, boundary = previous(active + 1, living, game.players.size), warmup = 0))
     }
 
     fun bit(player: Int): Int = if (player in 1..16) 1 shl (player - 1) else 0
@@ -38,7 +53,7 @@ internal object DoomRules {
     }
     fun leave(bag: DoomBag, living: Int, count: Int, credited: Int = 0): DoomBag {
         if (bag.cycle == 0L) return bag
-        if (Integer.bitCount(living) <= 4) return bag.copy(atRisk = 0, boundary = 0, warmup = 0,
+        if (!on(living)) return bag.copy(atRisk = 0, boundary = 0, warmup = 0,
             pending = false, pendingTurn = 0, selected = 0)
         if (credited != 0) return bag.copy(atRisk = living and bit(credited).inv(),
             boundary = previous(credited, living, count), warmup = 0, pending = false, pendingTurn = 0,
@@ -47,7 +62,7 @@ internal object DoomRules {
             boundary = if (living and bit(bag.boundary) != 0) bag.boundary else previous(bag.boundary, living, count))
     }
     fun checked(bag: DoomBag, victim: Int, living: Int, count: Int): DoomBag =
-        leave(bag, living, count).copy(atRisk = if (Integer.bitCount(living) > 4) living else 0,
+        leave(bag, living, count).copy(atRisk = if (on(living)) living else 0,
             cycle = bag.cycle + 1, warmup = 0, pending = false, pendingTurn = 0, selected = 0,
             sealed = false, drawn = bag.drawn or bit(victim), lastDraw = victim, lastCheck = bag.cycle)
 }

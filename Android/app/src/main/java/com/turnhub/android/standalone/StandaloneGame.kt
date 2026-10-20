@@ -1187,14 +1187,14 @@ data class StandaloneGame(
     private fun doomLiving(): Int = players.indices.filter { !players[it].eliminated }.fold(0) { mask, i -> mask or DoomRules.bit(i + 1) }
 
     private fun doomLifeLoss(target: Int, applied: Int): StandaloneGame {
-        if (!profile.bagOfDoom || applied >= 0 || Integer.bitCount(doomLiving()) <= 4) return this
+        if (!profile.bagOfDoom || applied >= 0 || !DoomRules.on(doomLiving())) return this
         val owner = if (doomBag.pending) doomBag.pendingTurn else active?.plus(1) ?: 0
         if (owner == target || doomLiving() and DoomRules.bit(owner) == 0) return this
         return copy(doomBag = doomBag.copy(atRisk = doomBag.atRisk and DoomRules.bit(owner).inv()))
     }
 
     private fun doomPassed(player: Int, nowMs: Long): StandaloneGame {
-        if (!profile.bagOfDoom || Integer.bitCount(doomLiving()) <= 4) return this
+        if (!profile.bagOfDoom || !DoomRules.on(doomLiving())) return this
         val bag = DoomRules.pass(doomBag, player)
         return if (!bag.pending) copy(doomBag = bag) else copy(doomBag = bag, state = TableState.PAUSED,
             elapsedMs = gameElapsedMs(nowMs), runningSinceMs = null)
@@ -1205,7 +1205,7 @@ data class StandaloneGame(
 
     fun doomEligibility(player: Int, inBag: Boolean, cycle: Long): StandaloneGame {
         if (!playing || !profile.bagOfDoom || cycle != doomBag.cycle || doomBag.selected != 0 ||
-            Integer.bitCount(doomLiving()) <= 4 || doomLiving() and DoomRules.bit(player) == 0) return this
+            !DoomRules.on(doomLiving()) || doomLiving() and DoomRules.bit(player) == 0) return this
         val mask = if (inBag) doomBag.atRisk or DoomRules.bit(player) else doomBag.atRisk and DoomRules.bit(player).inv()
         return if (mask == doomBag.atRisk) this else copy(doomBag = doomBag.copy(atRisk = mask)).bump()
     }

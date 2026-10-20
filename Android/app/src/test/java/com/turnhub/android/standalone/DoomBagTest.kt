@@ -88,7 +88,7 @@ class DoomBagTest {
         assertTrue(next.doomBag.pending)
     }
 
-    @Test fun `credited kills refill except killer move boundary and stop bag at four survivors`() {
+    @Test fun `credited kills refill except killer move boundary and stop bag at two survivors`() {
         val initial = game(7)
         val killed = initial.eliminate(3, 2_000, eliminatedBy = 1)
         assertEquals(2L, killed.doomBag.cycle)
@@ -100,11 +100,31 @@ class DoomBagTest {
         assertEquals(2, credited.players[5].eliminatedBy)
         assertEquals(2, credited.doomBag.boundary)
         assertSame(credited, credited.doomCredit(6, 2, 3))
-        val off = credited.concede(6, 4_000)
-        assertEquals(4, off.players.count { !it.eliminated })
+        val four = credited.concede(6, 4_000)
+        assertEquals(4, four.players.count { !it.eliminated })
+        assertNotEquals(0, four.doomBag.atRisk)
+        assertNotEquals(0, four.doomBag.boundary)
+        val three = four.concede(4, 4_100)
+        assertEquals(3, three.players.count { !it.eliminated })
+        assertNotEquals(0, three.doomBag.boundary)
+        val off = three.concede(2, 4_200)
+        assertEquals(TableState.RUNNING, off.state)
+        assertEquals(2, off.players.count { !it.eliminated })
         assertEquals(0, off.doomBag.atRisk)
         assertEquals(0, off.doomBag.boundary)
         assertEquals(off, StandaloneTable.gameFromJson(StandaloneTable.gameToJson(off)))
+    }
+
+    @Test fun `a game saved with the bag off at four survivors restarts it on load`() {
+        val four = game(7).concede(3, 2_000).concede(5, 2_100).concede(6, 2_200)
+        val old = four.copy(doomBag = four.doomBag.copy(atRisk = 0, boundary = 0, warmup = 0))
+        val loaded = StandaloneTable.gameFromJson(StandaloneTable.gameToJson(old))
+        assertEquals(DoomRules.bit(1) or DoomRules.bit(2) or DoomRules.bit(3) or DoomRules.bit(5), loaded.doomBag.atRisk)
+        assertEquals(DoomRules.previous(loaded.active!! + 1, loaded.doomBag.atRisk, 7), loaded.doomBag.boundary)
+        var g = loaded
+        repeat(4) { g = g.pass(g.active!!, 3_000L + it) }
+        assertTrue(g.doomBag.pending)
+        assertEquals(TableState.PAUSED, g.state)
     }
 
     @Test fun `corrupt bag cannot silently recover or be imported into other formats`() {
