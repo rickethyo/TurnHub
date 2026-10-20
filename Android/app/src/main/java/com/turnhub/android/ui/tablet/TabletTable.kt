@@ -366,14 +366,19 @@ internal fun TabletTable(
         val focused = units.indexOfFirst { !it.out && it.members.any { member -> summary.hasTurn(member.playerNumber) } }
             .takeIf { it >= 0 } ?: units.indexOfFirst { !it.out }.coerceAtLeast(0)
         // The middle panel of a side with an odd count meets the centre disc at its inner (top) edge.
-        val underHub = if (star || list) emptySet()
+        val underHub = if (star || list || solo) emptySet()
             else listOf(plan.near, plan.far).filter { it.size % 2 == 1 }.map { it[it.size / 2] }.toSet()
         fun degreesOf(index: Int) = when {
-            list -> 0
+            list || solo -> 0
             // A player's full-screen menu turns to the nearest side of their star seat.
             star -> Math.floorMod(Math.round(starSpot(index).degrees / 90f) * 90, 360)
             landscape -> if (index in plan.far) 180 else 0
             else -> if (index in plan.far) 90 else 270
+        }
+        fun openHub() {
+            haptics.tick()
+            if (attribution == null && bag?.pending == true) bagPrompt = bagPrompt.open()
+            else menuOpen = true
         }
         val panel: @Composable (Int, Int, Modifier) -> Unit = { index, degrees, modifier ->
             val unit = units[index]
@@ -450,6 +455,13 @@ internal fun TabletTable(
                         }
                     }
                 }
+            } else if (solo) {
+                // One player's view: upright panels under the slim menu bar, so no centre disc
+                // covers the life total.
+                Column(Modifier.fillMaxSize().padding(4.dp)) {
+                    HubBar(summary, Modifier.fillMaxWidth().padding(4.dp)) { openHub() }
+                    units.indices.forEach { panel(it, 0, Modifier.weight(1f).fillMaxWidth()) }
+                }
             } else if (star) {
                 StarTable(panel)
             } else if (landscape) {
@@ -478,11 +490,7 @@ internal fun TabletTable(
                 }
             }
 
-            if (!list) Hub(summary, Modifier.align(Alignment.Center)) {
-                haptics.tick()
-                if (attribution == null && bag?.pending == true) bagPrompt = bagPrompt.open()
-                else menuOpen = true
-            }
+            if (!list && !solo) Hub(summary, Modifier.align(Alignment.Center)) { openHub() }
         }
 
         val menuIndex = units.indexOfFirst { it.key == playerMenu }

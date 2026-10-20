@@ -2,6 +2,8 @@ package com.turnhub.android.ui.tablet
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -72,13 +74,32 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
         if (state.uncertain) ToneButton("Retry last action", model::retry, enabled = !state.busy)
         if (state.busy) Text("Waiting for the host…", color = p.muted)
         if (!tableView && game.twoHeadedGiant) Text("Your team's life and poison are shared.", color = p.muted)
+        // A claim from this device waits on the others; say so, and say when it was turned down.
+        val claimant = summary.pending.winClaimPlayer
+        val ownClaim = own != null && !own.eliminated && claimant == own.playerNumber
+        var claimDenied by remember { mutableStateOf(false) }
+        var wasClaiming by remember { mutableStateOf(false) }
+        LaunchedEffect(ownClaim, game.state) {
+            if (wasClaiming && !ownClaim && game.state != TableState.GAME_OVER && own?.eliminated == false) claimDenied = true
+            if (ownClaim || game.state == TableState.GAME_OVER || game.state == TableState.LOBBY) claimDenied = false
+            wasClaiming = ownClaim
+        }
+        if (ownClaim) Text(summary.players.firstOrNull { it.playerNumber == summary.pending.winConfirmationPlayer }
+            ?.let { "Your win claim is waiting for ${it.label} to confirm." } ?: "Your win claim is waiting for confirmation.",
+            color = p.warn)
+        else if (claimDenied && game.state == TableState.RUNNING || claimDenied && game.state == TableState.PAUSED)
+            Text("Your win claim was denied. Play continues.", color = p.warn)
         val visible = if (tableView) tableUnits(summary) else listOfNotNull(own?.let { TableUnit("own", listOf(it)) })
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val columns = if (tableView && maxWidth >= 600.dp && visible.size > 2) 2 else 1
             val rows = visible.chunked(columns)
-            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // A narrow screen can't fit every panel with its life total: scroll at a readable height.
+            val scroll = rows.size > 1 && (maxHeight - 6.dp * (rows.size - 1)) / rows.size < MIN_REMOTE_PANEL
+            Column(if (scroll) Modifier.fillMaxSize().verticalScroll(rememberScrollState()) else Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 rows.forEach { row ->
-                    Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row((if (scroll) Modifier.height(MIN_REMOTE_PANEL) else Modifier.weight(1f)).fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         row.forEach { unit ->
                             Box(Modifier.weight(1f).fillMaxHeight()) {
                                 PlayerPanel(unit, if (tableView) summary else personal, unit.lifeSeat.life ?: 0, 0,
@@ -123,3 +144,6 @@ internal fun TableSummary.withLooks(looks: List<com.turnhub.android.standalone.L
         val look = looks.getOrNull(player.playerNumber - 1) ?: return@map player
         player.copy(avatar = look.icon(), color = look.color, tileBackground = look.tileBackground)
     })
+
+/** The shortest table panel that still shows its name band and the whole life total. */
+private val MIN_REMOTE_PANEL = 200.dp

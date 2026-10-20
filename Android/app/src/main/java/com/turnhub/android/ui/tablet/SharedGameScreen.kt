@@ -102,7 +102,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
             when {
                 host != null -> SharedHero(
                     eyebrow = "Play together · Hosting", title = sharedGameTitle(local),
-                    subtitle = local.elder.episode?.let { "Episode · $it" } ?: "This device owns the game",
+                    subtitle = local.elder.episode?.takeIf { local.profile.deathMayDie }?.let { "Episode · $it" } ?: "This device owns the game",
                     mood = LinkMood.LIVE, reduceMotion = reduceMotion) {
                     StatusBadge(host.code?.let { "Join code $it" } ?: "Joining by QR only", Tone.GOOD)
                     StatusBadge(when (state.guests.size) { 0 -> "No devices yet"; 1 -> "1 device joined"; else -> "${state.guests.size} devices joined" })
