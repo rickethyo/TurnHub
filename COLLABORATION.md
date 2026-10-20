@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-031 | Death May Die shared devices | Android LAN, authority, UI | Ready for review; CI passes | Owner / PR #145 and physical acceptance |
+| TH-031 | Death May Die shared devices | Android LAN, authority, UI | Handed to Claude on `claude/master` (owner, 2026-10-20) | Owner / Claude's PR (supersedes #145) and physical acceptance |
 | TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
@@ -1045,3 +1045,20 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   host-manager rejection of other aliases/key types. No firmware/Play/release
   changes. Final lint validation recorded below.
 - Final lintDebug passes; git diff --check passes. Source fix remains local and uncommitted; no PR push performed.
+
+### 2026-10-20 — Claude: TH-031 handoff and shared-screen design pass
+
+- Owner handed TH-031 to Claude for visual design. `claude/master` (at master
+  `65e0c41`) merges `codex/master` (`5ec4017`) and commits Codex's uncommitted
+  TH-031 TLS fix unchanged as `273e800`. Supersedes PR #145; `codex/master` untouched.
+- `SharedGameScreen.kt` redrawn to the Elder One tab's polish: a beacon hero
+  (gold choosing, green linked, amber disconnected; badges carry the state),
+  framed black-on-white invite QR, joined-device rows with avatars, seat picker
+  rows, Turn card first, track tiles with pips/bar (one per row under 480 dp),
+  skill level chips, card panels with the reference button. Death confirmation
+  and Stop sharing use the table's tap-twice ArmedButton instead of a dialog /
+  a single tap. Same LanViewModel calls and enable rules; no protocol change.
+- Validation: assembleDebug, full testDebugUnitTest and lintDebug pass. Preview
+  1441 on SM-T970 (host) and Pixel Fold cover screen (guest): host, find, seat
+  picker and investigator view checked by screenshot; guest left and sharing
+  stopped afterwards, no game actions sent. Manual DOCX wording not yet updated.
