@@ -108,7 +108,7 @@ class DoomBagTest {
         assertEquals(3, three.players.count { !it.eliminated })
         assertNotEquals(0, three.doomBag.boundary)
         val off = three.concede(2, 4_200)
-        assertEquals(TableState.RUNNING, off.state)
+        assertNull(off.winner)
         assertEquals(2, off.players.count { !it.eliminated })
         assertEquals(0, off.doomBag.atRisk)
         assertEquals(0, off.doomBag.boundary)
