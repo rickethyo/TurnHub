@@ -34,6 +34,11 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+Documentation staging (2026-10-19, Codex, `codex/master`, clean merged baseline
+`b5a4e3b`; no open PRs): owner-approved permanent tester prestige and conditional
+recovery are recorded in [Staged Changes](Documentation/engineering/STAGED_CHANGES.md#permanent-tester-prestige).
+Scope is planning documentation only; implementation and device changes are deferred.
+
 Open topics only. Closed topics (TH-004 to TH-011, TH-013 to TH-016) and the
 session logs up to 2026-10-13 are in the [archive](Documentation/engineering/history/2026-10-13-collaboration-archive.md).
 

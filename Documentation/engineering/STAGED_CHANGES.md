@@ -44,6 +44,37 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   the baseline and port that bounded experience into native Swift/SwiftUI,
   adapting platform interactions and layouts while preserving behavior.
 
+### Permanent tester prestige
+
+- **Closed/Beta Tester recognition** (owner, 2026-10-19; *Planned*): separate
+  one-time, non-expiring unlocks for closed testers (gold) and beta testers
+  (silver), shown as achievement badges and a matching app launcher icon.
+  Keep both earned tiers; settle icon selection/precedence when both are owned.
+  This is app-owned recognition; Google Play Games integration is not required.
+- **Offline and minimal data:** use a small digitally signed tester credential
+  containing an opaque credential ID, awarded tier and issuance metadata, with
+  no expiry. Validate locally with the issuer's public key; keep signing keys
+  outside the app. Do not collect names, email, contacts or device identifiers
+  for this feature, require a new TurnHub account or periodically revalidate an
+  earned badge online. Define tester eligibility, issuance and copied-pass policy
+  before implementation; installing an arbitrary debug build is not proof.
+- **Recovery:** evaluate [Google Block Store](https://developer.android.com/identity/block-store)
+  for restoring the credential after uninstall/reinstall. This depends on
+  supported Google Play services and enabled Android backup; it is not an
+  unconditional permanence guarantee. Offer **Save tester pass** to export the
+  signed credential outside app-private storage, and offline import to recover
+  after reinstall, on another device or when moving from Preview to the public
+  app. Automatic Block Store access is scoped to package name and signing
+  certificate, so Preview-to-public migration needs an explicit transfer path.
+  Without either a recoverable backup or saved pass, do not promise recovery;
+  fully automatic recovery in every case would need an account-backed service.
+- **Acceptance before shipping:** verify award eligibility, signature/tier
+  validation and tampered-pass rejection; updates, offline launches, retention
+  of both tiers, launcher changes, uninstall/reinstall with backup enabled and
+  disabled, file export/import, new-device and Preview-to-public recovery, and
+  clear recovery/data-use wording. Confirm Block Store suitability and restore
+  behavior on the intended Play-distributed builds. No implementation yet.
+
 ### More game types
 
 - **Pokémon damage counters and Atlas support** (owner, 2026-10-16;
