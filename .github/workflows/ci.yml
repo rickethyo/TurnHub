@@ -75,6 +75,7 @@ jobs:
               # manual asset check covers it, so it needs no Gradle build.
               Android/app/src/main/assets/manual.md) ;;
               Android/*) android=true ;;
+              data/death-may-die/*|tools/dmd-forge/*) android=true ;;
               # Signing tool: its tests plus every packaged firmware build.
               tools/firmware/*|tools/ci-requirements.txt) tools=true atlas=true sigil=true ;;
             esac
@@ -117,6 +118,10 @@ jobs:
         run: |
           python3 design/build_tokens.py --check
           python3 design/build_avatar_masks.py --check
+      - name: Death May Die catalogue generation and validator
+        run: |
+          node --test tools/dmd-forge/catalogue.test.mjs
+          node tools/dmd-forge/build.mjs --check
       - name: Embedded admin portal builds
         run: python3 Atlas/web/build.py --check
       - name: Firmware portal asset serving integrity

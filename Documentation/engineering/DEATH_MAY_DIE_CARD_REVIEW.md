@@ -108,7 +108,8 @@ Starting and transformed effects are kept in separate fields.
 
 ## Source notes
 
-Original compact reminders are in `InvestigatorCardRules.kt`, with a source per
+Original compact reminders are authored in `data/death-may-die/catalogue.json`
+and compiled into `DmdContent.generated.kt`, with a source per
 entry. They are not exact transcriptions. Community wiki text has missing verbs,
 corrupted symbols and ambiguous tokens in some entries; those effects are not
 invented. Readable Fear of the Unknown/Season 4/bonus photographs supply several
