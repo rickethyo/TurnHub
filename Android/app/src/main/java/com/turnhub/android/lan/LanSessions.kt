@@ -145,6 +145,8 @@ internal class LanSessions(
         // Planechase only the face-up cards, counters and die go: the deck order stays hidden.
         val public = current.copy(planechase = current.planechase.copy(deck = emptyList(),
                 selection = com.turnhub.android.standalone.PlanarSelection()),
+            // A Bag of Doom name is public only once drawn.
+            doomBag = current.doomBag.copy(selected = 0),
             players = current.players.map { it.copy(localId = null, profileId = null) })
         val reply = reply(code).put("game", StandaloneTable.gameToJson(public))
             .put("claimed", org.json.JSONArray(guests.map { it.player }.filter { it > 0 }))

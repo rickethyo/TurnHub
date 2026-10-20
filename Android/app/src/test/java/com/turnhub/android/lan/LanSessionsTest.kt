@@ -199,6 +199,23 @@ class LanSessionsTest {
         assertEquals("invalid", Fixture().join("planes", 0).getString("code"))
     }
 
+    @Test fun `Bag of Doom guests' life loss makes the turn's owner safe and pauses only for the host's draw`() {
+        val f = Fixture(tcg(GameProfile.MTG_BAG_OF_DOOM))
+        val owner = f.table.state.value.game.active!!
+        val victim = (owner + 1) % 5
+        val token = f.join("player", victim + 1).getString("token")
+        assertTrue(f.table.state.value.game.doomBag.contains(owner + 1))
+        assertEquals("ok", f.sessions.handle(f.action(token, "life", -3)).getString("code"))
+        assertFalse(f.table.state.value.game.doomBag.contains(owner + 1))
+        assertTrue(f.table.state.value.game.doomBag.contains(victim + 1))
+        // The guest sees the bag but can't draw, correct or credit it.
+        val view = f.sessions.handle(f.request("poll").put("token", token)).getJSONObject("game")
+        assertEquals(0, view.getJSONObject("doomBag").getInt("selected"))
+        listOf("draw", "doom", "eligibility", "credit").forEach {
+            assertEquals(it, "rejected", f.sessions.handle(f.action(token, it, 0)).getString("code"))
+        }
+    }
+
     @Test fun `a guest's win claim waits for the other players in turn order and a denial withdraws it`() {
         val f = Fixture(StandaloneGame().setFormat(GameProfile.MTG_COMMANDER)
             .addPlayer("A").addPlayer("B").addPlayer("C").chooseStarter(0).start(1_000, "shared-match"))
