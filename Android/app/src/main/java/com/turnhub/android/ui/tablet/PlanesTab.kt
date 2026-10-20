@@ -242,7 +242,7 @@ internal class PlanarControls(
 ) {
     companion object {
         fun of(table: StandaloneTable) = PlanarControls({ table.rollPlanarDie(fromEffect = it) }, table::planeswalk,
-            table::resolvePhenomenon, table::chaosEnsues, controls.topToBottom, table::changePlaneCounter)
+            table::resolvePhenomenon, table::chaosEnsues, table::planarTopToBottom, table::changePlaneCounter)
     }
 }
 
