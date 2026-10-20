@@ -743,6 +743,14 @@ correction. Atlas doesn't track these yet (`STAGED_CHANGES.md`), so connected
 play hides them. A player knocked out is the existing elimination, with its
 "Eliminated by" source.
 
+Reversed turn order: for cards that reverse it (a plane, for example), the
+game menu's **Turn order** card and the Planes tab's card tools switch turns
+to counterclockwise and back (owner, 2026-10-20). The centre disc shows
+**↺ Reversed** meanwhile; a Two-Headed Giant turn still goes to the next team.
+Each new game starts clockwise. Cooperative games choose who goes next, so
+they don't offer it. Joined devices reverse it with the planar command
+`planar-reverse`.
+
 Rad counters (CR 727): when a turn begins, each player of that turn with rad
 counters gets **Resolve rad** on their panel, on the table and on their own
 phone: "Mill X. How many nonlands?" (X is their rad). Their answer takes that

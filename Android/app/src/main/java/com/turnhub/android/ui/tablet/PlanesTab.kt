@@ -238,11 +238,14 @@ internal class PlanarControls(
     val chaosEnsues: () -> Unit,
     val topToBottom: () -> Unit,
     val changeCounter: (card: String, delta: Int) -> Unit,
+    /** Planes that reverse turn order (owner, 2026-10-20). */
+    val reverseTurnOrder: (on: Boolean) -> Unit,
     val enabled: Boolean = true,
 ) {
     companion object {
         fun of(table: StandaloneTable) = PlanarControls({ table.rollPlanarDie(fromEffect = it) }, table::planeswalk,
-            table::resolvePhenomenon, table::chaosEnsues, table::planarTopToBottom, table::changePlaneCounter)
+            table::resolvePhenomenon, table::chaosEnsues, table::planarTopToBottom, table::changePlaneCounter,
+            table::setTurnOrderReversed)
     }
 }
 
@@ -360,6 +363,8 @@ private fun PlanarPlay(game: StandaloneGame, controls: PlanarControls, cards: Ma
             enabled = running && !planar.phenomenonPending)
         ToneButton("Planeswalk", controls.planeswalk, Modifier.fillMaxWidth(), enabled = running)
         ToneButton("Chaos ensues", controls.chaosEnsues, Modifier.fillMaxWidth(), enabled = running && !planar.phenomenonPending)
+        ToneButton(if (game.turnOrderReversed) "↻ Turn order back to clockwise" else "↺ Reverse turn order",
+            { controls.reverseTurnOrder(!game.turnOrderReversed) }, Modifier.fillMaxWidth(), enabled = running)
         if (!planar.physical) {
             ToneButton("Put the top card on the bottom", controls.topToBottom, Modifier.fillMaxWidth(), enabled = running)
         }

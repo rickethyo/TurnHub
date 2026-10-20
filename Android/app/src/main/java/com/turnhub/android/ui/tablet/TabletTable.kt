@@ -666,6 +666,16 @@ internal fun TabletTable(
                             }
                         }
                     }
+                    if (standalone && !summary.settings.profile.cooperative) {
+                        val reversed = summary.turnOrderReversed
+                        DisclosureCard(if (reversed) "Turn order · Reversed" else "Turn order") {
+                            Text(if (reversed) "↺ Turns go counterclockwise until you set them back."
+                                else "↻ Turns go clockwise. Reverse them when a card says so.", color = p.text, style = MaterialTheme.typography.bodyMedium)
+                            ToneButton(if (reversed) "↻ Back to clockwise" else "↺ Reverse turn order", {
+                                send(anySeat, if (reversed) "turn-order-clockwise" else "turn-order-reversed")
+                            }, Modifier.fillMaxWidth(), tone = Tone.ACCENT, enabled = !isOffline && anySeat != null)
+                        }
+                    }
                     DisclosureCard("Table tools") {
                         TableToolsCard(summary, reduceMotion) { haptics.tick() }
                     }
@@ -791,6 +801,7 @@ private fun HubBar(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit
         com.turnhub.android.ui.components.dayNightLabel(summary.dayNight)?.let {
             Text(it, color = p.muted, style = MaterialTheme.typography.titleSmall, maxLines = 1)
         }
+        if (summary.turnOrderReversed) Text("↺ Reversed", color = p.warn, style = MaterialTheme.typography.titleSmall, maxLines = 1)
         Spacer(Modifier.weight(1f))
         Text("Game menu", color = p.text, style = MaterialTheme.typography.labelLarge)
     }

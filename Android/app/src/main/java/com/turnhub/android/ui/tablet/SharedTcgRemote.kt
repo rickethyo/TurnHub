@@ -98,6 +98,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
         planeswalk = { model.act("planar-walk") },
         resolvePhenomenon = { model.act("planar-resolve") },
         chaosEnsues = { model.act("planar-chaos") },
+        reverseTurnOrder = { model.act("planar-reverse", if (it) 1 else 0) },
         topToBottom = { model.act("planar-bottom") },
         changeCounter = { card, delta ->
             val slot = if (card == com.turnhub.android.standalone.Planechase.PHYSICAL_PLANE) 0 else planar.faceUp.indexOfFirst { it.id == card } + 1

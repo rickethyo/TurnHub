@@ -90,6 +90,8 @@ data class TableSummary(
      * keeps (treasure, rad). Null when the host doesn't track them (Atlas).
      */
     val dayNight: DayNight? = null,
+    /** Phone-hosted games: turns go counterclockwise until the table sets them back. */
+    val turnOrderReversed: Boolean = false,
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding

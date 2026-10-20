@@ -130,6 +130,7 @@ without Planechase on.
 |---|---|---|
 | `planar-roll` | 0 paid roll, 1 free roll for a card's effect | 0 |
 | `planar-walk`, `planar-chaos`, `planar-resolve`, `planar-bottom` | 0 | 0 |
+| `planar-reverse` | 1 reverse turn order, 0 back to clockwise | 0 |
 | `planar-counter` | −1 or +1 | 0 the table's own physical plane, else the one-based face-up card |
 
 ### Death May Die commands

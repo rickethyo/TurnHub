@@ -309,6 +309,7 @@ class StandaloneTable(
     }
 
     fun setPlanechase(on: Boolean) = edit { it.setPlanechase(on) }
+    fun setTurnOrderReversed(on: Boolean) = edit { it.setTurnOrderReversed(on) }
     /** A digital game that started before the planes were downloaded switches to TurnHub's deck. */
     fun dealPlanarDeck() = edit { if (planarSelectionReady(it)) it.dealPlanarDeck(planarDeck(it)) else it }
     fun setPlanarSource(source: PlanarDeckSource) = edit { it.setPlanarSource(source) }
@@ -437,6 +438,8 @@ class StandaloneTable(
                 "monarch" -> game.claimMonarch(index)
                 "day" -> game.setDayNight(com.turnhub.android.domain.DayNight.DAY)
                 "night" -> game.setDayNight(com.turnhub.android.domain.DayNight.NIGHT)
+                "turn-order-reversed" -> game.setTurnOrderReversed(true)
+                "turn-order-clockwise" -> game.setTurnOrderReversed(false)
                 "day-night-clear" -> game.setDayNight(com.turnhub.android.domain.DayNight.NEITHER)
                 "win" -> game.claimWin(index, now)
                 // A player's own view (the host's single-player view) asks the others first.
@@ -547,6 +550,7 @@ class StandaloneTable(
             "planar-walk" -> if (simple) game.planeswalk(index) else game
             "planar-resolve" -> if (simple) game.resolvePhenomenon(index) else game
             "planar-chaos" -> if (simple) game.chaosEnsues(index) else game
+            "planar-reverse" -> if (action.slot == 0 && action.value in 0..1) game.setTurnOrderReversed(action.value == 1) else game
             "planar-bottom" -> if (simple) game.planarTopToBottom(index) else game
             // Slot 0 is the table's own physical plane, otherwise the face-up card's position from 1.
             "planar-counter" -> if (action.value !in listOf(-1, 1)) game else {
@@ -743,6 +747,7 @@ class StandaloneTable(
             put("monarch", game.monarch ?: JSONObject.NULL)
             put("initiative", game.initiative ?: JSONObject.NULL)
             put("dayNight", game.dayNight.name)
+            put("turnOrderReversed", game.turnOrderReversed)
             game.winClaim?.let { put("winClaim", it); put("winConfirmed", JSONArray(game.winConfirmed.sorted())) }
             put("autoEliminateAtPoisonLimit", game.autoEliminateAtPoisonLimit)
             put("autoEliminateAtCommanderDamage", game.autoEliminateAtCommanderDamage)
@@ -845,6 +850,7 @@ class StandaloneTable(
                 initiative = json.optIntOrNull("initiative"),
                 dayNight = com.turnhub.android.domain.DayNight.entries.firstOrNull { it.name == json.optString("dayNight") }
                     ?: com.turnhub.android.domain.DayNight.NEITHER,
+                turnOrderReversed = json.optBoolean("turnOrderReversed"),
                 winClaim = json.optIntOrNull("winClaim")?.takeIf { it in 0 until players.length() },
                 winConfirmed = json.optIntList("winConfirmed")?.filter { it in 0 until players.length() }?.toSet().orEmpty(),
                 autoEliminateAtPoisonLimit = json.optBoolean("autoEliminateAtPoisonLimit", true),
