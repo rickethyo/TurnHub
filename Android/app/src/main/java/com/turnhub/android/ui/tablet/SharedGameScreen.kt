@@ -130,7 +130,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
             when {
                 host != null -> HostingPanel(state, local, model)
                 remote != null -> {
-                    if (state.uncertain) Notice("The host hasn't confirmed your last action. Retry it to find out whether it was saved.", p.warn) {
+                    if (state.uncertain && !state.busy) Notice("The host hasn't confirmed your last action. Retry it to find out whether it was saved.", p.warn) {
                         ToneButton("Retry last action", { requestNetwork(model::retry) }, Modifier.fillMaxWidth(), tone = Tone.WARN, enabled = !state.busy)
                     }
                     if (state.role != "elder") Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

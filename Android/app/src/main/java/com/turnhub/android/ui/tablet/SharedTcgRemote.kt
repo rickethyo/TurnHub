@@ -61,7 +61,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             }, Modifier.weight(1f))
             ToneButton("Leave", { confirmLeave = true })
         }
-        Text("${sharedGameTitle(game)} · ${if (tableView) "Table · read only" else own?.label ?: "My player"} · ${if (state.online) "Connected" else "Disconnected · last update"}",
+        Text("${sharedGameTitle(game)} · ${if (tableView) "Table · read only" else own?.label ?: "My player"} · ${if (!state.online) "Disconnected · last update" else if (state.busy) "Sending…" else "Connected"}",
             color = if (state.online) p.muted else p.warn, style = MaterialTheme.typography.labelLarge)
         state.message?.let { Text(it, color = p.warn) }
         when (game.state) {
@@ -71,8 +71,8 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
                 game.winners.mapNotNull { game.players.getOrNull(it)?.name }.joinToString(), color = p.text)
             else -> Unit
         }
-        if (state.uncertain) ToneButton("Retry last action", model::retry, enabled = !state.busy)
-        if (state.busy) Text("Waiting for the host…", color = p.muted)
+        // Every tap is briefly in flight; only a lost reply adds a row, so the panel doesn't jump.
+        if (state.uncertain && !state.busy) ToneButton("Retry last action", model::retry)
         if (!tableView && game.twoHeadedGiant) Text("Your team's life and poison are shared.", color = p.muted)
         // A claim from this device waits on the others; say so, and say when it was turned down.
         val claimant = summary.pending.winClaimPlayer
