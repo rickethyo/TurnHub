@@ -1019,3 +1019,29 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   named episode tokens on the Elder One tab (`ElderOneTrack.tokens`, names kept
   for a rematch, counts cleared). Validation: new `ElderOneTest` cases; CI build.
   Device playtest pending.
+
+### 2026-10-19 — Codex: TH-031 physical TLS compatibility fix
+
+- Owner screenshot reports Find game failure on Pixel Fold joining the Samsung
+  SM-T970 host. Scope: Android LAN host certificate compatibility; baseline
+  `5ec4017` on `codex/master`, current master fetched; no other local edits.
+- Both devices share the LAN and Pixel Fold has local-network permission.
+  Host TCP accepts connections but TLS 1.2 and 1.3 fail; tablet CryptoUpcalls
+  reports AndroidKeyStore `Incompatible padding mode` for raw RSA signing.
+- Replace the restricted RSA host key with a separate P-256 ECDSA signing key
+  in AndroidKeyStore. Certificate pinning, invitation authorization and TLS stay
+  enforced. Existing local games/data remain intact; hosting needs a new invite.
+- Validation in progress: build/JVM LAN tests and physical tablet TLS handshake.
+- Final fix also explicitly exposes only the invited host key through a scoped
+  X509ExtendedKeyManager. Android's default manager otherwise selects an older
+  RSA/EC alias (or another app key) from AndroidKeyStore. ECDSA signing authorizes
+  DIGEST_NONE because Conscrypt supplies the TLS digest; SHA256 signs the cert.
+- Final Preview 1439 installed on SM-T970 and Pixel Fold, retaining app data.
+  Physical tablet accepts TLS 1.2 and 1.3; certificate fingerprint matches its QR
+  invitation and authenticated preview returns ok with both protocol versions.
+  Pixel Fold Find game succeeds over Wi-Fi, showing Dagon / Unspeakable Hour
+  and the Elder One + four investigator role options; left unclaimed for owner.
+- Preview assemble and all 17 LAN JVM tests pass, including RSA/EC pinning and
+  host-manager rejection of other aliases/key types. No firmware/Play/release
+  changes. Final lint validation recorded below.
+- Final lintDebug passes; git diff --check passes. Source fix remains local and uncommitted; no PR push performed.

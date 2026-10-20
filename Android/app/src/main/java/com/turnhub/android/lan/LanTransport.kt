@@ -9,6 +9,8 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.security.MessageDigest
+import java.security.PrivateKey
+import java.security.Principal
 import java.security.cert.X509Certificate
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
@@ -20,6 +22,22 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
+import javax.net.ssl.X509ExtendedKeyManager
+import javax.net.ssl.SSLEngine
+
+/** Expose only the invited certificate, never another key from AndroidKeyStore. */
+internal fun lanHostKeyManager(key: PrivateKey, chain: Array<X509Certificate>) = object : X509ExtendedKeyManager() {
+    override fun getServerAliases(keyType: String?, issuers: Array<out Principal>?) =
+        if (keyType == key.algorithm) arrayOf("host") else null
+    override fun chooseServerAlias(keyType: String?, issuers: Array<out Principal>?, socket: Socket?) =
+        getServerAliases(keyType, issuers)?.firstOrNull()
+    override fun chooseEngineServerAlias(keyType: String?, issuers: Array<out Principal>?, engine: SSLEngine?) =
+        getServerAliases(keyType, issuers)?.firstOrNull()
+    override fun getPrivateKey(alias: String?) = key.takeIf { alias == "host" }
+    override fun getCertificateChain(alias: String?) = chain.copyOf().takeIf { alias == "host" }
+    override fun getClientAliases(keyType: String?, issuers: Array<out Principal>?): Array<String>? = null
+    override fun chooseClientAlias(keyType: Array<out String>?, issuers: Array<out Principal>?, socket: Socket?): String? = null
+}
 
 /** One bounded UTF-8 JSON request/reply per pinned TLS connection; no HTTP server. */
 internal object LanFrames {

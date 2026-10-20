@@ -11,9 +11,10 @@ import java.net.Socket
 import java.nio.file.Files
 import java.security.KeyStore
 import java.security.MessageDigest
+import java.security.PrivateKey
+import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
-import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 
 class LanTransportTest {
@@ -55,20 +56,28 @@ class LanTransportTest {
         }
     }
 
-    @Test fun `pinned TLS accepts the invited host and rejects a different certificate pin`() {
+    @Test fun `pinned TLS accepts RSA hosts and rejects a different certificate pin`() = pinnedTls("RSA")
+
+    @Test fun `pinned TLS accepts EC hosts and rejects a different certificate pin`() = pinnedTls("EC")
+
+    private fun pinnedTls(algorithm: String) {
         val directory = Files.createTempDirectory("turnhub-lan-test").toFile()
         try {
             val path = File(directory, "test.p12")
             val keytool = File(System.getProperty("java.home"), "bin/keytool").absolutePath
             val process = ProcessBuilder(keytool, "-genkeypair", "-alias", "test", "-keystore", path.absolutePath,
                 "-storetype", "PKCS12", "-storepass", "test-only-password", "-keypass", "test-only-password",
-                "-dname", "CN=TurnHub test", "-keyalg", "RSA", "-keysize", "2048", "-validity", "1", "-noprompt")
+                "-dname", "CN=TurnHub test", "-keyalg", algorithm, "-keysize", if (algorithm == "EC") "256" else "2048", "-validity", "1", "-noprompt")
                 .redirectErrorStream(true).redirectOutput(File(directory, "keytool.log")).start()
             assertTrue(process.waitFor(20, TimeUnit.SECONDS))
             assertEquals(0, process.exitValue())
             val store = KeyStore.getInstance("PKCS12").apply { path.inputStream().use { load(it, "test-only-password".toCharArray()) } }
-            val managers = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply { init(store, "test-only-password".toCharArray()) }
-            val context = SSLContext.getInstance("TLS").apply { init(managers.keyManagers, null, null) }
+            val manager = lanHostKeyManager(store.getKey("test", "test-only-password".toCharArray()) as PrivateKey,
+                store.getCertificateChain("test").map { it as X509Certificate }.toTypedArray())
+            assertNull(manager.getPrivateKey("another-alias"))
+            assertNull(manager.getCertificateChain("another-alias"))
+            assertNull(manager.chooseServerAlias(if (algorithm == "EC") "RSA" else "EC", null, null))
+            val context = SSLContext.getInstance("TLS").apply { init(arrayOf(manager), null, null) }
             val pin = MessageDigest.getInstance("SHA-256").digest(store.getCertificate("test").encoded).hex()
             val socket = context.serverSocketFactory.createServerSocket(0, 8, InetAddress.getLoopbackAddress())
             val handled = AtomicInteger()
