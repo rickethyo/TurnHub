@@ -39,6 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-032 | TCG shared player controls and read-only table | Android LAN, table UI | Implemented; local/device validation | Codex / review and tablet preview |
 | TH-031 | Death May Die shared devices | Android LAN, authority, UI | Handed to Claude on `claude/master` (owner, 2026-10-20) | Owner / Claude's PR (supersedes #145) and physical acceptance |
 | TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
@@ -1072,3 +1073,40 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   tests and lint pass; on the SM-T970 and Fold, code join found the host and
   QR-only hid it from code search. Lobby joining is JVM-tested only (the tablet's
   live match was left running).
+
+## TH-032: TCG shared players and read-only table
+
+- Date / owner: 2026-10-19, Codex, `codex/master`, clean merged baseline
+  `2263a85`; fetched origin and checked open PRs (none). TH-031 connection and
+  redesigned join-code/lobby implementation are accepted in master.
+- Owner requests shared-device support for TCG games: guest controls one selected
+  player using the existing table player panel, and switches to the full table
+  read-only and back while retaining the same session. Device work is tablet only.
+- Scope: Magic variants, Yu-Gi-Oh!, Pokemon and Lorcana; existing DMD preserved.
+  Host StandaloneTable remains sole rules/storage/history authority. Own-seat
+  authenticated requests reuse the engine; table inspection grants no additional
+  controls. Host setup/lifecycle, Bag of Doom resolution and Planechase stay host
+  controlled. Validate seat/role authorization, rules/counters/Commander, stale and
+  duplicate commands, lobby/rematch continuity, read-only navigation and storage.
+- Status: implemented and validated locally; ready for owner review. No delegation
+  or unrelated scope.
+- Implementation complete: TCG player capabilities reuse host engine operations,
+  scoped Commander sources and own-seat score/counter/turn controls; format changes
+  end hosting. Poll/join/command replies carry the current seat after lobby moves.
+  Guests reuse PlayerPanel/PlayerMenu, with confirmation for own elimination and
+  interaction disabled while waiting without discarding menu scroll position.
+  Table/personal switching keeps token, polling, pending retries and selected seat.
+- Validation: 492 JVM tests across 58 suites pass (26 LAN tests, 7 new TCG tests);
+  assembleDebug, lintDebug, design-token check and documentation checks pass.
+  SM-T970 physical guest joined a temporary desktop host using real LanSessions,
+  StandaloneTable and pinned TLS. Own life 40→41 and energy 0→1 applied; full table
+  displayed all four players; disabled own/opponent taps left revision 8/life 41
+  unchanged; return to My player retained one session and live controls.
+  Test harness used ADB routing/Android NSD advertisement because desktop firewall
+  blocks Python discovery; no firewall changes. This validates tablet UI and real
+  client/engine round-trips, not two-device Wi-Fi routing. Temporary server/NSD,
+  port reversals and test source are removed. Pixel Fold was not used or updated.
+- Device preview: build 1443 (newer than installed 1442). Owner permits discarding
+  the tablet game for testing. DMD regression suite passes; source and embedded
+  manual/privacy/authority/transport docs updated. Two-physical-device networking,
+  large text and TalkBack acceptance remain in STAGED_CHANGES.

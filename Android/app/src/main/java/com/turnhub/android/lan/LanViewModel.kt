@@ -47,6 +47,7 @@ internal class LanViewModel(
     private val _state = MutableStateFlow(LanUiState())
     val state = _state.asStateFlow()
     private var server: LanServer? = null
+    private var hostingProfile: com.turnhub.android.protocol.GameProfile? = null
     private var advertiser: LanAdvertiser? = null
     private var sessions: LanSessions? = null
     private var foreground = true
@@ -61,7 +62,7 @@ internal class LanViewModel(
     init {
         viewModelScope.launch {
             table.state.collect { local ->
-                if (server != null && !local.game.profile.deathMayDie) stopHosting()
+                if (server != null && local.game.profile != hostingProfile) stopHosting()
             }
         }
     }
@@ -77,8 +78,8 @@ internal class LanViewModel(
         }
         if (!hostingAccess.allowed()) { _state.update { it.copy(message = "Hosting is not available for this account.") }; return }
         val game = table.state.value.game
-        if (!game.profile.deathMayDie) {
-            _state.update { it.copy(message = "Choose Death May Die on this device before sharing it.") }; return
+        if (!game.profile.lanSupported) {
+            _state.update { it.copy(message = "Choose a TCG or Death May Die game on this device before sharing it.") }; return
         }
         _state.update { it.copy(busy = true, message = null) }
         viewModelScope.launch {
@@ -109,8 +110,9 @@ internal class LanViewModel(
                         LanInvite(wifi.address.hostAddress!!, listening.port, pin, session, key)
                     } catch (error: Throwable) { socket.close(); throw error }
                 }
+                hostingProfile = game.profile
                 server = opened
-                if (!table.state.value.game.profile.deathMayDie) {
+                if (table.state.value.game.profile != hostingProfile) {
                     stopHosting()
                     _state.update { it.copy(busy = false) }
                     return@launch
@@ -126,6 +128,7 @@ internal class LanViewModel(
 
     fun stopHosting() {
         sessions = null
+        hostingProfile = null
         advertiser?.close(); advertiser = null
         server?.close(); server = null
         _state.update { it.copy(host = null, guests = emptyList(), message = "Sharing stopped. The local game is still on this device.") }
@@ -184,13 +187,13 @@ internal class LanViewModel(
                 val reply = request(invitation, body)
                 if (reply.text("code") != "ok") {
                     _state.update { it.copy(busy = false, message = if (reply.text("code") == "claimed")
-                        "That investigator is already controlled by another device. Ask the host to release it." else "Couldn't join. Ask the host for a new invitation.") }
+                        "That player is already controlled by another device. Ask the host to release it." else "Couldn't join. Ask the host for a new invitation.") }
                     return@launch
                 }
                 val game = readGame(reply)
                 token = reply.text("token")
                 generation++
-                _state.update { it.copy(remote = game, role = role, player = player, preview = null, online = true, busy = false, message = null) }
+                _state.update { it.copy(remote = game, role = role, player = reply.optInt("player", player), preview = null, online = true, busy = false, message = null) }
                 startPolling(generation)
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
@@ -217,13 +220,13 @@ internal class LanViewModel(
         }
     }
 
-    fun act(kind: String, value: Int = 0, slot: Int = 0) {
+    fun act(kind: String, value: Int = 0, slot: Int = 0, source: Int = 0) {
         val state = _state.value
         val game = state.remote ?: return
         val invitation = invite ?: return
-        if (!state.online || state.busy || pending != null || state.role != "investigator") return
+        if (!state.online || state.busy || pending != null || state.role !in setOf("investigator", "player")) return
         pending = base(invitation, "command").put("token", token).put("actionId", UUID.randomUUID().toString())
-            .put("match", game.gameId).put("revision", game.revision).put("kind", kind).put("value", value).put("slot", slot)
+            .put("match", game.gameId).put("revision", game.revision).put("kind", kind).put("value", value).put("slot", slot).put("source", source)
         retry()
     }
 
@@ -272,6 +275,7 @@ internal class LanViewModel(
         val online = code in setOf("ok", "stale", "rejected")
         val game = if (reply.has("game")) readGame(reply) else null
         _state.update { before -> before.copy(
+            player = reply.optInt("player", before.player),
             remote = game?.takeIf { before.remote == null || it.revision >= before.remote.revision } ?: before.remote,
             online = online,
             message = when (code) {
@@ -279,7 +283,7 @@ internal class LanViewModel(
                 "stale" -> "The table changed before this edit arrived. Review the latest values and try again."
                 "rejected" -> "That change isn't available in the current game state."
                 "unavailable" -> "The host is away or unable to save. Controls wait until it returns."
-                "renew" -> "Rejoin to continue this investigator session."
+                "renew" -> "Rejoin to continue this player session."
                 else -> "This session has ended or access was removed. Ask the host for a new invitation."
             },
         ) }
@@ -293,7 +297,7 @@ internal class LanViewModel(
     }
     private fun base(invitation: LanInvite, op: String) = JSONObject().put("v", LAN_VERSION).put("session", invitation.session).put("op", op)
     private fun readGame(reply: JSONObject): StandaloneGame = StandaloneTable.gameFromJson(reply.getJSONObject("game")).also {
-        require(it.profile.deathMayDie && it.players.size in 0..10)
+        require(it.profile.lanSupported && it.players.size in 0..10)
     }
     override fun onCleared() { sessions = null; advertiser?.close(); server?.close(); super.onCleared() }
 }

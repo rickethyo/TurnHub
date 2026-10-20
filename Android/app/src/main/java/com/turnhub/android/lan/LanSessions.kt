@@ -6,7 +6,7 @@ import org.json.JSONObject
 
 /**
  * Called on the host's main dispatcher, alongside all local table edits. One sharing
- * session lasts while the host keeps sharing Death May Die: through its lobby, the match
+ * session lasts while the host keeps sharing the same format: through its lobby, the match
  * and any rematch. Guests may join in the lobby; their edits apply only while a match runs.
  */
 internal class LanSessions(
@@ -18,6 +18,7 @@ internal class LanSessions(
     private val now: () -> Long = { System.nanoTime() / 1_000_000 },
     private val secret: () -> String = { randomLanSecret() },
 ) {
+    private val sharedProfile = game().profile
     private data class Receipt(val payload: String, val code: String)
     private data class Client(val guest: LanGuest, val joinId: String, var seen: Long,
         val receipts: LinkedHashMap<String, Receipt> = linkedMapOf())
@@ -52,7 +53,7 @@ internal class LanSessions(
     fun handle(request: JSONObject): JSONObject = try {
         require(request.integer("v") == LAN_VERSION.toLong() && request.text("session") == session)
         reseat()
-        if (!game().profile.deathMayDie) reply("ended")
+        if (!sharedProfile.lanSupported || game().profile != sharedProfile) reply("ended")
         else if (unavailable()) reply("unavailable")
         else when (request.text("op")) {
             "preview", "join" -> {
@@ -68,7 +69,7 @@ internal class LanSessions(
                 else {
                     client.seen = now()
                     when (request.text("op")) {
-                        "poll" -> snapshot("ok")
+                        "poll" -> snapshot("ok").put("player", client.guest.player)
                         "leave" -> { clients.remove(client.guest.token); reply("ok") }
                         "command" -> command(client, request)
                         else -> reply("invalid")
@@ -84,43 +85,45 @@ internal class LanSessions(
         val role = request.text("role")
         val player = request.integer("player").also { require(it in 0..10) }.toInt()
         val players = game().players
-        require(role == "elder" && player == 0 || role == "investigator" && player in 1..players.size)
+        require(if (sharedProfile.deathMayDie) role == "elder" && player == 0 || role == "investigator" && player in 1..players.size
+            else role == "player" && player in 1..players.size)
         val name = if (player == 0) null else players[player - 1].name
         clients.entries.removeAll { now() - it.value.seen > 5 * 60_000 }
         val repeated = clients.values.firstOrNull { it.joinId == id }
         if (repeated != null) {
             require(repeated.guest.role == role && repeated.guest.name == name)
             repeated.seen = now()
-            return snapshot("ok").put("token", repeated.guest.token)
+            return snapshot("ok").put("token", repeated.guest.token).put("player", repeated.guest.player)
         }
         if (clients.size >= 16) return reply("full")
         if (player != 0 && clients.values.any { it.guest.player == player }) return snapshot("claimed")
         val token = secret()
         clients[token] = Client(LanGuest(token, role, player, name), id, now())
-        return snapshot("ok").put("token", token)
+        return snapshot("ok").put("token", token).put("player", player)
     }
 
     private fun command(client: Client, request: JSONObject): JSONObject {
-        if (client.guest.role != "investigator") return reply("forbidden")
+        if (client.guest.role != if (sharedProfile.deathMayDie) "investigator" else "player") return reply("forbidden")
         val id = request.text("actionId")
         require(id.matches(Regex("[0-9a-f-]{36}")))
         val kind = request.text("kind")
-        require(kind.length <= 24)
-        val value = request.integer("value").also { require(it in -20..20) }.toInt()
+        require(kind.length <= 64)
+        val value = request.integer("value").also { require(it in -100_000..100_000) }.toInt()
         val slot = request.integer("slot").also { require(it in 0..10) }.toInt()
+        val source = if (request.has("source")) request.integer("source").also { require(it in 0..10) }.toInt() else 0
         val revision = request.integer("revision")
         val requestedMatch = request.text("match")
         require(requestedMatch.length in 1..64)
-        val payload = listOf(requestedMatch, revision, kind, value, slot).joinToString("|")
-        client.receipts[id]?.let { return if (it.payload == payload) snapshot(it.code) else reply("invalid") }
+        val payload = listOf(requestedMatch, revision, kind, value, slot, source).joinToString("|")
+        client.receipts[id]?.let { return if (it.payload == payload) snapshot(it.code).put("player", client.guest.player) else reply("invalid") }
         // Never evict receipts and accidentally replay an old delta. Start a new
         // authenticated client session when its bounded command budget is used.
         if (client.receipts.size >= 2048) return snapshot("renew")
         val current = game()
         val code = if (requestedMatch != current.gameId || revision != current.revision) "stale"
-            else if (apply(LanAction(current.gameId, revision, client.guest.player, kind, value, slot))) "ok" else "rejected"
+            else if (apply(LanAction(current.gameId, revision, client.guest.player, kind, value, slot, source))) "ok" else "rejected"
         client.receipts[id] = Receipt(payload, code)
-        return snapshot(code)
+        return snapshot(code).put("player", client.guest.player)
     }
 
     private fun snapshot(code: String): JSONObject {
@@ -128,7 +131,7 @@ internal class LanSessions(
         // Only this public match leaves the host; never its library, credentials,
         // profile links, historical games, player artwork or local account IDs.
         val public = current.copy(planechase = com.turnhub.android.standalone.Planechase(),
-            players = current.players.map { it.copy(localId = null, profileId = null, commander = null, commanderArt = null) })
+            players = current.players.map { it.copy(localId = null, profileId = null, commanderArt = null) })
         return reply(code).put("game", StandaloneTable.gameToJson(public))
             .put("claimed", org.json.JSONArray(guests.map { it.player }.filter { it > 0 }))
     }

@@ -62,6 +62,7 @@ import com.turnhub.android.domain.InvestigatorCard
 import com.turnhub.android.domain.InvestigatorDashboard
 import com.turnhub.android.lan.LanUiState
 import com.turnhub.android.lan.LanViewModel
+import com.turnhub.android.lan.lanSupported
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.standalone.LocalPlayer
 import com.turnhub.android.standalone.StandaloneGame
@@ -82,6 +83,10 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) scanning = true
         else camera.launch(Manifest.permission.CAMERA)
     }
+    if (state.remote?.profile?.let { !it.deathMayDie } == true) {
+        SharedTcgRemote(state, model, reduceMotion) { model.leave(); onClose() }
+        return
+    }
     BackHandler { close() }
     val p = palette
     Box(Modifier.fillMaxSize().tableBackground(p), contentAlignment = Alignment.TopCenter) {
@@ -91,7 +96,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
             val host = state.host
             when {
                 host != null -> SharedHero(
-                    eyebrow = "Play together · Hosting", title = local.elder.elderOne ?: "Death May Die",
+                    eyebrow = "Play together · Hosting", title = sharedGameTitle(local),
                     subtitle = local.elder.episode?.let { "Episode · $it" } ?: "This device owns the game",
                     mood = LinkMood.LIVE, reduceMotion = reduceMotion) {
                     StatusBadge(host.code?.let { "Join code $it" } ?: "Joining by QR only", Tone.GOOD)
@@ -113,7 +118,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
                 }
                 else -> SharedHero(
                     eyebrow = "Play together · Same Wi-Fi", title = "Host or join a game",
-                    subtitle = "One device owns the game. The others show the Elder One or an investigator.",
+                    subtitle = "One device owns the game. Join as your player or a shared display.",
                     mood = LinkMood.IDLE, reduceMotion = reduceMotion) {}
             }
             state.message?.let { Notice(it, p.warn, Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
@@ -126,13 +131,13 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
                     if (state.role == "elder") ElderOneDisplay(remote, reduceMotion) else InvestigatorRemote(state, model)
                 }
                 else -> {
-                    val hostable = local.profile.deathMayDie
+                    val hostable = local.profile.lanSupported
                     val (qrOnly, setQrOnly) = rememberLanQrOnly()
                     BrassCard {
                         Eyebrow("Host from this device")
                         Text("Invite the table's other phones and tablets, from the lobby on. No internet or Atlas needed.",
                             color = p.text, style = MaterialTheme.typography.bodyLarge)
-                        if (!hostable) Text("Choose Death May Die for this device's game first, then come back here to share it.",
+                        if (!hostable) Text("Choose a TCG or Death May Die game on this device first, then come back here to share it.",
                             color = p.muted, style = MaterialTheme.typography.bodyMedium)
                         LanSecuritySwitch(qrOnly, !state.busy, setQrOnly)
                         AccentButton("Host game", { requestNetwork { model.startHosting(qrOnly) } }, Modifier.fillMaxWidth(),
@@ -278,7 +283,7 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (guest.player == 0) ElderSigil(40.dp) else PlayerAvatar(player?.name ?: "?", guest.player, null, size = 40.dp)
                 Column(Modifier.weight(1f)) {
-                    Text(if (guest.player == 0) "Elder One display" else player?.let { it.investigator ?: it.name } ?: "Investigator",
+                    Text(if (guest.player == 0) "Elder One display" else player?.let { if (local.profile.deathMayDie) it.investigator ?: it.name else it.name } ?: "Player",
                         color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(if (guest.player == 0) "Shows the track and stages" else player?.name ?: "", color = p.muted,
                         style = MaterialTheme.typography.bodySmall)
@@ -340,18 +345,18 @@ private fun InviteQr(text: String) {
     }
 }
 
-/** The host's seats as tappable rows: the Elder One display first, then each investigator. */
+/** TCG player seats; Death May Die also offers the Elder One display. */
 @Composable
 private fun SeatPicker(game: StandaloneGame, enabled: Boolean, onJoin: (String, Int) -> Unit) {
     val p = palette
     BrassCard {
         Eyebrow("Found · choose your seat")
-        Text("${game.elder.elderOne ?: "Death May Die"} · ${game.elder.episode ?: "Episode"}", color = p.text,
+        Text(sharedGameTitle(game), color = p.text,
             style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        SeatRow({ ElderSigil(44.dp) }, "Elder One display", "A shared screen for the track and stages", enabled) { onJoin("elder", 0) }
+        if (game.profile.deathMayDie) SeatRow({ ElderSigil(44.dp) }, "Elder One display", "A shared screen for the track and stages", enabled) { onJoin("elder", 0) }
         game.players.forEachIndexed { index, player ->
-            SeatRow({ PlayerAvatar(player.name, index + 1, null) }, player.investigator ?: player.name,
-                "Play as ${player.name}" + if (player.eliminated) " · out" else "", enabled) { onJoin("investigator", index + 1) }
+            SeatRow({ PlayerAvatar(player.name, index + 1, null) }, if (game.profile.deathMayDie) player.investigator ?: player.name else player.name,
+                "Play as ${player.name}" + if (player.eliminated) " · out" else "", enabled) { onJoin(if (game.profile.deathMayDie) "investigator" else "player", index + 1) }
         }
     }
 }

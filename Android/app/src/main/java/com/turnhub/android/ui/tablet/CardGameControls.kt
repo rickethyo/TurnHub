@@ -115,7 +115,7 @@ internal fun turnPanelReserve(unit: TableUnit, summary: TableSummary, narrow: Bo
  * player's turn, the first-turn rule and the once-per-turn actions to tick off.
  */
 @Composable
-internal fun TurnPanelLines(unit: TableUnit, summary: TableSummary, onMark: (TablePlayer, String, Int) -> Unit, modifier: Modifier) {
+internal fun TurnPanelLines(unit: TableUnit, summary: TableSummary, onMark: (TablePlayer, String, Int) -> Unit, modifier: Modifier, enabled: Boolean = true) {
     val p = palette
     if (summary.settings.profile.cooperative) {
         RoundStatus(unit, summary, onMark, modifier)
@@ -135,7 +135,7 @@ internal fun TurnPanelLines(unit: TableUnit, summary: TableSummary, onMark: (Tab
         firstTurnNote(holder, summary)?.let {
             Text(it, color = p.text, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
         }
-        TurnActionChips(holder, summary.settings.profile, onMark)
+        TurnActionChips(holder, summary.settings.profile, onMark, enabled)
     }
 }
 
@@ -302,13 +302,14 @@ private fun Tracker(name: String, value: Int, max: Int, player: String, noun: St
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TurnActionChips(holder: TablePlayer, profile: GameProfile, onMark: (TablePlayer, String, Int) -> Unit) {
+private fun TurnActionChips(holder: TablePlayer, profile: GameProfile, onMark: (TablePlayer, String, Int) -> Unit, enabled: Boolean = true) {
     val p = palette
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)) {
         TurnAction.of(profile).forEach { action ->
             val done = action in holder.turn.turnActions
             FilterChip(
                 selected = done,
+                enabled = enabled,
                 onClick = { onMark(holder, StandaloneGame.ACTION_KIND + action.name, if (done) 0 else 1) },
                 label = { Text(if (done) "✓ ${action.label}" else action.label) },
                 colors = FilterChipDefaults.filterChipColors(containerColor = p.surface.copy(alpha = .85f), selectedContainerColor = p.accentSoft),

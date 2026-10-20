@@ -1,10 +1,11 @@
 # Shared devices
 
-Android can host Death May Die for other TurnHub devices on the same Wi-Fi,
+Android can host Magic (including Commander variants and Two-Headed Giant),
+Yu-Gi-Oh!, Pokémon, Lorcana and Death May Die for devices on the same Wi-Fi,
 from the lobby on. Choose **Game → Play together → Host game**. In standard
 joining the host shows a join code like `abc-123` on Play together, the Game tab
 and the Table tab; a guest chooses **Game → Play together**, types it, and picks
-the Elder One display or an investigator. A host whose device setting **Guests
+their player (or an Elder One display/investigator for Death May Die). A host whose device setting **Guests
 must scan a QR code** is on shows a QR invitation instead, and guests must scan
 it. Sharing lasts through the lobby, the match and rematches until the host
 stops it, without deleting its game.
@@ -15,18 +16,27 @@ stops it, without deleting its game.
 |---|---|
 | Rules, match state and outcomes | Existing host `StandaloneGame` through `StandaloneTable` |
 | Network sessions and authorization | `LanSessions`, called on the same main dispatcher as host UI |
-| Commands | Owned-seat wounds/stress/fire/insanity, skill level, next-turn staging, explicit pass recipient; existing game validators |
+| Commands | Owned-seat TCG life/score, counters, Commander damage received, pass/extension, monarch and explicit own win/concede/elimination; DMD markers, skills and turn handoff; existing game validators |
 | Freshness/retry validation | Exact match/revision and per-session immutable action UUID receipts |
 | Persistence/history/statistics | Host only; commit before network acknowledgement |
-| Rendering | `SharedGameScreen`; read-only `ElderOneDisplay` or personal investigator controls |
+| Rendering | Existing table `PlayerPanel`/`PlayerMenu` for TCG personal controls; read-only full-table panels; DMD investigator controls/`ElderOneDisplay` |
 | Contract | [LAN v1](../../protocol/lan-v1.md), separate from Atlas HTTP and ESP-NOW |
 | Dependencies | Existing Android keystore/TLS, platform NSD (DNS-SD), coroutines, JSON, ZXing/CameraX; no new runtime library |
 | Accessibility | Labeled buttons, scrollable cards, safe drawing insets, textual connection/turn state, live announcements and reduced-motion board |
 
 Guests render the host's public match snapshot. They do not create a local match,
 change their saved players, persist remote history or receive account credentials.
-The host still controls every investigator and the Elder One/episode board.
-Guests only control their claimed investigator, including off-turn corrections;
+The host retains all player and game controls, including setup, lifecycle,
+Planechase and Bag of Doom resolution. TCG guests use their selected player
+panel and counter/Commander menu. **Table · read only** shows every player;
+**My player** returns to their controls without leaving, rejoining or releasing
+their seat. Table panels have disabled score/turn controls and no editing menus.
+Two-Headed Giant guests have personal counters while life and poison remain
+shared; either teammate may pass the team turn. Switching views keeps polling
+and pending retry state. Commander names are public; account identity, local
+artwork and libraries remain private.
+
+Death May Die guests only control their claimed investigator, including off-turn corrections;
 setup/reference changes stay on the host; guests can confirm their own death. Both devices
 therefore see the same markers, chosen skills and card rules. Disconnects disable
 guest controls and retain their last view until reconnection. A lost reply is
@@ -48,9 +58,10 @@ cleartext LAN allowance is used.
 
 The app keeps the display awake for hosts/guests. Keep the host foreground;
 backgrounding it blocks remote edits until it returns. Sessions survive rotation,
-lobby changes and rematches, but not process death or Stop sharing. Investigator
+lobby changes and rematches, but not process death or Stop sharing. Player
 seats follow the player's name: a guest whose player leaves the lobby is sent
-back to choose a seat. Guest edits apply only while a match runs or is paused.
+back to choose a seat. Guest edits apply only while a match runs or is paused. Changing the hosted
+game format ends sharing so existing capabilities cannot carry into another mode.
 There is no election, Atlas adoption, live host transfer or automatic promotion.
 [Shared table authority](TABLE_AUTHORITY.md) owns that separate design.
 

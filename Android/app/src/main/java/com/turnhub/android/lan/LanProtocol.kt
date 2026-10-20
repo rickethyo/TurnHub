@@ -66,8 +66,12 @@ internal fun JSONObject.integer(key: String): Long {
 }
 
 /** The host infers the player from the authenticated session, never a request's seat. */
-internal data class LanAction(val match: String, val revision: Long, val player: Int, val kind: String, val value: Int, val slot: Int)
-/** [name] keeps an investigator's seat when lobby changes move them to another number. */
+internal data class LanAction(val match: String, val revision: Long, val player: Int, val kind: String, val value: Int, val slot: Int, val source: Int = 0)
+
+internal val com.turnhub.android.protocol.GameProfile.lanSupported: Boolean
+    get() = deathMayDie || magicRules || this in listOf(com.turnhub.android.protocol.GameProfile.YUGIOH,
+        com.turnhub.android.protocol.GameProfile.POKEMON, com.turnhub.android.protocol.GameProfile.LORCANA)
+/** [name] keeps a player's seat when lobby changes move them to another number. */
 internal data class LanGuest(val token: String, val role: String, val player: Int, val name: String? = null) {
     override fun toString() = "LanGuest($role, player=$player)"
 }
