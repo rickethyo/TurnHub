@@ -32,6 +32,10 @@ Planechase setup and Bag of Doom resolution. TCG guests use their selected playe
 panel and counter/Commander menu. **Table · read only** shows every player;
 **My player** returns to their controls without leaving, rejoining or releasing
 their seat. Table panels have disabled score/turn controls and no editing menus.
+A guest's life taps gather for 0.7 s and go to the host as one change, and a
+tap in flight leaves the controls as they are. Every panel, on the host and the
+guests, shows the running change (like "+1" or "−3") for 3 s after the last
+change, whichever device made it (owner, 2026-10-20).
 Two-Headed Giant guests have personal counters while life and poison remain
 shared; either teammate may pass the team turn. Switching views keeps polling
 and pending retry state. Guest panels draw each seat's color, avatar,

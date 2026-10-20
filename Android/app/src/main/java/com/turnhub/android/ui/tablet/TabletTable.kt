@@ -397,7 +397,6 @@ internal fun TabletTable(
                         unit = unit,
                         summary = summary,
                         life = life,
-                        pendingDelta = pending,
                         onPlanarRoll = onPlanarRoll,
                         onOpenMenu = {
                             haptics.tick()
@@ -854,7 +853,6 @@ internal fun PlayerPanel(
     unit: TableUnit,
     summary: TableSummary,
     life: Int,
-    pendingDelta: Int,
     onOpenMenu: () -> Unit,
     onPlanarRoll: (() -> Unit)?,
     onBump: (Int) -> Unit,
@@ -882,6 +880,7 @@ internal fun PlayerPanel(
         ?: p.avatarColor(unit.members.first().playerNumber)
     val active = unit.members.any { summary.hasTurn(it.playerNumber) } && summary.state != TableState.GAME_OVER
     val out = unit.out
+    val recentDelta = rememberRecentLifeChange(life, summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)
     val (small, big) = lifeSteps(summary.settings.profile)
     val name = unit.name
     // The commanders a team or player named (Death May Die: their investigator), shown under the name.
@@ -1013,11 +1012,11 @@ internal fun PlayerPanel(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     // The running change floats as a pill over the number's top edge, so it never moves it.
-                    val pill = if (pendingDelta == 0) null else (if (pendingDelta > 0) "+" else "−") + kotlin.math.abs(pendingDelta)
+                    val pill = if (recentDelta == 0) null else (if (recentDelta > 0) "+" else "−") + kotlin.math.abs(recentDelta)
                     Box(contentAlignment = Alignment.Center) {
                         LifeNumber(life, lifeSize, reduceMotion)
                         if (pill != null) {
-                            val tone = if (pendingDelta > 0) p.good else p.bad
+                            val tone = if (recentDelta > 0) p.good else p.bad
                             Text(pill, color = tone, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold,
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
@@ -1204,6 +1203,28 @@ private fun PlanarDieButton(onRoll: () -> Unit, compact: Boolean, modifier: Modi
 }
 
 /** The life total, counting to its new value; only this text recomposes while it animates. */
+/**
+ * The life total's running change, like "+1" or "−3", from whatever moved it: this device's
+ * taps, a joined phone or the host. It adds up changes that come close together and clears
+ * [RECENT_LIFE_MS] after the last one. Only during a match, so a new game's reset never shows.
+ */
+@Composable
+private fun rememberRecentLifeChange(life: Int, live: Boolean): Int {
+    var baseline by remember(live) { mutableStateOf(life) }
+    var recent by remember(live) { mutableStateOf(0) }
+    LaunchedEffect(life, live) {
+        if (!live) { baseline = life; recent = 0; return@LaunchedEffect }
+        if (life == baseline) return@LaunchedEffect
+        recent += life - baseline
+        baseline = life
+        delay(RECENT_LIFE_MS)
+        recent = 0
+    }
+    return recent
+}
+
+private const val RECENT_LIFE_MS = 3_000L
+
 @Composable
 private fun LifeNumber(life: Int, size: Float, reduceMotion: Boolean) {
     val shown by animateIntAsState(life, if (reduceMotion) snap() else tween(220), label = "life")

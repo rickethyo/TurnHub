@@ -13,6 +13,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.turnhub.android.domain.TableClock
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.lan.LanUiState
@@ -50,8 +53,37 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     // Either teammate may pass. Keep the full host summary for the table and
     // show the claimed teammate as the personal panel's actor during their turn.
     val personal = if (own != null && summary.hasTurn(own.playerNumber)) summary.copy(activePlayerNumber = own.playerNumber) else summary
-    val enabled = state.online && !state.busy && !state.uncertain && own != null && !own.eliminated &&
+    // A tap in flight leaves the controls as they are, so the screen doesn't flash on every
+    // change (owner, 2026-10-20); only a lost reply holds them until Retry.
+    val enabled = state.online && !(state.uncertain && !state.busy) && own != null && !own.eliminated &&
         game.state in listOf(TableState.RUNNING, TableState.PAUSED)
+    // Life taps gather for a moment and go to the host as one change, as on the table, so
+    // quick taps all count and the number moves at once.
+    val scope = rememberCoroutineScope()
+    val latest by rememberUpdatedState(state)
+    var unsent by remember { mutableStateOf(0) }
+    var gathering by remember { mutableStateOf<Job?>(null) }
+    /** The sent change and the snapshot revision it was sent against, until a newer snapshot carries it. */
+    var sending by remember { mutableStateOf<Pair<Int, Long>?>(null) }
+    LaunchedEffect(sending) { if (sending != null) { delay(2_000); sending = null } }
+    val inFlight = sending?.takeIf { state.busy || game.revision == it.second }?.first ?: 0
+    fun bump(delta: Int) {
+        if (tableView || planesView || !enabled) return
+        unsent += delta
+        haptics.tick()
+        gathering?.cancel()
+        gathering = scope.launch {
+            delay(LIFE_GATHER_MS)
+            // Wait out another command still in flight, then send the whole change once.
+            while (latest.busy) delay(100)
+            val total = unsent
+            val revision = latest.remote?.revision ?: return@launch
+            unsent = 0
+            if (total == 0 || !latest.online) return@launch
+            sending = total to revision
+            model.act("life", total)
+        }
+    }
     // Navigation changes only this composable; token, polling and pending commands stay in the model.
     BackHandler {
         when { menu -> menu = false; planesView && !planesDisplay -> planesChosen = false; tableView -> tableView = false; else -> confirmLeave = true }
@@ -128,9 +160,10 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
                             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             row.forEach { unit ->
                                 Box(Modifier.weight(1f).fillMaxHeight()) {
-                                    PlayerPanel(unit, if (tableView) summary else personal, unit.lifeSeat.life ?: 0, 0,
+                                    PlayerPanel(unit, if (tableView) summary else personal,
+                                        (unit.lifeSeat.life ?: 0) + if (tableView) 0 else unsent + inFlight,
                                         onOpenMenu = { if (enabled && !tableView) menu = true }, onPlanarRoll = null,
-                                        onBump = { act("life", it) }, onControl = { _, action -> act(action) },
+                                        onBump = { bump(it) }, onControl = { _, action -> act(action) },
                                         onTurnMark = { _, kind, value -> act(kind, value) },
                                         onSkillLevel = { _, _, _ -> }, onEditSkills = { _, _ -> }, onInvestigatorCard = { _, _, _ -> },
                                         investigatorFocused = false, onRespond = { _, _, _ -> }, offlineCommander = { _, _, _ -> 0 },
@@ -171,6 +204,8 @@ internal fun TableSummary.withLooks(looks: List<com.turnhub.android.standalone.L
         val look = looks.getOrNull(player.playerNumber - 1) ?: return@map player
         player.copy(avatar = look.icon(), color = look.color, tileBackground = look.tileBackground)
     })
+
+private const val LIFE_GATHER_MS = 700L
 
 /** The shortest table panel that still shows its name band and the whole life total. */
 private val MIN_REMOTE_PANEL = 200.dp
