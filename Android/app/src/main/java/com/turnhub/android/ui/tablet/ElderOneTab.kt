@@ -146,6 +146,33 @@ fun ElderOneTab(state: StandaloneState, table: StandaloneTable, reduceMotion: Bo
     }
 }
 
+/** The same visual board for a guest display; only the host can move its markers. */
+@Composable
+internal fun ElderOneDisplay(game: com.turnhub.android.standalone.StandaloneGame, reduceMotion: Boolean) {
+    val elder = game.elder
+    ElderHero(elder, when {
+        game.state == TableState.GAME_OVER && game.winners.isNotEmpty() -> HeroMood.WON
+        game.state == TableState.GAME_OVER -> HeroMood.LOST
+        elder.summoned -> HeroMood.SUMMONED
+        else -> HeroMood.WAITING
+    }, enabled = false, reduceMotion = reduceMotion, onPickElder = {}, onPickEpisode = {})
+    BrassCard {
+        Eyebrow("Summoning track · ${elder.space}/${ElderOneTrack.LAST_SPACE}")
+        TrackPath(elder.space, reduceMotion)
+        Text("Summoning symbols: ${elder.symbols}/${ElderOneTrack.SYMBOLS_TO_ADVANCE}", color = palette.text)
+        Text(if (elder.ritualDisrupted) "Ritual disrupted" else "Ritual intact", color = palette.text)
+    }
+    if (elder.summoned) BrassCard {
+        StageLadder(elder.stage)
+        WoundRing(elder, reduceMotion)
+        Text("${ElderOneTrack.stageName(elder.stage)} · ${elder.stageWounds}/${elder.health ?: "?"} wounds", color = palette.text)
+    }
+    if (elder.tokens.isNotEmpty()) BrassCard {
+        Eyebrow("Episode tokens")
+        elder.tokens.forEach { Text("${it.name}: ${it.count}", color = palette.text, style = MaterialTheme.typography.titleLarge) }
+    }
+}
+
 /**
  * The episode's own tokens (gates, seals and so on): the table names them, in setup or
  * during the game, and counts them while it plays. Each count is a number, never only a picture.

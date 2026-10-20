@@ -1,6 +1,6 @@
 # TurnHub Privacy Policy
 
-Effective 16 October 2026. This policy covers the TurnHub Android app
+Effective 20 October 2026. This policy covers the TurnHub Android app
 (`com.turnhub.android`) and the TurnHub table hardware it controls.
 
 ## The short version
@@ -22,11 +22,12 @@ reports are described below.
 - **On your phone, without an Atlas.** Players you add on the device (name,
   color, avatar or a picture you choose, an optional PIN or password stored
   hashed), game settings, the game in progress, game history and statistics
-  are saved in the app's private storage. They leave the phone only in two
-  cases you control: Android's own backup, if you have it turned on, may copy
+  are saved in the app's private storage. They leave the phone only when you
+  choose sharing: Android's own backup, if you have it turned on, may copy
   them to your Google account (saved Atlas passwords and sign-in secrets are
   excluded); and you can choose to copy a player and their results to an
-  Atlas.
+  Atlas. Shared Death May Die games also send the current match to guests you
+  invite on your Wi-Fi, as described below.
 - **On your phone, with an Atlas.** The app remembers the Atlas Wi-Fi password and, if you
   turn on automatic sign-in, your profile's PIN or password. That secret is
   encrypted with a key Android releases only after your fingerprint, face or
@@ -41,12 +42,30 @@ reports are described below.
 - **Player pictures:** chosen with Android's file picker, so the app sees only
   the picture you pick. It is cropped, compressed and stored with that player.
 - **Nearby devices / local network and Wi-Fi state:** finds and joins your
-  Atlas's Wi-Fi network.
+  Atlas's Wi-Fi network, or hosts/joins a shared game on your current Wi-Fi.
 - **Biometrics:** unlocks your saved sign-in, if you turn that on.
 - **Notifications and foreground service:** shows table status and keeps the
   connection to the Atlas while a game is running.
 - **Internet:** used to download TurnHub firmware updates and, if you name a
   commander, to fetch that card's art (see below).
+
+## Shared games on your Wi-Fi
+
+When you host Death May Die, devices using your invitation receive the current
+match: player names, investigators, assigned card/skill notes and verification
+markers, wounds/counters, turns and the Elder One/episode board. Investigator
+guests can request changes to their own investigator; the host validates and
+saves them. Your account credentials, profile links, local library, historical
+games and player pictures are not sent. Guests hold the shared view in memory
+without saving it as their own match/history or awarding their own statistics.
+
+Invitations grant access to this match and pin its encrypted TLS connection.
+Share them only with your table. You can disconnect guests or stop sharing.
+Invitations, guest tokens and retry receipts are not saved across process death.
+An explicitly copied invitation can remain on Android's clipboard or in an app
+you choose to share it through. TurnHub does not upload invitations or shared
+matches to any cloud service. This feature uses your existing Wi-Fi; it does not
+change its settings or require internet access.
 
 ## Firmware updates
 

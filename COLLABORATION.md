@@ -39,6 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-031 | Death May Die shared devices | Android LAN, authority, UI | In progress | Codex / host and investigator clients |
 | TH-030 | Bag-check prompt dismissal | Android tablet/personal UI | Ready for review; CI passes | Owner / PR #137 |
 | TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
@@ -82,6 +83,34 @@ Ten-player app and general elimination credit landed in [PR #134](https://github
 - Owner supplied Build 414 then clarified a PR had not been merged. The source
   suppression bug is independently reproducible; no claim the screenshot proves
   it was triggered. Owner reviews/integrates #137; no merge or release by Codex.
+
+## TH-031: Death May Die shared devices
+
+- Date / owner: 2026-10-20, Codex on `codex/master`, clean baseline `65e0c41`
+  (Claude's Death May Die/Elder One work merged through #143; #144 integrated).
+  Current master fetched and fast-forwarded; no open PR or overlapping scope.
+- Owner requests same-network host/client devices: an Elder One display and
+  personal investigator cards, with investigator controls confirmed. Hosting
+  is a candidate paid upgrade; recommend host entitlement with free joining.
+  Billing, pricing, Atlas handoff and common-engine extraction are separate.
+- Feature gate: existing host StandaloneTable/StandaloneGame own rules,
+  persistence, outcomes/history. New versioned LAN session commands validate
+  invitation/session, client capability, owned seat, match/revision and action
+  UUID. Mutations serialize with host UI; persist before replying. Clients only
+  render snapshots and request their own investigator changes, never run or
+  persist a second game or award statistics. Elder One clients are read-only.
+- TLS with an Android-keystore host certificate pinned by a shared invitation;
+  session-scoped random credentials, bounded frames/connections/receipt cache,
+  explicit revoke/stop, no discovery/cloud account or new runtime dependency.
+  QR/paste invitation avoids trusting a server discovered on the LAN. App-local
+  foreground hosting, explicit disconnected state and retry of uncertain commands;
+  no client promotion or queued offline edits. Rotation retains the session,
+  process death requires a new invitation. Use existing LAN/camera permissions.
+- Renderers: host/join page plus dedicated Elder One/investigator views with
+  labeled controls and connection status, large text/scrolling and safe insets.
+  Keep hosting behind an injectable capability boundary; joining independent.
+  Automated authority/authorization/retry/staleness/storage/transport regressions
+  plus Android CI; two-device/TalkBack/background acceptance remains physical.
 
 ## New topic / reply template
 
@@ -991,3 +1020,20 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   for a rematch, counts cleared). Validation: new `ElderOneTest` cases; CI build.
   Device playtest pending.
 
+
+### 2026-10-20 — Codex: TH-031 implementation validation
+
+- Implementation ready locally: one host-only rule/history/storage authority;
+  QR/paste pairing, pinned TLS, role/seat sessions, bounded frames/JSON depth
+  and immutable command receipts, stale rejection, durable remote commits,
+  disconnected/uncertain command UI and explicit revoke/stop. Own investigator
+  controls include counters, levels, staged/pass recipient and death confirmation.
+- Local Kotlin/JVM compilation with Android Context/ViewModel/network integration
+  stubs runs the actual domain, protocol, standalone authority and LAN core.
+  110 tests pass, including 16 new LAN tests and existing DMD, Elder One,
+  standalone-game, Bag of Doom and elimination-prompt suites. Pinned TLS uses
+  real loopback sockets with an ephemeral test-only keytool certificate.
+  Android/Compose/keystore integration awaits CI compilation and physical devices.
+- Docs, design tokens, manual export and whitespace checks pass; updated DOCX
+  page layout is unverified. No new runtime dependency, firmware or billing.
+  Hosting defaults enabled behind LanHostingAccess; free joining is independent.

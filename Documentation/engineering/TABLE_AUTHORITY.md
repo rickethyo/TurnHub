@@ -7,6 +7,11 @@ off. Authority transfer and reconciliation are not implemented yet.
 
 ## Current foundation
 
+Death May Die can use one Android standalone host with same-network guest
+displays/investigator controls ([Shared devices](SHARED_DEVICES.md)). Those
+guests have no engine or takeover rights. This does not implement Atlas handoff
+or the portable shared engine described below.
+
 Android's two table entry points share `TableLobby`, `TableLobbyActions`,
 `TabletTable` and the live `TableControls` interface. Local and connected
 adapters supply the same presentation model and action vocabulary. Authentication,

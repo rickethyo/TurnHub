@@ -64,7 +64,7 @@ labels, with brief flavor text in introductions and empty states.
 
 The Android app is a controller and presentation client. It is not a second TurnHub game engine, with one exception: the standalone tablet game below.
 
-Product direction (owner, 2026-10-13): the app is a full, general-purpose game app on its own; a physical Atlas unlocks extras (Sigils, a phone for every player, shared profiles and table-wide statistics, the Atlas screen and speaker, administration). Multi-phone play needs an Atlas. Both modes use the same navigation and shared table presentation. The standalone game is therefore a supported engine for games with no Atlas, but it still never merges into, copies or changes a game Atlas runs.
+Product direction (owner, 2026-10-13): the app is a full, general-purpose game app on its own; a physical Atlas unlocks extras (Sigils, a phone for every player, shared profiles and table-wide statistics, the Atlas screen and speaker, administration). Death May Die supports a phone host with same-network Elder One displays and investigator clients ([shared devices](../Documentation/engineering/SHARED_DEVICES.md)); other multi-phone modes still need an Atlas. Both modes use the same navigation and shared table presentation. The standalone game is therefore a supported engine for games with no Atlas, but it still never merges into, copies or changes a game Atlas runs.
 
 ## Hard architecture rule
 

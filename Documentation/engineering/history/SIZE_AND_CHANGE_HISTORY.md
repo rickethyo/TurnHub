@@ -1069,3 +1069,12 @@ the extra flags; no media or dependency was added. CI Atlas compile target on
 1,966,080 bytes (65.5%): +232 bytes RAM / +2,800 bytes flash against Bag of Doom.
 These are board-less compile measurements; physical-device performance and
 acceptance remain unverified.
+
+## 2026-10-20: Android Death May Die shared devices
+
+Baseline `65e0c41`. Android adds a phone-hosted LAN session, pinned TLS transport,
+QR/paste invitations and guest Elder One/investigator screens. It reuses the
+standalone game/storage/history engine, with synchronous commits for remote
+commands. No firmware, radio payload, checkpoint format, new runtime dependency
+or bundled artwork changes. Android binary/heap and real-device network
+performance are not measured; physical acceptance remains open.

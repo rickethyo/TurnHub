@@ -28,8 +28,13 @@ The goal is simple: know what entered the project, where it came from, how it is
 | GitHub Actions: checkout, setup-python, setup-java, upload-artifact | Official `actions/*` repositories; exact commit revisions in `.github/workflows/ci.yml` | Development CI only | MIT (upstream `LICENSE` in each action repository) | No, not embedded in firmware or APK | GREEN | Preserve upstream notices if action code is ever redistributed. Workflow invokes the actions without copying their implementation into TurnHub. |
 | GitHub Action: r0adkll/upload-google-play | `r0adkll/upload-google-play` v1.1.5, pinned to commit `e738b9dd8f2476ea806d921b64aacd24f34515a5` in `.github/workflows/ci.yml` | Development CI only: publishes master's Android bundle to Play internal testing | MIT (upstream `LICENSE`) | No, not embedded in firmware or APK | GREEN | Receives the Play service account key at run time; keep it pinned to a reviewed commit. |
 | org.json (JSON-java) | `org.json:json:20260814`, Android `testImplementation` only | Android JVM unit tests (the app itself uses Android's built-in `org.json`) | Public Domain (per its Maven POM) | No, test classpath only | GREEN | None while test-only. Re-review if it ever moves to an `implementation` dependency. |
-| AndroidX CameraX (`camera-camera2`, `camera-lifecycle`, `camera-view`) | `androidx.camera:*:1.5.0` | Android app: Admin-code QR scanner preview | Apache-2.0 | Yes, Android APK | GREEN | Include the Apache-2.0 license and any NOTICE text in the app's open-source notices. Camera use is optional and asked for only when the player taps Scan. |
-| ZXing core | `com.google.zxing:core:3.5.3`, [upstream](https://github.com/zxing/zxing) | Android app: on-device QR decoding (no network) | Apache-2.0 | Yes, Android APK | GREEN | Include the Apache-2.0 license and NOTICE in the app's open-source notices. |
+| AndroidX CameraX (`camera-camera2`, `camera-lifecycle`, `camera-view`) | `androidx.camera:*:1.5.0` | Android app: Admin-code and shared-game invitation QR scanner preview | Apache-2.0 | Yes, Android APK | GREEN | Include the Apache-2.0 license and any NOTICE text in the app's open-source notices. Camera use is optional and asked for only when the player taps Scan. |
+| ZXing core | `com.google.zxing:core:3.5.3`, [upstream](https://github.com/zxing/zxing) | Android app: on-device QR encoding/decoding for installation, Admin codes and shared-game invitations | Apache-2.0 | Yes, Android APK | GREEN | Include the Apache-2.0 license and NOTICE in the app's open-source notices. |
+
+Android shared devices use platform `javax.net.ssl` TLS, Android keystore RSA
+keys/certificates and the already tracked JSON/coroutines/CameraX/ZXing libraries.
+No additional runtime dependency or bundled card asset enters the app. The
+LAN invitation pins the host certificate; store billing is not implemented.
 
 ## Platform/toolchain follow-up
 
