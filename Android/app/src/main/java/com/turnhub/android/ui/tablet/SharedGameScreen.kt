@@ -94,7 +94,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
                     eyebrow = "Play together · Hosting", title = local.elder.elderOne ?: "Death May Die",
                     subtitle = local.elder.episode?.let { "Episode · $it" } ?: "This device owns the game",
                     mood = LinkMood.LIVE, reduceMotion = reduceMotion) {
-                    StatusBadge("Sharing on this Wi-Fi", Tone.GOOD)
+                    StatusBadge(host.code?.let { "Join code $it" } ?: "Joining by QR only", Tone.GOOD)
                     StatusBadge(when (state.guests.size) { 0 -> "No devices yet"; 1 -> "1 device joined"; else -> "${state.guests.size} devices joined" })
                 }
                 remote != null -> {
@@ -126,25 +126,31 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
                     if (state.role == "elder") ElderOneDisplay(remote, reduceMotion) else InvestigatorRemote(state, model)
                 }
                 else -> {
-                    val hostable = local.profile.deathMayDie && local.state in listOf(TableState.RUNNING, TableState.PAUSED)
+                    val hostable = local.profile.deathMayDie
+                    val (qrOnly, setQrOnly) = rememberLanQrOnly()
                     BrassCard {
                         Eyebrow("Host from this device")
-                        Text("Invite the table's other phones and tablets to this game. No internet or Atlas needed.",
+                        Text("Invite the table's other phones and tablets, from the lobby on. No internet or Atlas needed.",
                             color = p.text, style = MaterialTheme.typography.bodyLarge)
-                        if (!hostable) Text("Start a Death May Die game on this device first, then come back here to share it.",
+                        if (!hostable) Text("Choose Death May Die for this device's game first, then come back here to share it.",
                             color = p.muted, style = MaterialTheme.typography.bodyMedium)
-                        AccentButton("Host game", { requestNetwork(model::startHosting) }, Modifier.fillMaxWidth(),
+                        LanSecuritySwitch(qrOnly, !state.busy, setQrOnly)
+                        AccentButton("Host game", { requestNetwork { model.startHosting(qrOnly) } }, Modifier.fillMaxWidth(),
                             enabled = !state.busy && hostable)
                     }
                     BrassCard {
                         Eyebrow("Join another device")
-                        Text("Scan the code on the host's screen, or paste the invitation they sent you.",
+                        Text("Enter the join code on the host's screen. If the host shows a QR code instead, scan it.",
                             color = p.text, style = MaterialTheme.typography.bodyLarge)
-                        AccentButton("Scan invitation", ::scan, Modifier.fillMaxWidth(), enabled = !state.busy)
-                        OutlinedTextField(invitation, { invitation = it }, label = { Text("Or paste the invitation") },
-                            modifier = Modifier.fillMaxWidth(), enabled = !state.busy, singleLine = true)
-                        ToneButton(if (state.busy) "Connecting…" else "Find game", { requestNetwork { model.preview(invitation) } },
-                            Modifier.fillMaxWidth(), enabled = !state.busy && invitation.isNotBlank())
+                        OutlinedTextField(invitation, { invitation = it.take(9) }, label = { Text("Join code, like abc-123") },
+                            modifier = Modifier.fillMaxWidth(), enabled = !state.busy, singleLine = true,
+                            textStyle = MaterialTheme.typography.headlineSmall.copy(letterSpacing = 3.sp, fontWeight = FontWeight.Bold),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.None,
+                                autoCorrectEnabled = false, keyboardType = androidx.compose.ui.text.input.KeyboardType.Password))
+                        AccentButton(if (state.busy) "Searching this Wi-Fi…" else "Find game", { requestNetwork { model.preview(invitation) } },
+                            Modifier.fillMaxWidth(), enabled = !state.busy && com.turnhub.android.lan.LanJoinCode.normalize(invitation) != null)
+                        ToneButton("Scan QR code", ::scan, Modifier.fillMaxWidth(), enabled = !state.busy)
                     }
                     state.preview?.let { game -> SeatPicker(game, enabled = !state.busy) { role, seat -> requestNetwork { model.join(role, seat) } } }
                 }
@@ -155,7 +161,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
     if (scanning) AlertDialog(onDismissRequest = { scanning = false }, title = { Text("Scan the host's invitation") },
         text = { QrScanner({ text ->
             if (runCatching { com.turnhub.android.lan.LanInvite.parse(text) }.isSuccess) {
-                scanning = false; invitation = text; requestNetwork { model.preview(text) }
+                scanning = false; requestNetwork { model.preview(text) }
             }
         }, Modifier.fillMaxWidth().height(300.dp)) },
         confirmButton = { ToneButton("Cancel", { scanning = false }) })
@@ -168,6 +174,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
 
 private fun gameStatus(game: StandaloneGame) = when (game.state) {
     TableState.GAME_OVER -> if (game.winners.isEmpty()) "The investigators lost" else "The investigators won"
+    TableState.LOBBY -> "In the lobby"
     TableState.PAUSED -> "Round ${game.round} · Paused"
     TableState.RUNNING -> "Round ${game.round}"
     else -> "Round ${game.round} · ${game.state.name.lowercase().replace('_', ' ')}"
@@ -246,11 +253,18 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
     val host = state.host ?: return
     val clipboard = LocalClipboardManager.current
     BrassCard {
-        Eyebrow("Invitation")
-        Text("Scan this with TurnHub on each guest's device. Each guest picks the Elder One display or an investigator.",
-            color = p.text, style = MaterialTheme.typography.bodyLarge)
-        InviteQr(host.encode())
-        ToneButton("Copy invitation", { clipboard.setText(AnnotatedString(host.encode())) }, Modifier.fillMaxWidth())
+        if (host.code != null) {
+            Eyebrow("Join code")
+            Text("On each guest's device, open Game, then Play together, and enter this code. It stays the same until you stop sharing.",
+                color = p.text, style = MaterialTheme.typography.bodyLarge)
+            JoinCodeTile(host.code)
+        } else if (host.qr != null) {
+            Eyebrow("Scan to join")
+            Text("This device only accepts guests that scan this code. On each guest's device, open Game, then Play together, then Scan QR code.",
+                color = p.text, style = MaterialTheme.typography.bodyLarge)
+            InviteQr(host.qr)
+            ToneButton("Copy invitation", { clipboard.setText(AnnotatedString(host.qr)) }, Modifier.fillMaxWidth())
+        }
         Text("Share it only with your table. Keep TurnHub open here: this device saves every change and records the result.",
             color = p.muted, style = MaterialTheme.typography.bodyMedium)
     }
@@ -274,6 +288,40 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
         }
     }
     ArmedButton("Stop sharing", "Tap again: disconnect every device", Tone.BAD, model::stopHosting)
+}
+
+/** The code in large spaced letters, readable across a table. */
+@Composable
+internal fun JoinCodeTile(code: String, modifier: Modifier = Modifier, compact: Boolean = false) {
+    val p = palette
+    val shape = RoundedCornerShape(if (compact) 14.dp else 20.dp)
+    Box(modifier.fillMaxWidth().clip(shape).background(p.inset).border(2.dp, p.accent, shape)
+        .padding(vertical = if (compact) 8.dp else 18.dp).semantics(mergeDescendants = true) {
+            contentDescription = "Join code " + code.toCharArray().joinToString(" ")
+        }, contentAlignment = Alignment.Center) {
+        Text(code.uppercase(), color = p.text, fontWeight = FontWeight.Black,
+            style = (if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.displayMedium)
+                .copy(letterSpacing = if (compact) 4.sp else 8.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace))
+    }
+}
+
+private const val QR_ONLY_PREF = "lan_qr_only"
+
+/** This device's join security when it hosts: true lets only guests that scan its QR join. */
+@Composable
+internal fun rememberLanQrOnly(): Pair<Boolean, (Boolean) -> Unit> {
+    val context = LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences("turnhub_ui", android.content.Context.MODE_PRIVATE) }
+    var on by remember { mutableStateOf(prefs.getBoolean(QR_ONLY_PREF, false)) }
+    return on to { value: Boolean -> on = value; prefs.edit().putBoolean(QR_ONLY_PREF, value).apply() }
+}
+
+@Composable
+internal fun LanSecuritySwitch(qrOnly: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    SetupSwitch("Guests must scan a QR code",
+        if (qrOnly) "Stronger: only devices that scan this screen can join. Applies the next time this device hosts."
+        else "Off: guests type a short join code. Anyone on this Wi-Fi who learns the code can join.",
+        qrOnly, enabled, onChange)
 }
 
 @Composable
@@ -354,7 +402,9 @@ private fun InvestigatorRemote(state: LanUiState, model: LanViewModel) {
     val board = player.dashboard
     val enabled = state.online && !state.busy && !state.uncertain && !player.eliminated &&
         game.state in listOf(TableState.RUNNING, TableState.PAUSED)
-    TurnCard(game, seat, player, enabled, model)
+    if (game.state == TableState.LOBBY) Notice("You're in. Your controls unlock when the host starts the game.", p.info,
+        title = "Waiting for the host to start")
+    else TurnCard(game, seat, player, enabled, model)
     val dying = player.life >= DeathMayDie.DEATH_WOUNDS || board.insanity >= InvestigatorDashboard.MAX_INSANITY
     if (dying && !player.eliminated) Notice(
         if (player.life >= DeathMayDie.DEATH_WOUNDS) "Six wounds. Confirm the death, or remove a wound if it was a mistake. The host removes this investigator, which can end the game."
@@ -503,5 +553,25 @@ private fun CardPanel(slot: String, card: InvestigatorCard) {
             }
         }
         InvestigatorCardReferenceButton(card.catalogueId)
+    }
+}
+
+/** The host's join code above the Game and Table tabs while it shares, so the table can read it any time. */
+@Composable
+internal fun SharedCodeBanner(host: com.turnhub.android.lan.LanHosting, guests: Int, onOpen: () -> Unit) {
+    val p = palette
+    val shape = RoundedCornerShape(16.dp)
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).clip(shape).background(p.surface)
+        .border(1.dp, p.good.copy(alpha = .6f), shape)
+        .clickable(role = Role.Button, onClickLabel = "Open Play together", onClick = onOpen)
+        .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f)) {
+            Text("PLAY TOGETHER", color = p.good, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp), fontWeight = FontWeight.Bold)
+            Text(when (guests) { 0 -> "No devices joined yet"; 1 -> "1 device joined"; else -> "$guests devices joined" },
+                color = p.muted, style = MaterialTheme.typography.bodySmall)
+        }
+        if (host.code != null) JoinCodeTile(host.code, Modifier.width(170.dp), compact = true)
+        else Text("Scan the QR in Play together", color = p.text, style = MaterialTheme.typography.labelLarge)
     }
 }

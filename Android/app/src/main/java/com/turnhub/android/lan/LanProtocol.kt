@@ -8,7 +8,11 @@ import java.security.SecureRandom
 internal const val LAN_VERSION = 1
 internal const val LAN_MAX_FRAME = 512 * 1024
 
-/** An invitation is a bearer capability. Never log it or keep it in saved state. */
+/**
+ * Where a guest reaches a host and what it presents. [key] is the bearer secret: the
+ * short join code in standard joining, or a long random key that only the QR carries in
+ * QR-only joining. Never log it or keep it in saved state.
+ */
 internal data class LanInvite(val address: String, val port: Int, val pin: String, val session: String, val key: String) {
     fun encode() = "turnhub://join/$LAN_VERSION/$address/$port/$pin/$session/$key"
     override fun toString() = "LanInvite($address:$port)"
@@ -24,6 +28,22 @@ internal data class LanInvite(val address: String, val port: Int, val pin: Strin
             require(p[3].matches(Regex("[0-9a-f]{64}")) && p[4].matches(Regex("[0-9a-f]{32}")) && p[5].matches(Regex("[0-9a-f]{64}")))
             return LanInvite(p[1], port, p[3], p[4], p[5])
         }
+    }
+}
+
+/**
+ * A host's join code: three letters and three digits, like `abc-123`. Letters that read as
+ * digits (i, l, o) are never used. It stays the same while the host keeps sharing.
+ */
+internal object LanJoinCode {
+    private const val LETTERS = "abcdefghjkmnpqrstuvwxyz"
+    fun generate(random: SecureRandom = SecureRandom()): String =
+        (1..3).map { LETTERS[random.nextInt(LETTERS.length)] }.joinToString("") + "-" + (1..3).joinToString("") { "${random.nextInt(10)}" }
+    /** "ABC 123", "abc123" and "abc-123" all read as "abc-123"; null when it isn't a code. */
+    fun normalize(text: String): String? {
+        val chars = text.lowercase().filter { it.isLetterOrDigit() }
+        if (chars.length != 6 || !chars.take(3).all { it in LETTERS } || !chars.drop(3).all { it in '0'..'9' }) return null
+        return chars.take(3) + "-" + chars.drop(3)
     }
 }
 
@@ -47,6 +67,7 @@ internal fun JSONObject.integer(key: String): Long {
 
 /** The host infers the player from the authenticated session, never a request's seat. */
 internal data class LanAction(val match: String, val revision: Long, val player: Int, val kind: String, val value: Int, val slot: Int)
-internal data class LanGuest(val token: String, val role: String, val player: Int) {
+/** [name] keeps an investigator's seat when lobby changes move them to another number. */
+internal data class LanGuest(val token: String, val role: String, val player: Int, val name: String? = null) {
     override fun toString() = "LanGuest($role, player=$player)"
 }

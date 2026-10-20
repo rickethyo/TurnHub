@@ -3,7 +3,6 @@ package com.turnhub.android.lan
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.turnhub.android.protocol.TableState
 import com.turnhub.android.standalone.StandaloneGame
 import com.turnhub.android.standalone.StandaloneTable
 import kotlinx.coroutines.*
@@ -20,8 +19,14 @@ import java.util.UUID
 /** Hosting is one capability; a future store entitlement does not gate joining. */
 internal fun interface LanHostingAccess { fun allowed(): Boolean }
 
+/**
+ * What a host shows its table: the join code in standard joining, or the QR invitation in
+ * QR-only joining (the device's own security setting). Guests must use whichever it shows.
+ */
+internal data class LanHosting(val code: String? = null, val qr: String? = null)
+
 internal data class LanUiState(
-    val host: LanInvite? = null,
+    val host: LanHosting? = null,
     val guests: List<LanGuest> = emptyList(),
     val preview: StandaloneGame? = null,
     val remote: StandaloneGame? = null,
@@ -42,7 +47,7 @@ internal class LanViewModel(
     private val _state = MutableStateFlow(LanUiState())
     val state = _state.asStateFlow()
     private var server: LanServer? = null
-    private var hostingMatch: String? = null
+    private var advertiser: LanAdvertiser? = null
     private var sessions: LanSessions? = null
     private var foreground = true
     private var invite: LanInvite? = null
@@ -56,7 +61,7 @@ internal class LanViewModel(
     init {
         viewModelScope.launch {
             table.state.collect { local ->
-                if (server != null && (local.game.gameId != hostingMatch || !local.game.profile.deathMayDie)) stopHosting()
+                if (server != null && !local.game.profile.deathMayDie) stopHosting()
             }
         }
     }
@@ -64,22 +69,24 @@ internal class LanViewModel(
     fun setForeground(value: Boolean) { foreground = value }
     fun permissionDenied() { _state.update { it.copy(message = "Allow Nearby devices in Android settings to host or join over Wi-Fi.") } }
 
-    fun startHosting() {
+    /** [qrOnly] is this device's join security: true makes guests scan its QR instead of typing a code. */
+    fun startHosting(qrOnly: Boolean) {
         if (_state.value.busy || token != null || server != null) return
         if (table.state.value.storageProblem != null) {
             _state.update { it.copy(message = "Resolve the local game storage problem before hosting.") }; return
         }
         if (!hostingAccess.allowed()) { _state.update { it.copy(message = "Hosting is not available for this account.") }; return }
         val game = table.state.value.game
-        if (!game.profile.deathMayDie || game.state !in listOf(TableState.RUNNING, TableState.PAUSED)) {
-            _state.update { it.copy(message = "Start a Death May Die game on this device before sharing it.") }; return
+        if (!game.profile.deathMayDie) {
+            _state.update { it.copy(message = "Choose Death May Die on this device before sharing it.") }; return
         }
         _state.update { it.copy(busy = true, message = null) }
         viewModelScope.launch {
             var opened: LanServer? = null
             try {
                 val session = randomLanSecret(16)
-                val key = randomLanSecret()
+                val code = if (qrOnly) null else LanJoinCode.generate()
+                val key = code ?: randomLanSecret()
                 val core = LanSessions(session, key, { table.state.value.game }, table::applyLanAction,
                     unavailable = { !foreground || table.state.value.storageProblem != null })
                 sessions = core
@@ -98,19 +105,19 @@ internal class LanViewModel(
                             }
                         }
                         opened = listening
+                        if (!qrOnly) advertiser = LanAdvertiser(context, wifi.network, listening.port, session, pin)
                         LanInvite(wifi.address.hostAddress!!, listening.port, pin, session, key)
                     } catch (error: Throwable) { socket.close(); throw error }
                 }
                 server = opened
-                hostingMatch = game.gameId
-                if (table.state.value.game.gameId != hostingMatch || !table.state.value.game.profile.deathMayDie) {
+                if (!table.state.value.game.profile.deathMayDie) {
                     stopHosting()
                     _state.update { it.copy(busy = false) }
                     return@launch
                 }
-                _state.update { it.copy(host = invitation, busy = false, preview = null, message = null) }
+                _state.update { it.copy(host = LanHosting(code, invitation.encode().takeIf { qrOnly }), busy = false, preview = null, message = null) }
             } catch (error: Throwable) {
-                opened?.close(); sessions = null
+                opened?.close(); sessions = null; advertiser?.close(); advertiser = null
                 if (error is CancellationException) throw error
                 _state.update { it.copy(busy = false, message = "Couldn't start sharing. Check Wi-Fi and Nearby devices permission, then try again.") }
             }
@@ -119,7 +126,7 @@ internal class LanViewModel(
 
     fun stopHosting() {
         sessions = null
-        hostingMatch = null
+        advertiser?.close(); advertiser = null
         server?.close(); server = null
         _state.update { it.copy(host = null, guests = emptyList(), message = "Sharing stopped. The local game is still on this device.") }
     }
@@ -128,21 +135,39 @@ internal class LanViewModel(
         _state.update { it.copy(guests = sessions?.guests.orEmpty()) }
     }
 
+    /** [text] is a typed join code, or the invitation text a QR scan read. */
     fun preview(text: String) {
         if (_state.value.busy || token != null || server != null) return
-        val parsed = runCatching { LanInvite.parse(text) }.getOrNull()
-        if (parsed == null) { _state.update { it.copy(message = "Scan or paste a complete TurnHub shared-game invitation.") }; return }
-        invite = parsed; joinRequest = null
+        val code = LanJoinCode.normalize(text)
+        val scanned = if (code == null) runCatching { LanInvite.parse(text) }.getOrNull() else null
+        if (code == null && scanned == null) { _state.update { it.copy(message = "Enter the host's join code, like abc-123.") }; return }
+        invite = null; joinRequest = null
         _state.update { it.copy(busy = true, preview = null, message = null) }
         viewModelScope.launch {
             try {
-                val reply = request(parsed, base(parsed, "preview").put("key", parsed.key))
-                require(reply.text("code") == "ok")
-                val game = readGame(reply)
-                _state.update { it.copy(preview = game, busy = false) }
+                val candidates = scanned?.let(::listOf) ?: withContext(Dispatchers.IO) {
+                    discoverLanHosts(context, currentLanWifi(context)).map { LanInvite(it.address, it.port, it.pin, it.session, code!!) }
+                }
+                var answer: String? = null
+                for (candidate in candidates) {
+                    val reply = runCatching { request(candidate, base(candidate, "preview").put("key", candidate.key)) }.getOrNull() ?: continue
+                    answer = reply.text("code")
+                    if (answer == "ok") {
+                        invite = candidate
+                        _state.update { it.copy(preview = readGame(reply), busy = false) }
+                        return@launch
+                    }
+                    if (answer == "locked") break
+                }
+                _state.update { it.copy(busy = false, message = when {
+                    answer == "locked" -> "Too many wrong codes were tried. Wait a minute, then enter the code again."
+                    scanned != null -> "Couldn't reach this game. Check the Wi-Fi and Nearby devices permission, or scan the code again."
+                    candidates.isEmpty() -> "No shared game found on this Wi-Fi. Check the host is sharing and both devices use the same Wi-Fi. If the host shows a QR code, scan it instead."
+                    else -> "No game on this Wi-Fi uses that code. Check it, or scan the host's QR code if it shows one."
+                }) }
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
-                _state.update { it.copy(busy = false, message = "Couldn't reach this game. Check the invitation, Wi-Fi and Nearby devices permission.") }
+                _state.update { it.copy(busy = false, message = "Couldn't search this Wi-Fi. Check the Wi-Fi and Nearby devices permission.") }
             }
         }
     }
@@ -236,6 +261,14 @@ internal class LanViewModel(
 
     private fun receive(reply: JSONObject) {
         val code = reply.text("code")
+        if (code == "released") {
+            // The host removed this player from its lobby: choose a seat again with the same access.
+            generation++; polling?.cancel(); polling = null; token = null; pending = null; joinRequest = null
+            _state.update { it.copy(remote = null, role = null, player = 0, online = false, uncertain = false,
+                preview = if (reply.has("game")) readGame(reply) else it.remote,
+                message = "Your player left the host's table. Choose a seat again.") }
+            return
+        }
         val online = code in setOf("ok", "stale", "rejected")
         val game = if (reply.has("game")) readGame(reply) else null
         _state.update { before -> before.copy(
@@ -260,7 +293,7 @@ internal class LanViewModel(
     }
     private fun base(invitation: LanInvite, op: String) = JSONObject().put("v", LAN_VERSION).put("session", invitation.session).put("op", op)
     private fun readGame(reply: JSONObject): StandaloneGame = StandaloneTable.gameFromJson(reply.getJSONObject("game")).also {
-        require(it.profile.deathMayDie && it.gameId.isNotBlank() && it.players.size in 1..10)
+        require(it.profile.deathMayDie && it.players.size in 0..10)
     }
-    override fun onCleared() { sessions = null; server?.close(); super.onCleared() }
+    override fun onCleared() { sessions = null; advertiser?.close(); server?.close(); super.onCleared() }
 }

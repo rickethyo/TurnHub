@@ -457,11 +457,14 @@ class MainActivity : ComponentActivity() {
                             localTable = standaloneViewModel.table,
                             onOpenSharedGame = { sharedGameOpen = true },
                             sharedGameHosting = lanState.host != null,
+                            sharedGameCode = lanState.host?.code,
                             onFollowGame = homeViewModel::onFollowGame,
                             onAtlasOpened = homeViewModel::onAtlasOpened,
                             atlasEnabled = atlasEnabled,
                             onAtlasEnabled = ::chooseAtlasEnabled,
-                            localGameContent = { openTable, openPlanes ->
+                            localGameContent = { openTable, openPlanes -> androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                                lanState.host?.let { com.turnhub.android.ui.tablet.SharedCodeBanner(it, lanState.guests.size) { sharedGameOpen = true } }
+                                androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {
                                 if (localState.storageProblem != null) {
                                     androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
                                         androidx.compose.material3.Text(localState.storageProblem!!)
@@ -478,11 +481,15 @@ class MainActivity : ComponentActivity() {
                                     }
                                     com.turnhub.android.ui.home.DeviceGameOverview(summary, reduceMotion, openTable)
                                 }
-                            },
-                            localTableContent = { onSetUp, onOpenPlanes ->
+                                }
+                            } },
+                            localTableContent = { onSetUp, onOpenPlanes -> androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                                lanState.host?.let { com.turnhub.android.ui.tablet.SharedCodeBanner(it, lanState.guests.size) { sharedGameOpen = true } }
+                                androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {
                                 com.turnhub.android.ui.tablet.EmbeddedTable(localState, standaloneViewModel.table, reduceMotion,
                                     onFullScreen = ::playOnDevice, onSetUp = onSetUp, onOpenPlanes = onOpenPlanes)
-                            },
+                                }
+                            } },
                             localPlayersContent = {
                                 com.turnhub.android.ui.tablet.LocalLibraryScreen(localState, onClose = {},
                                     embeddedSection = com.turnhub.android.ui.tablet.LibrarySection.PLAYERS,

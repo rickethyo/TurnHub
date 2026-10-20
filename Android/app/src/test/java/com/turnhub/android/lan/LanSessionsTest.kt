@@ -183,14 +183,40 @@ class LanSessionsTest {
         assertEquals(2, f.table.state.value.game.round)
     }
 
-    @Test fun `ending or replacing a match never grants the old session control of the next one`() {
+    @Test fun `sharing lasts from the lobby through rematches and follows players by name`() {
         val f = Fixture()
-        val token = f.join().getString("token")
+        val token = f.join(player = 2).getString("token")
         kotlinx.coroutines.runBlocking {
             f.table.control(com.turnhub.android.data.TabletSeat(StandaloneGame.seatHandle(0).id, 1), "reset")
         }
-        assertEquals("ended", f.sessions.handle(f.request("poll").put("token", token)).getString("code"))
-        assertEquals("ended", f.sessions.handle(f.action(token)).getString("code"))
+        assertEquals(com.turnhub.android.protocol.TableState.LOBBY, f.table.state.value.game.state)
+        assertEquals("ok", f.sessions.handle(f.request("poll").put("token", token)).getString("code"))
+        val commits = f.store.commits
+        assertNotEquals("ok", f.sessions.handle(f.action(token)).getString("code"))
+        assertEquals(commits, f.store.commits)
+        f.table.removePlayer(0)
+        assertEquals(1, f.sessions.guests.single().player)
+        assertEquals("ok", f.join("elder", 0).getString("code"))
+        f.table.removePlayer(0)
+        assertEquals("released", f.sessions.handle(f.request("poll").put("token", token)).getString("code"))
+        assertEquals("unauthorized", f.sessions.handle(f.request("poll").put("token", token)).getString("code"))
+    }
+
+    @Test fun `ten wrong join codes in a minute lock joining even with the right code`() {
+        val f = Fixture()
+        repeat(9) { assertEquals("unauthorized", f.sessions.handle(f.request("preview").put("key", "abc-12$it")).getString("code")) }
+        assertEquals("locked", f.sessions.handle(f.request("preview").put("key", "zzz-999")).getString("code"))
+        assertEquals("locked", f.join().getString("code"))
+        f.now = 60_001
+        assertEquals("ok", f.join().getString("code"))
+    }
+
+    @Test fun `join codes read the same however they are typed`() {
+        assertEquals("abc-123", LanJoinCode.normalize(" ABC 123 "))
+        assertEquals("abc-123", LanJoinCode.normalize("abc123"))
+        assertNull(LanJoinCode.normalize("abl-123"))
+        assertNull(LanJoinCode.normalize("abc-12"))
+        repeat(50) { assertNotNull(LanJoinCode.normalize(LanJoinCode.generate())) }
     }
 
     @Test fun `receipt budget never evicts an uncertain acknowledged command`() {

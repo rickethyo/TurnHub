@@ -1062,3 +1062,13 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   1441 on SM-T970 (host) and Pixel Fold cover screen (guest): host, find, seat
   picker and investigator view checked by screenshot; guest left and sharing
   stopped afterwards, no game actions sent. Manual DOCX wording not yet updated.
+- Owner follow-ups (same day): replace the QR with a short join code valid for the
+  whole game, shown on the Game and Table tabs; let guests join from the lobby;
+  keep QR as a per-device "Guests must scan a QR code" host setting that guests
+  must follow. Implemented: `LanJoinCode`, DNS-SD discovery (`LanAdvertiser`,
+  `discoverLanHosts`), 10-wrong-codes-a-minute lockout, sessions that last through
+  lobby/rematch with name-bound seats (`released`), `SharedCodeBanner`. Owner
+  accepted that a fake host on the Wi-Fi could capture a typed code. 485 JVM
+  tests and lint pass; on the SM-T970 and Fold, code join found the host and
+  QR-only hid it from code search. Lobby joining is JVM-tested only (the tablet's
+  live match was left running).

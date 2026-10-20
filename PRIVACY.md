@@ -51,16 +51,20 @@ reports are described below.
 
 ## Shared games on your Wi-Fi
 
-When you host Death May Die, devices using your invitation receive the current
-match: player names, investigators, assigned card/skill notes and verification
+When you host Death May Die, devices using your join code or QR invitation
+receive the current table: player names, investigators, assigned card/skill notes and verification
 markers, wounds/counters, turns and the Elder One/episode board. Investigator
 guests can request changes to their own investigator; the host validates and
 saves them. Your account credentials, profile links, local library, historical
 games and player pictures are not sent. Guests hold the shared view in memory
 without saving it as their own match/history or awarding their own statistics.
 
-Invitations grant access to this match and pin its encrypted TLS connection.
-Share them only with your table. You can disconnect guests or stop sharing.
+While you share in standard joining, your device announces a TurnHub game on
+the local Wi-Fi (a session number and its certificate fingerprint, not the code
+or any game data), and anyone on that Wi-Fi who learns the join code can join.
+With "Guests must scan a QR code" on, nothing is announced and only the QR
+invitation, which also pins the encrypted TLS connection, grants access. Share
+codes and invitations only with your table. You can disconnect guests or stop sharing.
 Invitations, guest tokens and retry receipts are not saved across process death.
 An explicitly copied invitation can remain on Android's clipboard or in an app
 you choose to share it through. TurnHub does not upload invitations or shared

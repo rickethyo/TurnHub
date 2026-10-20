@@ -1,7 +1,7 @@
 # Phone-hosted shared game, version 1
 
 Android's Death May Die shared-device transport is independent of Atlas HTTP
-and ESP-NOW. A running/paused standalone match has one host. Guests display
+and ESP-NOW. A standalone Death May Die table has one host, from its lobby on. Guests display
 the Elder One board or control one investigator. They do not run a game engine,
 save a match/history, award statistics, or take over when the host disappears.
 
@@ -9,18 +9,28 @@ save a match/history, award statistics, or take over when the host disappears.
 
 The host binds a TLS server to its current private Wi-Fi IPv4 address and an
 ephemeral TCP port. All devices must be on the same reachable Wi-Fi network;
-guest isolation can prevent connections. Internet and discovery are unnecessary.
-An invitation, shown as a QR or copied explicitly, has this grammar:
+guest isolation can prevent connections. Internet is unnecessary. The host's
+join security setting chooses one way in:
 
-`turnhub://join/1/<IPv4>/<port>/<SHA256-certificate-pin>/<session>/<key>`
+- **Standard:** the host registers DNS-SD service `_turnhub._tcp` on the Wi-Fi
+  network with TXT `v=1`, `s=<session>` and `p=<SHA256-certificate-pin>`. The
+  key is the join code: three letters from `abcdefghjkmnpqrstuvwxyz`, a hyphen
+  and three digits (`abc-123`). Guests normalize typed codes, discover hosts
+  for about three seconds and send `preview` with the code to each; TXT data is
+  unauthenticated, so only the code grants access.
+- **QR only:** no announcement. An invitation, shown as a QR or copied
+  explicitly, has this grammar:
+
+  `turnhub://join/1/<IPv4>/<port>/<SHA256-certificate-pin>/<session>/<key>`
 
 The address is RFC 1918 or IPv4 link-local, port 1024–65535. Pin and key are
 64 lowercase hex characters; session is 32. Pinning authenticates the self-signed
 Android-keystore host certificate. TLS 1.2/1.3 encrypts invitations' subsequent
 use, snapshots and controls; cleartext Android policy is unchanged. Never log
 invitations or tokens. Treat copying/scanning an invitation as granting access
-to this match. Stopping hosting invalidates its credentials; a new host session
-creates a fresh invitation. The app does not register an external deep link.
+to this table. Stopping hosting invalidates its credentials; a new host session
+creates a fresh code or invitation. Ten wrong keys within a minute return
+`locked` to every `preview`/`join` until the minute passes. The app does not register an external deep link.
 
 Each TLS connection carries one request and response. Frames are a four-byte
 unsigned-compatible big-endian positive length, then UTF-8 JSON. Lengths outside
@@ -49,7 +59,11 @@ incompatible data stops joining rather than starting a local game.
 | `leave` | `token` | Release this guest session |
 
 `role` is `elder` with `player: 0`, or `investigator` with a current one-based
-player number. Only one guest controls a given investigator; the host retains
+player number. The host binds an investigator session to that player's name and
+renumbers it as lobby changes move the player; if the player is removed, the
+next authenticated request returns `released` once and the guest chooses again.
+A session lasts through the lobby, matches and rematches; commands apply only
+while a match is running or paused. Only one guest controls a given investigator; the host retains
 its controls. Up to 16 guests can join. Sessions idle for five minutes are
 released when processing a new join. A live guest polls once per second.
 Repeated `joinId` UUIDs return the same token for the same role/seat. A successful
@@ -100,7 +114,8 @@ are queued. Leaving with an uncertain reply explicitly warns the player to
 check the host before entering a replacement edit.
 
 Codes: `ok`, `invalid`, `unauthorized`, `forbidden`, `claimed`, `full`, `stale`,
-`rejected`, `unavailable`, `renew`, `ended`. Unauthenticated errors carry no match
+`rejected`, `unavailable`, `renew`, `released`, `locked`, `ended` (the host left
+Death May Die). Unauthenticated errors carry no match
 data. When the host app is backgrounded or cannot save, it returns `unavailable`.
 Hosting keeps the screen awake but does not run a foreground service; keep the
 host app open. Switching back to it allows existing guests to reconnect. Changing

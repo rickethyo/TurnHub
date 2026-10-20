@@ -160,6 +160,7 @@ fun HomeScreen(
     localTable: com.turnhub.android.standalone.StandaloneTable? = null,
     onOpenSharedGame: (() -> Unit)? = null,
     sharedGameHosting: Boolean = false,
+    sharedGameCode: String? = null,
 ) {
     PresenceCodeDialog(admin, adminActions)
     uiState.wifiPrompt?.let { prompt ->
@@ -268,7 +269,11 @@ fun HomeScreen(
                     report = reportContext,
                     onManualClick = { showManual = true })
                 if (onOpenSharedGame != null && !setup.visible && tab == HomeTab.GAME && !atlasGame)
-                    TextButton(onClick = onOpenSharedGame) { Text(if (sharedGameHosting) "Play together · Hosting" else "Play together · Host or join") }
+                    TextButton(onClick = onOpenSharedGame) { Text(when {
+                        sharedGameCode != null -> "Play together · Code ${sharedGameCode.uppercase()}"
+                        sharedGameHosting -> "Play together · Hosting"
+                        else -> "Play together · Host or join"
+                    }) }
             }
         },
         bottomBar = {
@@ -405,6 +410,10 @@ fun HomeScreen(
                                                 "Scryfall; only the commander's name is sent.", artOn, true, setArt)
                                     }
                                     BrassCard { com.turnhub.android.ui.components.GameSoundControls() }
+                                    BrassCard {
+                                        val (qrOnly, setQrOnly) = com.turnhub.android.ui.tablet.rememberLanQrOnly()
+                                        com.turnhub.android.ui.tablet.LanSecuritySwitch(qrOnly, !sharedGameHosting, setQrOnly)
+                                    }
                                     com.turnhub.android.ui.components.DisclosureCard("Atlas connection") {
                                         com.turnhub.android.ui.tablet.SetupSwitch("Discover Atlas", null, atlasEnabled, true, onAtlasEnabled)
                                         if (atlasEnabled) ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
