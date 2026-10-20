@@ -232,6 +232,26 @@ class StandaloneGameTest {
     }
 
     @Test
+    fun `rad counters trigger at the start of their player's turn until resolved`() {
+        val before = threePlayers().changeCounter(1, "rad", 4)
+        assertEquals(0, before.active)
+        val due = before.pass(0, 2_000)
+        assertEquals(listOf(1), due.radDue)
+        assertEquals(listOf(2), due.toSummary(2_000, 2_000).radDuePlayerNumbers)
+        assertEquals(due, StandaloneTable.gameFromJson(StandaloneTable.gameToJson(due)))
+        // No more nonlands than cards milled, and only the player whose rad is due.
+        assertSame(due, due.changeCounter(1, StandaloneGame.RAD_KIND, 5))
+        assertSame(due, due.changeCounter(0, StandaloneGame.RAD_KIND, 0))
+        val resolved = due.changeCounter(1, StandaloneGame.RAD_KIND, 3, nowMs = 2_000)
+        assertEquals(due.players[1].life - 3, resolved.players[1].life)
+        assertEquals(1, resolved.players[1].counters.rad)
+        assertTrue(resolved.radDue.isEmpty())
+        // All lands just clears the reminder; the next turn without rad has none.
+        assertEquals(4, due.changeCounter(1, StandaloneGame.RAD_KIND, 0).players[1].counters.rad)
+        assertTrue(resolved.pass(1, 3_000).radDue.isEmpty())
+    }
+
+    @Test
     fun `counter corrections reject negative overflow format and inactive seats`() {
         val game = threePlayers()
         assertSame(game, game.changeCounter(0, "energy", -1))

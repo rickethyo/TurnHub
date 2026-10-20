@@ -97,6 +97,7 @@ score gestures, Pass button or actionable turn chips.
 | `poison`, `energy`, `experience`, `treasure`, `rad`, `commander-casts` | −1 or +1 | 0/1; commander casts may use 2 | 0 |
 | `city-blessing`, `initiative` | 0 or 1 | 0/1 | 0 |
 | `turn-action:<enum>`, `pokemon-condition:<enum>` | 0 or 1 | 0 | 0 |
+| `rad-resolve` | Nonlands milled, 0 up to the owned player's rad (only while their rad trigger is due) | 0 | 0 |
 | `pass`, `extend-turn`, `win`, `confirm`, `deny`, `concede`, `eliminate`, `monarch` | 0 | 0 | 0 |
 
 A guest's `win` opens a claim (`winClaim`, `winConfirmed` in the game JSON) that

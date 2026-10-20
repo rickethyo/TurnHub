@@ -1094,6 +1094,12 @@ internal fun PlayerPanel(
         }
 
         if (controlsEnabled) Prompt(unit, summary, onControl, onRespond, Modifier.align(Alignment.BottomCenter))
+        // A win claim or life request comes first; the rad reminder waits behind it.
+        val asking = summary.pending.winConfirmationPlayer != null || unit.members.any { it.lifeRequest?.state == LifeRequestState.PENDING }
+        if (controlsEnabled && !asking) unit.members.firstOrNull { it.playerNumber in summary.radDuePlayerNumbers }?.let { member ->
+            RadPrompt(member, unit.members.size > 1, { nonlands -> onTurnMark(member, StandaloneGame.RAD_KIND, nonlands) },
+                Modifier.align(Alignment.BottomCenter))
+        }
     }
 }
 
@@ -1498,6 +1504,30 @@ private fun Prompt(
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             ToneButton(if (isWin) "Deny" else "Reject", { onAnswer(false) }, Modifier.weight(1f), tone = Tone.BAD)
             AccentButton(if (isWin) "Confirm" else "Accept", { onAnswer(true) }, Modifier.weight(1f))
+        }
+    }
+}
+
+/**
+ * Rad counters trigger at the start of the player's turn (CR 727): they mill that many cards,
+ * then say how many weren't lands; the host takes that much life and rad (owner, 2026-10-20).
+ */
+@Composable
+private fun RadPrompt(member: TablePlayer, named: Boolean, onResolve: (Int) -> Unit, modifier: Modifier) {
+    val p = palette
+    val rad = member.counters.rad
+    if (rad <= 0) return
+    var nonlands by remember(rad) { mutableStateOf(0) }
+    BrassCard(modifier.padding(10.dp).widthIn(max = 420.dp).pointerInput(Unit) { detectTapGestures { } }, highlight = p.warn) {
+        Text("Resolve rad" + if (named) " · ${member.label}" else "", color = p.warn, style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive })
+        Text("Mill $rad. How many nonlands?", color = p.text)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            ToneButton("−", { nonlands-- }, enabled = nonlands > 0)
+            Text("$nonlands", color = p.text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { contentDescription = "$nonlands nonlands" })
+            ToneButton("+", { nonlands++ }, enabled = nonlands < rad)
+            AccentButton(if (nonlands == 0) "None" else "Lose $nonlands", { onResolve(nonlands) }, Modifier.weight(1f))
         }
     }
 }

@@ -581,6 +581,8 @@ class StandaloneTable(
                 "monarch" -> game.claimMonarch(index)
                 else -> game
             }
+            action.kind == StandaloneGame.RAD_KIND && action.slot == 0 && action.source == 0 && action.value in 0..StandaloneGame.MAX_LIFE ->
+                game.changeCounter(index, action.kind, action.value, nowMs = now)
             action.source == 0 && action.slot in 0..2 && action.kind in setOf("poison", "energy", "experience", "treasure", "rad",
                 "commander-casts", "city-blessing", "initiative") && action.value in -1..1 ->
                 game.changeCounter(index, action.kind, action.value, action.slot.coerceAtLeast(1), now)
@@ -764,6 +766,7 @@ class StandaloneTable(
             put("planechase", game.planechase.toJson())
             put("doomBag", game.doomBag.toSavedJson())
             put("pokemonCheckup", JSONArray(game.pokemonCheckup))
+            put("radDue", JSONArray(game.radDue))
             put("acted", JSONArray(game.acted.sorted()))
             put("round", game.round)
             put("nextTurn", game.stagedNextTurn ?: JSONObject.NULL)
@@ -867,6 +870,7 @@ class StandaloneTable(
                 doomBag = json.optJSONObject("doomBag")?.let(::doomFromJson) ?: com.turnhub.android.protocol.DoomBag(),
                 planechase = json.optJSONObject("planechase")?.let { Planechase.fromJson(it) } ?: Planechase(),
                 pokemonCheckup = json.optJSONArray("pokemonCheckup")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(),
+                radDue = json.optIntList("radDue")?.filter { it in 0 until players.length() }?.distinct().orEmpty(),
                 acted = json.optIntList("acted")?.filter { it in 0 until players.length() }?.toSet().orEmpty(),
                 round = json.optInt("round", 1).coerceAtLeast(1),
                 nextTurn = json.optIntOrNull("nextTurn"),

@@ -139,6 +139,11 @@ data class StandaloneGame(
     val doomBag: com.turnhub.android.protocol.DoomBag = com.turnhub.android.protocol.DoomBag(),
     /** Pokémon: what the last Pokémon Checkup did, shown until the table dismisses it; empty when nothing happened. */
     val pokemonCheckup: List<String> = emptyList(),
+    /**
+     * Magic: the players (by index) whose rad counters trigger this turn, until each says how
+     * many nonland cards they milled (owner, 2026-10-20). Set when their turn begins.
+     */
+    val radDue: List<Int> = emptyList(),
     /** Cooperative games (Death May Die): the players who have taken their turn this [round]. */
     val acted: Set<Int> = emptySet(),
     /** Cooperative games: the round, from 1; a round ends once every living player has taken a turn. */
@@ -368,6 +373,7 @@ data class StandaloneGame(
             timeoutHandled = false,
             planechase = if (planechase.enabled && magic) planechase.dealt(planarDeck) else planechase.cleared(),
             pokemonCheckup = emptyList(),
+            radDue = emptyList(),
             acted = emptySet(),
             round = 1,
             nextTurn = null,
@@ -477,6 +483,7 @@ data class StandaloneGame(
             turnExtensionMs = 0,
             timeoutHandled = false,
             planechase = planechase.newTurn(),
+            radDue = if (magic) mates(next).filter { checked[it].counters.rad > 0 && !checked[it].eliminated } else emptyList(),
             acted = if (profile.cooperative) acted + team else acted,
         ).bump().closeRound().doomPassed(holder + 1, nowMs)
     }
@@ -608,6 +615,7 @@ data class StandaloneGame(
             else -> this
         }
         if (!playing || player.eliminated || !magic) return this
+        if (kind == RAD_KIND) return resolveRad(index, value, nowMs)
         if (kind == "initiative") {
             if (value !in 0..1 || (value == 0 && initiative != index)) return this
             return copy(initiative = if (value == 1) index else null).bump()
@@ -643,6 +651,20 @@ data class StandaloneGame(
             else -> c.copy(commanderCasts = c.commanderCasts.toMutableList().also { it[commander-1] = next })
         }
         return update(index) { it.copy(counters = updated) }.resolveEliminationRules(nowMs)
+    }
+
+    /**
+     * The player milled as many cards as their rad counters, and [nonlands] of them weren't
+     * lands: they lose that much life and remove that many rad counters (CR 727). Zero just
+     * clears the reminder.
+     */
+    private fun resolveRad(index: Int, nonlands: Int, nowMs: Long): StandaloneGame {
+        val rad = players[index].counters.rad
+        if (index !in radDue || nonlands !in 0..rad) return this
+        val cleared = copy(radDue = radDue - index).bump()
+        if (nonlands == 0) return cleared
+        return cleared.update(index) { it.copy(counters = it.counters.copy(rad = rad - nonlands)) }
+            .changeLife(index, -nonlands, nowMs)
     }
 
     fun setEliminationRule(field: String, value: Int, nowMs: Long): StandaloneGame {
@@ -1281,6 +1303,7 @@ data class StandaloneGame(
             },
             physicalSigils = emptyList(),
             pokemonCheckup = pokemonCheckup,
+            radDuePlayerNumbers = if (state == TableState.RUNNING || state == TableState.PAUSED) radDue.map { it + 1 } else emptyList(),
             round = round.takeIf { profile.cooperative && state != TableState.LOBBY },
             elder = elder.takeIf { deathMayDie },
         )
@@ -1323,6 +1346,8 @@ data class StandaloneGame(
         const val CONDITION_KIND = "pokemon-condition:"
         /** Counter kind for staging a cooperative game's next turn ([stageNextTurn]). */
         const val TAKE_TURN_KIND = "take-turn"
+        /** Resolves the turn's rad trigger; the value is how many milled cards were nonlands. */
+        const val RAD_KIND = "rad-resolve"
         /** Counter kind for Death May Die's stress tokens. */
         const val STRESS_KIND = "stress"
         const val FIRE_KIND = "fire"

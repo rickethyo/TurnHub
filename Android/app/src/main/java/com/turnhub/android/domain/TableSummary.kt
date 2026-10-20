@@ -71,6 +71,8 @@ data class TableSummary(
     val turnExtensionMs: Long = 0,
     /** Pokémon (phone-hosted games): what the last Pokémon Checkup did, until the table dismisses it. */
     val pokemonCheckup: List<String> = emptyList(),
+    /** Magic (phone-hosted games): players whose rad counters trigger this turn, until they resolve them. */
+    val radDuePlayerNumbers: List<Int> = emptyList(),
     /** Cooperative games (Death May Die, phone-hosted): the round being played; null otherwise. */
     val round: Int? = null,
     /** Phone-hosted Death May Die: the Elder One, episode and Story board; null otherwise. */
