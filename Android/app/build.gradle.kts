@@ -52,7 +52,7 @@ android {
                 applicationIdSuffix = ".preview"
                 versionNameSuffix = "-preview"
                 manifestPlaceholders["appLabel"] = "TurnHub Preview"
-                // Teal behind the gold gear: told apart from the Play app (graphite) at a glance.
+                // Mardi Gras purple and green behind the gold gear: told apart from the Play app (graphite).
                 manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher_preview"
             }
         }
