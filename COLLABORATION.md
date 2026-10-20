@@ -39,8 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-031 | Death May Die shared devices | Android LAN, authority, UI | In progress | Codex / host and investigator clients |
-| TH-030 | Bag-check prompt dismissal | Android tablet/personal UI | Ready for review; CI passes | Owner / PR #137 |
+| TH-031 | Death May Die shared devices | Android LAN, authority, UI | Ready for review; CI passes | Owner / PR #145 and physical acceptance |
 | TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
@@ -58,31 +57,6 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 Bag of Doom full-screen checks and explicit elimination sources landed in [PR #136](https://github.com/rickethyo/TurnHub/pull/136); physical acceptance remains in [Staged Changes](Documentation/engineering/STAGED_CHANGES.md).
 
 Ten-player app and general elimination credit landed in [PR #134](https://github.com/rickethyo/TurnHub/pull/134); acceptance remains in [Staged Changes](Documentation/engineering/STAGED_CHANGES.md).
-
-## TH-030: Bag-check prompt dismissal regression
-
-- Owner / baseline: Codex on `codex/master`, `2f68856` / accepted master
-  `b0f72b7`. Clean tree, current master fetched, no open PR or overlapping scope.
-- Owner screenshot shows a paused due check as only the center badge. Source
-  inspection identifies a reproducible suppression: closing a preview or result
-  records the current cycle as reviewed even though its check is not yet due.
-- Scope: share presentation-only bag review state between tablet and personal
-  Game; acknowledge pending checks only while pending. Keep result acknowledgement
-  separate; the center badge directly reopens a pending bag check. Outstanding
-  source questions retain their existing Game menu entry point.
-  Compose owns this saveable window state; authoritative gameplay, actions,
-  validation, storage, contracts, dependencies and statistics are unchanged.
-- Implemented in `dbd39c6`, `896f9a8`; [PR #137](https://github.com/rickethyo/TurnHub/pull/137).
-  Five regression cases cover preview -> due, result -> next due, life-total
-  review, manual reopen and credited-cycle changes. [CI passes on `896f9a8`](https://github.com/rickethyo/TurnHub/actions/runs/39291955190),
-  including Android compilation/full JVM suite/release bundle and the always-run
-  host/contract/documentation guards. Unchanged firmware/simulator builds skip.
-  Docs, manual export, design tokens and whitespace also pass locally; local
-  Gradle could not resolve the configured Foojay plugin. Manual text/export
-  synchronized; updated DOCX page layout and physical UI remain unverified.
-- Owner supplied Build 414 then clarified a PR had not been merged. The source
-  suppression bug is independently reproducible; no claim the screenshot proves
-  it was triggered. Owner reviews/integrates #137; no merge or release by Codex.
 
 ## TH-031: Death May Die shared devices
 
@@ -111,6 +85,32 @@ Ten-player app and general elimination credit landed in [PR #134](https://github
   Keep hosting behind an injectable capability boundary; joining independent.
   Automated authority/authorization/retry/staleness/storage/transport regressions
   plus Android CI; two-device/TalkBack/background acceptance remains physical.
+
+### 2026-10-20 — Codex: TH-031 implementation validation
+
+- Implementation ready locally: one host-only rule/history/storage authority;
+  QR/paste pairing, pinned TLS, role/seat sessions, bounded frames/JSON depth
+  and immutable command receipts, stale rejection, durable remote commits,
+  disconnected/uncertain command UI and explicit revoke/stop. Own investigator
+  controls include counters, levels, staged/pass recipient and death confirmation.
+- Local Kotlin/JVM compilation with Android Context/ViewModel/network integration
+  stubs runs the actual domain, protocol, standalone authority and LAN core.
+  110 tests pass, including 16 new LAN tests and existing DMD, Elder One,
+  standalone-game, Bag of Doom and elimination-prompt suites. Pinned TLS uses
+  real loopback sockets with an ephemeral test-only keytool certificate.
+  Android/Compose compilation and the full JVM suite pass in CI;
+  physical keystore/device acceptance remains open.
+- Docs, design tokens, manual export and whitespace checks pass; updated DOCX
+  page layout is unverified. No new runtime dependency, firmware or billing.
+  Hosting defaults enabled behind LanHostingAccess; free joining is independent.
+- Implemented in `57a7ae1`, [PR #145](https://github.com/rickethyo/TurnHub/pull/145).
+  [Final CI passes](https://github.com/rickethyo/TurnHub/actions/runs/39354130177):
+  Android/full JVM/release bundle, optimized Atlas host suites/contracts and
+  firmware; [iOS regression CI passes](https://github.com/rickethyo/TurnHub/actions/runs/39354130136).
+  Unchanged Sigil/LVGL builds skip. No new CI run needed for this docs-only
+  validation record. Owner reviews/integrates with a merge commit and retains
+  `codex/master`; no merge/release or Play publication performed by Codex.
+
 
 ## New topic / reply template
 
@@ -1019,21 +1019,3 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   named episode tokens on the Elder One tab (`ElderOneTrack.tokens`, names kept
   for a rematch, counts cleared). Validation: new `ElderOneTest` cases; CI build.
   Device playtest pending.
-
-
-### 2026-10-20 — Codex: TH-031 implementation validation
-
-- Implementation ready locally: one host-only rule/history/storage authority;
-  QR/paste pairing, pinned TLS, role/seat sessions, bounded frames/JSON depth
-  and immutable command receipts, stale rejection, durable remote commits,
-  disconnected/uncertain command UI and explicit revoke/stop. Own investigator
-  controls include counters, levels, staged/pass recipient and death confirmation.
-- Local Kotlin/JVM compilation with Android Context/ViewModel/network integration
-  stubs runs the actual domain, protocol, standalone authority and LAN core.
-  110 tests pass, including 16 new LAN tests and existing DMD, Elder One,
-  standalone-game, Bag of Doom and elimination-prompt suites. Pinned TLS uses
-  real loopback sockets with an ephemeral test-only keytool certificate.
-  Android/Compose/keystore integration awaits CI compilation and physical devices.
-- Docs, design tokens, manual export and whitespace checks pass; updated DOCX
-  page layout is unverified. No new runtime dependency, firmware or billing.
-  Hosting defaults enabled behind LanHostingAccess; free joining is independent.
