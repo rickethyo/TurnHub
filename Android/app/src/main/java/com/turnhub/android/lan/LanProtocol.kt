@@ -65,6 +65,12 @@ internal fun JSONObject.integer(key: String): Long {
     return (value as Number).toLong()
 }
 
+/**
+ * Planar actions (`planar-roll`, `planar-walk`, ...) act for the active player, as the
+ * host's Planes tab does, so a seat or a planes display can send them.
+ */
+internal const val PLANAR_KIND = "planar-"
+
 /** The host infers the player from the authenticated session, never a request's seat. */
 internal data class LanAction(val match: String, val revision: Long, val player: Int, val kind: String, val value: Int, val slot: Int, val source: Int = 0)
 

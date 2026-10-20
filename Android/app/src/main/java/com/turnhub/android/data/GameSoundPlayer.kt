@@ -7,7 +7,10 @@ import android.media.SoundPool
 import com.turnhub.android.R
 import com.turnhub.android.domain.GameSoundCue
 
-/** Short, original cues on the media stream; no background service or audio permission. */
+/**
+ * Short, original cues on the media stream; no background service or audio permission.
+ * They play on vibrate (owner, 2026-10-20); silent mode and a muted media volume stop them.
+ */
 class GameSoundPlayer(context: Context) {
     private val audio = context.applicationContext.getSystemService(AudioManager::class.java)
     private val loaded = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
@@ -32,7 +35,7 @@ class GameSoundPlayer(context: Context) {
 
     fun play(cue: GameSoundCue, volume: Int) {
         val manager = audio ?: return
-        if (!foreground || volume <= 0 || manager.ringerMode != AudioManager.RINGER_MODE_NORMAL ||
+        if (!foreground || volume <= 0 || manager.ringerMode == AudioManager.RINGER_MODE_SILENT ||
             manager.getStreamVolume(AudioManager.STREAM_MUSIC) == 0) return
         val sound = sounds[cue]?.takeIf { it in loaded } ?: return
         stop()

@@ -95,7 +95,7 @@ internal class LanSessions(
         val player = request.integer("player").also { require(it in 0..10) }.toInt()
         val players = game().players
         require(if (sharedProfile.deathMayDie) role == "elder" && player == 0 || role == "investigator" && player in 1..players.size
-            else role == "player" && player in 1..players.size)
+            else role == "player" && player in 1..players.size || role == "planes" && player == 0 && sharedProfile.magicRules)
         val name = if (player == 0) null else players[player - 1].name
         clients.entries.removeAll { now() - it.value.seen > 5 * 60_000 }
         val repeated = clients.values.firstOrNull { it.joinId == id }
@@ -112,7 +112,9 @@ internal class LanSessions(
     }
 
     private fun command(client: Client, request: JSONObject): JSONObject {
-        if (client.guest.role != if (sharedProfile.deathMayDie) "investigator" else "player") return reply("forbidden")
+        val seat = if (sharedProfile.deathMayDie) "investigator" else "player"
+        val planesDisplay = client.guest.role == "planes" && request.optString("kind").startsWith(PLANAR_KIND)
+        if (client.guest.role != seat && !planesDisplay) return reply("forbidden")
         val id = request.text("actionId")
         require(id.matches(Regex("[0-9a-f-]{36}")))
         val kind = request.text("kind")
@@ -139,8 +141,10 @@ internal class LanSessions(
         val current = game()
         // Only this public match and the seats' looks leave the host; never its library,
         // credentials, profile links, historical games or local account IDs. The commander
-        // printing is a public card reference, so guests draw the same commander art.
-        val public = current.copy(planechase = com.turnhub.android.standalone.Planechase(),
+        // printing is a public card reference, so guests draw the same commander art. Of
+        // Planechase only the face-up cards, counters and die go: the deck order stays hidden.
+        val public = current.copy(planechase = current.planechase.copy(deck = emptyList(),
+                selection = com.turnhub.android.standalone.PlanarSelection()),
             players = current.players.map { it.copy(localId = null, profileId = null) })
         val reply = reply(code).put("game", StandaloneTable.gameToJson(public))
             .put("claimed", org.json.JSONArray(guests.map { it.player }.filter { it > 0 }))

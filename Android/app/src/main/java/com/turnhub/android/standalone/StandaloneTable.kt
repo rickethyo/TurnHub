@@ -504,9 +504,11 @@ class StandaloneTable(
     /** LAN capabilities already select the seat. Freshness and mode are rechecked here. */
     internal fun applyLanAction(action: com.turnhub.android.lan.LanAction): Boolean {
         val game = _state.value.game
+        val planar = action.kind.startsWith(com.turnhub.android.lan.PLANAR_KIND)
         if (_state.value.storageProblem != null || game.gameId != action.match ||
-            game.revision != action.revision || action.player !in 1..game.players.size ||
+            game.revision != action.revision || action.player !in (if (planar) 0 else 1)..game.players.size ||
             game.state !in listOf(TableState.RUNNING, TableState.PAUSED)) return false
+        if (planar) return applyPlanarLanAction(game, action)
         val index = action.player - 1
         if (!game.profile.deathMayDie) return applyTcgLanAction(game, index, action)
         if (action.source != 0) return false
@@ -526,6 +528,31 @@ class StandaloneTable(
             "take-turn" -> game.changeCounter(index, StandaloneGame.TAKE_TURN_KIND, 1, nowMs = now)
             "pass" -> if (game.active == index) game.cooperativeTurn()?.let { game.passTo(it, action.value, now) } ?: game else game
             "eliminate" -> game.eliminate(index, now)
+            else -> game
+        }
+        return publishGame(next, durable = true)
+    }
+
+    /**
+     * The Planes tab's buttons from a guest: like the host's own tab they act for the active
+     * player, whichever seat (or the planes display, player 0) sent them. The host rolls the die.
+     */
+    private fun applyPlanarLanAction(game: StandaloneGame, action: com.turnhub.android.lan.LanAction): Boolean {
+        val index = game.active
+        if (!game.profile.magicRules || !game.planechase.enabled || index == null || action.source != 0) return false
+        val simple = action.value == 0 && action.slot == 0
+        val next = when (action.kind) {
+            "planar-roll" -> if (action.slot == 0 && action.value in 0..1)
+                game.rollPlanarDie(index, PlanarFace.roll(planarRandom), fromEffect = action.value == 1) else game
+            "planar-walk" -> if (simple) game.planeswalk(index) else game
+            "planar-resolve" -> if (simple) game.resolvePhenomenon(index) else game
+            "planar-chaos" -> if (simple) game.chaosEnsues(index) else game
+            "planar-bottom" -> if (simple) game.planarTopToBottom(index) else game
+            // Slot 0 is the table's own physical plane, otherwise the face-up card's position from 1.
+            "planar-counter" -> if (action.value !in listOf(-1, 1)) game else {
+                val card = if (action.slot == 0) Planechase.PHYSICAL_PLANE else game.planechase.faceUp.getOrNull(action.slot - 1)?.id
+                card?.let { game.changePlaneCounter(index, it, action.value) } ?: game
+            }
             else -> game
         }
         return publishGame(next, durable = true)

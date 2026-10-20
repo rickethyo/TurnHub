@@ -234,7 +234,7 @@ internal class LanViewModel(
         val state = _state.value
         val game = state.remote ?: return
         val invitation = invite ?: return
-        if (!state.online || state.busy || pending != null || state.role !in setOf("investigator", "player")) return
+        if (!state.online || state.busy || pending != null || state.role !in setOf("investigator", "player", "planes")) return
         pending = base(invitation, "command").put("token", token).put("actionId", UUID.randomUUID().toString())
             .put("match", game.gameId).put("revision", game.revision).put("kind", kind).put("value", value).put("slot", slot).put("source", source).put("looksId", state.looksId)
         retry()

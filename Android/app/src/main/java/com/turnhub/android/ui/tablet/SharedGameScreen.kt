@@ -297,11 +297,11 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
             val player = local.players.getOrNull(guest.player - 1)
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.inset).padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (guest.player == 0) ElderSigil(40.dp) else PlayerAvatar(player?.name ?: "?", guest.player, null, size = 40.dp)
+                if (guest.role == "planes") PlanesMark(40.dp) else if (guest.player == 0) ElderSigil(40.dp) else PlayerAvatar(player?.name ?: "?", guest.player, null, size = 40.dp)
                 Column(Modifier.weight(1f)) {
-                    Text(if (guest.player == 0) "Elder One display" else player?.let { if (local.profile.deathMayDie) it.investigator ?: it.name else it.name } ?: "Player",
+                    Text(if (guest.role == "planes") "Planes display" else if (guest.player == 0) "Elder One display" else player?.let { if (local.profile.deathMayDie) it.investigator ?: it.name else it.name } ?: "Player",
                         color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text(if (guest.player == 0) "Shows the track and stages" else player?.name ?: "", color = p.muted,
+                    Text(if (guest.role == "planes") "Shows the face-up plane and the die" else if (guest.player == 0) "Shows the track and stages" else player?.name ?: "", color = p.muted,
                         style = MaterialTheme.typography.bodySmall)
                 }
                 ToneButton("Disconnect", { model.revoke(guest) }, tone = Tone.BAD)
@@ -361,7 +361,7 @@ private fun InviteQr(text: String) {
     }
 }
 
-/** TCG player seats; Death May Die also offers the Elder One display. */
+/** TCG player seats; Death May Die also offers the Elder One display, and Planechase the planes display. */
 @Composable
 private fun SeatPicker(game: StandaloneGame, enabled: Boolean, onJoin: (String, Int) -> Unit) {
     val p = palette
@@ -370,6 +370,8 @@ private fun SeatPicker(game: StandaloneGame, enabled: Boolean, onJoin: (String, 
         Text(sharedGameTitle(game), color = p.text,
             style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         if (game.profile.deathMayDie) SeatRow({ ElderSigil(44.dp) }, "Elder One display", "A shared screen for the track and stages", enabled) { onJoin("elder", 0) }
+        if (game.profile.magicRules && game.planechase.enabled) SeatRow({ PlanesMark(44.dp) }, "Planes display",
+            "A shared screen for the face-up plane and the planar die", enabled) { onJoin("planes", 0) }
         game.players.forEachIndexed { index, player ->
             SeatRow({ PlayerAvatar(player.name, index + 1, null) }, if (game.profile.deathMayDie) player.investigator ?: player.name else player.name,
                 "Play as ${player.name}" + if (player.eliminated) " · out" else "", enabled) { onJoin(if (game.profile.deathMayDie) "investigator" else "player", index + 1) }
@@ -391,6 +393,17 @@ private fun SeatRow(leading: @Composable () -> Unit, title: String, subtitle: St
             Text(subtitle, color = p.muted, style = MaterialTheme.typography.bodySmall)
         }
         Text("Join ›", color = if (enabled) p.accent else p.faint, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** The planes display's avatar: the Planes tab's cards icon in a disc. Decorative. */
+@Composable
+private fun PlanesMark(size: androidx.compose.ui.unit.Dp) {
+    val p = palette
+    Box(Modifier.size(size).clip(CircleShape).background(Brush.radialGradient(listOf(p.surface3, p.inset)))
+        .border(2.dp, p.accent.copy(alpha = .7f), CircleShape).clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
+        androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(com.turnhub.android.ui.theme.DesignTokens.Icons.cards),
+            contentDescription = null, tint = p.accent, modifier = Modifier.size(size * .5f))
     }
 }
 
