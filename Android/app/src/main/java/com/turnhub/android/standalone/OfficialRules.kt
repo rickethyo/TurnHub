@@ -54,6 +54,20 @@ fun officialRules(profile: GameProfile, teams: Boolean): OfficialRules? = when {
         ),
         sourceName = MTG_SOURCE, sourceUrl = MTG_RULES_URL,
     )
+    profile == GameProfile.MTG_EMPEROR -> OfficialRules(
+        "Emperor", life = 20, poison = 10, commanderDamage = null, players = 6,
+        summary = listOf(
+            "Two teams of three. Each team sits together with its emperor in the middle and a general on each side (809.1, 809.2).",
+            "Range of influence is 2 seats for emperors and 1 for generals: you can only target and affect players that close (809.3a, 801.2, 801.4).",
+            "You can attack only an opponent seated right next to you, so at the start the emperors can't attack anyone (809.3c).",
+            "Any creature can be tapped to give it to a teammate within your range, as a sorcery (809.3b, 804.2).",
+            "A random emperor goes first and turns go to the left (809.4).",
+            "When a player leaves, the others close the gap and ranges are worked out again as the next turn begins (801.2c).",
+            "A team wins when its emperor wins and loses when its emperor loses: TurnHub ends the game when an emperor is out (809.5).",
+            "Teammates may look at each other's hands and talk strategy, but don't share cards, mana or life (809.7).",
+        ),
+        sourceName = MTG_SOURCE, sourceUrl = MTG_RULES_URL,
+    )
     profile == GameProfile.MTG_COMMANDER && !teams -> OfficialRules(
         "Commander", life = 40, poison = 10, commanderDamage = 21, players = null,
         summary = listOf(
@@ -125,6 +139,15 @@ fun modeRules(profile: GameProfile, teams: Boolean): ModeRules = officialRules(p
             "Use the bag panel to correct missed life entries or credit an automatic removal. Concessions and bag-drawn players give no elimination credit. At two survivors the bag switches off.",
             "A bag check pauses play. Resolve pending life approvals, review entries, then Draw. The saved result cannot be rerolled by reopening the panel. Continue resumes the next turn.",
             "TurnHub uses the community summary's reset-every-check interpretation. Episode: https://www.youtube.com/watch?v=CvyRDmwOeCs ; summary: https://www.reddit.com/r/EDH/comments/1sng1au/commandzones_10_player_game/",
+        ))
+        profile == GameProfile.MTG_COMMANDER_EMPEROR -> ModeRules("Commander · Emperor (custom)", null, listOf(
+            "Magic's Emperor rules (809) with Commander decks: a house combination. Each player starts at 40 life.",
+            "Two teams of three, each emperor in the middle with a general on each side. Emperors reach 2 seats and generals 1 (809.3a).",
+            "You can attack only an opponent seated right next to you (809.3c), so teammates never deal each other Commander damage.",
+            "Tap a creature to give it to a teammate within your range, as a sorcery (804.2).",
+            "When a player leaves, the others close the gap and ranges are worked out again as the next turn begins (801.2c).",
+            "The game ends when an emperor is out: the other team wins, its fallen generals too (809.5).",
+            "Otherwise Commander's rules apply: 21 combat damage from one commander knocks a player out.",
         ))
         profile.starCommander -> ModeRules("Star Commander (custom)", null, listOf(
             "A five-player Commander variant played by many groups; it is not part of Magic's official rules.",

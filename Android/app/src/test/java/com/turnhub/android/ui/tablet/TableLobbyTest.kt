@@ -20,8 +20,22 @@ class TableLobbyTest {
         assertEquals(true, formatSelected(GameProfile.MTG_BAG_OF_DOOM, GameProfile.MTG_COMMANDER))
     }
 
+    @Test fun `emperor follows the deck format and keeps its seating between magic and commander`() {
+        assertEquals(LobbyModeSettings(GameProfile.MTG_EMPEROR, 20, false), settingsForMode(GameProfile.MTG, GameMode.EMPEROR))
+        assertEquals(LobbyModeSettings(GameProfile.MTG_COMMANDER_EMPEROR, 40, false), settingsForMode(GameProfile.MTG_COMMANDER, GameMode.EMPEROR))
+        assertEquals(LobbyModeSettings(GameProfile.MTG, 20, false), settingsForMode(GameProfile.MTG_EMPEROR, GameMode.STANDARD))
+        assertEquals(LobbyModeSettings(GameProfile.MTG_COMMANDER, 60, true), settingsForMode(GameProfile.MTG_COMMANDER_EMPEROR, GameMode.TWO_HEADED_GIANT))
+        assertEquals(GameMode.EMPEROR, GameMode.of(GameProfile.MTG_COMMANDER_EMPEROR, false))
+        assertEquals(true, formatSelected(GameProfile.MTG_EMPEROR, GameProfile.MTG))
+        assertEquals(false, formatSelected(GameProfile.MTG_EMPEROR, GameProfile.MTG_COMMANDER))
+        assertEquals(GameProfile.MTG_COMMANDER_EMPEROR, emperorFormat(GameProfile.MTG_EMPEROR, GameProfile.MTG_COMMANDER))
+        assertEquals(GameProfile.MTG_EMPEROR, emperorFormat(GameProfile.MTG_COMMANDER_EMPEROR, GameProfile.MTG))
+        assertEquals(GameProfile.YUGIOH, emperorFormat(GameProfile.MTG_EMPEROR, GameProfile.YUGIOH))
+        assertEquals(GameProfile.MTG_COMMANDER, emperorFormat(GameProfile.MTG, GameProfile.MTG_COMMANDER))
+    }
+
     @Test fun `standard magic doesn't offer commander-only modes`() {
-        assertEquals(listOf(GameMode.STANDARD, GameMode.TWO_HEADED_GIANT), GameMode.availableFor(GameProfile.MTG))
+        assertEquals(listOf(GameMode.STANDARD, GameMode.TWO_HEADED_GIANT, GameMode.EMPEROR), GameMode.availableFor(GameProfile.MTG))
         assertEquals(GameMode.entries, GameMode.availableFor(GameProfile.MTG_COMMANDER))
         assertEquals(GameMode.entries, GameMode.availableFor(GameProfile.MTG_STAR_COMMANDER))
         assertEquals("Standard", FORMATS.single { it.profile == GameProfile.MTG }.label)
