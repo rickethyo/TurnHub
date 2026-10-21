@@ -1171,3 +1171,20 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   preserves the original catalogue/history/photo prefix, and uses Sites membership
   for access. Three SQLite workspace tests, authenticated API smoke, TypeScript
   and production build pass. Hosted collaborator sign-in remains user acceptance.
+
+## TH-034: Forge episode inventory and engine authoring
+
+- Owner: Codex, 2026-10-21, codex/master, merged baseline 8dcb6d4. Refs fetched;
+  no open PRs or overlapping scopes. Separate Site source retained. No delegation.
+- Adds discovery/Mythos cards, regular/unknown monsters, tokens/items, episode
+  manifests/quantities/flavor/setup/end-turn/outcomes/unknown slots, trigger
+  authoring and map tiles with printed ID, side, shape/grid and SVG renders.
+- Optional schema-1 additions preserve existing drafts and references. New data
+  exports in JSON/engine authoring records; current Android catalogue output is
+  unchanged. Source and compiler modules synchronized across both repositories.
+- Validation: eleven compiler/validator scenarios and three shared-workspace tests
+  pass; TypeScript and production build pass. Local API expanded round-trip
+  covers all six new types, inventory quantities/links, flavor, triggers, unknown
+  slots, tile SVGs, invalid-geometry rejection and stale saves. Browser confirms
+  categories and episode fields render; native confirmation testing hit a browser
+  CDP timeout. No production draft was altered for tests.
