@@ -28,7 +28,7 @@ and maintenance-script changes require CI, not `[skip ci]`.
 
 | Check name | Work performed |
 | --- | --- |
-| Host tests and contracts | Atlas gameplay, storage and profile-store suites; Sigil LED, menu, secure-link, pairing and firmware-package suites; adapter audit; generated-response and shared-fixture contract validation; design tokens current (`design/build_tokens.py --check`); embedded admin portal builds (`Atlas/web/build.py --check`); the app's manual asset matches the newest manual; `tools/firmware/thfw.py` tests |
+| Host tests and contracts | Atlas gameplay, storage and profile-store suites; Sigil LED, menu, secure-link, pairing and firmware-package suites; adapter audit; DMD catalogue generation and validator; generated-response and shared-fixture contract validation; design tokens current (`design/build_tokens.py --check`); embedded admin portal builds (`Atlas/web/build.py --check`); the app's manual asset matches the newest manual; `tools/firmware/thfw.py` tests |
 | Firmware (atlas) | Build Atlas; check its firmware descriptor and, with the signing secret, add a signed `atlas.thfw` (board-less until the S3 Atlas) |
 | Firmware (sigil) | The one Sigil build (headless until the LVGL renderer is bound); descriptor check and, with the signing secret, `sigil-eink.thfw` (refused by every board while `TURNHUB_OTA_RETIRED` is set) |
 | LVGL simulator | Desktop LVGL simulator built with ASan/UBSan, its CTest self-tests (SDL dummy drivers) and the font digest check |
@@ -83,6 +83,7 @@ the paths into five switches:
 | `shared/` | yes | yes | | | yes |
 | `protocol/` | yes | | yes | | |
 | `Android/` (except the generated `assets/manual.md`) | | | yes | | |
+| `data/death-may-die/`, `tools/dmd-forge/` | | | yes | | |
 | `design/` | yes | | yes | | yes |
 | `tools/firmware/` | yes | yes | | yes | |
 | `.github/` (except `workflows/ios.yml`) | yes | yes | yes | yes | yes |

@@ -1135,3 +1135,39 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   the tablet game for testing. DMD regression suite passes; source and embedded
   manual/privacy/authority/transport docs updated. Two-physical-device networking,
   large text and TalkBack acceptance remain in STAGED_CHANGES.
+
+## TH-033: Death May Die Database Forge
+
+- Date / owner: 2026-10-20, Codex on `codex/master`, clean merged baseline
+  `3d4608f`; current refs fetched and no open PRs/overlapping scopes found.
+- Owner requests a dedicated browser editor across devices, with a sprite-style
+  author/edit/preview/validate/build workflow for DMD reference content.
+- Scope: private hosted editor, shared durable drafts/history, six content types,
+  reference/image preview, verification/completeness, import/export and generated
+  database artifacts. Extract existing app content without inventing rules;
+  keep IDs stable. Provide a repository build/import path and validation. Game
+  authority and live matches remain independent of database authoring.
+- Site source: `D:/TurnHub/sites/dmd-database-forge` (separate Sites repository);
+  catalogue integration/tools and owning documentation live in TurnHub.
+- Implemented: 264-record canonical JSON and deterministic Kotlin compiler;
+  existing Android catalogue objects now use generated content. Seven compiler /
+  validator tests and generation check added to CI; imported data keeps original
+  names, stable card IDs, sources and unverified reminders. Runtime verification
+  and live-match authority remain separate.
+- Browser source implements private authenticated, user-scoped D1 drafts and
+  immutable checkpoints/build history; R2 reference images; compare-and-swap saves;
+  six-category edit/preview/review; JSON import/backup; ZIP with Android output,
+  validation, references and SHA-256 manifest. Site project
+  `appgprj_6ad7ee0f046481918e8b07e78ead1e38`; source is its separate Sites repo.
+- Checks: Android testDebugUnitTest passes (502 tests), seven Node tests pass,
+  generated content check, documentation checker and token check pass. Site
+  TypeScript and production build pass. Local authenticated API smoke covers
+  save/conflict/invalid import, build/history, cross-site rejection, image upload,
+  image retrieval and anonymous rejection. Connected browser blocks loopback
+  preview; visual/device browser acceptance remains unverified. No delegation.
+
+- 2026-10-20 sharing follow-up: owner authorizes a second ChatGPT account and
+  one shared catalogue. Site adds atomic workspace namespace initialization that
+  preserves the original catalogue/history/photo prefix, and uses Sites membership
+  for access. Three SQLite workspace tests, authenticated API smoke, TypeScript
+  and production build pass. Hosted collaborator sign-in remains user acceptance.

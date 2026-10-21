@@ -193,38 +193,9 @@ data class StoryGroup(val title: String, val names: List<String>)
  * printed titles where the wiki has typos. Names only, and any name can be typed in.
  */
 object DeathMayDieStory {
-    val elderOnes: List<StoryGroup> = listOf(
-        StoryGroup("Season 1 (core box)", listOf("Cthulhu", "Hastur")),
-        StoryGroup("Unspeakable Box", listOf("Yog-Sothoth", "Dagon")),
-        StoryGroup("Black Goat of the Woods", listOf("Shub-Niggurath")),
-        StoryGroup("Wendigo Box", listOf("Ithaqua")),
-        StoryGroup("Season 3 (Fear of the Unknown)", listOf("Azathoth", "Tsathoggua")),
-        StoryGroup("Unknowable Box", listOf("Nug & Yeb")),
-        StoryGroup("Unimaginable Box", listOf("Xylarthoth", "Cthugha")),
-        StoryGroup("Season 4", listOf("Nyarlathotep")),
-        StoryGroup("Season 5", listOf("Yig", "Ghatanothoa")),
-        StoryGroup("Season 6", listOf("Abhoth", "Atlach-Nacha")),
-        StoryGroup("Epic and special", listOf("R'lyeh Rising", "Godzilla")),
-    )
+    val elderOnes: List<StoryGroup> = DmdContent.elderOnes
 
-    val episodes: List<StoryGroup> = listOf(
-        StoryGroup("Season 1", listOf("Blasphemous Alchemy", "Tomes of Madness", "Danse Macabre", "Eldritch Idols",
-            "Accursed Tide", "Unspeakable Hour")),
-        StoryGroup("Season 2", listOf("Strange Bedfellows", "Nameless Woods", "Sanctificetur Nomen", "Creeping Time",
-            "Monster in Sin City", "Endgame")),
-        StoryGroup("Season 3 (Fear of the Unknown)", listOf("Top of the Mourning", "Isles of the Damned", "Deliver Us from Evil",
-            "By Request of the Queen", "Festival of Death", "Die Schöne und das Biest")),
-        StoryGroup("Season 4", listOf("Horror in the Sky", "The Haunted Garden", "Fields of Hell", "Death on the Nile",
-            "Pyramid of Fear", "The Window on the Infinite")),
-        StoryGroup("Season 5", listOf("At the Mountains of Madness", "Beneath the Waves", "The Nameless City",
-            "The Lost Continent", "Imprisoned with the Pharaohs")),
-        StoryGroup("Lost Episodes (Unspeakable Box)", listOf("Speak Fhtagn or Die!", "Bright Lights, Big Monsters", "Happy Birthday")),
-        StoryGroup("Lost Episodes (Unknowable Box)", listOf("Hypnos", "Dreams in the Witch House", "The Colour Out of Space",
-            "Horror in the Museum")),
-        StoryGroup("Lost Episodes (Unimaginable Box)", listOf("The Rats in the Walls", "The Case of Charles Dexter Ward",
-            "Reanimator", "Through the Gates of the Silver Key")),
-        StoryGroup("Epic Episodes", listOf("R'lyeh Rising", "Godzilla Rising", "Godzilla vs. Cthulhu")),
-    )
+    val episodes: List<StoryGroup> = DmdContent.episodes
 }
 
 /** One kind of episode token and how many are out. */
