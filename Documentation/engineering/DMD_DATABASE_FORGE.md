@@ -2,7 +2,8 @@
 
 The [private browser workbench](https://turnhub-dmd-forge.zanyplume16.chatgpt.site)
 authors the Death May Die catalogue. Open it on any device and sign in with the
-same ChatGPT account. It offers six entry types, reference/photo preview, rules
+an invited ChatGPT account. All invited accounts share the same catalogue, history
+and reference photos. It offers six entry types, reference/photo preview, rules
 and skill editing, physical-reference review checks, validation, shared saved
 drafts, checkpoints and build snapshots. It requires internet for shared storage.
 Unsaved edits live in the current tab; save before moving between devices.
@@ -58,15 +59,20 @@ The private Site is a separate source repository. Local checkout for this slice:
 `D:/TurnHub/sites/dmd-database-forge`; its README owns browser build/development
 instructions. `lib/catalogue.mjs` is copied from the repository compiler and must
 remain byte-for-byte identical at each coordinated release. `lib/seed.json` is
-only the initial seed; deployment never overwrites an existing user's D1 draft.
+only the initial seed; deployment never overwrites an existing shared D1 draft.
 Use Import to intentionally update that draft. JSON backups do not embed images;
 retain the build ZIP when you need reference photos too.
 
 ## Storage
 
-Site owner-private access and ChatGPT sign-in protect the editor. Every API is
-scoped by authenticated user ID. D1 stores revisioned JSON and immutable history;
+A private Site allowlist and ChatGPT sign-in protect the editor. Every API requires
+authentication. Invited accounts use one shared D1 catalogue and history, and the
+same R2 reference namespace. The initial workspace setup preserves the original
+private catalogue storage prefix, including existing snapshots and photos.
+D1 stores revisioned JSON and immutable history;
 R2 stores reference images. Images removed from a draft remain available to
 older snapshots. Browser storage is not authoritative. Keep downloaded backups
-if you need copies independent of hosting. Same-account cross-device edits use
-optimistic revision checks, not simultaneous live collaboration.
+if you need copies independent of hosting. Edits across accounts and devices use
+optimistic revision checks, not simultaneous live collaboration. Your PC does not
+need to be on. Only the owner manages the Site allowlist; visitors can edit content
+inside the app without receiving source-code editing access.

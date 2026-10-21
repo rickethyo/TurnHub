@@ -1165,3 +1165,9 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   save/conflict/invalid import, build/history, cross-site rejection, image upload,
   image retrieval and anonymous rejection. Connected browser blocks loopback
   preview; visual/device browser acceptance remains unverified. No delegation.
+
+- 2026-10-20 sharing follow-up: owner authorizes a second ChatGPT account and
+  one shared catalogue. Site adds atomic workspace namespace initialization that
+  preserves the original catalogue/history/photo prefix, and uses Sites membership
+  for access. Three SQLite workspace tests, authenticated API smoke, TypeScript
+  and production build pass. Hosted collaborator sign-in remains user acceptance.
