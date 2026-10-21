@@ -1188,3 +1188,18 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   slots, tile SVGs, invalid-geometry rejection and stale saves. Browser confirms
   categories and episode fields render; native confirmation testing hit a browser
   CDP timeout. No production draft was altered for tests.
+
+### TH-034 rights audit / 2026-10-21
+
+- Owner expands licensed-only import request to all existing DMD material and
+  publisher fan-app policy. Reviewed canonical/Site seed and authenticated shared
+  Backup JSON: 264 records each, 46 records with prose, 54 external image refs
+  (44 distinct). Shared has one edited/physically checked skill, no uploaded refs.
+  Snapshot/findings remain in Private/TurnHub-backups/dmd-rights-audit-2026-10-21.
+- Official campaign update reports Asmodee acquisition; published 2024 FFG/ANA
+  policy says no apps and no substantial copied game material. No DMD-specific
+  software grant found. Community import held; actual report lives in
+  Documentation/legal/DMD_RIGHTS_AUDIT.md, not assumed licensed fan use.
+- Corrected our two Site example templates to stop copying publisher flavor prose;
+  factual count templates and existing saved drafts remain. No new third-party
+  community data, artwork or rules imported. No messages sent or release performed.

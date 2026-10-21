@@ -31,11 +31,13 @@ These names are used as compatibility or game-profile references. TurnHub does n
 
 Before a commercial release, compatibility wording, attribution/disclaimer language, product packaging, app-store copy, and marketing materials should receive trademark review. TurnHub should not imply sponsorship, endorsement, or affiliation unless one actually exists.
 
-Death May Die condition/relic names are descriptive game references. Card-reference
-photographs are © CMON, hosted by BoardGameGeek, downloaded only when opened and
-cached on the device. They are not bundled or covered by TurnHub's license.
-Sources and release review are recorded in the
-[dependency tracker](Documentation/legal/DEPENDENCY_TRACKER.md).
+Death May Die reference imagery and source-derived prose are not covered by
+TurnHub's software license. No applicable content redistribution permission is
+recorded. Free access, source credits, runtime downloads and ownership of a
+physical copy do not establish app/content reuse rights. The published
+Asmodee/FFG policy contains an app restriction. See the
+[DMD rights audit](Documentation/legal/DMD_RIGHTS_AUDIT.md) for the current
+inventory, scope and rights-holder confirmation needed before distribution.
 
 ## TurnHub-owned material
 

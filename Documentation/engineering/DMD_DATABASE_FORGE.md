@@ -89,9 +89,10 @@ Box inventory rows record kind, label, whole quantity, optional catalogue entry
 and face/color/variant notes. Unlinked deck totals may be saved as drafts;
 validation reminds the author to catalogue the individual cards. Split total rows
 as individual entries are linked so each physical copy is counted once. The two
-episode-box examples supplied by the owner have optional inventory/flavor draft
+episode-box examples supplied by the owner have optional factual inventory draft
 buttons on their corresponding episode entries. No existing shared data is
-automatically replaced, and the examples do not invent unreadable card rules.
+automatically replaced. Publisher flavor prose is not preloaded by the templates.
+The examples do not invent unreadable card rules.
 
 Trigger definitions capture timing windows, resolution order, conditions,
 targets, costs, effects/replacements, duration, limits, choices and interaction
@@ -110,3 +111,7 @@ These are optional schema-1 additions. Existing drafts load without alteration,
 and all expanded data survives JSON backup/import/build. Android generation keeps
 its original supported catalogue projections; future engine implementation must
 review and explicitly consume the authoring definitions.
+
+Content rights are not certified by a physical-review checkmark or build. See the
+[DMD rights audit](../legal/DMD_RIGHTS_AUDIT.md) before importing or distributing
+third-party text/art; community prepopulation is on hold.
