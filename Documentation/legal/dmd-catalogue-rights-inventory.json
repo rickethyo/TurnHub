@@ -1,0 +1,3585 @@
+{
+  "auditDate": "2026-10-21",
+  "scope": "repository catalogue",
+  "sha256": "0d174ccdb77b3af4102e188cd42a39a780bd124f1e301e0d4302f49f601b637b",
+  "overall": "NOT-CLEARED-FOR-DMD-CONTENT-REDISTRIBUTION",
+  "method": "Inventory and primary-policy/provenance review; not a legal opinion, plagiarism comparison, or a grant of permission. Text/URLs were inventoried; remote artwork files were not downloaded.",
+  "summary": {
+    "records": 264,
+    "types": {
+      "condition": 35,
+      "elder": 18,
+      "episode": 43,
+      "investigator": 132,
+      "relic": 20,
+      "skill": 16
+    },
+    "baseRulesEntries": 30,
+    "transformedRulesEntries": 10,
+    "skillLevelEntries": 16,
+    "externalImageReferences": 54,
+    "uniqueExternalImages": 44,
+    "uploadedReferenceEntries": 0,
+    "physicallyVerifiedEntries": 0,
+    "recordsWithUnresolvedExpressiveText": 46
+  },
+  "records": [
+    {
+      "id": "skill:arcane-mastery",
+      "type": "skill",
+      "name": "Arcane Mastery",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "skill:brawling",
+      "type": "skill",
+      "name": "Brawling",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "skill:lucky",
+      "type": "skill",
+      "name": "Lucky",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "skill:marksman",
+      "type": "skill",
+      "name": "Marksman",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "skill:savage",
+      "type": "skill",
+      "name": "Savage",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "skill:stealth",
+      "type": "skill",
+      "name": "Stealth",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "skill:swiftness",
+      "type": "skill",
+      "name": "Swiftness",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "skill:toughness",
+      "type": "skill",
+      "name": "Toughness",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "skill:healing-prayer",
+      "type": "skill",
+      "name": "Healing Prayer",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "skill:read-the-omens",
+      "type": "skill",
+      "name": "Read the Omens",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "skill:protector",
+      "type": "skill",
+      "name": "Protector",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "skill:fueled-by-madness",
+      "type": "skill",
+      "name": "Fueled by Madness",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "skill:unkillable",
+      "type": "skill",
+      "name": "Unkillable",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "skill:vengeance-obsession",
+      "type": "skill",
+      "name": "Vengeance Obsession",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "skill:high-strung",
+      "type": "skill",
+      "name": "High Strung",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "skill:gate-manipulation",
+      "type": "skill",
+      "name": "Gate Manipulation",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "levels",
+          "status": "provenance-or-permission-unconfirmed",
+          "nonemptyLevels": 4
+        }
+      ]
+    },
+    {
+      "id": "investigator:ahmed-yasin",
+      "type": "investigator",
+      "name": "Ahmed Yasin",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/9/97/Achmed.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:borden",
+      "type": "investigator",
+      "name": "Borden",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/5/5d/Borden.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:elizabeth-ives",
+      "type": "investigator",
+      "name": "Elizabeth Ives",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/2/26/Elizabeth.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:fatima-safar",
+      "type": "investigator",
+      "name": "Fatima Safar",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/7/7a/Fatima.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:john-morgan",
+      "type": "investigator",
+      "name": "John Morgan",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/6/6f/Morgan.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:lord-adam-benchley",
+      "type": "investigator",
+      "name": "Lord Adam Benchley",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/e/e5/Adam.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:rasputin",
+      "type": "investigator",
+      "name": "Rasputin",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/8/8e/Rasputin.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:sergeant-ian-welles",
+      "type": "investigator",
+      "name": "Sergeant Ian Welles",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/3/3b/Ian.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:sister-beth",
+      "type": "investigator",
+      "name": "Sister Beth",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/0/06/Beth.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:the-kid",
+      "type": "investigator",
+      "name": "The Kid",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/a/a6/Kid.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:adilah-vidal",
+      "type": "investigator",
+      "name": "Adilah Vidal",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/2/2a/AdilahDashboardFront.png/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:alex-parker",
+      "type": "investigator",
+      "name": "Alex Parker",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/3/31/ParkerDashboardFront.png/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:ariele-venturi",
+      "type": "investigator",
+      "name": "Ariele Venturi",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/5/50/ArieleDashboardFront.png/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:father-luke",
+      "type": "investigator",
+      "name": "Father Luke",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/2/2b/LukeDashboardFront.png/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:hailia-hovath",
+      "type": "investigator",
+      "name": "Hailia Hovath",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/8/80/HaliaDashboardFront.png/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:machinist-s-mate-tony-boyle",
+      "type": "investigator",
+      "name": "Machinist's Mate Tony Boyle",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/f/fe/TonyDashboardFront.png/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:margarethe-richter",
+      "type": "investigator",
+      "name": "Margarethe Richter",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/e/e6/MargaretheDashboardFront.png/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:mary-diaz",
+      "type": "investigator",
+      "name": "Mary Diaz",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/4/43/MaryDashboardFront.png/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:sam-wood",
+      "type": "investigator",
+      "name": "Sam Wood",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/f/fd/SamDashboardFront.png/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:sergeant-mario-braghieri",
+      "type": "investigator",
+      "name": "Sergeant Mario Braghieri",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/9/9b/MarioDashboardFront.png/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:agatha-may",
+      "type": "investigator",
+      "name": "Agatha May",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/6/67/Agatha.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:huikong",
+      "type": "investigator",
+      "name": "Huikong",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/e/e9/Huikong.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:jakub-peters",
+      "type": "investigator",
+      "name": "Jakub Peters",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/4/47/Peters.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:julien-dulik",
+      "type": "investigator",
+      "name": "Julien Dulik",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/5/52/Julian.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:leon-barnes",
+      "type": "investigator",
+      "name": "Leon Barnes",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/1/18/Leon.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:mike-kozlov",
+      "type": "investigator",
+      "name": "Mike Kozlov",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/9/90/Mike.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:ruth-weber",
+      "type": "investigator",
+      "name": "Ruth Weber",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/c/c5/Ruth.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:sally-withers",
+      "type": "investigator",
+      "name": "Sally Withers",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/7/7c/Sally.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:sandra-atkinson",
+      "type": "investigator",
+      "name": "Sandra Atkinson",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/a/ac/Sandra.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:stella-fontaine",
+      "type": "investigator",
+      "name": "Stella Fontaine",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/f/fa/Stella.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:aniko-biko",
+      "type": "investigator",
+      "name": "Aniko Biko",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/e/e3/Anika.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:bruno-vitale",
+      "type": "investigator",
+      "name": "Bruno Vitale",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/c/c2/Bruno.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:gary-west",
+      "type": "investigator",
+      "name": "Gary West",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/b/bd/Gary.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:john-fernsby",
+      "type": "investigator",
+      "name": "John Fernsby",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/d/dd/John.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:rosario-guerra",
+      "type": "investigator",
+      "name": "Rosario Guerra",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/9/99/Rosario.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:sylvia-doyle",
+      "type": "investigator",
+      "name": "Sylvia Doyle",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": [
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://static.wikia.nocookie.net/cthulhu-death-may-die/images/7/7a/Sylvia.jpg/revision/latest/scale-to-width-down/1000"
+        }
+      ]
+    },
+    {
+      "id": "investigator:anna-belle",
+      "type": "investigator",
+      "name": "Anna & Belle",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:denise-rousseau",
+      "type": "investigator",
+      "name": "Denise Rousseau",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:godfrey-bourne",
+      "type": "investigator",
+      "name": "Godfrey Bourne",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:harry-larson",
+      "type": "investigator",
+      "name": "Harry Larson",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:jaime-gusmao",
+      "type": "investigator",
+      "name": "Jaime Gusmão",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:julius-johns",
+      "type": "investigator",
+      "name": "Julius Johns",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:katya-morozova",
+      "type": "investigator",
+      "name": "Katya Morozova",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:nathan-wayne",
+      "type": "investigator",
+      "name": "Nathan Wayne",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:simone-sinclair",
+      "type": "investigator",
+      "name": "Simone Sinclair",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:yuqi-wan",
+      "type": "investigator",
+      "name": "Yuqi Wan",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:aisha-adams",
+      "type": "investigator",
+      "name": "Aisha Adams",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:artemisia-greco",
+      "type": "investigator",
+      "name": "Artemisia Greco",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:freddy",
+      "type": "investigator",
+      "name": "Freddy",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:lilian-gray",
+      "type": "investigator",
+      "name": "Lilian Gray",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:matteo-torre",
+      "type": "investigator",
+      "name": "Matteo Torre",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:ralph-hardee",
+      "type": "investigator",
+      "name": "Ralph Hardee",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:al-capone",
+      "type": "investigator",
+      "name": "Al Capone",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:albert-einstein",
+      "type": "investigator",
+      "name": "Albert Einstein",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:ernest-hemingway",
+      "type": "investigator",
+      "name": "Ernest Hemingway",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:fleur-dubois",
+      "type": "investigator",
+      "name": "Fleur Dubois",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:josephine-leclerc",
+      "type": "investigator",
+      "name": "Josephine Leclerc",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:julia-hollister",
+      "type": "investigator",
+      "name": "Julia Hollister",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:maki-smith",
+      "type": "investigator",
+      "name": "Maki Smith",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:marcelo-gonk-goncalves",
+      "type": "investigator",
+      "name": "Marcelo 'Gonk' Gonçalves",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:marjorie-margie-westmoreland",
+      "type": "investigator",
+      "name": "Marjorie 'Margie' Westmoreland",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:maxim-grey",
+      "type": "investigator",
+      "name": "Maxim Grey",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:meryl-starling",
+      "type": "investigator",
+      "name": "Meryl Starling",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:olivia-duchamp",
+      "type": "investigator",
+      "name": "Olivia Duchamp",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:pops-duperon",
+      "type": "investigator",
+      "name": "'Pops' Duperon",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:professor-vincent-haas",
+      "type": "investigator",
+      "name": "Professor Vincent Haas",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:richard-irons",
+      "type": "investigator",
+      "name": "Richard Irons",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:roxie-mitchell-williams",
+      "type": "investigator",
+      "name": "Roxie Mitchell Williams",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:tina-macshane",
+      "type": "investigator",
+      "name": "Tina Macshane",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:walter-bagget",
+      "type": "investigator",
+      "name": "Walter Bagget",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:agnes-fortin",
+      "type": "investigator",
+      "name": "Agnes Fortin",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:amelie-crowe",
+      "type": "investigator",
+      "name": "Amelie Crowe",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:amir-sesay",
+      "type": "investigator",
+      "name": "Amir Sesay",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:antonio-senatore",
+      "type": "investigator",
+      "name": "Antonio Senatore",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:archie-fort",
+      "type": "investigator",
+      "name": "Archie Fort",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:buck-hall",
+      "type": "investigator",
+      "name": "Buck Hall",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:charles-hollar",
+      "type": "investigator",
+      "name": "Charles Hollar",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:craig-adamson",
+      "type": "investigator",
+      "name": "Craig Adamson",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:don-hayworth",
+      "type": "investigator",
+      "name": "Don Hayworth",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:dorothy-parker",
+      "type": "investigator",
+      "name": "Dorothy Parker",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:eve-blanchet",
+      "type": "investigator",
+      "name": "Eve Blanchet",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:george-rodriguez",
+      "type": "investigator",
+      "name": "George Rodriguez",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:harry-houdini",
+      "type": "investigator",
+      "name": "Harry Houdini",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:ikeda-saito",
+      "type": "investigator",
+      "name": "Ikeda Saito",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:isadora-rocha",
+      "type": "investigator",
+      "name": "Isadora Rocha",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:james-dalton",
+      "type": "investigator",
+      "name": "James Dalton",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:jim-cannon",
+      "type": "investigator",
+      "name": "Jim Cannon",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:karen-mendel",
+      "type": "investigator",
+      "name": "Karen Mendel",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:martin-horner",
+      "type": "investigator",
+      "name": "Martin Horner",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:michelle-hart",
+      "type": "investigator",
+      "name": "Michelle Hart",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:robert-gray",
+      "type": "investigator",
+      "name": "Robert Gray",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:ryan-martell",
+      "type": "investigator",
+      "name": "Ryan Martell",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:salvador-dali",
+      "type": "investigator",
+      "name": "Salvador Dalí",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:steve-wainwright",
+      "type": "investigator",
+      "name": "Steve Wainwright",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:taylor-renner",
+      "type": "investigator",
+      "name": "Taylor Renner",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:tom-gilman",
+      "type": "investigator",
+      "name": "Tom Gilman",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:vanessa-ortiz",
+      "type": "investigator",
+      "name": "Vanessa Ortiz",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:abdul-alhazred",
+      "type": "investigator",
+      "name": "Abdul Alhazred",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:azelia-johnson",
+      "type": "investigator",
+      "name": "Azelia Johnson",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:boris-karloff",
+      "type": "investigator",
+      "name": "Boris Karloff",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:cab-calloway",
+      "type": "investigator",
+      "name": "Cab Calloway",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:dr-herbert-west",
+      "type": "investigator",
+      "name": "Dr. Herbert West",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:faust",
+      "type": "investigator",
+      "name": "Faust",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:frida-kahlo",
+      "type": "investigator",
+      "name": "Frida Kahlo",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:hu-die",
+      "type": "investigator",
+      "name": "Hu Die",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:joan-crawford",
+      "type": "investigator",
+      "name": "Joan Crawford",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:kenji-takahashi",
+      "type": "investigator",
+      "name": "Kenji Takahashi",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:larry-carmine",
+      "type": "investigator",
+      "name": "Larry Carmine",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:ludwig-bauer",
+      "type": "investigator",
+      "name": "Ludwig Bauer",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:marlene-dietrich",
+      "type": "investigator",
+      "name": "Marlene Dietrich",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:max-schreck",
+      "type": "investigator",
+      "name": "Max Schreck",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:nate",
+      "type": "investigator",
+      "name": "Nate",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:nikola-tesla",
+      "type": "investigator",
+      "name": "Nikola Tesla",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:remy-dakanotic",
+      "type": "investigator",
+      "name": "Remy Dakanotic",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:rita-marunchak",
+      "type": "investigator",
+      "name": "Rita Marunchak",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:santos-dumont",
+      "type": "investigator",
+      "name": "Santos-Dumont",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:tarsila-do-amaral",
+      "type": "investigator",
+      "name": "Tarsila do Amaral",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:virginia-woolf",
+      "type": "investigator",
+      "name": "Virginia Woolf",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:zelda-fitzgerald",
+      "type": "investigator",
+      "name": "Zelda Fitzgerald",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:allan-jenkins",
+      "type": "investigator",
+      "name": "Allan Jenkins",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:annabelle-laveau",
+      "type": "investigator",
+      "name": "Annabelle Laveau",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:ethan",
+      "type": "investigator",
+      "name": "Ethan",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:ezra",
+      "type": "investigator",
+      "name": "Ezra",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:jack-munoz",
+      "type": "investigator",
+      "name": "Jack Muñoz",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:lysa",
+      "type": "investigator",
+      "name": "Lysa",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:olmstead",
+      "type": "investigator",
+      "name": "Olmstead",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:rocco",
+      "type": "investigator",
+      "name": "Rocco",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:tamara",
+      "type": "investigator",
+      "name": "Tamara",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:veronique",
+      "type": "investigator",
+      "name": "Veronique",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:virginia-lyman",
+      "type": "investigator",
+      "name": "Virginia Lyman",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:eddie-the-head",
+      "type": "investigator",
+      "name": "Eddie the Head",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "investigator:scarlett-hayes",
+      "type": "investigator",
+      "name": "Scarlett Hayes",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://makecraftgame.com/death-may-die/"
+      ],
+      "findings": []
+    },
+    {
+      "id": "condition:autophobia",
+      "type": "condition",
+      "name": "Autophobia",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown",
+        "https://boardgamegeek.com/image/7194666"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 109
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/s9N_kiqkmJobPoJKgAMvcg__large/img/RcupJFfZEQhJVu6jBrMulVu3cUo=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7194666.jpg"
+        }
+      ]
+    },
+    {
+      "id": "condition:bloodlust",
+      "type": "condition",
+      "name": "Bloodlust",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown",
+        "https://boardgamegeek.com/image/7194667"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 163
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/2VYwm7ejaxW-_l0nxlEF-Q__large/img/ZNWqsRar_K24hv1_g1F5Lmbcquk=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7194667.jpg"
+        }
+      ]
+    },
+    {
+      "id": "condition:catatonia",
+      "type": "condition",
+      "name": "Catatonia",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 178
+        }
+      ]
+    },
+    {
+      "id": "condition:chronophobia",
+      "type": "condition",
+      "name": "Chronophobia",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": []
+    },
+    {
+      "id": "condition:claustrophobia",
+      "type": "condition",
+      "name": "Claustrophobia",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 103
+        }
+      ]
+    },
+    {
+      "id": "condition:codependency",
+      "type": "condition",
+      "name": "Codependency",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": []
+    },
+    {
+      "id": "condition:compulsive-accumulating",
+      "type": "condition",
+      "name": "Compulsive Accumulating",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown",
+        "https://boardgamegeek.com/image/7194665"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 181
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/eXxdZPYIRlu5KWYN5aDotg__large/img/sZ4vzgQ3sqbgQJ8HgWynBazLeCM=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7194665.jpg"
+        }
+      ]
+    },
+    {
+      "id": "condition:conspiratorial-thinking",
+      "type": "condition",
+      "name": "Conspiratorial Thinking",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": []
+    },
+    {
+      "id": "condition:dissociative-identity",
+      "type": "condition",
+      "name": "Dissociative Identity",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": []
+    },
+    {
+      "id": "condition:eyes-everywhere",
+      "type": "condition",
+      "name": "Eyes Everywhere",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": []
+    },
+    {
+      "id": "condition:fear-of-crowds",
+      "type": "condition",
+      "name": "Fear of Crowds",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 79
+        }
+      ]
+    },
+    {
+      "id": "condition:flame-wings",
+      "type": "condition",
+      "name": "Flame Wings",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": []
+    },
+    {
+      "id": "condition:hallucinations",
+      "type": "condition",
+      "name": "Hallucinations",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown",
+        "https://boardgamegeek.com/image/7194667"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 136
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/2VYwm7ejaxW-_l0nxlEF-Q__large/img/ZNWqsRar_K24hv1_g1F5Lmbcquk=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7194667.jpg"
+        }
+      ]
+    },
+    {
+      "id": "condition:hypochondria",
+      "type": "condition",
+      "name": "Hypochondria",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 91
+        }
+      ]
+    },
+    {
+      "id": "condition:hyperactivity",
+      "type": "condition",
+      "name": "Hyperactivity",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 150
+        }
+      ]
+    },
+    {
+      "id": "condition:impulsive-aggression",
+      "type": "condition",
+      "name": "Impulsive Aggression",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown",
+        "https://boardgamegeek.com/image/7194666"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 152
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/s9N_kiqkmJobPoJKgAMvcg__large/img/RcupJFfZEQhJVu6jBrMulVu3cUo=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7194666.jpg"
+        }
+      ]
+    },
+    {
+      "id": "condition:insomnia",
+      "type": "condition",
+      "name": "Insomnia",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": []
+    },
+    {
+      "id": "condition:kleptomania",
+      "type": "condition",
+      "name": "Kleptomania",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 134
+        }
+      ]
+    },
+    {
+      "id": "condition:masochism",
+      "type": "condition",
+      "name": "Masochism",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 144
+        }
+      ]
+    },
+    {
+      "id": "condition:megalomania",
+      "type": "condition",
+      "name": "Megalomania",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown",
+        "https://boardgamegeek.com/image/7194665"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 121
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/eXxdZPYIRlu5KWYN5aDotg__large/img/sZ4vzgQ3sqbgQJ8HgWynBazLeCM=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7194665.jpg"
+        }
+      ]
+    },
+    {
+      "id": "condition:monomania",
+      "type": "condition",
+      "name": "Monomania",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": []
+    },
+    {
+      "id": "condition:narcolepsy",
+      "type": "condition",
+      "name": "Narcolepsy",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties",
+        "https://gamefound.com/en/projects/asmodee/dmd-forbidden-reaches/updates/41"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 181
+        }
+      ]
+    },
+    {
+      "id": "condition:obsessive-disorder",
+      "type": "condition",
+      "name": "Obsessive Disorder",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": []
+    },
+    {
+      "id": "condition:overcaring",
+      "type": "condition",
+      "name": "Overcaring",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown",
+        "https://boardgamegeek.com/image/7194664"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 196
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/LoihH95qISCN65Y4BPolYg__large/img/gWzRTsdoQUsHXtpFVHxNiBR_rUQ=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7194664.jpg"
+        }
+      ]
+    },
+    {
+      "id": "condition:paranoia",
+      "type": "condition",
+      "name": "Paranoia",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://filipe-pagliuso.artstation.com/projects/RY3gaE"
+      ],
+      "findings": []
+    },
+    {
+      "id": "condition:pyromania",
+      "type": "condition",
+      "name": "Pyromania",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://filipe-pagliuso.artstation.com/projects/RY3gaE",
+        "https://thesolomeeple.com/2021/10/19/first-thoughts-just-another-lovecraft-game/"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 97
+        }
+      ]
+    },
+    {
+      "id": "condition:r-lyehian",
+      "type": "condition",
+      "name": "R’lyehian",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": []
+    },
+    {
+      "id": "condition:recurring-trauma",
+      "type": "condition",
+      "name": "Recurring Trauma",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://www.cmon.com/wp-content/uploads/2023/06/DMD006-Rulebook.pdf",
+        "https://rules.dized.com/game/kp6yXekcT6agDFGangIB1Q/faq"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 235
+        }
+      ]
+    },
+    {
+      "id": "condition:restless-limbs",
+      "type": "condition",
+      "name": "Restless Limbs",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": []
+    },
+    {
+      "id": "condition:sadism",
+      "type": "condition",
+      "name": "Sadism",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": []
+    },
+    {
+      "id": "condition:shared-psychosis",
+      "type": "condition",
+      "name": "Shared Psychosis",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 109
+        }
+      ]
+    },
+    {
+      "id": "condition:short-term-memory-loss",
+      "type": "condition",
+      "name": "Short-Term Memory Loss",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 89
+        }
+      ]
+    },
+    {
+      "id": "condition:tentacle-limbs",
+      "type": "condition",
+      "name": "Tentacle Limbs",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": []
+    },
+    {
+      "id": "condition:traveling-fugue",
+      "type": "condition",
+      "name": "Traveling Fugue",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown",
+        "https://boardgamegeek.com/image/7194664"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 77
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/LoihH95qISCN65Y4BPolYg__large/img/gWzRTsdoQUsHXtpFVHxNiBR_rUQ=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7194664.jpg"
+        }
+      ]
+    },
+    {
+      "id": "condition:uncontrollable-fear",
+      "type": "condition",
+      "name": "Uncontrollable Fear",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Insanaties"
+      ],
+      "findings": []
+    },
+    {
+      "id": "relic:ancient-idol",
+      "type": "relic",
+      "name": "Ancient Idol",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown"
+      ],
+      "findings": []
+    },
+    {
+      "id": "relic:brass-compass",
+      "type": "relic",
+      "name": "Brass Compass",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown"
+      ],
+      "findings": []
+    },
+    {
+      "id": "relic:crystal-ball",
+      "type": "relic",
+      "name": "Crystal Ball",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown"
+      ],
+      "findings": []
+    },
+    {
+      "id": "relic:jade-amulet",
+      "type": "relic",
+      "name": "Jade Amulet",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown"
+      ],
+      "findings": []
+    },
+    {
+      "id": "relic:lucky-coin",
+      "type": "relic",
+      "name": "Lucky Coin",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown"
+      ],
+      "findings": []
+    },
+    {
+      "id": "relic:replica-blade",
+      "type": "relic",
+      "name": "Replica Blade",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown",
+        "https://boardgamegeek.com/image/7155578"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 54
+        },
+        {
+          "field": "transformedRules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 66
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/d9VRBQ9-nSO3vHXG0Box_Q__large/img/9c_azv-M26tF0_7sX0OUBJeA_VU=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7155578.jpg"
+        }
+      ]
+    },
+    {
+      "id": "relic:ritual-mask",
+      "type": "relic",
+      "name": "Ritual Mask",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown"
+      ],
+      "findings": []
+    },
+    {
+      "id": "relic:ruby-talisman",
+      "type": "relic",
+      "name": "Ruby Talisman",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown"
+      ],
+      "findings": []
+    },
+    {
+      "id": "relic:runecarved-spear",
+      "type": "relic",
+      "name": "Runecarved Spear",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown"
+      ],
+      "findings": []
+    },
+    {
+      "id": "relic:shiny-jewel",
+      "type": "relic",
+      "name": "Shiny Jewel",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown",
+        "https://boardgamegeek.com/image/7155578"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 38
+        },
+        {
+          "field": "transformedRules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 72
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/d9VRBQ9-nSO3vHXG0Box_Q__large/img/9c_azv-M26tF0_7sX0OUBJeA_VU=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7155578.jpg"
+        }
+      ]
+    },
+    {
+      "id": "relic:silver-key",
+      "type": "relic",
+      "name": "Silver Key",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown"
+      ],
+      "findings": []
+    },
+    {
+      "id": "relic:sinister-book",
+      "type": "relic",
+      "name": "Sinister Book",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/373600/cthulhu-death-may-die-fear-of-the-unknown"
+      ],
+      "findings": []
+    },
+    {
+      "id": "relic:viol",
+      "type": "relic",
+      "name": "Viol",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/image/7193296/cthulhu-death-may-die-season-4-expansion",
+        "https://boardgamegeek.com/image/7193296"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 52
+        },
+        {
+          "field": "transformedRules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 98
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/7DqgLwCmz5nRgGdfnzWJ7w__large/img/T1BMeXNho_QBTxVd7p7woW9zL-Y=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7193296.jpg"
+        }
+      ]
+    },
+    {
+      "id": "relic:wooden-pipe",
+      "type": "relic",
+      "name": "Wooden Pipe",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/image/7193296/cthulhu-death-may-die-season-4-expansion",
+        "https://boardgamegeek.com/image/7193296"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 60
+        },
+        {
+          "field": "transformedRules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 95
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/7DqgLwCmz5nRgGdfnzWJ7w__large/img/T1BMeXNho_QBTxVd7p7woW9zL-Y=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7193296.jpg"
+        }
+      ]
+    },
+    {
+      "id": "relic:glowing-ring",
+      "type": "relic",
+      "name": "Glowing Ring",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/image/7193296/cthulhu-death-may-die-season-4-expansion",
+        "https://boardgamegeek.com/image/7193296"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 78
+        },
+        {
+          "field": "transformedRules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 94
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/7DqgLwCmz5nRgGdfnzWJ7w__large/img/T1BMeXNho_QBTxVd7p7woW9zL-Y=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7193296.jpg"
+        }
+      ]
+    },
+    {
+      "id": "relic:old-rosary",
+      "type": "relic",
+      "name": "Old Rosary",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/image/7193296/cthulhu-death-may-die-season-4-expansion",
+        "https://boardgamegeek.com/image/7193296"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 45
+        },
+        {
+          "field": "transformedRules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 121
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/7DqgLwCmz5nRgGdfnzWJ7w__large/img/T1BMeXNho_QBTxVd7p7woW9zL-Y=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7193296.jpg"
+        }
+      ]
+    },
+    {
+      "id": "relic:handheld-magnifier",
+      "type": "relic",
+      "name": "Handheld Magnifier",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/image/7193296/cthulhu-death-may-die-season-4-expansion",
+        "https://boardgamegeek.com/image/7193296"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 96
+        },
+        {
+          "field": "transformedRules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 116
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/7DqgLwCmz5nRgGdfnzWJ7w__large/img/T1BMeXNho_QBTxVd7p7woW9zL-Y=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7193296.jpg"
+        }
+      ]
+    },
+    {
+      "id": "relic:ritual-dagger",
+      "type": "relic",
+      "name": "Ritual Dagger",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/image/7193296/cthulhu-death-may-die-season-4-expansion",
+        "https://boardgamegeek.com/image/7193296"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 66
+        },
+        {
+          "field": "transformedRules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 95
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/7DqgLwCmz5nRgGdfnzWJ7w__large/img/T1BMeXNho_QBTxVd7p7woW9zL-Y=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7193296.jpg"
+        }
+      ]
+    },
+    {
+      "id": "relic:skull-bracelet",
+      "type": "relic",
+      "name": "Skull Bracelet",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/375371/cthulhu-death-may-die-bonus-relic-cards",
+        "https://boardgamegeek.com/image/7202381"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 45
+        },
+        {
+          "field": "transformedRules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 63
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/RLfL4FsQhU5Nw9eFclRRyQ__large/img/cl-oUFqFVX7cV9knTOx0lCmldXU=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7202381.jpg"
+        }
+      ]
+    },
+    {
+      "id": "relic:ivory-figure",
+      "type": "relic",
+      "name": "Ivory Figure",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://boardgamegeek.com/boardgame/375371/cthulhu-death-may-die-bonus-relic-cards",
+        "https://boardgamegeek.com/image/7202382"
+      ],
+      "findings": [
+        {
+          "field": "rules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 141
+        },
+        {
+          "field": "transformedRules",
+          "status": "provenance-or-permission-unconfirmed",
+          "characters": 161
+        },
+        {
+          "field": "imageUrl",
+          "status": "external-image-reuse-permission-unconfirmed",
+          "url": "https://cf.geekdo-images.com/4ccHzw-Xr_62u4vU4DSDIg__large/img/E3YKnftvzc8luxZmPEmNStFWeSM=/fit-in/1024x1024/filters:no_upscale():strip_icc()/pic7202382.jpg"
+        }
+      ]
+    },
+    {
+      "id": "elder:cthulhu",
+      "type": "elder",
+      "name": "Cthulhu",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:hastur",
+      "type": "elder",
+      "name": "Hastur",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:yog-sothoth",
+      "type": "elder",
+      "name": "Yog-Sothoth",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:dagon",
+      "type": "elder",
+      "name": "Dagon",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:shub-niggurath",
+      "type": "elder",
+      "name": "Shub-Niggurath",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:ithaqua",
+      "type": "elder",
+      "name": "Ithaqua",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:azathoth",
+      "type": "elder",
+      "name": "Azathoth",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:tsathoggua",
+      "type": "elder",
+      "name": "Tsathoggua",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:nug-yeb",
+      "type": "elder",
+      "name": "Nug & Yeb",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:xylarthoth",
+      "type": "elder",
+      "name": "Xylarthoth",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:cthugha",
+      "type": "elder",
+      "name": "Cthugha",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:nyarlathotep",
+      "type": "elder",
+      "name": "Nyarlathotep",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:yig",
+      "type": "elder",
+      "name": "Yig",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:ghatanothoa",
+      "type": "elder",
+      "name": "Ghatanothoa",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:abhoth",
+      "type": "elder",
+      "name": "Abhoth",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:atlach-nacha",
+      "type": "elder",
+      "name": "Atlach-Nacha",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:r-lyeh-rising",
+      "type": "elder",
+      "name": "R'lyeh Rising",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "elder:godzilla",
+      "type": "elder",
+      "name": "Godzilla",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Elder_Ones"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:blasphemous-alchemy",
+      "type": "episode",
+      "name": "Blasphemous Alchemy",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:tomes-of-madness",
+      "type": "episode",
+      "name": "Tomes of Madness",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:danse-macabre",
+      "type": "episode",
+      "name": "Danse Macabre",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:eldritch-idols",
+      "type": "episode",
+      "name": "Eldritch Idols",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:accursed-tide",
+      "type": "episode",
+      "name": "Accursed Tide",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:unspeakable-hour",
+      "type": "episode",
+      "name": "Unspeakable Hour",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:strange-bedfellows",
+      "type": "episode",
+      "name": "Strange Bedfellows",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:nameless-woods",
+      "type": "episode",
+      "name": "Nameless Woods",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:sanctificetur-nomen",
+      "type": "episode",
+      "name": "Sanctificetur Nomen",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:creeping-time",
+      "type": "episode",
+      "name": "Creeping Time",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:monster-in-sin-city",
+      "type": "episode",
+      "name": "Monster in Sin City",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:endgame",
+      "type": "episode",
+      "name": "Endgame",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:top-of-the-mourning",
+      "type": "episode",
+      "name": "Top of the Mourning",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:isles-of-the-damned",
+      "type": "episode",
+      "name": "Isles of the Damned",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:deliver-us-from-evil",
+      "type": "episode",
+      "name": "Deliver Us from Evil",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:by-request-of-the-queen",
+      "type": "episode",
+      "name": "By Request of the Queen",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:festival-of-death",
+      "type": "episode",
+      "name": "Festival of Death",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:die-schone-und-das-biest",
+      "type": "episode",
+      "name": "Die Schöne und das Biest",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:horror-in-the-sky",
+      "type": "episode",
+      "name": "Horror in the Sky",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:the-haunted-garden",
+      "type": "episode",
+      "name": "The Haunted Garden",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:fields-of-hell",
+      "type": "episode",
+      "name": "Fields of Hell",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:death-on-the-nile",
+      "type": "episode",
+      "name": "Death on the Nile",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:pyramid-of-fear",
+      "type": "episode",
+      "name": "Pyramid of Fear",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:the-window-on-the-infinite",
+      "type": "episode",
+      "name": "The Window on the Infinite",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:at-the-mountains-of-madness",
+      "type": "episode",
+      "name": "At the Mountains of Madness",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:beneath-the-waves",
+      "type": "episode",
+      "name": "Beneath the Waves",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:the-nameless-city",
+      "type": "episode",
+      "name": "The Nameless City",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:the-lost-continent",
+      "type": "episode",
+      "name": "The Lost Continent",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:imprisoned-with-the-pharaohs",
+      "type": "episode",
+      "name": "Imprisoned with the Pharaohs",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:speak-fhtagn-or-die",
+      "type": "episode",
+      "name": "Speak Fhtagn or Die!",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:bright-lights-big-monsters",
+      "type": "episode",
+      "name": "Bright Lights, Big Monsters",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:happy-birthday",
+      "type": "episode",
+      "name": "Happy Birthday",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:hypnos",
+      "type": "episode",
+      "name": "Hypnos",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:dreams-in-the-witch-house",
+      "type": "episode",
+      "name": "Dreams in the Witch House",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:the-colour-out-of-space",
+      "type": "episode",
+      "name": "The Colour Out of Space",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:horror-in-the-museum",
+      "type": "episode",
+      "name": "Horror in the Museum",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:the-rats-in-the-walls",
+      "type": "episode",
+      "name": "The Rats in the Walls",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:the-case-of-charles-dexter-ward",
+      "type": "episode",
+      "name": "The Case of Charles Dexter Ward",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:reanimator",
+      "type": "episode",
+      "name": "Reanimator",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:through-the-gates-of-the-silver-key",
+      "type": "episode",
+      "name": "Through the Gates of the Silver Key",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:r-lyeh-rising",
+      "type": "episode",
+      "name": "R'lyeh Rising",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:godzilla-rising",
+      "type": "episode",
+      "name": "Godzilla Rising",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    },
+    {
+      "id": "episode:godzilla-vs-cthulhu",
+      "type": "episode",
+      "name": "Godzilla vs. Cthulhu",
+      "factualMetadata": "descriptive-reference-not-a-publisher-license",
+      "physicalVerificationIsNotRightsClearance": true,
+      "sourceUrls": [
+        "https://cthulhu-death-may-die.fandom.com/wiki/Episodes"
+      ],
+      "findings": []
+    }
+  ]
+}
