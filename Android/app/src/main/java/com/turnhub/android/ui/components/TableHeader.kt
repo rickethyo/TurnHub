@@ -150,6 +150,8 @@ fun GameProfile.displayName(): String = when (this) {
     GameProfile.MTG_COMMANDER -> "Commander"
     GameProfile.MTG_STAR_COMMANDER -> "Star Commander"
     GameProfile.MTG_BAG_OF_DOOM -> "Commander · Bag of Doom"
+    GameProfile.MTG_EMPEROR -> "Emperor"
+    GameProfile.MTG_COMMANDER_EMPEROR -> "Commander · Emperor"
     GameProfile.YUGIOH -> "Yu-Gi-Oh!"
     GameProfile.POKEMON -> "Pokémon"
     GameProfile.LORCANA -> "Lorcana"

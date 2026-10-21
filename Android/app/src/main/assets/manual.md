@@ -93,9 +93,11 @@ Bag of Doom: five or more Commander players, with a bag that eliminates a random
 
 - **Star Commander:** exactly five players.
 
+- **Emperor:** exactly six players in two teams of three, with Magic (20 life) or Commander (40) decks. Phone-hosted games only.
+
 - **Yu-Gi-Oh!:** 8000 life, two players.
 
-Official modes (Magic, Commander, Two-Headed Giant and Yu-Gi-Oh!) keep their official starting life, poison limit and player count. Turn on **House rules** in setup to change them; any whole number from 0 to 1,000,000 is allowed. Two-Headed Giant Commander, Star Commander and Generic are custom modes. **? Rules**, in setup and in the table menu, summarizes the mode and links to its official rules.
+Official modes (Magic, Commander, Two-Headed Giant, Emperor and Yu-Gi-Oh!) keep their official starting life, poison limit and player count. Turn on **House rules** in setup to change them; any whole number from 0 to 1,000,000 is allowed. Two-Headed Giant Commander, Commander Emperor, Star Commander and Generic are custom modes. **? Rules**, in setup and in the table menu, summarizes the mode and links to its official rules.
 
 ## Death May Die
 
@@ -164,6 +166,22 @@ Each of the five players has two allies, the players seated on either side, and 
 - Each panel shows Enemies out 1/2. **Star layout** (in the lobby, or Sound & display in the table menu) seats the game in the star itself, each panel facing its player; it suits a tablet.
 
 - When the game ends, **Sean Mode** offers a rematch that reseats the same five players so your allies become your enemies.
+
+## Emperor
+
+Choose Magic or Commander, then Emperor under Game mode. Six players sit as two teams of three: players 1 to 3 are Team A and 4 to 6 Team B. The middle player of each team (2 and 5) is its emperor, with a general on each side. The table puts each team along one side with the emperor's larger panel in the middle, so the generals face the other team's generals. Swap seats in setup to choose who plays emperor.
+
+- Everyone keeps their own life, turns and counters. Teammates can look at each other's hands but don't share cards, mana or life.
+
+- Emperors reach two seats and generals one: you can only target and affect players that close. You can attack only an opponent sitting right next to you, so at the start the emperors can't attack anyone. Each panel shows who that player can attack and, on wider panels, who they reach.
+
+- When a player is out, the others close the gap and the ranges update. The rules work them out again as the next turn begins, so finish the current turn with the old ranges.
+
+- Any creature can be tapped to give it to a teammate within your range, as a sorcery. TurnHub can't see the cards, so the table keeps this rule.
+
+- A random emperor goes first. An emperor's panel glows gold on their turn; generals glow in the usual colour.
+
+- The game ends the moment an emperor is out: the other team wins together, including any of its generals already out. Teammates can't deal each other Commander damage.
 
 ## Bag of Doom
 

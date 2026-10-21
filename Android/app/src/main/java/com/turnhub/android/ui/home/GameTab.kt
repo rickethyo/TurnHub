@@ -1174,7 +1174,7 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
     val chosenTimer = if (custom) customMs else timer
     var teams by remember(current.twoHeadedGiant) { mutableStateOf(current.twoHeadedGiant) }
     // Star Commander never has teams.
-    val teamsAllowed = profile.magicRules && !profile.starCommander && !profile.bagOfDoom
+    val teamsAllowed = profile.magicRules && !profile.ownSeating
     // Official modes keep the official life and player count unless house rules are on (Atlas enforces it).
     var house by remember(current.houseRules) { mutableStateOf(current.houseRules) }
     val official = com.turnhub.android.standalone.officialRules(profile, teams && teamsAllowed)
@@ -1184,7 +1184,8 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
     fun defaultLife(choice: GameProfile, withTeams: Boolean) = when (choice) {
         GameProfile.MTG -> if (withTeams) "30" else "20"
         GameProfile.MTG_COMMANDER -> if (withTeams) "60" else "40"
-        GameProfile.MTG_STAR_COMMANDER, GameProfile.MTG_BAG_OF_DOOM -> "40"
+        GameProfile.MTG_STAR_COMMANDER, GameProfile.MTG_BAG_OF_DOOM, GameProfile.MTG_COMMANDER_EMPEROR -> "40"
+        GameProfile.MTG_EMPEROR -> "20"
         GameProfile.YUGIOH -> "8000"
         GameProfile.POKEMON -> "6"
         GameProfile.LORCANA -> "20"

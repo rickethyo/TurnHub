@@ -127,9 +127,25 @@ data class TableSummary(
 
     fun starEnemies(playerNumber: Int): List<TablePlayer> = if (!star) emptyList() else seated(StarCommander.enemies(playerNumber - 1))
 
-    /** Whether [source] may deal [receiver] Commander damage: never between Star Commander allies. */
+    // --- Emperor ([Emperor]): roles and range by seat, player N is seat N-1 ----------------
+
+    /** A six-player Emperor table, whose teams and ranges the screens can draw. */
+    val emperor: Boolean get() = settings.profile.emperor && players.size == Emperor.PLAYERS
+
+    private val eliminatedBySeat: List<Boolean> get() = (1..players.size).map { n -> players.firstOrNull { it.playerNumber == n }?.eliminated ?: false }
+
+    /** The players [playerNumber] can target and affect now (CR 801.2), nearest first. */
+    fun emperorReach(playerNumber: Int): List<TablePlayer> =
+        if (!emperor) emptyList() else seated(Emperor.inRange(playerNumber - 1, eliminatedBySeat))
+
+    /** The opponents [playerNumber] can attack now (CR 809.3c). */
+    fun emperorTargets(playerNumber: Int): List<TablePlayer> =
+        if (!emperor) emptyList() else seated(Emperor.attackable(playerNumber - 1, eliminatedBySeat))
+
+    /** Whether [source] may deal [receiver] Commander damage: never between Star Commander allies or Emperor teammates. */
     fun commanderDamageAllowed(receiver: Int, source: Int): Boolean =
         receiver != source && !(star && StarCommander.allied(receiver - 1, source - 1)) &&
+            !(emperor && Emperor.teammates(receiver - 1, source - 1)) &&
             // Commander damage is combat damage, and a Two-Headed Giant team never attacks itself (CR 805.10).
             !(settings.twoHeadedGiant && (receiver - 1) / 2 == (source - 1) / 2)
 }

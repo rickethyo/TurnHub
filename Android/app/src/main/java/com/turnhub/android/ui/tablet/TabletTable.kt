@@ -359,10 +359,13 @@ internal fun TabletTable(
         com.turnhub.android.standalone.officialRules(summary.settings.profile, summary.settings.twoHeadedGiant) != null
     BoxWithConstraints(Modifier.fillMaxSize().background(p.bg)) {
         val landscape = maxWidth >= maxHeight || units.size <= 2
-        val plan = placements(units.size)
         val star = starLayout.on && summary.settings.profile.starCommander && units.size == StarCommander.PLAYERS
         // A cooperative table reads as one upright list, top to bottom, under a slim menu bar.
         val list = summary.settings.profile.cooperative
+        // Emperor: each team along one side, its emperor's bigger panel in the middle.
+        val emperorTable = summary.emperor && !solo && units.size == com.turnhub.android.domain.Emperor.PLAYERS
+        val plan = if (emperorTable) EMPEROR_PLACEMENT else placements(units.size)
+        fun share(index: Int) = emperorWeight(emperorTable, index)
         val focused = units.indexOfFirst { !it.out && it.members.any { member -> summary.hasTurn(member.playerNumber) } }
             .takeIf { it >= 0 } ?: units.indexOfFirst { !it.out }.coerceAtLeast(0)
         // The middle panel of a side with an odd count meets the centre disc at its inner (top) edge.
@@ -467,11 +470,11 @@ internal fun TabletTable(
                 Column(Modifier.fillMaxSize().padding(4.dp)) {
                     if (plan.far.isNotEmpty()) {
                         Row(Modifier.weight(1f).fillMaxWidth()) {
-                            plan.far.forEach { panel(it, 180, Modifier.weight(1f).fillMaxHeight()) }
+                            plan.far.forEach { panel(it, 180, Modifier.weight(share(it)).fillMaxHeight()) }
                         }
                     }
                     Row(Modifier.weight(1f).fillMaxWidth()) {
-                        plan.near.forEach { panel(it, 0, Modifier.weight(1f).fillMaxHeight()) }
+                        plan.near.forEach { panel(it, 0, Modifier.weight(share(it)).fillMaxHeight()) }
                     }
                 }
             } else {
@@ -480,11 +483,11 @@ internal fun TabletTable(
                 Row(Modifier.fillMaxSize().padding(4.dp)) {
                     if (plan.far.isNotEmpty()) {
                         Column(Modifier.weight(1f).fillMaxHeight()) {
-                            plan.far.asReversed().forEach { panel(it, 90, Modifier.weight(1f).fillMaxWidth()) }
+                            plan.far.asReversed().forEach { panel(it, 90, Modifier.weight(share(it)).fillMaxWidth()) }
                         }
                     }
                     Column(Modifier.weight(1f).fillMaxHeight()) {
-                        plan.near.asReversed().forEach { panel(it, 270, Modifier.weight(1f).fillMaxWidth()) }
+                        plan.near.asReversed().forEach { panel(it, 270, Modifier.weight(share(it)).fillMaxWidth()) }
                     }
                 }
             }
@@ -599,17 +602,21 @@ internal fun TabletTable(
                 val names = winners.joinToString(" and ") { it.name }
                 val star = summary.settings.profile.starCommander
                 val together = summary.settings.profile.cooperative
+                val emperorTeam = winners.firstOrNull()?.members?.first()?.playerNumber?.takeIf { summary.emperor }
+                    ?.let { com.turnhub.android.domain.Emperor.teamName(com.turnhub.android.domain.Emperor.team(it - 1)) }
                 Overlay(
                     when {
                         together -> if (winners.isEmpty()) "The investigators lost" else "The investigators win"
                         winners.isEmpty() -> "Game over"
                         star -> "Star Commander victory"
+                        emperorTeam != null -> "Team $emperorTeam wins"
                         winners.size > 1 -> "Shared victory"
                         else -> "$names ${if (winners.single().members.size > 1) "win" else "wins"}"
                     },
                     when {
                         together -> summary.round?.let { "The game ended in round $it." }
                         winners.isEmpty() -> "The game ended as a draw."
+                        emperorTeam != null -> "The other emperor is out. $names share the victory."
                         winners.size > 1 -> "$names share the victory."
                         star -> "$names wins. Well played, everyone."
                         else -> "Well played, everyone."
@@ -904,7 +911,9 @@ internal fun PlayerPanel(
             .55f, 1f, infiniteRepeatable(tween(1_100), RepeatMode.Reverse), label = "glow",
         )
     } else null
-    val activeColor = p.active
+    // An emperor's turn edge is gold (owner, 2026-10-21); generals keep the usual colour.
+    val emperorSeat = (unit.members.first().playerNumber - 1).takeIf { summary.emperor }
+    val activeColor = if (emperorSeat != null && com.turnhub.android.domain.Emperor.isEmperor(emperorSeat)) p.emperorGold else p.active
     BoxWithConstraints(
         Modifier
             .then(if (tracks) Modifier.fillMaxWidth() else Modifier.fillMaxSize())
@@ -960,13 +969,13 @@ internal fun PlayerPanel(
                 // Room for the lines under the number, so a short panel shrinks the number instead of
                 // squashing those lines to slivers.
                 val demerits = unit.members.first().demerits
-                val linesBelow = (if (demerits > 0) 22f else 0f) + (if (summary.star) 22f else 0f) + (if (cardGame) 20f else 0f) +
+                val linesBelow = (if (demerits > 0) 22f else 0f) + (if (summary.star || summary.emperor) 22f else 0f) + (if (cardGame) 20f else 0f) +
                     (if (summary.settings.profile.magicRules) unit.members.count { m -> counterChips(m.counters, summary.initiativePlayerNumber == m.playerNumber,
                         summary.settings.profile.commanderRules, summary.settings.poisonLimit).isNotEmpty() } * 30f else 0f) +
                     (if (summary.settings.profile.commanderRules && unit.members.any { m -> m.commanderDamage.any { d -> d.damage.any { it > 0 } } }) 26f else 0f)
                 // The room those lines may need is kept from the start of the game, so the first counter or
                 // commander damage doesn't shrink or lift the number; only more than that grows the band.
-                val linesRoom = maxOf(linesBelow, (if (summary.star) 22f else 0f) + (if (cardGame) 20f else 0f) +
+                val linesRoom = maxOf(linesBelow, (if (summary.star || summary.emperor) 22f else 0f) + (if (cardGame) 20f else 0f) +
                     (if (summary.settings.profile.magicRules) 30f else 0f) + (if (summary.settings.profile.commanderRules) 26f else 0f))
                 val lifeSize = minOf(
                     minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f,
@@ -1001,7 +1010,10 @@ internal fun PlayerPanel(
                         val risk = summary.doomBag.contains(unit.members.first().playerNumber)
                         Tag(if (risk) "In bag" else "Safe", if (risk) p.warn else p.good, p.surface)
                     }
-                    if (active) Tag("Turn", p.active, p.onActive)
+                    emperorSeat?.let { seat ->
+                        Tag(emperorTag(seat), p.emperorTeamColor(com.turnhub.android.domain.Emperor.team(seat)), p.surface)
+                    }
+                    if (active) Tag("Turn", activeColor, p.onActive)
                     if (out) Tag(if (unit.members.any { it.conceded }) "Conceded" else if (unit.members.any { it.selfEliminated }) "Eliminated by self" else "Eliminated", p.bad, p.surface)
                     unit.members.first().eliminatedBy?.let { source ->
                         summary.players.firstOrNull { it.playerNumber == source }?.let { Text("By ${it.label}", color = p.muted) }
@@ -1046,6 +1058,7 @@ internal fun PlayerPanel(
                         CommanderSummary(unit, summary, offlineCommander)
                         if (demerits > 0) Text("Demerits · $demerits", color = p.text, style = MaterialTheme.typography.labelMedium)
                         StarProgressLine(unit, summary, panelWidth)
+                        EmperorRangeLine(unit, summary, panelWidth)
                         if (summary.settings.profile.magicRules) {
                             unit.members.forEach { member ->
                                 CounterChips(member.counters, summary.initiativePlayerNumber == member.playerNumber,

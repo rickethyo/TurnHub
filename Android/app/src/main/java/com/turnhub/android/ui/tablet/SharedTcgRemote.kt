@@ -33,6 +33,7 @@ internal fun sharedGameTitle(game: StandaloneGame): String = if (game.profile.de
 else when {
     game.profile.starCommander -> "Star Commander"
     game.profile.bagOfDoom -> "Bag of Doom"
+    game.profile.emperor -> game.profile.displayName()
     else -> FORMATS.firstOrNull { it.profile == game.profile }?.label ?: game.profile.wireValue
 }
 

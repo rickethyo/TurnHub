@@ -17,6 +17,15 @@ enum class GameProfile(val wireValue: String) {
      */
     MTG_STAR_COMMANDER("mtg_star_commander"),
     MTG_BAG_OF_DOOM("mtg_bag_of_doom"),
+    /**
+     * Emperor (CR 809): two teams of three, each emperor flanked by two generals,
+     * with limited range of influence; a team wins when the rival emperor is out
+     * ([com.turnhub.android.domain.Emperor]). Magic decks at 20 life. Phone-hosted
+     * games only, like [POKEMON].
+     */
+    MTG_EMPEROR("mtg_emperor"),
+    /** [MTG_EMPEROR] with Commander decks: 40 life and Commander damage (a house combination). */
+    MTG_COMMANDER_EMPEROR("mtg_commander_emperor"),
     YUGIOH("yugioh"),
     /**
      * Pokémon TCG: each player counts the Prize cards they have left, from 6;
@@ -37,14 +46,28 @@ enum class GameProfile(val wireValue: String) {
     ;
 
     /** Commander rules (Commander damage, commander casts, 40 life): Commander and its variants. */
-    val commanderRules: Boolean get() = this == MTG_COMMANDER || this == MTG_STAR_COMMANDER || this == MTG_BAG_OF_DOOM
+    val commanderRules: Boolean get() = this == MTG_COMMANDER || this == MTG_STAR_COMMANDER || this == MTG_BAG_OF_DOOM ||
+        this == MTG_COMMANDER_EMPEROR
 
     /** Magic rules (poison, energy, monarch, initiative...): every Magic format. */
-    val magicRules: Boolean get() = this == MTG || commanderRules
+    val magicRules: Boolean get() = this == MTG || this == MTG_EMPEROR || commanderRules
 
     val bagOfDoom: Boolean get() = this == MTG_BAG_OF_DOOM
 
     val starCommander: Boolean get() = this == MTG_STAR_COMMANDER
+
+    /** Emperor, with Magic or Commander decks (see [MTG_EMPEROR]). */
+    val emperor: Boolean get() = this == MTG_EMPEROR || this == MTG_COMMANDER_EMPEROR
+
+    /** The format chip a variant belongs to: Magic for [MTG_EMPEROR], Commander for the Commander variants. */
+    val baseFormat: GameProfile get() = when (this) {
+        MTG_EMPEROR -> MTG
+        MTG_STAR_COMMANDER, MTG_BAG_OF_DOOM, MTG_COMMANDER_EMPEROR -> MTG_COMMANDER
+        else -> this
+    }
+
+    /** A format with its own fixed seating and teams: no Two-Headed Giant on top of it. */
+    val ownSeating: Boolean get() = starCommander || bagOfDoom || emperor
 
     /** Prizes instead of life (see [POKEMON]). */
     val pokemon: Boolean get() = this == POKEMON
@@ -62,7 +85,7 @@ enum class GameProfile(val wireValue: String) {
     val countsLife: Boolean get() = !pokemon && !lorcana && !deathMayDie
 
     /** Atlas runs and imports this format; the others are phone-hosted only. */
-    val atlasSupported: Boolean get() = this != POKEMON && this != LORCANA && this != DEATH_MAY_DIE
+    val atlasSupported: Boolean get() = this != POKEMON && this != LORCANA && this != DEATH_MAY_DIE && !emperor
 
     companion object {
         fun fromWire(value: String): GameProfile? = entries.firstOrNull { it.wireValue == value }

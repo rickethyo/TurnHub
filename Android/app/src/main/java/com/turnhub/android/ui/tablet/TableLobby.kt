@@ -167,11 +167,13 @@ internal fun TableLobby(
                 } else {
                     SeatMap(players.map { it.label }, { a, b -> if (enabled) actions.swap(a, b) },
                         backgrounds = players.map { it.tileBackground }, colors = players.map { it.color },
-                        teams = settings.twoHeadedGiant, cards = players.map { it.commander to it.commanderArt })
+                        teams = settings.twoHeadedGiant, cards = players.map { it.commander to it.commanderArt },
+                        emperor = settings.profile.emperor && players.size <= com.turnhub.android.domain.Emperor.PLAYERS)
                 }
                 // How this mode's seating works, right under the map it explains.
                 Text(when {
                     settings.profile.starCommander -> STAR_MAP_HINT
+                    settings.profile.emperor -> EMPEROR_MAP_HINT
                     settings.profile.cooperative -> COOP_MAP_HINT
                     settings.twoHeadedGiant -> TEAM_MAP_HINT
                     else -> SEAT_MAP_HINT
@@ -283,7 +285,9 @@ internal fun TableLobby(
             BrassCard {
                 Eyebrow("Game")
                 if (!settingsEnabled) Text("Add a player to choose the game.", color = p.muted)
-                FoldingGamePicker(settings.profile, settingsEnabled, phoneHosted) { profile ->
+                FoldingGamePicker(settings.profile, settingsEnabled, phoneHosted) { picked ->
+                    // Emperor keeps its seating when the table swaps Magic and Commander decks.
+                    val profile = emperorFormat(settings.profile, picked)
                     actions.settings(profile, StandaloneGame.defaultLife(profile, settings.twoHeadedGiant && profile.magicRules), null)
                 }
                 if (settings.profile.magicRules) {
@@ -376,7 +380,7 @@ internal fun TableLobby(
             if (askingFirst && startWith != null) FirstPlayerPicker(players, settings.twoHeadedGiant,
                 { player -> askingFirst = false; startWith(player) }) { askingFirst = false }
             StartTableButton(players.size, settings.twoHeadedGiant, enabled && startReady, settings.profile.starCommander,
-                official?.players?.takeIf { locked }, settings.profile.bagOfDoom) {
+                official?.players?.takeIf { locked }, settings.profile.bagOfDoom, settings.profile.emperor) {
                 if (startWith != null) askingFirst = true else actions.start()
             }
             // In the app, sounds and bug reports live in Settings and the banner; the
@@ -399,6 +403,14 @@ private fun SeatShortcut(label: String, description: String, enabled: Boolean, o
     ToneButton(label, onClick, Modifier.padding(top = 4.dp).semantics { contentDescription = description }, enabled = enabled, maxLines = 1)
 }
 
+/** The format a picked game tile sets: an Emperor table stays Emperor between Magic and Commander. */
+internal fun emperorFormat(current: GameProfile, picked: GameProfile): GameProfile = when {
+    !current.emperor -> picked
+    picked == GameProfile.MTG -> GameProfile.MTG_EMPEROR
+    picked == GameProfile.MTG_COMMANDER -> GameProfile.MTG_COMMANDER_EMPEROR
+    else -> picked
+}
+
 internal data class LobbyModeSettings(val profile: GameProfile?, val life: Int?, val teams: Boolean)
 
 /** Both authorities receive the same format/life/team request for a mode change. */
@@ -406,7 +418,8 @@ internal fun settingsForMode(current: GameProfile, mode: GameMode): LobbyModeSet
     val profile = when {
         mode == GameMode.BAG_OF_DOOM -> GameProfile.MTG_BAG_OF_DOOM
         mode == GameMode.STAR_COMMANDER -> GameProfile.MTG_STAR_COMMANDER
-        current.starCommander || current.bagOfDoom -> GameProfile.MTG_COMMANDER
+        mode == GameMode.EMPEROR -> if (current.commanderRules) GameProfile.MTG_COMMANDER_EMPEROR else GameProfile.MTG_EMPEROR
+        current.ownSeating -> current.baseFormat
         else -> null
     }
     val teams = mode == GameMode.TWO_HEADED_GIANT
