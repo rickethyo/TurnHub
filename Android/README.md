@@ -510,9 +510,11 @@ Native player experience (original parity pass: 2026-09-26):
   the PIN typed during setup (kept in memory only).
 - **Quick app switch:** Android releases an app's `WifiNetworkSpecifier`
   network once the app leaves the foreground. When the app leaves the screen
-  while connected, `AtlasLinkHoldService` (a `connectedDevice` foreground
-  service with a notification) keeps the app eligible for two minutes
-  (`HOLD_MS`) and stops as soon as the app returns.
+  while connected to Atlas, hosting a shared game or seated as a guest,
+  `AtlasLinkHoldService` (a `connectedDevice` foreground service with a
+  notification, a Wi-Fi lock and a partial wake lock) keeps the connection for
+  five minutes (`HOLD_MS`) and stops as soon as the app returns. A host keeps
+  answering its guests during the hold.
 
 Accessibility (2026-09-24):
 

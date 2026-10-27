@@ -180,7 +180,8 @@ check the host before entering a replacement edit.
 Codes: `ok`, `invalid`, `unauthorized`, `forbidden`, `claimed`, `full`, `stale`,
 `rejected`, `unavailable`, `renew`, `released`, `locked`, `ended` (the host left
 the hosted format). Unauthenticated errors carry no match
-data. When the host app is backgrounded or cannot save, it returns `unavailable`.
-Hosting keeps the screen awake but does not run a foreground service; keep the
-host app open. Switching back to it allows existing guests to reconnect. Changing
+data. When the host app cannot save, or has been in the background longer than
+its five-minute connection hold, it returns `unavailable`. Hosting keeps the
+screen awake; leaving the app starts a short foreground service that keeps
+answering guests during the hold. Switching back to it allows existing guests to reconnect. Changing
 Wi-Fi or a host process restart can require stopping/restarting sharing.

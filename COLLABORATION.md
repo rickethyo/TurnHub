@@ -1186,3 +1186,13 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   (801.2c); the manual says so.
 - Validation: new `EmperorTest`, `TableLobbyTest` and `LanSessionsTest` cases;
   Android unit tests run in CI (no Android SDK in the cloud container).
+
+## 2026-10-27 Claude: hold the game connection in the background (Android)
+
+- Owner request: keep the game connection when the app is backgrounded.
+- `AtlasLinkHoldService` now also starts for a shared-game host or seated guest,
+  holds for five minutes (was two) and takes a Wi-Fi lock and partial wake lock
+  for that time. A backgrounded host keeps serving guests while the hold runs
+  (catching up the turn timer first) instead of answering `unavailable` at once.
+- Validation: Android builds and unit tests run in CI (no SDK in the cloud
+  container). Background behavior *needs verification* on devices.

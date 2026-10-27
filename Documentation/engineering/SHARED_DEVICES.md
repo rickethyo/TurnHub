@@ -87,8 +87,11 @@ minute. **QR only** does not announce; its QR invitation pins the host's TLS
 certificate and carries a 256-bit key. No cloud service, internet connection or
 cleartext LAN allowance is used.
 
-The app keeps the display awake for hosts/guests. Keep the host foreground;
-backgrounding it blocks remote edits until it returns. Sessions survive rotation,
+The app keeps the display awake for hosts/guests. When a host or seated guest
+leaves the screen, `AtlasLinkHoldService` keeps the connection for five minutes
+(a `connectedDevice` foreground service with Wi-Fi and partial wake locks), and
+the host keeps serving guests meanwhile. After that a backgrounded host blocks
+remote edits until it returns. *Needs verification* on devices. Sessions survive rotation,
 lobby changes and rematches, but not process death or Stop sharing. Player
 seats follow the player's name: a guest whose player leaves the lobby is sent
 back to choose a seat. Guest edits apply only while a match runs or is paused. Changing the hosted

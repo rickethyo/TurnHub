@@ -346,13 +346,15 @@ class MainActivity : ComponentActivity() {
         AtlasLinkHoldService.release(this)
     }
 
-    // Leaving the screen while connected: hold the Atlas Wi-Fi for a quick
-    // app switch (AtlasLinkHoldService). Started here, while the app is still
-    // foreground, because Android refuses foreground services started later.
+    // Leaving the screen while connected to Atlas or a shared game: hold the
+    // connection for a quick app switch (AtlasLinkHoldService). Started here,
+    // while the app is still foreground, because Android refuses foreground
+    // services started later.
     override fun onPause() {
         super.onPause()
         if (!isChangingConfigurations &&
-            homeViewModel.uiState.value.connectionState == AtlasConnectionState.CONNECTED
+            (homeViewModel.uiState.value.connectionState == AtlasConnectionState.CONNECTED ||
+                lanViewModel.holdsConnection)
         ) {
             AtlasLinkHoldService.hold(this)
         }
