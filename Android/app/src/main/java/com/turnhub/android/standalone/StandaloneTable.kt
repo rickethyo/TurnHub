@@ -520,6 +520,7 @@ class StandaloneTable(
             "skill" -> action.value in 1..4 && action.slot in 1..com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILLS
             "take-turn", "eliminate" -> action.value == 0 && action.slot == 0
             "pass" -> action.value in 1..game.players.size && action.slot == 0
+            "pause" -> action.value in 0..1 && action.slot == 0
             else -> false
         }
         if (!valid) return false
@@ -531,10 +532,18 @@ class StandaloneTable(
             "take-turn" -> game.changeCounter(index, StandaloneGame.TAKE_TURN_KIND, 1, nowMs = now)
             "pass" -> if (game.active == index) game.cooperativeTurn()?.let { game.passTo(it, action.value, now) } ?: game else game
             "eliminate" -> game.eliminate(index, now)
+            "pause" -> lanPause(game, action.value, now)
             else -> game
         }
         return publishGame(next, durable = true)
     }
+
+    /**
+     * Any seated guest may pause or resume the table from their own phone. [value] 1 pauses and
+     * 0 resumes, so a retried or crossed command never undoes another player's tap.
+     */
+    private fun lanPause(game: StandaloneGame, value: Int, now: Long): StandaloneGame =
+        if ((game.state == TableState.RUNNING) == (value == 1)) game.togglePause(now) else game
 
     /**
      * The Planes tab's buttons from a guest: like the host's own tab they act for the active
@@ -585,6 +594,8 @@ class StandaloneTable(
                 "monarch" -> game.claimMonarch(index)
                 else -> game
             }
+            action.kind == "pause" && action.slot == 0 && action.source == 0 && action.value in 0..1 ->
+                lanPause(game, action.value, now)
             action.kind == StandaloneGame.RAD_KIND && action.slot == 0 && action.source == 0 && action.value in 0..StandaloneGame.MAX_LIFE ->
                 game.changeCounter(index, action.kind, action.value, nowMs = now)
             action.source == 0 && action.slot in 0..2 && action.kind in setOf("poison", "energy", "experience", "treasure", "rad",

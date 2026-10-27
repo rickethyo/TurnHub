@@ -110,8 +110,8 @@ The existing standalone engine validates format, active turn/team, living seat,
 counter bounds, Commander allies and all outcomes. The authenticated player is
 always the recipient; `source` selects only whose Commander dealt damage. In
 Two-Headed Giant, life/poison apply to the team and either teammate may pass;
-other counters stay personal. Setup, pause/reset/rematch, day/night, Planechase
-setup and Bag of Doom resolution remain host-only. Commander names and chosen art
+other counters stay personal. Any seated player may send `pause` (below). Setup,
+reset/rematch, day/night, Planechase setup and Bag of Doom resolution remain host-only. Commander names and chosen art
 printings (public card IDs) are included in public snapshots, and so are
 Planechase's face-up cards, counters, roll costs and last roll (public Scryfall
 card IDs); account IDs, the planar deck's order and the host's deck choice stay
@@ -143,12 +143,23 @@ without Planechase on.
 | `pass` | Explicit next player number | 0 |
 | `eliminate` | 0 | 0 |
 
+### Pause (every seated game)
+
+| `kind` | `value` | `slot` |
+|---|---|---|
+| `pause` | 1 pause, 0 resume | 0 |
+
+Any seated guest (not the Planes display) may pause or resume the whole table
+from their own phone. The value names the wanted state, so a second Pause from
+another phone, or a retried one, is `rejected` instead of resuming. The engine
+refuses it while a Bag of Doom draw or an elimination prompt is pending.
+
 Only the active investigator may pass; the existing cooperative-turn validator
 checks the recipient. Reference/card assignment edits remain on the host UI; a guest can explicitly
 confirm their own investigator’s death. Clients can read assigned cards (both relic faces),
 adjust markers/skill levels, stage their next turn and choose a pass recipient.
 All game rules and bounds are enforced by the existing standalone authority.
-Commands never pause/start/reset/rematch a game or change the Elder One board.
+Commands never start/reset/rematch a game or change the Elder One board.
 
 ## Ordering, acknowledgement and failure
 

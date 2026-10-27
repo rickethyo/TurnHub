@@ -439,7 +439,10 @@ private fun InvestigatorRemote(state: LanUiState, model: LanViewModel) {
     InvestigatorPortrait(player)
     if (game.state == TableState.LOBBY) Notice("You're in. Your controls unlock when the host starts the game.", p.info,
         title = "Waiting for the host to start")
-    else TurnCard(game, seat, player, enabled, model)
+    else {
+        TurnCard(game, seat, player, enabled, model)
+        GuestPauseButton(game, enabled, model, Modifier.fillMaxWidth())
+    }
     val dying = player.life >= DeathMayDie.DEATH_WOUNDS || board.insanity >= InvestigatorDashboard.MAX_INSANITY
     if (dying && !player.eliminated) Notice(
         if (player.life >= DeathMayDie.DEATH_WOUNDS) "Six wounds. Confirm the death, or remove a wound if it was a mistake. The host removes this investigator, which can end the game."
