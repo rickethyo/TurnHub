@@ -129,8 +129,9 @@ internal fun SetupSwitch(title: String, detail: String?, checked: Boolean, enabl
 
 /**
  * Game modes beyond the standard game, for Magic and Commander: Two-Headed Giant,
- * and Star Commander (its own format, `mtg_star_commander`; choosing it turns
- * Two-Headed Giant off, and Standard from it goes back to Commander).
+ * Star Commander (its own format, `mtg_star_commander`; choosing it turns
+ * Two-Headed Giant off, and Standard from it goes back to Commander), Bag of Doom,
+ * and Emperor (`mtg_emperor` from Magic, `mtg_commander_emperor` from Commander).
  */
 enum class GameMode(val label: String, val detail: String) {
     // "Free-for-all": the Standard tile is the Magic format, so the mode needs its own word.
@@ -139,28 +140,31 @@ enum class GameMode(val label: String, val detail: String) {
     BAG_OF_DOOM("Bag of Doom", "Five or more players. Escape the bag when another player loses life on your turn; bag checks begin after four cycles and stop at two survivors."),
     STAR_COMMANDER("Star Commander", "Five players. Your neighbors are allies who can't deal you Commander damage; " +
         "win when both players across the star are out."),
+    EMPEROR("Emperor", "Six players in two teams of three. Each emperor sits between two generals; " +
+        "the game ends when an emperor is out."),
     ;
 
     companion object {
         fun of(profile: GameProfile, twoHeadedGiant: Boolean): GameMode = when {
             profile.bagOfDoom -> BAG_OF_DOOM
             profile.starCommander -> STAR_COMMANDER
+            profile.emperor -> EMPEROR
             twoHeadedGiant -> TWO_HEADED_GIANT
             else -> STANDARD
         }
 
-        /** Star Commander is a Commander variant: Standard Magic offers only free-for-all and Two-Headed Giant. */
+        /** Star Commander and Bag of Doom are Commander variants: Standard Magic offers free-for-all, Two-Headed Giant and Emperor. */
         fun availableFor(profile: GameProfile): List<GameMode> =
             if (profile.commanderRules) entries else entries.filter { it != STAR_COMMANDER && it != BAG_OF_DOOM }
     }
 }
 
 /**
- * The lobby's format chips select a format's base; Star Commander shows as
- * Commander, and tapping Commander then keeps it (Standard leaves Star).
+ * The lobby's format chips select a format's base ([GameProfile.baseFormat]); Star
+ * Commander shows as Commander, and tapping Commander then keeps it (Standard leaves Star).
  */
 internal fun formatSelected(current: GameProfile, chip: GameProfile): Boolean =
-    current == chip || ((current.starCommander || current.bagOfDoom) && chip == GameProfile.MTG_COMMANDER)
+    current == chip || (current.ownSeating && chip == current.baseFormat)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -187,9 +191,10 @@ internal fun GameModeChips(profile: GameProfile, selected: GameMode, enabled: Bo
  */
 @Composable
 internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, star: Boolean = false,
-    exactPlayers: Int? = null, bag: Boolean = false, onStart: () -> Unit) {
+    exactPlayers: Int? = null, bag: Boolean = false, emperor: Boolean = false, onStart: () -> Unit) {
     val ready = when {
         star -> players == StarCommander.PLAYERS
+        emperor -> players == com.turnhub.android.domain.Emperor.PLAYERS
         bag -> players >= 5
         exactPlayers != null -> players == exactPlayers
         else -> players >= 2 && (!teams || (players >= 4 && players % 2 == 0))
@@ -198,6 +203,7 @@ internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, st
         when {
             star && !ready -> "Star Commander needs exactly five players."
             bag && !ready -> "Bag of Doom needs at least five players."
+            emperor && !ready -> "Emperor needs exactly six players: two teams of three."
             exactPlayers != null && !ready && teams -> "Two-Headed Giant is two teams of two: add exactly four players"
             exactPlayers != null && !ready -> "This game is for exactly $exactPlayers players"
             players < 2 -> "Add two players to start"

@@ -417,6 +417,33 @@ Written summaries differ; the owner explicitly selected **reset immunity after
 every check**. This is TurnHub's custom interpretation, not an official Magic
 format. No episode imagery, audio, logos or transcript is bundled.
 
+## Emperor
+
+*Implemented 2026-10-21 (owner request); JVM tests only, needs a playtest.*
+CR 809 (Comprehensive Rules of 2026-09-25) as two phone-hosted profiles:
+`mtg_emperor` (official, 20 life, Android `MTG_EMPEROR`) and
+`mtg_commander_emperor` (Commander decks at 40 with Commander damage, a house
+combination, `MTG_COMMANDER_EMPEROR`). Atlas doesn't know them yet
+(`atlasSupported = false`), so their records stay on the device.
+
+- **Exactly six players**, two teams of three, no Two-Headed Giant. Seats follow
+  turn order: 0-2 are team A, 3-5 team B, emperors at 1 and 4
+  (`domain/Emperor.kt`). Swapping seats in the lobby chooses the emperors.
+- **Range of influence** (801, 809.3a): emperors 2 seats, generals 1, counted over
+  the players still in (`Emperor.inRange`). Attacks only against an adjacent
+  opponent (809.3c, `Emperor.attackable`). TurnHub recalculates as soon as a
+  player is out; 801.2c recalculates as the next turn begins, which the manual
+  tells the table. Deploy creatures (804) is a card action TurnHub only explains.
+- **Turns:** a random emperor goes first (809.4) unless the lobby chose a starter.
+- **Victory** (809.5): after every elimination batch, an emperor out ends the
+  game and the whole other team wins (fallen generals too); both emperors out
+  together is a draw. A claimed win is the claimant's team's; teammates don't
+  confirm it. Commander damage between teammates is refused.
+- **Table:** team A along the far side, team B along the near side, each emperor
+  in the middle with a bigger panel (`EMPEROR_PLACEMENT`, `EMPEROR_WEIGHT`); an
+  emperor's turn edge is gold, a general's the usual turn colour. Each panel has
+  a role tag ("Emperor A", "General B") and an "Attack: … · Reach: …" line.
+
 ## Star Commander
 
 *Implemented 2026-10-13 (owner request); host and JVM tests only, needs a

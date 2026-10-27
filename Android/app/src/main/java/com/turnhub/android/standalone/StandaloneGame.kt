@@ -4,6 +4,7 @@ import com.turnhub.android.domain.ControllerHandle
 import com.turnhub.android.domain.CooperativeTurn
 import com.turnhub.android.domain.DayNight
 import com.turnhub.android.domain.ElderOneTrack
+import com.turnhub.android.domain.Emperor
 import com.turnhub.android.domain.InvestigatorCard
 import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.domain.StarCommander
@@ -166,6 +167,8 @@ data class StandaloneGame(
 
     private val star: Boolean get() = profile.starCommander
 
+    private val emperor: Boolean get() = profile.emperor
+
     private val pokemon: Boolean get() = profile.pokemon
 
     private val lorcana: Boolean get() = profile.lorcana
@@ -199,6 +202,7 @@ data class StandaloneGame(
         !investigatorCardsReady -> false
         profile.bagOfDoom -> players.size >= 5 && !twoHeadedGiant
         star -> players.size == StarCommander.PLAYERS
+        emperor -> players.size == Emperor.PLAYERS
         locked?.players != null -> players.size == locked?.players
         else -> players.size >= 2 && (!twoHeadedGiant || (players.size >= 4 && players.size % 2 == 0))
     }
@@ -251,8 +255,8 @@ data class StandaloneGame(
 
     fun setFormat(profile: GameProfile, startingLife: Int? = null): StandaloneGame {
         if (state != TableState.LOBBY) return this
-        // Star Commander has no teams: choosing it turns Two-Headed Giant off.
-        val teams = twoHeadedGiant && profile.magicRules && !profile.starCommander && !profile.bagOfDoom
+        // Star Commander, Bag of Doom and Emperor seat their own way: choosing one turns Two-Headed Giant off.
+        val teams = twoHeadedGiant && profile.magicRules && !profile.ownSeating
         return copy(
             profile = profile,
             twoHeadedGiant = teams,
@@ -275,7 +279,7 @@ data class StandaloneGame(
 
     /** The game mode: Two-Headed Giant (Magic and Commander, not Star Commander) or standard; lobby only. */
     fun setTwoHeadedGiant(on: Boolean): StandaloneGame {
-        if (state != TableState.LOBBY || on == twoHeadedGiant || (on && (!magic || star || profile.bagOfDoom))) return this
+        if (state != TableState.LOBBY || on == twoHeadedGiant || (on && (!magic || profile.ownSeating))) return this
         return copy(
             twoHeadedGiant = on,
             startingLife = defaultLife(profile, on),
@@ -349,6 +353,8 @@ data class StandaloneGame(
         val first = when {
             chosen != null -> if (twoHeadedGiant) chosen - chosen % 2 else chosen
             twoHeadedGiant -> random.nextInt(players.size / 2) * 2
+            // CR 809.4: a random emperor goes first.
+            emperor -> Emperor.emperorOf(random.nextInt(2))
             else -> random.nextInt(players.size)
         }
         return copy(
@@ -561,6 +567,8 @@ data class StandaloneGame(
         val player = players.getOrNull(index) ?: return this
         if (!profile.commanderRules || !playing || player.eliminated || source == index || source !in players.indices || commander !in 1..2) return this
         if (star && StarCommander.allied(index, source)) return this
+        // Emperor teammates never attack each other (CR 809.3c), so they deal no Commander damage.
+        if (emperor && Emperor.teammates(index, source)) return this
         val totals = player.commanderDamage[source] ?: listOf(0, 0)
         val now = totals[commander - 1]
         val next = (now + delta).coerceIn(0, MAX_LIFE)
@@ -764,7 +772,8 @@ data class StandaloneGame(
 
     private fun confirmerFor(claimant: Int): Int? =
         (1 until players.size).map { (claimant + it) % players.size }.firstOrNull { i ->
-            !players[i].eliminated && i !in winConfirmed && !(twoHeadedGiant && i / 2 == claimant / 2)
+            !players[i].eliminated && i !in winConfirmed && !(twoHeadedGiant && i / 2 == claimant / 2) &&
+                !(emperor && Emperor.teammates(i, claimant))
         }
 
     /**
@@ -795,7 +804,12 @@ data class StandaloneGame(
     fun claimWin(index: Int, nowMs: Long): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated || doomBag.pending || players.any { it.eliminationPending }) return this
-        return finish(if (profile.cooperative) players.indices.toList() else listOf(index), nowMs)
+        return finish(when {
+            profile.cooperative -> players.indices.toList()
+            // CR 809.5a: the team wins together, its fallen generals too.
+            emperor && players.size == Emperor.PLAYERS -> Emperor.teamSeats(Emperor.team(index))
+            else -> listOf(index)
+        }, nowMs)
     }
 
     /** The table ends the game with no winner (it still counts as played). */
@@ -1118,6 +1132,7 @@ data class StandaloneGame(
      * side (a player or a Two-Headed Giant team, given as its first player) is
      * left standing. Star Commander ignores who is left: every living player
      * whose two enemies are out wins together, and nobody alive is a draw.
+     * Emperor ends once an emperor is out, whoever else is left.
      */
     private fun decided(): List<Int>? {
         val standing = players.indices.filter { !players[it].eliminated }
@@ -1129,6 +1144,8 @@ data class StandaloneGame(
         if (star && players.size == StarCommander.PLAYERS) {
             return StarCommander.winners(players.map { it.eliminated }).takeIf { it.isNotEmpty() || standing.isEmpty() }
         }
+        // Emperor ends when an emperor is out: the other team wins (both out is a draw).
+        if (emperor && players.size == Emperor.PLAYERS) return Emperor.winners(players.map { it.eliminated })
         return standing.takeIf { s -> s.map { mates(it).first() }.distinct().size <= 1 }?.take(1)
     }
 
@@ -1346,8 +1363,9 @@ data class StandaloneGame(
         /** A Two-Headed Giant team's total is 30 for Magic and 60 for Commander. */
         fun defaultLife(profile: GameProfile, twoHeadedGiant: Boolean = false): Int = when (profile) {
             GameProfile.MTG_COMMANDER -> if (twoHeadedGiant) 60 else 40
-            GameProfile.MTG_STAR_COMMANDER, GameProfile.MTG_BAG_OF_DOOM -> 40
+            GameProfile.MTG_STAR_COMMANDER, GameProfile.MTG_BAG_OF_DOOM, GameProfile.MTG_COMMANDER_EMPEROR -> 40
             GameProfile.MTG -> if (twoHeadedGiant) 30 else 20
+            GameProfile.MTG_EMPEROR -> 20
             GameProfile.YUGIOH -> 8000
             GameProfile.POKEMON -> 6
             GameProfile.LORCANA -> 20

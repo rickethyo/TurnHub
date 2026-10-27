@@ -1171,3 +1171,18 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   preserves the original catalogue/history/photo prefix, and uses Sites membership
   for access. Three SQLite workspace tests, authenticated API smoke, TypeScript
   and production build pass. Hosted collaborator sign-in remains user acceptance.
+
+## 2026-10-21 Claude: Emperor format (Android, phone-hosted)
+
+- Owner request: Emperor (CR 809) as a Magic game mode, with a unique table
+  layout where the emperors' panels are bigger and glow gold on their turn.
+- Implemented: `MTG_EMPEROR` (official, 20 life) and `MTG_COMMANDER_EMPEROR`
+  (house, 40 life + Commander damage) profiles, Game mode chip "Emperor" for
+  Magic and Commander, `domain/Emperor.kt` (teams, range of influence 2/1 over
+  living players, adjacent-only attacks, emperor-out victory), six-seat lobby map
+  and table layout, role tags and an Attack/Reach line per panel. Phone-hosted
+  only; Atlas parity is future work. Rules text checked against the 2026-09-25 CR
+  (801, 804, 809). Known gap: ranges update at once, not at the next turn's start
+  (801.2c); the manual says so.
+- Validation: new `EmperorTest`, `TableLobbyTest` and `LanSessionsTest` cases;
+  Android unit tests run in CI (no Android SDK in the cloud container).

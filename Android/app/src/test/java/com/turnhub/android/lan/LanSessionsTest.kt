@@ -13,14 +13,14 @@ import java.util.UUID
 class LanSessionsTest {
     private fun tcg(profile: GameProfile, teams: Boolean = false): StandaloneGame {
         var g = StandaloneGame().setFormat(profile).setTwoHeadedGiant(teams)
-        val count = if (profile.starCommander || profile.bagOfDoom) 5 else if (teams) 4 else 2
+        val count = if (profile.starCommander || profile.bagOfDoom) 5 else if (profile.emperor) 6 else if (teams) 4 else 2
         repeat(count) { g = g.addPlayer("Player ${it + 1}", localId = "private-$it") }
         return g.chooseStarter(0).start(1_000, "shared-match")
     }
 
     @Test fun `TCG players control only their own score and can poll the entire table with the same token`() {
         listOf(GameProfile.MTG, GameProfile.MTG_COMMANDER, GameProfile.MTG_STAR_COMMANDER,
-            GameProfile.MTG_BAG_OF_DOOM, GameProfile.YUGIOH, GameProfile.POKEMON, GameProfile.LORCANA).forEach { profile ->
+            GameProfile.MTG_BAG_OF_DOOM, GameProfile.MTG_EMPEROR, GameProfile.YUGIOH, GameProfile.POKEMON, GameProfile.LORCANA).forEach { profile ->
             val f = Fixture(tcg(profile))
             val joined = f.join("player", 1)
             assertEquals(profile.name, "ok", joined.getString("code"))

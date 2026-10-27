@@ -60,20 +60,24 @@ import androidx.compose.ui.graphics.Color
  * With [teams] (Two-Headed Giant) each panel is a team split in two:
  * players 1 and 2, then 3 and 4, with empty halves until the team fills.
  * Each panel shows its player's tile card art ([cards]: name and printing), as the table will.
+ * With [emperor] the map is the Emperor table's six seats ([EMPEROR_PLACEMENT]), each labelled
+ * with its role, the emperors' panels bigger.
  */
 @Composable
 internal fun SeatMap(names: List<String>, onSwap: (Int, Int) -> Unit, modifier: Modifier = Modifier,
     backgrounds: List<TileBackground> = emptyList(), colors: List<String?> = emptyList(), teams: Boolean = false,
-    cards: List<Pair<String?, String?>> = emptyList()) {
+    cards: List<Pair<String?, String?>> = emptyList(), emperor: Boolean = false) {
     val p = palette
     val swap by rememberUpdatedState(onSwap)
     val configuration = LocalConfiguration.current
     // Panels: one per player, or one per team of two. Reserve both ends even before the
     // second panel fills, so setup doesn't jump.
-    val panels = (if (teams) (names.size + 1) / 2 else names.size).coerceAtLeast(2)
+    val panels = if (emperor) com.turnhub.android.domain.Emperor.PLAYERS
+        else (if (teams) (names.size + 1) / 2 else names.size).coerceAtLeast(2)
     // The same choice the table makes: side-by-side rows unless the screen is upright and more than two panels.
     val landscape = configuration.screenWidthDp >= configuration.screenHeightDp || panels <= 2
-    val plan = placements(panels)
+    val plan = if (emperor) EMPEROR_PLACEMENT else placements(panels)
+    fun share(index: Int) = emperorWeight(emperor, index)
     val bounds = remember(names.size) { mutableStateMapOf<Int, Rect>() }
     var picked by remember(names.size) { mutableStateOf<Int?>(null) }
     var dragging by remember(names.size) { mutableStateOf<Int?>(null) }
@@ -87,10 +91,10 @@ internal fun SeatMap(names: List<String>, onSwap: (Int, Int) -> Unit, modifier: 
             Box(
                 slotModifier.padding(3.dp).clip(RoundedCornerShape(12.dp))
                     .background(p.surface).border(1.dp, p.line, RoundedCornerShape(12.dp))
-                    .clearAndSetSemantics { contentDescription = "Seat ${index + 1}, empty" },
+                    .clearAndSetSemantics { contentDescription = "Seat ${index + 1}, " + (if (emperor) "${emperorRole(index)}, " else "") + "empty" },
                 contentAlignment = Alignment.Center,
             ) {
-                Text("Empty seat", color = p.muted, style = MaterialTheme.typography.labelLarge,
+                Text(if (emperor) "${emperorRole(index)}\nEmpty seat" else "Empty seat", color = p.muted, style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.padding(4.dp), textAlign = TextAlign.Center)
             }
             return@seat
@@ -154,7 +158,7 @@ internal fun SeatMap(names: List<String>, onSwap: (Int, Int) -> Unit, modifier: 
                     )
                 }
                 .clearAndSetSemantics {
-                    contentDescription = "Seat ${index + 1}, ${names[index]}" +
+                    contentDescription = "Seat ${index + 1}, ${names[index]}" + (if (emperor) ", ${emperorRole(index)}" else "") +
                         if (picked == index) ", picked. Tap another seat to swap" else ""
                     role = Role.Button
                     selected = picked == index
@@ -177,6 +181,8 @@ internal fun SeatMap(names: List<String>, onSwap: (Int, Int) -> Unit, modifier: 
                         Text("${index + 1}", color = p.avatarText, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                     }
                     Text(names[index], color = p.text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+                    if (emperor) Text(emperorRole(index), color = p.muted, style = MaterialTheme.typography.labelSmall,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                 }
             }
@@ -204,16 +210,16 @@ internal fun SeatMap(names: List<String>, onSwap: (Int, Int) -> Unit, modifier: 
         if (landscape) {
             Column(Modifier.fillMaxSize()) {
                 if (plan.far.isNotEmpty()) {
-                    Row(Modifier.weight(1f).fillMaxWidth()) { plan.far.forEach { slot(it, 180, Modifier.weight(1f).fillMaxHeight()) } }
+                    Row(Modifier.weight(1f).fillMaxWidth()) { plan.far.forEach { slot(it, 180, Modifier.weight(share(it)).fillMaxHeight()) } }
                 }
-                Row(Modifier.weight(1f).fillMaxWidth()) { plan.near.forEach { slot(it, 0, Modifier.weight(1f).fillMaxHeight()) } }
+                Row(Modifier.weight(1f).fillMaxWidth()) { plan.near.forEach { slot(it, 0, Modifier.weight(share(it)).fillMaxHeight()) } }
             }
         } else {
             Row(Modifier.fillMaxSize()) {
                 if (plan.far.isNotEmpty()) {
-                    Column(Modifier.weight(1f).fillMaxHeight()) { plan.far.asReversed().forEach { slot(it, 90, Modifier.weight(1f).fillMaxWidth()) } }
+                    Column(Modifier.weight(1f).fillMaxHeight()) { plan.far.asReversed().forEach { slot(it, 90, Modifier.weight(share(it)).fillMaxWidth()) } }
                 }
-                Column(Modifier.weight(1f).fillMaxHeight()) { plan.near.asReversed().forEach { slot(it, 270, Modifier.weight(1f).fillMaxWidth()) } }
+                Column(Modifier.weight(1f).fillMaxHeight()) { plan.near.asReversed().forEach { slot(it, 270, Modifier.weight(share(it)).fillMaxWidth()) } }
             }
         }
         // The centre menu disc, so the miniature reads as the same table.
