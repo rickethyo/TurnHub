@@ -770,6 +770,12 @@ correction. Atlas doesn't track these yet (`STAGED_CHANGES.md`), so connected
 play hides them. A player knocked out is the existing elimination, with its
 "Eliminated by" source.
 
+Everyone's counters (owner, 2026-10-27): for cards that give every player a
+counter, the phone-hosted game menu's **Everyone's counters** card adds or
+removes one poison, energy, experience, treasure or rad for every living player
+in one tap (`changeCounterForEveryone`). Each player still goes through the
+normal counter rules; Two-Headed Giant's shared poison changes once per team.
+
 Reversed turn order: for cards that reverse it (a plane, for example), the
 game menu's **Turn order** card and the Planes tab's card tools switch turns
 to counterclockwise and back (owner, 2026-10-20). The centre disc shows

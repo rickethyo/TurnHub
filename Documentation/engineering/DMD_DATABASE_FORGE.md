@@ -1,9 +1,9 @@
 # Death May Die Database Forge
 
 The [private browser workbench](https://turnhub-dmd-forge.zanyplume16.chatgpt.site)
-authors the Death May Die catalogue. Open it on any device and sign in with the
+authors the Death May Die catalogue. Open it on any device and sign in with
 an invited ChatGPT account. All invited accounts share the same catalogue, history
-and reference photos. It offers six entry types, reference/photo preview, rules
+and reference photos. It offers twelve entry types, reference/photo preview, rules
 and skill editing, physical-reference review checks, validation, shared saved
 drafts, checkpoints and build snapshots. It requires internet for shared storage.
 Unsaved edits live in the current tab; save before moving between devices.
@@ -22,7 +22,7 @@ Unsaved edits live in the current tab; save before moving between devices.
    incomplete/unverified content and are included in the report.
 
 ZIP output includes source JSON, generated Android Kotlin, validation report,
-reference photos and a SHA-256 manifest. Build snapshots and explicit checkpoints
+reference photos, tile footprint SVGs, engine authoring JSON and a SHA-256 manifest. Build snapshots and explicit checkpoints
 are retained in History; restore creates a draft that needs saving. Backup JSON
 also exports unsaved edits. Import validates JSON before replacing the local
 working draft and requires an explicit confirmation, then Save to persist it.
@@ -57,7 +57,7 @@ enters installed apps only through the normal reviewed app build/distribution.
 
 The private Site is a separate source repository. Local checkout for this slice:
 `D:/TurnHub/sites/dmd-database-forge`; its README owns browser build/development
-instructions. `lib/catalogue.mjs` is copied from the repository compiler and must
+instructions. `lib/catalogue.mjs` and `lib/content.mjs` are copied from the repository compiler modules and must
 remain byte-for-byte identical at each coordinated release. `lib/seed.json` is
 only the initial seed; deployment never overwrites an existing shared D1 draft.
 Use Import to intentionally update that draft. JSON backups do not embed images;
@@ -76,3 +76,42 @@ if you need copies independent of hosting. Edits across accounts and devices use
 optimistic revision checks, not simultaneous live collaboration. Your PC does not
 need to be on. Only the owner manages the Site allowlist; visitors can edit content
 inside the app without receiving source-code editing access.
+
+## Episode and engine content
+
+Discovery cards, Mythos cards, monsters, tokens, items/components and map tiles
+are dedicated categories alongside the original six. Entries support printed
+IDs, exact rules, flavor text, physical-source notes, episode links and reference
+scans. Episode records include season/number, setup, ordered end-of-turn text,
+ritual/victory/defeat conditions and named unknown-monster slots with monster links.
+
+Box inventory rows record kind, label, whole quantity, optional catalogue entry
+and face/color/variant notes. Unlinked deck totals may be saved as drafts;
+validation reminds the author to catalogue the individual cards. Split total rows
+as individual entries are linked so each physical copy is counted once. The two
+episode-box examples supplied by the owner have optional factual inventory draft
+buttons on their corresponding episode entries. No existing shared data is
+automatically replaced. Publisher flavor prose is not preloaded by the templates.
+The examples do not invent unreadable card rules.
+
+Trigger definitions capture timing windows, resolution order, conditions,
+targets, costs, effects/replacements, duration, limits, choices and interaction
+notes. Reference-only, draft and reviewed automation states track preparation;
+reviewed automation requires physical verification and nonempty effects. Content
+edits clear verification and demote reviewed automation. The engine export is
+authoring data; the current runtime does not execute these definitions.
+
+Tiles are classified by collection, printed ID, side and shape (square, rectangle,
+L, T or custom). An editable connected-cell grid renders a schematic footprint,
+with SVG download/build output. Actual map artwork uses attached reference scans;
+rooms/space IDs and connections are entered as reference notes. The outline does
+not infer rooms, doors or movement. Store each printed face as a separate record.
+
+These are optional schema-1 additions. Existing drafts load without alteration,
+and all expanded data survives JSON backup/import/build. Android generation keeps
+its original supported catalogue projections; future engine implementation must
+review and explicitly consume the authoring definitions.
+
+Content rights are not certified by a physical-review checkmark or build. See the
+[DMD rights audit](../legal/DMD_RIGHTS_AUDIT.md) before importing or distributing
+third-party text/art; community prepopulation is on hold.

@@ -1186,3 +1186,45 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   (801.2c); the manual says so.
 - Validation: new `EmperorTest`, `TableLobbyTest` and `LanSessionsTest` cases;
   Android unit tests run in CI (no Android SDK in the cloud container).
+
+## 2026-10-27 Claude: hold the game connection in the background (Android)
+
+- Owner request: keep the game connection when the app is backgrounded.
+- `AtlasLinkHoldService` now also starts for a shared-game host or seated guest,
+  holds for five minutes (was two) and takes a Wi-Fi lock and partial wake lock
+  for that time. A backgrounded host keeps serving guests while the hold runs
+  (catching up the turn timer first) instead of answering `unavailable` at once.
+- Validation: Android builds and unit tests run in CI (no SDK in the cloud
+  container). Background behavior *needs verification* on devices.
+
+## TH-034: Forge episode inventory and engine authoring
+
+- Owner: Codex, 2026-10-21, codex/master, merged baseline 8dcb6d4. Refs fetched;
+  no open PRs or overlapping scopes. Separate Site source retained. No delegation.
+- Adds discovery/Mythos cards, regular/unknown monsters, tokens/items, episode
+  manifests/quantities/flavor/setup/end-turn/outcomes/unknown slots, trigger
+  authoring and map tiles with printed ID, side, shape/grid and SVG renders.
+- Optional schema-1 additions preserve existing drafts and references. New data
+  exports in JSON/engine authoring records; current Android catalogue output is
+  unchanged. Source and compiler modules synchronized across both repositories.
+- Validation: eleven compiler/validator scenarios and three shared-workspace tests
+  pass; TypeScript and production build pass. Local API expanded round-trip
+  covers all six new types, inventory quantities/links, flavor, triggers, unknown
+  slots, tile SVGs, invalid-geometry rejection and stale saves. Browser confirms
+  categories and episode fields render; native confirmation testing hit a browser
+  CDP timeout. No production draft was altered for tests.
+
+### TH-034 rights audit / 2026-10-21
+
+- Owner expands licensed-only import request to all existing DMD material and
+  publisher fan-app policy. Reviewed canonical/Site seed and authenticated shared
+  Backup JSON: 264 records each, 46 records with prose, 54 external image refs
+  (44 distinct). Shared has one edited/physically checked skill, no uploaded refs.
+  Snapshot/findings remain in Private/TurnHub-backups/dmd-rights-audit-2026-10-21.
+- Official campaign update reports Asmodee acquisition; published 2024 FFG/ANA
+  policy says no apps and no substantial copied game material. No DMD-specific
+  software grant found. Community import held; actual report lives in
+  Documentation/legal/DMD_RIGHTS_AUDIT.md, not assumed licensed fan use.
+- Corrected our two Site example templates to stop copying publisher flavor prose;
+  factual count templates and existing saved drafts remain. No new third-party
+  community data, artwork or rules imported. No messages sent or release performed.

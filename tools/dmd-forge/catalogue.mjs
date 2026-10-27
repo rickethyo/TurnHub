@@ -1,9 +1,10 @@
-export const TYPES = ['investigator', 'skill', 'condition', 'relic', 'elder', 'episode'];
-export const LABELS = {investigator:'Investigators',skill:'Skills',condition:'Conditions',relic:'Relics',elder:'Elder Ones',episode:'Episodes'};
+import {EXTRA_TYPES,extensionDefaults,validateExtensions,tileSvg} from './content.mjs';
+export const TYPES = ['investigator', 'skill', 'condition', 'relic', 'elder', 'episode', ...EXTRA_TYPES];
+export const LABELS = {investigator:'Investigators',skill:'Skills',condition:'Conditions',relic:'Relics',elder:'Elder Ones',episode:'Episodes',discovery:'Discovery cards',mythos:'Mythos cards',monster:'Monsters',token:'Tokens',item:'Items & components',tile:'Map tiles'};
 export const slug = value => value.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 const urlHost = value => {try{return new URL(value).hostname;}catch{return '';}};
 export function blankRecord(type, name='Untitled') {
-  return {id:`${type}:${slug(name)}`,type,name,collection:'Custom',sourceUrl:'',aliases:[],imageUrl:'',imageId:'',referenceImage:'',
+  return {...extensionDefaults(type),id:`${type}:${slug(name)}`,type,name,collection:'Custom',sourceUrl:'',aliases:[],imageUrl:'',imageId:'',referenceImage:'',
     rules:'',transformedRules:'',rulesSourceUrl:'',reviewNote:'',verified:false,transformedVerified:false,skillIds:[],levels:type==='skill'?['','','','']:[],preset:false,filterable:false};
 }
 export function validate(doc) {
@@ -18,13 +19,13 @@ export function validate(doc) {
     if(typeof r.id!=='string'||!new RegExp(`^${r.type}:[a-z0-9][a-z0-9-]{0,100}$`).test(r.id)||ids.has(r.id)) add('error',r,'Record ID must be unique and match its type.','id');
     ids.add(r.id);
     if(typeof r.name!=='string'||!r.name.trim()||r.name.length>(r.type==='skill'?60:r.type==='investigator'?32:r.type==='elder'||r.type==='episode'?40:80)) add('error',r,'Name is missing or exceeds the app limit.','name');
-    const nk=r.type+':'+String(r.name).trim().toLowerCase();if(names.has(nk)) add('error',r,'Duplicate name in this content type.','name');names.add(nk);
+    const nk=r.type+':'+(EXTRA_TYPES.includes(r.type)?(r.episodeId||''):'')+':'+(r.type==='tile'?(r.collection+':'+r.printedId+':'+r.side+':'):'')+String(r.name).trim().toLowerCase();if(names.has(nk)) add('error',r,'Duplicate name in this content type.','name');names.add(nk);
     for(const f of ['collection','sourceUrl','imageUrl','referenceImage','rules','transformedRules','reviewNote']) {
       if(typeof r[f]!=='string' || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(r[f])) add('error',r,`${f} must be text without control characters.`,f);
     }
     if(String(r.collection).length>120||!String(r.collection).trim()) add('error',r,'Choose a collection.','collection');
     for(const f of ['sourceUrl','imageUrl','rulesSourceUrl']) if(r[f]) {try {const u=new URL(r[f]);if(u.protocol!=='https:'||u.username||u.password) throw Error();}catch {add('error',r,'Use a complete HTTPS reference URL.',f);}}
-    if((r.rules?.length||0)>2000||(r.transformedRules?.length||0)>2000||(r.reviewNote?.length||0)>2000) add('error',r,'Card rules and notes are limited to 2,000 characters.','rules');
+    if((r.rules?.length||0)>(['condition','relic'].includes(r.type)?2000:8000)||(r.transformedRules?.length||0)>2000||(r.reviewNote?.length||0)>2000) add('error',r,'Rules exceed the text limit (2,000 for condition/relic cards, 8,000 for other content); notes and transformed text allow 2,000.','rules');
     if(!Array.isArray(r.aliases)||r.aliases.length>20||r.aliases.some(x=>typeof x!=='string'||x.length>100)) add('error',r,'Aliases must be a list of at most 20 short names.','aliases');
     for(const f of ['verified','transformedVerified','preset','filterable']) if(typeof r[f]!=='boolean') add('error',r,`${f} must be true or false.`,f);
     if(!Array.isArray(r.levels)||r.levels.length>4||r.levels.some(x=>typeof x!=='string'||x.length>600)) add('error',r,'Skills support four level descriptions, up to 600 characters each.','levels');
@@ -47,6 +48,7 @@ export function validate(doc) {
   const map=new Map(doc.records.filter(Boolean).map(r=>[r.id,r]));
   for(const r of doc.records.filter(Boolean)) for(const id of Array.isArray(r.skillIds)?r.skillIds:[]) if(map.get(id)?.type!=='skill') add('error',r,`Unknown skill reference: ${id}`,'skillIds');
   const images=new Map();for(const r of doc.records.filter(Boolean)) if(r.imageId&&r.imageUrl){if(images.has(r.imageId)&&images.get(r.imageId)!==r.imageUrl)add('error',r,'A shared image ID must refer to the same image URL.','imageId');images.set(r.imageId,r.imageUrl);}
+  validateExtensions(doc,add);
   return issues;
 }
 const q = value => JSON.stringify(String(value)).replace(/\$/g,'\\$').replace(/\\f/g,'\\u000c');
@@ -74,7 +76,8 @@ export function generateKotlin(doc) {
 }
 export function filesForBuild(doc) {
   const kotlin=generateKotlin(doc),issues=validate(doc);
-  return {'catalogue.json':JSON.stringify(doc,null,2)+'\n','android/DmdContent.generated.kt':kotlin,
+  const extraFiles={'engine/authoring.json':JSON.stringify({schema:1,status:'authoring-only',records:doc.records},null,2)+'\n',...Object.fromEntries(doc.records.filter(r=>r.type==='tile').map(r=>[`renders/${r.id.replace(':','-')}.svg`,tileSvg(r)]))};
+  return {...extraFiles,'catalogue.json':JSON.stringify(doc,null,2)+'\n','android/DmdContent.generated.kt':kotlin,
     'validation.json':JSON.stringify({schema:1,records:doc.records.length,errors:issues.filter(i=>i.severity==='error').length,warnings:issues.filter(i=>i.severity==='warning').length,issues},null,2)+'\n',
     'README.md':'# TurnHub Death May Die catalogue\n\nImport catalogue.json with the TurnHub repository tool:\n\n    node tools/dmd-forge/build.mjs --input /path/to/catalogue.json --import\n\nReview the diff and run the Android tests before distribution. Reference photos are authoring materials; they are not automatically bundled into the app. Existing in-game verification and saved-match references remain separate.\n'};
 }

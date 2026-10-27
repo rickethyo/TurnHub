@@ -3,6 +3,7 @@ package com.turnhub.android.lan
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.turnhub.android.data.AtlasLinkHoldService
 import com.turnhub.android.standalone.LocalPersonalization
 import com.turnhub.android.standalone.StandaloneGame
 import com.turnhub.android.standalone.StandaloneTable
@@ -72,6 +73,8 @@ internal class LanViewModel(
     }
 
     fun setForeground(value: Boolean) { foreground = value }
+    /** Hosting or seated as a guest: leaving the screen should hold the Wi-Fi link. */
+    val holdsConnection get() = server != null || token != null
     fun permissionDenied() { _state.update { it.copy(message = "Allow Nearby devices in Android settings to host or join over Wi-Fi.") } }
 
     /** [qrOnly] is this device's join security: true makes guests scan its QR instead of typing a code. */
@@ -93,7 +96,8 @@ internal class LanViewModel(
                 val code = if (qrOnly) null else LanJoinCode.generate()
                 val key = code ?: randomLanSecret()
                 val core = LanSessions(session, key, { table.state.value.game }, table::applyLanAction,
-                    unavailable = { !foreground || table.state.value.storageProblem != null },
+                    // A backgrounded host keeps serving while the link hold runs.
+                    unavailable = { (!foreground && !AtlasLinkHoldService.active) || table.state.value.storageProblem != null },
                     looks = {
                         val state = table.state.value
                         val saved = state.library.players.associate { it.localId to it.personalization }
@@ -108,6 +112,8 @@ internal class LanViewModel(
                         socket.bind(InetSocketAddress(wifi.address, 0), 8)
                         val listening = LanServer(socket) { request ->
                             runBlocking(Dispatchers.Main.immediate) {
+                                // The screen's turn-timer tick stops in the background; catch up first.
+                                if (!foreground) table.tick()
                                 val reply = if (sessions === core) core.handle(request) else JSONObject()
                                     .put("v", LAN_VERSION).put("session", session).put("code", "ended")
                                 _state.update { it.copy(guests = sessions?.guests.orEmpty()) }

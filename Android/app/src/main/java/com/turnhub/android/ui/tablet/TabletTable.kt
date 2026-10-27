@@ -683,6 +683,22 @@ internal fun TabletTable(
                             }, Modifier.fillMaxWidth(), tone = Tone.ACCENT, enabled = !isOffline && anySeat != null)
                         }
                     }
+                    // A card that gives every player a counter: one tap instead of one per panel.
+                    if (standalone && summary.settings.profile.magicRules) {
+                        DisclosureCard("Everyone's counters") {
+                            Text("Adds or removes one for every living player.", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                            EVERYONE_COUNTER_LABELS.forEach { (kind, label) ->
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(label, color = p.text, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                                    ToneButton("−1 all", { send(anySeat, "${StandaloneGame.EVERYONE_PREFIX}$kind:-1") },
+                                        enabled = !isOffline && anySeat != null)
+                                    ToneButton("+1 all", { haptics.tick(); send(anySeat, "${StandaloneGame.EVERYONE_PREFIX}$kind:1") },
+                                        tone = Tone.ACCENT, enabled = !isOffline && anySeat != null)
+                                }
+                            }
+                        }
+                    }
                     DisclosureCard("Table tools") {
                         TableToolsCard(summary, reduceMotion) { haptics.tick() }
                     }
@@ -1803,3 +1819,7 @@ internal fun ArmedButton(label: String, armedLabel: String, tone: Tone, onConfir
         tone = tone,
     )
 }
+
+/** The game menu's whole-table counters, in the order a player's own counters list them. */
+private val EVERYONE_COUNTER_LABELS = listOf("poison" to "☠ Poison", "energy" to "⚡ Energy",
+    "experience" to "★ Experience", "treasure" to "◈ Treasure", "rad" to "☢ Rad")

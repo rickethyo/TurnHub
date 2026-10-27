@@ -216,6 +216,25 @@ class LanSessionsTest {
         }
     }
 
+    @Test fun `any seated guest pauses or resumes the table and a repeated tap changes nothing`() {
+        val f = Fixture(tcg(GameProfile.MTG))
+        val a = f.join("player", 1).getString("token")
+        val b = f.join("player", 2).getString("token")
+        assertEquals("ok", f.sessions.handle(f.action(a, "pause", 1)).getString("code"))
+        assertEquals(TableState.PAUSED, f.table.state.value.game.state)
+        // A second Pause (another phone, or a crossed tap) never resumes.
+        assertEquals("rejected", f.sessions.handle(f.action(b, "pause", 1)).getString("code"))
+        assertEquals(TableState.PAUSED, f.table.state.value.game.state)
+        assertEquals("ok", f.sessions.handle(f.action(b, "pause", 0)).getString("code"))
+        assertEquals(TableState.RUNNING, f.table.state.value.game.state)
+        assertEquals("rejected", f.sessions.handle(f.action(a, "pause", 2)).getString("code"))
+        // Death May Die investigators have the same control.
+        val dmd = Fixture()
+        val investigator = dmd.join().getString("token")
+        assertEquals("ok", dmd.sessions.handle(dmd.action(investigator, "pause", 1)).getString("code"))
+        assertEquals(TableState.PAUSED, dmd.table.state.value.game.state)
+    }
+
     @Test fun `a guest's win claim waits for the other players in turn order and a denial withdraws it`() {
         val f = Fixture(StandaloneGame().setFormat(GameProfile.MTG_COMMANDER)
             .addPlayer("A").addPlayer("B").addPlayer("C").chooseStarter(0).start(1_000, "shared-match"))

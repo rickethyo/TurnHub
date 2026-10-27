@@ -119,6 +119,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
                 menu = false; tableView = false; planesChosen = !planesChosen
             }, Modifier.weight(1f))
             if (planesDisplay) Spacer(Modifier.weight(1f))
+            if (!planesDisplay) GuestPauseButton(game, state.online && !state.busy && !state.uncertain && own != null && !own.eliminated, model)
             ToneButton("Leave", { confirmLeave = true })
         }
         Text("${sharedGameTitle(game)} · ${if (planesDisplay) "Planes display" else if (planesView) "Planes" else if (tableView) "Table · read only" else own?.label ?: "My player"} · ${if (!state.online) "Disconnected · last update" else if (state.busy) "Sending…" else "Connected"}",
@@ -231,3 +232,11 @@ private const val LIFE_GATHER_MS = 700L
 
 /** The shortest table panel that still shows its name band and the whole life total. */
 private val MIN_REMOTE_PANEL = 200.dp
+
+/** Pause or resume the whole table from a seated guest's own phone; the host applies it. */
+@Composable
+internal fun GuestPauseButton(game: StandaloneGame, enabled: Boolean, model: LanViewModel, modifier: Modifier = Modifier) {
+    val paused = game.state == TableState.PAUSED
+    if (game.state != TableState.RUNNING && !paused) return
+    ToneButton(if (paused) "Resume" else "Pause", { model.act("pause", if (paused) 0 else 1) }, modifier, enabled = enabled)
+}

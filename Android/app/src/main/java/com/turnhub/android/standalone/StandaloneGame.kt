@@ -669,6 +669,23 @@ data class StandaloneGame(
     }
 
     /**
+     * One tap for the whole table, e.g. a card that gives every player a rad counter:
+     * [kind] changes by [delta] for each living player, once per team for shared poison.
+     * Each player still goes through [changeCounter], so its bounds and elimination rules hold.
+     */
+    fun changeCounterForEveryone(kind: String, delta: Int, nowMs: Long = startedAtMs): StandaloneGame {
+        if (kind !in EVERYONE_COUNTERS || delta !in listOf(-1, 1)) return this
+        var next = this
+        val counted = mutableSetOf<Int>()
+        players.indices.forEach { i ->
+            if (next.players[i].eliminated) return@forEach
+            if (kind == "poison" && !counted.add(mates(i).first())) return@forEach
+            next = next.changeCounter(i, kind, delta, nowMs = nowMs)
+        }
+        return next
+    }
+
+    /**
      * The player milled as many cards as their rad counters, and [nonlands] of them weren't
      * lands: they lose that much life and remove that many rad counters (CR 727). Zero just
      * clears the reminder.
@@ -1386,6 +1403,9 @@ data class StandaloneGame(
         const val TAKE_TURN_KIND = "take-turn"
         /** Resolves the turn's rad trigger; the value is how many milled cards were nonlands. */
         const val RAD_KIND = "rad-resolve"
+        /** The counters the game menu can give every player at once. */
+        val EVERYONE_COUNTERS = listOf("poison", "energy", "experience", "treasure", "rad")
+        const val EVERYONE_PREFIX = "everyone:"
         /** Counter kind for Death May Die's stress tokens. */
         const val STRESS_KIND = "stress"
         const val FIRE_KIND = "fire"

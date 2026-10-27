@@ -215,6 +215,16 @@ class StandaloneGameTest {
     }
 
     @Test
+    fun `everyone's counters change every living player once and team poison once per team`() {
+        val game = threePlayers().eliminate(2, 2_000).changeCounterForEveryone("rad", 1, 3_000)
+        assertEquals(listOf(1, 1, 0), game.players.map { it.counters.rad })
+        assertSame(game, game.changeCounterForEveryone("life", 1))
+        assertSame(game, game.changeCounterForEveryone("rad", 2))
+        val teams = teams().start(1_000, "t", firstSeat).changeCounterForEveryone("poison", 1, 2_000)
+        assertEquals(listOf(1, 1, 1, 1), teams.players.map { it.counters.poison })
+    }
+
+    @Test
     fun `treasure rad and day or night are kept and survive recovery`() {
         val game = threePlayers().changeCounter(0, "treasure", 3).changeCounter(0, "treasure", -1)
             .changeCounter(1, "rad", 4).setDayNight(DayNight.DAY).setDayNight(DayNight.NIGHT)
