@@ -452,7 +452,11 @@ class StandaloneTable(
                 "reset" -> game.reset()
                 "back-to-setup" -> game.backToSetup(now)
                 "checkup-done" -> game.dismissCheckup()
-                else -> game
+                // "everyone:rad:1": the game menu's one tap for every player's counter.
+                else -> if (action.startsWith(StandaloneGame.EVERYONE_PREFIX)) {
+                    val (kind, delta) = action.removePrefix(StandaloneGame.EVERYONE_PREFIX).split(':').let { it.getOrNull(0) to it.getOrNull(1)?.toIntOrNull() }
+                    if (kind != null && delta != null) game.changeCounterForEveryone(kind, delta, now) else game
+                } else game
             }
         }
         return _state.value.game !== before
