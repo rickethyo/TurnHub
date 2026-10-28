@@ -166,7 +166,7 @@ and retry pending work after reconnect. Match IDs and mappings remain frozen
 while acknowledgement is uncertain. Imported or rejected records are never
 queued again automatically; partial credit needs review. Missing/archived profiles
 or duplicate targets leave games for manual mapping. This does not enlarge
-Atlas's 64-receipt deduplication window or make its statistics transaction atomic.
+Atlas's 128-receipt deduplication window or make its statistics transaction atomic.
 
 With **no Atlas at the table**, the **full-screen table**
 runs the game on the device itself: life, Commander damage, counters,
@@ -244,7 +244,7 @@ merged back live. The rules above apply in full whenever Atlas is present.
   Acknowledged partial credit is displayed and never automatically retried.
 - Existing queue records are retained as legacy history without guessed local
   or Atlas identity and can be explicitly mapped per match. Earlier imported/
-  dropped records cannot be reconstructed. Atlas's 64-receipt dedupe window and
+  dropped records cannot be reconstructed. Atlas's 128-receipt dedupe window and
   possible partial credit after storage failure/power loss remain unchanged;
   this is not crash-safe exactly-once statistics across arbitrary retries.
 - No multi-phone play or Sigils in standalone mode.

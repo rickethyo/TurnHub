@@ -164,8 +164,9 @@ limit is applied. Existing queued records are retained for explicit review
 without inferred local or Atlas identity, as required by TH-001. This bounded
 queue intake is not a firmware storage migration. Already discarded records
 cannot be recovered. See [Android](../../Android/README.md) for schema, validators,
-retention, storage-failure and backup limits. Atlas's existing `sgimport` receipt
-ring remains 64 entries; completion receipts/partial-write durability are not
+retention, storage-failure and backup limits. Atlas's `sgimport` receipt
+ring holds 128 per-(record, profile) receipts (schema 2, 2026-10-28; a schema 1
+ring is discarded); completion receipts/partial-write durability are not
 expanded by this feature, and the parked storage batch remains parked.
 
 ## Bounded SD artwork records (2026-10-10)

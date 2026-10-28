@@ -4448,7 +4448,7 @@ static void standaloneImport() {
   bad=record; bad["atlasId"]="THA-OTHER"; assert(request("/api/standalone/import",ana,bad)==400);
   bad=record; bad.erase("atlasId"); assert(request("/api/standalone/import",ana,bad)==400);
   // A same-name account must never rescue missing, deleted or foreign identity.
-  bad=record; bad["profile1"]=""; assert(request("/api/standalone/import",ana,bad)==400);
+  bad=record; bad["profile0"]=""; bad["profile1"]=""; assert(request("/api/standalone/import",ana,bad)==400);
   bad=record; bad["profile1"]="000000000000"; assert(request("/api/standalone/import",ana,bad)==400);
   bad=record; bad["profile1"]=anaId; assert(request("/api/standalone/import",ana,bad)==400);
   TurnHubAccounts::accounts[benId.c_str()].archived=true;
@@ -4484,6 +4484,28 @@ static void standaloneImport() {
   next["winner"]="";
   assert(request("/api/standalone/import",ana,next)==200 && server.body.find("\"credited\":2")!=std::string::npos);
   assert(ProfileFixture::profiles[anaId.c_str()].stats.lastGameResult==TurnHubProfiles::LastGameResult::Draw);
+
+  // A guest seat (empty profile) is not credited. Sending the record again
+  // after that player is linked credits only them; Ana is not counted twice.
+  auto partial=record; partial["recordId"]="0f8e5c2a-3333-4222-8333-444455556666"; partial["profile1"]="";
+  const uint32_t anaPlayed=ProfileFixture::profiles[anaId.c_str()].stats.gamesPlayed;
+  const uint32_t benPlayed=ProfileFixture::profiles[benId.c_str()].stats.gamesPlayed;
+  assert(request("/api/standalone/import",ana,partial)==200);
+  assert(server.body.find("\"credited\":1,\"already\":0,\"guests\":1")!=std::string::npos);
+  assert(ProfileFixture::profiles[anaId.c_str()].stats.gamesPlayed==anaPlayed+1);
+  assert(ProfileFixture::profiles[benId.c_str()].stats.gamesPlayed==benPlayed);
+  assert(request("/api/standalone/import",ana,partial)==200 && server.body.find("\"duplicate\":true")!=std::string::npos);
+  partial["profile1"]=benId;
+  assert(request("/api/standalone/import",ana,partial)==200);
+  assert(server.body.find("\"duplicate\":false,\"credited\":1,\"already\":1,\"guests\":0")!=std::string::npos);
+  assert(ProfileFixture::profiles[anaId.c_str()].stats.gamesPlayed==anaPlayed+1);
+  assert(ProfileFixture::profiles[benId.c_str()].stats.gamesPlayed==benPlayed+1);
+  assert(request("/api/standalone/import",ana,partial)==200 && server.body.find("\"duplicate\":true")!=std::string::npos);
+  // A ring from before per-player receipts is discarded, not an error.
+  blobs.blobs[TurnHubStandalone::IMPORTED_KEY]={1,0,0};
+  auto later=record; later["recordId"]="0f8e5c2a-4444-4222-8333-444455556666";
+  assert(request("/api/standalone/import",ana,later)==200 && server.body.find("\"credited\":2")!=std::string::npos);
+  assert(blobs.blobs[TurnHubStandalone::IMPORTED_KEY][0]==2);
 
   assert(request("/api/session/logout",ana)==200 && request("/api/session/logout",ben)==200);
   ProfileFixture::profiles.erase(anaId.c_str()); ProfileFixture::profiles.erase(benId.c_str());
@@ -5289,6 +5311,12 @@ static void tenPlayerImportCredit() {
   const auto &stats=ProfileFixture::profiles[record.players[9].profileId.c_str()].stats;
   assert(stats.gamesWon==1 && stats.eliminationsMade==9 && stats.lastGameEliminationsMade==9);
   assert(importGame(record).status==ImportStatus::Duplicate && stats.eliminationsMade==9);
+  // Each credit takes its own receipt; the ring keeps the newest 128.
+  for (uint8_t round=0;round<13;++round) {
+    auto again=record; again.recordId=String("ten-player-round-")+String(round);
+    assert(importGame(again).status==ImportStatus::Imported);
+  }
+  assert(blobs.blobs[IMPORTED_KEY].size()==3u+IMPORTED_CAPACITY*8u);
   for (uint8_t i=0;i<10;++i) ProfileFixture::profiles.erase(record.players[i].profileId.c_str());
   useImportStore(nullptr);
 }
@@ -5627,7 +5655,7 @@ int main() {
   chargingEstimate(); std::cout<<"PASS charging estimate: no jump on USB, counted climb, never down, full only after the limit\n";
   powerSource(); std::cout<<"PASS power source: USB pulled and plugged in, slow discharge, no cell, started on the cell\n";
   tenPlayerImportCredit(); std::cout<<"PASS ten-player imports, high winner bit, elimination credit and retry deduplication\n";
-  standaloneImport(); std::cout<<"PASS standalone import: exact Atlas/profile scope, no name fallback, invalid mapping, duplicates, storage failure, draw\n";
+  standaloneImport(); std::cout<<"PASS standalone import: exact Atlas/profile scope, no name fallback, invalid mapping, guests, per-player receipts, duplicates, storage failure, draw\n";
   tabletMode(); std::cout<<"PASS tablet mode: presence code, Tablet access role, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
   tableCodeOptional(); std::cout<<"PASS table code optional: off by default (Admin still required), on needs codes, off again needs one" << std::endl;

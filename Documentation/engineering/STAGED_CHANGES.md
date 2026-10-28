@@ -211,6 +211,16 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   durable completion receipts in [Shared table authority](TABLE_AUTHORITY.md).
   Unified lobby/table presentation is implemented; full offline hosting of an
   Atlas game is not.
+- **Profile transfer and merge** (owner, 2026-10-28; *Planned*): profiles live
+  on the device that created them and carry all their statistics to an Atlas.
+  Done: imported matches accept guest seats and per-(record, profile)
+  receipts ([import contract](../../protocol/http-v1.md#standalone-tablet-game-import-2026-10-07)).
+  Next: Android delivers every match with at least one linked player and
+  re-sends a match when another of its players is linked; a "Bring players to
+  this table" screen uploads or merges every local account at once, and
+  PIN-less accounts upload PIN-less on the phone's signed-in session (owner,
+  2026-10-28; the first sign-in sets a PIN); then merging two Atlas profiles
+  (summed totals, survivor keeps links, absorbed ID kept as an alias).
 - **Local library management:** export/backup, explicit history deletion/
   retention and large-history storage/performance remain open. Local player
   editing, PIN removal, account deletion and retained UUID-based history are

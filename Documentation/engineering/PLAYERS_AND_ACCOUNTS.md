@@ -235,8 +235,9 @@ Equal names remain separate. Completed matches snapshot identity/name and keep
 local statistics independent of Atlas totals. History/import state belongs to
 Android's local library; see [Android](../../Android/README.md) for the schema.
 
-Optional import requires explicit per-match choices for all players on a
-specific `(atlasId, profileId)` destination. Linking never renames/replaces a
+Optional import requires explicit per-match choices on a specific
+`(atlasId, profileId)` destination; a player left unmapped is a guest and is
+not credited (2026-10-28), and linking them later credits just their part. Linking never renames/replaces a
 local player or rewrites historical match facts. No typed-name, cached-name or
 cross-Atlas matching exists. Pending mappings are frozen for retry, imported
 matches cannot be submitted again by the app, and rejected records/reasons stay

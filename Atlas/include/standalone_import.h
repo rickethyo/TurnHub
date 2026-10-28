@@ -7,11 +7,13 @@
 
 // Finished standalone tablet games (Android/README.md "The one exception"):
 // a game the app ran with no Atlas at the table reaches Atlas only as one of
-// these records, imported once. Atlas credits each player that matches one of
-// its profiles by explicit ID (never by name)
-// and ignores a record ID it has already taken. The ID is remembered before
-// any statistics are written, so a cut can lose a record's statistics but
-// a replay is not counted twice while its receipt remains in the 64-ID ring.
+// these records. Atlas credits each player that matches one of its profiles by
+// explicit ID (never by name); a player with no profile ID is a guest and is
+// not credited. Receipts are kept per (record, profile), so a record sent again
+// after another of its players was linked credits only that player. Receipts
+// are remembered before any statistics are written, so a cut can lose a
+// record's statistics but a replay is not counted twice while its receipts
+// remain in the 128-entry ring.
 namespace TurnHubStandalone {
 
 constexpr uint8_t MAX_IMPORT_PLAYERS = 10;
@@ -19,7 +21,7 @@ constexpr size_t MAX_RECORD_ID_LENGTH = 48;
 
 struct ImportedPlayer {
   String name;
-  // Required explicit profile ID on the destination Atlas.
+  // Explicit profile ID on the destination Atlas; empty for a guest.
   String profileId;
   uint32_t turnsCompleted = 0;
   uint32_t turnMs = 0;
@@ -53,16 +55,21 @@ enum class ImportStatus : uint8_t { Imported, Duplicate, Invalid, BadMapping, St
 struct ImportResult {
   ImportStatus status = ImportStatus::Invalid;
   uint8_t credited = 0;
+  // Mapped players this record had already credited (an earlier delivery).
+  uint8_t already = 0;
+  // Players sent without a profile ID.
+  uint8_t guests = 0;
   // Players whose statistics could not be credited (e.g. a storage write failed).
   uint8_t unmatchedCount = 0;
   String unmatched[MAX_IMPORT_PLAYERS];
 };
 
-// The record IDs already taken: schema 1, next slot, count, then up to
-// IMPORTED_CAPACITY 64-bit FNV-1a hashes, little-endian, under "sgimport".
+// The (record, profile) pairs already credited: schema 2, next slot, count,
+// then up to IMPORTED_CAPACITY 64-bit FNV-1a hashes, little-endian, under
+// "sgimport". A schema 1 ring (whole-record receipts) is discarded.
 constexpr char IMPORTED_KEY[] = "sgimport";
-constexpr uint8_t IMPORTED_CAPACITY = 64;
-uint64_t recordHash(const String &recordId);
+constexpr uint8_t IMPORTED_CAPACITY = 128;
+uint64_t receiptHash(const String &recordId, const String &profileId);
 
 // Where taken record IDs are kept: NVS ("turnhub") unless a test sets another.
 void useImportStore(TurnHubStorage::BlobStore *store);

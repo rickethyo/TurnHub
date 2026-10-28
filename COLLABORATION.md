@@ -1228,3 +1228,16 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
 - Corrected our two Site example templates to stop copying publisher flavor prose;
   factual count templates and existing saved drafts remain. No new third-party
   community data, artwork or rules imported. No messages sent or release performed.
+
+### Profile transfer: guests and per-player import receipts / Claude / 2026-10-28
+
+- Owner ask: profiles live on their creating device but upload and merge into
+  an Atlas with all statistics. Existing per-account import/link already works;
+  matches only reached Atlas when every player was linked.
+- `/api/standalone/import` now accepts an empty `profile<i>` (guest, not
+  credited; at least one mapped player). Receipts are per (record, profile) in
+  a 128-entry `sgimport` ring (schema 2; schema 1 discarded), so a re-sent
+  record credits only newly linked players. Answer adds `already` and `guests`.
+  Android behaviour unchanged until its per-player delivery follow-up.
+- Validation: Linux host suite with sanitizers passes (new guest, re-send,
+  schema-1 and ring-wrap checks); client contract check passes. No hardware run.

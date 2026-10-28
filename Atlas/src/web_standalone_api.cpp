@@ -142,7 +142,7 @@ void handleStandaloneImport(WebServer &server) {
       sendError(server, 400, "That game record is not valid");
       return;
     case ImportStatus::BadMapping:
-      sendError(server, 400, "A player is linked to a missing, archived or repeated Atlas profile; review the mapping");
+      sendError(server, 400, "A player is linked to a missing, archived or repeated Atlas profile, or no player is linked; review the mapping");
       return;
     case ImportStatus::StorageError:
       sendError(server, 503, "Atlas couldn't save that game; try again");
@@ -154,6 +154,10 @@ void handleStandaloneImport(WebServer &server) {
   body += result.status == ImportStatus::Duplicate ? "true" : "false";
   body += ",\"credited\":";
   body += String(result.credited);
+  body += ",\"already\":";
+  body += String(result.already);
+  body += ",\"guests\":";
+  body += String(result.guests);
   body += ",\"unmatched\":[";
   for (uint8_t i = 0; i < result.unmatchedCount; ++i) {
     if (i) body += ',';

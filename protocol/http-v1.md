@@ -429,23 +429,27 @@ otherwise), form fields:
   It must include `winner` as its lowest index (with `winner` empty, the lowest
   listed index becomes `winner`). Empty or absent means `winner` alone.
 - Per player `i` from 0, in turn order: `name<i>` (required), `profile<i>`
-  (required exact profile ID chosen on the destination Atlas), `turns<i>`, `turnMs<i>`,
+  (exact profile ID chosen on the destination Atlas, or empty for a guest who
+  is not credited; at least one player must have one), `turns<i>`, `turnMs<i>`,
   `fastest<i>`, `longest<i>` (completed turns and their times), `out<i>`
   (1 for the first player out, 0 for anyone still in).
 
 Atlas validates the whole mapping before writing a new receipt or statistics:
 every profile must exist, be readable and not archived, with no duplicate ID.
 Names are display labels and never an identity fallback. Answers
-`{"ok":true,"duplicate":false,"credited":N,"unmatched":[names]}`; a record ID
-Atlas already took answers `"duplicate":true` and changes nothing (also if a
-profile was subsequently archived). 400 for malformed/foreign/invalid mapping:
+`{"ok":true,"duplicate":false,"credited":N,"already":A,"guests":G,"unmatched":[names]}`.
+Receipts are per (record, profile) (2026-10-28): sending a record again after
+another of its players was linked credits only the newly mapped players;
+`already` counts mapped players this record had credited before (skipped, also
+if their profile was archived since). When no mapped player is new, Atlas
+answers `"duplicate":true` and changes nothing. 400 for malformed/foreign/invalid mapping:
 the app keeps the result and reason for explicit review, with no automatic retry.
 503 when Atlas couldn't save: pending delivery stays for retry with the same ID
 and mapping. A successful acknowledgement retains the local result and marks
 it imported; partial credit/unmatched players are displayed, not retried.
 
-Atlas remembers the last 64 record IDs (hashed, NVS `sgimport`) and saves the ID
-before any statistics, so a power cut can lose one game's statistics but does not count a replay twice while its receipt remains in that 64-ID
+Atlas remembers the last 128 (record, profile) receipts (hashed, NVS `sgimport`)
+and saves them before any statistics, so a power cut can lose one game's statistics but does not count a replay twice while its receipts remain in that
 window. It does not guarantee arbitrary long-term replay protection. Imported games add to games played, won, eliminated and
 started, completed turns and turn times, and set the last-game fields like a
 live game.

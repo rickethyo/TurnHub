@@ -13,7 +13,7 @@ namespace {
 using TurnHub::serialLog;
 using TurnHubStorage::Status;
 
-constexpr uint8_t IMPORTED_SCHEMA = 1;
+constexpr uint8_t IMPORTED_SCHEMA = 2;
 constexpr size_t IMPORTED_HEADER = 3;
 constexpr size_t IMPORTED_SIZE = IMPORTED_HEADER + IMPORTED_CAPACITY * 8;
 
@@ -36,6 +36,8 @@ Status readTaken(TurnHubStorage::BlobStore &blobs, Taken &taken) {
   size_t size = 0;
   Status status = blobs.read(IMPORTED_KEY, data, sizeof(data), size);
   if (status == Status::NotFound) return Status::Ok;
+  // A record-wide ring from before per-player receipts starts over.
+  if (status == Status::Ok && size >= 1 && data[0] == 1) return Status::Ok;
   if (status != Status::Ok) return status;
   if (size < IMPORTED_HEADER || data[0] != IMPORTED_SCHEMA) return Status::Corrupt;
   taken.next = data[1];
@@ -79,12 +81,15 @@ TurnHubProfiles::LastGameResult resultFor(const ImportedGame &game, uint8_t inde
 
 }  // namespace
 
-uint64_t recordHash(const String &recordId) {
+uint64_t receiptHash(const String &recordId, const String &profileId) {
   uint64_t hash = 1469598103934665603ULL;
-  for (size_t i = 0; i < recordId.length(); ++i) {
-    hash ^= static_cast<uint8_t>(recordId[i]);
+  auto add = [&hash](uint8_t byte) {
+    hash ^= byte;
     hash *= 1099511628211ULL;
-  }
+  };
+  for (size_t i = 0; i < recordId.length(); ++i) add(static_cast<uint8_t>(recordId[i]));
+  add('/');
+  for (size_t i = 0; i < profileId.length(); ++i) add(static_cast<uint8_t>(profileId[i]));
   return hash;
 }
 
@@ -119,19 +124,21 @@ ImportResult importGame(const ImportedGame &game) {
     result.status = ImportStatus::StorageError;
     return result;
   }
-  const uint64_t hash = recordHash(game.recordId);
-  for (uint8_t i = 0; i < taken.count; ++i) {
-    if (taken.hashes[i] == hash) {
-      result.status = ImportStatus::Duplicate;
-      return result;
-    }
-  }
+  auto seen = [&taken](uint64_t hash) {
+    for (uint8_t i = 0; i < taken.count; ++i)
+      if (taken.hashes[i] == hash) return true;
+    return false;
+  };
   if (!TurnHubProfiles::ready() && !TurnHubProfiles::begin()) {
     result.status = ImportStatus::StorageError;
     return result;
   }
-  // Exact identities only. Validate the whole mapping before taking the receipt
-  // or changing any statistics. Names remain display labels.
+  // Exact identities only. Validate the whole mapping before taking a receipt
+  // or changing any statistics. Names remain display labels; an empty ID is a
+  // guest. A player this record already credited is skipped, even if their
+  // profile has since been archived.
+  bool fresh[MAX_IMPORT_PLAYERS] = {};
+  uint8_t mapped = 0;
   for (uint8_t i = 0; i < game.playerCount; ++i) {
     const auto &p = game.players[i];
     if ((p.selfEliminated && (!p.outOrder || p.conceded || p.eliminatedBy >= 0 || p.bagDrawn)) ||
@@ -141,29 +148,47 @@ ImportResult importGame(const ImportedGame &game) {
         (p.eliminatedBy >= 0 && (!p.outOrder || p.conceded || p.eliminatedBy == i || p.eliminatedBy >= game.playerCount ||
             (game.twoHeadedGiant && p.eliminatedBy / 2 == i / 2)))) return result;
     const String &id = game.players[i].profileId;
-    bool bad = id.length() == 0 || !TurnHubProfiles::profileExists(id) || archived(id);
+    if (id.length() == 0) continue;
+    ++mapped;
+    bool bad = false;
     for (uint8_t j = 0; j < i; ++j) bad = bad || game.players[j].profileId == id;
+    if (!bad && seen(receiptHash(game.recordId, id))) {
+      ++result.already;
+    } else {
+      bad = bad || !TurnHubProfiles::profileExists(id) || archived(id);
+      fresh[i] = true;
+    }
     if (bad) {
       result.status = ImportStatus::BadMapping;
       return result;
     }
   }
+  if (mapped == 0) {
+    result.status = ImportStatus::BadMapping;
+    return result;
+  }
+  result.guests = static_cast<uint8_t>(game.playerCount - mapped);
+  if (result.already == mapped) {
+    result.status = ImportStatus::Duplicate;
+    return result;
+  }
   // Remembered first: a cut after this loses the statistics, never doubles them.
-  taken.hashes[taken.next] = hash;
-  taken.next = static_cast<uint8_t>((taken.next + 1) % IMPORTED_CAPACITY);
-  if (taken.count < IMPORTED_CAPACITY) ++taken.count;
+  for (uint8_t i = 0; i < game.playerCount; ++i) {
+    if (!fresh[i]) continue;
+    taken.hashes[taken.next] = receiptHash(game.recordId, game.players[i].profileId);
+    taken.next = static_cast<uint8_t>((taken.next + 1) % IMPORTED_CAPACITY);
+    if (taken.count < IMPORTED_CAPACITY) ++taken.count;
+  }
   if (writeTaken(*blobs, taken) != Status::Ok) {
     result.status = ImportStatus::StorageError;
     return result;
   }
-  String credited[MAX_IMPORT_PLAYERS];
   for (uint8_t i = 0; i < game.playerCount; ++i) {
+    if (!fresh[i]) continue;
     const ImportedPlayer &player = game.players[i];
     const String profileId = player.profileId;
-    bool repeat = false;
-    for (uint8_t c = 0; c < result.credited; ++c) repeat = repeat || credited[c] == profileId;
     TurnHubProfiles::ProfileStats stats{};
-    if (profileId.length() == 0 || repeat || !TurnHubProfiles::loadStatsForProfile(profileId, stats)) {
+    if (!TurnHubProfiles::loadStatsForProfile(profileId, stats)) {
       result.unmatched[result.unmatchedCount++] = player.name;
       continue;
     }
@@ -180,7 +205,7 @@ ImportResult importGame(const ImportedGame &game) {
     played.longestTurnMs = player.longestTurnMs;
     TurnHubProfileStats::applyGameResult(stats, played);
     if (TurnHubProfiles::saveStatsForProfile(profileId, stats)) {
-      credited[result.credited++] = profileId;
+      ++result.credited;
     } else {
       result.unmatched[result.unmatchedCount++] = player.name;
     }
@@ -189,7 +214,9 @@ ImportResult importGame(const ImportedGame &game) {
   serialLog.print("ATLAS|STANDALONE|IMPORT|players=");
   serialLog.print(game.playerCount);
   serialLog.print("|credited=");
-  serialLog.println(result.credited);
+  serialLog.print(result.credited);
+  serialLog.print("|guests=");
+  serialLog.println(result.guests);
   return result;
 }
 
