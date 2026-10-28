@@ -3,7 +3,10 @@
 // Two printed parts held together by four M3 screws from the back that pass
 // through the board's own mounting holes:
 //   tub   - back plate, walls, standoffs, side gutters for edge connectors
-//   bezel - front frame with the display window and microphone port
+//   bezel - front frame with the display window, microphone port and the
+//           speaker grille
+// The kit's 40 x 28 x 9.7 mm speaker is too thick to sit behind the board, so
+// it gets its own chamber above the board's top edge, firing through the front.
 //
 // Board numbers come from the LCDWIKI ES3C40P Specification V1.0, figure 5.1
 // (outline drawing, 2026-04-27) and were checked against Ricky's calipers
@@ -71,10 +74,14 @@ button_hole = 2.2;           // paper-clip access to BOOT and RESET
 sd_y = L / 2 - 28.96;        // microSD slot centre, on the -X wall
 sd_cut = [13.0, 2.8];        // width along Y, height in z
 sd_z_top = 0.4;
-speaker_grille = true;
-grille_c = [W / 2 - 20, L / 2 - 79];   // clear PCB area on the back
-grille_r = 11;
-grille_hole = 1.6;
+
+/* [Speaker: the board kit's oval box speaker, measured] */
+spk = [40.1, 28.3, 9.7];     // across, along the case, thick
+spk_clr = 0.5;
+div_t = 1.2;                 // divider between board bay and speaker chamber
+slot_w = 1.2;                // front grille slots
+slot_len = 24;
+slot_n = 6;
 
 $fn = 48;
 
@@ -85,7 +92,11 @@ z_bot = z_floor - back_t;
 z_pocket = PCB_T + FRONT_STACK + glass_gap;       // underside of the lip
 z_top = z_pocket + lip_t;
 in_x = W / 2 + clr + gutter;                      // tub cavity half-width
-in_top = L / 2 + clr;
+spk_y0 = L / 2 + clr + div_t;                     // speaker chamber, inside
+spk_y1 = spk_y0 + spk[1] + 2 * spk_clr;
+spk_yc = (spk_y0 + spk_y1) / 2;
+spk_seat = z_pocket - spk[2];                     // speaker face touches the lip
+in_top = spk_y1;
 in_bot = -(L / 2 + clr_usb);
 out_x = in_x + wall;
 out_top = in_top + wall;
@@ -133,6 +144,11 @@ module tub() {
             }
             // Standoffs under the four board holes.
             holes_at() translate([0, 0, z_floor - eps]) cylinder(d = standoff_d, h = -z_floor + eps);
+            // Divider between the board bay and the speaker chamber; the gutters
+            // stay open at both ends for the speaker lead.
+            translate([-W / 2 - clr, spk_y0 - div_t, z_floor - eps])
+                cube([W + 2 * clr, div_t, z_split - z_floor + eps]);
+            speaker_cradle();
             // Shelf in the gutter so a microSD card slides straight into the socket.
             translate([-in_x - eps, sd_y - sd_cut[0] / 2, z_floor - eps])
                 cube([gutter + eps, sd_cut[0], sd_z_top - sd_cut[1] - z_floor + eps]);
@@ -149,18 +165,25 @@ module tub() {
         translate([-out_x - 3.2, sd_y, sd_z_top - sd_cut[1] / 2])
             scale([1, 1.6, 0.9]) sphere(r = 4);
         for (b = buttons) translate([b[0], b[1], z_bot - 1]) cylinder(d = button_hole, h = back_t + 2);
-        if (speaker_grille) grille();
     }
 }
 
-module grille() {
-    pitch = grille_hole + 1.2;
-    for (i = [-8:8], j = [-8:8]) {
-        p = [i * pitch + (j % 2) * pitch / 2, j * pitch * sqrt(3) / 2];
-        if (norm(p) <= grille_r)
-            translate([grille_c[0] + p[0], grille_c[1] + p[1], z_bot - 1])
-                cylinder(d = grille_hole, h = back_t + 2, $fn = 12);
+// Low rim that locates the speaker, with corner pads that lift its face
+// against the bezel lip; notched at both ends for the lead.
+module speaker_cradle() {
+    sx = spk[0] / 2 + spk_clr;
+    sy = spk[1] / 2 + spk_clr;
+    difference() {
+        translate([0, spk_yc, z_floor - eps]) linear_extrude(spk_seat + 3 - z_floor + eps)
+            difference() {
+                rrect(-sx - 1.2, -sy - 1.2, sx + 1.2, sy + 1.2, 4);
+                rrect(-sx, -sy, sx, sy, 3);
+            }
+        for (m = [-1, 1]) translate([m * sx, spk_yc, z_floor]) cube([6, 8, 20], center = true);
     }
+    for (mx = [-1, 1], my = [-1, 1])
+        translate([mx * (sx - 3), spk_yc + my * (sy - 3), z_floor - eps])
+            cylinder(d = 5, h = spk_seat - z_floor + eps);
 }
 
 module bezel() {
@@ -172,7 +195,10 @@ module bezel() {
                 intersection() { body(); slab(z_split, z_top + 1); }
                 // Pocket for the board, display and glass.
                 translate([0, 0, z_split - 1]) linear_extrude(z_pocket - z_split + 1)
-                    rrect(-W / 2 - clr, in_bot, W / 2 + clr, in_top, PCB_R + clr);
+                    rrect(-W / 2 - clr, in_bot, W / 2 + clr, L / 2 + clr, PCB_R + clr);
+                translate([0, spk_yc, z_split - 1]) linear_extrude(z_pocket - z_split + 1)
+                    rrect(-spk[0] / 2 - spk_clr, -spk[1] / 2 - spk_clr,
+                          spk[0] / 2 + spk_clr, spk[1] / 2 + spk_clr, 3);
             }
             // Bosses that clamp the board against the standoffs; clipped so they
             // stay clear of the glass at the board ends.
@@ -193,6 +219,10 @@ module bezel() {
         }
         translate([mic_x, mic_y, z_pocket - 1]) linear_extrude(lip_t + 2)
             rrect(-mic_slot[0] / 2, -mic_slot[1] / 2, mic_slot[0] / 2, mic_slot[1] / 2, mic_slot[0] / 2 - eps);
+        for (i = [0:slot_n - 1])
+            translate([0, spk_yc + (i - (slot_n - 1) / 2) * 2 * slot_w, z_pocket - 1])
+                linear_extrude(lip_t + 2)
+                    rrect(-slot_len / 2, -slot_w / 2, slot_len / 2, slot_w / 2, slot_w / 2 - eps);
         holes_at() translate([0, 0, z_split - 1]) cylinder(d = screw_pilot, h = z_top - 1 - z_split);
         usb_opening();
     }
@@ -204,6 +234,8 @@ module board() {
     color("black") translate([0, 0, PCB_T]) linear_extrude(FRONT_STACK)
         rrect(-60.88 / 2, -L / 2 + 8.6, 60.88 / 2, L / 2 - 9.0, 0.5);
     color("silver") translate([-4.5, -L / 2 - 0.8, -3.2]) cube([9, 7.3, 3.2]);
+    color("black") translate([0, spk_yc, spk_seat]) linear_extrude(spk[2])
+        rrect(-spk[0] / 2, -spk[1] / 2, spk[0] / 2, spk[1] / 2, 4);
 }
 
 if (part == "tub") tub();

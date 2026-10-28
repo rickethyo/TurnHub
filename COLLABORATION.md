@@ -1275,7 +1275,7 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
 
 - Owner ask: a flat, rounded, smartphone-like printed case for the ES3C40P.
   `Atlas/enclosure/s3_phone_case/` holds the OpenSCAD source, tub and bezel
-  STLs and previews (74.8 x 117.6 x 14.6 mm, four M3 x 10 through the board
+  STLs and previews (74.8 x 148.1 x 14.6 mm with a front-firing speaker chamber at the top, four M3 x 10 through the board
   holes). Dimensions from the vendor outline drawing, matching the owner's
   calipers; side gutters fit plugs in every edge connector.
 - Validation: both parts render as closed manifolds; section views show no
