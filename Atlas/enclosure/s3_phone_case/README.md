@@ -1,7 +1,7 @@
 # Atlas S3 phone-style case
 
 *Experimental, not yet printed.* A flat, rounded case for the 4-inch LCDWIKI
-ES3C40P Atlas board in portrait, about **74.8 × 148.1 × 14.6 mm**.
+ES3C40P Atlas board in portrait, about **74.8 × 117.6 × 19.1 mm**.
 Source: [`atlas_s3_phone_case.scad`](atlas_s3_phone_case.scad) (OpenSCAD 2021.01 or newer).
 
 ![Closed case, front](preview_front.png)
@@ -11,11 +11,11 @@ Source: [`atlas_s3_phone_case.scad`](atlas_s3_phone_case.scad) (OpenSCAD 2021.01
 | Tub: back, walls, standoffs | [`atlas_s3_tub.stl`](atlas_s3_tub.stl) | Back face down, no supports |
 | Bezel: front frame and window | [`atlas_s3_bezel.stl`](atlas_s3_bezel.stl) | Front face down, no supports (already flipped) |
 
-![Tub with the speaker chamber](preview_tub.png)
+![Tub with the speaker cradle](preview_tub.png)
 
 Hardware: four **M3 × 10** screws from the back. They pass through the tub
 standoffs and the board's own holes, then self-tap into the bezel bosses
-(pilot 2.5 mm). For M3 × 5.7 heat-set inserts, set `screw_pilot = 4.0`.
+(pilot 2.5 mm). The heads sit in deep counterbores in the standoffs. For M3 × 5.7 heat-set inserts, set `screw_pilot = 4.0`.
 
 ## Layout
 
@@ -36,14 +36,13 @@ the UI draws upside down in the case, flip `LCD_ROTATION` in
   the board's long edges, so the tub has a 4.5 mm gutter down each side for
   the plugs. Wires turn under the board into the back cavity.
 - **Speaker:** the board kit's oval speaker (40.1 × 28.3 × 9.7 mm, measured)
-  is too thick for the 5.5 mm behind the board. It gets its own chamber above
-  the board's top edge: a cradle in the tub lifts its face against the bezel,
-  and six slots in the front let the sound out. Its 50 mm lead can't reach
-  either 2-pin socket from there (they sit mid-edge, 8.5–10.5 cm away), so add
-  a 1.25 mm 2-pin extension of about 10 cm or splice in wire. The lead runs
-  down a side gutter.
-- **Battery:** no room yet. A LiPo needs more depth; raise `back_clear` by
-  its thickness (+5 mm for a 503450, for example).
+  lies face down on the back plate in a cradle, firing through seven slots.
+  It sits in the component-free area below the display connector, pushed
+  into the right-hand gutter (looking at the screen), so its 50 mm lead
+  reaches the 2-pin socket on that edge. That is why the cavity behind the
+  board is 10 mm deep instead of the 5.5 mm the components need. Stick small
+  rubber feet on the back corners so the grille isn't muffled on a table.
+- **Battery:** no room yet; it would need more depth again.
 
 ## Measurements and fit risks
 
