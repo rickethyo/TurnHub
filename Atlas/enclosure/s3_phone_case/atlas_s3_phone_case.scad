@@ -4,8 +4,8 @@
 // through the board's own mounting holes:
 //   tub   - back plate, walls, standoffs, side gutters for edge connectors
 //   bezel - front frame with the display window and microphone port
-// The kit's 40 x 28 x 9.7 mm speaker lies face down on the back plate, in the
-// component-free area next to its socket (its lead is only 50 mm), so the
+// The kit's 40 x 28 x 9.7 mm speaker lies face down on the back plate,
+// lengthwise in the clear area under the "4.0\" LCD Display" silkscreen, so the
 // cavity behind the board is as deep as the speaker.
 //
 // Board numbers come from the LCDWIKI ES3C40P Specification V1.0, figure 5.1
@@ -40,7 +40,7 @@ clr_usb = 1.0;      // USB-C receptacle sits ~0.8 mm past the board edge
 gutter = 4.5;       // room beside each long edge for the side-entry plugs
 wall = 2.0;
 back_t = 1.6;
-back_clear = 10.0;  // speaker 9.7 + 0.3; components alone need 5.5
+back_clear = 10.3;  // speaker 9.7 + 0.6; components alone need 5.5
 lip_t = 1.2;        // bezel thickness over the glass
 glass_gap = 0.3;    // the bezel never presses on the glass
 R_out = 7;          // corner radius seen from the front
@@ -59,7 +59,7 @@ boss_clip = 5.6;    // bosses stop this far from the board ends (glass edge)
 /* [Openings] */
 // Display window, measured from the microphone end of the board (front view).
 win_w = 58.0;
-win_from_top = 8.3;
+win_from_top = 9.8;          // first print: 8.3 showed the board above the glass
 win_to = 102.5;
 win_chamfer = 0.8;
 // Microphone port: drawing puts it 14.13 mm from the right edge and 6.04 mm
@@ -78,14 +78,16 @@ sd_recess_len = 24;         // fingertip recess around the slot
 sd_recess_depth = 1.0;
 
 /* [Speaker: the board kit's oval box speaker, measured] */
-spk = [40.1, 28.3, 9.7];     // across, along the case, thick
+spk = [28.3, 40.1, 9.7];     // across, along the case, thick (lengthwise)
 spk_clr = 0.5;
-// Centre of the clear PCB area below the display connector (drawing back view
-// x 3..36, y 63..95), pushed into the +X gutter so 40 mm fits.
-spk_c = [15.2, -23.3];
-slot_w = 1.4;                // back grille slots
-slot_len = 26;
-slot_n = 7;
+// First print: across the case at [15.2, -23.3] it hit the touch flex and the
+// SPEAKER header. Measured on Ricky's photo of the board's back, the clear
+// area under the silkscreen is 25-65 mm from the USB end and 26-54 mm in from
+// the header edge.
+spk_c = [-9.6, -11.1];
+slot_w = 1.4;                // back grille slots, along the cone's long axis
+slot_len = 28;
+slot_n = 6;
 
 $fn = 48;
 
@@ -166,15 +168,16 @@ module tub() {
             cube([wall + 2, sd_cut[0], sd_cut[1]]);
         sd_recess();
         for (i = [0:slot_n - 1])
-            translate([spk_c[0], spk_c[1] + (i - (slot_n - 1) / 2) * 2 * slot_w, z_bot - 1])
+            translate([spk_c[0] + (i - (slot_n - 1) / 2) * 2 * slot_w, spk_c[1], z_bot - 1])
                 linear_extrude(back_t + 2)
-                    rrect(-slot_len / 2, -slot_w / 2, slot_len / 2, slot_w / 2, slot_w / 2 - eps);
+                    rrect(-slot_w / 2, -slot_len / 2, slot_w / 2, slot_len / 2, slot_w / 2 - eps);
         for (b = buttons) translate([b[0], b[1], z_bot - 1]) cylinder(d = button_hole, h = back_t + 2);
     }
 }
 
-// Low rim that locates the speaker face down on the back plate; open at the
-// +X end for the lead, towards its socket.
+// Low rim that locates the speaker face down on the back plate; both ends are
+// notched on the +X side (towards the SPEAKER header) so the lead can leave
+// whichever way the speaker goes in.
 module speaker_cradle() {
     sx = spk[0] / 2 + spk_clr;
     sy = spk[1] / 2 + spk_clr;
@@ -184,7 +187,7 @@ module speaker_cradle() {
                 rrect(-sx - 1.2, -sy - 1.2, sx + 1.2, sy + 1.2, 4);
                 rrect(-sx, -sy, sx, sy, 3);
             }
-        translate([spk_c[0] + sx, spk_c[1], z_floor]) cube([6, 10, 20], center = true);
+        for (m = [-1, 1]) translate([spk_c[0] + sx - 6, spk_c[1] + m * sy, z_floor]) cube([12, 6, 20], center = true);
     }
 }
 

@@ -1,7 +1,7 @@
 # Atlas S3 phone-style case
 
-*Experimental, not yet printed.* A flat, rounded case for the 4-inch LCDWIKI
-ES3C40P Atlas board in portrait, about **74.8 × 117.6 × 19.1 mm**.
+*Experimental; second revision after the first test print.* A flat, rounded case for the 4-inch LCDWIKI
+ES3C40P Atlas board in portrait, about **74.8 × 117.6 × 19.4 mm**.
 Source: [`atlas_s3_phone_case.scad`](atlas_s3_phone_case.scad) (OpenSCAD 2021.01 or newer).
 
 ![Closed case, front](preview_front.png)
@@ -36,13 +36,22 @@ the UI draws upside down in the case, flip `LCD_ROTATION` in
   the board's long edges, so the tub has a 4.5 mm gutter down each side for
   the plugs. Wires turn under the board into the back cavity.
 - **Speaker:** the board kit's oval speaker (40.1 × 28.3 × 9.7 mm, measured)
-  lies face down on the back plate in a cradle, firing through seven slots.
-  It sits in the component-free area below the display connector, pushed
-  into the right-hand gutter (looking at the screen), so its 50 mm lead
-  reaches the 2-pin socket on that edge. That is why the cavity behind the
-  board is 10 mm deep instead of the 5.5 mm the components need. Stick small
-  rubber feet on the back corners so the grille isn't muffled on a table.
+  lies face down and lengthwise in a cradle on the back plate, firing through
+  six slots. It sits under the "4.0\" LCD Display" silkscreen, the one clear
+  patch on the board's back: 25–65 mm from the USB end, 26–54 mm in from the
+  edge with the SPEAKER header. Both cradle ends are notched on the header
+  side, so turn the speaker whichever way its lead reaches. The cavity behind
+  the board is 10.3 mm deep for it. Stick small rubber feet on the back
+  corners so the slots aren't muffled on a table.
 - **Battery:** no room yet; it would need more depth again.
+
+## First print (2026-10-28)
+
+The board fit, but two things needed fixing. The window started 1.5 mm too
+high and showed the board above the glass, so it now starts at 9.8 mm, which
+matches the vendor drawing's glass position. The speaker had been across the
+case, where it hit the touch flex and the SPEAKER header and its lead pointed
+away from the socket, so it now runs lengthwise nearer the middle.
 
 ## Measurements and fit risks
 
@@ -51,17 +60,10 @@ Board numbers come from the [ES3C40P Specification V1.0][spec], figure 5.1
 4 mm from the edges, 11.45 mm overall). Ricky's calipers agree:
 112.2 × 61.0 mm, 104.0 / 53.1 mm across the holes and 10.1 mm thick.
 
-The drawing and the photos disagree on where the cover glass sits along the
-board: the drawing says 94.57 mm long and 9.0 mm from the mic end, while the
-photos look closer to 98 mm and 6 mm. The bezel tolerates both. The window
-(58 × 94.2 mm) always clears the active area, the pocket under the lip takes
-the whole board, and the screw bosses are clipped 5.6 mm from each end
-(`boss_clip`). Check these on the first print:
-
-1. The glass sits clear of the bezel bosses at the mic end.
-2. The mic port lines up with the hole on the board (6.04 mm from the top,
-   14.13 mm from the right edge in the drawing).
-3. Your USB-C plug's moulding fits the slot.
+The first print settled the glass position: it follows the drawing (94.57 mm
+long, starting 9.0 mm from the mic end), not the earlier photo estimate. The
+window is 58 × 92.7 mm, the pocket under the lip takes the whole board, and
+the screw bosses stop 5.6 mm from each end (`boss_clip`).
 
 Every opening and clearance is a named parameter at the top of the `.scad` file.
 To regenerate the STLs:
