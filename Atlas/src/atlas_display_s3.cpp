@@ -4,9 +4,9 @@
 // updateTouchControls, which builds Intents. Firmware-only (env:atlas-s3);
 // the other builds use atlas_board_none.cpp's display functions.
 //
-// The model is laid out for a 320 x 240 screen. Until the LVGL Atlas design
-// replaces it, every rectangle is scaled to the panel's 480 x 320 (x 3/2,
-// y 4/3) and drawn with the S3 type and a glossy finish.
+// The model is laid out for the panel's own 320 x 480 portrait, so every
+// rectangle and touch maps 1:1; it is drawn with the S3 type and a glossy
+// finish until the LVGL Atlas design replaces it.
 
 #if defined(TURNHUB_BOARD_ES3C40P)
 
@@ -41,8 +41,8 @@ using TurnHub::serialLog;
 namespace TurnHubAtlas {
 namespace {
 
-constexpr int16_t W = 480;
-constexpr int16_t H = 320;
+constexpr int16_t W = ATLAS_SCREEN_WIDTH;
+constexpr int16_t H = ATLAS_SCREEN_HEIGHT;
 constexpr uint32_t SPLASH_MS = 1500;
 constexpr uint32_t TOUCH_POLL_MS = 15;
 constexpr uint32_t SCREEN_POLL_MS = 100;
@@ -169,9 +169,6 @@ lv_color_t mixRgb(uint32_t a, uint32_t b, uint8_t t) {
   return lv_color_mix(rgb(b), rgb(a), t);
 }
 
-int16_t sx(int16_t x) { return x * 3 / 2; }
-int16_t sy(int16_t y) { return y * 4 / 3; }
-
 lv_obj_t *box(lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16_t h) {
   lv_obj_t *o = lv_obj_create(parent);
   lv_obj_remove_style_all(o);
@@ -180,11 +177,6 @@ lv_obj_t *box(lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16_t h) {
   lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
   return o;
-}
-
-// A model rectangle at panel scale.
-lv_obj_t *scaledBox(lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16_t h) {
-  return box(parent, sx(x), sy(y), sx(x + w) - sx(x), sy(y + h) - sy(y));
 }
 
 // The glossy finish: a vertical gradient from a lifted top to the base
@@ -251,7 +243,7 @@ bool primaryAction(TouchAction a) {
 }
 
 void drawHeader(lv_obj_t *root, const AtlasScreen &s) {
-  lv_obj_t *bar = box(root, 0, 0, W, sy(SCREEN_HEADER_H));
+  lv_obj_t *bar = box(root, 0, 0, W, SCREEN_HEADER_H);
   gloss(bar, pal().surface2, pal().separator, 0, false);
   lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_BOTTOM, 0);
   text(bar, s.badge, &th_eyebrow_13, pal().accent, 10, 10, 120);
@@ -268,20 +260,20 @@ void drawHeader(lv_obj_t *root, const AtlasScreen &s) {
 
 void drawHero(lv_obj_t *root, const AtlasScreen &s) {
   const bool clock = s.clock[0] != '\0';
-  const int16_t x = codeLayout(s) ? sx(118) : 12;
+  const int16_t x = 12;
   const int16_t w = W - x - (clock ? 110 : 12);
-  text(root, s.title, &th_bold_28, pal().text, x, sy(SCREEN_HERO_Y) + 2, w);
+  text(root, s.title, &th_bold_28, pal().text, x, SCREEN_HERO_Y + 2, w);
   const bool notice = s.notice[0] != '\0';
   // A notice is marked in words by its leading arrow as well as its colour.
   char line[56];
   snprintf(line, sizeof(line), notice ? "> %s" : "%s", notice ? s.notice : s.detail);
-  text(root, line, &th_semi_16, notice ? pal().accent : pal().textSecondary, x, sy(SCREEN_HERO_Y) + 38, w);
+  text(root, line, &th_semi_16, notice ? pal().accent : pal().textSecondary, x, SCREEN_HERO_Y + 38, w);
   if (!clock) return;
   // The turn clock and its countdown bar.
   const uint32_t ink = s.timerWarning ? pal().warning : pal().turn;
-  text(root, s.clock, &th_bold_28, ink, W - 108, sy(SCREEN_HERO_Y) + 2, 96, LV_TEXT_ALIGN_RIGHT);
+  text(root, s.clock, &th_bold_28, ink, W - 108, SCREEN_HERO_Y + 2, 96, LV_TEXT_ALIGN_RIGHT);
   if (s.timerPermille >= 0) {
-    lv_obj_t *track = box(root, W - 108, sy(SCREEN_HERO_Y) + 44, 96, 8);
+    lv_obj_t *track = box(root, W - 108, SCREEN_HERO_Y + 44, 96, 8);
     lv_obj_set_style_radius(track, 4, 0);
     lv_obj_set_style_bg_opa(track, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(track, rgb(pal().fill), 0);
@@ -296,11 +288,11 @@ void drawChip(lv_obj_t *root, const ScreenPlayer &p, bool showLife, int16_t mx, 
   const bool active = p.flags & CHIP_ACTIVE;
   const bool out = p.flags & CHIP_OUT;
   const bool winner = p.flags & CHIP_WINNER;
-  lv_obj_t *chip = scaledBox(root, mx, my, mw, mh);
+  lv_obj_t *chip = box(root, mx, my, mw, mh);
   gloss(chip, active || winner ? pal().turnSoft : pal().surface3,
         active || winner ? pal().turn : pal().separatorStrong, 12, true);
   if (active || winner) lv_obj_set_style_border_width(chip, 3, 0);
-  const int16_t w = sx(mx + mw) - sx(mx), h = sy(my + mh) - sy(my);
+  const int16_t w = mw, h = mh;
   const uint32_t ink = out ? pal().textTertiary : pal().text;
   lv_obj_t *name = text(chip, p.name, &th_semi_20, ink, 10, 6, w - 20);
   if (out) lv_obj_set_style_text_decor(name, LV_TEXT_DECOR_STRIKETHROUGH, 0);
@@ -347,19 +339,22 @@ void drawQr(lv_obj_t *root, const char *data, int16_t x, int16_t y, int16_t size
 
 void drawBody(lv_obj_t *root, const AtlasScreen &s) {
   if (codeLayout(s)) {
-    const int16_t left = sx(118) + 0;
-    int16_t y = sy(SCREEN_BODY_Y);
+    // Code on top, the QR code centred under it, then its caption and lines.
+    int16_t y = SCREEN_BODY_Y;
     if (s.code[0]) {
-      text(root, s.code, digitsOnly(s.code) ? &th_num_64 : &th_bold_28, pal().accent, left, y - 6, W - left - 12);
+      text(root, s.code, digitsOnly(s.code) ? &th_num_64 : &th_bold_28, pal().accent, 12, y - 6, W - 24,
+           LV_TEXT_ALIGN_CENTER);
       y += 70;
     }
     if (s.qr[0]) {
-      const int16_t size = sy(BUTTON_ROW_Y) - 12 - sy(SCREEN_HERO_Y);
-      drawQr(root, s.qr, 12, sy(SCREEN_HERO_Y) + 4, size);
-      text(root, s.qrCaption, &th_semi_16, pal().textTertiary, left, y, W - left - 12);
+      int16_t size = BUTTON_ROW_Y - 12 - y - 24 - s.lineCount * 22;
+      if (size > W - 64) size = W - 64;
+      drawQr(root, s.qr, (W - size) / 2, y, size);
+      y += size + 4;
+      text(root, s.qrCaption, &th_semi_16, pal().textTertiary, 12, y, W - 24, LV_TEXT_ALIGN_CENTER);
       y += 24;
     }
-    drawLines(root, s, left, y, W - left - 12);
+    drawLines(root, s, 16, y, W - 32);
     return;
   }
   if (buttonsUseBody(s)) return;
@@ -368,28 +363,33 @@ void drawBody(lv_obj_t *root, const AtlasScreen &s) {
     screenChipCell(i, s.playerCount, x, y, w, h);
     drawChip(root, s.players[i], s.showLife, x, y, w, h);
   }
-  const int16_t bodyH = sy(BUTTON_ROW_Y - 4) - sy(SCREEN_BODY_Y);
+  const int16_t bodyH = BUTTON_ROW_Y - 4 - SCREEN_BODY_Y;
   if (s.kind == ScreenKind::Status && s.playerCount == 0 && s.lineCount > 0) {
-    lv_obj_t *plate = box(root, 12, sy(SCREEN_BODY_Y), W - 24, bodyH);
+    lv_obj_t *plate = box(root, 12, SCREEN_BODY_Y, W - 24, bodyH);
     gloss(plate, pal().surface2, pal().separator, 14, true);
     drawLines(plate, s, 16, 12, W - 56);
     return;
   }
-  if (s.qr[0]) drawQr(root, s.qr, W - 12 - bodyH, sy(SCREEN_BODY_Y), bodyH);
-  drawLines(root, s, 16, sy(SCREEN_BODY_Y) + 8, W - 32);
+  // Lines first, then any QR code centred in the space left under them.
+  drawLines(root, s, 16, SCREEN_BODY_Y + 8, W - 32);
+  if (!s.qr[0]) return;
+  const int16_t top = SCREEN_BODY_Y + 16 + s.lineCount * 22;
+  int16_t size = SCREEN_BODY_Y + bodyH - top;
+  if (size > W - 64) size = W - 64;
+  if (size >= 96) drawQr(root, s.qr, (W - size) / 2, top, size);
 }
 
 void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
   const bool pressed = s.pressed == b.action;
   const bool primary = primaryAction(b.action);
-  lv_obj_t *o = scaledBox(root, b.x, b.y, b.w, b.h);
+  lv_obj_t *o = box(root, b.x, b.y, b.w, b.h);
   const uint32_t base = pressed ? (primary ? pal().accentPressed : pal().fillStrong)
       : primary ? pal().accent : pal().surface3;
   gloss(o, base, b.selected || pressed ? pal().focus : pal().separatorStrong, 14, !pressed);
   // Pressed is also shown by a heavier frame, not by colour alone.
   if (pressed || b.selected) lv_obj_set_style_border_width(o, 3, 0);
   const uint32_t ink = primary ? pal().onAccent : pal().text;
-  const int16_t w = sx(b.x + b.w) - sx(b.x), h = sy(b.y + b.h) - sy(b.y);
+  const int16_t w = b.w, h = b.h;
   char label[32];
   if (pressed && b.hold() && s.holdSecondsLeft > 0) {
     snprintf(label, sizeof(label), "Hold %u s", static_cast<unsigned>(s.holdSecondsLeft));
@@ -522,9 +522,9 @@ void serviceAtlasDisplay(uint32_t nowMs) {
       if (!touched) screenTestReleaseTouch = false;
       touched = false;
     }
-    // Panel pixels to the 320 x 240 model.
-    const int16_t x = touched ? point.x * 2 / 3 : 0;
-    const int16_t y = touched ? point.y * 3 / 4 : 0;
+    // Panel pixels are model pixels.
+    const int16_t x = touched ? point.x : 0;
+    const int16_t y = touched ? point.y : 0;
     if (touched) {
       if (!touchLogged) {
         // One line per press, for checking the touch orientation.

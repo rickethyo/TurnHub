@@ -17,9 +17,9 @@
 
 namespace TurnHubAtlas {
 
-// Landscape screen size in pixels.
+// Portrait screen size in pixels: the S3 Atlas's 4-inch panel, drawn 1:1.
 constexpr int16_t ATLAS_SCREEN_WIDTH = 320;
-constexpr int16_t ATLAS_SCREEN_HEIGHT = 240;
+constexpr int16_t ATLAS_SCREEN_HEIGHT = 480;
 
 // A touch counts as released only after this long without contact, because
 // resistive panels drop out briefly during a press.
@@ -31,12 +31,12 @@ constexpr int16_t TOUCH_SLOP_PX = 12;
 constexpr uint32_t TOUCH_NOTICE_MS = 4000;
 
 // Screen regions (atlas_display.cpp draws them; buttons live in the rows).
-constexpr int16_t SCREEN_HEADER_H = 26;
-constexpr int16_t SCREEN_HERO_Y = 28;       // Title and detail/notice line.
-constexpr int16_t SCREEN_BODY_Y = 84;       // Players, QR code or info.
-constexpr int16_t BUTTON_ROW_H = 60;        // Well above the 44 px minimum target.
-constexpr int16_t BUTTON_ROW_Y = 172;       // The one row most screens use.
-constexpr int16_t BUTTON_UPPER_ROW_Y = 104; // Second row (test and Table screens).
+constexpr int16_t SCREEN_HEADER_H = 32;
+constexpr int16_t SCREEN_HERO_Y = 36;       // Title and detail/notice line.
+constexpr int16_t SCREEN_BODY_Y = 104;      // Players, QR code or info.
+constexpr int16_t BUTTON_ROW_H = 64;        // Well above the 44 px minimum target.
+constexpr int16_t BUTTON_ROW_Y = 408;       // The one row most screens use, at the bottom.
+constexpr int16_t BUTTON_UPPER_ROW_Y = 336; // Second row, just above it (within thumb reach).
 
 enum class TouchAction : uint8_t {
   None, Pair, Pause, Resume, EndMatch,
@@ -124,8 +124,9 @@ inline void screenChipCell(uint8_t index, uint8_t count, int16_t &x, int16_t &y,
   constexpr int16_t PAD = 8;
   constexpr int16_t GAP = 6;
   constexpr int16_t BODY_H = BUTTON_ROW_Y - 4 - SCREEN_BODY_Y;
-  const uint8_t cols = count == 0 ? 1 : (count <= 4 ? count : 4);
-  const uint8_t rows = count <= 4 ? 1 : 2;
+  // Up to three players stack full width; more fill two columns.
+  const uint8_t cols = count <= 3 ? 1 : 2;
+  const uint8_t rows = count == 0 ? 1 : (count + cols - 1) / cols;
   w = (ATLAS_SCREEN_WIDTH - 2 * PAD - (cols - 1) * GAP) / cols;
   h = (BODY_H - (rows - 1) * GAP) / rows;
   x = PAD + (index % cols) * (w + GAP);

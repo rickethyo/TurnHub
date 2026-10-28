@@ -9,7 +9,8 @@ The Gen 1 E32R28T Atlas and ESP32 DevKit Sigils remain the working baseline on
 firmware on the ES3C40P: native USB serial, microSD over 4-bit SDMMC, an
 `ATLAS|BOARD|...` boot line, and the touchscreen (`atlas_display_s3.cpp`:
 LovyanGFX ST7796S/FT6336U drivers, LVGL 9.3 drawing the `touch_controls.cpp`
-screen model). First board, 2026-10-28 (*Verified* on one unit): ESP32-S3
+screen model, laid out for the panel's native 320 × 480 portrait since
+2026-10-28). First board, 2026-10-28 (*Verified* on one unit): ESP32-S3
 rev 0.2, flash JEDEC 5E4018 = 16 MB (the 4-inch schematic's W25X40 is wrong),
 8 MB PSRAM, SDHC card mounted, AP and ESP-NOW up, no resets. Rotation, colour
 inversion and touch orientation are `LCD_ROTATION`/`LCD_INVERT` in `config.h`
@@ -34,7 +35,7 @@ supports BLE, not BR/EDR), so do not treat marketing as an electrical specificat
 | MCU implementation | Discrete ESP32-S3R8 SoC, PCB antenna; not a WROOM module | Discrete ESP32-S3R8 SoC, PCB antenna; not a WROOM module |
 | Memory | Vendor: 16 MB external QSPI flash, 8 MB internal OPI PSRAM | Vendor: 16 MB external QSPI flash, 8 MB internal OPI PSRAM |
 | Display | ST7796S IPS, native 320 × 480, 4-wire SPI | ILI9341V IPS, native 240 × 320, 4-wire SPI |
-| Application orientation | 480 × 320 landscape after rotation | 240 × 320 portrait |
+| Application orientation | 320 × 480 portrait (owner, 2026-10-28; was landscape) | 240 × 320 portrait |
 | Capacitive controller | FT6336U, I²C 7-bit 0x38 | FT6336G, I²C 7-bit 0x38 |
 | Audio | ES8311 codec 0x18, analog MEMS microphone, mono amplifier + speaker socket | Same documented functions; verify fitted amplifier and data pins separately |
 | Storage | microSD, 4-bit SDIO/SDMMC (not legacy SPI wiring) | microSD, 4-bit SDIO/SDMMC |
@@ -235,7 +236,7 @@ Atlas shell's 98 mm external width, so it requires a new/wider mounting envelope
 Preserve them; start new revision directories when measured CAD
 exists. Existing OLED PCB remains a placeholder; EInk routing is not repurposed.
 
-Plan a 4-inch landscape Atlas bezel and a 2.8-inch portrait Sigil bezel with
+Plan a 4-inch portrait Atlas bezel and a 2.8-inch portrait Sigil bezel with
 unobstructed capacitive edges. Vendor drawings show four mounting holes (2.8-inch
 Ø3.2 with Ø5.6 clearance); verify coordinates, diameter, component-side clearance
 and drawing origin on real samples before transferring to CAD. Account for LCD

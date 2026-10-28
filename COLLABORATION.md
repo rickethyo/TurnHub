@@ -1249,6 +1249,10 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   and sends them in connected play. Host suites pass; all 515 Android JVM
   tests pass on the owner's PC; reflashed board boots clean. Needs a playtest.
   Next: the LVGL Atlas design, then Planechase and commander names.
+- Portrait (owner, 2026-10-28): the screen model is now 320 x 480 and the S3
+  panel draws it 1:1 (`LCD_ROTATION` 0); chips stack full width up to three
+  players, then two columns. Host suites and the S3 build pass; needs a look
+  on the board. The LVGL simulator's Atlas is still landscape (STAGED_CHANGES).
 
 ### Profile transfer: guests and per-player import receipts / Claude / 2026-10-28
 
