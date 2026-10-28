@@ -25,9 +25,23 @@ constexpr int8_t SD_D2_PIN = 48;
 constexpr int8_t SD_D3_PIN = 47;
 // Conservative clock for bring-up (SDMMC default speed is 20 MHz).
 constexpr uint32_t SD_MMC_KHZ = 10000;
-// ST7796S backlight, high = lit. A strapping pin: held low until the display
-// driver lands, so the uninitialised panel stays dark.
-constexpr uint8_t LCD_BACKLIGHT_PIN = 45;
+// ST7796S on its own SPI bus (DC 46 and backlight 45 are strapping pins; the
+// panel resets with the board). Native 320 x 480, turned to 480 x 320.
+constexpr int8_t LCD_SCK_PIN = 12;
+constexpr int8_t LCD_MOSI_PIN = 11;
+constexpr int8_t LCD_MISO_PIN = 13;
+constexpr int8_t LCD_DC_PIN = 46;
+constexpr int8_t LCD_CS_PIN = 10;
+constexpr uint8_t LCD_BACKLIGHT_PIN = 45;  // High = lit.
+// Landscape orientation and IPS colour inversion. *Needs verification*: flip
+// these if the picture is upside down or its colours are negative.
+constexpr uint8_t LCD_ROTATION = 1;
+constexpr bool LCD_INVERT = true;
+// FT6336U capacitive touch (I2C 0x38), on the bus the codec will share.
+constexpr int8_t TOUCH_SDA_PIN = 16;
+constexpr int8_t TOUCH_SCL_PIN = 15;
+constexpr int8_t TOUCH_RST_PIN = 18;
+constexpr int8_t TOUCH_INT_PIN = 17;
 #else
 // microSD on the ESP32's default VSPI pins.
 constexpr int8_t SD_SCLK_PIN = 18;

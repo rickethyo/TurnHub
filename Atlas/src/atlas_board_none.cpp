@@ -1,7 +1,9 @@
 // Master's board-less Atlas (atlas_board.h): the game engine, radio, portal
 // and storage run with no screen, speaker, battery or status LED. The Gen 1
-// E32R28T drivers live on legacy/gen1; the ESP32-S3 board profile replaces
-// this file. Firmware-only; host tests use test_globals.cpp instead.
+// E32R28T drivers live on legacy/gen1. The S3 Atlas (env:atlas-s3) takes its
+// screen from atlas_display_s3.cpp and the rest from here until its speaker,
+// battery and LED drivers land. Firmware-only; host tests use
+// test_globals.cpp instead.
 
 #include "atlas_board.h"
 #include "atlas_battery.h"
@@ -23,10 +25,12 @@ using TurnHub::serialLog;
 namespace TurnHubAtlas {
 
 namespace {
+#if !defined(TURNHUB_BOARD_ES3C40P)
 // The display theme is still a saved table setting (the Atlas screen of the
 // next board draws it), so it keeps its NVS keys.
 TurnHubTheme::Id theme = TurnHubTheme::Id::Graphite;
 bool inverted = false;
+#endif
 TurnHub::BatteryReading noBattery;  // present = false
 constexpr gpio_num_t WAKE_BOOT_PIN = static_cast<gpio_num_t>(AtlasConfig::BOOT_BUTTON_PIN);
 }  // namespace
@@ -54,13 +58,9 @@ void logAtlasBoard() {
   serialLog.println(line);
 }
 
+// The S3 Atlas draws its screen in atlas_display_s3.cpp.
+#if !defined(TURNHUB_BOARD_ES3C40P)
 void beginAtlasDisplay() {
-#if defined(TURNHUB_BOARD_ES3C40P)
-  // No panel driver yet: keep the backlight off rather than lighting an
-  // uninitialised screen.
-  pinMode(AtlasConfig::LCD_BACKLIGHT_PIN, OUTPUT);
-  digitalWrite(AtlasConfig::LCD_BACKLIGHT_PIN, LOW);
-#endif
   TurnHub::OptionalPreferences prefs;
   if (prefs.begin("display", true)) {
     const String key = prefs.getString("theme", "graphite");
@@ -99,6 +99,7 @@ bool chooseAtlasDisplayInverted(bool value) {
   if (saved) inverted = value;
   return saved;
 }
+#endif
 
 // No battery, so a sleep is always on USB: BOOT wakes Atlas (a restart).
 void sleepAtlas(bool) {
