@@ -5,7 +5,12 @@ Research date: 2026-10-11. Atlas candidate ES3C40P; Sigil candidate ES3C28P.
 Require the capacitive **C** SKU: ES3N28P has no touch. An equivalent must match
 controller, memory, connector, power and mechanical requirements individually.
 The Gen 1 E32R28T Atlas and ESP32 DevKit Sigils remain the working baseline on
-`legacy/gen1`; master builds board-less until these targets exist.
+`legacy/gen1`. Master's `env:atlas-s3` (2026-10-28, *Experimental*, compile-only
+until bench results are recorded) runs the full Atlas firmware on the ES3C40P
+headless: native USB serial, microSD over 4-bit SDMMC, backlight held off and an
+`ATLAS|BOARD|...` boot line with the chip, JEDEC flash size and PSRAM. Its flash
+header stays 4 MB until that line confirms the part. Display, touch, audio,
+battery and RGB drivers come next; the Sigil target does not exist yet.
 
 ## Evidence and confidence
 

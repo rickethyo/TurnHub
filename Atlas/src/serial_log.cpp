@@ -7,7 +7,7 @@
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <hal/uart_ll.h>
-#include <esp32/rom/ets_sys.h>
+#include <rom/ets_sys.h>
 #include <soc/uart_struct.h>
 #define FRAMEWORK_LOG_IRAM IRAM_ATTR
 #define FRAMEWORK_LOG_DRAM DRAM_ATTR

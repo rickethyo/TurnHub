@@ -46,7 +46,8 @@ The owner also uses GitHub Desktop, which can switch branches and auto-stash unc
 
 ### Atlas firmware (run from `Atlas/`)
 ```
-pio run -e atlas                      # build
+pio run -e atlas                      # build (board-less classic ESP32)
+pio run -e atlas-s3                   # the 4-inch ES3C40P S3 Atlas (headless for now; flash over its USB-C)
 pio run -e atlas --target upload --upload-port COMx   # flash (no port is pinned; see below)
 pio device monitor                    # serial, 115200 baud
 ```

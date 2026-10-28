@@ -10,6 +10,8 @@
 
 #include <Arduino.h>
 #include <driver/rtc_io.h>
+#include <esp_chip_info.h>
+#include <esp_flash.h>
 #include <esp_sleep.h>
 
 #include "config.h"
@@ -32,7 +34,33 @@ constexpr gpio_num_t WAKE_BOOT_PIN = static_cast<gpio_num_t>(AtlasConfig::BOOT_B
 void beginAtlasStatusLed() {}
 void setAtlasStatusLed(bool, bool, bool) {}
 
+void logAtlasBoard() {
+  esp_chip_info_t chip;
+  esp_chip_info(&chip);
+  // The JEDEC ID's last byte is log2 of the part's size; the image header's
+  // size (ESP.getFlashChipSize) is only what the build assumed.
+  uint32_t jedec = 0;
+  esp_flash_read_id(nullptr, &jedec);
+  const uint8_t sizeCode = jedec & 0xFF;
+  const uint32_t flashKB = sizeCode >= 10 && sizeCode < 32 ? (1UL << sizeCode) / 1024UL : 0;
+  char line[160];
+  snprintf(line, sizeof(line),
+           "ATLAS|BOARD|%s|REV|%u|CORES|%u|FLASH_ID|%06lX|FLASH_KB|%lu|HEADER_KB|%lu|PSRAM_KB|%lu",
+           ESP.getChipModel(), static_cast<unsigned>(chip.revision),
+           static_cast<unsigned>(chip.cores), static_cast<unsigned long>(jedec),
+           static_cast<unsigned long>(flashKB),
+           static_cast<unsigned long>(ESP.getFlashChipSize() / 1024UL),
+           static_cast<unsigned long>(ESP.getPsramSize() / 1024UL));
+  serialLog.println(line);
+}
+
 void beginAtlasDisplay() {
+#if defined(TURNHUB_BOARD_ES3C40P)
+  // No panel driver yet: keep the backlight off rather than lighting an
+  // uninitialised screen.
+  pinMode(AtlasConfig::LCD_BACKLIGHT_PIN, OUTPUT);
+  digitalWrite(AtlasConfig::LCD_BACKLIGHT_PIN, LOW);
+#endif
   TurnHub::OptionalPreferences prefs;
   if (prefs.begin("display", true)) {
     const String key = prefs.getString("theme", "graphite");
