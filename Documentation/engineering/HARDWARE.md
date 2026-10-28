@@ -13,7 +13,7 @@ Earlier generations are in [Generation History](history/GENERATION_HISTORY.md).
 Gen 1 ESP32 DevKit e-paper and OLED Sigil feature development is frozen (`legacy/gen1`).
 Their accepted firmware, radio contract and 16-pixel preset assets remain the
 baseline. New screen work targets planned ESP32-S3 LCD hardware with 2.8-inch
-and 4-inch displays. Candidates are now LCDWIKI ES3C40P (Atlas 480×320 landscape) and ES3C28P
+and 4-inch displays. Candidates are now LCDWIKI ES3C40P (Atlas 320×480 portrait) and ES3C28P
 (Sigil 240×320 portrait). [S3 hardware planning](hardware/ESP32_S3_REFRESH.md)
 owns source-verified specifications, pin conflicts, electrical/mechanical holds
 and [prototype BOM](hardware/PROTOTYPE_BOM.md). Physical compatibility and prices

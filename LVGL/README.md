@@ -1,8 +1,9 @@
 # TurnHub LVGL desktop foundation
 
 **Implemented experimental UI**, not ESP32-S3 firmware. Atlas **480×320 landscape**
-and Sigil **240×320 portrait** match manufacturer native geometry after Atlas
-rotation; physical orientation/touch transform still awaits hardware acceptance.
+and Sigil **240×320 portrait**. The S3 Atlas firmware switched to 320×480
+portrait on 2026-10-28 (owner's call), so the simulator's Atlas layout needs a
+portrait pass before it is bound (STAGED_CHANGES "S3 boards").
 The live Atlas/DevKit Sigil renderers, game engine, protocols, PlatformIO and OTA
 are unchanged. Architecture: [LVGL migration](../Documentation/engineering/LVGL_MIGRATION.md).
 Hardware and purchasing: [S3 plan](../Documentation/engineering/hardware/ESP32_S3_REFRESH.md)

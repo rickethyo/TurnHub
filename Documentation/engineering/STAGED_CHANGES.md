@@ -291,7 +291,8 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 - **S3 boards and production bindings:** resolve the hardware plan's flash,
   audio/UART, connector, power and mechanical holds before fabrication. Build
   board drivers, production Intent/snapshot bindings, SD JPEG loading and S3
-  OTA. [Hardware plan](hardware/ESP32_S3_REFRESH.md),
+  OTA. The Atlas is portrait (320 × 480) since 2026-10-28: re-lay the LVGL
+  simulator's Atlas screens for it before binding them. [Hardware plan](hardware/ESP32_S3_REFRESH.md),
   [LVGL migration](LVGL_MIGRATION.md) and [desktop foundation](../../LVGL/README.md)
   own details; the simulator is not physical acceptance.
 - **Player controls and PCB:** carry the required player-facing Sigil LEDs
