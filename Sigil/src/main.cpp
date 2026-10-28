@@ -48,6 +48,12 @@ TURNHUB_FIRMWARE_DESCRIPTOR(sigilFirmwareDescriptor, SIGIL_PRODUCT, TurnHubSigil
 #include "status_ring.h"
 #include "idle_sleep.h"
 #include "sigil_board.h"
+#if defined(TURNHUB_BOARD_E32R28T)
+#include "sigil_touch.h"
+#define TURNHUB_SIGIL_TOUCH 1
+#else
+#define TURNHUB_SIGIL_TOUCH 0
+#endif
 
 namespace {
 
@@ -65,7 +71,8 @@ using TurnHubSigilBoard::JOYSTICK_Y_PIN;
 using TurnHubSigilBoard::BUZZER_PIN;
 constexpr uint8_t PAIR_BUTTON = TurnHubSigilBoard::PAIR_BUTTON_PIN;
 // Five keys (Up, Down, Left, Right, Select). Each is a debounced button: a
-// real GPIO switched to GND, or a virtual pin (0xE0+) read from the stick.
+// real GPIO switched to GND, or a virtual pin (0xE0+) read from the stick
+// (or, on the touch Sigil, from the screen's keys, Select included at 0xE4).
 constexpr uint8_t STICK_UP_PIN = 0xE0;  // 0xE0-0xE3: Up, Down, Left, Right.
 constexpr uint8_t JOYSTICK_CALIBRATION_SAMPLES = 16;
 constexpr uint32_t JOYSTICK_SAMPLE_MS = 5;
@@ -367,10 +374,19 @@ TurnHubSigil::StickConfig stickConfig() {
 }
 TurnHubSigil::StickTracker stick(stickConfig());
 uint32_t lastStickSampleMs = 0;
+// The screen key under a finger (touch Sigil), Key::Count for none.
+TurnHubSigil::Key touchKey = TurnHubSigil::Key::Count;
 
 // Rest the stick at boot: a missing or held stick disables the directions
 // (the click still works as Select).
 void calibrateJoystick() {
+  if (!TurnHubSigilBoard::HAS_THUMBSTICK) {
+#if TURNHUB_SIGIL_TOUCH
+    TurnHubSigil::sigilTouchBegin();
+    Serial.println("SIGIL|TOUCH|READY");
+#endif
+    return;
+  }
   const auto config = stickConfig();
   Serial.printf("SIGIL|JOYSTICK|ORIENTATION|SWAP_XY|%u|INVERT_X|%u|INVERT_Y|%u\n",
       static_cast<unsigned>(config.swapAxes), static_cast<unsigned>(config.invertX),
@@ -390,6 +406,10 @@ void calibrateJoystick() {
 void updateJoystick(uint32_t nowMs) {
   if (nowMs - lastStickSampleMs < JOYSTICK_SAMPLE_MS) return;
   lastStickSampleMs = nowMs;
+#if TURNHUB_SIGIL_TOUCH
+  touchKey = TurnHubSigil::sigilTouchRead();
+#endif
+  if (!TurnHubSigilBoard::HAS_THUMBSTICK) return;
   const TurnHubSigil::StickDirection before = stick.direction();
   const TurnHubSigil::StickDirection after = stick.update(
       static_cast<int16_t>(analogRead(JOYSTICK_X_PIN)),
@@ -402,6 +422,13 @@ void updateJoystick(uint32_t nowMs) {
 
 // Active-low reading; joystick virtual pins are LOW while pushed that way.
 bool readButton(uint8_t pin) {
+#if TURNHUB_SIGIL_TOUCH
+  if (pin >= STICK_UP_PIN && pin <= STICK_UP_PIN + 4) {
+    static constexpr TurnHubSigil::Key KEYS[] = {TurnHubSigil::Key::Up, TurnHubSigil::Key::Down,
+        TurnHubSigil::Key::Left, TurnHubSigil::Key::Right, TurnHubSigil::Key::Select};
+    return touchKey == KEYS[pin - STICK_UP_PIN] ? LOW : HIGH;
+  }
+#endif
   if (pin >= STICK_UP_PIN && pin <= STICK_UP_PIN + 3) {
     static constexpr TurnHubSigil::StickDirection DIRECTIONS[] = {
         TurnHubSigil::StickDirection::Up, TurnHubSigil::StickDirection::Down,
@@ -649,7 +676,8 @@ volatile bool sleepScreenDrawn = false;
 uint32_t sleepRequestedMs = 0;
 // The e-ink's full refresh takes a few seconds; never wait longer than this.
 constexpr uint32_t SLEEP_SCREEN_TIMEOUT_MS = 8000;
-constexpr gpio_num_t WAKE_CLICK_PIN =
+// The touch Sigil has no click to wake with: only BOOT wakes it.
+constexpr gpio_num_t WAKE_CLICK_PIN = TURNHUB_SIGIL_TOUCH ? GPIO_NUM_NC :
     static_cast<gpio_num_t>(TurnHubSigilBoard::JOYSTICK_SELECT_PIN);
 
 void updateDisplay() {
@@ -906,8 +934,14 @@ void displayTask(void *parameter) {
   }
 }
 
+// The touch Sigil's speaker amp: on only while a tone plays (active low).
+void setAmp(bool on) {
+  if (TurnHubSigilBoard::AUDIO_ENABLE_PIN >= 0) digitalWrite(TurnHubSigilBoard::AUDIO_ENABLE_PIN, on ? LOW : HIGH);
+}
+
 void stopBuzzer() {
   ledcWriteTone(BUZZER_CHANNEL, 0);
+  setAmp(false);
   buzzerStopAtMs = 0;
 }
 
@@ -920,6 +954,7 @@ void playBuzzerPayload(int32_t value) {
     return;
   }
 
+  setAmp(true);
   ledcWriteTone(BUZZER_CHANNEL, frequencyHz);
   buzzerStopAtMs = millis() + durationMs;
   Serial.print("SIGIL|BUZZER|");
@@ -1707,9 +1742,11 @@ void enterDeepSleep() {
   digitalWrite(STATUS_RING_PIN, LOW);
   gpio_hold_en(static_cast<gpio_num_t>(STATUS_RING_PIN));
   gpio_deep_sleep_hold_en();
-  rtc_gpio_pullup_en(WAKE_CLICK_PIN);
-  rtc_gpio_pulldown_dis(WAKE_CLICK_PIN);
-  esp_sleep_enable_ext0_wakeup(WAKE_CLICK_PIN, 0);
+  if (WAKE_CLICK_PIN != GPIO_NUM_NC) {
+    rtc_gpio_pullup_en(WAKE_CLICK_PIN);
+    rtc_gpio_pulldown_dis(WAKE_CLICK_PIN);
+    esp_sleep_enable_ext0_wakeup(WAKE_CLICK_PIN, 0);
+  }
   // The DevKit pulls BOOT (GPIO0, an RTC pin) up on the board.
   esp_sleep_enable_ext1_wakeup(1ULL << PAIR_BUTTON, ESP_EXT1_WAKEUP_ALL_LOW);
   esp_deep_sleep_start();
@@ -1720,7 +1757,7 @@ void enterDeepSleep() {
 void updateSleep(uint32_t nowMs) {
   TurnHubSigil::statusRingShow(TurnHubSigil::LedFrame{});
   const bool drawn = sleepScreenDrawn || nowMs - sleepRequestedMs >= SLEEP_SCREEN_TIMEOUT_MS;
-  const bool released = digitalRead(WAKE_CLICK_PIN) == HIGH
+  const bool released = (WAKE_CLICK_PIN == GPIO_NUM_NC || digitalRead(WAKE_CLICK_PIN) == HIGH)
       && digitalRead(PAIR_BUTTON) == HIGH
       ;
   if (drawn && released) enterDeepSleep();
@@ -1906,7 +1943,7 @@ void setup() {
   // digital GPIO driver before anything configures them.
   const esp_sleep_wakeup_cause_t wake = esp_sleep_get_wakeup_cause();
   if (wake == ESP_SLEEP_WAKEUP_EXT0 || wake == ESP_SLEEP_WAKEUP_EXT1) {
-    rtc_gpio_deinit(WAKE_CLICK_PIN);
+    if (WAKE_CLICK_PIN != GPIO_NUM_NC) rtc_gpio_deinit(WAKE_CLICK_PIN);
     rtc_gpio_deinit(static_cast<gpio_num_t>(PAIR_BUTTON));
   }
   gpio_hold_dis(static_cast<gpio_num_t>(STATUS_RING_PIN));
@@ -1925,6 +1962,7 @@ void setup() {
   TurnHubSigil::statusRingBegin(STATUS_RING_PIN);
   updateLeds();
 
+  if (TurnHubSigilBoard::AUDIO_ENABLE_PIN >= 0) pinMode(TurnHubSigilBoard::AUDIO_ENABLE_PIN, OUTPUT);
   ledcSetup(BUZZER_CHANNEL, 2000, 8);
   ledcAttachPin(BUZZER_PIN, BUZZER_CHANNEL);
   stopBuzzer();

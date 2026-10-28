@@ -294,7 +294,11 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   OTA. The Atlas is portrait (320 × 480) since 2026-10-28: re-lay the LVGL
   simulator's Atlas screens for it before binding them. [Hardware plan](hardware/ESP32_S3_REFRESH.md),
   [LVGL migration](LVGL_MIGRATION.md) and [desktop foundation](../../LVGL/README.md)
-  own details; the simulator is not physical acceptance.
+  own details; the simulator is not physical acceptance. *Experimental*
+  (2026-10-28): `env:sigil-e32r28t` runs the Sigil firmware on the old
+  E32R28T Atlas board with an LVGL Sigil screen and the five keys as
+  on-screen buttons, a stand-in until the S3 Sigil exists; its touch
+  calibration is a default, not checked per panel.
 - **Player controls and PCB:** carry the required player-facing Sigil LEDs
   into the S3 design; settle count, brightness, current and case fit. Evaluate
   the proposed pass/action button alongside the joystick, including semantic

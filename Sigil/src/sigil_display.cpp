@@ -1,5 +1,8 @@
 #include "sigil_display.h"
 
+// The touch Sigil (env:sigil-e32r28t) has its own, in sigil_board_e32r28t.cpp.
+#if !defined(TURNHUB_BOARD_E32R28T)
+
 namespace TurnHubSigil {
 
 namespace {
@@ -27,3 +30,5 @@ SigilDisplay &getSigilDisplay() {
 }
 
 }  // namespace TurnHubSigil
+
+#endif
