@@ -1242,6 +1242,11 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   Flashed on the owner's board over USB (both rounds): boots clean, 16 MB
   flash (5E4018), 8 MB PSRAM, SD mounted, AP/ESP-NOW/web ready, ~92 KB heap
   for LVGL. Screen output, rotation, colours and touch orientation still need
-  a look at the panel. Next: engine parity (treasure/rad/day-night, Everyone's
-  counters, reversed turns), then the LVGL Atlas design.
+  a look at the panel.
+- Engine parity in the same PR (b8674d1): treasure/rad, the rad trigger,
+  day/night, reversed turns (Magic formats) and Everyone's counters on Atlas
+  through ChangeCounter, state fields and checkpoint schema 9; the app shows
+  and sends them in connected play. Host suites pass; all 515 Android JVM
+  tests pass on the owner's PC; reflashed board boots clean. Needs a playtest.
+  Next: the LVGL Atlas design, then Planechase and commander names.
 
