@@ -142,14 +142,14 @@ class TouchSigilDisplay : public LvglSigilDisplay {
 
 // --- Touch (XPT2046, bit-banged SPI mode 0) ----------------------------------
 
-// Raw-to-screen mapping for the portrait screen: the gen1 landscape defaults
-// (rotation 3) turned a quarter. Resistive panels vary; adjust from the
+// Raw-to-screen mapping for the portrait screen, measured on the bench from
+// corner taps (2026-10-28). Resistive panels vary; adjust from the
 // SIGIL|TOUCH lines if presses land off their keys.
-constexpr int16_t RAW_X_MIN = 200, RAW_X_MAX = 3700;
-constexpr int16_t RAW_Y_MIN = 240, RAW_Y_MAX = 3800;
-constexpr bool SWAP_XY = true;   // Screen x follows the raw Y channel.
-constexpr bool INVERT_X = true;  // ... falling as x grows.
-constexpr bool INVERT_Y = false;
+constexpr int16_t RAW_X_MIN = 293, RAW_X_MAX = 3586;
+constexpr int16_t RAW_Y_MIN = 469, RAW_Y_MAX = 3717;
+constexpr bool SWAP_XY = true;    // Screen x follows the raw Y channel, rising.
+constexpr bool INVERT_X = false;
+constexpr bool INVERT_Y = true;   // Screen y follows raw X, falling as y grows.
 constexpr int32_t PRESSURE_MIN = 400;
 // A resistive panel drops out for a sample or two under a steady finger;
 // a press holds this long past its last good reading so holds survive.
