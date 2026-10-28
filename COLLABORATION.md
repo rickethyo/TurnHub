@@ -1270,3 +1270,14 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   schema-1 and ring-wrap checks); client contract check passes. Android unit
   test added (LocalAccountsTest guest delivery): 12/12 pass on the owner's PC;
   installed on the Pixel Fold Preview (versionCode 1458). No Atlas hardware run.
+
+### Atlas S3 phone-style case / Claude / 2026-10-28
+
+- Owner ask: a flat, rounded, smartphone-like printed case for the ES3C40P.
+  `Atlas/enclosure/s3_phone_case/` holds the OpenSCAD source, tub and bezel
+  STLs and previews (74.8 x 117.6 x 14.6 mm, four M3 x 10 through the board
+  holes). Dimensions from the vendor outline drawing, matching the owner's
+  calipers; side gutters fit plugs in every edge connector.
+- Validation: both parts render as closed manifolds; section views show no
+  overlaps with a board stand-in. Not printed. Open risk: the glass position
+  differs about 3 mm between the drawing and the photos (README lists checks).

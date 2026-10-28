@@ -100,3 +100,5 @@ described in `CLAUDE.md`.
 - **Open:** the S3 boards' pin maps, power measurements (idle, radio,
   display, buzzer, capped LEDs, sleep) and USB supply behavior, Atlas battery
   hardware, enclosure and docking decisions. Tracked in [Staged Changes](STAGED_CHANGES.md).
+  A first, unprinted phone-style ES3C40P case is in
+  [`Atlas/enclosure/s3_phone_case/`](../../Atlas/enclosure/s3_phone_case/README.md) (*Experimental*).
