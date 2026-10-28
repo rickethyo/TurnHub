@@ -123,7 +123,8 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     s.round = 3; snprintf(s.gameClock, sizeof(s.gameClock), "42:10"); snprintf(s.clock, sizeof(s.clock), "1:23");
     s.timerPermille = 600;
     players(s, n, true);
-    row(s, BUTTON_ROW_Y, {{TouchAction::Pause, "Pause"}, {TouchAction::OpenTable, "Table"}}, {3, 2});
+    row(s, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Hold to pass"}, {TouchAction::Pause, "Pause"}, {TouchAction::OpenTable, "Table"}}, {4, 2, 2});
+    s.buttons[0].holdMs = TOUCH_PASS_HOLD_MS;
     renderAtlasScreen(s, style); save("game-" + std::to_string(n) + suffix);
   }
   {

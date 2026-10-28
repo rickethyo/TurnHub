@@ -577,6 +577,11 @@ and caching, with no new dependency; browsing can download uncached preview art.
   play when a pass is queued and two rising ticks when it is undone.
 - **Master pass** (Atlas Table screen, hold 2 s) and a Game Master's pass
   skip the grace and are logged as master passes.
+- **S3 Atlas screen** (*Experimental*, 2026-10-28): like the app's shared
+  table, **Hold to pass** (0.6 s) sends the active player's own pass, with
+  the usual grace, and a tap on the lower left or right half of a player's
+  tile takes one life or gives one back (`ChangeLife`); the tile's name band
+  opens that player's screen (big steps, Concede).
 - **Rounds:** the Atlas header and the Sigils show the table round, counted
   from each living player's completed turns. The Atlas screen also shows
   each player's total time on their own turns and the match time.

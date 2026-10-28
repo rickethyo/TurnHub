@@ -2525,10 +2525,10 @@ static void touchControls() {
   assert(currentScreen().kind==ScreenKind::Status && !anyPresenceActive(testNow));
   testNow+=TOUCH_NOTICE_MS;
 
-  // Running: just Pause and Table. Players pass from their own seats; the
-  // touchscreen shows a pending PASS but has no Pass button of its own.
+  // Running: Hold to pass (the active player's pass, as on the app's shared
+  // table), Pause and Table.
   startFromHost(); s=currentScreen();
-  assert(startsWith(s.title,"Player ") && s.buttonCount==2 &&
+  assert(startsWith(s.title,"Player ") && s.buttonCount==3 && screenButton(s,TouchAction::PassTurn) &&
       screenButton(s,TouchAction::Pause) && screenButton(s,TouchAction::OpenTable) &&
       !screenButton(s,TouchAction::EndMatch) && !screenButton(s,TouchAction::MasterPass));
   seatPass(); assert(String(currentScreen().detail)=="Passing in 3s: that seat can cancel");
@@ -2543,13 +2543,38 @@ static void touchControls() {
       !screenButton(s,TouchAction::MasterPass) && screenButton(s,TouchAction::EndMatch)->hold());
   tapButton(TouchAction::CloseScreen); tapButton(TouchAction::Resume); assert(table().hubState==HubState::Running);
 
+  // The app's table on Atlas (2026-10-28): a tile's lower halves take one
+  // life from that player or give one back; its name band opens their screen
+  // (below). Hold to pass is the active player's own pass.
+  {
+    const PlayerSeat second=*table().game.playerAt(1);
+    const int32_t life=table().game.lifeTotal(second.playerNumber);
+    int16_t cx,cy,cw,ch; screenChipCell(1,table().game.playerCount(),cx,cy,cw,ch);
+    touchAt(cx+cw/4,cy+ch-8); touchRelease();
+    assert(table().game.lifeTotal(second.playerNumber)==life-1 && currentScreen().kind==ScreenKind::Status);
+    touchAt(cx+cw*3/4,cy+ch-8); touchRelease(); touchAt(cx+cw*3/4,cy+ch-8); touchRelease();
+    assert(table().game.lifeTotal(second.playerNumber)==life+1);
+    touchAt(cx+cw/4,cy+ch-8); touchRelease();
+    assert(table().game.lifeTotal(second.playerNumber)==life);
+    s=currentScreen();
+    const TouchButton *pass=screenButton(s,TouchAction::PassTurn);
+    assert(pass && pass->hold() && pass->holdMs==TOUCH_PASS_HOLD_MS && pass->w>=44);
+    const uint8_t before=table().game.activePlayer()->playerNumber;
+    tapButton(TouchAction::PassTurn);  // a tap is not a pass
+    assert(!table().pendingPass.active && startsWith(currentScreen().notice,"Keep holding to pass"));
+    pressButton(TouchAction::PassTurn); testNow+=TOUCH_PASS_HOLD_MS; keepPressing(); touchRelease();
+    assert(table().pendingPass.active);
+    testNow+=PASS_GRACE_MS+1; updatePendingPass(testNow);
+    assert(!table().pendingPass.active && table().game.activePlayer()->playerNumber!=before);
+  }
+
   // Playtest 2026-09-29 item 9: a player's chip opens their screen, which
   // changes their own life and concedes only after asking again.
   {
     const PlayerSeat second=*table().game.playerAt(1);
     const int32_t life=table().game.lifeTotal(second.playerNumber);
     int16_t cx,cy,cw,ch; screenChipCell(1,table().game.playerCount(),cx,cy,cw,ch);
-    touchAt(cx+cw/2,cy+ch/2); testNow+=30; touchAt(cx+cw/2,cy+ch/2); touchRelease();
+    touchAt(cx+cw/2,cy+10); testNow+=30; touchAt(cx+cw/2,cy+10); touchRelease();
     s=currentScreen();
     assert(s.kind==ScreenKind::Player && String(s.badge)=="PLAYER" && s.buttonCount==6 &&
         String(screenButton(s,TouchAction::LifeMinus5)->label)=="-5" && screenButton(s,TouchAction::CloseScreen) &&
@@ -2743,7 +2768,7 @@ static void touchControls() {
   {
     const uint8_t third=table().game.playerAt(2)->playerNumber;
     int16_t cx,cy,cw,ch; screenChipCell(2,table().game.playerCount(),cx,cy,cw,ch);
-    touchAt(cx+cw/2,cy+ch/2); touchRelease();
+    touchAt(cx+cw/2,cy+10); touchRelease();
     tapButton(TouchAction::Concede); tapButton(TouchAction::ConfirmConcede);
     assert(table().game.isEliminated(third) && table().hubState==HubState::Running && currentScreen().kind==ScreenKind::Status);
     // An eliminated player's chip opens nothing.

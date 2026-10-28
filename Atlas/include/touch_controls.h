@@ -37,6 +37,11 @@ constexpr int16_t SCREEN_BODY_Y = 104;      // Players, QR code or info.
 constexpr int16_t BUTTON_ROW_H = 64;        // Well above the 44 px minimum target.
 constexpr int16_t BUTTON_ROW_Y = 408;       // The one row most screens use, at the bottom.
 constexpr int16_t BUTTON_UPPER_ROW_Y = 336; // Second row, just above it (within thumb reach).
+// In a game, the top of a player's tile (token and name) opens their screen;
+// the rest is split into life down (left) and up (right).
+constexpr int16_t CHIP_NAME_BAND_H = 32;
+// Hold to pass, as long as the app's (TabletTable PASS_HOLD_MS).
+constexpr uint32_t TOUCH_PASS_HOLD_MS = 600;
 
 enum class TouchAction : uint8_t {
   None, Pair, Pause, Resume, EndMatch,
@@ -70,7 +75,11 @@ enum class TouchAction : uint8_t {
   // factory reset Atlas, each held like the BOOT button's gestures; Sleep
   // (a tap) until the screen is touched.
   OpenDevice, UnpairSigils, FactoryResetAtlas, SleepAtlas,
-  OpenThemes, ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast, InvertDisplay
+  OpenThemes, ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast, InvertDisplay,
+  // In a game, like the app's table: the lower halves of a player's tile take
+  // a life off or add one (ChangeLife for that player), its name band opens
+  // their screen, and Hold to pass passes the active player's turn (Pass).
+  ChipLifeMinus, ChipLifePlus, PassTurn
 };
 
 // Code: a presence code a phone asked for, shown over any other screen.

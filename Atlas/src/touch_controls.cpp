@@ -274,35 +274,55 @@ void layoutPlayer(AtlasScreen &screen) {
   addRow(screen, BUTTON_ROW_Y, lower, 2);
 }
 
-// The chip of `seat` on the status screen, as a touch target (chips are
-// drawn as chips, not buttons). Eliminated players' chips open nothing.
-bool chipButton(const PlayerSeat &seat, uint32_t nowMs, TouchButton &out) {
+// A zone of `seat`'s chip on the status screen, as a touch target (chips
+// are drawn as tiles, not buttons). In the lobby the whole chip opens the
+// player's screen; in a game its name band does, and the halves below change
+// life. Eliminated players' chips act on nothing.
+bool chipZone(const PlayerSeat &seat, TouchAction action, uint32_t nowMs, TouchButton &out) {
   if (seat.controllerId == INVALID_ID || activeScreen(nowMs) != ScreenKind::Status) return false;
   PlayerSeat seats[MAX_SCREEN_PLAYERS];
   const uint8_t count = chipSeats(seats);
   for (uint8_t i = 0; i < count; ++i) {
     if (!sameSeat(seats[i], seat)) continue;
-    if (table().hubState != HubState::Lobby && table().game.isEliminated(seats[i].playerNumber)) return false;
+    const bool inGame = table().hubState != HubState::Lobby;
+    if (inGame && table().game.isEliminated(seats[i].playerNumber)) return false;
     out = TouchButton();
-    out.action = TouchAction::OpenPlayer;
+    out.action = action;
     screenChipCell(i, count, out.x, out.y, out.w, out.h);
+    if (!inGame) return action == TouchAction::OpenPlayer;
+    if (action == TouchAction::OpenPlayer) {
+      out.h = CHIP_NAME_BAND_H;
+      return true;
+    }
+    if (action != TouchAction::ChipLifeMinus && action != TouchAction::ChipLifePlus) return false;
+    out.y += CHIP_NAME_BAND_H;
+    out.h -= CHIP_NAME_BAND_H;
+    out.w /= 2;
+    if (action == TouchAction::ChipLifePlus) out.x += out.w;
     return true;
   }
   return false;
 }
 
-// The seat whose chip is at (x, y), if any.
-bool chipAt(int16_t x, int16_t y, uint32_t nowMs, PlayerSeat &found) {
+// The seat and chip zone at (x, y), if any.
+TouchAction chipAt(int16_t x, int16_t y, uint32_t nowMs, PlayerSeat &found) {
+  static const TouchAction zones[] = {TouchAction::OpenPlayer, TouchAction::ChipLifeMinus, TouchAction::ChipLifePlus};
   PlayerSeat seats[MAX_SCREEN_PLAYERS];
   const uint8_t count = chipSeats(seats);
   for (uint8_t i = 0; i < count; ++i) {
-    TouchButton chip;
-    if (chipButton(seats[i], nowMs, chip) && chip.contains(x, y)) {
-      found = seats[i];
-      return true;
+    for (TouchAction zone : zones) {
+      TouchButton chip;
+      if (chipZone(seats[i], zone, nowMs, chip) && chip.contains(x, y)) {
+        found = seats[i];
+        return zone;
+      }
     }
   }
-  return false;
+  return TouchAction::None;
+}
+
+bool chipAction(TouchAction action) {
+  return action == TouchAction::OpenPlayer || action == TouchAction::ChipLifeMinus || action == TouchAction::ChipLifePlus;
 }
 
 // The buttons for the open screen and the table state.
@@ -376,8 +396,9 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
     // Players pass from their own seats; the master pass and End match sit
     // on the Table screen, out of the way during play.
     case HubState::Running: {
-      const ButtonSpec row[] = {{TouchAction::Pause, "Pause", 0, 3}, {TouchAction::OpenTable, "Table", 0, 2}};
-      addRow(screen, BUTTON_ROW_Y, row, 2);
+      const ButtonSpec row[] = {{TouchAction::PassTurn, "Hold to pass", TOUCH_PASS_HOLD_MS, 4},
+          {TouchAction::Pause, "Pause", 0, 2}, {TouchAction::OpenTable, "Table", 0, 2}};
+      addRow(screen, BUTTON_ROW_Y, row, 3);
       break;
     }
     case HubState::Paused: {
@@ -401,9 +422,9 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
 
 // The current layout's button for an action, or nullptr if it is gone.
 const TouchButton *currentButton(TouchAction action, AtlasScreen &layout, uint32_t nowMs) {
-  if (action == TouchAction::OpenPlayer) {
+  if (chipAction(action)) {
     static TouchButton chip;
-    return chipButton(pressedSeat, nowMs, chip) ? &chip : nullptr;
+    return chipZone(pressedSeat, action, nowMs, chip) ? &chip : nullptr;
   }
   layoutButtons(layout, nowMs);
   for (uint8_t i = 0; i < layout.buttonCount; ++i) {
@@ -419,7 +440,7 @@ TouchAction buttonAt(int16_t x, int16_t y, uint32_t nowMs) {
     if (layout.buttons[i].contains(x, y)) return layout.buttons[i].action;
   }
   pressedSeat = PlayerSeat();
-  return chipAt(x, y, nowMs, pressedSeat) ? TouchAction::OpenPlayer : TouchAction::None;
+  return chipAt(x, y, nowMs, pressedSeat);
 }
 
 const char *actionName(TouchAction action) {
@@ -446,6 +467,9 @@ const char *actionName(TouchAction action) {
     case TouchAction::QrSignIn: return "QR_SIGN_IN";
     case TouchAction::OpenMenu: return "OPEN_MENU";
     case TouchAction::OpenPlayer: return "OPEN_PLAYER";
+    case TouchAction::ChipLifeMinus: return "CHIP_LIFE_MINUS";
+    case TouchAction::ChipLifePlus: return "CHIP_LIFE_PLUS";
+    case TouchAction::PassTurn: return "PASS_TURN";
     case TouchAction::LifeMinus5: return "LIFE_MINUS_5";
     case TouchAction::LifeMinus1: return "LIFE_MINUS_1";
     case TouchAction::LifePlus1: return "LIFE_PLUS_1";
@@ -501,6 +525,7 @@ IntentType tableIntentType(TouchAction action) {
 // What a hold button does, for "Keep holding for 5 s to ...".
 const char *holdPurpose(TouchAction action) {
   if (action == TouchAction::MasterPass) return "pass this turn";
+  if (action == TouchAction::PassTurn) return "pass the turn";
   if (action == TouchAction::ClearLobby) return "clear the lobby";
   if (action == TouchAction::UnpairSigils) return "unpair every Sigil";
   if (action == TouchAction::FactoryResetAtlas) return "erase Atlas";
@@ -607,6 +632,35 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
           action == TouchAction::Pair)) {
         openScreen = ScreenKind::Status;
       }
+      break;
+    }
+    // Hold to pass: the active player's own pass, as the app's shared table
+    // and their Sigil send it (Atlas keeps the usual grace period).
+    case TouchAction::PassTurn: {
+      const PlayerSeat *active = table().game.activePlayer();
+      result = active == nullptr ? IntentResult::reject(IntentStatus::InvalidState, "There is no active player")
+          : dispatchSeatIntent(IntentType::Pass, IntentOrigin::AtlasHardware, *active);
+      break;
+    }
+    // A tap on a tile's lower half: one life down or up for that player, the
+    // small step their own controls use.
+    case TouchAction::ChipLifeMinus:
+    case TouchAction::ChipLifePlus: {
+      TouchButton zone;
+      if (!chipZone(pressedSeat, action, nowMs, zone)) {
+        result = IntentResult::reject(IntentStatus::InvalidActor, "That player is not in this game");
+        break;
+      }
+      Intent intent;
+      intent.type = IntentType::ChangeLife;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
+      intent.actor.controllerId = pressedSeat.controllerId;
+      intent.actor.slot = pressedSeat.slot;
+      intent.actor.playerNumber = pressedSeat.playerNumber;
+      intent.payload.targetPlayer = pressedSeat.playerNumber;
+      const int32_t step = table().game.settings().profile == TurnHub::GameProfile::Yugioh ? 100 : 1;
+      intent.payload.value = action == TouchAction::ChipLifeMinus ? -step : step;
+      result = intents.dispatch(intent);
       break;
     }
     case TouchAction::Pause:
@@ -1288,8 +1342,12 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
   if (button != nullptr && pressInside && !holdFired) {
     if (button->hold()) {
       char hint[sizeof(noticeText)];
-      snprintf(hint, sizeof(hint), "Keep holding for %lu s to %s",
-          static_cast<unsigned long>(button->holdMs / 1000), holdPurpose(pressedAction));
+      if (button->holdMs < 1000) {
+        snprintf(hint, sizeof(hint), "Keep holding to %s", holdPurpose(pressedAction));
+      } else {
+        snprintf(hint, sizeof(hint), "Keep holding for %lu s to %s",
+            static_cast<unsigned long>(button->holdMs / 1000), holdPurpose(pressedAction));
+      }
       showNotice(nowMs, hint);
     } else {
       dispatchTouchAction(nowMs, pressedAction);

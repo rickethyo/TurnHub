@@ -138,7 +138,7 @@ bool buttonsUseBody(const AtlasScreen &s) {
 
 bool primaryAction(TouchAction a) {
   switch (a) {
-    case TouchAction::StartGame: case TouchAction::Rematch: case TouchAction::Pause:
+    case TouchAction::StartGame: case TouchAction::Rematch:
     case TouchAction::Resume: case TouchAction::Pair: case TouchAction::SetupPair:
     case TouchAction::PairConfirm:
       return true;
@@ -238,8 +238,10 @@ void drawHero(lv_obj_t *root, const AtlasScreen &s) {
   }
 }
 
-// A player tile, like the app's seat cards: token and name, the life total
-// large, and a status pill. The turn is the one thing that glows.
+// A player tile, like the app's seat panels: token and name in the top band
+// (it opens the player's screen), the life total in the middle with faint
+// - and + marking the halves that change it, and a status pill. The turn is
+// the one thing that glows.
 void drawChip(lv_obj_t *root, const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_t w, int16_t h) {
   const bool active = p.flags & CHIP_ACTIVE;
   const bool out = p.flags & CHIP_OUT;
@@ -251,37 +253,46 @@ void drawChip(lv_obj_t *root, const ScreenPlayer &p, bool showLife, int16_t x, i
   lift(tile);
   const uint32_t ink = out ? pal().textTertiary : pal().text;
   const bool tall = h >= 90;
-  const int16_t side = tall ? 36 : 28;
-  seatToken(tile, p, 10, tall ? 10 : 6, side, glow);
-  const int16_t nameX = 10 + side + 8;
-  lv_obj_t *name = text(tile, p.name, &th_semi_20, ink, nameX, tall ? 14 : 8, w - nameX - 10);
-  if (out) lv_obj_set_style_text_decor(name, LV_TEXT_DECOR_STRIKETHROUGH, 0);
+  const int16_t side = showLife ? 24 : (tall ? 36 : 28);
+  const int16_t bandY = showLife ? (CHIP_NAME_BAND_H - side) / 2 : (tall ? 10 : 6);
+  seatToken(tile, p, 8, bandY, side, glow);
+  const int16_t nameX = 8 + side + 8;
   const char *tag = chipTag(p);
-  // The pill and turn time sit under the name (short tiles) or at the foot.
-  lv_obj_t *foot = box(tile, 10, tall ? h - 30 : h - 26, LV_SIZE_CONTENT, 22);
-  lv_obj_set_flex_flow(foot, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(foot, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(foot, 8, 0);
-  if (tag[0]) {
+  // In a game the pill rides the name band's right end; in the lobby, the foot.
+  int16_t pillW = 0;
+  if (tag[0] && showLife) {
     const bool waiting = p.flags & CHIP_WAITING;
-    pill(foot, tag, glow ? pal().turn : waiting ? pal().accent : pal().surface3,
-         glow ? pal().onTurn : waiting ? pal().onAccent : pal().textSecondary);
+    lv_obj_t *tagPill = pill(tile, tag, glow ? pal().turn : waiting ? pal().accent : pal().surface3,
+                             glow ? pal().onTurn : waiting ? pal().onAccent : pal().textSecondary);
+    lv_obj_align(tagPill, LV_ALIGN_TOP_RIGHT, -8, (CHIP_NAME_BAND_H - 22) / 2);
+    pillW = textWidth(tag, &th_eyebrow_13) + 24;
   }
-  if (p.turnTime[0] && (tall || !tag[0])) {
-    lv_obj_t *t = lv_label_create(foot);
-    lv_obj_remove_style_all(t);
-    lv_label_set_text(t, p.turnTime);
-    lv_obj_set_style_text_font(t, &th_semi_16, 0);
-    lv_obj_set_style_text_color(t, rgb(pal().textSecondary), 0);
+  const lv_font_t *nameFont = showLife && (!tall || w < 200) ? &th_semi_16 : &th_semi_20;
+  const int16_t nameY = showLife ? (CHIP_NAME_BAND_H - lv_font_get_line_height(nameFont)) / 2 : (tall ? 14 : 8);
+  lv_obj_t *name = text(tile, p.name, nameFont, ink, nameX, nameY, w - nameX - 8 - pillW);
+  if (out) lv_obj_set_style_text_decor(name, LV_TEXT_DECOR_STRIKETHROUGH, 0);
+  if (!showLife) {
+    if (!tag[0]) return;
+    const bool waiting = p.flags & CHIP_WAITING;
+    lv_obj_t *tagPill = pill(tile, tag, waiting ? pal().accent : pal().surface3, waiting ? pal().onAccent : pal().textSecondary);
+    lv_obj_set_pos(tagPill, 10, h - 30);
+    return;
   }
-  if (!showLife) return;
+  // Life: centred in the area under the band, between - and +.
+  const int16_t lowerY = CHIP_NAME_BAND_H, lowerH = h - CHIP_NAME_BAND_H;
   char life[12];
   snprintf(life, sizeof(life), "%ld", static_cast<long>(p.life));
-  const lv_font_t *font = h >= 120 || (tall && w >= 200) ? &th_num_64 : &th_num_40;
+  const lv_font_t *font = lowerH >= 100 && w >= 140 ? &th_num_64 : lowerH >= 46 ? &th_num_40 : &th_bold_28;
   const uint32_t lifeInk = out ? pal().textTertiary : (active ? pal().turn : pal().text);
   const int16_t lh = lv_font_get_line_height(font);
-  // Short tiles: under the name, at the bottom right.
-  text(tile, life, font, lifeInk, 8, tall ? (h - lh) / 2 + 4 : h - lh, w - 18, LV_TEXT_ALIGN_RIGHT);
+  const int16_t timeRoom = tall && p.turnTime[0] ? 20 : 0;
+  text(tile, life, font, lifeInk, 0, lowerY + (lowerH - timeRoom - lh) / 2, w, LV_TEXT_ALIGN_CENTER);
+  if (!out) {
+    const int16_t signY = lowerY + (lowerH - timeRoom - lv_font_get_line_height(&th_bold_28)) / 2;
+    text(tile, "-", &th_bold_28, pal().textTertiary, 12, signY, 24);
+    text(tile, "+", &th_bold_28, pal().textTertiary, w - 30, signY, 24, LV_TEXT_ALIGN_RIGHT);
+  }
+  if (timeRoom) text(tile, p.turnTime, &th_semi_16, pal().textSecondary, 0, h - 24, w, LV_TEXT_ALIGN_CENTER);
 }
 
 // Body lines in a column: each wraps to the width and pushes the next down.
@@ -364,25 +375,31 @@ void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
   const bool pressed = s.pressed == b.action;
   const bool primary = primaryAction(b.action);
   const bool danger = dangerAction(b.action);
+  // Hold to pass wears the turn colour, as in the app.
+  const bool turn = b.action == TouchAction::PassTurn;
   lv_obj_t *o = box(root, b.x, b.y, b.w, b.h);
-  const uint32_t base = pressed ? (primary ? pal().accentPressed : pal().fillStrong)
+  const uint32_t base = turn ? (pressed ? pal().turnSoft : pal().turn)
+      : pressed ? (primary ? pal().accentPressed : pal().fillStrong)
       : primary ? pal().accent : pal().surface3;
   card(o, base, b.selected || pressed ? pal().focus : danger ? pal().critical : pal().separatorStrong, 14);
-  if (!primary || pressed) lv_obj_set_style_border_width(o, 1, 0); else lv_obj_set_style_border_width(o, 0, 0);
+  lv_obj_set_style_border_width(o, (primary || turn) && !pressed ? 0 : 1, 0);
   if (!pressed) {
     sheen(o, base);
     lift(o);
   }
   // Pressed and the shown choice are also marked by a heavier frame.
   if (pressed || b.selected) lv_obj_set_style_border_width(o, 3, 0);
-  const uint32_t ink = primary ? pal().onAccent : danger ? pal().critical : pal().text;
+  const uint32_t ink = turn ? (pressed ? pal().text : pal().onTurn) : primary ? pal().onAccent
+      : danger ? pal().critical : pal().text;
   char label[32];
   if (pressed && b.hold() && s.holdSecondsLeft > 0) {
     snprintf(label, sizeof(label), "Hold %u s", static_cast<unsigned>(s.holdSecondsLeft));
   } else {
     snprintf(label, sizeof(label), "%s", b.label);
   }
-  const char *caption = b.selected && !pressed ? "shown" : (b.hold() && !pressed ? "hold" : "");
+  // "hold" under a hold button, unless its label already says so.
+  const bool saysHold = strncmp(b.label, "Hold", 4) == 0;
+  const char *caption = b.selected && !pressed ? "shown" : (b.hold() && !pressed && !saysHold ? "hold" : "");
   // The largest type that fits on one line; two lines of the small one otherwise.
   const int16_t room = b.w - 16;
   const lv_font_t *font = textWidth(label, &th_semi_20) <= room ? &th_semi_20 : &th_semi_16;
@@ -404,7 +421,7 @@ void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
     lv_obj_remove_style_all(c);
     lv_label_set_text(c, caption);
     lv_obj_set_style_text_font(c, &th_eyebrow_13, 0);
-    lv_obj_set_style_text_color(c, rgb(primary ? pal().onAccent : pal().textSecondary), 0);
+    lv_obj_set_style_text_color(c, rgb(turn ? pal().onTurn : primary ? pal().onAccent : pal().textSecondary), 0);
   }
   lv_obj_align(col, LV_ALIGN_CENTER, 0, 0);
   if (pressed && b.hold()) {
