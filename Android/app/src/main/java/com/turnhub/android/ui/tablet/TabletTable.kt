@@ -673,7 +673,8 @@ internal fun TabletTable(
                             }
                         }
                     }
-                    if (standalone && !summary.settings.profile.cooperative) {
+                    // Atlas reverses turns in Magic formats (the ones it reports day/night for).
+                    if ((standalone || summary.dayNight != null) && !summary.settings.profile.cooperative) {
                         val reversed = summary.turnOrderReversed
                         DisclosureCard(if (reversed) "Turn order · Reversed" else "Turn order") {
                             Text(if (reversed) "↺ Turns go counterclockwise until you set them back."
@@ -684,7 +685,7 @@ internal fun TabletTable(
                         }
                     }
                     // A card that gives every player a counter: one tap instead of one per panel.
-                    if (standalone && summary.settings.profile.magicRules) {
+                    if ((standalone || summary.dayNight != null) && summary.settings.profile.magicRules) {
                         DisclosureCard("Everyone's counters") {
                             Text("Adds or removes one for every living player.", color = p.muted, style = MaterialTheme.typography.bodySmall)
                             EVERYONE_COUNTER_LABELS.forEach { (kind, label) ->

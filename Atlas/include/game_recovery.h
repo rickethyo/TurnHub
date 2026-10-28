@@ -6,10 +6,10 @@
 namespace TurnHub {
 class GameEngine;
 class Lobby;
-// The largest record: a 66-byte header and CRC-32, then per player 59 bytes
-// plus 8 per opponent (Commander damage). 3,062 bytes for 16 players.
+// The largest record: a 69-byte header and CRC-32, then per player 67 bytes
+// plus 8 per opponent (Commander damage). 3,193 bytes for 16 players.
 constexpr size_t GAME_CHECKPOINT_CAPACITY =
-    66 + 4 + MAX_PLAYERS * (59 + MAX_PLAYERS * 8);
+    69 + 4 + MAX_PLAYERS * (67 + MAX_PLAYERS * 8);
 size_t encodeCheckpoint(const GameCheckpoint &saved, uint8_t *bytes, size_t capacity);
 TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameCheckpoint &saved);
 

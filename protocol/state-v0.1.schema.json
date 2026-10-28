@@ -334,9 +334,23 @@
               },
               "cityBlessing": {
                 "type": "boolean"
+              },
+              "treasure": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "rad": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
               }
             },
-            "description": "Shared team poison in 2HG; other values belong to this player. Commander tax is twice each command-zone cast count."
+            "description": "Shared team poison in 2HG; other values belong to this player. Commander tax is twice each command-zone cast count. Treasure and rad (CR 727) are per player and optional in older captures."
+          },
+          "radDue": {
+            "description": "Magic: this player's rad counters triggered as their turn began and they haven't said yet how many of the milled cards were nonlands (counter rad-resolve).",
+            "type": "boolean"
           },
           "eliminatedBy": {
             "type": [
@@ -591,6 +605,23 @@
       "minimum": 1,
       "maximum": 16,
       "description": "The one living initiative holder in a Magic game, independent of monarch."
+    },
+    "dayNight": {
+      "description": "Magic and Commander formats: the table's day or night (CR 726), set by hand from any living player's controls; null for formats without it. Resets with each new match.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "NEITHER",
+        "DAY",
+        "NIGHT",
+        null
+      ]
+    },
+    "turnOrderReversed": {
+      "description": "Turns go counterclockwise (a card reversed them) until a player sets them back; Two-Headed Giant still passes team to team. False at each new match.",
+      "type": "boolean"
     },
     "doomBag": {
       "type": [

@@ -5,7 +5,16 @@ Research date: 2026-10-11. Atlas candidate ES3C40P; Sigil candidate ES3C28P.
 Require the capacitive **C** SKU: ES3N28P has no touch. An equivalent must match
 controller, memory, connector, power and mechanical requirements individually.
 The Gen 1 E32R28T Atlas and ESP32 DevKit Sigils remain the working baseline on
-`legacy/gen1`; master builds board-less until these targets exist.
+`legacy/gen1`. Master's `env:atlas-s3` (2026-10-28, *Experimental*) runs the full Atlas
+firmware on the ES3C40P: native USB serial, microSD over 4-bit SDMMC, an
+`ATLAS|BOARD|...` boot line, and the touchscreen (`atlas_display_s3.cpp`:
+LovyanGFX ST7796S/FT6336U drivers, LVGL 9.3 drawing the `touch_controls.cpp`
+screen model). First board, 2026-10-28 (*Verified* on one unit): ESP32-S3
+rev 0.2, flash JEDEC 5E4018 = 16 MB (the 4-inch schematic's W25X40 is wrong),
+8 MB PSRAM, SDHC card mounted, AP and ESP-NOW up, no resets. Rotation, colour
+inversion and touch orientation are `LCD_ROTATION`/`LCD_INVERT` in `config.h`
+and still need a look at the panel. Audio, battery and RGB drivers come next;
+the Sigil target does not exist yet.
 
 ## Evidence and confidence
 

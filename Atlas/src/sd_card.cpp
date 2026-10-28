@@ -1,9 +1,16 @@
-// Atlas's microSD slot (VSPI; the TFT has HSPI to itself). See sd_card.h.
+// Atlas's microSD slot: SPI (VSPI) on the board-less build, 4-bit SDMMC on
+// the ES3C40P. See sd_card.h.
 #include "sd_card.h"
 
 #include <FS.h>
+#if defined(TURNHUB_BOARD_ES3C40P)
+#include <SD_MMC.h>
+#include <ff.h>
+#include <diskio_impl.h>
+#else
 #include <SD.h>
 #include <SPI.h>
+#endif
 #include <atomic>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -21,17 +28,24 @@
 namespace TurnHubAtlas {
 namespace {
 using TurnHub::serialLog;
+
+#if defined(TURNHUB_BOARD_ES3C40P)
+fs::SDMMCFS &cardFs = SD_MMC;
+#else
+fs::SDFS &cardFs = SD;
+SPIClass sdSpi(VSPI);
+#endif
 using TurnHubStorage::Status;
 
 // Adapts the Arduino SD library to the store's file-system interface.
 class ArduinoSdFileSystem final : public TurnHubStorage::FileSystem,
                                   public TurnHubStorage::DiagnosticFileSystem {
  public:
-  bool exists(const char *path) override { return SD.exists(path); }
+  bool exists(const char *path) override { return cardFs.exists(path); }
   bool readFile(const char *path, void *data, size_t capacity,
                 size_t &size) override {
     size = 0;
-    File file = SD.open(path, FILE_READ);
+    File file = cardFs.open(path, FILE_READ);
     if (!file || file.isDirectory()) return false;
     const size_t length = file.size();
     bool ok = length <= capacity;
@@ -40,7 +54,7 @@ class ArduinoSdFileSystem final : public TurnHubStorage::FileSystem,
     return ok && size == length;
   }
   bool writeFile(const char *path, const void *data, size_t size) override {
-    File file = SD.open(path, FILE_WRITE);
+    File file = cardFs.open(path, FILE_WRITE);
     if (!file) return false;
     const size_t written = file.write(static_cast<const uint8_t *>(data), size);
     file.flush();
@@ -48,19 +62,19 @@ class ArduinoSdFileSystem final : public TurnHubStorage::FileSystem,
     return written == size;
   }
   bool rename(const char *from, const char *to) override {
-    return SD.rename(from, to);
+    return cardFs.rename(from, to);
   }
-  bool remove(const char *path) override { return SD.remove(path); }
-  bool mkdir(const char *path) override { return SD.mkdir(path); }
+  bool remove(const char *path) override { return cardFs.remove(path); }
+  bool mkdir(const char *path) override { return cardFs.mkdir(path); }
   bool fileSize(const char *path, size_t &size) override {
-    File file = SD.open(path, FILE_READ);
+    File file = cardFs.open(path, FILE_READ);
     if (!file || file.isDirectory()) return false;
     size = file.size();
     file.close();
     return true;
   }
   bool appendFile(const char *path, const void *data, size_t size) override {
-    File file = SD.open(path, FILE_APPEND);
+    File file = cardFs.open(path, FILE_APPEND);
     if (!file || file.isDirectory()) return false;
     const size_t written = file.write(static_cast<const uint8_t *>(data), size);
     file.flush();
@@ -69,7 +83,6 @@ class ArduinoSdFileSystem final : public TurnHubStorage::FileSystem,
   }
 };
 
-SPIClass sdSpi(VSPI);
 ArduinoSdFileSystem sdFileSystem;
 TurnHubStorage::SdBlobStore sdStore;
 
@@ -158,7 +171,7 @@ class LockedSdStore final : public TurnHubStorage::BlobStore {
 LockedSdStore lockedStore;
 
 const char *cardTypeName() {
-  switch (SD.cardType()) {
+  switch (cardFs.cardType()) {
     case CARD_MMC: return "MMC";
     case CARD_SD: return "SDSC";
     case CARD_SDHC: return "SDHC/SDXC";
@@ -193,19 +206,24 @@ SdMountResult mountCard() {
   // At most 2 open files (was 4): each slot reserves a 4 KB sector cache
   // (CONFIG_FATFS_PER_FILE_CACHE), and every access runs under the card lock
   // with at most one file open (a wipe adds a directory, which takes no slot).
-  if (!SD.begin(AtlasConfig::SD_CS_PIN, sdSpi, AtlasConfig::SD_SPI_HZ, "/sd",
-                2, false) ||
-      SD.cardType() == CARD_NONE) {
-    SD.end();
+#if defined(TURNHUB_BOARD_ES3C40P)
+  const bool begun = cardFs.begin("/sd", false, false, AtlasConfig::SD_MMC_KHZ, 2);
+#else
+  const bool begun = cardFs.begin(AtlasConfig::SD_CS_PIN, sdSpi, AtlasConfig::SD_SPI_HZ, "/sd",
+                                  2, false);
+#endif
+  if (!begun ||
+      cardFs.cardType() == CARD_NONE) {
+    cardFs.end();
     if (cardState.exchange(CardState::NoCard) != CardState::NoCard) {
       serialLog.println("ATLAS|SD|NO_CARD");
     }
     return SdMountResult::NoCard;
   }
   mountedType = cardTypeName();
-  cardMB = static_cast<uint32_t>(SD.cardSize() / (1024ULL * 1024ULL));
-  totalMB = static_cast<uint32_t>(SD.totalBytes() / (1024ULL * 1024ULL));
-  usedKB = static_cast<uint32_t>(SD.usedBytes() / 1024ULL);
+  cardMB = static_cast<uint32_t>(cardFs.cardSize() / (1024ULL * 1024ULL));
+  totalMB = static_cast<uint32_t>(cardFs.totalBytes() / (1024ULL * 1024ULL));
+  usedKB = static_cast<uint32_t>(cardFs.usedBytes() / 1024ULL);
   serialLog.print("ATLAS|SD|MOUNTED|");
   serialLog.print(mountedType);
   serialLog.print("|");
@@ -218,7 +236,7 @@ SdMountResult mountCard() {
     cardState.store(CardState::StoreError);
     serialLog.print("ATLAS|SD|STORE|");
     serialLog.println(TurnHub::storageStatusName(store));
-    SD.end();
+    cardFs.end();
     return SdMountResult::CardError;
   }
   const Status selfTest = runSelfTest();
@@ -228,7 +246,7 @@ SdMountResult mountCard() {
   if (!TurnHubStorage::sdStorageReady(store, selfTest)) {
     cardState.store(CardState::SelfTestError);
     sdStore.end();
-    SD.end();
+    cardFs.end();
     return SdMountResult::CardError;
   }
   cardState.store(CardState::Mounted);
@@ -237,13 +255,13 @@ SdMountResult mountCard() {
   return SdMountResult::Ok;
 }
 
-// The card was pulled or failed: drop the mount so a later SD.begin() starts
+// The card was pulled or failed: drop the mount so a later begin() starts
 // clean. Under the card lock.
 void unmountCard() {
   cardState.store(CardState::NoCard);
   logState.store(LogState::Off);
   sdStore.end();
-  SD.end();
+  cardFs.end();
   mountedType = "none";
   cardGeneration.fetch_add(1);
   serialLog.println("ATLAS|SD|REMOVED");
@@ -257,7 +275,7 @@ int removeTree(const String &path, uint8_t depth) {
   int removed = 0;
   uint16_t skip = 0;
   for (;;) {
-    File dir = SD.open(path);
+    File dir = cardFs.open(path);
     if (!dir || !dir.isDirectory()) {
       if (dir) dir.close();
       return removed;
@@ -278,9 +296,9 @@ int removeTree(const String &path, uint8_t depth) {
     bool gone = false;
     if (isDirectory) {
       if (depth < MAX_DEPTH) removed += removeTree(childPath, depth + 1);
-      gone = SD.rmdir(childPath);
+      gone = cardFs.rmdir(childPath);
     } else {
-      gone = SD.remove(childPath);
+      gone = cardFs.remove(childPath);
     }
     if (gone) {
       ++removed;
@@ -296,7 +314,13 @@ int removeTree(const String &path, uint8_t depth) {
 // from the file system's cache after the card is gone.
 bool cardAnswers() {
   static uint8_t sector[512];
-  return SD.readRAW(sector, 0);
+#if defined(TURNHUB_BOARD_ES3C40P)
+  // SD_MMC has no raw read in this core; the card is the only FAT drive, so
+  // FatFs drive 0 is the SDMMC driver's sector read.
+  return disk_read(0, sector, 0, 1) == RES_OK;
+#else
+  return cardFs.readRAW(sector, 0);
+#endif
 }
 
 // The SD worker: drains the diagnostic log to the card and handles hot-plug
@@ -413,8 +437,13 @@ void sdTask(void *) {
 }  // namespace
 
 void beginSdCard() {
+#if defined(TURNHUB_BOARD_ES3C40P)
+  cardFs.setPins(AtlasConfig::SD_CLK_PIN, AtlasConfig::SD_CMD_PIN, AtlasConfig::SD_D0_PIN,
+                 AtlasConfig::SD_D1_PIN, AtlasConfig::SD_D2_PIN, AtlasConfig::SD_D3_PIN);
+#else
   sdSpi.begin(AtlasConfig::SD_SCLK_PIN, AtlasConfig::SD_MISO_PIN,
               AtlasConfig::SD_MOSI_PIN, AtlasConfig::SD_CS_PIN);
+#endif
   // Boot mounts synchronously so profiles start with the card if it is there.
   mountCard();
   // Without the card lock the worker would race the record store, so no lock

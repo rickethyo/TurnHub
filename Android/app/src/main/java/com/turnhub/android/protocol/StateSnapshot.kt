@@ -36,6 +36,10 @@ data class StateSnapshot(
     val battery: AtlasBattery? = null,
     val monarchPlayer: Int? = null,
     val initiativePlayer: Int? = null,
+    /** Magic: `NEITHER`, `DAY` or `NIGHT` (CR 726); null for other formats and older firmware. */
+    val dayNight: String? = null,
+    /** Turns go counterclockwise until a player sets them back. */
+    val turnOrderReversed: Boolean = false,
     val game: Int = 1,
     val games: List<VenueGame> = emptyList(),
     /** Game over within a minute and not counted yet (`count-game`); absent from older firmware. */

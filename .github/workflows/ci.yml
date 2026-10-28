@@ -152,6 +152,10 @@ jobs:
           - project: Atlas
             environment: atlas
             product: atlas
+          # The ES3C40P S3 Atlas, USB-flashed until S3 OTA lands.
+          - project: Atlas
+            environment: atlas-s3
+            product: ''
           - project: Sigil
             environment: sigil
             product: sigil-eink

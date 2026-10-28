@@ -1,6 +1,9 @@
 # LVGL presentation foundation
 
-**Experimental**, desktop-only. Hardware/BOM planning completed first in
+**Experimental**. Firmware status (2026-10-28): `env:atlas-s3` runs LVGL 9.3
+on the S3 Atlas, drawing the existing `touch_controls.cpp` screen model
+(`atlas_display_s3.cpp`); the presentation types below are not bound yet.
+Hardware/BOM planning completed first in
 [the S3 refresh](hardware/ESP32_S3_REFRESH.md). `LVGL/` is isolated from Atlas,
 Sigil and their PlatformIO dependencies. This milestone is a UI foundation,
 not S3 firmware or a second playable game engine. Build/status belongs in

@@ -135,7 +135,7 @@ fun MagicCountersEditor(counters: PlayerCounters, initiative: Boolean, commander
     commanderRarity: String? = null,
     partnerEnabled: Boolean? = null,
     onPartnerChange: ((Boolean) -> Unit)? = null,
-    /** Treasure and rad: kept only by phone-hosted games until Atlas tracks them. */
+    /** Treasure and rad: phone-hosted games, and Atlas firmware that reports them (2026-10-28). */
     phoneCounters: Boolean = false,
     onChange: (kind: String, value: Int, commander: Int) -> Unit,
 ) {

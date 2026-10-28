@@ -12,6 +12,7 @@
 #include "sigil_menu.h"
 #include "profile_picker.h"
 #include "commander_picker.h"
+#include "atlas_board.h"
 #include "atlas_battery.h"
 #include "atlas_display.h"
 #include "atlas_speaker.h"
@@ -550,6 +551,7 @@ void setup() {
   // A real read of the descriptor, so the linker keeps it in the image.
   serialLog.print("ATLAS|FW_PRODUCT|");
   serialLog.println(*reinterpret_cast<const volatile uint8_t *>(&atlasFirmwareDescriptor.product));
+  logAtlasBoard();
   serialLog.print("ATLAS|RESET_REASON|");
   serialLog.println(TurnHub::resetReason());
   serialLog.print("ATLAS|DIAGNOSTICS|");

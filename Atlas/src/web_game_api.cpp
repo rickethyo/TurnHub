@@ -427,12 +427,31 @@ bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::I
   int32_t number = 0;
   if (type == TurnHub::IntentType::ChangeCounter && server.hasArg("counter")) {
     const String kind = server.arg("counter");
-    const char *keys[] = {"", "poison", "energy", "experience", "commander-casts", "city-blessing", "initiative"};
-    for (uint8_t i = 1; i < static_cast<uint8_t>(TurnHub::CounterKind::Count); ++i) {
+    using TurnHub::CounterKind;
+    // In CounterKind order; the app's counter names.
+    const char *keys[] = {"", "poison", "energy", "experience", "commander-casts", "city-blessing", "initiative",
+                          "treasure", "rad", "rad-resolve", "day-night", "turn-order", "everyone"};
+    static_assert(sizeof(keys) / sizeof(keys[0]) == static_cast<size_t>(CounterKind::Count), "Counter names");
+    for (uint8_t i = 1; i < static_cast<uint8_t>(CounterKind::Count); ++i) {
       if (kind != keys[i]) continue;
       payload.flags = i;
-      if (i >= static_cast<uint8_t>(TurnHub::CounterKind::CityBlessing))
+      const auto counter = static_cast<CounterKind>(i);
+      if (counter == CounterKind::CityBlessing || counter == CounterKind::Initiative || counter == CounterKind::TurnOrder)
         return parseBoundedNumber(server.arg("value"), 0, 1, payload.value);
+      if (counter == CounterKind::DayNight)
+        return parseBoundedNumber(server.arg("value"), 0, static_cast<int32_t>(TurnHub::DayNight::Count) - 1, payload.value);
+      // The nonland cards milled (0 just clears the reminder).
+      if (counter == CounterKind::RadResolve) return parseBoundedNumber(server.arg("delta"), 0, TurnHub::LIFE_LIMIT, payload.value);
+      if (counter == CounterKind::Everyone) {
+        // kind: the counter every living player gains or loses one of.
+        const String target = server.arg("kind");
+        for (uint8_t k = 1; k < static_cast<uint8_t>(CounterKind::Count); ++k) {
+          if (target != keys[k] || !TurnHub::everyoneCounter(static_cast<CounterKind>(k))) continue;
+          payload.counterSlot = k;
+          return parseLifeInteger(server.arg("delta"), payload.value, true) && (payload.value == 1 || payload.value == -1);
+        }
+        return false;
+      }
       if (!parseLifeInteger(server.arg("delta"), payload.value, true) || !payload.value) return false;
       if (i == static_cast<uint8_t>(TurnHub::CounterKind::CommanderCast)) {
         if (!parseBoundedNumber(server.arg("commander"), 1, 2, number)) return false;
