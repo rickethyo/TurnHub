@@ -762,16 +762,20 @@ holder's initiative passes like the monarch (CR 725.4). City’s blessing
 is independently declared by each player; clearing it is an explicit correction.
 TurnHub does not count permanents, resolve the Undercity or enforce card effects.
 
-Phone-hosted games (Android standalone) also keep treasure and rad counters per
-player and the table's day or night (CR 726), set from the game menu and shown
-on the centre disc. The phone can't see spells cast, so the table switches day
-and night by hand; once set it never returns to neither, apart from a
-correction. Atlas doesn't track these yet (`STAGED_CHANGES.md`), so connected
-play hides them. A player knocked out is the existing elimination, with its
-"Eliminated by" source.
+Treasure and rad counters per player and the table's day or night (CR 726)
+are set from the game menu and shown on the centre disc. The phone can't see
+spells cast, so the table switches day and night by hand; once set it never
+returns to neither, apart from a correction. A player knocked out is the
+existing elimination, with its "Eliminated by" source. Atlas runs them too
+since 2026-10-28 (*host tests only, needs a playtest*): `GameEngine` keeps
+them with the rad trigger and reversed turns, through ChangeCounter
+(`treasure`, `rad`, `rad-resolve`, `day-night`, `turn-order`, `everyone` in
+`protocol/http-v1.md`), the state (`dayNight`, `turnOrderReversed`, `radDue`)
+and checkpoint schema 9, so connected play shows them all. On Atlas reversed
+turns are a Magic-format action.
 
 Everyone's counters (owner, 2026-10-27): for cards that give every player a
-counter, the phone-hosted game menu's **Everyone's counters** card adds or
+counter, the game menu's **Everyone's counters** card adds or
 removes one poison, energy, experience, treasure or rad for every living player
 in one tap (`changeCounterForEveryone`). Each player still goes through the
 normal counter rules; Two-Headed Giant's shared poison changes once per team.

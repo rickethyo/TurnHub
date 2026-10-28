@@ -123,6 +123,19 @@ class TableSummaryMapperTest {
     }
 
     @Test
+    fun `Atlas day night, turn order and rad triggers reach the table`() {
+        val state = Fixtures.state("running.response.json") {
+            put("dayNight", "DAY").put("turnOrderReversed", true)
+            getJSONArray("players").getJSONObject(1).put("radDue", true)
+        }
+        val summary = TableSummaryMapper.map(Fixtures.info(), state)
+        assertEquals(DayNight.DAY, summary.dayNight)
+        assertTrue(summary.turnOrderReversed)
+        assertEquals(listOf(state.players[1].playerNumber), summary.radDuePlayerNumbers)
+        assertNull(TableSummaryMapper.map(Fixtures.info(), Fixtures.state("running.response.json")).dayNight)
+    }
+
+    @Test
     fun `lobby players have no life`() {
         val player = Fixtures.json("running.response.json").getJSONArray("players").getJSONObject(0)
             .put("life", JSONObject.NULL)

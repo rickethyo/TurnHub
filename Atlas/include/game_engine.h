@@ -85,7 +85,16 @@ class GameEngine {
   bool claimMonarch(uint8_t playerNumber);
   uint8_t initiativePlayerNumber() const { return initiativePlayer_; }
   const PlayerCounters *countersForPlayer(uint8_t playerNumber) const;
+  // Also the table-wide kinds (RadResolve, DayNight, TurnOrder, Everyone):
+  // playerNumber is the living player asking (and, for RadResolve, answering).
   bool changePlayerCounter(uint8_t playerNumber, CounterKind kind, int32_t value, uint8_t commander = 1);
+  // Magic: the table's day or night, and whether turns go counterclockwise.
+  // Both reset with each new match.
+  DayNight dayNight() const { return dayNight_; }
+  bool turnOrderReversed() const { return turnOrderReversed_; }
+  // Magic: the player's rad counters triggered this turn and they haven't
+  // yet said how many nonlands they milled.
+  bool radDue(uint8_t playerNumber) const;
   bool setEliminationSettings(const GameSettings &settings);
   void setAutoEliminateAtZeroLife(bool enabled) { settings_.autoEliminateAtZeroLife = enabled; }
   bool resolveEliminationRules(uint32_t nowMs);
@@ -316,6 +325,10 @@ class GameEngine {
   uint8_t starterPlayer_ = 0;
   uint8_t monarchPlayer_ = 0, initiativePlayer_ = 0;
   PlayerCounters counters_[MAX_PLAYERS]{};
+  DayNight dayNight_ = DayNight::Neither;
+  bool turnOrderReversed_ = false;
+  uint16_t radDue_ = 0;  // Bit per player index.
+  bool changeTableCounter(uint8_t playerNumber, CounterKind kind, int32_t value, uint8_t commander);
 
   bool running_ = false;
   bool paused_ = false;

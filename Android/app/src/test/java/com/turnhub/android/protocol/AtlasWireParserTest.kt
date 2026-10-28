@@ -50,6 +50,29 @@ class AtlasWireParserTest {
     }
 
     @Test
+    fun `treasure rad day night and turn order parse, and older firmware omits them`() {
+        val c = JSONObject().put("poison", 0).put("energy", 0).put("experience", 0)
+            .put("commanderCasts", org.json.JSONArray(listOf(0, 0))).put("cityBlessing", false).put("treasure", 2).put("rad", 3)
+        val state = Fixtures.state("running.response.json") {
+            put("dayNight", "NIGHT").put("turnOrderReversed", true)
+            getJSONArray("players").getJSONObject(0).put("counters", c).put("radDue", true)
+        }
+        assertEquals("NIGHT", state.dayNight)
+        assertTrue(state.turnOrderReversed)
+        assertEquals(2, state.players[0].counters.treasure)
+        assertEquals(3, state.players[0].counters.rad)
+        assertTrue(state.players[0].radDue)
+        val older = Fixtures.state("running.response.json")
+        assertNull(older.dayNight)
+        assertTrue(!older.turnOrderReversed && !older.players[0].radDue)
+        assertNull(Fixtures.state("running.response.json") { put("dayNight", JSONObject.NULL) }.dayNight)
+        assertThrows(AtlasWireException.Malformed::class.java) { Fixtures.state("running.response.json") { put("dayNight", "DUSK") } }
+        assertThrows(Exception::class.java) {
+            Fixtures.state("running.response.json") { getJSONArray("players").getJSONObject(0).put("counters", c.put("rad", -1)) }
+        }
+    }
+
+    @Test
     fun `monarch parses and older snapshots have no monarch`() {
         assertNull(Fixtures.state("running.response.json").monarchPlayer)
         assertNull(Fixtures.state("running.response.json") { put("monarchPlayer", JSONObject.NULL) }.monarchPlayer)

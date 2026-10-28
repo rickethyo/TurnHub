@@ -28,6 +28,8 @@ data class Player(
     val selfEliminated: Boolean = false,
     val eliminationPending: Boolean = false,
     val counters: PlayerCounters = PlayerCounters(),
+    /** Magic: this player's rad trigger waits for their nonland count (counter `rad-resolve`). */
+    val radDue: Boolean = false,
     /** Null in the lobby, before Atlas has captured starting life. */
     val life: Int?,
     /** Unsigned 32-bit. */

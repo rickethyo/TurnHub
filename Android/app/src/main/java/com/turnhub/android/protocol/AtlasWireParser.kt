@@ -27,6 +27,7 @@ object AtlasWireParser {
 
     private const val UINT32_MAX = 4_294_967_295L
     private val BOOT_ID = Regex("^[0-9A-F]{32}$")
+    private val DAY_NIGHT_WIRE = setOf("NEITHER", "DAY", "NIGHT")
 
     fun parseInfo(body: String): AtlasInfo {
         val root = parseObject(body) { AtlasWireException.NotTurnHub("Response is not TurnHub JSON") }
@@ -84,6 +85,8 @@ object AtlasWireParser {
                 },
                 monarchPlayer = root.optionalInt("monarchPlayer"),
                 initiativePlayer = root.optionalInt("initiativePlayer"),
+                dayNight = root.optionalString("dayNight")?.also { if (it !in DAY_NIGHT_WIRE) malformed("Unknown day/night '$it'") },
+                turnOrderReversed = root.optionalBoolean("turnOrderReversed"),
                 settings = parseSettings(settings, profileKey),
                 doomBag = if (root.isAbsentOrNull("doomBag")) null else parseDoomBag(root.obj("doomBag")),
                 sampledAtMs = root.uint32("sampledAtMs"),
@@ -298,7 +301,8 @@ object AtlasWireParser {
         if (casts.length() != 2) malformed("commanderCasts must have two entries")
         return PlayerCounters(count("poison"), count("energy"), count("experience"),
             List(2) { casts.intAt(it, "commanderCasts").also { value -> if (value !in 0..1_000_000) malformed("Invalid cast count") } },
-            c.boolean("cityBlessing"))
+            c.boolean("cityBlessing"),
+            if (c.has("treasure")) count("treasure") else 0, if (c.has("rad")) count("rad") else 0)
     }
 
     private fun parseTurnTimer(timer: JSONObject): TurnTimer {
@@ -348,6 +352,7 @@ object AtlasWireParser {
                 !player.boolean("eliminated") || player.optionalBoolean("conceded"))) malformed("Invalid elimination credit")
         },
         counters = if (player.isAbsentOrNull("counters")) PlayerCounters() else parsePlayerCounters(player.obj("counters")),
+        radDue = player.optionalBoolean("radDue"),
         life = player.nullableInt("life"),
         turnsCompleted = player.uint32("turnsCompleted"),
         commanderDamage = player.array("commanderDamage").objects().map { entry ->

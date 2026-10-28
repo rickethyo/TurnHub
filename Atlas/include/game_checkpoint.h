@@ -10,6 +10,11 @@ struct GameCheckpoint {
   DoomBag doom{};
   uint8_t count = 0, active = 0, starter = 0, winner = 0, monarch = 0, initiative = 0;
   bool paused = false, over = false;
+  // Magic table state (schema 9): day/night, reversed turns and the players
+  // (bit per index) whose rad trigger is waiting for an answer.
+  DayNight dayNight = DayNight::Neither;
+  bool reversed = false;
+  uint16_t radDue = 0;
   // Every winner (bit playerNumber - 1); winner is its lowest bit. Several
   // only for a shared Star Commander victory.
   uint16_t winners = 0;

@@ -509,7 +509,15 @@ normal `module`, `slot` and game scope. Both converge on ChangeCounter.
 | `commander-casts` | `delta`, `commander` (1 or 2) | Command-zone casts in Commander. Next tax = 2 × casts. |
 | `city-blessing` | `value` (0 or 1) | Declare blessing or clear an erroneous entry; independent per player. |
 | `initiative` | `value` (0 or 1) | Claim/transfer, or release one’s own initiative. |
+| `treasure`, `rad` | `delta` (nonzero, ±1,000,000) | Per-player totals, as for energy. |
+| `rad-resolve` | `delta` (0 to the player’s rad) | Answers the player’s own rad trigger (state `radDue`, set as their turn begins, CR 727): they milled their rad count and `delta` were nonlands, so they lose that much life and rad. 0 just clears it. |
+| `day-night` | `value` (0 neither, 1 day, 2 night) | Table-wide (state `dayNight`); any living player sets it. Neither only corrects a mistake. |
+| `turn-order` | `value` (1 reversed, 0 clockwise) | Table-wide (state `turnOrderReversed`); reversed turns go counterclockwise, still team by team in Two-Headed Giant. |
+| `everyone` | `kind` (`poison`, `energy`, `experience`, `treasure`, `rad`), `delta` (1 or −1) | One for every living player (each team once for shared poison), each within its own bounds; 409 when nobody could change. |
 
+Day/night, turn order, rad triggers and treasure/rad reset with each new
+match and survive pause and recovery (checkpoint schema 9). An unchanged value
+(the same day/night or turn order) is 409.
 Lobby/finished matches, eliminated seats, non-Magic formats and open table
 decisions are rejected (409). Bad fields/ranges are 400; unauthenticated
 personal requests are 401. Existing commander-damage routes are unchanged.

@@ -223,6 +223,8 @@ fun GameTab(
                         enabled = !me.eliminated && uiState.player?.busy != true && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null,
                         commanderName = me.namedCommander,
                         commanderRarity = com.turnhub.android.ui.tablet.rememberCommanderArt(me.namedCommander, me.commanderArt)?.rarity,
+                        // Treasure and rad, where Atlas reports them (with day/night).
+                        phoneCounters = summary.dayNight != null,
                         onChange = actions.onPlayerCounter)
                 }
             }

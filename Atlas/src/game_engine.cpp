@@ -37,6 +37,9 @@ void GameEngine::reset() {
   activeIndex_ = 0;
   starterPlayer_ = 0;
   monarchPlayer_ = initiativePlayer_ = 0;
+  dayNight_ = DayNight::Neither;
+  turnOrderReversed_ = false;
+  radDue_ = 0;
   running_ = false;
   paused_ = false;
   gameOver_ = false;
@@ -342,8 +345,10 @@ int GameEngine::nextLivingIndex(uint8_t startIndex) const {
 
   const int mate = teammateIndex(startIndex);
   for (uint8_t offset = 1; offset <= playerCount_; ++offset) {
+    // A reversed table goes counterclockwise (still team by team).
+    const uint8_t step = turnOrderReversed_ ? static_cast<uint8_t>(playerCount_ - offset) : offset;
     const uint8_t index = static_cast<uint8_t>(
-        (startIndex + offset) % playerCount_);
+        (startIndex + step) % playerCount_);
     // Two-Headed Giant: the turn passes to the next team, not the teammate.
     if (!eliminated_[index] && static_cast<int>(index) != mate) {
       return static_cast<int>(index);
@@ -434,6 +439,15 @@ bool GameEngine::passTurn(
   const uint8_t passed = active->playerNumber;
   activeIndex_ = static_cast<uint8_t>(next);
   turnStartedAtMs_ = nowMs;
+  // CR 727: rad counters trigger as the turn begins, for each player of the
+  // turn (both teammates in Two-Headed Giant) who has any.
+  radDue_ = 0;
+  if (magicRules(settings_.profile)) {
+    const int nextMate = teammateIndex(activeIndex_);
+    for (const int index : {static_cast<int>(activeIndex_), nextMate}) {
+      if (index >= 0 && !eliminated_[index] && counters_[index].rad > 0) radDue_ |= static_cast<uint16_t>(1u << index);
+    }
+  }
   doomPassed(passed, nowMs);
   return true;
 }
@@ -489,6 +503,8 @@ bool GameEngine::eliminatePlayer(
   const bool passMonarch = sameTeam(monarchPlayer_, playerNumber);
   const bool passInitiative = sameTeam(initiativePlayer_, playerNumber);
   eliminated_[index] = true;
+  radDue_ &= static_cast<uint16_t>(~(1u << index));
+  if (mate >= 0) radDue_ &= static_cast<uint16_t>(~(1u << mate));
   conceded_[index] = conceded;
   eliminatedBy_[index] = creditedPlayer;
   selfEliminated_[index] = self;
@@ -551,9 +567,61 @@ const PlayerCounters *GameEngine::countersForPlayer(uint8_t playerNumber) const 
   return index >= 0 ? &counters_[index] : nullptr;
 }
 
+bool GameEngine::radDue(uint8_t playerNumber) const {
+  const int index = indexForPlayerNumber(playerNumber);
+  return index >= 0 && (radDue_ & (1u << index)) != 0;
+}
+
+// The table-wide ChangeCounter kinds; playerNumber is a living player.
+bool GameEngine::changeTableCounter(uint8_t playerNumber, CounterKind kind, int32_t value, uint8_t commander) {
+  const int index = indexForPlayerNumber(playerNumber);
+  switch (kind) {
+    case CounterKind::RadResolve: {
+      // CR 727: the player milled their rad count and `value` were nonlands:
+      // they lose that much life and that many rad counters. 0 clears it.
+      int32_t &rad = counters_[index].rad;
+      if (!(radDue_ & (1u << index)) || value < 0 || value > rad) return false;
+      if (value > 0 && !canChangeLife(playerNumber, -value)) return false;
+      radDue_ &= static_cast<uint16_t>(~(1u << index));
+      if (value == 0) return true;
+      rad -= value;
+      return changeLife(playerNumber, -value);
+    }
+    case CounterKind::DayNight:
+      if (value < 0 || value >= static_cast<int32_t>(DayNight::Count) ||
+          static_cast<DayNight>(value) == dayNight_) return false;
+      dayNight_ = static_cast<DayNight>(value);
+      return true;
+    case CounterKind::TurnOrder:
+      if ((value != 0 && value != 1) || (value == 1) == turnOrderReversed_) return false;
+      turnOrderReversed_ = value == 1;
+      return true;
+    case CounterKind::Everyone: {
+      // One tap for a card that gives every player a counter: each living
+      // player (each team once for shared poison) through the normal rules.
+      const auto counter = static_cast<CounterKind>(commander);
+      if (commander >= static_cast<uint8_t>(CounterKind::Count) || !everyoneCounter(counter) ||
+          (value != 1 && value != -1)) return false;
+      bool changed = false;
+      bool counted[MAX_PLAYERS] = {};
+      for (uint8_t i = 0; i < playerCount_; ++i) {
+        if (eliminated_[i] || counted[i]) continue;
+        counted[i] = true;
+        const int mate = teammateIndex(i);
+        if (counter == CounterKind::Poison && mate >= 0) counted[mate] = true;
+        changed = changePlayerCounter(players_[i].playerNumber, counter, value) || changed;
+      }
+      return changed;
+    }
+    default:
+      return false;
+  }
+}
+
 bool GameEngine::changePlayerCounter(uint8_t playerNumber, CounterKind kind, int32_t value, uint8_t commander) {
   const int index = indexForPlayerNumber(playerNumber);
   if (index < 0 || eliminated_[index] || !running_ || gameOver_ || winClaimActive_ || doom_.selected || !magicRules(settings_.profile)) return false;
+  if (kind >= CounterKind::RadResolve && kind < CounterKind::Count) return changeTableCounter(playerNumber, kind, value, commander);
   auto &c = counters_[index];
   if (kind == CounterKind::Initiative) {
     if (value != 0 && value != 1) return false;
@@ -572,6 +640,8 @@ bool GameEngine::changePlayerCounter(uint8_t playerNumber, CounterKind kind, int
     case CounterKind::Poison: target = &c.poison; break;
     case CounterKind::Energy: target = &c.energy; break;
     case CounterKind::Experience: target = &c.experience; break;
+    case CounterKind::Treasure: target = &c.treasure; break;
+    case CounterKind::Rad: target = &c.rad; break;
     case CounterKind::CommanderCast:
       if (!commanderRules(settings_.profile) || commander < 1 || commander > 2) return false;
       target = &c.commanderCasts[commander-1]; break;
