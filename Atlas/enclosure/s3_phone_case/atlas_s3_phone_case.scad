@@ -74,6 +74,8 @@ button_hole = 2.2;           // paper-clip access to BOOT and RESET
 sd_y = L / 2 - 28.96;        // microSD slot centre, on the -X wall
 sd_cut = [13.0, 2.8];        // width along Y, height in z
 sd_z_top = 0.4;
+sd_recess_len = 24;         // fingertip recess around the slot
+sd_recess_depth = 1.0;
 
 /* [Speaker: the board kit's oval box speaker, measured] */
 spk = [40.1, 28.3, 9.7];     // across, along the case, thick
@@ -132,6 +134,13 @@ module usb_opening() {
             rrect(-usb_cut[0] / 2, -usb_cut[1] / 2, usb_cut[0] / 2, usb_cut[1] / 2, usb_cut[1] / 2 - eps);
 }
 
+// Stadium recess around the microSD slot, as on the Gen 1 Atlas shell.
+module sd_recess() {
+    hull() for (dy = [-sd_recess_len / 2 + 4, sd_recess_len / 2 - 4])
+        translate([-out_x - 1, sd_y + dy, sd_z_top - sd_cut[1] / 2]) rotate([0, 90, 0])
+            cylinder(d = 8, h = 1 + sd_recess_depth);
+}
+
 module tub() {
     difference() {
         union() {
@@ -155,9 +164,7 @@ module tub() {
         // microSD slot through the -X wall.
         translate([-out_x - 1, sd_y - sd_cut[0] / 2, sd_z_top - sd_cut[1]])
             cube([wall + 2, sd_cut[0], sd_cut[1]]);
-        // Fingernail scoop around the slot.
-        translate([-out_x - 3.2, sd_y, sd_z_top - sd_cut[1] / 2])
-            scale([1, 1.6, 0.9]) sphere(r = 4);
+        sd_recess();
         for (i = [0:slot_n - 1])
             translate([spk_c[0], spk_c[1] + (i - (slot_n - 1) / 2) * 2 * slot_w, z_bot - 1])
                 linear_extrude(back_t + 2)
@@ -213,6 +220,7 @@ module bezel() {
             rrect(-mic_slot[0] / 2, -mic_slot[1] / 2, mic_slot[0] / 2, mic_slot[1] / 2, mic_slot[0] / 2 - eps);
         holes_at() translate([0, 0, z_split - 1]) cylinder(d = screw_pilot, h = z_top - 1 - z_split);
         usb_opening();
+        sd_recess();
     }
 }
 

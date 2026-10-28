@@ -27,7 +27,7 @@ the UI draws upside down in the case, flip `LCD_ROTATION` in
 
 - **USB-C:** a 13 × 7 mm slot at the bottom, centred on the receptacle.
 - **microSD:** a slot on the left side (looking at the screen) with a
-  fingernail scoop. A shelf guides the card across the side gutter. The card
+  fingertip recess. A shelf guides the card across the side gutter. The card
   sits about 6 mm in, so push it home with a fingernail or a coin edge.
 - **Microphone:** a 1.6 × 2.6 mm port in the bezel, above the window.
 - **BOOT / RESET:** 2.2 mm paper-clip holes in the back near the bottom

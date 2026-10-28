@@ -72,6 +72,8 @@ button_hole = 2.2;
 sd_y = L / 2 - 35.5;         // microSD slot centre, on the -X wall
 sd_cut = [13.0, 2.8];
 sd_z_top = 0.4;
+sd_recess_len = 24;         // fingertip recess around the slot
+sd_recess_depth = 1.0;
 
 $fn = 48;
 
@@ -121,6 +123,13 @@ module usb_opening() {
             rrect(-usb_cut[0] / 2, -usb_cut[1] / 2, usb_cut[0] / 2, usb_cut[1] / 2, usb_cut[1] / 2 - eps);
 }
 
+// Stadium recess around the microSD slot, as on the Gen 1 Atlas shell.
+module sd_recess() {
+    hull() for (dy = [-sd_recess_len / 2 + 4, sd_recess_len / 2 - 4])
+        translate([-out_x - 1, sd_y + dy, sd_z_top - sd_cut[1] / 2]) rotate([0, 90, 0])
+            cylinder(d = 8, h = 1 + sd_recess_depth);
+}
+
 module tub() {
     difference() {
         union() {
@@ -141,8 +150,7 @@ module tub() {
         usb_opening();
         translate([-out_x - 1, sd_y - sd_cut[0] / 2, sd_z_top - sd_cut[1]])
             cube([wall + 2, sd_cut[0], sd_cut[1]]);
-        translate([-out_x - 3.2, sd_y, sd_z_top - sd_cut[1] / 2])
-            scale([1, 1.6, 0.9]) sphere(r = 4);
+        sd_recess();
         for (b = buttons) translate([b[0], b[1], -60]) cylinder(d = button_hole, h = 60 + z_floor + eps);
     }
 }
@@ -170,6 +178,7 @@ module bezel() {
             rrect(-light_win[0] / 2, -light_win[1] / 2, light_win[0] / 2, light_win[1] / 2, 1.5);
         holes_at() translate([0, 0, z_split - 1]) cylinder(d = screw_pilot, h = z_top - 1 - z_split);
         usb_opening();
+        sd_recess();
     }
 }
 

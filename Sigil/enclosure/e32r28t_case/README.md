@@ -30,7 +30,7 @@ wrong way round, change the display rotation in firmware, not the case.
 - **Light window:** a 12 × 5 mm opening below the screen over the small
   front parts on the board's bottom strip (*Needs verification*: their
   function isn't labelled on the drawing).
-- **microSD:** a slot on the left side with a fingernail scoop and a guide
+- **microSD:** a slot on the left side with a fingertip recess and a guide
   shelf; the card sits about 6 mm in.
 - **RESET / BOOT:** paper-clip holes in the back near the bottom.
 - **Edge connectors (speaker, SPI, UART, battery):** a 4.5 mm gutter down each
