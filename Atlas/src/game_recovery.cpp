@@ -10,16 +10,17 @@ using TurnHub::serialLog;
 namespace TurnHub {
 namespace {
 constexpr uint32_t MAGIC = 0x50434854; // THCP, explicit little-endian wire bytes
-constexpr uint32_t SCHEMA = 8;
+constexpr uint32_t SCHEMA = 9;
 constexpr uint32_t CLOCK_CHECKPOINT_MS = 60000;
 // Wire layout (little-endian): magic, schema, 12 header bytes (including monarch, initiative, loss flags and the
-// 16-bit winner set), 6 header words, 22 bag bytes,
-// then per player: 3 bytes, participant word, 9-byte profile ID, 4 stat words,
-// 5 counter words, blessing byte, eliminated byte, life word and count x 2 Commander damage words; CRC-32 last.
-constexpr size_t HEADER_SIZE = 4 + 4 + 12 + 6 * 4 + 22;
+// 16-bit winner set), 6 header words, 22 bag bytes, then (schema 9) a table byte (day/night, reversed bit 2) and
+// the 16-bit rad-due set; then per player: 3 bytes, participant word, 9-byte profile ID, 4 stat words,
+// 5 counter words, blessing byte, (schema 9) treasure and rad words, eliminated byte, life word and
+// count x 2 Commander damage words; CRC-32 last.
+constexpr size_t HEADER_SIZE = 4 + 4 + 12 + 6 * 4 + 22 + 3;
 constexpr size_t CRC_SIZE = 4;
 constexpr size_t MIN_RECORD_SIZE = HEADER_SIZE + CRC_SIZE;
-constexpr size_t PLAYER_SIZE = 3 + 4 + sizeof(PlayerSeat::profileId) + 4 * 4 + 1 + 4 + 22;
+constexpr size_t PLAYER_SIZE = 3 + 4 + sizeof(PlayerSeat::profileId) + 4 * 4 + 1 + 4 + 22 + 8;
 static_assert(GAME_CHECKPOINT_CAPACITY ==
                   MIN_RECORD_SIZE + MAX_PLAYERS * (PLAYER_SIZE + MAX_PLAYERS * 2 * 4),
               "GAME_CHECKPOINT_CAPACITY must match the largest record");
@@ -73,6 +74,8 @@ size_t encodeCheckpoint(const GameCheckpoint &s, uint8_t *bytes, size_t capacity
   w.word(bag.atRisk); w.word(bag.drawn);
   w.byte(bag.boundary); w.byte(bag.warmup); w.byte(bag.pending); w.byte(bag.pendingTurn);
   w.byte(bag.selected); w.byte(bag.lastDraw); w.word(bag.cycle); w.word(bag.lastCheck);
+  w.byte(static_cast<uint8_t>(static_cast<uint8_t>(s.dayNight) | (s.reversed ? 4 : 0)));
+  w.byte(static_cast<uint8_t>(s.radDue)); w.byte(static_cast<uint8_t>(s.radDue >> 8));
   for (uint8_t i=0;i<s.count;++i) {
     const auto &p=s.players[i]; const auto &stats=s.stats[i];
     w.byte(p.playerNumber); w.byte(p.controllerId); w.byte(p.slot); w.word(p.participantId);
@@ -82,6 +85,7 @@ size_t encodeCheckpoint(const GameCheckpoint &s, uint8_t *bytes, size_t capacity
     const auto &counters = s.counters[i];
     w.word(counters.poison); w.word(counters.energy); w.word(counters.experience);
     w.word(counters.commanderCasts[0]); w.word(counters.commanderCasts[1]); w.byte(counters.cityBlessing);
+    w.word(static_cast<uint32_t>(counters.treasure)); w.word(static_cast<uint32_t>(counters.rad));
     w.byte((s.eliminated[i] ? 1 : 0) | (s.conceded[i] ? 2 : 0) | (s.selfEliminated[i] ? 4 : 0) | (s.eliminationPending[i] ? 8 : 0)); w.word(static_cast<uint32_t>(s.life[i])); w.byte(s.eliminatedBy[i]);
     for (uint8_t j=0;j<s.count;++j) for (uint8_t c=0;c<2;++c)
       w.word(static_cast<uint32_t>(s.damage[i][j][c]));
@@ -126,6 +130,12 @@ TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameC
     s.doom.boundary = r.byte(); s.doom.warmup = r.byte(); s.doom.pending = r.flag(); s.doom.pendingTurn = r.byte();
     s.doom.selected = r.byte(); s.doom.lastDraw = r.byte(); s.doom.cycle = r.word(); s.doom.lastCheck = r.word();
   }
+  if (schema >= 9) {
+    const uint8_t table = r.byte();
+    if ((table & 3) >= static_cast<uint8_t>(DayNight::Count) || table > 7) return Status::Corrupt;
+    s.dayNight = static_cast<DayNight>(table & 3); s.reversed = (table & 4) != 0;
+    s.radDue = r.byte(); s.radDue = static_cast<uint16_t>(s.radDue | (r.byte() << 8));
+  }
   for (uint8_t i=0;i<s.count;++i) {
     auto &p=s.players[i]; auto &stats=s.stats[i];
     p.playerNumber=r.byte(); p.controllerId=r.byte(); p.slot=r.byte(); p.participantId=r.word();
@@ -136,6 +146,7 @@ TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameC
       auto &c = s.counters[i];
       c.poison = static_cast<int32_t>(r.word()); c.energy = static_cast<int32_t>(r.word()); c.experience = static_cast<int32_t>(r.word());
       c.commanderCasts[0] = static_cast<int32_t>(r.word()); c.commanderCasts[1] = static_cast<int32_t>(r.word()); c.cityBlessing = r.flag();
+      if (schema >= 9) { c.treasure = static_cast<int32_t>(r.word()); c.rad = static_cast<int32_t>(r.word()); }
     }
     const uint8_t exitFlags = r.byte();
     if (exitFlags > (schema >= 8 ? 15 : schema == 1 ? 1 : 3)) return Status::Corrupt;

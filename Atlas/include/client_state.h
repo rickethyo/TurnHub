@@ -48,6 +48,7 @@ class ClientState {
     uint8_t number = 0, controller = INVALID_ID, slot = 0, team = 0;
     uint32_t participant = 0, turnsCompleted = 0;
     bool eliminated = false, conceded = false, selfEliminated = false, eliminationPending = false;
+    bool radDue = false;
     uint8_t eliminatedBy = 0;
     PlayerCounters counters{};
     int32_t life = 0;
@@ -64,6 +65,8 @@ class ClientState {
   ClientPending pending_{};
   uint8_t count_ = 0, host_ = INVALID_ID, starter_ = 0, active_ = 0;
   uint8_t monarch_ = 0, initiative_ = 0;
+  DayNight dayNight_ = DayNight::Neither;
+  bool reversed_ = false;
   uint8_t winner_ = 0, claimant_ = 0, confirmation_ = 0;
   uint16_t winners_ = 0;  // Every winner (bit playerNumber - 1).
   bool inGame_ = false, initialized_ = false;

@@ -87,4 +87,5 @@ void fixtureConnectOta(TurnHub::SigilRecord &r) {
 
 // The status light is board-specific; host builds have none.
 void TurnHubAtlas::beginAtlasStatusLed() {}
+void TurnHubAtlas::logAtlasBoard() {}
 void TurnHubAtlas::setAtlasStatusLed(bool, bool, bool) {}

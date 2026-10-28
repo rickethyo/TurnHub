@@ -1,8 +1,8 @@
 package com.turnhub.android.protocol
 
 /**
- * Magic counters. Tax is derived from casts from the command zone. [treasure]
- * and [rad] are kept only by phone-hosted games until Atlas tracks them.
+ * Magic counters. Tax is derived from casts from the command zone. Atlas
+ * reports [treasure] and [rad] since 2026-10-28; older firmware omits them (0).
  */
 data class PlayerCounters(
     val poison: Int = 0,

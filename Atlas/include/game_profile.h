@@ -100,20 +100,40 @@ constexpr uint32_t GAME_FLAG_MANUAL_POISON = 0x400;
 constexpr uint32_t GAME_FLAG_MANUAL_COMMANDER = 0x800;
 constexpr uint32_t GAME_FLAG_HOUSE_RULES = 0x1000;
 constexpr int32_t COMMANDER_DAMAGE_LIMIT = 21;
-enum class CounterKind : uint8_t { CommanderDamage, Poison, Energy, Experience, CommanderCast, CityBlessing, Initiative, Count };
+// Per-player Magic counters, then three table-wide actions that ride the same
+// ChangeCounter Intent from any living player (2026-10-28, app parity):
+// RadResolve answers the turn's rad trigger (value: nonland cards milled),
+// DayNight sets the table's day/night (value: DayNight), TurnOrder reverses
+// turns (value 1) or sets them back (0), and Everyone changes one counter
+// (commander slot: its CounterKind) by +/-1 for every living player.
+enum class CounterKind : uint8_t {
+  CommanderDamage, Poison, Energy, Experience, CommanderCast, CityBlessing, Initiative,
+  Treasure, Rad, RadResolve, DayNight, TurnOrder, Everyone, Count
+};
+// The counters Everyone's counters changes (as in the app).
+inline bool everyoneCounter(CounterKind kind) {
+  return kind == CounterKind::Poison || kind == CounterKind::Energy || kind == CounterKind::Experience ||
+      kind == CounterKind::Treasure || kind == CounterKind::Rad;
+}
+// Day and night (CR 726): once set, a match never returns to Neither apart
+// from a correction.
+enum class DayNight : uint8_t { Neither, Day, Night, Count };
 struct PlayerCounters {
   int32_t poison = 0, energy = 0, experience = 0;
   int32_t commanderCasts[2] = {};
   bool cityBlessing = false;
+  int32_t treasure = 0, rad = 0;
 };
 inline bool sameCounters(const PlayerCounters &a, const PlayerCounters &b) {
   return a.poison == b.poison && a.energy == b.energy && a.experience == b.experience &&
-      a.commanderCasts[0] == b.commanderCasts[0] && a.commanderCasts[1] == b.commanderCasts[1] && a.cityBlessing == b.cityBlessing;
+      a.commanderCasts[0] == b.commanderCasts[0] && a.commanderCasts[1] == b.commanderCasts[1] && a.cityBlessing == b.cityBlessing &&
+      a.treasure == b.treasure && a.rad == b.rad;
 }
 inline bool validCounters(const PlayerCounters &c) {
   return c.poison >= 0 && c.poison <= LIFE_LIMIT && c.energy >= 0 && c.energy <= LIFE_LIMIT &&
       c.experience >= 0 && c.experience <= LIFE_LIMIT && c.commanderCasts[0] >= 0 && c.commanderCasts[0] <= LIFE_LIMIT &&
-      c.commanderCasts[1] >= 0 && c.commanderCasts[1] <= LIFE_LIMIT;
+      c.commanderCasts[1] >= 0 && c.commanderCasts[1] <= LIFE_LIMIT && c.treasure >= 0 && c.treasure <= LIFE_LIMIT &&
+      c.rad >= 0 && c.rad <= LIFE_LIMIT;
 }
 
 struct GameSettings {

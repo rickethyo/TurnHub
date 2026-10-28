@@ -16,5 +16,9 @@ void beginAtlasStatusLed();
 // The status light's red, green and blue channels. An extra cue only: every
 // state it shows is also said in words (front_panel.cpp).
 void setAtlasStatusLed(bool red, bool green, bool blue);
+// Logs the board's chip, flash and PSRAM (ATLAS|BOARD|...) at boot, so each
+// board's actual parts are on record (the S3 schematic and manual disagree on
+// the flash size).
+void logAtlasBoard();
 
 }  // namespace TurnHubAtlas

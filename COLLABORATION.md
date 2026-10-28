@@ -1229,6 +1229,27 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   factual count templates and existing saved drafts remain. No new third-party
   community data, artwork or rules imported. No messages sent or release performed.
 
+## 2026-10-28 Claude: S3 Atlas bring-up and touchscreen
+
+- Branch `claude/project-thread-fqat08` from master 7251760. Gap list vs the
+  app: `/mnt/project-files/plans/atlas-s3-parity.md` (project files).
+- `env:atlas-s3` (ES3C40P): the full Atlas firmware with native USB serial,
+  SDMMC microSD, an `ATLAS|BOARD` probe and the touchscreen
+  (`atlas_display_s3.cpp`: LovyanGFX ST7796S/FT6336U, LVGL 9.3 drawing the
+  existing `touch_controls.cpp` model, scaled to 480 x 320). Classic `atlas`
+  build unchanged apart from the SD file-system alias.
+- Validation: both envs build; Linux host suites and adapter audit pass.
+  Flashed on the owner's board over USB (both rounds): boots clean, 16 MB
+  flash (5E4018), 8 MB PSRAM, SD mounted, AP/ESP-NOW/web ready, ~92 KB heap
+  for LVGL. Screen output, rotation, colours and touch orientation still need
+  a look at the panel.
+- Engine parity in the same PR (b8674d1): treasure/rad, the rad trigger,
+  day/night, reversed turns (Magic formats) and Everyone's counters on Atlas
+  through ChangeCounter, state fields and checkpoint schema 9; the app shows
+  and sends them in connected play. Host suites pass; all 515 Android JVM
+  tests pass on the owner's PC; reflashed board boots clean. Needs a playtest.
+  Next: the LVGL Atlas design, then Planechase and commander names.
+
 ### Profile transfer: guests and per-player import receipts / Claude / 2026-10-28
 
 - Owner ask: profiles live on their creating device but upload and merge into
@@ -1243,5 +1264,5 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   imported guest match when another of its players is linked (adds only).
 - Validation: Linux host suite with sanitizers passes (new guest, re-send,
   schema-1 and ring-wrap checks); client contract check passes. Android unit
-  test added (LocalAccountsTest guest delivery); Gradle couldn't run in the cloud
-  session (Maven 429), so CI is its first run. No hardware run.
+  test added (LocalAccountsTest guest delivery): 12/12 pass on the owner's PC;
+  installed on the Pixel Fold Preview (versionCode 1458). No Atlas hardware run.

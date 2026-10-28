@@ -71,7 +71,7 @@ data class TableSummary(
     val turnExtensionMs: Long = 0,
     /** Pokémon (phone-hosted games): what the last Pokémon Checkup did, until the table dismisses it. */
     val pokemonCheckup: List<String> = emptyList(),
-    /** Magic (phone-hosted games): players whose rad counters trigger this turn, until they resolve them. */
+    /** Magic: players whose rad counters trigger this turn, until they resolve them. */
     val radDuePlayerNumbers: List<Int> = emptyList(),
     /** Cooperative games (Death May Die, phone-hosted): the round being played; null otherwise. */
     val round: Int? = null,
@@ -86,11 +86,11 @@ data class TableSummary(
     val drawTwoCards: Boolean = false,
     val investigatorReferences: Map<String, InvestigatorCard> = emptyMap(),
     /**
-     * Phone-hosted Magic: day and night (CR 726), and the counters only the phone
-     * keeps (treasure, rad). Null when the host doesn't track them (Atlas).
+     * Magic: day and night (CR 726), set by hand. Null for other formats, and from
+     * Atlas firmware older than 2026-10-28, which tracks neither it nor treasure and rad.
      */
     val dayNight: DayNight? = null,
-    /** Phone-hosted games: turns go counterclockwise until the table sets them back. */
+    /** Turns go counterclockwise until the table sets them back. */
     val turnOrderReversed: Boolean = false,
 ) {
     /**

@@ -62,6 +62,8 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
   changed |= update(winners_, winners);
   changed |= update(monarch_, game.monarchPlayerNumber());
   changed |= update(initiative_, game.initiativePlayerNumber());
+  changed |= update(dayNight_, inGame_ ? game.dayNight() : DayNight::Neither);
+  changed |= update(reversed_, inGame_ && game.turnOrderReversed());
   changed |= update(claimant_, game.winClaimPlayerNumber());
   changed |= update(confirmation_, game.nextWinConfirmationPlayerNumber());
   changed |= update(pending_.passPlayer, pending.passPlayer);
@@ -99,6 +101,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
     changed |= update(p.conceded, inGame_ && game.hasConceded(seat.playerNumber));
     changed |= update(p.selfEliminated, inGame_ && game.selfEliminated(seat.playerNumber));
     changed |= update(p.eliminationPending, inGame_ && game.eliminationPending(seat.playerNumber));
+    changed |= update(p.radDue, inGame_ && game.radDue(seat.playerNumber));
     changed |= update(p.eliminatedBy, inGame_ ? game.eliminatedBy(seat.playerNumber) : uint8_t(0));
     const auto *counters = inGame_ ? game.countersForPlayer(seat.playerNumber) : nullptr;
     const PlayerCounters countersValue = counters ? *counters : PlayerCounters{};
@@ -181,6 +184,11 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   }
   out += ",\"monarchPlayer\":"; nullablePlayer(out, monarch_);
   out += ",\"initiativePlayer\":"; nullablePlayer(out, initiative_);
+  // Magic only: day and night (CR 726); null where the format has none.
+  out += ",\"dayNight\":";
+  if (!magicRules(settings_.profile)) out += "null";
+  else out += dayNight_ == DayNight::Day ? "\"DAY\"" : dayNight_ == DayNight::Night ? "\"NIGHT\"" : "\"NEITHER\"";
+  out += ",\"turnOrderReversed\":"; out += reversed_ ? "true" : "false";
   out += ",\"settings\":{\"profile\":\""; out += gameProfileKey(settings_.profile);
   out += "\",\"startingLife\":"; out += String(settings_.startingLife);
   out += ",\"turnTimerMs\":"; out += String(settings_.turnTimerMs);
@@ -234,7 +242,10 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
     out += ",\"energy\":"; out += String(p.counters.energy);
     out += ",\"experience\":"; out += String(p.counters.experience);
     out += ",\"commanderCasts\":["; out += String(p.counters.commanderCasts[0]); out += ','; out += String(p.counters.commanderCasts[1]);
-    out += "],\"cityBlessing\":"; out += p.counters.cityBlessing ? "true" : "false"; out += '}';
+    out += "],\"cityBlessing\":"; out += p.counters.cityBlessing ? "true" : "false";
+    out += ",\"treasure\":"; out += String(p.counters.treasure);
+    out += ",\"rad\":"; out += String(p.counters.rad); out += '}';
+    out += ",\"radDue\":"; out += p.radDue ? "true" : "false";
     out += ",\"conceded\":"; out += p.conceded ? "true" : "false";
     out += ",\"selfEliminated\":"; out += p.selfEliminated ? "true" : "false";
     out += ",\"eliminationPending\":"; out += p.eliminationPending ? "true" : "false";

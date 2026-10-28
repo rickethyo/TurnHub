@@ -83,10 +83,10 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   and the Sigils learn the new formats and import their games later, per the
   dev sequence. One Piece can reuse the Prize-card count if the owner wants it.
 
-- **Atlas Magic counters** (owner, 2026-10-20; *Planned*): treasure, rad
-  and day/night are phone-hosted only (`GAMEPLAY.md`). Atlas gains them in its
-  `PlayerCounters`, a table-wide day/night state, the counter route, the
-  recovery record and the state schema, then the app shows them in connected play.
+- **Atlas Magic counters** (implemented 2026-10-28, `GAMEPLAY.md`): playtest
+  treasure, rad and the rad prompt, day/night, Everyone's counters and
+  reversed turns in Atlas-connected play from the tablet and personal phones,
+  including Two-Headed Giant, recovery after a power cut and a new match.
 
 ### Elimination attribution and full-screen checks
 

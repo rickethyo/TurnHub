@@ -235,6 +235,12 @@ class AtlasTablet(
     }
 
     override suspend fun control(seat: TabletSeat, action: String): Boolean {
+        // Table-wide Magic actions travel as counters on Atlas (protocol/http-v1.md).
+        tableCounterFields(action)?.let { fields ->
+            val response = post("/api/tablet/counter", seat.fields + fields) ?: return false
+            if (response.ok) succeed() else fail(response)
+            return response.ok
+        }
         val response = post("/api/tablet/control", seat.fields + listOf("action" to action) + (if (action == "start") listOf("askEliminationSource" to "1") else emptyList())) ?: return false
         if (response.ok) succeed() else fail(response)
         return response.ok
@@ -424,6 +430,22 @@ class AtlasTablet(
         json(response)?.let { it.optString("error").ifBlank { it.optString("message") } }?.ifBlank { null }
 
     private fun flag(response: RawResponse, key: String): Boolean = json(response)?.optBoolean(key) == true
+
+    /**
+     * The game menu's day/night, turn order and Everyone's counters actions
+     * ("everyone:rad:1") as Atlas counter fields; null for other actions.
+     */
+    private fun tableCounterFields(action: String): List<Pair<String, String>>? = when (action) {
+        "day" -> listOf("counter" to "day-night", "value" to "1")
+        "night" -> listOf("counter" to "day-night", "value" to "2")
+        "day-night-clear" -> listOf("counter" to "day-night", "value" to "0")
+        "turn-order-reversed" -> listOf("counter" to "turn-order", "value" to "1")
+        "turn-order-clockwise" -> listOf("counter" to "turn-order", "value" to "0")
+        else -> if (action.startsWith(com.turnhub.android.standalone.StandaloneGame.EVERYONE_PREFIX)) {
+            val parts = action.removePrefix(com.turnhub.android.standalone.StandaloneGame.EVERYONE_PREFIX).split(':')
+            if (parts.size == 2) listOf("counter" to "everyone", "kind" to parts[0], "delta" to parts[1]) else null
+        } else null
+    }
 }
 
 /** Per-coroutine presentation context; concurrent seat taps cannot overwrite it. */

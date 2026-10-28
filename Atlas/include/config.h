@@ -11,18 +11,46 @@ namespace AtlasConfig {
 constexpr size_t LOOP_TASK_STACK_BYTES = 16 * 1024;
 constexpr uint32_t LOOP_STACK_WARNING_BYTES = 3 * 1024;
 
-// No board is selected on master: the Gen 1 E32R28T pin map (TFT, touch, RGB
-// LED, speaker, battery divider) lives on legacy/gen1, and the ESP32-S3 board
-// profile replaces this block when its drivers land. Only pins any ESP32 dev
-// board has are kept.
-
-// microSD on the ESP32's default VSPI pins (set per board with the S3 profile).
+// Board pins. env:atlas is board-less on a generic ESP32 (the Gen 1 E32R28T
+// pin map lives on legacy/gen1); env:atlas-s3 builds for the 4-inch ES3C40P
+// (TURNHUB_BOARD_ES3C40P; pins from its schematic, see
+// hardware/ESP32_S3_REFRESH.md, not yet bench-verified).
+#if defined(TURNHUB_BOARD_ES3C40P)
+// microSD over 4-bit SDMMC (the board has no SPI wiring to the slot).
+constexpr int8_t SD_CLK_PIN = 38;
+constexpr int8_t SD_CMD_PIN = 40;
+constexpr int8_t SD_D0_PIN = 39;
+constexpr int8_t SD_D1_PIN = 41;
+constexpr int8_t SD_D2_PIN = 48;
+constexpr int8_t SD_D3_PIN = 47;
+// Conservative clock for bring-up (SDMMC default speed is 20 MHz).
+constexpr uint32_t SD_MMC_KHZ = 10000;
+// ST7796S on its own SPI bus (DC 46 and backlight 45 are strapping pins; the
+// panel resets with the board). Native 320 x 480, turned to 480 x 320.
+constexpr int8_t LCD_SCK_PIN = 12;
+constexpr int8_t LCD_MOSI_PIN = 11;
+constexpr int8_t LCD_MISO_PIN = 13;
+constexpr int8_t LCD_DC_PIN = 46;
+constexpr int8_t LCD_CS_PIN = 10;
+constexpr uint8_t LCD_BACKLIGHT_PIN = 45;  // High = lit.
+// Landscape orientation and IPS colour inversion. *Needs verification*: flip
+// these if the picture is upside down or its colours are negative.
+constexpr uint8_t LCD_ROTATION = 1;
+constexpr bool LCD_INVERT = true;
+// FT6336U capacitive touch (I2C 0x38), on the bus the codec will share.
+constexpr int8_t TOUCH_SDA_PIN = 16;
+constexpr int8_t TOUCH_SCL_PIN = 15;
+constexpr int8_t TOUCH_RST_PIN = 18;
+constexpr int8_t TOUCH_INT_PIN = 17;
+#else
+// microSD on the ESP32's default VSPI pins.
 constexpr int8_t SD_SCLK_PIN = 18;
 constexpr int8_t SD_MOSI_PIN = 23;
 constexpr int8_t SD_MISO_PIN = 19;
 constexpr int8_t SD_CS_PIN = 5;
 // Conservative clock for bring-up; raise once cards are proven on the bench.
 constexpr uint32_t SD_SPI_HZ = 4000000;
+#endif
 
 // The board's BOOT button (GPIO0, pulled up, low when pressed). GPIO0 is a
 // strapping pin only at reset, so it is free to use once Atlas is running:

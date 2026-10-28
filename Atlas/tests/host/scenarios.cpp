@@ -4818,6 +4818,72 @@ static void magicCountersAndRules() {
   settings.profile=GameProfile::Generic; assert(engine.start(seats,4,seats[0],testNow,settings) && !engine.changePlayerCounter(1,CounterKind::Poison,1));
 }
 
+// App parity (2026-10-28): treasure and rad, the rad trigger, day/night,
+// reversed turns and Everyone's counters, over HTTP and through recovery.
+static void magicTableCounters() {
+  using namespace TurnHub;
+  enterEmptyLobby(); fixtureRadio=false;
+  String aId,bId,cId;
+  const String a=registerPhone("Table one",aId), b=registerPhone("Table two",bId), c=registerPhone("Table three",cId);
+  for (const String *token : {&a,&b,&c}) assert(request("/api/session/join",*token)==200);
+  auto counter = [&](const String &token, const char *kind, int value, const char *target="") {
+    return request("/api/control/counter",token,{{"counter",kind},{"delta",String(value)},{"value",String(value)},{"kind",target}});
+  };
+  assert(request("/api/game/settings",a,{{"gameProfile","mtg"},{"startingLife","20"},{"twoHeadedGiant","0"},
+      {"autoEliminateAtZeroLife","1"},{"houseRules","1"}})==200);
+  assert(request("/api/control/start",a)==200); testNow+=3000; updateCountdown(testNow);
+  auto &game = table().game;
+  const uint8_t first = game.activePlayerNumber();
+  const String *tokens[] = {&a,&b,&c};
+  const String &activeToken = *tokens[first-1];
+  const uint8_t next = first % 3 + 1;
+  const String &nextToken = *tokens[next-1];
+  // Treasure and rad are ordinary per-player counters.
+  assert(counter(a,"treasure",3)==200 && game.countersForPlayer(1)->treasure==3);
+  assert(counter(a,"treasure",-4)==409 && counter(a,"rad",0)==400);
+  assert(counter(nextToken,"rad",4)==200 && game.countersForPlayer(next)->rad==4 && !game.radDue(next));
+  // The state carries them, with day/night and the turn order.
+  assert(request("/api/v1/state",a,{},HTTP_GET)==200 && server.body.find("\"treasure\":3")!=std::string::npos &&
+      server.body.find("\"dayNight\":\"NEITHER\"")!=std::string::npos && server.body.find("\"turnOrderReversed\":false")!=std::string::npos);
+  // No rad trigger until that player's turn begins.
+  assert(counter(nextToken,"rad-resolve",1)==409);
+  assert(request("/api/control/pass",activeToken)==200); testNow+=PASS_GRACE_MS+1; updatePendingPass(testNow);
+  assert(game.activePlayerNumber()==next && game.radDue(next));
+  assert(request("/api/v1/state",a,{},HTTP_GET)==200 && server.body.find("\"radDue\":true")!=std::string::npos);
+  assert(counter(nextToken,"rad-resolve",5)==409);  // More than their rad.
+  const int32_t life = game.lifeTotal(next);
+  assert(counter(nextToken,"rad-resolve",3)==200 && game.lifeTotal(next)==life-3 && game.countersForPlayer(next)->rad==1 && !game.radDue(next));
+  assert(counter(nextToken,"rad-resolve",0)==409);  // Answered once.
+  // Day and night: a change only, and back to neither as a correction.
+  assert(counter(a,"day-night",1)==200 && game.dayNight()==DayNight::Day && counter(b,"day-night",1)==409);
+  assert(counter(b,"day-night",2)==200 && counter(b,"day-night",3)==400 && game.dayNight()==DayNight::Night);
+  // Reversed turns go counterclockwise from the active player.
+  assert(counter(c,"turn-order",1)==200 && game.turnOrderReversed() && counter(c,"turn-order",1)==409);
+  const uint8_t before = game.activePlayerNumber();
+  assert(request("/api/control/pass",*tokens[before-1])==200); testNow+=PASS_GRACE_MS+1; updatePendingPass(testNow);
+  assert(game.activePlayerNumber()==(before+1)%3+1);
+  // Everyone's counters: one each for every living player, each within its own bounds.
+  assert(counter(a,"everyone",1,"treasure")==200 && game.countersForPlayer(1)->treasure==4 && game.countersForPlayer(2)->treasure==1 && game.countersForPlayer(3)->treasure==1);
+  assert(counter(a,"everyone",2,"treasure")==400 && counter(a,"everyone",1,"initiative")==400);
+  assert(counter(a,"everyone",-1,"rad")==200 && game.countersForPlayer(next)->rad==0);
+  assert(counter(a,"everyone",-1,"rad")==409);  // Nobody had any left.
+  // Recovery keeps the table state and the new counters.
+  assert(request("/api/control/pause",a)==200);
+  GameCheckpoint saved; game.checkpoint(saved,testNow);
+  uint8_t bytes[GAME_CHECKPOINT_CAPACITY]; const size_t size=encodeCheckpoint(saved,bytes,sizeof(bytes));
+  assert(size && decodeCheckpoint(bytes,size,saved)==TurnHubStorage::Status::Ok);
+  GameEngine restored; assert(restored.restoreCheckpoint(saved,testNow));
+  assert(restored.dayNight()==DayNight::Night && restored.turnOrderReversed() && restored.countersForPlayer(1)->treasure==4);
+  saved.radDue=1u<<5; assert(!validCheckpoint(saved)); saved.radDue=0;
+  saved.dayNight=DayNight::Count; assert(!validCheckpoint(saved));
+  // A new match starts clockwise, in neither day nor night.
+  enterEmptyLobby();
+  assert(!game.turnOrderReversed() && game.dayNight()==DayNight::Neither);
+  for (const String *token : {&a,&b,&c}) assert(request("/api/session/logout",*token)==200);
+  for (const String *id : {&aId,&bId,&cId}) { ProfileFixture::profiles.erase(id->c_str()); TurnHubAccounts::accounts.erase(id->c_str()); }
+  table().nextGameSettings=GameSettings{};
+}
+
 static void magicMonarch() {
   using namespace TurnHub;
   enterEmptyLobby(); fixtureRadio=false;
@@ -5624,6 +5690,7 @@ int main() {
   attachNamedProfileToGuest(); std::cout<<"PASS named guest attachment, browser merge and ownership protection\n";
   profilePolicyFlow(); std::cout<<"PASS profile choices, physical authorization, companion privacy, expiry and claim revalidation\n";
   magicCountersAndRules(); std::cout<<"PASS Magic counters, live loss rules, per-commander casts, status, recovery and shared poison\n";
+  magicTableCounters(); std::cout<<"PASS Magic table counters: treasure, rad trigger, day/night, reversed turns, everyone's counters, recovery\n";
   magicMonarch(); std::cout<<"PASS Magic monarch: transfer, permissions, pause, recovery, exit, reset and teams\n";
   zeroLifeAndExitReasons(); std::cout<<"PASS zero-life policy, immediate toggle, separate exits, recovery, lethal requests, Commander and teams\n";
   gameProfilesAndLife(); std::cout<<"PASS game settings, own life, companion state, limits, rematch and authorization\n";

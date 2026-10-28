@@ -11,6 +11,9 @@ void clearCheckpoint(GameCheckpoint &out) {
   out.count = out.active = out.starter = out.winner = 0;
   out.winners = 0;
   out.paused = out.over = false;
+  out.dayNight = DayNight::Neither;
+  out.reversed = false;
+  out.radDue = 0;
   out.gameElapsed = out.turnElapsed = out.nextRequestId = 0;
   for (uint8_t i = 0; i < MAX_PLAYERS; ++i) {
     out.players[i] = PlayerSeat{};
@@ -29,7 +32,12 @@ bool validCheckpoint(const GameCheckpoint &s) {
   if (!validGameSettings(s.settings) || s.count > MAX_PLAYERS) return false;
   if (s.initiative && (s.initiative > s.count || s.eliminated[s.initiative-1] || !magicRules(s.settings.profile))) return false;
   if (s.monarch && (s.monarch > s.count || s.eliminated[s.monarch-1] || !magicRules(s.settings.profile))) return false;
-  if (!s.count) return !s.over && !s.winner && !s.winners && sameDoomBag(s.doom, DoomBag{});
+  if (s.dayNight >= DayNight::Count || (s.dayNight != DayNight::Neither && !magicRules(s.settings.profile))) return false;
+  if (!s.count) return !s.over && !s.winner && !s.winners && !s.reversed && !s.radDue &&
+      s.dayNight == DayNight::Neither && sameDoomBag(s.doom, DoomBag{});
+  if (s.count < 16 && (s.radDue >> s.count)) return false;
+  for (uint8_t i = 0; i < s.count; ++i)
+    if ((s.radDue & (1u << i)) && (s.eliminated[i] || s.counters[i].rad <= 0 || !magicRules(s.settings.profile))) return false;
   if (s.count < 2 || s.active >= s.count || !s.starter || s.starter > s.count ||
       s.winner > s.count || (!s.over && s.winner)) return false;
   if (!validTeamTable(s.settings, s.count) || !validStarTable(s.settings, s.count)) return false;
@@ -104,6 +112,7 @@ void GameEngine::checkpoint(GameCheckpoint &out, uint32_t nowMs) const {
   out.count = playerCount_; out.active = activeIndex_; out.starter = starterPlayer_;
   out.monarch = monarchPlayer_;
   out.initiative = initiativePlayer_;
+  out.dayNight = dayNight_; out.reversed = turnOrderReversed_; out.radDue = radDue_;
   out.winner = winnerPlayer_; out.winners = winnerMask_; out.paused = paused_; out.over = gameOver_;
   out.gameElapsed = gameElapsedMs(nowMs); out.turnElapsed = currentTurnElapsedMs(nowMs);
   out.nextRequestId = nextLifeRequestId_;
@@ -129,6 +138,7 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
   playerCount_ = s.count; activeIndex_ = s.active;
   monarchPlayer_ = s.monarch;
   initiativePlayer_ = s.initiative;
+  dayNight_ = s.dayNight; turnOrderReversed_ = s.reversed; radDue_ = s.radDue;
   starterPlayer_ = s.starter; winnerPlayer_ = s.winner; winnerMask_ = s.winners;
   running_ = true; gameOver_ = s.over; paused_ = !s.over;
   nextLifeRequestId_ = s.nextRequestId;
