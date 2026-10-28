@@ -139,7 +139,8 @@ class HomeViewModel(
         if (!supportsExplicitLocalImport(summary.firmwareVersion) || choices.atlasId != summary.atlasId || localImportJob?.isActive == true ||
             repository.connectionState.value != AtlasConnectionState.CONNECTED ||
             playerSession.state.value !is PlayerSessionState.SignedIn) return
-        if (!table.queueImport(recordId, summary.atlasId, profileIds, choices.profiles.map { it.profileId }.toSet())) {
+        if (!table.queueImport(recordId, summary.atlasId, profileIds, choices.profiles.map { it.profileId }.toSet(),
+                supportsGuestImport(summary.firmwareVersion))) {
             _localImport.value = choices.copy(message = "Choose a different Atlas profile for every player. A pending or imported mapping cannot be changed.")
             return
         }
@@ -197,12 +198,19 @@ class HomeViewModel(
 
     private suspend fun sendAutomaticLocalRecords(atlasId: String, profiles: List<ProfileSummary>) {
         val table = standalone ?: return
-        table.queueAutomaticImports(atlasId, profiles.map { it.profileId }.toSet())
+        val guests = repository.tableSummary.value?.firmwareVersion?.let(::supportsGuestImport) == true
+        table.queueAutomaticImports(atlasId, profiles.map { it.profileId }.toSet(), guests)
         table.sendRecords(atlasId) { fields ->
             if (repository.tableSummary.value?.atlasId != atlasId || repository.connectionState.value != AtlasConnectionState.CONNECTED ||
                 playerSession.state.value !is PlayerSessionState.SignedIn) null
             else try { playerSession.raw("POST", "/api/standalone/import", fields) } catch (_: AtlasException) { null }
         }
+    }
+
+    /** Atlas 0.7.16+ takes matches with unlinked (guest) players, crediting each linked player once. */
+    private fun supportsGuestImport(version: String): Boolean {
+        val parts = version.substringBefore('-').split('.').map { it.toIntOrNull() ?: return false }
+        return parts.size == 3 && (parts[0] > 0 || parts[1] > 7 || (parts[1] == 7 && parts[2] >= 16))
     }
 
     private fun supportsLocalAccountIds(version: String): Boolean {

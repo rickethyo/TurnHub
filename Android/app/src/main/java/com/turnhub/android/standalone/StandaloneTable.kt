@@ -203,10 +203,18 @@ class StandaloneTable(
             if (it.localId != localId) it else it.copy(links = it.links.filterNot { l -> l.atlasId == atlasId } + AtlasProfileLink(atlasId, profileId)) })))
     }
 
-    fun queueAutomaticImports(atlasId: String, available: Set<String>) {
+    /**
+     * Queues every match whose players are linked to this Atlas. With [guests],
+     * a match needs one linked player, and a match already sent here with guests
+     * is sent again when another of its players has since been linked.
+     */
+    fun queueAutomaticImports(atlasId: String, available: Set<String>, guests: Boolean = false) {
         _state.value.library.history.forEach { record ->
-            if (_state.value.library.delivery(record.recordId).status == DeliveryStatus.NEEDS_LINKING) {
-                _state.value.library.automaticMapping(record, atlasId, available)?.let { queueImport(record.recordId, atlasId, it, available) }
+            val delivery = _state.value.library.delivery(record.recordId)
+            val again = guests && delivery.status == DeliveryStatus.IMPORTED && delivery.atlasId == atlasId && delivery.hasGuests
+            if (delivery.status == DeliveryStatus.NEEDS_LINKING || again) {
+                _state.value.library.automaticMapping(record, atlasId, available, guests)
+                    ?.let { queueImport(record.recordId, atlasId, it, available, guests) }
             }
         }
     }
@@ -324,17 +332,28 @@ class StandaloneTable(
     fun planarTopToBottom() = edit { g -> g.active?.let { g.planarTopToBottom(it) } ?: g }
     fun changePlaneCounter(card: String, delta: Int) = edit { g -> g.active?.let { g.changePlaneCounter(it, card, delta) } ?: g }
 
-    /** A pending/acknowledged payload cannot be silently redirected or remapped. */
-    fun queueImport(recordId: String, atlasId: String, profileIds: List<String>, availableProfileIds: Set<String>): Boolean {
+    /**
+     * A pending/acknowledged payload cannot be silently redirected or remapped.
+     * With [guests], blank IDs are guests, and a match imported here with guests
+     * may be queued again only to add players (everyone credited stays as is).
+     */
+    fun queueImport(recordId: String, atlasId: String, profileIds: List<String>, availableProfileIds: Set<String>,
+                    guests: Boolean = false): Boolean {
         val before = _state.value
         val record = before.library.history.firstOrNull { it.recordId == recordId } ?: return false
         // Atlas can't import a format it doesn't run (Pokémon): those games stay on this device.
         if (!record.profile.atlasSupported) return false
-        if (atlasId.isBlank() || profileIds.size != record.players.size ||
-            profileIds.any { it.isBlank() || it !in availableProfileIds } ||
-            profileIds.distinct().size != profileIds.size) return false
+        val mapped = profileIds.filter { it.isNotBlank() }
+        if (atlasId.isBlank() || profileIds.size != record.players.size || mapped.isEmpty() ||
+            (!guests && mapped.size != profileIds.size) || mapped.any { it !in availableProfileIds } ||
+            mapped.distinct().size != mapped.size) return false
         val old = before.library.delivery(recordId)
-        if (old.status == DeliveryStatus.IMPORTED) return false
+        if (old.status == DeliveryStatus.IMPORTED) {
+            val adds = guests && old.atlasId == atlasId && old.profileIds.size == profileIds.size &&
+                old.profileIds.indices.all { old.profileIds[it].isBlank() || old.profileIds[it] == profileIds[it] } &&
+                mapped.size > old.profileIds.count { it.isNotBlank() }
+            if (!adds) return false
+        }
         if (old.status == DeliveryStatus.PENDING) return old.atlasId == atlasId && old.profileIds == profileIds
         return publish(before.copy(library = before.library.withDelivery(
             MatchDelivery(recordId, DeliveryStatus.PENDING, atlasId = atlasId, profileIds = profileIds.toList()))))
@@ -370,8 +389,10 @@ class StandaloneTable(
                             require(credited in 0..record.players.size)
                             val unmatched = ack.getJSONArray("unmatched")
                             val names = (0 until unmatched.length()).map { unmatched.getString(it) }
+                            val guests = delivery.profileIds.count { it.isBlank() }
                             if (duplicate) "Atlas already had this match."
                             else "Atlas credited $credited of ${record.players.size} players." +
+                                (if (guests == 0) "" else " $guests not linked yet; they're added when linked.") +
                                 if (names.isEmpty()) "" else " Not credited: ${names.joinToString()}."
                         }.getOrNull()
                         if (detail != null) delivery.copy(status = DeliveryStatus.IMPORTED, reason = detail)

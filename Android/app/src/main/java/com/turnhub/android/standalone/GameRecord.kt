@@ -117,7 +117,8 @@ data class GameRecord(
      * players numbered from 0 in turn order.
      */
     fun importFields(atlasId: String, profileIds: List<String>): List<Pair<String, String>> = buildList {
-        require(atlasId.isNotBlank() && profileIds.size == players.size && profileIds.all { it.isNotBlank() })
+        // A blank profile ID is a guest (Atlas 0.7.16+); at least one player is mapped.
+        require(atlasId.isNotBlank() && profileIds.size == players.size && profileIds.any { it.isNotBlank() })
         add("atlasId" to atlasId)
         add("recordId" to recordId)
         add("gameProfile" to profile.wireValue)

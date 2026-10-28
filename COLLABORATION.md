@@ -1238,6 +1238,10 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   credited; at least one mapped player). Receipts are per (record, profile) in
   a 128-entry `sgimport` ring (schema 2; schema 1 discarded), so a re-sent
   record credits only newly linked players. Answer adds `already` and `guests`.
-  Android behaviour unchanged until its per-player delivery follow-up.
+  Atlas version 0.7.16-dev. Android (gated on 0.7.16) now auto-delivers any
+  match with one verified link, unlinked players as guests, and re-queues an
+  imported guest match when another of its players is linked (adds only).
 - Validation: Linux host suite with sanitizers passes (new guest, re-send,
-  schema-1 and ring-wrap checks); client contract check passes. No hardware run.
+  schema-1 and ring-wrap checks); client contract check passes. Android unit
+  test added (LocalAccountsTest guest delivery); Gradle couldn't run in the cloud
+  session (Maven 429), so CI is its first run. No hardware run.

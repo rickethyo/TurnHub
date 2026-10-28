@@ -162,7 +162,9 @@ history and UUIDs remain unchanged. Verifying an exact-ID signed-in account can
 establish its own link; an unverified public-ID match never does.
 
 Once signed in, complete verified mappings automatically queue finished matches,
-and retry pending work after reconnect. Match IDs and mappings remain frozen
+and retry pending work after reconnect. On Atlas 0.7.16+ one verified link is
+enough: unlinked players go as guests, and a match sent with guests is sent
+again (crediting only the new player) when another of its players is linked. Match IDs and mappings remain frozen
 while acknowledgement is uncertain. Imported or rejected records are never
 queued again automatically; partial credit needs review. Missing/archived profiles
 or duplicate targets leave games for manual mapping. This does not enlarge

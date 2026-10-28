@@ -21,9 +21,11 @@ data class MatchDelivery(
     val status: DeliveryStatus = DeliveryStatus.NEEDS_LINKING,
     val reason: String? = null,
     val atlasId: String? = null,
-    /** Profile IDs in the match's immutable player order. */
+    /** Profile IDs in the match's immutable player order; blank for a guest (not credited). */
     val profileIds: List<String> = emptyList(),
-)
+) {
+    val hasGuests: Boolean get() = profileIds.any { it.isBlank() }
+}
 
 data class LocalTotals(val played: Int, val won: Int, val draws: Int)
 
@@ -155,15 +157,18 @@ data class LocalLibrary(
     fun delivery(recordId: String): MatchDelivery = deliveries.firstOrNull { it.recordId == recordId }
         ?: MatchDelivery(recordId)
 
-    /** Only confirmed links, checked against current Atlas profiles, enable automatic credit. */
-    fun automaticMapping(record: GameRecord, atlasId: String, available: Set<String>): List<String>? {
+    /**
+     * Only confirmed links, checked against current Atlas profiles, enable
+     * automatic credit. With [guests] (Atlas 0.7.16+) unlinked players go as
+     * guests (blank) and one linked player is enough; otherwise all must be linked.
+     */
+    fun automaticMapping(record: GameRecord, atlasId: String, available: Set<String>, guests: Boolean = false): List<String>? {
         val ids = record.players.map { seat ->
-            val player = players.firstOrNull { it.localId == seat.localId } ?: return null
-            val link = player.links.firstOrNull { it.atlasId == atlasId } ?: return null
-            if (link.profileId !in available) return null
-            link.profileId
+            val link = players.firstOrNull { it.localId == seat.localId }?.links?.firstOrNull { it.atlasId == atlasId }
+            link?.profileId?.takeIf { it in available } ?: if (guests) "" else return null
         }
-        return ids.takeIf { it.distinct().size == it.size }
+        val mapped = ids.filter { it.isNotBlank() }
+        return ids.takeIf { mapped.isNotEmpty() && mapped.distinct().size == mapped.size }
     }
 
     fun withDelivery(delivery: MatchDelivery): LocalLibrary =
@@ -251,8 +256,9 @@ data class LocalLibrary(
                     val record = requireNotNull(library.history.firstOrNull { it.recordId == delivery.recordId })
                     if (delivery.status != DeliveryStatus.NEEDS_LINKING) {
                         require(!delivery.atlasId.isNullOrBlank())
-                        require(delivery.profileIds.size == record.players.size && delivery.profileIds.all { it.isNotBlank() })
-                        require(delivery.profileIds.distinct().size == delivery.profileIds.size)
+                        val mapped = delivery.profileIds.filter { it.isNotBlank() }
+                        require(delivery.profileIds.size == record.players.size && mapped.isNotEmpty())
+                        require(mapped.distinct().size == mapped.size)
                     }
                 }
             }

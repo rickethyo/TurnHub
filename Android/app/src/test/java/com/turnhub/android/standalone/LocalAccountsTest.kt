@@ -143,6 +143,52 @@ class LocalAccountsTest {
         assertEquals(0, requests)
     }
 
+    @Test fun `guest delivery sends a match with one linked player and adds others once linked`() = runTest {
+        val store = Store()
+        var now = 0L
+        val table = StandaloneTable(store, wallClock = { now }, shortGameMs = 0)
+        table.addPlayer("Ana"); table.addPlayer("Ben")
+        val players = table.state.value.library.players
+        table.start(); now = 100_000
+        table.control(com.turnhub.android.data.TabletSeat(9, 1), "win")
+        val record = table.state.value.library.history.single()
+        val available = players.map { it.profileId }.toSet()
+        assertTrue(table.linkAccount(players[0].localId, "atlas-a", players[0].profileId))
+        // Older Atlas firmware: every player must be linked.
+        assertNull(table.state.value.library.automaticMapping(record, "atlas-a", available))
+        table.queueAutomaticImports("atlas-a", available)
+        assertEquals(DeliveryStatus.NEEDS_LINKING, table.state.value.library.delivery(record.recordId).status)
+
+        table.queueAutomaticImports("atlas-a", available, guests = true)
+        assertEquals(listOf(players[0].profileId, ""), table.state.value.library.delivery(record.recordId).profileIds)
+        val sent = mutableListOf<List<Pair<String, String>>>()
+        table.sendRecords("atlas-a") { sent += it; com.turnhub.android.data.RawResponse(200,
+            """{"ok":true,"duplicate":false,"credited":1,"already":0,"guests":1,"unmatched":[]}""") }
+        assertEquals("", sent.single().first { it.first == "profile1" }.second)
+        assertEquals(DeliveryStatus.IMPORTED, table.state.value.library.delivery(record.recordId).status)
+        // Survives a restart with its guest mapping.
+        assertEquals(listOf(players[0].profileId, ""),
+            StandaloneTable(store, shortGameMs = 0).state.value.library.delivery(record.recordId).profileIds)
+
+        // Nothing new linked: not sent again.
+        table.queueAutomaticImports("atlas-a", available, guests = true)
+        assertEquals(DeliveryStatus.IMPORTED, table.state.value.library.delivery(record.recordId).status)
+        // A remap of an already credited player is refused.
+        assertFalse(table.queueImport(record.recordId, "atlas-a", listOf(players[1].profileId, players[0].profileId), available, guests = true))
+
+        assertTrue(table.linkAccount(players[1].localId, "atlas-a", players[1].profileId))
+        table.queueAutomaticImports("atlas-a", available, guests = true)
+        val again = table.state.value.library.delivery(record.recordId)
+        assertEquals(DeliveryStatus.PENDING, again.status)
+        assertEquals(players.map { it.profileId }, again.profileIds)
+        table.sendRecords("atlas-a") { sent += it; com.turnhub.android.data.RawResponse(200,
+            """{"ok":true,"duplicate":false,"credited":1,"already":1,"guests":0,"unmatched":[]}""") }
+        assertEquals(DeliveryStatus.IMPORTED, table.state.value.library.delivery(record.recordId).status)
+        assertEquals(players[1].profileId, sent.last().first { it.first == "profile1" }.second)
+        table.queueAutomaticImports("atlas-a", available, guests = true)
+        assertEquals(DeliveryStatus.IMPORTED, table.state.value.library.delivery(record.recordId).status)
+    }
+
     @Test fun `full offline statistics and final counter details survive restart`() {
         val first = object : Random() { override fun nextBits(bitCount: Int) = 0 }
         val game = StandaloneGame().addPlayer("Ana", localId = "a").addPlayer("Ben", localId = "b")
