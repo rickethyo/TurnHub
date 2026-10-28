@@ -89,7 +89,9 @@ constexpr uint32_t HELLO_INTERVAL_MS = 2000;
 constexpr uint32_t PAIRING_DURATION_MS = TurnHubProtocol::PAIRING_WINDOW_MS;
 // Status light: frames are rendered at most this often.
 constexpr uint32_t LED_FRAME_MS = 20;
-constexpr uint32_t DISPLAY_TASK_STACK_BYTES = 4096;
+// LVGL renders synchronously on this task (the touch Sigil): its label
+// drawing needs far more stack than the e-ink did.
+constexpr uint32_t DISPLAY_TASK_STACK_BYTES = TURNHUB_SIGIL_TOUCH ? 12288 : 4096;
 constexpr uint32_t PROFILE_REQUEST_RETRY_MS = 1000;
 constexpr uint8_t PROFILE_REQUEST_MAX_ATTEMPTS = 4;
 constexpr uint8_t PROFILE_SLOT_MASK = 0x03;
