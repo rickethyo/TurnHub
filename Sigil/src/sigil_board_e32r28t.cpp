@@ -200,7 +200,15 @@ bool readRaw(uint16_t &x, uint16_t &y) {
   const int32_t after = pressure();
   transfer(0xD0);  // Power down with the pen interrupt enabled.
   digitalWrite(TOUCH_CS_PIN, HIGH);
-  return before >= PRESSURE_MIN && after >= PRESSURE_MIN;
+  const bool pressed = before >= PRESSURE_MIN && after >= PRESSURE_MIN;
+  // Bench check: a pen-down the pressure test rejects, at most twice a second.
+  static uint32_t weakLoggedMs = 0;
+  if (!pressed && millis() - weakLoggedMs >= 500) {
+    weakLoggedMs = millis();
+    Serial.printf("SIGIL|TOUCH|WEAK|%ld|%ld|RAW|%u|%u\n", static_cast<long>(before),
+        static_cast<long>(after), x, y);
+  }
+  return pressed;
 }
 
 int16_t scale(int32_t raw, int32_t lo, int32_t hi, bool invert, int16_t size) {
