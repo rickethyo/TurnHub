@@ -1078,3 +1078,11 @@ standalone game/storage/history engine, with synchronous commits for remote
 commands. No firmware, radio payload, checkpoint format, new runtime dependency
 or bundled artwork changes. Android binary/heap and real-device network
 performance are not measured; physical acceptance remains open.
+
+## 2026-10-28: Atlas 0.7.16, guests and per-player import receipts
+
+Baseline `7251760`. Atlas firmware 0.7.16-dev (the Android app gates guest
+mappings on it). Standalone imports accept guest seats; the NVS `sgimport` ring
+becomes schema 2 with 128 per-(record, profile) receipts, 1,027 bytes instead of
+515. No radio, checkpoint, statistics layout or dependency change. Flash/RAM
+were not measured in this cloud session; the CI Atlas compile reports them.
