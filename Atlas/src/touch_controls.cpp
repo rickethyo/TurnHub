@@ -97,6 +97,11 @@ void addRow(AtlasScreen &screen, int16_t y, const ButtonSpec *specs, uint8_t cou
   }
 }
 
+// Stacks buttons full width down the body, from its top (portrait menus).
+void addColumn(AtlasScreen &screen, const ButtonSpec *specs, uint8_t count) {
+  for (uint8_t i = 0; i < count; ++i) addRow(screen, SCREEN_BODY_Y + i * (BUTTON_ROW_H + MARGIN), &specs[i], 1);
+}
+
 bool matchInProgress() {
   return table().hubState == HubState::Running || table().hubState == HubState::Paused;
 }
@@ -183,7 +188,7 @@ void layoutMenu(AtlasScreen &screen) {
   }
   if (table().hubState == HubState::Lobby) upper[n++] = {TouchAction::Pair, "Pair a Sigil", 0, 1};
   upper[n++] = {TouchAction::OpenQr, "QR codes", 0, 1};
-  addRow(screen, BUTTON_UPPER_ROW_Y, upper, n);
+  addColumn(screen, upper, n);
   ButtonSpec lower[4];
   n = 0;
   lower[n++] = {TouchAction::OpenInfo, "Info", 0, 1};
@@ -201,7 +206,7 @@ void layoutDevice(AtlasScreen &screen) {
   uint8_t n = 0;
   if (table().hubState == HubState::Lobby) upper[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", DEVICE_UNPAIR_HOLD_MS, 1};
   upper[n++] = {TouchAction::FactoryResetAtlas, "Factory reset", DEVICE_RESET_HOLD_MS, 1};
-  addRow(screen, BUTTON_UPPER_ROW_Y, upper, n);
+  addColumn(screen, upper, n);
   const ButtonSpec lower[] = {{TouchAction::OpenThemes, "Theme", 0, 1}, {TouchAction::SleepAtlas, "Sleep", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
   addRow(screen, BUTTON_ROW_Y, lower, 3);
 }
@@ -209,7 +214,7 @@ void layoutDevice(AtlasScreen &screen) {
 void layoutThemes(AtlasScreen &screen) {
   const ButtonSpec upper[] = {{TouchAction::ThemeGraphite, "Graphite", 0, 1}, {TouchAction::ThemeDaylight, "Daylight", 0, 1}, {TouchAction::InvertDisplay, atlasDisplayInverted() ? "Invert: on" : "Invert: off", 0, 1}};
   const ButtonSpec lower[] = {{TouchAction::ThemeBrass, "Brass", 0, 1}, {TouchAction::ThemeContrast, "High contrast", 0, 2}, {TouchAction::CloseScreen, "Back", 0, 1}};
-  addRow(screen, BUTTON_UPPER_ROW_Y, upper, 3);
+  addColumn(screen, upper, 3);
   addRow(screen, BUTTON_ROW_Y, lower, 3);
   for (uint8_t i = 0; i < screen.buttonCount; ++i) {
     auto &button = screen.buttons[i];
@@ -224,7 +229,7 @@ void layoutThemes(AtlasScreen &screen) {
 void layoutTable(AtlasScreen &screen) {
   if (table().hubState == HubState::Running) {
     const ButtonSpec upper[] = {{TouchAction::MasterPass, "Master pass", MASTER_PASS_HOLD_MS, 1}};
-    addRow(screen, BUTTON_UPPER_ROW_Y, upper, 1);
+    addColumn(screen, upper, 1);
   }
   const ButtonSpec lower[] = {{TouchAction::EndMatch, "End match", END_MATCH_HOLD_MS, 3},
       {TouchAction::CloseScreen, "Back", 0, 2}};
@@ -240,7 +245,7 @@ void layoutPlayer(AtlasScreen &screen) {
     const ButtonSpec upper[] = {{TouchAction::MoveEarlier, "Earlier", 0, 1},
         {TouchAction::MoveLater, "Later", 0, 1},
         {TouchAction::RemoveSeat, "Remove", LOBBY_REMOVE_HOLD_MS, 1}};
-    addRow(screen, BUTTON_UPPER_ROW_Y, upper, 3);
+    addColumn(screen, upper, 3);
     PlayerSeat seat;
     if (currentShownSeat(seat) && table().lobby.hasSecondary(seat.controllerId)) {
       const ButtonSpec lower[] = {{TouchAction::SeatBLeft, "B left", 0, 1},
