@@ -179,3 +179,11 @@ response against its source bytes, including gzip decoding, binary icons,
 cache/type headers and unknown paths. The administration browser smoke also
 checks accessibility-only choices, preview versus Save and old-theme migration;
 maintenance smoke checks saved High contrast across maintenance pages.
+
+`bash Atlas/tests/host/render-atlas-lvgl.sh` renders the S3 Atlas screen
+(`src/atlas_screen_lvgl.cpp`, the LVGL drawing shared with the firmware) from
+hand-built `AtlasScreen` fixtures in `preview/atlas_preview.cpp` to
+`build/preview/*.png` in Graphite, Brass and Daylight. It reuses the LVGL 9.3
+sources PlatformIO fetched for `env:atlas-s3` and needs Pillow for PNGs. It is
+a layout review aid, not a test: the screen model itself is tested by
+`scenarios`.
