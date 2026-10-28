@@ -99,16 +99,15 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
   }
   {
     AtlasScreen s = base("LOBBY", "Lobby", "0 players, 2 Sigils");
-    const char *lines[] = {"Join from a Sigil's menu,", "or on the table portal.", "Menu: pair, QR codes, info."};
+    const char *lines[] = {"Tap Add player to seat someone,", "or join from the app or a Sigil.", "Menu: pair, QR codes, info."};
     for (auto *l : lines) snprintf(s.lines[s.lineCount++], 40, "%s", l);
-    row(s, BUTTON_ROW_Y, {{TouchAction::OpenMenu, "Menu"}});
+    row(s, BUTTON_ROW_Y, {{TouchAction::OpenSeat, "Add player"}, {TouchAction::OpenMenu, "Menu"}}, {3, 2});
     renderAtlasScreen(s, style); save("lobby-empty" + suffix);
   }
   {
     AtlasScreen s = base("LOBBY", "Lobby", "4 players, 2 Sigils");
     players(s, 4, false);
-    row(s, BUTTON_ROW_Y, {{TouchAction::StartGame, "Start"}, {TouchAction::ClearLobby, "Clear"}, {TouchAction::OpenMenu, "Menu"}}, {3, 2, 2});
-    s.buttons[1].holdMs = 2000;
+    row(s, BUTTON_ROW_Y, {{TouchAction::OpenSeat, "Add player"}, {TouchAction::StartGame, "Start"}, {TouchAction::OpenMenu, "Menu"}}, {3, 3, 2});
     renderAtlasScreen(s, style); save("lobby-4" + suffix);
   }
   {
@@ -117,6 +116,44 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     column(s, {{TouchAction::OpenSetup, "Setup"}, {TouchAction::Pair, "Pair a Sigil"}, {TouchAction::OpenQr, "QR codes"}});
     row(s, BUTTON_ROW_Y, {{TouchAction::OpenInfo, "Info"}, {TouchAction::OpenDevice, "Device"}, {TouchAction::CloseScreen, "Back"}});
     renderAtlasScreen(s, style); save("menu" + suffix);
+  }
+  {
+    AtlasScreen s = base("ADD PLAYER", "Who's playing?", "Tap a name to seat them (1 of 2)");
+    s.kind = ScreenKind::Seat;
+    column(s, {{TouchAction::SeatProfile, "Jordan"}, {TouchAction::SeatProfile, "Casey (PIN)"},
+        {TouchAction::SeatProfile, "Morgan"}, {TouchAction::SeatProfile, "Riley"}});
+    for (uint8_t i = 0; i < 4; ++i) s.buttons[i].arg = i;
+    row(s, BUTTON_ROW_Y, {{TouchAction::NewPlayer, "New player"}, {TouchAction::SeatMore, "More"}, {TouchAction::CloseScreen, "Back"}}, {3, 2, 2});
+    renderAtlasScreen(s, style); save("seat" + suffix);
+  }
+  {
+    // touch_controls.cpp's layoutName: six 47 x 56 keys a row, Space two wide.
+    AtlasScreen s = base("ADD PLAYER", "Jordan", "Type their name. No PIN needed");
+    s.kind = ScreenKind::Name;
+    static const char *keys[] = {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O",
+        "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "-", "'", "Space"};
+    const int16_t kw = (WIDTH - 16 - 20) / 6, kh = (BUTTON_ROW_Y - 8 - SCREEN_BODY_Y - 16) / 5;
+    for (uint8_t i = 0; i < 29; ++i) {
+      TouchButton &b = s.buttons[s.buttonCount++];
+      b.action = TouchAction::NameKey; b.label = keys[i]; b.arg = i;
+      b.x = 8 + (i % 6) * (kw + 4); b.y = SCREEN_BODY_Y + (i / 6) * (kh + 4); b.w = i == 28 ? 2 * kw + 4 : kw; b.h = kh;
+    }
+    s.pressed = TouchAction::NameKey; s.pressedArg = 13;
+    row(s, BUTTON_ROW_Y, {{TouchAction::CloseScreen, "Cancel"}, {TouchAction::NameBack, "Delete"}, {TouchAction::NameDone, "Add"}});
+    renderAtlasScreen(s, style); save("name" + suffix);
+  }
+  {
+    AtlasScreen s = base("ADD PLAYER", "Casey's PIN", "* * *");
+    s.kind = ScreenKind::Pin;
+    static const char *keys[] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "Del", "0", "OK"};
+    const int16_t kw = (WIDTH - 16 - 16) / 3, kh = (BUTTON_ROW_Y - 8 - SCREEN_BODY_Y - 24) / 4;
+    for (uint8_t i = 0; i < 12; ++i) {
+      TouchButton &b = s.buttons[s.buttonCount++];
+      b.action = i == 9 ? TouchAction::PinBack : i == 11 ? TouchAction::PinDone : TouchAction::PinKey; b.label = keys[i];
+      b.x = 8 + (i % 3) * (kw + 8); b.y = SCREEN_BODY_Y + (i / 3) * (kh + 8); b.w = kw; b.h = kh;
+    }
+    row(s, BUTTON_ROW_Y, {{TouchAction::CloseScreen, "Cancel"}});
+    renderAtlasScreen(s, style); save("pin" + suffix);
   }
   for (int n : {3, 4, 6, 8}) {
     AtlasScreen s = base("PLAYING", "Sam's turn", "Hold Pass on your Sigil to pass");

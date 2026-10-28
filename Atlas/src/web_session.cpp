@@ -723,4 +723,33 @@ bool requirePermission(WebServer &server, uint8_t permission) {
 }
 
 bool verifiedAtTable(WebServer &server) { return internal::physicalPresence(server); }
+
+// The tablet's PIN check (verifyProfileSecret) without an HTTP request.
+bool checkTablePin(const String &profileId, const String &pin, String &message) {
+  if (!loginLimiter.allow(profileId.c_str(), millis())) {
+    message = "Too many attempts. Wait 30 seconds and retry";
+    return false;
+  }
+  const String stored = TurnHubProfiles::storedPinHashForProfile(profileId);
+  if (!validPin(pin) || stored.length() != PIN_HASH_LENGTH ||
+      !stored.equalsIgnoreCase(profilePinHash(profileId, pin))) {
+    message = "That PIN was not accepted";
+    return false;
+  }
+  loginLimiter.success(profileId.c_str());
+  TurnHubAccounts::Account account;
+  if (!TurnHubAccounts::load(profileId, account) || account.archived) {
+    message = "Account unavailable or archived";
+    return false;
+  }
+  if (account.reconnectRequired) {
+    account.reconnectRequired = false;
+    if (!TurnHubAccounts::save(profileId, account)) {
+      message = "Could not reconnect";
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace TurnHubWebApi

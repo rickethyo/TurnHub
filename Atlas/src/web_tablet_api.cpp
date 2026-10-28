@@ -47,16 +47,6 @@ bool tabletSeat(WebServer &server, uint8_t &module, uint8_t &slot) {
   return true;
 }
 
-// True when another profile already uses this name (ignoring case).
-bool nameTaken(const String &name) {
-  char ids[TurnHubProfiles::MAX_LOGIN_PROFILES][TurnHubProfiles::PROFILE_ID_LENGTH + 1];
-  const size_t count = TurnHubProfiles::listProfileIds(ids, TurnHubProfiles::MAX_LOGIN_PROFILES);
-  for (size_t i = 0; i < count; ++i) {
-    if (TurnHubProfiles::nameForProfile(ids[i]).equalsIgnoreCase(name)) return true;
-  }
-  return false;
-}
-
 struct TabletAction {
   const char *name;
   WebControl control;
@@ -154,7 +144,7 @@ void handleTabletSeat(WebServer &server) {
       sendError(server, 400, "Enter the player's name");
       return;
     }
-    if (nameTaken(name)) {
+    if (profileNameTaken(name)) {
       sendError(server, 409, name + " already has a profile; choose them from the list");
       return;
     }
@@ -272,4 +262,14 @@ void handleTabletCounter(WebServer &server, TurnHub::IntentType type) {
 }
 
 }  // namespace internal
+
+bool profileNameTaken(const String &name) {
+  char ids[TurnHubProfiles::MAX_LOGIN_PROFILES][TurnHubProfiles::PROFILE_ID_LENGTH + 1];
+  const size_t count = TurnHubProfiles::listProfileIds(ids, TurnHubProfiles::MAX_LOGIN_PROFILES);
+  for (size_t i = 0; i < count; ++i) {
+    if (TurnHubProfiles::nameForProfile(ids[i]).equalsIgnoreCase(name)) return true;
+  }
+  return false;
+}
+
 }  // namespace TurnHubWebApi

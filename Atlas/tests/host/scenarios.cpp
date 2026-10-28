@@ -2461,9 +2461,9 @@ static void oledSigilSeatsTwoPlayers() {
 static void touchControls() {
   resetTouchControls(); freshLobby(2); TurnHub::fixtureRadio=true; pairingActive=false;
   AtlasScreen s=currentScreen();
-  // The lobby row keeps Start and Clear up front; the rest waits under Menu.
+  // The lobby row keeps Add player and Start up front; the rest waits under Menu.
   assert(String(s.title)=="Lobby" && s.buttonCount==3 && screenButton(s,TouchAction::StartGame) &&
-      screenButton(s,TouchAction::ClearLobby) && screenButton(s,TouchAction::OpenMenu) &&
+      screenButton(s,TouchAction::OpenSeat) && screenButton(s,TouchAction::OpenMenu) && !screenButton(s,TouchAction::ClearLobby) &&
       !screenButton(s,TouchAction::Pair) && !screenButton(s,TouchAction::OpenQr) && !screenButton(s,TouchAction::OpenInfo));
   assert(s.round==0 && s.gameClock[0]=='\0' && s.players[0].turnTime[0]=='\0');
   // Every button fits on screen and meets the 44 px minimum target size.
@@ -2935,15 +2935,113 @@ static void touchTableLifecycle() {
   tapButton(TouchAction::StartGame); testNow+=START_COUNTDOWN_MS; updateCountdown(testNow);
   holdEndMatch(); assert(table().hubState==HubState::GameOver);
   tapButton(TouchAction::ResetTable); assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==0);
-  // Lobby Clear: a hold, shown only with someone joined; a tap only explains.
-  assert(!screenButton(currentScreen(),TouchAction::ClearLobby));
-  freshLobby(3); resetTouchControls();
+  // Menu's Clear lobby: a hold, shown only with someone joined; a tap only explains.
+  openMenuScreen(); assert(!screenButton(currentScreen(),TouchAction::ClearLobby));
+  freshLobby(3); resetTouchControls(); openMenuScreen();
   assert(screenButton(currentScreen(),TouchAction::ClearLobby));
   tapButton(TouchAction::ClearLobby); assert(table().lobby.playerCount()==3);
   pressButton(TouchAction::ClearLobby); testNow+=LOBBY_CLEAR_HOLD_MS; pressButton(TouchAction::ClearLobby); touchRelease();
   assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==0);
   assert(!screenButton(currentScreen(),TouchAction::ClearLobby));
   resetTouchControls(); enterEmptyLobby();
+}
+
+// A key or list row on the touchscreen, by its action and arg.
+static void tapKey(TouchAction action,uint8_t arg) {
+  const AtlasScreen screen=currentScreen();
+  const TouchButton *b=nullptr;
+  for (uint8_t i=0;i<screen.buttonCount;++i) if (screen.buttons[i].action==action && screen.buttons[i].arg==arg) b=&screen.buttons[i];
+  assert(b!=nullptr);
+  const int16_t x=b->x+b->w/2, y=b->y+b->h/2;
+  touchAt(x,y); testNow+=30; touchAt(x,y); touchRelease();
+}
+// The Add player row whose label starts with `name`, paging with More.
+static bool tapSeatRow(const char *name) {
+  for (uint8_t page=0;page<20;++page) {
+    const AtlasScreen screen=currentScreen();
+    assert(screen.kind==ScreenKind::Seat);
+    for (uint8_t i=0;i<screen.buttonCount;++i) {
+      const TouchButton &b=screen.buttons[i];
+      if (b.action==TouchAction::SeatProfile && startsWith(b.label,name)) { tapKey(TouchAction::SeatProfile,b.arg); return true; }
+    }
+    if (!screenButton(screen,TouchAction::SeatMore)) return false;
+    tapButton(TouchAction::SeatMore);
+  }
+  return false;
+}
+static void typeName(const char *text) {
+  static const char keys[]="ABCDEFGHIJKLMNOPQRSTUVWXYZ-' ";
+  for (const char *c=text;*c;++c) {
+    const char upper=(*c>='a'&&*c<='z')?static_cast<char>(*c-'a'+'A'):*c;
+    tapKey(TouchAction::NameKey,static_cast<uint8_t>(strchr(keys,upper)-keys));
+  }
+}
+static bool keysFit(const AtlasScreen &s) {
+  for (uint8_t i=0;i<s.buttonCount;++i) {
+    const TouchButton &b=s.buttons[i];
+    if (b.w<44 || b.h<44 || b.x<0 || b.y<SCREEN_BODY_Y || b.x+b.w>ATLAS_SCREEN_WIDTH || b.y+b.h>ATLAS_SCREEN_HEIGHT) return false;
+    for (uint8_t j=0;j<i;++j) {
+      const TouchButton &o=s.buttons[j];
+      if (b.x<o.x+o.w && o.x<b.x+b.w && b.y<o.y+o.h && o.y<b.y+b.h) return false;
+    }
+  }
+  return true;
+}
+
+// Add player on the Atlas screen, as the app's shared table seats people:
+// a saved profile that allows it sits at a tap, one that does not asks for
+// its PIN on a keypad, and New player types a name for a PIN-less profile.
+// Each seat is a JoinProfile Intent from AtlasHardware.
+static void touchSeatsPlayers() {
+  resetTouchControls(); resetPresence(); enterEmptyLobby(); TurnHub::fixtureRadio=false; testNow+=60000;
+  const String open=TurnHubProfiles::createProfileWithName("Zed Touch");
+  String lockedId;
+  const String locked=registerPhone("Pia Touch",lockedId);
+  ProfileFixture::profiles[lockedId].policy.allowPhysicalWithoutPin=false;
+  assert(request("/api/session/logout",locked)==200);
+
+  tapButton(TouchAction::OpenSeat);
+  assert(currentScreen().kind==ScreenKind::Seat && keysFit(currentScreen()));
+  assert(tapSeatRow("Zed Touch") && table().lobby.playerCount()==1 && tableForProfile(open)==0);
+  assert(currentScreen().kind==ScreenKind::Seat && !tapSeatRow("Zed Touch"));
+
+  // A PIN-protected profile: the keypad, a wrong PIN refused, then its own.
+  assert(tapSeatRow("Pia Touch (PIN)") && currentScreen().kind==ScreenKind::Pin && keysFit(currentScreen()));
+  for (uint8_t d : {9,9,9,9}) tapKey(TouchAction::PinKey,d);
+  assert(String(currentScreen().detail)=="* * * *");
+  tapButton(TouchAction::PinDone);
+  assert(table().lobby.playerCount()==1 && String(currentScreen().notice)=="That PIN was not accepted");
+  for (uint8_t d : {1,2,3,5}) tapKey(TouchAction::PinKey,d);
+  tapButton(TouchAction::PinBack); tapKey(TouchAction::PinKey,4);
+  tapButton(TouchAction::PinDone);
+  assert(table().lobby.playerCount()==2 && tableForProfile(lockedId)==0 && currentScreen().kind==ScreenKind::Seat);
+
+  // New player: words start with capitals; the profile has no PIN.
+  tapButton(TouchAction::NewPlayer);
+  assert(currentScreen().kind==ScreenKind::Name && keysFit(currentScreen()));
+  tapButton(TouchAction::NameDone);
+  assert(table().lobby.playerCount()==2 && String(currentScreen().notice)=="Type the player's name");
+  typeName("  jo  bx"); tapButton(TouchAction::NameBack); typeName("y");
+  assert(String(currentScreen().title)=="Jo By");
+  tapButton(TouchAction::NameDone);
+  assert(table().lobby.playerCount()==3 && currentScreen().kind==ScreenKind::Seat);
+  // A name already used is refused; pick that profile instead.
+  tapButton(TouchAction::NewPlayer); typeName("jo by"); tapButton(TouchAction::NameDone);
+  assert(table().lobby.playerCount()==3 && String(currentScreen().notice)=="That name has a profile; pick it");
+  tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Seat);
+  tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Status);
+
+  // Add player belongs to the lobby: a started game closes it.
+  tapButton(TouchAction::OpenSeat);
+  Intent start; start.type=IntentType::StartGame; start.actor.origin=IntentOrigin::AtlasHardware;
+  assert(intents.dispatch(start).accepted());
+  assert(currentScreen().kind==ScreenKind::Status);
+  resetTouchControls(); enterEmptyLobby();
+  // Later scenarios need room in the profile store.
+  for (auto it=ProfileFixture::profiles.begin();it!=ProfileFixture::profiles.end();) {
+    if (it->first==open.c_str() || it->first==lockedId.c_str() || it->second.name=="Jo By") it=ProfileFixture::profiles.erase(it);
+    else ++it;
+  }
 }
 
 // Master pass: the Table screen's hold passes a stuck turn at once (no
@@ -5748,6 +5846,7 @@ int main() {
   powerSource(); std::cout<<"PASS power source: USB pulled and plugged in, slow discharge, no cell, started on the cell\n";
   tenPlayerImportCredit(); std::cout<<"PASS ten-player imports, high winner bit, elimination credit and retry deduplication\n";
   standaloneImport(); std::cout<<"PASS standalone import: exact Atlas/profile scope, no name fallback, invalid mapping, guests, per-player receipts, duplicates, storage failure, draw\n";
+  touchSeatsPlayers(); std::cout<<"PASS touchscreen Add player: saved profiles, PIN keypad, New player keyboard, unique names\n";
   tabletMode(); std::cout<<"PASS tablet mode: presence code, Tablet access role, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
   tableCodeOptional(); std::cout<<"PASS table code optional: off by default (Admin still required), on needs codes, off again needs one" << std::endl;

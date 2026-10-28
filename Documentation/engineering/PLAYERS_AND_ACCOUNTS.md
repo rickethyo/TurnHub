@@ -55,8 +55,18 @@ HTTP routes are in `protocol/http-v1.md` and the route table in
   `POST /api/session/login` for a profile with no secret saves the given PIN
   or password as its secret and signs in (log `ATLAS|PROFILE|PIN_SET_AT_SIGN_IN`).
   The app asks for it twice; from then on it is checked as usual. Anyone at
-  the table can already seat a PIN-less profile from a Sigil or the tablet,
+  the table can already seat a PIN-less profile from a Sigil, the tablet or the
+  S3 Atlas screen,
   so claiming it from a phone grants nothing new.
+- **S3 Atlas screen, Add player** (*Experimental*, 2026-10-28): the lobby's
+  Add player lists saved profiles not at either table, four to a page
+  (More pages on). A profile that allows physical use without a PIN sits at
+  a tap; any other shows "(PIN)" and asks for it on a keypad, checked and
+  rate limited as the tablet's `POST /api/tablet/seat` checks it
+  (`checkTablePin`). New player types a name on an on-screen keyboard and
+  creates a profile with no PIN (a name already in use is refused). Each
+  seat is a `JoinProfile` Intent from `AtlasHardware`, on a browser
+  controller as the tablet's. Clear lobby moved under Menu.
 - **Seat B** on a shared Sigil uses the same picker (**Add seat B**); Guest
   adds seat B directly. `PickProfile` with slot 2 adds the seat and binds the
   profile in one step.

@@ -256,8 +256,11 @@ IntentResult participationChanged(IntentType type) {
   return IntentResult::accept(type == IntentType::LeaveProfile ? "Left the table" : "Ready at the table");
 }
 
+// A signed-in browser, or the Atlas touchscreen's Add player (which checked
+// the profile's PIN first, as the tablet does): either way the profile plays
+// on a browser controller.
 IntentResult joinProfile(const Intent &intent, const String &profile, bool joined) {
-  if (intent.actor.origin != IntentOrigin::Browser) {
+  if (intent.actor.origin != IntentOrigin::Browser && intent.actor.origin != IntentOrigin::AtlasHardware) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Profile login required");
   }
   if (joined) {

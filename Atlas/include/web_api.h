@@ -185,5 +185,10 @@ bool hasPendingClaim(uint8_t sigilId);
 bool profileAuthenticated(const String &profileId);
 bool physicalUseAllowed(const String &profileId);
 bool physicalStatsVisible(const String &profileId);
+// The Atlas touchscreen's seat checks, the tablet's (POST /api/tablet/seat):
+// a profile's PIN typed at the table (rate limited like a sign-in; message
+// says why not), and whether a name is already a profile's (ignoring case).
+bool checkTablePin(const String &profileId, const String &pin, String &message);
+bool profileNameTaken(const String &name);
 
 }  // namespace TurnHubWebApi

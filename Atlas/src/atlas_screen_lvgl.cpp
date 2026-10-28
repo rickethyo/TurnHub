@@ -133,14 +133,16 @@ bool codeLayout(const AtlasScreen &s) {
 
 bool buttonsUseBody(const AtlasScreen &s) {
   return s.kind == ScreenKind::Table || s.kind == ScreenKind::Menu || s.kind == ScreenKind::Player ||
-      s.kind == ScreenKind::Device || s.kind == ScreenKind::Themes;
+      s.kind == ScreenKind::Device || s.kind == ScreenKind::Themes || s.kind == ScreenKind::Seat ||
+      s.kind == ScreenKind::Name || s.kind == ScreenKind::Pin;
 }
 
 bool primaryAction(TouchAction a) {
   switch (a) {
     case TouchAction::StartGame: case TouchAction::Rematch:
     case TouchAction::Resume: case TouchAction::Pair: case TouchAction::SetupPair:
-    case TouchAction::PairConfirm:
+    case TouchAction::PairConfirm: case TouchAction::NameDone:
+    case TouchAction::PinDone:
       return true;
     default:
       return false;
@@ -372,7 +374,10 @@ void drawBody(lv_obj_t *root, const AtlasScreen &s) {
 }
 
 void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
-  const bool pressed = s.pressed == b.action;
+  const bool pressed = s.pressed == b.action && s.pressedArg == b.arg;
+  // Keyboard keys stay flat (no shadow): thirty of them redraw per key press.
+  const bool key = b.action == TouchAction::NameKey ||
+      b.action == TouchAction::PinKey || b.action == TouchAction::PinBack || b.action == TouchAction::PinDone;
   const bool primary = primaryAction(b.action);
   const bool danger = dangerAction(b.action);
   // Hold to pass wears the turn colour, as in the app.
@@ -385,7 +390,7 @@ void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
   lv_obj_set_style_border_width(o, (primary || turn) && !pressed ? 0 : 1, 0);
   if (!pressed) {
     sheen(o, base);
-    lift(o);
+    if (!key) lift(o);
   }
   // Pressed and the shown choice are also marked by a heavier frame.
   if (pressed || b.selected) lv_obj_set_style_border_width(o, 3, 0);

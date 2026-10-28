@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "account_access.h"
 #include "atlas_app.h"
 #include "atlas_battery.h"
 #include "atlas_display.h"
@@ -34,11 +35,13 @@ constexpr char PORTAL_ORIGIN[] = "http://192.168.4.1";
 // Profile names are looked up at most this often (the store may read NVS).
 constexpr uint32_t NAME_REFRESH_MS = 3000;
 
-// Press state for the touch in progress.
+// Press state for the touch in progress (pressedArg: which of the keys or
+// rows sharing an action).
 bool touchDown = false;
 bool pressInside = false;
 bool holdFired = false;
 TouchAction pressedAction = TouchAction::None;
+uint8_t pressedArg = 0;
 uint32_t pressStartedAtMs = 0;
 uint32_t lastContactAtMs = 0;
 
@@ -57,6 +60,31 @@ PlayerSeat pressedSeat;
 // Skip for now on the setup Welcome screen: hidden until the next start-up,
 // or until Setup under Menu. Presentation only; the stage stays Atlas's.
 bool setupSkipped = false;
+
+// Add player: the page of saved profiles shown (not at either table), the
+// name being typed for a new one, and the PIN being typed for one that
+// needs it. Presentation only, like the open screen.
+constexpr uint8_t SEAT_PAGE_ROWS = 4;
+constexpr uint8_t TYPED_PIN_LENGTH = 8;
+struct SeatRow {
+  char profileId[TurnHubProfiles::PROFILE_ID_LENGTH + 1] = {};
+  char label[SCREEN_NAME_LENGTH + 7] = {};  // "Name (PIN)"
+  bool needsPin = false;
+};
+SeatRow seatRows[SEAT_PAGE_ROWS];
+uint8_t seatRowCount = 0;
+uint8_t seatPage = 0;
+uint8_t seatPages = 0;
+char typedName[SCREEN_NAME_LENGTH + 1] = {};
+char typedPin[TYPED_PIN_LENGTH + 1] = {};
+uint8_t pinRow = 0;
+// The name keyboard, six keys a row: letters, then hyphen, apostrophe and
+// space (NameKey's arg is the index).
+constexpr char NAME_KEYS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ-' ";
+constexpr uint8_t NAME_KEY_COUNT = sizeof(NAME_KEYS) - 1;
+const char *const NAME_KEY_LABELS[NAME_KEY_COUNT] = {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
+    "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "-", "'", "Space"};
+const char *const DIGIT_LABELS[10] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
 
 struct NameCache {
   char profileId[9] = {};
@@ -100,6 +128,20 @@ void addRow(AtlasScreen &screen, int16_t y, const ButtonSpec *specs, uint8_t cou
 // Stacks buttons full width down the body, from its top (portrait menus).
 void addColumn(AtlasScreen &screen, const ButtonSpec *specs, uint8_t count) {
   for (uint8_t i = 0; i < count; ++i) addRow(screen, SCREEN_BODY_Y + i * (BUTTON_ROW_H + MARGIN), &specs[i], 1);
+}
+
+// One key or list row at an exact spot, told apart by arg.
+void addKey(AtlasScreen &screen, TouchAction action, const char *label, int16_t x, int16_t y, int16_t w, int16_t h,
+    uint8_t arg) {
+  if (screen.buttonCount >= MAX_TOUCH_BUTTONS) return;
+  TouchButton &button = screen.buttons[screen.buttonCount++];
+  button.action = action;
+  button.label = label;
+  button.x = x;
+  button.y = y;
+  button.w = w;
+  button.h = h;
+  button.arg = arg;
 }
 
 bool matchInProgress() {
@@ -172,22 +214,27 @@ ScreenKind activeScreen(uint32_t nowMs) {
   if ((openScreen == ScreenKind::Menu || openScreen == ScreenKind::Device || openScreen == ScreenKind::Themes) && !menuAvailable()) {
     openScreen = ScreenKind::Status;
   }
+  const bool seating = openScreen == ScreenKind::Seat || openScreen == ScreenKind::Name || openScreen == ScreenKind::Pin;
+  if (seating && table().hubState != HubState::Lobby) openScreen = ScreenKind::Status;
   if (pendingPresenceCode(nowMs) != nullptr) return ScreenKind::Code;
   if (waitingPairSlot() != INVALID_ID) return ScreenKind::PairCode;
   if (openScreen == ScreenKind::Status && setupScreenDue()) return ScreenKind::Setup;
   return openScreen;
 }
 
-// Between games: Pair (lobby only) and QR codes above; Info, Device and
-// Back below.
+// Between games: Pair and Clear lobby (lobby only) and QR codes above;
+// Info, Device and Back below.
 void layoutMenu(AtlasScreen &screen) {
-  ButtonSpec upper[3];
+  ButtonSpec upper[4];
   uint8_t n = 0;
   if (table().hubState == HubState::Lobby && setupStage != TurnHub::SetupStage::Complete) {
     upper[n++] = {TouchAction::OpenSetup, "Setup", 0, 1};
   }
   if (table().hubState == HubState::Lobby) upper[n++] = {TouchAction::Pair, "Pair a Sigil", 0, 1};
   upper[n++] = {TouchAction::OpenQr, "QR codes", 0, 1};
+  if (table().hubState == HubState::Lobby && table().lobby.playerCount() >= 1) {
+    upper[n++] = {TouchAction::ClearLobby, "Clear lobby", LOBBY_CLEAR_HOLD_MS, 1};
+  }
   addColumn(screen, upper, n);
   ButtonSpec lower[4];
   n = 0;
@@ -274,6 +321,58 @@ void layoutPlayer(AtlasScreen &screen) {
   addRow(screen, BUTTON_ROW_Y, lower, 2);
 }
 
+// Add player: a page of saved profiles, then New player, More and Back.
+void layoutSeat(AtlasScreen &screen) {
+  for (uint8_t i = 0; i < seatRowCount; ++i) {
+    addKey(screen, TouchAction::SeatProfile, seatRows[i].label, MARGIN, SCREEN_BODY_Y + i * (BUTTON_ROW_H + MARGIN),
+        FULL_WIDTH, BUTTON_ROW_H, i);
+  }
+  ButtonSpec lower[3];
+  uint8_t n = 0;
+  lower[n++] = {TouchAction::NewPlayer, "New player", 0, 3};
+  if (seatPages > 1) lower[n++] = {TouchAction::SeatMore, "More", 0, 2};
+  lower[n++] = {TouchAction::CloseScreen, "Back", 0, 2};
+  addRow(screen, BUTTON_ROW_Y, lower, n);
+}
+
+// New player: six keys a row over the body (each about 47 x 56 px; Space
+// takes two), then Cancel, Delete and Add.
+void layoutName(AtlasScreen &screen) {
+  constexpr uint8_t COLS = 6;
+  constexpr int16_t GAP = 4;
+  constexpr int16_t KEY_W = (FULL_WIDTH - (COLS - 1) * GAP) / COLS;
+  constexpr int16_t KEY_H = (BUTTON_ROW_Y - MARGIN - SCREEN_BODY_Y - 4 * GAP) / 5;
+  for (uint8_t i = 0; i < NAME_KEY_COUNT; ++i) {
+    const int16_t x = MARGIN + (i % COLS) * (KEY_W + GAP);
+    const int16_t y = SCREEN_BODY_Y + (i / COLS) * (KEY_H + GAP);
+    const int16_t w = NAME_KEYS[i] == ' ' ? 2 * KEY_W + GAP : KEY_W;
+    addKey(screen, TouchAction::NameKey, NAME_KEY_LABELS[i], x, y, w, KEY_H, i);
+  }
+  const ButtonSpec lower[] = {{TouchAction::CloseScreen, "Cancel", 0, 2}, {TouchAction::NameBack, "Delete", 0, 2},
+      {TouchAction::NameDone, "Add", 0, 2}};
+  addRow(screen, BUTTON_ROW_Y, lower, 3);
+}
+
+// A profile's PIN: a phone-style keypad (1-9, Del, 0, OK), then Cancel.
+void layoutPin(AtlasScreen &screen) {
+  constexpr int16_t KEY_W = (FULL_WIDTH - 2 * MARGIN) / 3;
+  constexpr int16_t KEY_H = (BUTTON_ROW_Y - MARGIN - SCREEN_BODY_Y - 3 * MARGIN) / 4;
+  for (uint8_t i = 0; i < 12; ++i) {
+    const int16_t x = MARGIN + (i % 3) * (KEY_W + MARGIN);
+    const int16_t y = SCREEN_BODY_Y + (i / 3) * (KEY_H + MARGIN);
+    if (i == 9) {
+      addKey(screen, TouchAction::PinBack, "Del", x, y, KEY_W, KEY_H, 0);
+    } else if (i == 11) {
+      addKey(screen, TouchAction::PinDone, "OK", x, y, KEY_W, KEY_H, 0);
+    } else {
+      const uint8_t digit = i == 10 ? 0 : i + 1;
+      addKey(screen, TouchAction::PinKey, DIGIT_LABELS[digit], x, y, KEY_W, KEY_H, digit);
+    }
+  }
+  const ButtonSpec lower[] = {{TouchAction::CloseScreen, "Cancel", 0, 1}};
+  addRow(screen, BUTTON_ROW_Y, lower, 1);
+}
+
 // A zone of `seat`'s chip on the status screen, as a touch target (chips
 // are drawn as tiles, not buttons). In the lobby the whole chip opens the
 // player's screen; in a game its name band does, and the halves below change
@@ -353,6 +452,9 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
     case ScreenKind::Player:
       layoutPlayer(screen);
       return;
+    case ScreenKind::Seat: layoutSeat(screen); return;
+    case ScreenKind::Name: layoutName(screen); return;
+    case ScreenKind::Pin: layoutPin(screen); return;
     case ScreenKind::Info: {
       const ButtonSpec row[] = {{TouchAction::OpenQr, "QR codes", 0, 3}, {TouchAction::CloseScreen, "Back", 0, 2}};
       addRow(screen, BUTTON_ROW_Y, row, 2);
@@ -383,12 +485,13 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
   }
 
   switch (table().hubState) {
-    // Start and Clear up front; Pair, QR codes and Info wait under Menu.
+    // Add player and Start up front; Pair, Clear lobby, QR codes and Info
+    // wait under Menu.
     case HubState::Lobby: {
       ButtonSpec row[3];
       uint8_t n = 0;
+      row[n++] = {TouchAction::OpenSeat, "Add player", 0, 3};
       if (table().lobby.playerCount() >= 2) row[n++] = {TouchAction::StartGame, "Start", 0, 3};
-      if (table().lobby.playerCount() >= 1) row[n++] = {TouchAction::ClearLobby, "Clear", LOBBY_CLEAR_HOLD_MS, 2};
       row[n++] = {TouchAction::OpenMenu, "Menu", 0, 2};
       addRow(screen, BUTTON_ROW_Y, row, n);
       break;
@@ -428,7 +531,7 @@ const TouchButton *currentButton(TouchAction action, AtlasScreen &layout, uint32
   }
   layoutButtons(layout, nowMs);
   for (uint8_t i = 0; i < layout.buttonCount; ++i) {
-    if (layout.buttons[i].action == action) return &layout.buttons[i];
+    if (layout.buttons[i].action == action && layout.buttons[i].arg == pressedArg) return &layout.buttons[i];
   }
   return nullptr;
 }
@@ -437,8 +540,11 @@ TouchAction buttonAt(int16_t x, int16_t y, uint32_t nowMs) {
   AtlasScreen layout;
   layoutButtons(layout, nowMs);
   for (uint8_t i = 0; i < layout.buttonCount; ++i) {
-    if (layout.buttons[i].contains(x, y)) return layout.buttons[i].action;
+    if (!layout.buttons[i].contains(x, y)) continue;
+    pressedArg = layout.buttons[i].arg;
+    return layout.buttons[i].action;
   }
+  pressedArg = 0;
   pressedSeat = PlayerSeat();
   return chipAt(x, y, nowMs, pressedSeat);
 }
@@ -496,6 +602,16 @@ const char *actionName(TouchAction action) {
     case TouchAction::UnpairSigils: return "UNPAIR_SIGILS";
     case TouchAction::FactoryResetAtlas: return "FACTORY_RESET_ATLAS";
     case TouchAction::SleepAtlas: return "SLEEP_ATLAS";
+    case TouchAction::OpenSeat: return "OPEN_SEAT";
+    case TouchAction::SeatProfile: return "SEAT_PROFILE";
+    case TouchAction::SeatMore: return "SEAT_MORE";
+    case TouchAction::NewPlayer: return "NEW_PLAYER";
+    case TouchAction::NameKey: return "NAME_KEY";
+    case TouchAction::NameBack: return "NAME_BACK";
+    case TouchAction::NameDone: return "NAME_DONE";
+    case TouchAction::PinKey: return "PIN_KEY";
+    case TouchAction::PinBack: return "PIN_BACK";
+    case TouchAction::PinDone: return "PIN_DONE";
     case TouchAction::None: break;
   }
   return "NONE";
@@ -532,6 +648,54 @@ const char *holdPurpose(TouchAction action) {
   return "end the match";
 }
 
+// Fills seatRows with page seatPage of the saved profiles that could sit
+// down: not archived and not at either table. Reads the store, so only on
+// opening Add player, paging, and after a seat.
+void loadSeatPage() {
+  char ids[TurnHubProfiles::MAX_LOGIN_PROFILES][TurnHubProfiles::PROFILE_ID_LENGTH + 1];
+  const size_t count = TurnHubProfiles::ready() ? TurnHubProfiles::listProfileIds(ids, TurnHubProfiles::MAX_LOGIN_PROFILES) : 0;
+  uint8_t eligible = 0;
+  seatRowCount = 0;
+  for (size_t i = 0; i < count; ++i) {
+    const String id(ids[i]);
+    TurnHubAccounts::Account account;
+    if (tableForProfile(id) >= 0 || (TurnHubAccounts::load(id, account) && account.archived)) continue;
+    const uint8_t page = eligible++ / SEAT_PAGE_ROWS;
+    if (page != seatPage) continue;
+    SeatRow &row = seatRows[seatRowCount++];
+    snprintf(row.profileId, sizeof(row.profileId), "%s", ids[i]);
+    row.needsPin = !TurnHubWebApi::physicalUseAllowed(id);
+    char name[SCREEN_NAME_LENGTH + 1];
+    snprintf(name, sizeof(name), "%s", TurnHubProfiles::nameForProfile(id).c_str());
+    snprintf(row.label, sizeof(row.label), row.needsPin ? "%s (PIN)" : "%s", name);
+  }
+  seatPages = (eligible + SEAT_PAGE_ROWS - 1) / SEAT_PAGE_ROWS;
+  if (seatPage > 0 && seatPage >= seatPages) {
+    seatPage = 0;
+    loadSeatPage();
+  }
+}
+
+void openSeatScreen(uint8_t page) {
+  seatPage = page;
+  loadSeatPage();
+  openScreen = ScreenKind::Seat;
+}
+
+// A name key: capitals start each word, the rest are lower case; no leading
+// or doubled spaces.
+void typeNameKey(uint8_t index) {
+  if (index >= NAME_KEY_COUNT) return;
+  const size_t length = strlen(typedName);
+  if (length >= SCREEN_NAME_LENGTH) return;
+  char c = NAME_KEYS[index];
+  const char before = length ? typedName[length - 1] : ' ';
+  if (c == ' ' && before == ' ') return;
+  if (c >= 'A' && c <= 'Z' && before != ' ' && before != '-') c = static_cast<char>(c - 'A' + 'a');
+  typedName[length] = c;
+  typedName[length + 1] = '\0';
+}
+
 // Screen changes: no Intent, no table state, no notice. Back leaves the
 // Menu's own screens (Info, QR codes) for the Menu while it is
 // available, and everything else for the status screen.
@@ -563,8 +727,39 @@ bool navigate(TouchAction action) {
     // Concede asks again; only ConfirmConcede sends the Intent.
     case TouchAction::Concede: concedeArmed = true; return true;
     case TouchAction::CancelConcede: concedeArmed = false; return true;
+    case TouchAction::OpenSeat: openSeatScreen(0); return true;
+    case TouchAction::SeatMore: openSeatScreen(seatPages ? (seatPage + 1) % seatPages : 0); return true;
+    case TouchAction::NewPlayer:
+      typedName[0] = '\0';
+      openScreen = ScreenKind::Name;
+      return true;
+    case TouchAction::NameKey: typeNameKey(pressedArg); return true;
+    case TouchAction::NameBack: {
+      const size_t length = strlen(typedName);
+      if (length) typedName[length - 1] = '\0';
+      return true;
+    }
+    case TouchAction::PinKey: {
+      const size_t length = strlen(typedPin);
+      if (length < TYPED_PIN_LENGTH && pressedArg <= 9) {
+        typedPin[length] = static_cast<char>('0' + pressedArg);
+        typedPin[length + 1] = '\0';
+      }
+      return true;
+    }
+    case TouchAction::PinBack: {
+      const size_t length = strlen(typedPin);
+      if (length) typedPin[length - 1] = '\0';
+      return true;
+    }
     case TouchAction::CloseScreen: {
       concedeArmed = false;
+      // The keyboard and keypad go back to the list; the list to the table.
+      if (openScreen == ScreenKind::Name || openScreen == ScreenKind::Pin) {
+        typedPin[0] = '\0';
+        openSeatScreen(seatPage);
+        return true;
+      }
       if (openScreen == ScreenKind::Themes) { openScreen = ScreenKind::Device; return true; }
       const bool fromMenuScreen = openScreen == ScreenKind::Info || openScreen == ScreenKind::Qr ||
           openScreen == ScreenKind::Device;
@@ -744,6 +939,65 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       intent.actor.slot = seat.slot;
       result = intents.dispatch(intent);
       if (result.accepted()) openScreen = ScreenKind::Status;
+      break;
+    }
+    // Add player: a saved profile sits down (its PIN first when it needs
+    // one, as on the tablet), or New player makes a profile with no PIN
+    // and seats it. The JoinProfile handler decides; this screen stays up
+    // for the next player.
+    case TouchAction::SeatProfile:
+    case TouchAction::PinDone:
+    case TouchAction::NameDone: {
+      String profile;
+      if (action == TouchAction::SeatProfile) {
+        if (pressedArg >= seatRowCount) {
+          result = IntentResult::reject(IntentStatus::InvalidActor, "Choose a player");
+          break;
+        }
+        if (seatRows[pressedArg].needsPin) {
+          pinRow = pressedArg;
+          typedPin[0] = '\0';
+          openScreen = ScreenKind::Pin;
+          return;
+        }
+        profile = seatRows[pressedArg].profileId;
+      } else if (action == TouchAction::PinDone) {
+        String message;
+        profile = seatRows[pinRow].profileId;
+        const bool accepted = TurnHubWebApi::checkTablePin(profile, String(typedPin), message);
+        typedPin[0] = '\0';
+        if (!accepted) {
+          // The result keeps a pointer to its message.
+          static char refused[sizeof(noticeText)];
+          snprintf(refused, sizeof(refused), "%s", message.c_str());
+          result = IntentResult::reject(IntentStatus::Unauthorized, refused);
+          break;
+        }
+      } else {
+        String name(typedName);
+        name.trim();
+        if (name.length() == 0) {
+          result = IntentResult::reject(IntentStatus::InvalidActor, "Type the player's name");
+          break;
+        }
+        if (TurnHubWebApi::profileNameTaken(name)) {
+          result = IntentResult::reject(IntentStatus::Conflict, "That name has a profile; pick it");
+          break;
+        }
+        profile = TurnHubProfiles::ready() ? TurnHubProfiles::createProfileWithName(name) : String();
+        if (profile.length() == 0) {
+          result = IntentResult::reject(IntentStatus::Conflict, "Could not save the profile");
+          break;
+        }
+        serialLog.print("ATLAS|TOUCH|NEW_PROFILE|");
+        serialLog.println(profile);
+      }
+      Intent intent;
+      intent.type = IntentType::JoinProfile;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
+      snprintf(intent.payload.profileId, sizeof(intent.payload.profileId), "%s", profile.c_str());
+      result = intents.dispatch(intent);
+      if (result.accepted()) openSeatScreen(seatPage);
       break;
     }
     // "You're all set": leave setup, and for Pair a Sigil open pairing too.
@@ -950,8 +1204,8 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
       }
       if (screen.playerCount == 0) {
         // An empty table: how to join. The portal's QR code is under Menu.
-        snprintf(screen.lines[0], sizeof(screen.lines[0]), "Join from a Sigil's menu,");
-        snprintf(screen.lines[1], sizeof(screen.lines[1]), "or on the table portal.");
+        snprintf(screen.lines[0], sizeof(screen.lines[0]), "Tap Add player to seat someone,");
+        snprintf(screen.lines[1], sizeof(screen.lines[1]), "or join from the app or a Sigil.");
         snprintf(screen.lines[2], sizeof(screen.lines[2]), "Menu: pair, QR codes, info.");
         screen.lineCount = 3;
       }
@@ -1267,6 +1521,38 @@ void formatPlayer(AtlasScreen &screen, uint32_t nowMs) {
   }
 }
 
+// Add player's three screens: the list, the name being typed, and the PIN
+// (as dots, never the digits).
+void formatSeat(AtlasScreen &screen) {
+  snprintf(screen.badge, sizeof(screen.badge), "ADD PLAYER");
+  switch (screen.kind) {
+    case ScreenKind::Seat:
+      snprintf(screen.title, sizeof(screen.title), "Who's playing?");
+      if (seatRowCount == 0) {
+        snprintf(screen.detail, sizeof(screen.detail), "No one else saved: tap New player");
+      } else if (seatPages > 1) {
+        snprintf(screen.detail, sizeof(screen.detail), "Tap a name to seat them (%u of %u)",
+            static_cast<unsigned>(seatPage + 1), static_cast<unsigned>(seatPages));
+      } else {
+        snprintf(screen.detail, sizeof(screen.detail), "Tap a name to seat them");
+      }
+      return;
+    case ScreenKind::Name:
+      snprintf(screen.title, sizeof(screen.title), "%s", typedName[0] ? typedName : "New player");
+      snprintf(screen.detail, sizeof(screen.detail), "Type their name. No PIN needed");
+      return;
+    default: {
+      char name[SCREEN_NAME_LENGTH + 1];
+      snprintf(name, sizeof(name), "%s", TurnHubProfiles::nameForProfile(seatRows[pinRow].profileId).c_str());
+      snprintf(screen.title, sizeof(screen.title), "%s's PIN", name);
+      char dots[2 * TYPED_PIN_LENGTH + 1] = {};
+      for (size_t i = 0; typedPin[i]; ++i) strcat(dots, i ? " *" : "*");
+      snprintf(screen.detail, sizeof(screen.detail), "%s", dots[0] ? dots : "Enter it, then OK");
+      return;
+    }
+  }
+}
+
 }  // namespace
 
 void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
@@ -1295,6 +1581,9 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
     case ScreenKind::Device: formatDevice(screen); break;
     case ScreenKind::Player: formatPlayer(screen, nowMs); break;
     case ScreenKind::Setup: formatSetup(screen, nowMs); break;
+    case ScreenKind::Seat:
+    case ScreenKind::Name:
+    case ScreenKind::Pin: formatSeat(screen); break;
   }
   layoutButtons(screen, nowMs);
   if (noticeText[0] != '\0' && nowMs - noticeAtMs < TOUCH_NOTICE_MS) {
@@ -1303,8 +1592,9 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   if (!touchDown || !pressInside) return;
   for (uint8_t i = 0; i < screen.buttonCount; ++i) {
     const TouchButton &button = screen.buttons[i];
-    if (button.action != pressedAction) continue;
+    if (button.action != pressedAction || button.arg != pressedArg) continue;
     screen.pressed = pressedAction;
+    screen.pressedArg = pressedArg;
     if (button.hold() && !holdFired) {
       const uint32_t heldMs = nowMs - pressStartedAtMs;
       const uint32_t leftMs = heldMs < button.holdMs ? button.holdMs - heldMs : 0;
@@ -1354,6 +1644,7 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
     }
   }
   pressedAction = TouchAction::None;
+  pressedArg = 0;
   pressInside = false;
 }
 
@@ -1362,7 +1653,10 @@ void resetTouchControls() {
   pressInside = false;
   holdFired = false;
   pressedAction = TouchAction::None;
+  pressedArg = 0;
   noticeText[0] = '\0';
+  seatRowCount = seatPage = seatPages = pinRow = 0;
+  typedName[0] = typedPin[0] = '\0';
   openScreen = ScreenKind::Status;
   qrChoice = TouchAction::QrPortal;
   shownSeat = pressedSeat = PlayerSeat();

@@ -79,7 +79,14 @@ enum class TouchAction : uint8_t {
   // In a game, like the app's table: the lower halves of a player's tile take
   // a life off or add one (ChangeLife for that player), its name band opens
   // their screen, and Hold to pass passes the active player's turn (Pass).
-  ChipLifeMinus, ChipLifePlus, PassTurn
+  ChipLifeMinus, ChipLifePlus, PassTurn,
+  // Lobby: seat a player from this screen, as the app's shared table does.
+  // Add player lists the saved profiles not at a table (SeatProfile, arg =
+  // row on the page; More pages on); one that needs a PIN asks for it on a
+  // keypad (PinKey, arg = digit, PinBack, PinDone). New player types a name
+  // (NameKey, arg = character, NameBack, NameDone) for a profile with no
+  // PIN. Each seat is a JoinProfile Intent; Atlas decides.
+  OpenSeat, SeatProfile, SeatMore, NewPlayer, NameKey, NameBack, NameDone, PinKey, PinBack, PinDone
 };
 
 // Code: a presence code a phone asked for, shown over any other screen.
@@ -91,7 +98,8 @@ enum class TouchAction : uint8_t {
 // turn order in the lobby.
 // Setup: first-run setup in the lobby, Welcome or "You're all set".
 // Device: under Menu, Unpair Sigils and Factory reset (held), and Sleep.
-enum class ScreenKind : uint8_t { Status, Info, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Themes };
+// Seat, Name and Pin: Add player's profile list, name keyboard and PIN keypad.
+enum class ScreenKind : uint8_t { Status, Info, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Themes, Seat, Name, Pin };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -104,6 +112,8 @@ struct TouchButton {
   uint32_t holdMs = 0;
   // Shown as the current choice (the selected QR code).
   bool selected = false;
+  // Which key or list row, for actions several buttons share (NameKey...).
+  uint8_t arg = 0;
 
   bool hold() const { return holdMs > 0; }
 
@@ -113,8 +123,8 @@ struct TouchButton {
   }
 };
 
-// Seven: the Menu's three above, and Info, Device and Back below.
-constexpr uint8_t MAX_TOUCH_BUTTONS = 7;
+// The name keyboard: 29 keys, then Cancel, Delete and Add.
+constexpr uint8_t MAX_TOUCH_BUTTONS = 32;
 constexpr uint8_t SCREEN_NAME_LENGTH = 12;
 constexpr uint8_t MAX_SCREEN_PLAYERS = 8;
 
@@ -198,6 +208,7 @@ struct AtlasScreen {
   // The button under a finger right now, a hold's whole seconds left, and its
   // progress (0-1000) for the fill bar.
   TouchAction pressed = TouchAction::None;
+  uint8_t pressedArg = 0;
   uint8_t holdSecondsLeft = 0;
   uint16_t holdPermille = 0;
 };
@@ -252,14 +263,14 @@ inline bool sameBody(const AtlasScreen &a, const AtlasScreen &b) {
 }
 
 inline bool sameButtons(const AtlasScreen &a, const AtlasScreen &b) {
-  if (a.buttonCount != b.buttonCount || a.pressed != b.pressed ||
+  if (a.buttonCount != b.buttonCount || a.pressed != b.pressed || a.pressedArg != b.pressedArg ||
       a.holdSecondsLeft != b.holdSecondsLeft || a.holdPermille != b.holdPermille) {
     return false;
   }
   for (uint8_t i = 0; i < a.buttonCount; ++i) {
     const TouchButton &x = a.buttons[i];
     const TouchButton &y = b.buttons[i];
-    if (x.action != y.action || x.x != y.x || x.y != y.y || x.w != y.w || x.h != y.h ||
+    if (x.action != y.action || x.arg != y.arg || x.x != y.x || x.y != y.y || x.w != y.w || x.h != y.h ||
         x.selected != y.selected || strcmp(x.label, y.label) != 0) {
       return false;
     }
