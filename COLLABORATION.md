@@ -1228,3 +1228,20 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
 - Corrected our two Site example templates to stop copying publisher flavor prose;
   factual count templates and existing saved drafts remain. No new third-party
   community data, artwork or rules imported. No messages sent or release performed.
+
+## 2026-10-28 Claude: S3 Atlas bring-up and touchscreen
+
+- Branch `claude/project-thread-fqat08` from master 7251760. Gap list vs the
+  app: `/mnt/project-files/plans/atlas-s3-parity.md` (project files).
+- `env:atlas-s3` (ES3C40P): the full Atlas firmware with native USB serial,
+  SDMMC microSD, an `ATLAS|BOARD` probe and the touchscreen
+  (`atlas_display_s3.cpp`: LovyanGFX ST7796S/FT6336U, LVGL 9.3 drawing the
+  existing `touch_controls.cpp` model, scaled to 480 x 320). Classic `atlas`
+  build unchanged apart from the SD file-system alias.
+- Validation: both envs build; Linux host suites and adapter audit pass.
+  Flashed on the owner's board over USB (both rounds): boots clean, 16 MB
+  flash (5E4018), 8 MB PSRAM, SD mounted, AP/ESP-NOW/web ready, ~92 KB heap
+  for LVGL. Screen output, rotation, colours and touch orientation still need
+  a look at the panel. Next: engine parity (treasure/rad/day-night, Everyone's
+  counters, reversed turns), then the LVGL Atlas design.
+
