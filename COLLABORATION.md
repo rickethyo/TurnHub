@@ -1281,3 +1281,7 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
 - Validation: both parts render as closed manifolds; section views show no
   overlaps with a board stand-in. Not printed. Open risk: the glass position
   differs about 3 mm between the drawing and the photos (README lists checks).
+- Sigil stand-in case (owner, 2026-10-28): `Sigil/enclosure/e32r28t_case/`,
+  same style for the 2.8-inch E32R28T board (63.8 x 91.4 mm, flat 14.4 mm or
+  a 5-degree wedge to 22.4 mm; one bezel fits both tubs). From the vendor
+  outline drawing; not caliper-checked or printed.

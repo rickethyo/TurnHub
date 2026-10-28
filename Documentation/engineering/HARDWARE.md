@@ -102,3 +102,5 @@ described in `CLAUDE.md`.
   hardware, enclosure and docking decisions. Tracked in [Staged Changes](STAGED_CHANGES.md).
   A first, unprinted phone-style ES3C40P case is in
   [`Atlas/enclosure/s3_phone_case/`](../../Atlas/enclosure/s3_phone_case/README.md) (*Experimental*).
+  A matching case for the E32R28T board as a Sigil stand-in is in
+  [`Sigil/enclosure/e32r28t_case/`](../../Sigil/enclosure/e32r28t_case/README.md) (*Experimental*).
