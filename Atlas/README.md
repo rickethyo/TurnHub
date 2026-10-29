@@ -12,9 +12,10 @@ the longer-term provisioning direction (home Wi-Fi, recovery mode) is in [`OOBE.
 
 ## Hardware
 
-- Master builds board-less for a generic 4 MB ESP32 until the S3 Atlas lands:
-  no screen, speaker or battery; the BOOT button pairs, unpairs and factory
-  resets; optional microSD card. The Gen 1 E32R28T build is on `legacy/gen1`.
+- One build, `atlas-s3`, for the 4-inch ES3C40P S3 Atlas: touchscreen,
+  optional microSD card, no speaker or battery driver yet; the BOOT button
+  pairs, unpairs and factory resets. The Gen 1 E32R28T build is on
+  `legacy/gen1`.
 - ESP-NOW Sigil transport and the WPA2 access point, both on Wi-Fi channel 6.
 
 Pins and the board boundary are in the
@@ -117,12 +118,13 @@ in `GAME|START`).
 From `Atlas/`:
 
 ```text
-pio run -e atlas
-pio run -e atlas --target upload --upload-port COMx
+pio run -e atlas-s3
+pio run -e atlas-s3 --target upload --upload-port COMx
 pio device monitor
 ```
 
-Find the port each time (Atlas is the CH340 port); never hard-code it. Signed
+Find the port each time (the S3 Atlas is its native USB port, 303A:1001);
+never hard-code it. Signed
 local builds and OTA updates are
 described in the repository's `CLAUDE.md` and in
 [Sigil OTA](../Documentation/engineering/FIRMWARE_UPDATES.md). The portal is at

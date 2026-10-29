@@ -46,6 +46,8 @@ data class StateSnapshot(
     val shortGameUncounted: Boolean = false,
     /** Every winner, first = [winnerPlayer]; several share a Star Commander victory. */
     val winnerPlayers: List<Int> = listOfNotNull(winnerPlayer),
+    /** The response body this was parsed from, kept so a Play together hub can relay it as is. */
+    val wire: String? = null,
 )
 
 /**

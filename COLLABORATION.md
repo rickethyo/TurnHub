@@ -1346,3 +1346,22 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   DOCX layout remains unverified for the previously recorded local renderer
   limitation; original preserved outside Git. Owner authorized committing the
   redesign on `codex/master` after the initial cleanup commit `369186e`.
+
+## 2026-10-29 Claude: one firmware per real board, one Sigil product
+
+- Owner ask (Claude thread): remove e-ink from the Sigil firmware and keep no
+  extra firmware versions; chose "one build per real board". Codex's
+  touchscreen-only Sigil (above) had already removed the Sigil-side e-ink/OLED
+  code; this finishes the rest on top of `669ac86`.
+- Builds: master now builds only `atlas-s3` and `sigil` (the `sigil-e32r28t`
+  alias and the board-less classic `atlas` env are gone, with
+  the classic-ESP32 SD and pin branches and the board-less display stub). CI
+  checks are `Firmware (atlas-s3)` and `Firmware (sigil)`.
+- One Sigil OTA product: `Product::Sigil` = 2 (3, the OLED Sigil, retired) in
+  firmware, `thfw.py`, sign-local (`-Products atlas,sigil`), the update notice
+  (`POST /api/updates/latest` field `sigil`) and the Android feed/updater.
+  `/api/devices` no longer reports a `display` type.
+- Validation: both envs build and carry the right descriptors; Linux Atlas and
+  Sigil host suites, adapter audit, client contract, `thfw.py` tests and the
+  doc check pass. Android unit tests could not run in the cloud container
+  (Gradle plugins unreachable); CI runs them.

@@ -50,7 +50,7 @@ class SigilUpdater {
   void fail(uint8_t error, const char *why);
   void leaveWifi();
 
-  TurnHubFirmwarePackage::Product product_ = TurnHubFirmwarePackage::Product::SigilEink;
+  TurnHubFirmwarePackage::Product product_ = TurnHubFirmwarePackage::Product::Sigil;
   TurnHubFirmwarePackage::Version running_ = {0, 0, 0};
   uint8_t channel_ = 1;
   UpdaterHooks hooks_ = {};

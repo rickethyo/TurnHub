@@ -1,7 +1,7 @@
 #pragma once
 // Touchscreen-only Sigil board boundary. The E32R28T is the supported
-// touch target until the S3 Sigil driver is implemented. Gen 1 joystick,
-// e-paper and OLED firmware remains on legacy/gen1.
+// touch target until the S3 Sigil driver is implemented. The Gen 1 Sigils'
+// firmware remains on legacy/gen1.
 #include <stdint.h>
 #if !defined(TURNHUB_BOARD_E32R28T)
 #error "Select a supported Sigil touchscreen board"

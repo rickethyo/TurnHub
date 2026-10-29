@@ -515,8 +515,10 @@ class StandaloneTable(
     override suspend fun counter(seat: TabletSeat, kind: String, value: Int, commander: Int) =
         edit { it.changeCounter(StandaloneGame.indexOf(seat.moduleId), kind, value, commander, wallClock()) }
 
-    override suspend fun setEliminationRule(seat: TabletSeat, field: String, value: Int) =
-        edit { it.setEliminationRule(field, value, wallClock()) }
+    override suspend fun setEliminationRule(seat: TabletSeat, field: String, value: Int) = changeEliminationRule(field, value)
+
+    /** The whole table's elimination rules; the Game tab's game settings change them too. */
+    fun changeEliminationRule(field: String, value: Int) = edit { it.setEliminationRule(field, value, wallClock()) }
 
     override suspend fun setAutoEliminateAtZeroLife(seat: TabletSeat, enabled: Boolean) {
         setZeroLifeElimination(enabled)

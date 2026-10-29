@@ -11,6 +11,21 @@ must scan a QR code** is on shows a QR invitation instead, and guests must scan
 it. Sharing lasts through the lobby, the match and rematches until the host
 stops it, without deleting its game.
 
+## Relaying an Atlas game
+
+One phone or tablet connected to Atlas can share Atlas's game through Play
+together (**Share Atlas game**), so the table's other phones join it over Wi-Fi
+instead of each connecting to Atlas (owner, 2026-10-29: spare Atlas's radio and
+CPU). Atlas still decides everything: guests get Atlas's own public state body,
+parsed as a direct connection parses it, and the hub forwards a player's taps for
+that player's seat through its tablet grant. Without the grant, guests watch
+read-only. A guest can also join as a read-only **Table display**. Devices may
+still connect to Atlas directly, for example two mirrored table screens
+(owner, 2026-10-29). The contract is in [LAN v1](../../protocol/lan-v1.md#relaying-an-atlas-game).
+*Needs verification* on devices, including which Wi-Fi the hub and guests share:
+on Atlas's own access point, guest-to-hub traffic still passes through Atlas's
+radio (lighter than each guest's HTTP polling, not free).
+
 ## Physical touchscreen clients
 
 The Atlas S3 and E32R28T touchscreen Sigil use the same Home, Game, Table and
@@ -124,7 +139,9 @@ or describe this as a paid product until its entitlement implementation exists.
 JVM tests cover invitation and join-code validation, code-guess lockout,
 lobby/rematch seat continuity, real pinned TLS loopback transport,
 bounded framing, role/seat authorization, concurrent/stale edits, retry IDs,
-failed durable storage, completion/history deduplication and revoked/idle sessions.
+failed durable storage, completion/history deduplication and revoked/idle sessions,
+and for Atlas relaying: the relayed state parsing like a direct connection,
+own-seat forwarding, receipts, pause intent, view-only hubs and displays.
 Android build/JVM CI checks compilation and engine regressions. Real phones must
 verify Wi-Fi routing/client isolation, keystore TLS support, large text/TalkBack,
 rotation, lock/background/reconnect and host process death before acceptance.

@@ -170,7 +170,7 @@ void updatePackets() {
   offer.version = VERSION;
   offer.type = PacketType::SigilUpdateOffer;
   offer.sigilId = 3;
-  offer.product = 3;
+  offer.product = 2;
   offer.packageSize = 900000;
   strcpy(offer.ssid, "TurnHub-Atlas");
   strcpy(offer.password, "TurnHub-Setup");

@@ -1427,7 +1427,6 @@ static void profilePicker() {
   for (auto &record : fixtureRecords) {
     record.helloInfoValid = true; record.capabilities = 0;
   }
-  fixtureRecords[2].capabilities |= CAPABILITY_DISPLAY_OLED;
   fixtureRecords[6].helloInfoValid = false;
   assert(pickerSigil(1) && pickerSigil(2) && pickerSigil(3) && !pickerSigil(6));
   fixtureRecords[6].helloInfoValid = true;
@@ -2451,18 +2450,15 @@ static void seatPass() {
   assert(dispatchSeatIntent(IntentType::Pass,IntentOrigin::PhysicalSigil,*table().game.activePlayer()).accepted());
 }
 
-// Both display variants can join Seat B and start a shared-seat match.
-static void oledSigilSeatsTwoPlayers() {
-  using TurnHubProtocol::CAPABILITY_DISPLAY_OLED;
+// A Sigil can join Seat B and start a shared-seat match.
+static void sigilSeatsTwoPlayers() {
   freshLobby(2);
-  TurnHub::fixtureRecords[1].capabilities=CAPABILITY_DISPLAY_OLED;
   choose(1,SigilAction::AddSeatB);
   assert(table().lobby.hasSecondary(1) && table().lobby.playerCount()==3);
   assert(dispatchModuleIntent(IntentType::Leave,1,2).accepted());
   assert(dispatchModuleIntent(IntentType::Join,1,2).accepted() && table().lobby.hasSecondary(1));
   assert(dispatchModuleIntent(IntentType::Join,0,2).accepted() && table().lobby.hasSecondary(0));
   assert(dispatchModuleIntent(IntentType::ArmStart,0).accepted());
-  TurnHub::fixtureRecords[1].capabilities=0;
   enterEmptyLobby();
 }
 
@@ -2888,18 +2884,18 @@ static void updateNotice() {
     record.helloInfoValid=true; record.capabilities=caps;
     record.firmwareMajor=0; record.firmwareMinor=9; record.firmwarePatch=patch;
   };
-  hello(0,0,2); hello(1,0,2); hello(2,CAPABILITY_DISPLAY_OLED,3);
-  assert(request("/api/updates/latest","",{{"sigilEink","0.9.3"},{"sigilOled","0.9.3"}})==200);
+  hello(0,0,2); hello(1,0,2); hello(2,0,3);
+  assert(request("/api/updates/latest","",{{"sigil","0.9.3"}})==200);
   assert(firmwareUpdatesAvailable()==2 && server.body.find("\"updatesAvailable\":2")!=std::string::npos &&
       server.body.find("\"atlas\":null")!=std::string::npos);
-  assert(request("/api/updates/latest","",{{"atlas",newer},{"sigilEink","0.9.2"},{"sigilOled","0.9.4-dev"}})==200);
-  assert(firmwareUpdatesAvailable()==2);  // Atlas and the OLED Sigil.
+  assert(request("/api/updates/latest","",{{"atlas",newer},{"sigil","0.9.3"}})==200);
+  assert(firmwareUpdatesAvailable()==3);  // Atlas and the two Sigils on 0.9.2.
   openMenuScreen(); AtlasScreen s=currentScreen();
   assert(firmwareUpdateKind()==TurnHub::UpdateKind::Sigils && s.update==TurnHub::UpdateKind::Sigils);
   assert(String(s.detail)=="Update available: use the app");
   tapButton(TouchAction::OpenInfo); assert(String(currentScreen().lines[4])=="Update available: use the app");
   // Only Atlas behind: the words name it, and every Sigil is told the same.
-  assert(request("/api/updates/latest","",{{"atlas",newer},{"sigilEink","0.9.2"},{"sigilOled","0.9.3"}})==200);
+  assert(request("/api/updates/latest","",{{"atlas",newer},{"sigil","0.9.2"}})==200);
   assert(firmwareUpdatesAvailable()==1 && firmwareUpdateKind()==TurnHub::UpdateKind::AtlasOnly);
   assert(String(TurnHub::updateKindText(firmwareUpdateKind()))=="Update available for Atlas");
   assert(String(currentScreen().lines[4])=="Update available for Atlas: use the app");
@@ -2907,11 +2903,11 @@ static void updateNotice() {
   assert(header.update==TurnHub::UpdateKind::AtlasOnly);
   syncSigilMenus(testNow);
   assert(TurnHub::fixtureUpdateNotice[0]==static_cast<int32_t>(TurnHub::UpdateKind::AtlasOnly));
-  assert(request("/api/updates/latest","",{{"atlas",newer},{"sigilEink","0.9.2"},{"sigilOled","0.9.4-dev"}})==200);
+  assert(request("/api/updates/latest","",{{"atlas",newer},{"sigil","0.9.4-dev"}})==200);
   syncSigilMenus(testNow);
   assert(TurnHub::fixtureUpdateNotice[0]==static_cast<int32_t>(TurnHub::UpdateKind::Sigils));
   // Up to date again: the notice goes, and the uptime line comes back.
-  assert(request("/api/updates/latest","",{{"sigilEink","0.9.2"}})==200 && firmwareUpdatesAvailable()==0);
+  assert(request("/api/updates/latest","",{{"sigil","0.9.2"}})==200 && firmwareUpdatesAvailable()==0);
   assert(startsWith(currentScreen().lines[4],"Up "));
   for (auto &record : TurnHub::fixtureRecords) { record.helloInfoValid=false; record.capabilities=0; }
   resetTouchControls();
@@ -3246,8 +3242,8 @@ namespace TurnHubAccounts { extern String primary; extern std::map<std::string,A
 // The Hello capability byte carries only what varies (protocol 3).
 static void helloCapabilityLayout() {
   using namespace TurnHubProtocol;
-  assert(helloCapabilities(encodeHelloInfo(0,9,0,CAPABILITY_DISPLAY_OLED)) == CAPABILITY_DISPLAY_OLED);
-  assert(helloCapabilities(encodeHelloInfo(0,9,0,0)) == 0);  // E-paper.
+  assert(helloCapabilities(encodeHelloInfo(0,9,0,0x10)) == 0x10);
+  assert(helloCapabilities(encodeHelloInfo(0,9,0,0)) == 0);
   assert(helloFirmwareMajor(encodeHelloInfo(1,2,3,0)) == 1 && helloFirmwareMinor(encodeHelloInfo(1,2,3,0)) == 2 &&
       helloFirmwarePatch(encodeHelloInfo(1,2,3,0)) == 3);
 }
@@ -5882,7 +5878,7 @@ int main() {
   touchControls(); std::cout<<"PASS touchscreen: Pair, Start, presence code screen/cancel/expiry, Pause/Resume, Table screen, end-match hold, slide-off, drop-out, stale press\n";
   updateNotice(); std::cout<<"PASS update notice: app-reported versions, devices behind, Menu and Info text\n";
   atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, QR codes (Wi-Fi, portal, sign in), turn clock" << std::endl;
-  oledSigilSeatsTwoPlayers(); std::cout<<"PASS OLED and e-paper shared seats: chord, join, leave and game start\n";
+  sigilSeatsTwoPlayers(); std::cout<<"PASS OLED and e-paper shared seats: chord, join, leave and game start\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
   batteryStability(); std::cout<<"PASS persistent battery stability, safety and source debounce\n";
   batteryGauge(); std::cout<<"PASS battery gauge curve, smoothing, low warning and /api/devices\n";

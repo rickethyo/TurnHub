@@ -51,7 +51,7 @@ class AtlasUpdateWatcherTest {
 
     private val feed = FirmwareReleaseFeed(
         "v0.9.4",
-        listOf(pkg(FirmwareProduct.ATLAS, "0.6.4"), pkg(FirmwareProduct.SIGIL_EINK, "0.9.4"), pkg(FirmwareProduct.SIGIL_OLED, "0.9.4")),
+        listOf(pkg(FirmwareProduct.ATLAS, "0.6.4"), pkg(FirmwareProduct.SIGIL, "0.9.4")),
     )
 
     private val atlas = ReportingAtlas()
@@ -64,7 +64,7 @@ class AtlasUpdateWatcherTest {
     @Test
     fun `reports once per Atlas boot and reads the feed once per interval`() = runTest {
         watcher.onTick(endpoint, "BOOT1")
-        assertEquals(listOf(listOf("atlas" to "0.6.4", "sigilEink" to "0.9.4", "sigilOled" to "0.9.4")), atlas.reports)
+        assertEquals(listOf(listOf("atlas" to "0.6.4", "sigil" to "0.9.4")), atlas.reports)
         now = 30_000
         watcher.onTick(endpoint, "BOOT1")
         assertEquals(1, releases.reads)

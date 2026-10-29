@@ -42,7 +42,7 @@ for native clients; permissions stay Atlas-owned.
 | `Atlas/src/web_pages.cpp` | Serves generated PROGMEM assets with binary-safe lengths |
 
 ```
-pio run -d Atlas -e atlas              # generates and embeds all assets automatically
+pio run -d Atlas -e atlas-s3           # generates and embeds all assets automatically
 python3 Atlas/web/build.py             # dist/site/ for browser checks
 python3 Atlas/web/build.py --check      # CI: validate in memory, write nothing
 python3 Atlas/web/build.py --serve      # local preview; APIs proxied to a real Atlas

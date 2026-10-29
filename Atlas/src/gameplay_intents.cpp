@@ -21,7 +21,7 @@ static_assert(PASS_GRACE_MS == 3000, "Update the \"within 3 seconds\" pass wordi
 namespace {
 
 // The player whose answer the table now waits for hears ActionRequired on
-// their own Sigil. Supplementary only: the portal/app and e-ink show the
+// their own Sigil. Supplementary only: the portal/app and Sigil screen show the
 // same request as text. Browser-only seats have no Sigil to sound.
 void cueActionRequired(uint8_t playerNumber) {
   const PlayerSeat *seat = table().game.playerByNumber(playerNumber);

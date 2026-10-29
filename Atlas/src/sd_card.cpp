@@ -1,16 +1,10 @@
-// Atlas's microSD slot: SPI (VSPI) on the board-less build, 4-bit SDMMC on
-// the ES3C40P. See sd_card.h.
+// Atlas's microSD slot: 4-bit SDMMC on the ES3C40P. See sd_card.h.
 #include "sd_card.h"
 
 #include <FS.h>
-#if defined(TURNHUB_BOARD_ES3C40P)
 #include <SD_MMC.h>
 #include <ff.h>
 #include <diskio_impl.h>
-#else
-#include <SD.h>
-#include <SPI.h>
-#endif
 #include <atomic>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -29,12 +23,7 @@ namespace TurnHubAtlas {
 namespace {
 using TurnHub::serialLog;
 
-#if defined(TURNHUB_BOARD_ES3C40P)
 fs::SDMMCFS &cardFs = SD_MMC;
-#else
-fs::SDFS &cardFs = SD;
-SPIClass sdSpi(VSPI);
-#endif
 using TurnHubStorage::Status;
 
 // Adapts the Arduino SD library to the store's file-system interface.
@@ -206,12 +195,7 @@ SdMountResult mountCard() {
   // At most 2 open files (was 4): each slot reserves a 4 KB sector cache
   // (CONFIG_FATFS_PER_FILE_CACHE), and every access runs under the card lock
   // with at most one file open (a wipe adds a directory, which takes no slot).
-#if defined(TURNHUB_BOARD_ES3C40P)
   const bool begun = cardFs.begin("/sd", false, false, AtlasConfig::SD_MMC_KHZ, 2);
-#else
-  const bool begun = cardFs.begin(AtlasConfig::SD_CS_PIN, sdSpi, AtlasConfig::SD_SPI_HZ, "/sd",
-                                  2, false);
-#endif
   if (!begun ||
       cardFs.cardType() == CARD_NONE) {
     cardFs.end();
@@ -314,13 +298,9 @@ int removeTree(const String &path, uint8_t depth) {
 // from the file system's cache after the card is gone.
 bool cardAnswers() {
   static uint8_t sector[512];
-#if defined(TURNHUB_BOARD_ES3C40P)
   // SD_MMC has no raw read in this core; the card is the only FAT drive, so
   // FatFs drive 0 is the SDMMC driver's sector read.
   return disk_read(0, sector, 0, 1) == RES_OK;
-#else
-  return cardFs.readRAW(sector, 0);
-#endif
 }
 
 // The SD worker: drains the diagnostic log to the card and handles hot-plug
@@ -437,13 +417,8 @@ void sdTask(void *) {
 }  // namespace
 
 void beginSdCard() {
-#if defined(TURNHUB_BOARD_ES3C40P)
   cardFs.setPins(AtlasConfig::SD_CLK_PIN, AtlasConfig::SD_CMD_PIN, AtlasConfig::SD_D0_PIN,
                  AtlasConfig::SD_D1_PIN, AtlasConfig::SD_D2_PIN, AtlasConfig::SD_D3_PIN);
-#else
-  sdSpi.begin(AtlasConfig::SD_SCLK_PIN, AtlasConfig::SD_MISO_PIN,
-              AtlasConfig::SD_MOSI_PIN, AtlasConfig::SD_CS_PIN);
-#endif
   // Boot mounts synchronously so profiles start with the card if it is there.
   mountCard();
   // Without the card lock the worker would race the record store, so no lock

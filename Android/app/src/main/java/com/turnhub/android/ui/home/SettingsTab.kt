@@ -453,7 +453,6 @@ private fun DeviceRow(device: DeviceInfo, onRename: () -> Unit, onForget: () -> 
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             StatusBadge("Firmware ${device.firmware.ifBlank { "?" }}")
-            StatusBadge(when (device.display) { "oled" -> "OLED"; "epaper" -> "E-ink"; else -> "Display ?" })
             if (device.sessionCount > 0) StatusBadge("${device.sessionCount} phone links", Tone.INFO)
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

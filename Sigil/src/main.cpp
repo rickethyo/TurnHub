@@ -27,9 +27,9 @@
 #include "firmware_package.h"
 
 // This build's identity, read by tools/firmware/thfw.py when it packages
-// firmware.bin (FIRMWARE_UPDATES.md). This touch target is USB-only; the
-// retired descriptor ID is retained for the shared updater contract, not OTA delivery.
-constexpr TurnHubFirmwarePackage::Product SIGIL_PRODUCT = TurnHubFirmwarePackage::Product::SigilEink;
+// firmware.bin (FIRMWARE_UPDATES.md). USB-only until S3 OTA lands
+// (TURNHUB_OTA_RETIRED).
+constexpr TurnHubFirmwarePackage::Product SIGIL_PRODUCT = TurnHubFirmwarePackage::Product::Sigil;
 TURNHUB_FIRMWARE_DESCRIPTOR(sigilFirmwareDescriptor, SIGIL_PRODUCT, TurnHubSigilFirmware::MAJOR,
     TurnHubSigilFirmware::MINOR, TurnHubSigilFirmware::PATCH, TurnHubProtocol::VERSION);
 #include "sigil_updater.h"

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Renders the LVGL Sigil screen (src/sigil_display_lvgl.cpp) from fixtures to
 # build/preview/*.png for review without the board. Needs the LVGL 9.3
-# sources PlatformIO fetches for env:sigil-e32r28t (run
-# `pio run -e sigil-e32r28t` once). LVGL is compiled once into build/preview/lvgl.
+# sources PlatformIO fetches for env:sigil (run
+# `pio run -e sigil` once). LVGL is compiled once into build/preview/lvgl.
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
-lvgl=../../.pio/libdeps/sigil-e32r28t/lvgl
-[ -d "$lvgl/src" ] || { echo "LVGL sources missing: run pio run -e sigil-e32r28t in Sigil/ first" >&2; exit 1; }
+lvgl=../../.pio/libdeps/sigil/lvgl
+[ -d "$lvgl/src" ] || { echo "LVGL sources missing: run pio run -e sigil in Sigil/ first" >&2; exit 1; }
 out=build/preview
 mkdir -p "$out/lvgl"
 defs=(-DLV_CONF_INCLUDE_SIMPLE -DLV_LVGL_H_INCLUDE_SIMPLE -DTURNHUB_SCREEN_PREVIEW)

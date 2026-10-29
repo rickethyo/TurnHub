@@ -113,9 +113,9 @@ stack theory; it doesn't prove it.
 
 Bench captures that back a *Verified* claim go in
 [history/logs](history/logs/README.md): name them
-`YYYY-MM-DD-<what>-<board>.log` by role (`atlas`, `sigil-eink`,
-`sigil-oled`), never by COM port, and replace passwords, keys, tokens and real
-MAC addresses before committing.
+`YYYY-MM-DD-<what>-<board>.log` by role (`atlas`, `sigil`), never by COM
+port, and replace passwords, keys, tokens and real MAC addresses before
+committing.
 
 
 ## Android request reduction

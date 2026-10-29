@@ -30,8 +30,7 @@ data class FirmwareVersion(val major: Int, val minor: Int, val patch: Int) : Com
 /** The products in a release, as the feed and the `.thfw` header name them. */
 enum class FirmwareProduct(val wire: String, val label: String) {
     ATLAS("atlas", "Atlas"),
-    SIGIL_EINK("sigil-eink", "E-ink Sigil"),
-    SIGIL_OLED("sigil-oled", "OLED Sigil"),
+    SIGIL("sigil", "Sigil"),
 
     ;
 
@@ -127,20 +126,14 @@ data class UpdatePlan(val targets: List<UpdateTarget>) {
                 running = FirmwareVersion.parse(atlasFirmware),
                 available = feed.packageFor(FirmwareProduct.ATLAS),
             )
-            // Test harness boards never take an update; a Sigil whose display
-            // Atlas doesn't know yet can't be matched to a package.
+            // Test harness boards never take an update.
             val sigilTargets = sigils.filter { !it.isHarness }.sortedBy { it.id }.map { device ->
-                val product = when (device.display) {
-                    "oled" -> FirmwareProduct.SIGIL_OLED
-                    "epaper" -> FirmwareProduct.SIGIL_EINK
-                    else -> null
-                }
                 UpdateTarget(
                     sigilId = device.id,
                     label = device.label.ifBlank { "Sigil ${device.id + 1}" },
-                    product = product ?: FirmwareProduct.SIGIL_EINK,
+                    product = FirmwareProduct.SIGIL,
                     running = FirmwareVersion.parse(device.firmware),
-                    available = product?.let(feed::packageFor),
+                    available = feed.packageFor(FirmwareProduct.SIGIL),
                     online = device.online,
                 )
             }

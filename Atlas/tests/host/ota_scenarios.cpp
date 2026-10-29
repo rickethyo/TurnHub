@@ -85,20 +85,20 @@ void stagingChecksEverything() {
   store.begin(flash, crypto, KEY, KEY_ID_TEST);
   assert(!store.loadStaged() && !store.staged());  // Blank slot.
 
-  const std::vector<uint8_t> oled = makePackage(Product::SigilOled, {0, 9, 0}, 20000);
-  assert(upload(store, oled) && store.staged());
-  assert(store.packageSize() == oled.size() && store.header().product == 3);
-  assert(flash.erases == (oled.size() + PACKAGE_SECTOR_BYTES - 1) / PACKAGE_SECTOR_BYTES);
-  std::vector<uint8_t> back(oled.size());
-  assert(store.read(0, back.data(), back.size()) && back == oled);
+  const std::vector<uint8_t> image = makePackage(Product::Sigil, {0, 9, 0}, 20000);
+  assert(upload(store, image) && store.staged());
+  assert(store.packageSize() == image.size() && store.header().product == 2);
+  assert(flash.erases == (image.size() + PACKAGE_SECTOR_BYTES - 1) / PACKAGE_SECTOR_BYTES);
+  std::vector<uint8_t> back(image.size());
+  assert(store.read(0, back.data(), back.size()) && back == image);
   uint8_t past[2];
-  assert(!store.read(static_cast<uint32_t>(oled.size()) - 1, past, 2));
+  assert(!store.read(static_cast<uint32_t>(image.size()) - 1, past, 2));
 
   // After a restart the header is re-checked from flash.
   SigilPackageStore again;
   again.begin(flash, crypto, KEY, KEY_ID_TEST);
   assert(again.loadStaged() && again.header().version.minor == 9 &&
-      again.packageSize() == oled.size());
+      again.packageSize() == image.size());
 
   // Valid header but truncated/corrupt flash must not resurrect after reboot.
   flash.bytes[sizeof(Header) + 100] ^= 1;
@@ -107,26 +107,26 @@ void stagingChecksEverything() {
   assert(!interrupted.loadStaged());
   flash.bytes[sizeof(Header) + 100] ^= 1;
 
-  // An e-ink package replaces it; any version is staged (each Sigil decides).
-  assert(upload(store, makePackage(Product::SigilEink, {0, 1, 0}, 9000)) &&
+  // Another package replaces it; any version is staged (each Sigil decides).
+  assert(upload(store, makePackage(Product::Sigil, {0, 1, 0}, 9000)) &&
       store.header().product == 2);
 
   // Refused: Atlas's own firmware, a bad signature, a damaged image, one too
   // large for the slot, a plain firmware.bin. Each leaves nothing staged.
   std::vector<uint8_t> bad = makePackage(Product::Atlas, {0, 7, 0}, 5000);
   assert(!upload(store, bad) && !store.staged() && store.error() == Error::WrongProduct);
-  bad = makePackage(Product::SigilOled, {0, 9, 0}, 5000);
+  bad = makePackage(Product::Sigil, {0, 9, 0}, 5000);
   bad[70] ^= 1;
   assert(!upload(store, bad) && store.error() == Error::BadSignature);
-  bad = makePackage(Product::SigilOled, {0, 9, 0}, 5000);
+  bad = makePackage(Product::Sigil, {0, 9, 0}, 5000);
   bad[3000] ^= 1;
   assert(!upload(store, bad) && store.error() == Error::HashMismatch && !store.staged());
-  assert(!upload(store, makePackage(Product::SigilOled, {0, 9, 0}, 64 * 1024)) &&
+  assert(!upload(store, makePackage(Product::Sigil, {0, 9, 0}, 64 * 1024)) &&
       store.error() == Error::TooLarge);
   std::vector<uint8_t> plain(4000, 0xE9);
   assert(!upload(store, plain) && store.error() == Error::BadMagic);
   // A cut-off upload.
-  const std::vector<uint8_t> good = makePackage(Product::SigilOled, {0, 9, 0}, 5000);
+  const std::vector<uint8_t> good = makePackage(Product::Sigil, {0, 9, 0}, 5000);
   store.startUpload();
   assert(store.writeUpload(good.data(), 3000) && !store.finishUpload() &&
       store.error() == Error::Truncated);
@@ -153,7 +153,7 @@ const uint8_t TOKEN[TurnHubProtocol::UPDATE_TOKEN_BYTES] = {0xAB, 1, 2, 3, 4, 5,
 
 Header target() {
   Header h{};
-  h.product = 3;
+  h.product = 2;
   h.version = {0, 9, 0};
   return h;
 }

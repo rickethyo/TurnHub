@@ -23,12 +23,13 @@ constexpr size_t BUILD_ID_BYTES = 8;
 constexpr uint8_t HEADER_FORMAT = 1;
 constexpr size_t SIGNED_BYTES = 64;      // The header bytes the signature covers.
 
-// Product 4 (retired SD portal archive) is no longer accepted.
-enum class Product : uint8_t { Atlas = 1, SigilEink = 2, SigilOled = 3 };
+// One Sigil product since the Gen 1 e-ink and OLED Sigils left master
+// (2026-10-29); products 3 (OLED Sigil) and 4 (SD portal archive) are retired.
+enum class Product : uint8_t { Atlas = 1, Sigil = 2 };
 
 inline bool knownProduct(uint8_t product) {
   return product >= static_cast<uint8_t>(Product::Atlas) &&
-      product <= static_cast<uint8_t>(Product::SigilOled);
+      product <= static_cast<uint8_t>(Product::Sigil);
 }
 
 struct Version {
@@ -122,7 +123,7 @@ class PackageCrypto {
 constexpr uint8_t productBit(Product product) {
   return static_cast<uint8_t>(1u << static_cast<uint8_t>(product));
 }
-constexpr uint8_t ANY_SIGIL = productBit(Product::SigilEink) | productBit(Product::SigilOled);
+constexpr uint8_t ANY_SIGIL = productBit(Product::Sigil);
 
 // The trusted key and what the device will accept.
 struct Policy {
@@ -302,10 +303,5 @@ class Reader {
   bool headerOk_ = false;
   bool finished_ = false;
 };
-
-// The Sigil build's product, from the same flags that pick its display.
-inline Product productForSigilCapabilities(uint8_t capabilities, uint8_t oledCapabilityBit) {
-  return (capabilities & oledCapabilityBit) != 0 ? Product::SigilOled : Product::SigilEink;
-}
 
 }  // namespace TurnHubFirmwarePackage

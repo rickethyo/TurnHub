@@ -82,8 +82,8 @@ private class FakeAtlas : AtlasSessionTransport {
                 if (admin == null && id in verified) { admin = id; RawResponse(200, """{"ok":true}""") }
                 else RawResponse(409, """{"error":"Admin setup is already complete"}""")
             "GET /api/devices" -> RawResponse(200, """{"devices":[
-                {"id":0,"label":"Kitchen","online":true,"firmware":"$sigilFirmware","display":"oled","capabilities":80},
-                {"id":5,"label":"Harness","online":true,"firmware":"0.1.0","display":"oled","capabilities":208}]}""")
+                {"id":0,"label":"Kitchen","online":true,"firmware":"$sigilFirmware","capabilities":80},
+                {"id":5,"label":"Harness","online":true,"firmware":"0.1.0","capabilities":208}]}""")
             "POST /api/sigil-update" -> { sigilFirmware = "0.9.0"; RawResponse(200, """{"ok":true}""") }
             "GET /api/sigil-firmware" -> RawResponse(200, """{"stage":"done","message":"Updated"}""")
             "POST /api/setup/finish" -> when {
@@ -148,7 +148,7 @@ class AtlasSetupAssistantTest {
         "0.9.0",
         listOf(
             FirmwarePackage(FirmwareProduct.ATLAS, FirmwareVersion(0, 7, 0), "atlas-0.7.0.thfw", 8, "0".repeat(64)),
-            FirmwarePackage(FirmwareProduct.SIGIL_OLED, FirmwareVersion(0, 9, 0), "sigil-oled-0.9.0.thfw", 4, "0".repeat(64)),
+            FirmwarePackage(FirmwareProduct.SIGIL, FirmwareVersion(0, 9, 0), "sigil-0.9.0.thfw", 4, "0".repeat(64)),
         ),
     )
 

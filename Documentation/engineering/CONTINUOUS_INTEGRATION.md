@@ -29,9 +29,8 @@ and maintenance-script changes require CI, not `[skip ci]`.
 | Check name | Work performed |
 | --- | --- |
 | Host tests and contracts | Atlas gameplay, storage and profile-store suites; Sigil touch, menu, secure-link, pairing, session and firmware-package suites; adapter audit; DMD catalogue generation and validator; generated-response and shared-fixture contract validation; design tokens current (`design/build_tokens.py --check`); embedded admin portal builds (`Atlas/web/build.py --check`); the app's manual asset matches the newest manual; `tools/firmware/thfw.py` tests |
-| Firmware (atlas) | Build Atlas; check its firmware descriptor and, with the signing secret, add a signed `atlas.thfw` (board-less until the S3 Atlas) |
-| Firmware (atlas-s3) | Build the ES3C40P S3 Atlas (`env:atlas-s3`); unsigned, flashed over USB until S3 OTA |
-| Firmware (sigil) | Build the touchscreen-only E32R28T LVGL firmware; upload raw USB-flash artifacts without an OTA package |
+| Firmware (atlas-s3) | Build the ES3C40P S3 Atlas (`env:atlas-s3`), the one Atlas build; check its firmware descriptor and, with the signing secret, add a signed `atlas.thfw` (refused while `TURNHUB_OTA_RETIRED` is set: USB-flashed until S3 OTA) |
+| Firmware (sigil) | The one Sigil build: touchscreen-only LVGL firmware on the E32R28T (`env:sigil`); descriptor check and, with the signing secret, `sigil.thfw` (refused while `TURNHUB_OTA_RETIRED` is set) |
 | LVGL simulator | Desktop LVGL simulator built with ASan/UBSan, its CTest self-tests (SDL dummy drivers) and the font digest check |
 | Android build and unit tests | Run JVM unit tests and build the Play release bundle (`.aab`), signed with the upload key when its secrets are set |
 
@@ -91,7 +90,7 @@ the paths into five switches:
 | anything else (docs, scripts) | | | | | |
 
 - **Atlas** runs the Atlas host suites, the generated-response contract check
-  and the `Firmware (atlas)` build and previews.
+  and the `Firmware (atlas-s3)` build and previews.
 - **Sigil** runs the Sigil host suites and the Sigil firmware build.
 - **Android** runs the Android unit tests and release bundle.
 - **Packaging tool** runs `tools/firmware/test_thfw.py`.

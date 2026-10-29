@@ -55,8 +55,7 @@ inline bool releaseNewer(const FirmwareRelease &release, uint8_t major, uint8_t 
 // The newest version of each product, as last reported by an app.
 struct LatestFirmware {
   FirmwareRelease atlas;
-  FirmwareRelease sigilEink;
-  FirmwareRelease sigilOled;
+  FirmwareRelease sigil;
 };
 
 // Who is behind, for the words on every screen (2026-10-02). The same value

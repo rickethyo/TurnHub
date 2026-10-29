@@ -89,6 +89,7 @@ object TableSummaryMapper {
             game = snapshot.game,
             games = snapshot.games,
             shortGameUncounted = snapshot.shortGameUncounted,
+            stateWire = snapshot.wire,
         )
     }
 }

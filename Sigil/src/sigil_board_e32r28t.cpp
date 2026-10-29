@@ -1,7 +1,7 @@
 // The touch Sigil stand-in on the Gen 1 Atlas board (E32R28T): the ILI9341
 // 240 x 320 screen through LovyanGFX, drawn with LVGL (sigil_display_lvgl.cpp),
 // and the XPT2046 resistive touch panel read over bit-banged SPI (the panel
-// has HSPI to itself). Firmware-only (env:sigil-e32r28t). The touch reading
+// has HSPI to itself). Firmware-only (env:sigil). The touch reading
 // and its default calibration come from legacy/gen1's atlas_display.cpp.
 
 #if defined(TURNHUB_BOARD_E32R28T)

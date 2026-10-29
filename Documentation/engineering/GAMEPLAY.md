@@ -490,8 +490,7 @@ switch applies (`commanderRules()` / `magicRules()` in `game_profile.h`).
   highlight their relationships, tap two to swap seats) and a text list of
   allies and enemies. Panels show "Enemies out n/2", the table menu shows the
   live star, and game over names every winner as a Star Commander victory.
-  Sigils get no new display text: the display packet has no free field, and
-  master's Sigil is headless until LVGL.
+  Sigils get no new display text: the display packet has no free field.
 
 ## Planechase
 
@@ -695,7 +694,7 @@ or life request), muted per player by their accessibility setting. The
 **Atlas speaker** plays table-wide cues (countdown, start, turn change, timer
 warning and expiry, pause, eliminations, win claim results, game over) so
 phone players hear them, through `ATLAS_SPEAKER_MASK` to the board's speaker
-(none on master's board-less build; the Gen 1 chime synthesizer is on
+(none on the S3 Atlas yet; the Gen 1 chime synthesizer is on
 `legacy/gen1`), volume Off/Low/Medium/High (Admin, `ConfigureSpeaker`). Timer cues play once per turn.
 
 **Android game sounds.** Local and connected play use the same observer for

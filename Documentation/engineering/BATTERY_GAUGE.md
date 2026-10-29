@@ -3,7 +3,7 @@
 > **Branches (2026-10-13).** The E32R28T battery adapter (`atlas_battery.cpp`)
 > is on `legacy/gen1`. Master keeps the header-only gauge and checkpoint logic
 > (`battery_gauge.h`, `battery_checkpoint.h`, host-tested) for the next board;
-> its board-less build reports no battery.
+> the S3 Atlas reports no battery until its driver lands.
 
 *Experimental; host logic verified by regression tests, physical acceptance
 pending.* Atlas E32R28T uses a nominal 250 mAh single-cell LiPo, its divider

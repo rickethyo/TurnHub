@@ -15,7 +15,7 @@ import thfw  # noqa: E402
 _, _, ec, _, _ = thfw._import_crypto()
 
 
-def fake_image(product=3, version=(0, 9, 1), radio=2, descriptors=1, size=4000):
+def fake_image(product=2, version=(0, 9, 1), radio=2, descriptors=1, size=4000):
     body = bytearray((i * 13 + 5) & 0xFF for i in range(size))
     body[0] = thfw.ESP_IMAGE_MAGIC
     desc = thfw.DESCRIPTOR_MAGIC + bytes([product, *version, radio, 0, 0, 0])
@@ -35,7 +35,7 @@ class ThfwTest(unittest.TestCase):
         package = thfw.build_package(image, self.key, "1df68ca0deadbeef")
         self.assertEqual(len(package), 128 + len(image))
         header = thfw.verify_package(package, self.public)
-        self.assertEqual(header["productName"], "sigil-oled")
+        self.assertEqual(header["productName"], "sigil")
         self.assertEqual(header["version"], (0, 9, 1))
         self.assertEqual(header["radio"], 2)
         self.assertEqual(header["buildId"], "1df68ca0deadbeef")
@@ -77,7 +77,7 @@ class ThfwTest(unittest.TestCase):
         with self.assertRaisesRegex(thfw.PackageError, "0xE9"):
             thfw.build_package(desc + b"THWEBAR1" + bytes(200), self.key)
         with self.assertRaisesRegex(thfw.PackageError, "unknown product"):
-            thfw.build_package(fake_image(product=4), self.key)
+            thfw.build_package(fake_image(product=3), self.key)
 
     def test_cli_and_pubkey_header(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -90,14 +90,14 @@ class ThfwTest(unittest.TestCase):
             (tmp / "firmware.bin").write_bytes(fake_image(product=2))
             pkg = tmp / "sigil.thfw"
             self.assertEqual(thfw.main(["package", str(tmp / "firmware.bin"), "--key", str(key),
-                                        "--out", str(pkg), "--expect-product", "sigil-eink"]), 0)
+                                        "--out", str(pkg), "--expect-product", "sigil"]), 0)
             self.assertEqual(thfw.main(["package", str(tmp / "firmware.bin"), "--key", str(key),
                                         "--out", str(pkg), "--expect-product", "atlas"]), 1)
             self.assertEqual(thfw.main(["verify", str(pkg), "--pubkey-header", str(header)]), 0)
             self.assertEqual(len(thfw.read_pubkey_header(header)), 65)
             feed = tmp / "feed.json"
             self.assertEqual(thfw.main(["feed", str(pkg), "--release", "0.9.0", "--out", str(feed)]), 0)
-            self.assertIn('"product": "sigil-eink"', feed.read_text())
+            self.assertIn('"product": "sigil"', feed.read_text())
 
 
 if __name__ == "__main__":

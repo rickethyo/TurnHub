@@ -30,29 +30,37 @@ import com.turnhub.android.ui.theme.palette
 
 internal fun sharedGameTitle(game: StandaloneGame): String = if (game.profile.deathMayDie)
     listOfNotNull(game.elder.elderOne ?: "Death May Die", game.elder.episode).joinToString(" · ")
-else when {
-    game.profile.starCommander -> "Star Commander"
-    game.profile.bagOfDoom -> "Bag of Doom"
-    game.profile.emperor -> game.profile.displayName()
-    else -> FORMATS.firstOrNull { it.profile == game.profile }?.label ?: game.profile.wireValue
+else sharedGameTitle(game.profile)
+
+internal fun sharedGameTitle(profile: com.turnhub.android.protocol.GameProfile): String = when {
+    profile.deathMayDie -> "Death May Die"
+    profile.starCommander -> "Star Commander"
+    profile.bagOfDoom -> "Bag of Doom"
+    profile.emperor -> profile.displayName()
+    else -> FORMATS.firstOrNull { it.profile == profile }?.label ?: profile.wireValue
 }
 
-/** The same panels and player menu as the table, backed only by the host snapshot. */
+/**
+ * The same panels and player menu as the table, backed only by the host snapshot: the
+ * host's own game, or the Atlas game it relays (where Atlas decides each tap).
+ */
 @Composable
 internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotion: Boolean, onLeave: () -> Unit) {
-    val game = state.remote ?: return
+    val device = state.remote
     val p = palette
-    var tableView by rememberSaveable { mutableStateOf(false) }
+    // A table display joins with no seat: it only ever shows the whole table.
+    val displayOnly = state.role == "display"
+    var tableView by rememberSaveable { mutableStateOf(displayOnly) }
     // The Planes screen, from a seat or as the planes display (owner, 2026-10-20).
     var planesChosen by rememberSaveable { mutableStateOf(false) }
     val planesDisplay = state.role == "planes"
-    val planesView = planesDisplay || planesChosen && game.planechase.enabled
+    val planesView = planesDisplay || planesChosen && device?.planechase?.enabled == true
     var menu by rememberSaveable { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
     var confirmElimination by remember { mutableStateOf(false) }
     val partners = remember { mutableStateListOf<Int>() }
     val haptics = rememberHaptics()
-    val summary = game.toSummary(System.currentTimeMillis(), TableClock.nowMs()).withLooks(state.looks)
+    val summary = state.atlas ?: device?.toSummary(System.currentTimeMillis(), TableClock.nowMs())?.withLooks(state.looks) ?: return
     val own = summary.players.firstOrNull { it.playerNumber == state.player }
     // Either teammate may pass. Keep the full host summary for the table and
     // show the claimed teammate as the personal panel's actor during their turn.
@@ -60,7 +68,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     // A tap in flight leaves the controls as they are, so the screen doesn't flash on every
     // change (owner, 2026-10-20); only a lost reply holds them until Retry.
     val enabled = state.online && !(state.uncertain && !state.busy) && own != null && !own.eliminated &&
-        game.state in listOf(TableState.RUNNING, TableState.PAUSED)
+        summary.state in listOf(TableState.RUNNING, TableState.PAUSED)
     // Life taps gather for a moment and go to the host as one change, as on the table, so
     // quick taps all count and the number moves at once.
     val scope = rememberCoroutineScope()
@@ -70,7 +78,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     /** The sent change and the snapshot revision it was sent against, until a newer snapshot carries it. */
     var sending by remember { mutableStateOf<Pair<Int, Long>?>(null) }
     LaunchedEffect(sending) { if (sending != null) { delay(2_000); sending = null } }
-    val inFlight = sending?.takeIf { state.busy || game.revision == it.second }?.first ?: 0
+    val inFlight = sending?.takeIf { state.busy || summary.revision == it.second }?.first ?: 0
     fun bump(delta: Int) {
         if (tableView || planesView || !enabled) return
         unsent += delta
@@ -81,7 +89,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             // Wait out another command still in flight, then send the whole change once.
             while (latest.busy) delay(100)
             val total = unsent
-            val revision = latest.remote?.revision ?: return@launch
+            val revision = latest.remote?.revision ?: latest.atlas?.revision ?: return@launch
             unsent = 0
             if (total == 0 || !latest.online) return@launch
             sending = total to revision
@@ -95,7 +103,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     fun act(kind: String, value: Int = 0, slot: Int = 0, source: Int = 0) {
         if (!tableView && !planesView && enabled) model.act(kind, value, slot, source)
     }
-    val planar = game.planechase
+    val planar = device?.planechase ?: com.turnhub.android.standalone.Planechase()
     // Planar buttons act for the active player on the host, from any seat or the display.
     val planarControls = PlanarControls(
         roll = { model.act("planar-roll", if (it) 1 else 0) },
@@ -112,30 +120,30 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     )
     Column(Modifier.fillMaxSize().background(p.bg).safeDrawingPadding().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!planesDisplay) ToneButton(if (tableView && !planesView) "My player" else "Table · read only", {
+            if (!planesDisplay && !displayOnly) ToneButton(if (tableView && !planesView) "My player" else "Table · read only", {
                 menu = false; tableView = !tableView || planesView; planesChosen = false
             }, Modifier.weight(1f))
             if (!planesDisplay && planar.enabled) ToneButton(if (planesView) "My player" else "Planes", {
                 menu = false; tableView = false; planesChosen = !planesChosen
             }, Modifier.weight(1f))
-            if (planesDisplay) Spacer(Modifier.weight(1f))
-            if (!planesDisplay) GuestPauseButton(game, state.online && !state.busy && !state.uncertain && own != null && !own.eliminated, model)
+            if (planesDisplay || displayOnly) Spacer(Modifier.weight(1f))
+            if (!planesDisplay && !displayOnly) GuestPauseButton(summary.state, state.online && !state.busy && !state.uncertain && own != null && !own.eliminated, model)
             ToneButton("Leave", { confirmLeave = true })
         }
-        Text("${sharedGameTitle(game)} · ${if (planesDisplay) "Planes display" else if (planesView) "Planes" else if (tableView) "Table · read only" else own?.label ?: "My player"} · ${if (!state.online) "Disconnected · last update" else if (state.busy) "Sending…" else "Connected"}",
+        Text("${device?.let { sharedGameTitle(it) } ?: sharedGameTitle(summary.settings.profile)} · ${if (planesDisplay) "Planes display" else if (displayOnly) "Table display" else if (planesView) "Planes" else if (tableView) "Table · read only" else own?.label ?: "My player"} · ${if (!state.online) "Disconnected · last update" else if (state.busy) "Sending…" else "Connected"}",
             color = if (state.online) p.muted else p.warn, style = MaterialTheme.typography.labelLarge)
         state.message?.let { Text(it, color = p.warn) }
-        when (game.state) {
+        when (summary.state) {
             TableState.LOBBY -> Text("Waiting for the host to start. Your seat stays connected.", color = p.text)
             TableState.PAUSED -> Text(if (summary.doomBag?.pending == true) "Bag check: the host draws from the bag before the next turn."
                 else "Paused by the table", color = p.warn, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-            TableState.GAME_OVER -> Text(if (game.winners.isEmpty()) "Game over" else "Winner: " +
-                game.winners.mapNotNull { game.players.getOrNull(it)?.name }.joinToString(), color = p.text)
+            TableState.GAME_OVER -> Text(if (summary.winnerPlayerNumbers.isEmpty()) "Game over" else "Winner: " +
+                summary.winnerPlayerNumbers.mapNotNull { n -> summary.players.firstOrNull { it.playerNumber == n }?.label }.joinToString(), color = p.text)
             else -> Unit
         }
         // Bag of Doom: each check's result stays until this device closes it (the host draws).
         summary.doomBag?.takeIf { it.lastCheck > 0 }?.let { bag ->
-            var seen by rememberSaveable(game.gameId) { mutableStateOf(0L) }
+            var seen by rememberSaveable(device?.gameId ?: "${summary.bootId}/${summary.game}") { mutableStateOf(0L) }
             if (bag.lastCheck > seen) {
                 val drawn = summary.players.firstOrNull { it.playerNumber == bag.lastDraw }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -151,24 +159,24 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
         }
         // Every tap is briefly in flight; only a lost reply adds a row, so the panel doesn't jump.
         if (state.uncertain && !state.busy) ToneButton("Retry last action", model::retry)
-        if (!tableView && game.twoHeadedGiant) Text("Your team's life and poison are shared.", color = p.muted)
+        if (!tableView && summary.settings.twoHeadedGiant) Text("Your team's life and poison are shared.", color = p.muted)
         // A claim from this device waits on the others; say so, and say when it was turned down.
         val claimant = summary.pending.winClaimPlayer
         val ownClaim = own != null && !own.eliminated && claimant == own.playerNumber
         var claimDenied by remember { mutableStateOf(false) }
         var wasClaiming by remember { mutableStateOf(false) }
-        LaunchedEffect(ownClaim, game.state) {
-            if (wasClaiming && !ownClaim && game.state != TableState.GAME_OVER && own?.eliminated == false) claimDenied = true
-            if (ownClaim || game.state == TableState.GAME_OVER || game.state == TableState.LOBBY) claimDenied = false
+        LaunchedEffect(ownClaim, summary.state) {
+            if (wasClaiming && !ownClaim && summary.state != TableState.GAME_OVER && own?.eliminated == false) claimDenied = true
+            if (ownClaim || summary.state == TableState.GAME_OVER || summary.state == TableState.LOBBY) claimDenied = false
             wasClaiming = ownClaim
         }
         if (ownClaim) Text(summary.players.firstOrNull { it.playerNumber == summary.pending.winConfirmationPlayer }
             ?.let { "Your win claim is waiting for ${it.label} to confirm." } ?: "Your win claim is waiting for confirmation.",
             color = p.warn)
-        else if (claimDenied && game.state == TableState.RUNNING || claimDenied && game.state == TableState.PAUSED)
+        else if (claimDenied && summary.state == TableState.RUNNING || claimDenied && summary.state == TableState.PAUSED)
             Text("Your win claim was denied. Play continues.", color = p.warn)
         if (planesView) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-            SharedPlanes(game, planarControls)
+            device?.let { SharedPlanes(it, planarControls) }
         } else {
             val visible = if (tableView) tableUnits(summary) else listOfNotNull(own?.let { TableUnit("own", listOf(it)) })
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
@@ -215,7 +223,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             else "Your seat is released. The game stays on the host.") },
         confirmButton = { ToneButton("Leave", onLeave) }, dismissButton = { ToneButton("Stay", { confirmLeave = false }) })
     if (confirmElimination) AlertDialog(onDismissRequest = { confirmElimination = false },
-        title = { Text(if (game.twoHeadedGiant) "Eliminate your team?" else "Eliminate your player?") },
+        title = { Text(if (summary.settings.twoHeadedGiant) "Eliminate your team?" else "Eliminate your player?") },
         text = { Text("The host removes you from this game and may finish the match. It handles any elimination credit.") },
         confirmButton = { ToneButton("Eliminate", { confirmElimination = false; act("eliminate") }, enabled = enabled && !tableView) },
         dismissButton = { ToneButton("Cancel", { confirmElimination = false }) })
@@ -235,8 +243,8 @@ private val MIN_REMOTE_PANEL = 200.dp
 
 /** Pause or resume the whole table from a seated guest's own phone; the host applies it. */
 @Composable
-internal fun GuestPauseButton(game: StandaloneGame, enabled: Boolean, model: LanViewModel, modifier: Modifier = Modifier) {
-    val paused = game.state == TableState.PAUSED
-    if (game.state != TableState.RUNNING && !paused) return
+internal fun GuestPauseButton(state: TableState, enabled: Boolean, model: LanViewModel, modifier: Modifier = Modifier) {
+    val paused = state == TableState.PAUSED
+    if (state != TableState.RUNNING && !paused) return
     ToneButton(if (paused) "Resume" else "Pause", { model.act("pause", if (paused) 0 else 1) }, modifier, enabled = enabled)
 }

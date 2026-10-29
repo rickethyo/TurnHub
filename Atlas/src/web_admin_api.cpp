@@ -137,10 +137,7 @@ void handleDevices(WebServer &server) {
     json += ",\"firmware\":\""; json += firmwareText(*record);
     json += "\",\"metadata\":"; json += jsonBool(record->helloInfoValid);
     json += ",\"capabilities\":"; json += String(record->capabilities);
-    // Both display variants support shared seating. The display bit still selects OTA firmware.
-    const bool oled = (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_OLED) != 0;
-    json += ",\"display\":\""; json += !record->helloInfoValid ? "unknown" : oled ? "oled" : "epaper";
-    json += "\",\"maxPlayers\":"; json += String(2);
+    json += ",\"maxPlayers\":"; json += String(2);
     json += ",\"sessionCount\":"; json += String(moduleSessionCount(id));
     json += ",\"profileA\":\""; json += jsonEscape(profileA);
     json += "\"";
@@ -597,8 +594,7 @@ void sendUpdateStatus(WebServer &server) {
   const TurnHub::LatestFirmware none;
   const TurnHub::LatestFirmware &shown = latest ? *latest : none;
   appendRelease(json, "atlas", shown.atlas); json += ',';
-  appendRelease(json, "sigilEink", shown.sigilEink); json += ',';
-  appendRelease(json, "sigilOled", shown.sigilOled);
+  appendRelease(json, "sigil", shown.sigil);
   json += "},\"atlasFirmware\":\"";
   json += TurnHubFirmware::VERSION;
   json += "\",\"updatesAvailable\":";
@@ -616,7 +612,7 @@ void handleUpdateStatus(WebServer &server) { sendUpdateStatus(server); }
 void handleLatestFirmware(WebServer &server) {
   TurnHub::LatestFirmware latest;
   const struct { const char *field; TurnHub::FirmwareRelease *release; } fields[] = {
-      {"atlas", &latest.atlas}, {"sigilEink", &latest.sigilEink}, {"sigilOled", &latest.sigilOled}};
+      {"atlas", &latest.atlas}, {"sigil", &latest.sigil}};
   bool any = false;
   for (const auto &entry : fields) {
     if (!server.hasArg(entry.field)) continue;
@@ -627,7 +623,7 @@ void handleLatestFirmware(WebServer &server) {
     any = true;
   }
   if (!any) {
-    sendError(server, 400, "Report at least one of atlas, sigilEink and sigilOled");
+    sendError(server, 400, "Report atlas, sigil or both");
     return;
   }
   // Retired hardware takes no updates, so a newer release is not news here.
