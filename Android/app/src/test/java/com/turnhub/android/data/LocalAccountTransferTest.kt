@@ -17,6 +17,7 @@ class LocalAccountTransferTest {
         var preferenceWrites = 0
         var registration: Map<String, String>? = null
         override suspend fun raw(method: String, path: String, token: String, fields: List<Pair<String, String>>): RawResponse {
+            if (path == "/api/profiles/link-key") return RawResponse(200, """{"ok":true,"linkKey":"0123456789ABCDEF0123456789ABCDEF"}""")
             registration = fields.toMap()
             return RawResponse(status, if (status == 200) """{"ok":true,"token":"token","profileId":"$id"}""" else """{"error":"ID exists"}""")
         }
