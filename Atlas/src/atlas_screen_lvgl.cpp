@@ -20,6 +20,13 @@ extern const lv_font_t th_bold_28;
 extern const lv_font_t th_cinzel_32;
 extern const lv_font_t th_num_40;
 extern const lv_font_t th_num_64;
+extern const lv_image_dsc_t th_icon_home_24, th_icon_timer_24, th_icon_table_24, th_icon_sliders_24,
+    th_icon_chevron_right_24, th_icon_chevron_left_24, th_icon_chevron_up_24, th_icon_chevron_down_24,
+    th_icon_sparkle_24, th_icon_sigil_24, th_icon_qr_24, th_icon_trash_24, th_icon_link_24, th_icon_power_24,
+    th_icon_download_24, th_icon_pass_24, th_icon_moon_24, th_icon_sun_24, th_icon_palette_24,
+    th_icon_contrast_24, th_icon_close_24, th_icon_info_24, th_icon_hub_24, th_icon_flag_24, th_icon_pause_24,
+    th_icon_play_24, th_icon_more_24, th_icon_plus_24, th_icon_refresh_24, th_icon_lock_24, th_icon_check_24,
+    th_icon_users_24, th_icon_minus_24;
 }
 
 namespace TurnHubAtlas {
@@ -39,6 +46,12 @@ lv_color_t rgb(uint32_t c) {
 
 lv_color_t mixRgb(uint32_t a, uint32_t b, uint8_t t) {
   return lv_color_mix(rgb(b), rgb(a), t);
+}
+
+// The same mix as a plain 0xRRGGBB value (before any inversion).
+uint32_t mixRgbHex(uint32_t a, uint32_t b, uint8_t t) {
+  auto ch = [&](int shift) { return (((a >> shift & 0xFF) * t + (b >> shift & 0xFF) * (255 - t)) / 255) << shift; };
+  return ch(16) | ch(8) | ch(0);
 }
 
 lv_obj_t *box(lv_obj_t *parent, int32_t x, int32_t y, int32_t w, int32_t h) {
@@ -178,6 +191,85 @@ lv_obj_t *pill(lv_obj_t *parent, const char *s, uint32_t fill, uint32_t ink) {
   return o;
 }
 
+// A design-system icon (an A8 mask) tinted to the given colour.
+lv_obj_t *icon(lv_obj_t *parent, const lv_image_dsc_t *src, int16_t x, int16_t y, uint32_t color) {
+  lv_obj_t *img = lv_image_create(parent);
+  lv_obj_remove_style_all(img);
+  lv_image_set_src(img, src);
+  lv_obj_set_pos(img, x, y);
+  lv_obj_set_style_image_recolor(img, rgb(color), 0);
+  lv_obj_set_style_image_recolor_opa(img, LV_OPA_COVER, 0);
+  return img;
+}
+
+// The icon the app shows for each action, or nullptr for none.
+const lv_image_dsc_t *actionIcon(TouchAction a) {
+  switch (a) {
+    case TouchAction::OpenHome: return &th_icon_home_24;
+    case TouchAction::OpenGame: return &th_icon_timer_24;
+    case TouchAction::OpenOverview: return &th_icon_table_24;
+    case TouchAction::OpenSettings: return &th_icon_sliders_24;
+    case TouchAction::OpenSetup: return &th_icon_sparkle_24;
+    case TouchAction::Pair: case TouchAction::SetupPair: return &th_icon_sigil_24;
+    case TouchAction::OpenQr: return &th_icon_qr_24;
+    case TouchAction::ClearLobby: return &th_icon_trash_24;
+    case TouchAction::UnpairSigils: return &th_icon_link_24;
+    case TouchAction::FactoryResetAtlas: return &th_icon_power_24;
+    case TouchAction::UsbDrive: return &th_icon_download_24;
+    case TouchAction::MasterPass: case TouchAction::PassTurn: return &th_icon_pass_24;
+    case TouchAction::ThemeGraphite: case TouchAction::SleepAtlas: return &th_icon_moon_24;
+    case TouchAction::ThemeDaylight: return &th_icon_sun_24;
+    case TouchAction::ThemeBrass: case TouchAction::OpenThemes: return &th_icon_palette_24;
+    case TouchAction::ThemeContrast: case TouchAction::InvertDisplay: return &th_icon_contrast_24;
+    case TouchAction::MoveEarlier: return &th_icon_chevron_up_24;
+    case TouchAction::MoveLater: return &th_icon_chevron_down_24;
+    case TouchAction::RemoveSeat: case TouchAction::PairReject: return &th_icon_close_24;
+    case TouchAction::OpenInfo: return &th_icon_info_24;
+    case TouchAction::OpenDevice: return &th_icon_hub_24;
+    case TouchAction::EndMatch: case TouchAction::Concede: case TouchAction::ConfirmConcede: return &th_icon_flag_24;
+    case TouchAction::Pause: return &th_icon_pause_24;
+    case TouchAction::Resume: case TouchAction::StartGame: return &th_icon_play_24;
+    case TouchAction::OpenTable: case TouchAction::OpenMenu: return &th_icon_more_24;
+    case TouchAction::OpenSeat: case TouchAction::NewPlayer: return &th_icon_plus_24;
+    case TouchAction::Rematch: case TouchAction::ResetTable: return &th_icon_refresh_24;
+    case TouchAction::PairConfirm: case TouchAction::SetupDone: case TouchAction::NameDone: return &th_icon_check_24;
+    case TouchAction::CloseScreen: case TouchAction::CancelConcede: case TouchAction::CancelCode:
+    case TouchAction::CancelStart: return &th_icon_chevron_left_24;
+    case TouchAction::SeatMore: return &th_icon_users_24;
+    default: return nullptr;
+  }
+}
+
+bool tabAction(const TouchButton &b) {
+  return b.y >= ATLAS_SCREEN_HEIGHT - 48 && (b.action == TouchAction::OpenHome || b.action == TouchAction::OpenGame ||
+      b.action == TouchAction::OpenOverview || b.action == TouchAction::OpenSettings);
+}
+
+bool keyAction(TouchAction a) {
+  return a == TouchAction::NameKey || a == TouchAction::PinKey || a == TouchAction::PinBack || a == TouchAction::PinDone;
+}
+
+// Full-width buttons in the body are rows of an inset grouped list, as on the
+// app's Settings and Players screens; the bottom row keeps real buttons.
+bool listRow(const AtlasScreen &s, const TouchButton &b) {
+  return !keyAction(b.action) && !tabAction(b) && b.w >= W - 24 && b.y < BUTTON_ROW_Y &&
+      s.kind != ScreenKind::Player;
+}
+
+// The tint of a row's leading icon tile, like the coloured squares in a
+// phone's Settings.
+uint32_t rowTint(TouchAction a) {
+  if (dangerAction(a)) return pal().critical;
+  switch (a) {
+    case TouchAction::OpenGame: case TouchAction::MasterPass: return pal().turn;
+    case TouchAction::Pair: case TouchAction::OpenSetup: case TouchAction::ThemeBrass: return pal().accent;
+    case TouchAction::OpenQr: case TouchAction::UsbDrive: case TouchAction::OpenOverview: case TouchAction::ThemeDaylight:
+      return pal().info;
+    case TouchAction::MoveEarlier: case TouchAction::MoveLater: return pal().good;
+    default: return pal().textTertiary;
+  }
+}
+
 // A filled disc in the seat's hue holding the player's initial.
 void seatToken(lv_obj_t *parent, const ScreenPlayer &p, int16_t x, int16_t y, int16_t side, bool ring) {
   lv_obj_t *disc = box(parent, x, y, side, side);
@@ -257,30 +349,46 @@ void drawHeader(lv_obj_t *root, const AtlasScreen &s) {
        LV_TEXT_ALIGN_RIGHT);
 }
 
+// The title and detail line, and in a game the app's turn ring at the right:
+// the clock in the middle of a ring that drains with the countdown (or a full
+// ring with no countdown).
 void drawHero(lv_obj_t *root, const AtlasScreen &s) {
   const bool clock = s.clock[0] != '\0';
+  constexpr int16_t ring = 62;
   const int16_t x = 14;
-  const int16_t w = W - x - (clock ? 110 : 14);
-  text(root, s.title, pal().ornament ? &th_cinzel_32 : &th_bold_28, pal().text, x, SCREEN_HERO_Y + 4, w);
+  const int16_t w = W - x - (clock ? ring + 24 : 14);
+  text(root, s.title, pal().ornament ? &th_cinzel_32 : &th_bold_28, pal().text, x, SCREEN_HERO_Y + 6, w);
   const bool notice = s.notice[0] != '\0';
   // A notice is marked in words by its leading arrow as well as its colour.
   char line[56];
   snprintf(line, sizeof(line), notice ? "> %s" : "%s", notice ? s.notice : s.detail);
-  text(root, line, &th_semi_16, notice ? pal().accent : pal().textSecondary, x, SCREEN_HERO_Y + 40, w);
+  text(root, line, &th_semi_16, notice ? pal().accent : pal().textSecondary, x, SCREEN_HERO_Y + 42, w);
   if (!clock) return;
-  // The turn clock and its countdown bar.
   const uint32_t ink = s.timerWarning ? pal().warning : pal().turn;
-  text(root, s.clock, &th_bold_28, ink, W - 110, SCREEN_HERO_Y + 4, 96, LV_TEXT_ALIGN_RIGHT);
-  if (s.timerPermille >= 0) {
-    lv_obj_t *track = box(root, W - 110, SCREEN_HERO_Y + 44, 96, 8);
-    lv_obj_set_style_radius(track, 4, 0);
-    lv_obj_set_style_bg_opa(track, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(track, rgb(pal().fill), 0);
-    lv_obj_t *fill = box(track, 0, 0, 96 * s.timerPermille / 1000, 8);
-    lv_obj_set_style_radius(fill, 4, 0);
-    lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(fill, rgb(ink), 0);
-  }
+  lv_obj_t *arc = lv_arc_create(root);
+  lv_obj_remove_style_all(arc);
+  lv_obj_remove_flag(arc, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_size(arc, ring, ring);
+  lv_obj_set_pos(arc, W - 14 - ring, SCREEN_HERO_Y + 2);
+  lv_arc_set_bg_angles(arc, 0, 360);
+  lv_arc_set_rotation(arc, 270);
+  lv_arc_set_range(arc, 0, 1000);
+  lv_arc_set_value(arc, s.timerPermille >= 0 ? s.timerPermille : 1000);
+  lv_obj_set_style_arc_width(arc, 5, LV_PART_MAIN);
+  lv_obj_set_style_arc_color(arc, rgb(pal().fillStrong), LV_PART_MAIN);
+  lv_obj_set_style_arc_opa(arc, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_arc_width(arc, 5, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_color(arc, rgb(ink), LV_PART_INDICATOR);
+  lv_obj_set_style_arc_opa(arc, LV_OPA_COVER, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_rounded(arc, true, LV_PART_INDICATOR);
+  // A soft halo of the turn colour inside the ring, as behind the app's.
+  lv_obj_t *halo = box(root, W - 14 - ring + 7, SCREEN_HERO_Y + 9, ring - 14, ring - 14);
+  lv_obj_set_style_radius(halo, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_opa(halo, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(halo, rgb(s.timerWarning ? pal().surface3 : pal().turnSoft), 0);
+  const lv_font_t *font = textWidth(s.clock, &th_semi_20) <= ring - 18 ? &th_semi_20 : &th_semi_16;
+  text(root, s.clock, font, s.timerWarning ? pal().warning : pal().text, W - 14 - ring,
+       SCREEN_HERO_Y + 2 + (ring - lv_font_get_line_height(font)) / 2, ring, LV_TEXT_ALIGN_CENTER);
 }
 
 // A player tile, like the app's seat panels: token and name in the top band
@@ -416,29 +524,174 @@ void drawBody(lv_obj_t *root, const AtlasScreen &s) {
   if (size >= 96) drawQr(plate, s.qr, (W - 16 - 28 - size) / 2, top, size);
 }
 
-void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
-    if (b.y == 432 && (b.action == TouchAction::OpenHome || b.action == TouchAction::OpenGame ||
-        b.action == TouchAction::OpenOverview || b.action == TouchAction::OpenSettings)) {
-    auto *tab=box(root,b.x,b.y,b.w,b.h);
-    card(tab,b.selected ? pal().accentSoft : pal().surface1,pal().separator,0);
-    if(b.selected) { auto *mark=box(tab,16,0,b.w-32,3); card(mark,pal().accent,pal().accent,1); }
-    text(tab,b.label,&th_eyebrow_13,b.selected ? pal().accent : pal().textSecondary,0,18,b.w,LV_TEXT_ALIGN_CENTER);
-    return;
+// The app's bottom navigation bar: an icon over each label, the chosen tab's
+// icon on a soft accent pill, a hairline along the top.
+void drawTabBar(lv_obj_t *root, const AtlasScreen &s) {
+  bool any = false;
+  for (uint8_t i = 0; i < s.buttonCount; ++i) any = any || tabAction(s.buttons[i]);
+  if (!any) return;
+  lv_obj_t *bar = box(root, 0, H - 48, W, 48);
+  lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(bar, rgb(pal().surface1), 0);
+  lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_TOP, 0);
+  lv_obj_set_style_border_width(bar, 1, 0);
+  lv_obj_set_style_border_color(bar, rgb(pal().separator), 0);
+  for (uint8_t i = 0; i < s.buttonCount; ++i) {
+    const TouchButton &b = s.buttons[i];
+    if (!tabAction(b)) continue;
+    const bool pressed = s.pressed == b.action && s.pressedArg == b.arg;
+    const uint32_t ink = b.selected ? pal().accent : pal().textSecondary;
+    const int16_t pillW = 52, pillX = b.x + (b.w - pillW) / 2;
+    if (b.selected || pressed) {
+      lv_obj_t *indicator = box(bar, pillX, 3, pillW, 26);
+      lv_obj_set_style_radius(indicator, 13, 0);
+      lv_obj_set_style_bg_opa(indicator, LV_OPA_COVER, 0);
+      lv_obj_set_style_bg_color(indicator, rgb(pressed ? pal().fillStrong : pal().accentSoft), 0);
+    }
+    if (const lv_image_dsc_t *glyph = actionIcon(b.action)) icon(bar, glyph, pillX + (pillW - 24) / 2, 4, ink);
+    text(bar, b.label, &th_eyebrow_13, ink, b.x, 30, b.w, LV_TEXT_ALIGN_CENTER);
   }
+}
 
+// What a row says under its label, on the Home list.
+const char *rowSubtitle(TouchAction a) {
+  switch (a) {
+    case TouchAction::OpenGame: return "Play the match";
+    case TouchAction::OpenOverview: return "Everyone at a glance";
+    case TouchAction::OpenSettings: return "Sigils, codes, theme";
+    default: return "";
+  }
+}
+
+// One grouped-list row: a tinted icon tile (or the player's initial), the
+// label, and at the right its value, "Hold", a check for the shown choice or
+// a chevron. top/bottom are the row's slice of the group card.
+void drawListRow(lv_obj_t *group, const AtlasScreen &s, const TouchButton &b, int16_t top, int16_t bottom, bool first) {
+  const bool pressed = s.pressed == b.action && s.pressedArg == b.arg;
+  const int16_t w = b.w;
+  if (pressed) {
+    lv_obj_t *shade = box(group, 0, top, w, bottom - top);
+    lv_obj_set_style_bg_opa(shade, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(shade, rgb(pal().fillStrong), 0);
+  }
+  if (!first) {
+    lv_obj_t *rule = box(group, 56, top, w - 56, 1);
+    lv_obj_set_style_bg_opa(rule, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(rule, rgb(pal().separator), 0);
+  }
+  // "USB drive: on" reads as the label "USB drive" and the value "On";
+  // "Casey (PIN)" as "Casey" with a lock.
+  char label[32], value[12] = {};
+  snprintf(label, sizeof(label), "%s", b.label);
+  bool locked = false;
+  if (char *colon = strstr(label, ": ")) {
+    snprintf(value, sizeof(value), "%s", colon + 2);
+    if (value[0] >= 'a' && value[0] <= 'z') value[0] -= 'a' - 'A';
+    *colon = 0;
+  }
+  if (char *pin = strstr(label, " (PIN)")) {
+    *pin = 0;
+    locked = true;
+  }
+  const int16_t mid = b.y - (b.y - top) + (bottom - top) / 2;
+  if (b.action == TouchAction::SeatProfile) {
+    ScreenPlayer p;
+    p.number = static_cast<uint8_t>(label[0] + b.arg);
+    snprintf(p.name, sizeof(p.name), "%s", label);
+    seatToken(group, p, 12, mid - 16, 32, false);
+  } else if (const lv_image_dsc_t *glyph = actionIcon(b.action)) {
+    lv_obj_t *tile = box(group, 12, mid - 16, 32, 32);
+    lv_obj_set_style_radius(tile, 9, 0);
+    lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
+    sheen(tile, rowTint(b.action));
+    icon(tile, glyph, 4, 4, pal().bg);
+  }
+  const uint32_t ink = dangerAction(b.action) ? pal().critical : primaryAction(b.action) ? pal().accent : pal().text;
+  const char *subtitle = rowSubtitle(b.action);
+  int16_t right = w - 12;
+  // Trailing mark.
+  if (b.selected) {
+    icon(group, &th_icon_check_24, right - 24, mid - 12, pal().accent);
+    right -= 30;
+  } else if (b.hold() && !pressed) {
+    const int16_t tw = static_cast<int16_t>(textWidth("Hold", &th_semi_16));
+    text(group, "Hold", &th_semi_16, pal().textSecondary, right - tw, mid - 10, tw);
+    right -= tw + 8;
+  } else if (!b.hold()) {
+    icon(group, &th_icon_chevron_right_24, right - 22, mid - 12, pal().textTertiary);
+    right -= 28;
+  }
+  if (value[0]) {
+    const int16_t tw = static_cast<int16_t>(textWidth(value, &th_semi_16));
+    text(group, value, &th_semi_16, pal().textSecondary, right - tw, mid - 10, tw);
+    right -= tw + 8;
+  }
+  if (locked) {
+    icon(group, &th_icon_lock_24, right - 24, mid - 12, pal().textSecondary);
+    right -= 28;
+  }
+  char shown[32];
+  if (pressed && b.hold() && s.holdSecondsLeft > 0) {
+    snprintf(shown, sizeof(shown), "Hold %u s", static_cast<unsigned>(s.holdSecondsLeft));
+  } else {
+    snprintf(shown, sizeof(shown), "%s", label);
+  }
+  if (subtitle[0]) {
+    text(group, shown, &th_semi_20, ink, 56, mid - 22, right - 56);
+    text(group, subtitle, &th_semi_16, pal().textSecondary, 56, mid + 2, right - 56);
+  } else {
+    text(group, shown, &th_semi_20, ink, 56, mid - 12, right - 56);
+  }
+  if (pressed && b.hold()) {
+    lv_obj_t *fill = box(group, 0, bottom - 4, w * s.holdPermille / 1000, 4);
+    lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(fill, rgb(pal().focus), 0);
+  }
+}
+
+// Runs of adjacent list rows become one rounded group card.
+void drawLists(lv_obj_t *root, const AtlasScreen &s) {
+  for (uint8_t i = 0; i < s.buttonCount;) {
+    if (!listRow(s, s.buttons[i])) { ++i; continue; }
+    uint8_t j = i;
+    while (j + 1 < s.buttonCount && listRow(s, s.buttons[j + 1]) &&
+           s.buttons[j + 1].y - (s.buttons[j].y + s.buttons[j].h) <= 12) ++j;
+    const TouchButton &a = s.buttons[i], &z = s.buttons[j];
+    lv_obj_t *group = box(root, a.x, a.y, a.w, z.y + z.h - a.y);
+    card(group, pal().light ? pal().surface1 : pal().surface2, pal().separator, 16);
+    lv_obj_set_style_clip_corner(group, true, 0);
+    lift(group);
+    for (uint8_t k = i; k <= j; ++k) {
+      const TouchButton &b = s.buttons[k];
+      const int16_t top = k == i ? 0 : (s.buttons[k - 1].y + s.buttons[k - 1].h + b.y) / 2 - a.y;
+      const int16_t bottom = k == j ? z.y + z.h - a.y : (b.y + b.h + s.buttons[k + 1].y) / 2 - a.y;
+      TouchButton local = b;
+      local.y = b.y - a.y;
+      drawListRow(group, s, local, top, bottom, k == i);
+    }
+    i = j + 1;
+  }
+}
+
+// A real button (the bottom row, keys and the player screen's steps): the
+// app's filled primary, the turn colour for Hold to pass, tonal accent for
+// the rest, and the critical colour for anything that ends or erases.
+void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
   const bool pressed = s.pressed == b.action && s.pressedArg == b.arg;
   // Keyboard keys stay flat (no shadow): thirty of them redraw per key press.
-  const bool key = b.action == TouchAction::NameKey ||
-      b.action == TouchAction::PinKey || b.action == TouchAction::PinBack || b.action == TouchAction::PinDone;
+  const bool key = keyAction(b.action);
   const bool primary = primaryAction(b.action);
   const bool danger = dangerAction(b.action);
   // Hold to pass wears the turn colour, as in the app.
   const bool turn = b.action == TouchAction::PassTurn;
+  const bool tonal = !key && !primary && !turn && !danger;
   lv_obj_t *o = box(root, b.x, b.y, b.w, b.h);
   const uint32_t base = turn ? (pressed ? pal().turnSoft : pal().turn)
       : pressed ? (primary ? pal().accentPressed : pal().fillStrong)
-      : primary ? pal().accent : pal().surface3;
-  card(o, base, b.selected || pressed ? pal().focus : danger ? pal().critical : pal().separatorStrong, 14);
+      : primary ? pal().accent : key ? pal().surface3 : tonal ? pal().accentSoft : pal().surface2;
+  const uint32_t frame = b.selected || pressed ? pal().focus : danger ? pal().critical
+      : tonal ? mixRgbHex(pal().accent, pal().accentSoft, 110) : pal().separatorStrong;
+  card(o, base, frame, key ? 12 : 16);
   lv_obj_set_style_border_width(o, (primary || turn) && !pressed ? 0 : 1, 0);
   if (!pressed) {
     sheen(o, base);
@@ -447,7 +700,7 @@ void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
   // Pressed and the shown choice are also marked by a heavier frame.
   if (pressed || b.selected) lv_obj_set_style_border_width(o, 3, 0);
   const uint32_t ink = turn ? (pressed ? pal().text : pal().onTurn) : primary ? pal().onAccent
-      : danger ? pal().critical : pal().text;
+      : danger ? pal().critical : tonal ? pal().accent : pal().text;
   char label[32];
   if (pressed && b.hold() && s.holdSecondsLeft > 0) {
     snprintf(label, sizeof(label), "Hold %u s", static_cast<unsigned>(s.holdSecondsLeft));
@@ -457,13 +710,24 @@ void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
   // "hold" under a hold button, unless its label already says so.
   const bool saysHold = strncmp(b.label, "Hold", 4) == 0;
   const char *caption = b.selected && !pressed ? "shown" : (b.hold() && !pressed && !saysHold ? "hold" : "");
-  // The largest type that fits on one line; two lines of the small one otherwise.
-  const int16_t room = b.w - 16;
+  // The largest type that fits on one line; two lines of the small one
+  // otherwise. An icon leads the label when there is room for both.
+  const lv_image_dsc_t *glyph = key ? nullptr : actionIcon(b.action);
+  int16_t room = b.w - 16;
   const lv_font_t *font = textWidth(label, &th_semi_20) <= room ? &th_semi_20 : &th_semi_16;
+  if (glyph && textWidth(label, font) + 30 > room) font = &th_semi_16;
+  if (glyph && textWidth(label, font) + 30 > room) glyph = nullptr;
+  if (!glyph && textWidth(label, &th_semi_20) <= room) font = &th_semi_20;
+  if (glyph) room -= 30;
   lv_obj_t *col = box(o, 0, 0, b.w, LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_t *l = lv_label_create(col);
+  lv_obj_t *line = box(col, 0, 0, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(line, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(line, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(line, 6, 0);
+  if (glyph) icon(line, glyph, 0, 0, ink);
+  lv_obj_t *l = lv_label_create(line);
   lv_obj_remove_style_all(l);
   lv_label_set_text(l, label);
   lv_obj_set_style_text_font(l, font, 0);
@@ -493,6 +757,64 @@ void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
   }
 }
 
+// PowerPoint-style turn change: a card in the turn colour pushes in from the
+// right with the new player's name, rests, and slides off to the left. It
+// lives on LVGL's top layer, so the per-second redraws underneath leave it
+// alone. The hero title says the same thing, so the banner is never the only
+// place the turn shows.
+uint8_t bannerTurn = 0;
+
+void slideX(void *obj, int32_t v) { lv_obj_set_x(static_cast<lv_obj_t *>(obj), v); }
+
+void showTurnBanner(const ScreenPlayer &p, uint16_t round) {
+  lv_obj_t *layer = lv_layer_top();
+  lv_obj_clean(layer);
+  constexpr int16_t bw = W - 24, bh = 96;
+  lv_obj_t *banner = box(layer, W, (H - bh) / 2 - 20, bw, bh);
+  card(banner, pal().turn, pal().turn, 20);
+  sheen(banner, pal().turn);
+  lift(banner);
+  lv_obj_set_style_shadow_width(banner, 28, 0);
+  seatToken(banner, p, 16, (bh - 48) / 2, 48, false);
+  lv_obj_set_style_border_width(lv_obj_get_child(banner, 0), 2, 0);
+  lv_obj_set_style_border_color(lv_obj_get_child(banner, 0), rgb(pal().onTurn), 0);
+  char line[40];
+  snprintf(line, sizeof(line), "%s's turn", p.name);
+  text(banner, line, &th_bold_28, pal().onTurn, 76, 20, bw - 88);
+  if (round > 0) snprintf(line, sizeof(line), "ROUND %u", static_cast<unsigned>(round));
+  else snprintf(line, sizeof(line), "YOUR MOVE");
+  text(banner, line, &th_eyebrow_13, pal().onTurn, 77, 58, bw - 88);
+  lv_anim_t in;
+  lv_anim_init(&in);
+  lv_anim_set_var(&in, banner);
+  lv_anim_set_exec_cb(&in, slideX);
+  lv_anim_set_values(&in, W, 12);
+  lv_anim_set_duration(&in, 320);
+  lv_anim_set_path_cb(&in, lv_anim_path_ease_out);
+  lv_anim_start(&in);
+  lv_anim_t out;
+  lv_anim_init(&out);
+  lv_anim_set_var(&out, banner);
+  lv_anim_set_exec_cb(&out, slideX);
+  lv_anim_set_values(&out, 12, -W);
+  lv_anim_set_delay(&out, 320 + 1100);
+  lv_anim_set_duration(&out, 280);
+  lv_anim_set_path_cb(&out, lv_anim_path_ease_in);
+  lv_anim_set_completed_cb(&out, lv_obj_delete_anim_completed_cb);
+  lv_anim_start(&out);
+}
+
+void noteTurn(const AtlasScreen &s) {
+  if (!s.showLife || s.kind == ScreenKind::Overview) return;
+  for (uint8_t i = 0; i < s.playerCount; ++i) {
+    if (!(s.players[i].flags & CHIP_ACTIVE)) continue;
+    const uint8_t turn = s.players[i].number;
+    if (bannerTurn != 0 && turn != bannerTurn) showTurnBanner(s.players[i], s.round);
+    bannerTurn = turn;
+    return;
+  }
+}
+
 }  // namespace
 
 void renderAtlasScreen(const AtlasScreen &s, const ScreenStyle &chosen) {
@@ -506,7 +828,15 @@ void renderAtlasScreen(const AtlasScreen &s, const ScreenStyle &chosen) {
   drawHeader(root, s);
   drawHero(root, s);
   drawBody(root, s);
-  for (uint8_t i = 0; i < s.buttonCount; ++i) drawButton(root, s, s.buttons[i]);
+  drawLists(root, s);
+  for (uint8_t i = 0; i < s.buttonCount; ++i) {
+    const TouchButton &b = s.buttons[i];
+    if (!tabAction(b) && !listRow(s, b)) drawButton(root, s, b);
+  }
+  drawTabBar(root, s);
+  // A new match starts without a banner; only a pass shows one.
+  if (!s.showLife) bannerTurn = 0;
+  noteTurn(s);
 }
 
 void renderAtlasSplash(const ScreenStyle &chosen, const char *firmware) {
