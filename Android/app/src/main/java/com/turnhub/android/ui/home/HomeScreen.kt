@@ -288,7 +288,8 @@ fun HomeScreen(
                 BrandBar(uiState, running = summary?.state == TableState.RUNNING, reduceMotion = reduceMotion,
                     report = reportContext,
                     onManualClick = { showManual = true })
-                if (onOpenSharedGame != null && !setup.visible && tab == HomeTab.GAME && !atlasGame)
+                // Atlas games too: other phones can join through this one instead of each connecting to Atlas.
+                if (onOpenSharedGame != null && !setup.visible && tab == HomeTab.GAME)
                     TextButton(onClick = onOpenSharedGame) { Text(when {
                         sharedGameCode != null -> "Play together · Code ${sharedGameCode.uppercase()}"
                         sharedGameHosting -> "Play together · Hosting"

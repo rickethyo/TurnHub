@@ -92,6 +92,8 @@ data class TableSummary(
     val dayNight: DayNight? = null,
     /** Turns go counterclockwise until the table sets them back. */
     val turnOrderReversed: Boolean = false,
+    /** Atlas's own `/api/v1/state` body (public table state) that a Play together hub relays to its guests. */
+    val stateWire: String? = null,
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding

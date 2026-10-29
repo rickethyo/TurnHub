@@ -196,3 +196,31 @@ its five-minute connection hold, it returns `unavailable`. Hosting keeps the
 screen awake; leaving the app starts a short foreground service that keeps
 answering guests during the hold. Switching back to it allows existing guests to reconnect. Changing
 Wi-Fi or a host process restart can require stopping/restarting sharing.
+
+## Relaying an Atlas game
+
+A device connected to an Atlas can share **Atlas's** game instead of its own
+(**Play together → Share Atlas game**, owner 2026-10-29), so the table's other
+phones join that hub over Wi-Fi rather than each polling Atlas. Invitations,
+TLS, join codes, lockout, tokens, receipts and the request set are the same;
+`LanAtlasSessions` answers them in place of `LanSessions`. Direct connections to
+Atlas remain supported (two table screens, say).
+
+- Snapshots carry `atlas` instead of `game`: `state` (Atlas's own public
+  `/api/v1/state` body, unchanged), `firmware`, the hub's `names`
+  (`module`, `slot`, `name`) and `ageMs` (how old the hub's copy is, at most
+  60 s). The guest parses `state` with the same parser as a direct connection and
+  runs its clocks from `now - ageMs`. They also carry `claimed` and `viewOnly`.
+- Roles: `player` with an Atlas player number, or `display` with `player: 0`
+  (a read-only screen of the whole table). Seats follow the player's name.
+- `match` is `atlasId/bootId/game`. Atlas orders every tap itself, so only a
+  different boot or game makes a command `stale`; `revision` is informational.
+- The hub forwards a player's command to Atlas through its own tablet grant, for
+  that player's seat only: `life`, `commander`, `pass`, `win`, `confirm`, `deny`,
+  `concede`, `monarch`, `eliminate`, `pause` (1 pauses, 0 resumes) and the
+  Magic counters. Anything else is `rejected`. Atlas decides each one; `ok` means
+  Atlas applied it. A tap Atlas never answered keeps no receipt, so its retry
+  reaches Atlas once.
+- A hub that isn't the Atlas table's tablet answers commands with `view-only`
+  and snapshots with `viewOnly: true`. Changing the hub's Atlas or game ends the
+  session (`ended`); Atlas not answering is `unavailable`.

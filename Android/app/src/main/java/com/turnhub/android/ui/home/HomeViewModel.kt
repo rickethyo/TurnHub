@@ -862,6 +862,20 @@ class HomeViewModel(
         viewModelScope.launch { tablet.block() }
     }
 
+    /**
+     * Play together's view of the connected Atlas game: guests get Atlas's state through
+     * this device, and their taps go to Atlas through its tablet grant, for their own seat.
+     */
+    internal val lanAtlasLink = object : com.turnhub.android.lan.LanAtlasLink {
+        override fun summary() = repository.tableSummary.value
+        override fun canAct() = (playerSession.state.value as? PlayerSessionState.SignedIn)?.info?.tablet == true
+        override suspend fun act(game: Int, block: suspend com.turnhub.android.data.TableControls.() -> Boolean): Boolean {
+            var applied = false
+            tablet.inGame(game) { applied = block() }
+            return applied
+        }
+    }
+
     fun onTabletMessageDismissed() = tablet.clearMessage()
 
     fun onTabletPinDismissed() = tablet.dismissPin()

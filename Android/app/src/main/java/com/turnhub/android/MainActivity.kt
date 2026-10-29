@@ -104,7 +104,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private val lanViewModel: com.turnhub.android.lan.LanViewModel by viewModels {
-        viewModelFactory { initializer { com.turnhub.android.lan.LanViewModel(applicationContext, standaloneViewModel.table) } }
+        viewModelFactory { initializer { com.turnhub.android.lan.LanViewModel(applicationContext, standaloneViewModel.table,
+            atlasLink = homeViewModel.lanAtlasLink) } }
     }
     private var sharedGameOpen by mutableStateOf(false)
     private var pendingSharedAction: (() -> Unit)? = null
@@ -430,8 +431,8 @@ class MainActivity : ComponentActivity() {
                         val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
                         val localState by standaloneViewModel.table.state.collectAsStateWithLifecycle()
                         val lanState by lanViewModel.state.collectAsStateWithLifecycle()
-                        androidx.compose.runtime.DisposableEffect(lanState.host != null || lanState.remote != null) {
-                            if (lanState.host != null || lanState.remote != null)
+                        androidx.compose.runtime.DisposableEffect(lanState.host != null || lanState.joined) {
+                            if (lanState.host != null || lanState.joined)
                                 window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                             onDispose { window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
                         }
@@ -439,9 +440,9 @@ class MainActivity : ComponentActivity() {
                             homeViewModel.onPresentationForeground(!standalone && !localStats && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
                         }
                         val shellState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
-                        if (sharedGameOpen || lanState.remote != null) {
+                        if (sharedGameOpen || lanState.joined) {
                             com.turnhub.android.ui.tablet.SharedGameScreen(lanState, localState.game, lanViewModel,
-                                ::requestSharedNetwork, reduceMotion, onClose = { sharedGameOpen = false })
+                                ::requestSharedNetwork, reduceMotion, onClose = { sharedGameOpen = false }, atlas = uiState.tableSummary)
                         } else if (localStats) {
                             com.turnhub.android.ui.tablet.StatsScreen(localState, onClose = { localStats = false },
                                 onShareStats = ::shareStats)

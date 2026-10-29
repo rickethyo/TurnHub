@@ -78,7 +78,7 @@ class HttpAtlasTransport(
             }
             throw AtlasException(AtlasFailure.HttpStatus(response.code, detail))
         }
-        return parse { AtlasWireParser.parseState(response.body) }
+        return parse { AtlasWireParser.parseState(response.body).copy(wire = response.body) }
     }
 
     override suspend fun getSeats(): List<SeatEntry> {
