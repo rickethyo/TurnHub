@@ -229,6 +229,14 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   accounts (`/api/accounts/merge`: summed totals, merged ID archived and
   redirected for sync and imports). Open: device checks, and a durable merge
   record so a cut mid-merge can't leave totals on both accounts.
+- **Device Admin account** (owner, 2026-10-29; *Planned*): every device has
+  one Admin account as its owner's account type, building on local-account
+  parity (phone players keep equal powers). Phone first-run setup creates it
+  (with a PIN), offering a separate everyday profile too. The type stays on its
+  home device: an uploaded, merged or synced account arrives as a regular
+  account. Setting up an Atlas that has no Admin yet asks "Install your admin
+  account as the device admin?", with the option to make a separate one. Plan:
+  `plans/device-admin-account.md` in the project files.
 - **Local library management:** export/backup, explicit history deletion/
   retention and large-history storage/performance remain open. Local player
   editing, PIN removal, account deletion and retained UUID-based history are
