@@ -3,9 +3,11 @@
 // Atlas/enclosure/s3_phone_case. Portrait, rounded, flat or gently tilted.
 //
 // Two printed parts held together by four M3 screws from the back that pass
-// through the board's own mounting holes:
+// through the board's own mounting holes, plus an optional clear light bar:
 //   tub   - back (flat or wedge), walls, standoffs, side gutters for plugs
-//   bezel - front frame with the display window and a light window below it
+//   bezel - front frame with the display window
+//   pipe  - clear light bar (print in clear PETG/PLA) that carries the
+//           board's back-facing RGB LED to a glowing slot under USB-C
 //
 // Board numbers come from the LCDWIKI E32R28T outline drawing V1.0
 // (2024-08-31): PCB 50 x 86 x 1.6 mm, R3.5 corners, four 3.2 mm holes 4 mm
@@ -20,7 +22,7 @@
 //
 // Render one part: openscad -D 'part="tub"' -D tilt=5 -o tub.stl sigil_e32r28t_case.scad
 
-part = "assembly"; // "tub", "bezel", "assembly"
+part = "assembly"; // "tub", "bezel", "pipe", "assembly"
 tilt = 0;          // degrees; > 0 makes the back a wedge, thick end at the top
 
 /* [Board, from the vendor drawing] */
@@ -39,7 +41,7 @@ clr_usb = 1.0;
 gutter = 4.5;       // room beside each long edge for the side-entry plugs
 wall = 2.0;
 back_t = 1.6;
-back_clear = 5.6;
+back_clear = 7.6;   // back parts 5.09 + the light bar under them
 lip_t = 1.2;
 glass_gap = 0.4;    // resistive touch: the bezel must never press on it
 R_out = 7;
@@ -61,10 +63,6 @@ win_w = 46.0;
 win_from_top = 9.9;
 win_to = 70.5;
 win_chamfer = 0.8;
-// Small parts on the front strip below the display (about 20.5 and 28.9 mm
-// from the left, 80-84 mm from the top); left visible through a window.
-light_win = [12.0, 5.0];
-light_c = [0, L / 2 - 81.6];
 usb_cut = [13.0, 7.0];
 usb_z = -1.6;
 buttons = [[W / 2 - 13.43, -L / 2 + 3.26], [-W / 2 + 13.43, -L / 2 + 3.26]]; // RESET, BOOT
@@ -74,6 +72,18 @@ sd_cut = [13.0, 2.8];
 sd_z_top = 0.4;
 sd_recess_len = 24;         // fingertip recess around the slot
 sd_recess_depth = 1.0;
+
+/* [Light bar] */
+// The only RGB LED faces the back, about mid-width and 41.5 mm from the USB
+// end (from Ricky's photo, *Needs verification*). A clear bar lies on the
+// floor: a post rises to just under the LED, a 45-degree face turns the light
+// toward USB-C, and the bar ends flush in a slot below the USB-C opening.
+led_c = [0, -L / 2 + 41.5];
+pipe_w = 4.0;
+pipe_h = 1.8;
+pipe_post_d = 3.2;
+pipe_post_gap = 1.0;  // stays this far below the board's back face
+pipe_clr = 0.25;
 
 $fn = 48;
 
@@ -89,6 +99,9 @@ out_x = in_x + wall;
 out_top = in_top + wall;
 out_bot = in_bot - wall;
 eps = 0.01;
+
+pipe_y1 = led_c[1] + pipe_post_d / 2;  // far end, with the 45-degree face
+pipe_y0 = out_bot;                      // flush with the outside of the bottom wall
 
 function back_z(y) = z_bot - tan(tilt) * (y - out_bot); // underside of the wedge
 
@@ -142,7 +155,14 @@ module tub() {
             // Shelf in the gutter so a microSD card slides straight into the socket.
             translate([-in_x - eps, sd_y - sd_cut[0] / 2, z_floor - eps])
                 cube([gutter + eps, sd_cut[0], sd_z_top - sd_cut[1] - z_floor + eps]);
+            // Low rails that keep the light bar on its line.
+            for (sx = [-1, 1])
+                translate([sx * (pipe_w / 2 + pipe_clr + 0.6) - 0.6, in_bot, z_floor - eps])
+                    cube([1.2, pipe_y1 - in_bot, 1.0 + eps]);
         }
+        // Slot in the bottom wall where the light bar shows, under USB-C.
+        translate([-pipe_w / 2 - pipe_clr, out_bot - 1, z_floor - eps])
+            cube([pipe_w + 2 * pipe_clr, wall + clr_usb + 2, pipe_h + pipe_clr]);
         holes_at() {
             translate([0, 0, -60]) cylinder(d = screw_clear, h = 80);
             translate([0, 0, -60]) cylinder(d = head_d, h = head_seat_z + 60);
@@ -174,11 +194,23 @@ module bezel() {
                 rrect(-win_w / 2 - win_chamfer, win_y0 - win_chamfer,
                       win_w / 2 + win_chamfer, win_y1 + win_chamfer, 2 + win_chamfer);
         }
-        translate([light_c[0], light_c[1], z_pocket - 1]) linear_extrude(lip_t + 2)
-            rrect(-light_win[0] / 2, -light_win[1] / 2, light_win[0] / 2, light_win[1] / 2, 1.5);
         holes_at() translate([0, 0, z_split - 1]) cylinder(d = screw_pilot, h = z_top - 1 - z_split);
         usb_opening();
         sd_recess();
+    }
+}
+
+// In place in the case: bar on the floor, post up to the LED.
+module light_pipe() {
+    post_top = -pipe_post_gap;
+    difference() {
+        union() {
+            translate([-pipe_w / 2, pipe_y0, z_floor]) cube([pipe_w, pipe_y1 - pipe_y0, pipe_h]);
+            translate([led_c[0], led_c[1], z_floor]) cylinder(d = pipe_post_d, h = post_top - z_floor);
+        }
+        // 45-degree face under the post bounces the light toward USB-C.
+        translate([0, led_c[1] - pipe_post_d / 2, z_floor]) rotate([45, 0, 0])
+            translate([-5, 0, -20]) cube([10, 30, 20]);
     }
 }
 
@@ -192,8 +224,10 @@ module board() {
 // The tub prints on its back: a tilted one is rotated so the wedge lies flat.
 if (part == "tub") rotate([tilt, 0, 0]) tub();
 else if (part == "bezel") translate([0, 0, z_top]) rotate([180, 0, 0]) bezel();
+else if (part == "pipe") rotate([0, 90, 0]) translate([pipe_w / 2, 0, 0]) light_pipe(); // on its side
 else {
     color("dimgray") tub();
+    color("white", 0.7) light_pipe();
     board();
     color("gray", 0.9) translate([0, 0, 25]) bezel();
 }
