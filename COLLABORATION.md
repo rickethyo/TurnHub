@@ -50,7 +50,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
-| TH-021 | Shared table authority design | Android, hosting design | UI integrated; common engine/authority staged | Owner / design implementation and device acceptance |
+| TH-021 | Shared table authority design | Android, hosting design, `core/` | UI integrated; shared rules core started (2026-10-29) | Claude / Atlas runs the core, then the app via NDK |
 | TH-020 | Star Commander game mode | Atlas, protocol, Android, stats | Implemented on `claude/master`; host and JVM tests pass | Owner / interpretations below, playtest G14 |
 | TH-019 | iOS foundation and development flow | Android baseline, iOS, contracts, CI | Foundation implemented; port awaits Android stabilization | Owner / Android baseline acceptance; see STAGED_CHANGES |
 | TH-018 | Phone-owned profiles and lighter Atlas requests | Android, account import, documentation | Implemented; local validation passes | Owner / device acceptance and PR review |
@@ -1422,3 +1422,21 @@ changes.
   `render-atlas-lvgl.sh` / `render-sigil-lvgl.sh` (new turn-banner frames).
   Board look and animation smoothness on the classic-ESP32 Sigil need an
   on-device check.
+
+### One game path: shared rules core / Claude / 2026-10-29
+
+Owner asked for one game path, with Atlas games working like phone games,
+and agreed to a shared core engine for phone and Atlas alike. Started slice 1
+of [Shared table authority](Documentation/engineering/TABLE_AUTHORITY.md):
+
+- `core/`: portable C++17 port of `StandaloneGame` (JSON state and actions,
+  injected time and randomness). Magic formats, 2HG, Star Commander, Emperor,
+  Bag of Doom, Yu-Gi-Oh!, Pokémon prizes, Lorcana lore. Death May Die,
+  Planechase and the Pokémon/Lorcana turn markers come next.
+- `core/scenarios/`: seven shared scenarios (109 steps). `core/tests/run-linux.sh`
+  passes them all (ASan/UBSan); `CoreScenarioTest.kt` replays the same files
+  against the Kotlin rules (CI; no Android SDK in the authoring container).
+- Next: Atlas runs the core in place of `GameEngine`/`Lobby`, then the app
+  links it through the NDK. Codex: any rule change to `StandaloneGame` now
+  needs the same change in `core/` and a scenario step.
+

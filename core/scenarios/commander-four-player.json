@@ -1,0 +1,226 @@
+{
+  "name": "Commander, four players",
+  "about": "A Commander game from the lobby to the last player standing: turns, life, Commander damage, the monarch and a concession.",
+  "steps": [
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "Ana"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "Ben"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "Cal"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "Dee"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "   "
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "Ana"
+      },
+      "expect": {
+        "players.4.name": "Ana"
+      }
+    },
+    {
+      "action": {
+        "do": "removePlayer",
+        "index": 4
+      },
+      "expect": {
+        "players.3.name": "Dee"
+      }
+    },
+    {
+      "action": {
+        "do": "start",
+        "nowMs": 1000000,
+        "gameId": "g1"
+      },
+      "random": [
+        2
+      ],
+      "expect": {
+        "state": "RUNNING",
+        "active": 2,
+        "starter": 2,
+        "players.0.life": 40,
+        "startedAtMs": 1000000,
+        "runningSinceMs": 1000000,
+        "gameId": "g1"
+      }
+    },
+    {
+      "action": {
+        "do": "pass",
+        "index": 0,
+        "nowMs": 1010000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "pass",
+        "index": 2,
+        "nowMs": 1030000
+      },
+      "expect": {
+        "active": 3,
+        "players.2.turnsCompleted": 1,
+        "players.2.turnMs": 30000,
+        "players.2.fastestTurnMs": 30000,
+        "turnStartedAtElapsedMs": 30000
+      }
+    },
+    {
+      "action": {
+        "do": "changeLife",
+        "index": 0,
+        "delta": -5,
+        "nowMs": 1031000
+      },
+      "expect": {
+        "players.0.life": 35
+      }
+    },
+    {
+      "action": {
+        "do": "commanderDamage",
+        "index": 1,
+        "source": 1,
+        "commander": 1,
+        "delta": 5,
+        "nowMs": 1032000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "commanderDamage",
+        "index": 1,
+        "source": 0,
+        "commander": 1,
+        "delta": 21,
+        "nowMs": 1040000
+      },
+      "expect": {
+        "players.1.life": 19,
+        "players.1.eliminated": true,
+        "players.1.outOrder": 1,
+        "players.1.commanderDamage.0": [
+          21,
+          0
+        ],
+        "state": "RUNNING"
+      }
+    },
+    {
+      "action": {
+        "do": "claimMonarch",
+        "index": 3
+      },
+      "expect": {
+        "monarch": 3
+      }
+    },
+    {
+      "action": {
+        "do": "changeCounter",
+        "index": 0,
+        "kind": "commander-casts",
+        "value": 1,
+        "commander": 2,
+        "nowMs": 1045000
+      },
+      "expect": {
+        "players.0.counters.commanderCasts": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "action": {
+        "do": "concede",
+        "index": 3,
+        "nowMs": 1050000
+      },
+      "expect": {
+        "players.3.eliminated": true,
+        "players.3.conceded": true,
+        "players.3.outOrder": 2,
+        "active": 0,
+        "monarch": 0,
+        "turnStartedAtElapsedMs": 50000
+      }
+    },
+    {
+      "action": {
+        "do": "changeLife",
+        "index": 2,
+        "delta": -40,
+        "nowMs": 1060000
+      },
+      "expect": {
+        "players.2.life": 0,
+        "players.2.eliminated": true,
+        "players.2.outOrder": 3,
+        "state": "GAME_OVER",
+        "winner": 0,
+        "winners": [
+          0
+        ],
+        "elapsedMs": 60000,
+        "runningSinceMs": null
+      }
+    },
+    {
+      "action": {
+        "do": "changeLife",
+        "index": 0,
+        "delta": -1,
+        "nowMs": 1061000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "rematch",
+        "nowMs": 1070000,
+        "gameId": "g2"
+      },
+      "random": [
+        1
+      ],
+      "expect": {
+        "state": "RUNNING",
+        "active": 1,
+        "gameId": "g2",
+        "players.2.eliminated": false,
+        "players.2.life": 40,
+        "winners": [],
+        "monarch": null
+      }
+    }
+  ]
+}

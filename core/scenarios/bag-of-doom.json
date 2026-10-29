@@ -1,0 +1,199 @@
+{
+  "name": "Bag of Doom",
+  "about": "The bag's boundary and warm-up, life loss on another's turn, eligibility, and crediting an elimination.",
+  "steps": [
+    {
+      "action": {
+        "do": "setFormat",
+        "profile": "MTG_BAG_OF_DOOM"
+      },
+      "expect": {
+        "startingLife": 40
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "A"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "B"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "C"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "D"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "E"
+      }
+    },
+    {
+      "action": {
+        "do": "start",
+        "nowMs": 1000000,
+        "gameId": "d1"
+      },
+      "random": [
+        0
+      ],
+      "expect": {
+        "askEliminationSource": true,
+        "doomBag.atRisk": 31,
+        "doomBag.boundary": 5,
+        "doomBag.warmup": 4,
+        "doomBag.cycle": 1
+      }
+    },
+    {
+      "action": {
+        "do": "pass",
+        "index": 0,
+        "nowMs": 1010000
+      }
+    },
+    {
+      "action": {
+        "do": "pass",
+        "index": 1,
+        "nowMs": 1020000
+      }
+    },
+    {
+      "action": {
+        "do": "pass",
+        "index": 2,
+        "nowMs": 1030000
+      }
+    },
+    {
+      "action": {
+        "do": "pass",
+        "index": 3,
+        "nowMs": 1040000
+      }
+    },
+    {
+      "action": {
+        "do": "pass",
+        "index": 4,
+        "nowMs": 1050000
+      }
+    },
+    {
+      "action": {
+        "do": "changeLife",
+        "index": 0,
+        "delta": 0,
+        "nowMs": 1060000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "changeLife",
+        "index": 2,
+        "delta": -1,
+        "nowMs": 1060000
+      },
+      "expect": {
+        "active": 0,
+        "doomBag.warmup": 3,
+        "doomBag.atRisk": 30,
+        "players.2.life": 39
+      }
+    },
+    {
+      "action": {
+        "do": "doomEligibility",
+        "player": 1,
+        "inBag": true,
+        "cycle": 1
+      },
+      "expect": {
+        "doomBag.atRisk": 31
+      }
+    },
+    {
+      "action": {
+        "do": "doomEligibility",
+        "player": 1,
+        "inBag": true,
+        "cycle": 2
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "changeLife",
+        "index": 2,
+        "delta": -39,
+        "nowMs": 1061000
+      },
+      "expect": {
+        "players.2.eliminated": true,
+        "players.2.eliminationPending": true,
+        "players.2.outOrder": 1,
+        "state": "PAUSED",
+        "doomBag.atRisk": 26
+      }
+    },
+    {
+      "action": {
+        "do": "togglePause",
+        "nowMs": 1062000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "resolveElimination",
+        "victim": 3,
+        "source": 2,
+        "self": false,
+        "nowMs": 1063000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "resolveElimination",
+        "victim": 3,
+        "source": 1,
+        "self": false,
+        "nowMs": 1063000
+      },
+      "expect": {
+        "players.2.eliminatedBy": 1,
+        "players.2.eliminationPending": false,
+        "doomBag.atRisk": 25,
+        "doomBag.boundary": 1,
+        "doomBag.warmup": 0,
+        "doomBag.cycle": 2,
+        "state": "PAUSED"
+      }
+    },
+    {
+      "action": {
+        "do": "togglePause",
+        "nowMs": 1064000
+      },
+      "expect": {
+        "state": "RUNNING"
+      }
+    }
+  ]
+}

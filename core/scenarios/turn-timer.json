@@ -1,0 +1,133 @@
+{
+  "name": "Turn timer",
+  "about": "Warning and timeout with pass-and-demerit, pausing, and Back to setup within the first three minutes.",
+  "steps": [
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "A"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "B"
+      }
+    },
+    {
+      "action": {
+        "do": "setTurnTimer",
+        "ms": 60000
+      },
+      "expect": {
+        "turnTimerMs": 60000
+      }
+    },
+    {
+      "action": {
+        "do": "setTimerRules",
+        "timeout": "PASS_AND_DEMERIT",
+        "earnExtensions": false,
+        "earnBeforePercent": 75,
+        "maxEarnedPerGame": 2
+      },
+      "expect": {
+        "timerRules.timeout": "PASS_AND_DEMERIT"
+      }
+    },
+    {
+      "action": {
+        "do": "setTimerRules",
+        "timeout": "PASS",
+        "earnExtensions": false,
+        "earnBeforePercent": 50,
+        "maxEarnedPerGame": 2
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "start",
+        "nowMs": 1000000,
+        "gameId": "c1"
+      },
+      "random": [
+        0
+      ],
+      "timer": {
+        "nowMs": 1055000,
+        "phase": "WARNING",
+        "remainingMs": 5000
+      }
+    },
+    {
+      "action": {
+        "do": "applyTurnTimeout",
+        "nowMs": 1059000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "applyTurnTimeout",
+        "nowMs": 1061000
+      },
+      "expect": {
+        "players.0.demerits": 1,
+        "players.1.demerits": 0,
+        "active": 1,
+        "timeoutHandled": false,
+        "players.0.turnsCompleted": 1,
+        "turnStartedAtElapsedMs": 61000
+      }
+    },
+    {
+      "action": {
+        "do": "togglePause",
+        "nowMs": 1070000
+      },
+      "expect": {
+        "state": "PAUSED",
+        "elapsedMs": 70000,
+        "runningSinceMs": null
+      }
+    },
+    {
+      "action": {
+        "do": "pass",
+        "index": 1,
+        "nowMs": 1080000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "togglePause",
+        "nowMs": 1100000
+      },
+      "expect": {
+        "state": "RUNNING",
+        "runningSinceMs": 1100000
+      },
+      "timer": {
+        "nowMs": 1100000,
+        "phase": "NORMAL",
+        "remainingMs": 51000
+      }
+    },
+    {
+      "action": {
+        "do": "backToSetup",
+        "nowMs": 1100000
+      },
+      "expect": {
+        "state": "LOBBY",
+        "players.0.demerits": 0,
+        "players.0.life": 0,
+        "turnTimerMs": 60000,
+        "active": null,
+        "gameId": ""
+      }
+    }
+  ]
+}

@@ -1,0 +1,215 @@
+{
+  "name": "Lobby formats and Star Commander",
+  "about": "Official modes lock life until house rules are on; Two-Headed Giant and Star Commander seating; Star Commander's win and Sean Mode.",
+  "steps": [
+    {
+      "action": {
+        "do": "setFormat",
+        "profile": "MTG"
+      },
+      "expect": {
+        "profile": "MTG",
+        "startingLife": 20,
+        "poisonLimit": 10
+      }
+    },
+    {
+      "action": {
+        "do": "setStartingLife",
+        "life": 25
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "setHouseRules",
+        "on": true
+      },
+      "expect": {
+        "houseRules": true,
+        "startingLife": 20
+      }
+    },
+    {
+      "action": {
+        "do": "setStartingLife",
+        "life": 25
+      },
+      "expect": {
+        "startingLife": 25
+      }
+    },
+    {
+      "action": {
+        "do": "setHouseRules",
+        "on": false
+      },
+      "expect": {
+        "startingLife": 20
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "A"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "B"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "C"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "D"
+      }
+    },
+    {
+      "action": {
+        "do": "setTwoHeadedGiant",
+        "on": true
+      },
+      "expect": {
+        "twoHeadedGiant": true,
+        "startingLife": 30,
+        "poisonLimit": 15
+      }
+    },
+    {
+      "action": {
+        "do": "setFormat",
+        "profile": "MTG_STAR_COMMANDER"
+      },
+      "expect": {
+        "twoHeadedGiant": false,
+        "startingLife": 40,
+        "poisonLimit": 10
+      }
+    },
+    {
+      "action": {
+        "do": "start",
+        "nowMs": 1000000,
+        "gameId": "s1"
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "setTurnTimer",
+        "ms": 1500
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "swapPlayers",
+        "a": 0,
+        "b": 3
+      },
+      "expect": {
+        "players.0.name": "D",
+        "players.3.name": "A"
+      }
+    },
+    {
+      "action": {
+        "do": "movePlayer",
+        "index": 3,
+        "by": -3
+      },
+      "expect": {
+        "players.0.name": "A",
+        "players.3.name": "D"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "E"
+      }
+    },
+    {
+      "action": {
+        "do": "start",
+        "nowMs": 1000000,
+        "gameId": "s1"
+      },
+      "random": [
+        4
+      ],
+      "expect": {
+        "state": "RUNNING",
+        "active": 4,
+        "players.4.life": 40
+      }
+    },
+    {
+      "action": {
+        "do": "commanderDamage",
+        "index": 0,
+        "source": 1,
+        "commander": 1,
+        "delta": 3,
+        "nowMs": 1001000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "changeLife",
+        "index": 1,
+        "delta": -40,
+        "nowMs": 1002000
+      },
+      "expect": {
+        "players.1.eliminated": true,
+        "state": "RUNNING"
+      }
+    },
+    {
+      "action": {
+        "do": "changeLife",
+        "index": 2,
+        "delta": -40,
+        "nowMs": 1003000
+      },
+      "expect": {
+        "players.2.eliminated": true,
+        "state": "GAME_OVER",
+        "winners": [
+          4
+        ],
+        "winner": 4
+      }
+    },
+    {
+      "action": {
+        "do": "seanModeRematch",
+        "nowMs": 1004000,
+        "gameId": "s2"
+      },
+      "random": [
+        0
+      ],
+      "expect": {
+        "state": "RUNNING",
+        "active": 0,
+        "players.0.name": "A",
+        "players.1.name": "C",
+        "players.2.name": "E",
+        "players.3.name": "B",
+        "players.4.name": "D",
+        "players.1.life": 40
+      }
+    }
+  ]
+}
