@@ -263,8 +263,10 @@ device has one Admin account: its owner's account type. On Atlas it is the
 first-run Admin with Admin permissions. On a phone or tablet,
 `LocalLibrary.deviceAdmin` names it; it needs a PIN or password and gives no
 extra powers, so phone players stay equal. First launch asks the owner to
-create it ("Not now" closes the prompt; any account with a PIN can be made
-Admin from its settings, and handing it on needs the current Admin unlocked).
+create it or choose an account already on the device (its PIN unlocks it, or
+one without a PIN chooses one first). "Not now" closes the prompt; any account
+with a PIN can be made Admin from its settings, and handing it on needs the
+current Admin unlocked.
 Deleting it leaves the device without one, and the prompt returns.
 
 The type stays on its home device: uploads, merges and syncs carry no

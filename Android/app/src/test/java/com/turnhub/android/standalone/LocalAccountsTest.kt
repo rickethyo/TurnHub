@@ -341,6 +341,30 @@ class LocalAccountsTest {
         assertNull(StandaloneTable(store).state.value.library.deviceAdmin)
     }
 
+    @Test fun `an account already on the device can be promoted to its Admin`() {
+        val store = Store()
+        val table = StandaloneTable(store, shortGameMs = 0)
+        assertTrue(table.createAccount("Ricky", LocalCredential.create("1234")))
+        assertTrue(table.createAccount("Ana"))
+        val (ricky, ana) = table.state.value.library.players
+        val locked = StandaloneTable(store)
+        assertFalse(locked.promoteToDeviceAdmin(ricky.localId, "9999"))
+        assertNull(locked.state.value.library.deviceAdmin)
+        // A PIN-less account needs one chosen first.
+        assertFalse(locked.promoteToDeviceAdmin(ana.localId, null))
+        assertTrue(locked.promoteToDeviceAdmin(ricky.localId, "1234"))
+        assertTrue(locked.state.value.library.isDeviceAdmin(ricky.localId))
+        // Only while the device has no Admin.
+        assertFalse(locked.promoteToDeviceAdmin(ana.localId, null, LocalCredential.create("2468")))
+
+        val fresh = StandaloneTable(Store(), shortGameMs = 0)
+        assertTrue(fresh.createAccount("Sam"))
+        val sam = fresh.state.value.library.players.last()
+        assertTrue(fresh.promoteToDeviceAdmin(sam.localId, null, LocalCredential.create("2468")))
+        assertTrue(fresh.state.value.library.players.last().credential!!.verifies("2468"))
+        assertTrue(fresh.state.value.library.isDeviceAdmin(sam.localId))
+    }
+
     @Test fun `an account copied to another device keeps its ID, look, links and PIN and can be that device's Admin`() {
         val phone = StandaloneTable(Store(), shortGameMs = 0)
         assertTrue(phone.createAdminAccount("Ricky", LocalCredential.create("2468")))

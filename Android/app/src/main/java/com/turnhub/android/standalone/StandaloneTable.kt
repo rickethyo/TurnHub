@@ -175,6 +175,18 @@ class StandaloneTable(
         return setDeviceAdmin(created.localId)
     }
 
+    /**
+     * First-time setup on a device that already has accounts: makes one of them the Admin. An
+     * account with a PIN or password unlocks with [secret]; one without gets [newCredential].
+     */
+    fun promoteToDeviceAdmin(localId: String, secret: String?, newCredential: LocalCredential? = null): Boolean {
+        if (_state.value.library.deviceAdmin != null) return false
+        val player = _state.value.library.players.firstOrNull { it.localId == localId } ?: return false
+        val ready = if (player.credential != null) secret != null && unlockAccount(localId, secret)
+            else newCredential != null && setAccountCredential(localId, newCredential)
+        return ready && setDeviceAdmin(localId)
+    }
+
     enum class CopyResult { ADDED, ALREADY_HERE, NOT_SAVED }
 
     /**
