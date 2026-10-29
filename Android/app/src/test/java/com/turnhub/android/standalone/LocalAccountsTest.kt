@@ -189,6 +189,46 @@ class LocalAccountsTest {
         assertEquals(DeliveryStatus.IMPORTED, table.state.value.library.delivery(record.recordId).status)
     }
 
+    @Test fun `profile sync keeps keys and activity, and an Atlas copy never counts as a local change`() {
+        val store = Store()
+        var now = 5_000L
+        val table = StandaloneTable(store, wallClock = { now }, shortGameMs = 0)
+        assertTrue(table.createAccount("Ana"))
+        val ana = table.state.value.library.players.single()
+        assertEquals(0L, ana.lastActivityMs)
+        // A tile background doesn't sync, so it isn't a synced change.
+        now = 6_000
+        assertTrue(table.saveAccount(ana.localId, "Ana", ana.personalization.copy(
+            tileBackground = com.turnhub.android.domain.TileBackground(TileBackgroundStyle.GRADIENT))))
+        assertEquals(0L, table.state.value.library.players.single().lastActivityMs)
+        now = 7_000
+        assertTrue(table.saveAccount(ana.localId, "Ana B", table.state.value.library.players.single().personalization))
+        assertEquals(7_000L, table.state.value.library.players.single().lastActivityMs)
+
+        val key = "0123456789ABCDEF0123456789ABCDEF"
+        assertFalse(table.linkAccount(ana.localId, "THA-1", ana.profileId, "not-a-key"))
+        assertTrue(table.linkAccount(ana.localId, "THA-1", ana.profileId, key))
+        // Relinking the same profile without a new key keeps the old one.
+        assertTrue(table.linkAccount(ana.localId, "THA-1", ana.profileId))
+        assertEquals(key, table.state.value.library.players.single().links.single().linkKey)
+
+        assertTrue(table.applySyncedProfile(ana.localId, "Ana from Atlas", "#112233", "crown", true, 9_000))
+        val synced = table.state.value.library.players.single()
+        assertEquals("Ana from Atlas", synced.name)
+        assertEquals("#112233", synced.personalization.color)
+        assertEquals("crown", synced.personalization.avatar)
+        assertTrue(synced.personalization.reduceMotion)
+        assertEquals(9_000L, synced.lastActivityMs)
+        assertFalse(table.applySyncedProfile(ana.localId, "Bad", "red", null, false, 10_000))
+
+        val restored = StandaloneTable(store, shortGameMs = 0).state.value.library.players.single()
+        assertEquals(key, restored.links.single().linkKey)
+        assertEquals(9_000L, restored.lastActivityMs)
+        assertTrue(table.dropLinkKey(ana.localId, "THA-1"))
+        assertNull(table.state.value.library.players.single().links.single().linkKey)
+        assertEquals(ana.profileId, table.state.value.library.players.single().links.single().profileId)
+    }
+
     @Test fun `full offline statistics and final counter details survive restart`() {
         val first = object : Random() { override fun nextBits(bitCount: Int) = 0 }
         val game = StandaloneGame().addPlayer("Ana", localId = "a").addPlayer("Ben", localId = "b")

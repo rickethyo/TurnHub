@@ -116,6 +116,14 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     suspend fun profiles(endpoint: AtlasEndpoint): List<ProfileSummary> =
         call { transports.create(endpoint).getProfiles() }
 
+    /** Profile sync (no sign-in: the request carries the profile's link key). */
+    suspend fun syncProfile(endpoint: AtlasEndpoint, fields: List<Pair<String, String>>): RawResponse = call {
+        transports.create(endpoint).raw("POST", "/api/profiles/sync", "", fields)
+    }
+
+    suspend fun avatarPresets(endpoint: AtlasEndpoint): List<com.turnhub.android.protocol.AvatarIcon> =
+        call { transports.create(endpoint).getAvatars() }
+
     /** An independent verification session; leaves the active table login unchanged. */
     suspend fun verifyLocalAccount(endpoint: AtlasEndpoint, player: com.turnhub.android.standalone.SavedLocalPlayer,
         targetId: String?, secret: String): LocalAccountTransfer.Result = call {

@@ -75,10 +75,11 @@ String createProfileWithCredentials(const String &name,const String &pin,PinHash
   if(requestedId.length() && profileExists(requestedId)) return String();
   const String id=requestedId.length()?requestedId:createProfile(); profiles[id].name=name; profiles[id].hash=hash(id,pin); return id;
 }
-String createProfileWithName(const String &name) {
+String createProfileWithName(const String &name,const String &requestedId) {
   char ids[MAX_LOGIN_PROFILES][9];
   if(name.length()==0||listProfileIds(ids,MAX_LOGIN_PROFILES)>=MAX_LOGIN_PROFILES) return String();
-  const String id=createProfile(); profiles[id].name=name; return id;
+  if(requestedId.length() && profileExists(requestedId)) return String();
+  const String id=requestedId.length()?requestedId:createProfile(); profiles[id].name=name; return id;
 }
 size_t listProfileIds(char (*ids)[9],size_t capacity) {
   size_t n=0; for(const auto &p:profiles) {
@@ -111,6 +112,17 @@ String nameForProfile(const String &id) { return profileExists(id)?profiles[id].
 bool setNameForProfile(const String &id,const String &name) { if(!profileExists(id))return false; profiles[id].name=name; return true; }
 String storedPinHashForProfile(const String &id) { return profileExists(id)?profiles[id].hash:String(); }
 bool hasPinForProfile(const String &id) { return storedPinHashForProfile(id).length()==64; }
+bool loadSyncForProfile(const String &id, ProfileSync &sync) {
+  sync=ProfileSync{}; if(!profileExists(id)) return false; sync=profiles[id.c_str()].sync; return true;
+}
+bool saveSyncForProfile(const String &id, const ProfileSync &sync) {
+  if(!profileExists(id)||!gameSettingsWritable) return false; profiles[id.c_str()].sync=sync; return true;
+}
+String mergedProfileFor(const String &profileId) {
+  String id=profileId;
+  for(int hop=0;hop<4&&profileExists(id)&&profiles[id.c_str()].sync.mergedInto[0];++hop) id=String(profiles[id.c_str()].sync.mergedInto);
+  return id;
+}
 bool loadPolicyForProfile(const String &id,ProfilePolicy &policy) {
   if(!profileExists(id)||!profiles[id].policyReadable)return false;
   policy=profiles[id].policy;return true;

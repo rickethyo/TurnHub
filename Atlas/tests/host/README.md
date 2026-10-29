@@ -23,7 +23,7 @@ guest reads/writes, temporary bindings, legacy remember-key cleanup and placehol
 the account limit. No saved user records are deleted by this filtering.
 
 `src/atlas_board_none.cpp` (the S3 Atlas's parts without drivers yet: status
-LED, BOOT sleep, no speaker or battery), `src/sd_card.cpp` (Arduino SD_MMC) and
+LED, BOOT sleep, no speaker), `src/atlas_battery_s3.cpp` (its ADC), `src/sd_card.cpp` (Arduino SD_MMC) and
 `src/secure_link_backend.cpp` (mbedTLS self-test) are firmware-only;
 `test_globals.cpp` stubs them (no speaker, a battery reading the scenarios
 set, no card, self-test passes). The gauge logic and checkpoint

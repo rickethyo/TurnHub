@@ -138,6 +138,10 @@ ImportResult importGame(const ImportedGame &game) {
   // guest. A player this record already credited is skipped, even if their
   // profile has since been archived.
   bool fresh[MAX_IMPORT_PLAYERS] = {};
+  // A profile an Admin merged into another is credited as that one.
+  String resolved[MAX_IMPORT_PLAYERS];
+  for (uint8_t i = 0; i < game.playerCount; ++i)
+    if (game.players[i].profileId.length()) resolved[i] = TurnHubProfiles::mergedProfileFor(game.players[i].profileId);
   uint8_t mapped = 0;
   for (uint8_t i = 0; i < game.playerCount; ++i) {
     const auto &p = game.players[i];
@@ -147,12 +151,13 @@ ImportResult importGame(const ImportedGame &game) {
         (p.conceded && !p.outOrder) || p.eliminatedBy < -1 ||
         (p.eliminatedBy >= 0 && (!p.outOrder || p.conceded || p.eliminatedBy == i || p.eliminatedBy >= game.playerCount ||
             (game.twoHeadedGiant && p.eliminatedBy / 2 == i / 2)))) return result;
-    const String &id = game.players[i].profileId;
+    const String &id = resolved[i];
     if (id.length() == 0) continue;
     ++mapped;
     bool bad = false;
-    for (uint8_t j = 0; j < i; ++j) bad = bad || game.players[j].profileId == id;
-    if (!bad && seen(receiptHash(game.recordId, id))) {
+    for (uint8_t j = 0; j < i; ++j) bad = bad || resolved[j] == id;
+    // Credited before a merge under the old ID counts as credited.
+    if (!bad && (seen(receiptHash(game.recordId, id)) || seen(receiptHash(game.recordId, game.players[i].profileId)))) {
       ++result.already;
     } else {
       bad = bad || !TurnHubProfiles::profileExists(id) || archived(id);
@@ -175,7 +180,7 @@ ImportResult importGame(const ImportedGame &game) {
   // Remembered first: a cut after this loses the statistics, never doubles them.
   for (uint8_t i = 0; i < game.playerCount; ++i) {
     if (!fresh[i]) continue;
-    taken.hashes[taken.next] = receiptHash(game.recordId, game.players[i].profileId);
+    taken.hashes[taken.next] = receiptHash(game.recordId, resolved[i]);
     taken.next = static_cast<uint8_t>((taken.next + 1) % IMPORTED_CAPACITY);
     if (taken.count < IMPORTED_CAPACITY) ++taken.count;
   }
@@ -186,7 +191,7 @@ ImportResult importGame(const ImportedGame &game) {
   for (uint8_t i = 0; i < game.playerCount; ++i) {
     if (!fresh[i]) continue;
     const ImportedPlayer &player = game.players[i];
-    const String profileId = player.profileId;
+    const String profileId = resolved[i];
     TurnHubProfiles::ProfileStats stats{};
     if (!TurnHubProfiles::loadStatsForProfile(profileId, stats)) {
       result.unmatched[result.unmatchedCount++] = player.name;

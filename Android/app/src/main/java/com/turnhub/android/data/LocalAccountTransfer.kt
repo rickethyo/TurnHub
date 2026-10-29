@@ -7,7 +7,7 @@ import kotlinx.coroutines.withContext
 
 /** Credentials prove a link; a public eight-digit ID alone never proves ownership. */
 class LocalAccountTransfer(private val transport: AtlasSessionTransport) {
-    data class Result(val profileId: String, val warning: String? = null)
+    data class Result(val profileId: String, val warning: String? = null, val linkKey: String? = null)
     suspend fun verify(player: SavedLocalPlayer, targetId: String?, secret: String): Result {
         require(ProfileSecret.isValid(secret)) { ProfileSecret.RULE }
         if (targetId == null) require(withContext(kotlinx.coroutines.Dispatchers.Default) {
@@ -24,6 +24,11 @@ class LocalAccountTransfer(private val transport: AtlasSessionTransport) {
             require(login.profileId == expected) { "Atlas did not preserve the requested identity. Update Atlas before retrying." }
             val info = transport.me(login.token)
             require(info.profileId == expected) { "Atlas did not verify this account." }
+            // Atlas 0.7.18+ gives this phone a key to keep the profile in sync; older ones don't.
+            val linkKey = try {
+                val response = transport.raw("POST", "/api/profiles/link-key", login.token)
+                if (response.ok) org.json.JSONObject(response.body).optString("linkKey").takeIf { it.matches(Regex("[0-9A-F]{32}")) } else null
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
             // Merging retains both histories and Atlas's existing preferences. A
             // newly created account can receive phone-owned presentation choices.
             var warning: String? = null
@@ -56,7 +61,7 @@ class LocalAccountTransfer(private val transport: AtlasSessionTransport) {
                 } catch (e: kotlinx.coroutines.CancellationException) { throw e }
                 catch (_: Exception) { warning = "Account linked. Atlas could not save all personalization; your local choices are retained." }
             }
-            return Result(expected, warning)
+            return Result(expected, warning, linkKey)
         } finally {
             withContext(NonCancellable) {
                 try { transport.logout(login.token) } catch (_: Exception) { /* RAM token will expire. */ }

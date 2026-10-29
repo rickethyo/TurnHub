@@ -197,6 +197,47 @@ void seatToken(lv_obj_t *parent, const ScreenPlayer &p, int16_t x, int16_t y, in
   lv_obj_center(l);
 }
 
+// The cell at the header's right: an outline with its charge as a fill, the
+// percent beside it, "LOW" in words as well as the warning colour, and a
+// lightning bolt over the cell while charging. Returns the width it took.
+int16_t drawBattery(lv_obj_t *bar, const AtlasScreen &s) {
+  if (s.batteryPercent < 0) return 0;
+  constexpr int16_t bodyW = 24, bodyH = 12, nubW = 3;
+  const int16_t x = W - 14 - bodyW - nubW;
+  const int16_t y = (SCREEN_HEADER_H - bodyH) / 2;
+  const uint32_t ink = s.batteryLow ? pal().warning : pal().textSecondary;
+  lv_obj_t *body = box(bar, x, y, bodyW, bodyH);
+  lv_obj_set_style_radius(body, 3, 0);
+  lv_obj_set_style_border_width(body, 1, 0);
+  lv_obj_set_style_border_color(body, rgb(ink), 0);
+  lv_obj_t *nub = box(bar, x + bodyW, y + 3, nubW, bodyH - 6);
+  lv_obj_set_style_radius(nub, 1, 0);
+  lv_obj_set_style_bg_opa(nub, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(nub, rgb(ink), 0);
+  const int16_t fillW = (bodyW - 4) * s.batteryPercent / 100;
+  if (fillW > 0) {
+    lv_obj_t *fill = box(body, 2, 2, fillW, bodyH - 4);
+    lv_obj_set_style_radius(fill, 1, 0);
+    lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(fill, rgb(s.batteryLow ? pal().warning : s.batteryCharging ? pal().good : ink), 0);
+  }
+  if (s.batteryCharging) {
+    static const lv_point_precise_t bolt[] = {{14, 0}, {8, 7}, {13, 7}, {9, 14}};
+    lv_obj_t *line = lv_line_create(bar);
+    lv_obj_remove_style_all(line);
+    lv_line_set_points(line, bolt, 4);
+    lv_obj_set_style_line_width(line, 2, 0);
+    lv_obj_set_style_line_rounded(line, true, 0);
+    lv_obj_set_style_line_color(line, rgb(pal().text), 0);
+    lv_obj_set_pos(line, x + 1, y - 1);
+  }
+  char label[12];
+  snprintf(label, sizeof(label), s.batteryLow ? "LOW %d%%" : "%d%%", static_cast<int>(s.batteryPercent));
+  const int16_t labelW = static_cast<int16_t>(textWidth(label, &th_semi_16));
+  text(bar, label, &th_semi_16, ink, x - 6 - labelW, 7, labelW, LV_TEXT_ALIGN_RIGHT);
+  return static_cast<int16_t>(bodyW + nubW + 6 + labelW + 12);
+}
+
 void drawHeader(lv_obj_t *root, const AtlasScreen &s) {
   lv_obj_t *bar = box(root, 0, 0, W, SCREEN_HEADER_H);
   lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_BOTTOM, 0);
@@ -207,10 +248,12 @@ void drawHeader(lv_obj_t *root, const AtlasScreen &s) {
   size_t n = 0;
   if (s.round > 0) n += snprintf(right + n, sizeof(right) - n, "Round %u  ", static_cast<unsigned>(s.round));
   if (s.gameClock[0]) n += snprintf(right + n, sizeof(right) - n, "%s  ", s.gameClock);
+  if (s.sdOnUsb) n += snprintf(right + n, sizeof(right) - n, "USB DRIVE  ");
   if (s.sdMissing) n += snprintf(right + n, sizeof(right) - n, "NO SD  ");
   if (s.update != TurnHub::UpdateKind::None) n += snprintf(right + n, sizeof(right) - n, "Update  ");
   snprintf(right + n, sizeof(right) - n, "Sigils %u", static_cast<unsigned>(s.sigilsOnline));
-  text(bar, right, &th_semi_16, s.sdMissing ? pal().warning : pal().textSecondary, 110, 7, W - 124,
+  const int16_t battery = drawBattery(bar, s);
+  text(bar, right, &th_semi_16, s.sdMissing ? pal().warning : pal().textSecondary, 110, 7, W - 124 - battery,
        LV_TEXT_ALIGN_RIGHT);
 }
 

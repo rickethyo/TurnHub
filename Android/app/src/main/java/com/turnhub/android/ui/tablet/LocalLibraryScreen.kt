@@ -83,6 +83,7 @@ fun LocalLibraryScreen(
     table: com.turnhub.android.standalone.StandaloneTable? = null,
     canLink: Boolean = false,
     onLinkAccount: (String, String?, String) -> Unit = { _, _, _ -> },
+    onBringPlayers: (String?, String?) -> Unit = { _, _ -> },
     embeddedSection: LibrarySection? = null,
     onStats: () -> Unit = {},
 ) {
@@ -138,6 +139,10 @@ fun LocalLibraryScreen(
                                 Modifier.fillMaxWidth(), enabled = state.storageProblem == null)
                             if (canLink) TextButton(onClick = onLoadProfiles,
                                 enabled = !importState.busy && state.storageProblem == null) { Text("Load Atlas accounts") }
+                        }
+                        if (canLink && importState.atlasId != null && state.library.players.isNotEmpty()) item(key = "bring-players") {
+                            BringPlayersCard(state.library.players, importState,
+                                enabled = !importState.busy && state.storageProblem == null, onBring = onBringPlayers)
                         }
                         if (state.library.players.isEmpty()) item(key = "no-players") {
                             Text("Every table starts with a name.", color = p.muted)

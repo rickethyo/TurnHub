@@ -160,7 +160,16 @@ return 409 without modifying any account. Account import creates that identity,
 then copies available personalization through ordinary authenticated APIs and
 image review. Linking to an existing account requires its PIN/password, retains
 Atlas personalization and saves an `(atlasId, profileId)` link. Existing local
-history and UUIDs remain unchanged. Verifying an exact-ID signed-in account can
+history and UUIDs remain unchanged. **Bring players to this table**
+(`ui/tablet/BringPlayersCard.kt`) lists every local account's state with the
+connected Atlas; PIN-less accounts upload together on the signed-in session
+(Atlas 0.7.18+), accounts with a PIN one at a time with it. Each link then
+holds a link key (`AtlasProfileLink.linkKey`), and whenever the Atlas
+accounts load the app syncs every keyed account through
+`/api/profiles/sync`: the copy with the later `lastActivityMs` wins name,
+color, preset avatar and reduced motion as a whole (an Atlas copy applied here
+keeps Atlas's time); the card shows each account's Atlas totals. PINs and
+statistics never sync this way. Verifying an exact-ID signed-in account can
 establish its own link; an unverified public-ID match never does.
 
 Once signed in, complete verified mappings automatically queue finished matches,

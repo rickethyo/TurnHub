@@ -77,6 +77,9 @@ enum class TouchAction : uint8_t {
   // factory reset Atlas, each held like the BOOT button's gestures; Sleep
   // (a tap) until the screen is touched.
   OpenDevice, UnpairSigils, FactoryResetAtlas, SleepAtlas,
+  // ...and USB drive (a tap) lends the microSD card to a computer on USB-C,
+  // or takes it back (sd_card.h).
+  UsbDrive,
   OpenThemes, ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast, InvertDisplay,
   // In a game, like the app's table: the lower halves of a player's tile take
   // a life off or add one (ChangeLife for that player), its name band opens
@@ -176,6 +179,7 @@ struct AtlasScreen {
   char detail[48] = {};
   char notice[48] = {};   // Action message; shown in place of detail while set.
   bool sdMissing = false; // Header warning: "NO SD CARD".
+  bool sdOnUsb = false;   // ...or "USB DRIVE" while a computer has the card.
   // Battery charge estimate (0-100), or -1 with no cell; the header shows it
   // as a cell icon and percent, and warns "LOW BATTERY" while batteryLow is set.
   int8_t batteryPercent = -1;
@@ -231,7 +235,7 @@ inline bool samePlayerTime(const ScreenPlayer &a, const ScreenPlayer &b) {
 }
 
 inline bool sameHeader(const AtlasScreen &a, const AtlasScreen &b) {
-  return sameScreenText(a.badge, b.badge) && a.sdMissing == b.sdMissing &&
+  return sameScreenText(a.badge, b.badge) && a.sdMissing == b.sdMissing && a.sdOnUsb == b.sdOnUsb &&
       a.batteryPercent == b.batteryPercent && a.batteryLow == b.batteryLow &&
       a.batteryCharging == b.batteryCharging &&
       a.update == b.update && a.sigilsOnline == b.sigilsOnline &&

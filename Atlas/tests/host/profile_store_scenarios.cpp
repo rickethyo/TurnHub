@@ -49,6 +49,11 @@ static void existingAccounts() {
   assert(createProfileWithCredentials("Hijack", "9999", hashPin, imported).length() == 0);
   assert(createProfileWithCredentials("Invalid", "1234", hashPin, "BAD-ID").length() == 0);
   assert(FakeNvs::writes == importWrites && nameForProfile(imported) == "Phone profile");
+  // A PIN-less upload keeps its requested ID and never takes an existing one.
+  assert(createProfileWithName("Hijack", imported).length() == 0 && createProfileWithName("Bad", "BAD-ID").length() == 0);
+  assert(FakeNvs::writes == importWrites);
+  const String pinless = createProfileWithName("No PIN", "FEED0001");
+  assert(pinless == "FEED0001" && nameForProfile(pinless) == "No PIN" && !hasPinForProfile(pinless));
   const uint8_t mac[6] = {1, 2, 3, 4, 5, 6};
   const String id = createProfileWithCredentials("Owner", "1234", hashPin);
   assert(id.length() == 8);

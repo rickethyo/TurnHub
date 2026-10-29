@@ -1365,3 +1365,36 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   Sigil host suites, adapter audit, client contract, `thfw.py` tests and the
   doc check pass. Android unit tests could not run in the cloud container
   (Gradle plugins unreachable); CI runs them.
+
+### Profile transfer: Bring players to this table / Claude / 2026-10-29
+
+- Atlas 0.7.18-dev: `/api/profiles/register` with `profileId` and an empty
+  `pin` creates a PIN-less profile under that ID for a signed-in session (owner
+  decision 2026-10-28: first sign-in sets its PIN).
+- Android: Players shows a "Bring players to this table" card once the Atlas
+  accounts are loaded: each local account's state in words (on this table / ID
+  already here / new, no PIN / new, has a PIN). PIN-less accounts upload in one
+  tap; PIN accounts with their PIN (existing import path). Games follow.
+- Validation: Linux host suites with sanitizers pass (new PIN-less upload
+  checks); contract and adapter audits pass. New BringPlayersTest; Android is
+  compiled on the owner's PC / CI, not in this cloud session. No hardware run.
+- Next in plans/profile-transfer.md: automatic same-ID sync, then Atlas merge.
+- Atlas profile sync (same day): per-profile link keys (hashes of the newest two
+  in NVS `t<id>` with the activity time) and `POST /api/profiles/sync`; the
+  newer copy of name/color/avatar/reduced motion wins; Atlas takes wall-clock
+  time from the phone. Host scenario covers keys, rotation, phone-newer,
+  same, Atlas-newer and bad input. The app side is next.
+- App profile sync (same day): links keep the Atlas link key (from
+  `/api/profiles/link-key` during import/link, or the PIN-less upload answer);
+  players carry `lastActivityMs`, stamped only when a synced field changes.
+  Sync runs when the Atlas accounts load; Atlas's newer copy applies without
+  restamping; 401 drops the key. New LocalAccountsTest case; Android compile
+  is CI's/the PC's.
+- Atlas account merge (same day): `POST /api/accounts/merge` (Admin; portal
+  person sheet) sums core and SD statistics plus moderation into the kept
+  account, saves it, then marks the other `mergedInto` and archives it. Sync on
+  a merged ID answers 409 with the kept ID and a fresh key; imports resolve
+  merged IDs (up to 4 hops) and check receipts under both IDs. Known gap: a
+  cut between the two saves leaves totals on both accounts (no durable merge
+  record yet). Host scenario covers rules, sums, redirect and import dedupe;
+  App Manual and http-v1 updated. No hardware run.

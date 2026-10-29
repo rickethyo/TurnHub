@@ -24,6 +24,11 @@ struct GameResult {
 // standalone games alike).
 void applyGameResult(TurnHubProfiles::ProfileStats &stats, const GameResult &result);
 
+// Combines a merged profile's statistics into the one that stays: counts and
+// times add up, the fastest and longest turns are kept, and the last game
+// stays the survivor's unless it has none.
+void mergeStats(TurnHubProfiles::ProfileStats &into, const TurnHubProfiles::ProfileStats &from);
+
 using ResolveProfileIdCallback = String (*)(const TurnHub::PlayerSeat &seat);
 
 // Roll one completed game into the persistent profile attached to each logical

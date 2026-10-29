@@ -167,12 +167,13 @@ String createProfileWithCredentials(const String &name, const String &pin, PinHa
 }
 
 // A named profile with no PIN, as a table tablet seats a new player.
-String createProfileWithName(const String &name) {
+String createProfileWithName(const String &name, const String &requestedId) {
   if ((!preferencesReady && !begin()) || name.length() == 0 || name.length() > 32) return String();
+  if (requestedId.length() && (!validProfileId(requestedId) || profileExists(requestedId))) return String();
   char ids[MAX_LOGIN_PROFILES][PROFILE_ID_LENGTH + 1];
   if (listProfileIds(ids, MAX_LOGIN_PROFILES) >= MAX_LOGIN_PROFILES) return String();
   for (uint8_t attempt = 0; attempt < 16; ++attempt) {
-    const String id = makeProfileId();
+    const String id = requestedId.length() ? requestedId : makeProfileId();
     if (profileExists(id)) continue;
     const String nameKey = profileKey('n', id);
     // Publish the profile marker last, as createProfileWithCredentials does.
@@ -251,6 +252,54 @@ bool savePolicyForProfile(const String &profileId, const ProfilePolicy &policy) 
       statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
   return writeStoredPolicy(statsStorage, profileKey('a', profileId).c_str(), policy) ==
       TurnHubStorage::Status::Ok;
+}
+
+// "t<profileId>": schema 1, flags (bit 0 changed without a clock), next key
+// slot, activity (8 bytes little-endian), the link key hashes, then the
+// profile it was merged into (8 characters, or zeros).
+constexpr uint8_t SYNC_SCHEMA = 1;
+constexpr size_t SYNC_KEYS_END = 11 + MAX_LINK_KEYS * LINK_KEY_HASH_LENGTH;
+constexpr size_t SYNC_SIZE = SYNC_KEYS_END + PROFILE_ID_LENGTH;
+
+bool loadSyncForProfile(const String &profileId, ProfileSync &sync) {
+  sync = ProfileSync{};
+  if (!preferencesReady || !profileExists(profileId) ||
+      statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
+  uint8_t data[SYNC_SIZE] = {};
+  size_t size = 0;
+  const auto status = statsStorage.read(profileKey('t', profileId).c_str(), data, sizeof(data), size);
+  if (status == TurnHubStorage::Status::NotFound) return true;
+  if (status != TurnHubStorage::Status::Ok || size != SYNC_SIZE || data[0] != SYNC_SCHEMA ||
+      data[2] >= MAX_LINK_KEYS) return false;
+  sync.changedWithoutClock = (data[1] & 1) != 0;
+  sync.nextKey = data[2];
+  for (uint8_t b = 0; b < 8; ++b) sync.activityMs |= static_cast<uint64_t>(data[3 + b]) << (8 * b);
+  for (uint8_t k = 0; k < MAX_LINK_KEYS; ++k) memcpy(sync.keyHashes[k], data + 11 + k * LINK_KEY_HASH_LENGTH, LINK_KEY_HASH_LENGTH);
+  memcpy(sync.mergedInto, data + SYNC_KEYS_END, PROFILE_ID_LENGTH);
+  return true;
+}
+
+bool saveSyncForProfile(const String &profileId, const ProfileSync &sync) {
+  if (!preferencesReady || !profileExists(profileId) || sync.nextKey >= MAX_LINK_KEYS ||
+      statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
+  uint8_t data[SYNC_SIZE] = {};
+  data[0] = SYNC_SCHEMA;
+  data[1] = sync.changedWithoutClock ? 1 : 0;
+  data[2] = sync.nextKey;
+  for (uint8_t b = 0; b < 8; ++b) data[3 + b] = static_cast<uint8_t>(sync.activityMs >> (8 * b));
+  for (uint8_t k = 0; k < MAX_LINK_KEYS; ++k) memcpy(data + 11 + k * LINK_KEY_HASH_LENGTH, sync.keyHashes[k], LINK_KEY_HASH_LENGTH);
+  memcpy(data + SYNC_KEYS_END, sync.mergedInto, PROFILE_ID_LENGTH);
+  return statsStorage.write(profileKey('t', profileId).c_str(), data, sizeof(data)) == TurnHubStorage::Status::Ok;
+}
+
+String mergedProfileFor(const String &profileId) {
+  String id = profileId;
+  for (uint8_t hop = 0; hop < 4; ++hop) {
+    ProfileSync sync;
+    if (!loadSyncForProfile(id, sync) || sync.mergedInto[0] == 0) return id;
+    id = String(sync.mergedInto);
+  }
+  return id;
 }
 
 bool loadAccessibilityForProfile(const String &profileId, AccessibilityPrefs &prefs) {

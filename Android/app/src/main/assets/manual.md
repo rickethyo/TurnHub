@@ -363,7 +363,11 @@ An Atlas can run Game 1 and Game 2 at once. The **Game on this Atlas** selector 
 
 A player on this device can be linked to an Atlas account. Connect, open **Players**, load the Atlas accounts and open the local player. **Create this account on Atlas** makes a matching Atlas account with the same account ID and personalization (it needs a PIN or password). To merge with an existing Atlas account instead, pick it and enter its PIN or password. Names alone never link or merge accounts.
 
-Once every player in a finished local game is linked to an account on that Atlas, the game is added to their Atlas statistics automatically. Other games can be matched to Atlas accounts by hand in History. A local game is never deleted by importing it.
+**Bring players to this table** (in **Players** once the Atlas accounts are loaded) lists every player on this device and where they stand with that Atlas. Players without a PIN go over together in one tap while you're signed in; the first person to sign in to one sets its PIN. A player with a PIN goes over when you enter it. A player whose ID is already on that Atlas is linked from **Edit** with that account's PIN.
+
+A linked player stays in sync with that Atlas whenever the app loads its accounts (Atlas 0.7.18 or later). Name, color, avatar and reduced motion follow whichever copy was changed most recently. PINs stay separate on each device, and statistics only travel with games. The player shows how many games they have played and won on that Atlas.
+
+Once a player in a finished local game is linked to an account on that Atlas, the game is added to their Atlas statistics automatically (Atlas 0.7.16 or later; older Atlases need every player linked). Players not linked yet count as guests, and get the game added when they're linked later. Other games can be matched to Atlas accounts by hand in History. A local game is never deleted by importing it.
 
 ## Roles on an Atlas
 
@@ -377,7 +381,7 @@ An Admin manages an Atlas from **Settings** in the app or from the administratio
 
 To open the portal, join the Atlas's Wi-Fi and go to http://192.168.4.1/portal, then sign in as an Admin. It works without a microSD card.
 
-- **Manage people:** roles, archive and restore accounts, image approval.
+- **Manage people:** roles, archive and restore accounts, image approval, and merging two accounts that belong to the same person (their statistics are added together, the other account is archived, and phones linked to it follow the account that is kept).
 
 - **Wi-Fi:** the table's own password, 8 to 63 characters. Saving restarts Atlas.
 

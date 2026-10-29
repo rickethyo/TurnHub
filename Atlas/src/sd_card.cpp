@@ -3,6 +3,9 @@
 
 #include <FS.h>
 #include <SD_MMC.h>
+#include <USB.h>
+#include <USBMSC.h>
+#include <esp32-hal-tinyusb.h>
 #include <ff.h>
 #include <diskio_impl.h>
 #include <atomic>
@@ -75,7 +78,8 @@ class ArduinoSdFileSystem final : public TurnHubStorage::FileSystem,
 ArduinoSdFileSystem sdFileSystem;
 TurnHubStorage::SdBlobStore sdStore;
 
-enum class CardState : uint8_t { NotStarted, NoCard, Mounted, StoreError, SelfTestError };
+// UsbDrive: the card is lent to a computer over USB (shareSdCardOverUsb).
+enum class CardState : uint8_t { NotStarted, NoCard, Mounted, StoreError, SelfTestError, UsbDrive };
 enum class LogState : uint32_t { Off, Starting, Ready, IoError, TaskUnavailable };
 // Written by the SD worker (and boot), read by the application and HTTP.
 std::atomic<CardState> cardState{CardState::NotStarted};
@@ -98,6 +102,7 @@ const char *cardStateName(CardState state) {
     case CardState::Mounted: return "mounted";
     case CardState::StoreError: return "store_error";
     case CardState::SelfTestError: return "self_test_error";
+    case CardState::UsbDrive: return "usb_drive";
   }
   return "unknown";
 }
@@ -303,6 +308,94 @@ bool cardAnswers() {
   return disk_read(0, sector, 0, 1) == RES_OK;
 }
 
+// USB drive (owner request 2026-10-29): the card as a USB mass-storage disk
+// next to the USB serial port, to copy logs and statistics off it or put
+// files on it. Atlas and the computer never use the card at the same time:
+// sharing drops Atlas's file system (no record store, no SD log, the header
+// says USB DRIVE) and only then shows the computer a disk; ending it (a tap,
+// the computer's Eject, or the cable pulled) hides the disk first and then
+// remounts from scratch, so Atlas reads whatever the computer wrote. The SD
+// worker makes both changes. Constructed at start-up so the USB descriptor
+// has the disk before USB starts; with no card shared it reports no medium.
+USBMSC usbDisk;
+std::atomic<bool> usbShareWanted{false};
+constexpr uint16_t SECTOR_BYTES = 512;
+
+// Sector reads and writes for the computer, straight to the card (FatFs
+// drive 0 is the SDMMC driver, as in cardAnswers). TinyUSB's task calls them;
+// only while shared, and under the card lock.
+int32_t usbDiskRead(uint32_t lba, uint32_t offset, void *buffer, uint32_t size) {
+  if (offset != 0 || size % SECTOR_BYTES != 0) return -1;
+  CardLock lock;
+  if (cardState.load() != CardState::UsbDrive) return -1;
+  return disk_read(0, static_cast<BYTE *>(buffer), lba, size / SECTOR_BYTES) == RES_OK
+             ? static_cast<int32_t>(size) : -1;
+}
+int32_t usbDiskWrite(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_t size) {
+  if (offset != 0 || size % SECTOR_BYTES != 0) return -1;
+  CardLock lock;
+  if (cardState.load() != CardState::UsbDrive) return -1;
+  return disk_write(0, buffer, lba, size / SECTOR_BYTES) == RES_OK
+             ? static_cast<int32_t>(size) : -1;
+}
+// The computer's Eject (SCSI START STOP UNIT with LoEj) gives the card back.
+bool usbDiskStartStop(uint8_t, bool start, bool loadEject) {
+  if (loadEject && !start) usbShareWanted.store(false);
+  return true;
+}
+// Windows asks for the disk's name when USB starts, before setup(), so it is
+// set during static initialization, after usbDisk (same file, so in order).
+struct UsbDiskName {
+  UsbDiskName() {
+    usbDisk.vendorID("TurnHub");
+    usbDisk.productID("Atlas microSD");
+    usbDisk.productRevision("1.0");
+  }
+} usbDiskName;
+
+// The core reboots into the ROM loader on any DTR/RTS pattern like esptool's,
+// and closing a serial monitor on Windows can make one (seen 2026-10-29).
+// Only the 1200 baud touch does it here; platformio.ini makes upload send it.
+void usbSerialEvent(void *, esp_event_base_t, int32_t id, void *data) {
+  if (id != ARDUINO_USB_CDC_LINE_CODING_EVENT || data == nullptr) return;
+  const auto *event = static_cast<const arduino_usb_cdc_event_data_t *>(data);
+  if (event->line_coding.bit_rate == 1200) usb_persist_restart(RESTART_BOOTLOADER);
+}
+
+// Cable pulled or computer asleep: the card comes back to Atlas.
+void usbEvent(void *, esp_event_base_t, int32_t id, void *) {
+  if (id == ARDUINO_USB_STOPPED_EVENT || id == ARDUINO_USB_SUSPEND_EVENT) usbShareWanted.store(false);
+}
+
+// Under the card lock, from the worker. Needs a working mount; logging and
+// the record store stop first.
+bool startUsbDrive() {
+  if (cardState.load() != CardState::Mounted) return false;
+  DWORD sectors = 0;
+  if (disk_ioctl(0, GET_SECTOR_COUNT, &sectors) != RES_OK || sectors == 0) return false;
+  sdStore.end();
+  // Detach FatFs so nothing Atlas still holds can write stale tables over
+  // the computer's changes; the files were all closed after each access.
+  f_unmount("0:");
+  cardState.store(CardState::UsbDrive);
+  logState.store(LogState::Off);
+  cardGeneration.fetch_add(1);
+  usbDisk.begin(sectors, SECTOR_BYTES);
+  usbDisk.mediaPresent(true);
+  serialLog.print("ATLAS|SD|USB_DRIVE|ON|");
+  serialLog.println(String(static_cast<unsigned long>(sectors)));
+  return true;
+}
+
+// Under the card lock, from the worker: hide the disk, then a clean mount.
+SdMountResult stopUsbDrive() {
+  usbDisk.mediaPresent(false);
+  cardFs.end();
+  cardState.store(CardState::NoCard);
+  serialLog.println("ATLAS|SD|USB_DRIVE|OFF");
+  return mountCard();
+}
+
 // The SD worker: drains the diagnostic log to the card and handles hot-plug
 // (SdHotplug). Low priority, never the gameplay loop.
 void sdTask(void *) {
@@ -321,6 +414,35 @@ void sdTask(void *) {
   for (;;) {
     vTaskDelay(pdMS_TO_TICKS(1000));
     uint32_t nowMs = millis();
+
+    // USB drive: while shared, nothing else here touches the card.
+    const bool shared = cardState.load() == CardState::UsbDrive;
+    if (usbShareWanted.load() != shared) {
+      if (shared) {
+        SdMountResult result;
+        {
+          CardLock lock;
+          result = stopUsbDrive();
+        }
+        plug.mountAttempted(result, millis());
+        logOpen = false;
+        logBlocked = false;
+      } else {
+        bool started;
+        {
+          CardLock lock;
+          started = startUsbDrive();
+        }
+        if (started) {
+          logOpen = false;
+        } else {
+          usbShareWanted.store(false);
+          serialLog.println("ATLAS|SD|USB_DRIVE|NO_CARD");
+        }
+      }
+      continue;
+    }
+    if (shared) continue;
 
     if (plug.mounted() && !logBlocked) {
       uint64_t lost = 0;
@@ -419,6 +541,13 @@ void sdTask(void *) {
 void beginSdCard() {
   cardFs.setPins(AtlasConfig::SD_CLK_PIN, AtlasConfig::SD_CMD_PIN, AtlasConfig::SD_D0_PIN,
                  AtlasConfig::SD_D1_PIN, AtlasConfig::SD_D2_PIN, AtlasConfig::SD_D3_PIN);
+  Serial.enableReboot(false);
+  Serial.onEvent(ARDUINO_USB_CDC_LINE_CODING_EVENT, usbSerialEvent);
+  usbDisk.onRead(usbDiskRead);
+  usbDisk.onWrite(usbDiskWrite);
+  usbDisk.onStartStop(usbDiskStartStop);
+  usbDisk.mediaPresent(false);
+  USB.onEvent(usbEvent);
   // Boot mounts synchronously so profiles start with the card if it is there.
   mountCard();
   // Without the card lock the worker would race the record store, so no lock
@@ -485,5 +614,15 @@ int wipeSdCard() {
 }
 
 uint32_t sdCardGeneration() { return cardGeneration.load(); }
+
+bool shareSdCardOverUsb(bool share) {
+  if (share && (cardLock == nullptr || cardState.load() != CardState::Mounted)) return false;
+  usbShareWanted.store(share);
+  return true;
+}
+
+bool sdCardUsbShareWanted() { return usbShareWanted.load(); }
+
+bool sdCardOnUsb() { return cardState.load() == CardState::UsbDrive; }
 
 }  // namespace TurnHubAtlas

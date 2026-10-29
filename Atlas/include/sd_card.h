@@ -34,6 +34,18 @@ bool sdCardReady();
 // compares it to re-point the luxury store (refreshSdLuxuryStore, main.cpp).
 uint32_t sdCardGeneration();
 
+// USB drive: lend the card to a computer on the USB-C port as a disk (Menu >
+// Device > USB drive), or take it back. Atlas stops using the card first and
+// remounts it afterwards; the SD worker applies the change within about a
+// second. The computer's Eject and pulling the cable also take it back. Only
+// with a working card; returns false otherwise. While shared, sdBlobStore()
+// is nullptr, so detailed statistics of a match finished then are not saved.
+bool shareSdCardOverUsb(bool share);
+// Sharing was asked for and not ended (the toggle's state).
+bool sdCardUsbShareWanted();
+// The computer has the card now (the header's USB DRIVE).
+bool sdCardOnUsb();
+
 // Atlas factory reset (owner decision 2026-09-29): deletes everything on a
 // mounted card, then unmounts it, under the card lock, so the card is empty as
 // after a format (this framework cannot reformat a card).

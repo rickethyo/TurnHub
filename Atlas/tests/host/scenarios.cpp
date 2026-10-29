@@ -454,6 +454,56 @@ static void virtualProfileFlow() {
   assert(request("/api/session/logout",responseField("token"))==200);
   assert(request("/api/profiles/register","",{{"name","Bad imported ID"},{"pin","1234"},{"profileId","NOTHEX!!"}})==400);
   ProfileFixture::profiles.erase("C0DE1234"); // Leave the shared capacity fixture unchanged.
+  // A PIN-less local account: uploaded by any signed-in phone under its own ID,
+  // never over an existing one; its first sign-in sets the PIN.
+  assert(request("/api/profiles/register","",{{"name","No PIN friend"},{"pin",""},{"profileId","FEED0001"}})==401);
+  assert(request("/api/profiles/register",afterLimit,{{"name","No PIN friend"},{"pin",""},{"profileId","FEED0001"}})==200);
+  assert(responseField("profileId")=="FEED0001" && server.body.find("\"hasPin\":false")!=std::string::npos);
+  const String uploadKey=responseField("linkKey");
+  assert(TurnHubProfiles::nameForProfile("FEED0001")=="No PIN friend" && !TurnHubProfiles::hasPinForProfile("FEED0001"));
+  assert(request("/api/profiles/register",afterLimit,{{"name","Again"},{"pin",""},{"profileId","FEED0001"}})==409);
+  // Profile sync (plans: profile-transfer F): the uploading phone's link key
+  // syncs the profile's settings; the newer side wins, stats never do.
+  {
+    const String key=uploadKey; assert(key.length()==32);
+    auto sync=[&](const String &linkKey,const char *activity,const char *name){
+      return request("/api/profiles/sync","",{{"profileId","FEED0001"},{"linkKey",linkKey},{"now","1800000000000"},
+        {"activity",activity},{"name",name},{"color","#112233"},{"avatar","2"},{"reduceMotion","1"}});
+    };
+    assert(sync("0123456789ABCDEF0123456789ABCDEF","1799999990000","Thief")==401);
+    assert(request("/api/profiles/sync","",{{"profileId","FEED0001"},{"linkKey",key},{"now","12"},{"activity","1"},{"name","x"}})==400);
+    // The phone's copy is newer: it replaces Atlas's as a whole.
+    const uint32_t played=ProfileFixture::profiles["FEED0001"].stats.gamesPlayed;
+    assert(sync(key,"1799999990000","Renamed on phone")==200 && server.body.find("\"applied\":\"phone\"")!=std::string::npos);
+    assert(TurnHubProfiles::nameForProfile("FEED0001")=="Renamed on phone" && TurnHubProfiles::avatarForProfile("FEED0001")==2);
+    uint32_t rgb=0; assert(TurnHubProfiles::jewelColorForProfile("FEED0001",rgb) && rgb==0x112233);
+    TurnHubProfiles::AccessibilityPrefs prefs; TurnHubProfiles::loadAccessibilityForProfile("FEED0001",prefs);
+    assert(prefs.ledStyle==TurnHubProfiles::LedStyle::ReducedMotion);
+    assert(server.body.find("\"activity\":1799999990000")!=std::string::npos);
+    assert(ProfileFixture::profiles["FEED0001"].stats.gamesPlayed==played);
+    assert(sync(key,"1799999990000","Same time")==200 && server.body.find("\"applied\":\"same\"")!=std::string::npos);
+    assert(TurnHubProfiles::nameForProfile("FEED0001")=="Renamed on phone");
+    // A later change on Atlas wins over the phone's older copy.
+    TurnHubProfiles::setNameForProfile("FEED0001","Renamed on Atlas");
+    TurnHubWebApi::internal::noteProfileChange("FEED0001");
+    assert(sync(key,"1799999995000","Older phone copy")==200 && server.body.find("\"applied\":\"atlas\"")!=std::string::npos);
+    assert(TurnHubProfiles::nameForProfile("FEED0001")=="Renamed on Atlas");
+    assert(server.body.find("\"name\":\"Renamed on Atlas\"")!=std::string::npos);
+    // Two phones may hold keys; a third link retires the oldest.
+    const String second=TurnHubWebApi::internal::issueLinkKey("FEED0001");
+    assert(second.length()==32 && TurnHubWebApi::internal::linkKeyValid("FEED0001",key));
+    assert(TurnHubWebApi::internal::issueLinkKey("FEED0001").length()==32);
+    assert(!TurnHubWebApi::internal::linkKeyValid("FEED0001",key) && TurnHubWebApi::internal::linkKeyValid("FEED0001",second));
+    // A signed-in phone asks for its own profile's key.
+    assert(request("/api/profiles/link-key","")==401);
+    assert(request("/api/profiles/link-key",afterLimit)==200 && responseField("profileId")==firstId);
+    assert(TurnHubWebApi::internal::linkKeyValid(firstId,responseField("linkKey")));
+  }
+  assert(request("/api/profiles/register",afterLimit,{{"name",""},{"pin",""},{"profileId","FEED0002"}})==400);
+  assert(request("/api/session/login","",{{"profileId","FEED0001"},{"pin","1357"}})==200);
+  assert(TurnHubProfiles::hasPinForProfile("FEED0001"));
+  assert(request("/api/session/logout",responseField("token"))==200);
+  ProfileFixture::profiles.erase("FEED0001");
   for(const char *bad:{"","123","pass1","seven77","tab\there!",
       "this password is far too long to be accepted by atlas at all, honestly"})
     assert(request("/api/profiles/register","",{{"name","Bad secret"},{"pin",bad}})==400);
@@ -754,6 +804,22 @@ static void gameProfilesAndLife() {
 }
 
 
+namespace {
+struct MemoryBlobs : TurnHubStorage::BlobStore {
+  std::map<std::string,std::vector<uint8_t>> blobs; bool failWrites=false;
+  TurnHubStorage::Status read(const char *key,void *data,size_t capacity,size_t &size) override {
+    auto found=blobs.find(key); if(found==blobs.end()) return TurnHubStorage::Status::NotFound;
+    size=found->second.size(); if(data==nullptr&&capacity==0) return TurnHubStorage::Status::Ok;
+    if(capacity<size) return TurnHubStorage::Status::InvalidArgument;
+    memcpy(data,found->second.data(),size); return TurnHubStorage::Status::Ok;
+  }
+  TurnHubStorage::Status write(const char *key,const void *data,size_t size) override {
+    if(failWrites) return TurnHubStorage::Status::IoError;
+    const auto *b=static_cast<const uint8_t*>(data); blobs[key]=std::vector<uint8_t>(b,b+size); return TurnHubStorage::Status::Ok;
+  }
+  TurnHubStorage::Status remove(const char *key) override { return blobs.erase(key)?TurnHubStorage::Status::Ok:TurnHubStorage::Status::NotFound; }
+};
+}
 static void accountPermissionsAndModeration(){
   using namespace TurnHubAccounts;
   enterEmptyLobby();TurnHubWebApi::configureModeration(moderateAccount);
@@ -885,6 +951,39 @@ static void accountPermissionsAndModeration(){
   }
   assert(server.body.find(std::string("ATLAS|LOBBY|JOIN|BROWSER|"))!=std::string::npos);
   assert(server.body.find(std::string("|PROFILE|")+devId.c_str()+"\n")!=std::string::npos);
+
+  // One person, two profiles: an Admin merges them (plans: profile-transfer D).
+  String oldId,keepId; const String oldToken=registerPhone("Phone copy",oldId); registerPhone("Atlas copy",keepId);
+  auto &oldStats=ProfileFixture::profiles[oldId.c_str()].stats, &keepStats=ProfileFixture::profiles[keepId.c_str()].stats;
+  oldStats.gamesPlayed=3; oldStats.gamesWon=2; oldStats.fastestTurnMs=5000; oldStats.longestTurnMs=90000;
+  keepStats.gamesPlayed=4; keepStats.gamesWon=1; keepStats.fastestTurnMs=8000; keepStats.longestTurnMs=60000;
+  keepStats.lastGameResult=TurnHubProfiles::LastGameResult::Loss;
+  const String oldKey=TurnHubWebApi::internal::issueLinkKey(oldId);
+  assert(request("/api/accounts/merge",oldToken,{{"profileId",oldId},{"into",keepId}})==403);
+  assert(request("/api/accounts/merge",admin,{{"profileId",oldId},{"into",oldId}})==400);
+  assert(request("/api/accounts/merge",admin,{{"profileId",adminId},{"into",keepId}})==409);
+  assert(request("/api/accounts/merge",admin,{{"profileId",oldId},{"into",keepId}})==200);
+  assert(keepStats.gamesPlayed==7 && keepStats.gamesWon==3 && keepStats.fastestTurnMs==5000 && keepStats.longestTurnMs==90000);
+  assert(keepStats.lastGameResult==TurnHubProfiles::LastGameResult::Loss);
+  { TurnHubAccounts::Account merged; assert(TurnHubAccounts::load(oldId,merged) && merged.archived); }
+  assert(TurnHubProfiles::mergedProfileFor(oldId)==keepId);
+  assert(request("/api/session/me",oldToken,{},HTTP_GET)==401);
+  assert(request("/api/accounts/merge",admin,{{"profileId",oldId},{"into",keepId}})==409);
+  // A phone still linked to the old profile follows it with a fresh key.
+  assert(request("/api/profiles/sync","",{{"profileId",oldId},{"linkKey",oldKey},{"now","1800000000000"},
+      {"activity","1"},{"name","Phone copy"}})==409);
+  assert(responseField("mergedInto")==keepId && TurnHubWebApi::internal::linkKeyValid(keepId,responseField("linkKey")));
+  // A game imported under the old ID credits the profile it was merged into, once.
+  {
+    MemoryBlobs blobs; TurnHubStandalone::useImportStore(&blobs);
+    TurnHubStandalone::ImportedGame game; game.recordId="merged-into-record"; game.playerCount=2; game.winner=0;
+    game.players[0].name="Phone copy"; game.players[0].profileId=oldId; game.players[1].name="Guest";
+    assert(TurnHubStandalone::importGame(game).status==TurnHubStandalone::ImportStatus::Imported && keepStats.gamesPlayed==8);
+    game.players[0].profileId=keepId;
+    assert(TurnHubStandalone::importGame(game).status==TurnHubStandalone::ImportStatus::Duplicate && keepStats.gamesPlayed==8);
+    TurnHubStandalone::useImportStore(nullptr);
+  }
+  ProfileFixture::profiles.erase(oldId.c_str()); ProfileFixture::profiles.erase(keepId.c_str()); // Shared capacity.
 }
 static bool logHas(const char *text) {
   return TurnHub::serialLog.snapshot().find(text)!=std::string::npos;
@@ -4538,22 +4637,6 @@ static void twoHeadedGiantSigils() {
 
 // A standalone tablet game's finished record: imported once, credited to the
 // explicit Atlas-scoped profiles only; invalid mappings never take a receipt.
-namespace {
-struct MemoryBlobs : TurnHubStorage::BlobStore {
-  std::map<std::string,std::vector<uint8_t>> blobs; bool failWrites=false;
-  TurnHubStorage::Status read(const char *key,void *data,size_t capacity,size_t &size) override {
-    auto found=blobs.find(key); if(found==blobs.end()) return TurnHubStorage::Status::NotFound;
-    size=found->second.size(); if(data==nullptr&&capacity==0) return TurnHubStorage::Status::Ok;
-    if(capacity<size) return TurnHubStorage::Status::InvalidArgument;
-    memcpy(data,found->second.data(),size); return TurnHubStorage::Status::Ok;
-  }
-  TurnHubStorage::Status write(const char *key,const void *data,size_t size) override {
-    if(failWrites) return TurnHubStorage::Status::IoError;
-    const auto *b=static_cast<const uint8_t*>(data); blobs[key]=std::vector<uint8_t>(b,b+size); return TurnHubStorage::Status::Ok;
-  }
-  TurnHubStorage::Status remove(const char *key) override { return blobs.erase(key)?TurnHubStorage::Status::Ok:TurnHubStorage::Status::NotFound; }
-};
-}
 static void standaloneImport() {
   MemoryBlobs blobs; TurnHubStandalone::useImportStore(&blobs);
   TurnHubWebApi::configure(resolveWebSeat,handleWebControl,handleProfileControl,resolveProfileParticipant);

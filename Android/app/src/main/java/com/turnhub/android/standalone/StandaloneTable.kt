@@ -187,7 +187,12 @@ class StandaloneTable(
         if (name.isBlank() || name.length > StandaloneGame.MAX_NAME || before.library.players.none { it.localId == localId }) return false
         if (runCatching { LocalPersonalization.fromJson(personalization.toJson()) }.isFailure) return false
         val library = before.library.copy(players = before.library.players.map {
-            if (it.localId == localId) it.copy(name = name.trim(), personalization = personalization) else it })
+            if (it.localId != localId) it
+            else it.copy(name = name.trim(), personalization = personalization,
+                // A change to what syncs with an Atlas makes this copy the newest.
+                lastActivityMs = if (it.name != name.trim() || it.personalization.syncedPart() != personalization.syncedPart())
+                    wallClock() else it.lastActivityMs)
+        })
         // Historical names remain snapshots. Active labels are presentation, so rename immediately.
         val game = before.game.copy(players = before.game.players.map {
             if (it.localId == localId) it.copy(name = name.trim()) else it }, revision = before.game.revision + 1)
@@ -195,12 +200,47 @@ class StandaloneTable(
     }
 
     /** Called only after Atlas creation or credential verification; never from a name match. */
-    fun linkAccount(localId: String, atlasId: String, profileId: String): Boolean {
+    fun linkAccount(localId: String, atlasId: String, profileId: String, linkKey: String? = null): Boolean {
         val before = _state.value
         if (atlasId.isBlank() || !LocalProfileIds.valid(profileId) || before.library.players.none { it.localId == localId } ||
+            (linkKey != null && !linkKey.matches(Regex("[0-9A-F]{32}"))) ||
             before.library.players.any { it.localId != localId && it.links.any { l -> l.atlasId == atlasId && l.profileId == profileId } }) return false
         return publish(before.copy(library = before.library.copy(players = before.library.players.map {
-            if (it.localId != localId) it else it.copy(links = it.links.filterNot { l -> l.atlasId == atlasId } + AtlasProfileLink(atlasId, profileId)) })))
+            if (it.localId != localId) it else {
+                // Relinking the same profile keeps its sync key unless a new one came.
+                val old = it.links.firstOrNull { l -> l.atlasId == atlasId && l.profileId == profileId }
+                it.copy(links = it.links.filterNot { l -> l.atlasId == atlasId } + AtlasProfileLink(atlasId, profileId, linkKey ?: old?.linkKey))
+            } })))
+    }
+
+    /**
+     * Takes an Atlas's newer copy of a linked profile's synced settings
+     * (plans: profile-transfer F) without counting it as a new local change.
+     * [avatar] null keeps the local look (Atlas has an uploaded image).
+     */
+    fun applySyncedProfile(localId: String, name: String, color: String?, avatar: String?, reduceMotion: Boolean, activityMs: Long): Boolean {
+        val before = _state.value
+        val player = before.library.players.firstOrNull { it.localId == localId } ?: return false
+        val clean = name.trim()
+        if (clean.isBlank() || clean.length > StandaloneGame.MAX_NAME || (color != null && !color.matches(Regex("#[0-9a-fA-F]{6}"))) ||
+            (avatar != null && avatar !in LocalPersonalization.AVATARS)) return false
+        val look = player.personalization.let { p ->
+            p.copy(color = color, reduceMotion = reduceMotion).let { if (avatar == null) it else it.copy(avatar = avatar, image = null, thumbnail = null) }
+        }
+        if (clean == player.name && look == player.personalization && activityMs == player.lastActivityMs) return true
+        val library = before.library.copy(players = before.library.players.map {
+            if (it.localId == localId) it.copy(name = clean, personalization = look, lastActivityMs = activityMs) else it })
+        val game = before.game.copy(players = before.game.players.map {
+            if (it.localId == localId) it.copy(name = clean) else it }, revision = before.game.revision + 1)
+        return publish(before.copy(game = game, library = library))
+    }
+
+    /** Forgets a sync key Atlas no longer accepts; the link itself stays. */
+    fun dropLinkKey(localId: String, atlasId: String): Boolean {
+        val before = _state.value
+        return publish(before.copy(library = before.library.copy(players = before.library.players.map {
+            if (it.localId != localId) it else it.copy(links = it.links.map { l -> if (l.atlasId == atlasId) l.copy(linkKey = null) else l })
+        })))
     }
 
     /**

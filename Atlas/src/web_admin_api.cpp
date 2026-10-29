@@ -17,6 +17,7 @@
 #include "wifi_password_store.h"
 #include "serial_log.h"
 #include "web_api_internal.h"
+#include "profile_statistics.h"
 #include "avatars.h"
 #include "web_pages.h"
 #include "atlas_battery.h"
@@ -920,6 +921,67 @@ void handleAccountArchive(WebServer &server) {
     }
   }
   if (archive) revokeConnections(id);
+  sendJson(server, 200, "{\"ok\":true}");
+}
+
+// One person, two profiles (plans: profile-transfer D): an Admin merges
+// profileId into `into`. Statistics add up on `into`; profileId is archived
+// and remembered as merged, so imports and phone syncs that still name it
+// reach `into`. Neither may be at the table.
+void handleAccountMerge(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  const String id = server.arg("profileId"), into = server.arg("into");
+  if (id == into || !TurnHubProfiles::profileExists(id) || !TurnHubProfiles::profileExists(into)) {
+    sendError(server, 400, "Choose two different accounts");
+    return;
+  }
+  String primary;
+  TurnHubAccounts::Account account, survivor;
+  if (!loadAdminTarget(server, id, primary, account)) return;
+  if (!TurnHubAccounts::load(into, survivor)) {
+    sendError(server, 503, "Account unavailable");
+    return;
+  }
+  if (id == primary || account.archived || survivor.archived) {
+    sendError(server, 409, "The initial Admin can't be merged away, and archived accounts can't be merged");
+    return;
+  }
+  uint8_t controller = INVALID_ID, slot = 1;
+  if (resolveProfile && (resolveProfile(id, controller, slot) || resolveProfile(into, controller, slot))) {
+    sendError(server, 409, "Both accounts must leave the table first");
+    return;
+  }
+  TurnHubProfiles::ProfileStats from{}, stats{};
+  TurnHubProfiles::ModerationStats fromModeration{}, moderation{};
+  TurnHubProfiles::ProfileSync sync;
+  if (!TurnHubProfiles::loadStatsForProfile(id, from) || !TurnHubProfiles::loadStatsForProfile(into, stats) ||
+      !TurnHubProfiles::loadModerationStatsForProfile(id, fromModeration) ||
+      !TurnHubProfiles::loadModerationStatsForProfile(into, moderation) ||
+      !TurnHubProfiles::loadSyncForProfile(id, sync)) {
+    sendError(server, 503, "Statistics could not be read; nothing was merged");
+    return;
+  }
+  TurnHubProfileStats::mergeStats(stats, from);
+  moderation.connectionResets += fromModeration.connectionResets;
+  moderation.gameRemovals += fromModeration.gameRemovals;
+  // The survivor's totals first: a cut before the archive below leaves both
+  // accounts live with the merged totals counted on each (said in the manual).
+  if (!TurnHubProfiles::saveStatsForProfile(into, stats) ||
+      !TurnHubProfiles::saveModerationStatsForProfile(into, moderation)) {
+    sendError(server, 503, "Could not save the merged statistics");
+    return;
+  }
+  memcpy(sync.mergedInto, into.c_str(), TurnHubProfiles::PROFILE_ID_LENGTH);
+  account.archived = true;
+  if (!TurnHubProfiles::saveSyncForProfile(id, sync) || !TurnHubAccounts::save(id, account)) {
+    sendError(server, 503, "Statistics merged, but the old account could not be archived; archive it by hand");
+    return;
+  }
+  revokeConnections(id);
+  serialLog.print("ATLAS|PROFILE|MERGED|");
+  serialLog.print(id);
+  serialLog.print("|into=");
+  serialLog.println(into);
   sendJson(server, 200, "{\"ok\":true}");
 }
 

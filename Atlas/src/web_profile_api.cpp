@@ -5,6 +5,7 @@
 #include "atlas_app.h"
 #include "profile_statistics.h"
 #include "web_api_internal.h"
+#include "serial_log.h"
 #include "avatars.h"
 #include "avatar_artwork.h"
 #include "game_profile.h"
@@ -155,6 +156,30 @@ void handleRegistration(WebServer &server) {
       return;
     }
   }
+  // A PIN-less local account uploaded from a phone (owner decision 2026-10-28):
+  // any signed-in session may bring it under its own ID, and the first person
+  // to sign in to it sets its PIN, as for a profile made on a Sigil.
+  if (importingId && pin.length() == 0) {
+    if (sessionForRequest(server) == nullptr) {
+      sendError(server, 401, "Sign in first to upload a profile without a PIN");
+      return;
+    }
+    if (name.length() == 0 || name.length() > MAX_NAME_LENGTH) {
+      sendError(server, 400, "A name (1-32 characters) is required");
+      return;
+    }
+    if (TurnHubProfiles::createProfileWithName(name, requestedId).length() == 0) {
+      sendError(server, 503, "Could not create profile; storage may be full");
+      return;
+    }
+    // The uploading phone keeps the profile in sync (plans: profile-transfer F).
+    const String linkKey = issueLinkKey(requestedId);
+    TurnHub::serialLog.print("ATLAS|PROFILE|UPLOADED_WITHOUT_PIN|");
+    TurnHub::serialLog.println(requestedId);
+    sendJson(server, 200, String("{\"ok\":true,\"profileId\":\"") + requestedId + "\",\"hasPin\":false,\"linkKey\":\"" +
+        linkKey + "\"}");
+    return;
+  }
   if (name.length() == 0 || name.length() > MAX_NAME_LENGTH || !validPin(pin)) {
     sendError(server, 400, "A name (1-32 characters) and a 4-8 digit PIN or an 8-64 character password are required");
     return;
@@ -171,6 +196,160 @@ void handleRegistration(WebServer &server) {
   }
   // The new profile's PIN was just entered, so the session is PIN-verified.
   sendLogin(server, createProfileSession(id, millis(), true));
+}
+
+// A link key for the signed-in profile, so this phone can keep it in sync
+// without signing in again (plans: profile-transfer F).
+void handleLinkKey(WebServer &server) {
+  WebSession *session = sessionForRequest(server);
+  const String profileId = session ? sessionProfileId(*session) : String();
+  if (profileId.length() == 0) {
+    sendError(server, 401, "Sign in to the profile first");
+    return;
+  }
+  const String key = issueLinkKey(profileId);
+  if (key.length() == 0) {
+    sendError(server, 503, "Could not save the link; storage may be full");
+    return;
+  }
+  sendJson(server, 200, String("{\"ok\":true,\"profileId\":\"") + profileId + "\",\"linkKey\":\"" + key + "\"}");
+}
+
+namespace {
+
+// Whole milliseconds, at most 15 digits.
+bool parseMs(const String &text, uint64_t &value) {
+  if (!text.length() || text.length() > 15) return false;
+  value = 0;
+  for (size_t i = 0; i < text.length(); ++i) {
+    if (text[i] < '0' || text[i] > '9') return false;
+    value = value * 10 + static_cast<uint64_t>(text[i] - '0');
+  }
+  return true;
+}
+
+bool parseColor(const String &value, bool &set, uint32_t &rgb) {
+  set = value != "none";
+  rgb = 0;
+  if (!set) return true;
+  if (value.length() != 7 || value[0] != '#') return false;
+  for (size_t i = 1; i < 7; ++i) {
+    const char c = value[i];
+    const int digit = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 :
+        c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+    if (digit < 0) return false;
+    rgb = (rgb << 4) | static_cast<uint32_t>(digit);
+  }
+  return true;
+}
+
+}  // namespace
+
+// Profile sync (plans: profile-transfer F): a linked phone sends its copy of
+// the profile's synced settings and when they last changed. The newer side
+// wins as a whole; statistics never sync this way (they travel as matches).
+// Answers Atlas's copy after the sync, plus its core totals.
+void handleProfileSync(WebServer &server) {
+  const String id = server.arg("profileId");
+  if (!profileStoreReady || !TurnHubProfiles::profileExists(id) || !linkKeyValid(id, server.arg("linkKey"))) {
+    sendError(server, 401, "This phone's link to that profile has expired; link it again");
+    return;
+  }
+  uint64_t now = 0, activity = 0;
+  // Sanity: a phone clock after 2020 and before the year 5138.
+  if (!parseMs(server.arg("now"), now) || now < 1577836800000ULL || !parseMs(server.arg("activity"), activity) ||
+      activity > now + 86400000ULL) {
+    sendError(server, 400, "now and activity must be wall-clock milliseconds");
+    return;
+  }
+  observeWallClock(now);
+  TurnHubProfiles::ProfileSync sync;
+  if (!TurnHubProfiles::loadSyncForProfile(id, sync)) {
+    sendError(server, 503, "Profile sync record could not be read");
+    return;
+  }
+  // Merged into another profile: this phone follows it there with a new key.
+  if (sync.mergedInto[0] != 0) {
+    const String into = TurnHubProfiles::mergedProfileFor(id);
+    const String key = issueLinkKey(into);
+    sendJson(server, 409, String("{\"ok\":false,\"error\":\"This profile was merged into another\",\"mergedInto\":\"") +
+        into + "\",\"linkKey\":\"" + key + "\"}");
+    return;
+  }
+  const char *applied = "same";
+  if (!sync.changedWithoutClock && activity > sync.activityMs) {
+    const String name = cleanName(server.arg("name"));
+    bool setColor = false;
+    uint32_t rgb = 0;
+    const bool colorGiven = server.hasArg("color");
+    if (name.length() == 0 || (colorGiven && !parseColor(server.arg("color"), setColor, rgb))) {
+      sendError(server, 400, "A name is required, and color must be #rrggbb or none");
+      return;
+    }
+    int avatar = -1;
+    if (server.hasArg("avatar")) {
+      uint64_t value = 0;
+      if (!parseMs(server.arg("avatar"), value) || value > TurnHubAvatars::AVATAR_COUNT) {
+        sendError(server, 400, "avatar must be 0 or a preset");
+        return;
+      }
+      avatar = static_cast<int>(value);
+    }
+    bool ok = TurnHubProfiles::setNameForProfile(id, name);
+    // Color and avatar live on the microSD card; without one they stay unset.
+    if (TurnHubProfiles::luxuryStoreAvailable()) {
+      if (colorGiven) ok = TurnHubProfiles::saveJewelColorForProfile(id, setColor, rgb) && ok;
+      // An approved uploaded image stays until the phone picks another look.
+      if (avatar >= 0 && !(avatar == 0 && TurnHubProfiles::avatarForProfile(id) == TurnHubAvatars::AVATAR_CUSTOM))
+        ok = TurnHubProfiles::saveAvatarForProfile(id, static_cast<uint8_t>(avatar)) && ok;
+    }
+    if (server.hasArg("reduceMotion")) {
+      TurnHubProfiles::AccessibilityPrefs prefs;
+      const bool reduce = server.arg("reduceMotion") == "1";
+      if (TurnHubProfiles::loadAccessibilityForProfile(id, prefs) &&
+          reduce != (prefs.ledStyle == TurnHubProfiles::LedStyle::ReducedMotion)) {
+        prefs.ledStyle = reduce ? TurnHubProfiles::LedStyle::ReducedMotion : TurnHubProfiles::LedStyle::Standard;
+        ok = TurnHubProfiles::saveAccessibilityForProfile(id, prefs) && ok;
+        if (accessibilityChanged) accessibilityChanged();
+      }
+    }
+    sync.activityMs = activity;
+    if (!ok || !TurnHubProfiles::saveSyncForProfile(id, sync)) {
+      sendError(server, 503, "Atlas couldn't save the synced profile; try again");
+      return;
+    }
+    applied = "phone";
+  } else if (sync.changedWithoutClock || sync.activityMs > activity) {
+    if (sync.changedWithoutClock) {
+      sync.changedWithoutClock = false;
+      sync.activityMs = now;
+      TurnHubProfiles::saveSyncForProfile(id, sync);
+    }
+    applied = "atlas";
+  }
+  uint32_t rgb = 0;
+  const bool hasColor = TurnHubProfiles::jewelColorForProfile(id, rgb);
+  char color[8] = "none";
+  if (hasColor) snprintf(color, sizeof(color), "#%06lX", static_cast<unsigned long>(rgb & 0xFFFFFFUL));
+  TurnHubProfiles::AccessibilityPrefs prefs;
+  TurnHubProfiles::loadAccessibilityForProfile(id, prefs);
+  ProfileStats stats{};
+  TurnHubProfiles::loadStatsForProfile(id, stats);
+  String body = "{\"ok\":true,\"applied\":\"";
+  body += applied;
+  body += "\",\"activity\":";
+  char activityText[24];
+  snprintf(activityText, sizeof(activityText), "%llu", static_cast<unsigned long long>(sync.activityMs));
+  body += activityText;
+  body += ",\"name\":\""; body += jsonEscape(TurnHubProfiles::nameForProfile(id));
+  body += "\",\"color\":\""; body += color;
+  body += "\",\"avatar\":"; body += String(TurnHubProfiles::avatarForProfile(id));
+  body += ",\"reduceMotion\":"; body += jsonBool(prefs.ledStyle == TurnHubProfiles::LedStyle::ReducedMotion);
+  body += ",\"hasPin\":"; body += jsonBool(TurnHubProfiles::hasPinForProfile(id));
+  body += ",\"gamesPlayed\":"; body += String(stats.gamesPlayed);
+  body += ",\"gamesWon\":"; body += String(stats.gamesWon);
+  body += '}';
+  sendJson(server, 200, body);
 }
 
 void handleParticipation(WebServer &server, WebControl control) {
@@ -221,6 +400,7 @@ void handleProfile(WebServer &server) {
       return;
     }
     displayProfileChanged = true;
+    noteProfileChange(profileId);
   }
 
   if (server.hasArg("pin")) {
@@ -410,6 +590,7 @@ void handleSavePersonalization(WebServer &server) {
     sendError(server, 503, "Personalization could not be saved to the card");
     return;
   }
+  if (colorGiven || avatar >= 0) noteProfileChange(id);
   handlePersonalization(server);
 }
 
@@ -505,6 +686,7 @@ void handleSaveAccessibility(WebServer &server) {
     sendError(server, 503, "Accessibility settings could not be saved; reload before retrying");
     return;
   }
+  if (server.hasArg("ledStyle")) noteProfileChange(id);
   if (accessibilityChanged) accessibilityChanged();
   sendAccessibility(server, prefs, true);
 }
