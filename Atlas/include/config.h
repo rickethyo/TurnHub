@@ -32,9 +32,9 @@ constexpr int8_t LCD_DC_PIN = 46;
 constexpr int8_t LCD_CS_PIN = 10;
 constexpr uint8_t LCD_BACKLIGHT_PIN = 45;  // High = lit.
 // Portrait orientation (0, or 2 for upside down) and IPS colour inversion.
-// 2 since 2026-10-29: in the case USB-C faces away from the player, so the
-// board sits upside down. Touch follows the rotation. *Needs verification*.
-constexpr uint8_t LCD_ROTATION = 2;
+// *Needs verification*: flip these if the picture is upside down or its
+// colours are negative.
+constexpr uint8_t LCD_ROTATION = 0;
 constexpr bool LCD_INVERT = true;
 // FT6336U capacitive touch (I2C 0x38), on the bus the codec will share.
 constexpr int8_t TOUCH_SDA_PIN = 16;
