@@ -271,8 +271,14 @@ The type stays on its home device: uploads, merges and syncs carry no
 permissions. Atlas first-run setup offers "Install your admin account as the
 device admin?", which uploads the phone's Admin under its own ID (or signs in
 to it if already there); the table-code step then makes it Atlas's Admin.
-Using one Admin account on several phones and tablets is planned
-(`STAGED_CHANGES.md`).
+One person's account can live on several of their phones and tablets ("Use
+on another device", `AccountCopy`): the device holding it shows a QR code with
+a one-time invitation in Play together's format (`turnhub://account/...`), and
+the other device, on the same Wi-Fi, fetches the account over the pinned TLS
+link. It carries the profile ID, name, look, Atlas links and PIN verifier,
+never the PIN; the receiving device asks for the PIN before adding it, under a
+new local ID, and can make it its Admin. Each device keeps its own games;
+same-ID copies meet on an Atlas, which adds them up.
 
 ## Player artwork (2026-10-10)
 

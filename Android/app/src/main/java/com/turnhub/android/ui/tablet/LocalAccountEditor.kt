@@ -129,6 +129,9 @@ fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destina
         Text(ProfileSecret.RULE, color = palette.muted)
     }
     DeviceAdminControls(player, table)
+    var sharing by remember(player.localId) { mutableStateOf(false) }
+    ToneButton("Use on another device", { sharing = true }, Modifier.fillMaxWidth())
+    if (sharing) ShareAccountDialog(player) { sharing = false }
     DeleteLocalAccount(player, table)
 }
 
@@ -170,6 +173,11 @@ fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable) {
     var confirm by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var copying by remember { mutableStateOf(false) }
+    if (copying) {
+        CopyAccountDialog(table, admin = true) { copying = false }
+        return
+    }
     AlertDialog(
         onDismissRequest = {},
         containerColor = p.surface,
@@ -190,6 +198,7 @@ fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable) {
                     isError = confirm.isNotEmpty() && confirm != secret, modifier = Modifier.fillMaxWidth())
                 Text(ProfileSecret.RULE, color = p.muted)
                 error?.let { Text(it, color = p.warn) }
+                TextButton({ copying = true }, enabled = !saving) { Text("Use my account from another device") }
             }
         },
         confirmButton = {

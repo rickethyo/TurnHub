@@ -94,6 +94,8 @@ fun LocalLibraryScreen(
     val gamesScroll = rememberLazyListState()
     val shownSection = embeddedSection ?: section
     BackHandler(enabled = embeddedSection == null, onBack = onClose)
+    var copyingAccount by remember { mutableStateOf(false) }
+    if (copyingAccount && table != null) CopyAccountDialog(table, admin = false) { copyingAccount = false }
     if (creatingAccount && table != null) {
         CreateLocalAccountDialog(table, state.storageProblem == null) { creatingAccount = false }
     }
@@ -137,6 +139,8 @@ fun LocalLibraryScreen(
                         item(key = "player-actions") {
                             if (table != null) ToneButton("Add player", { creatingAccount = true },
                                 Modifier.fillMaxWidth(), enabled = state.storageProblem == null)
+                            if (table != null) TextButton({ copyingAccount = true }, enabled = state.storageProblem == null) {
+                                Text("Copy an account from another device") }
                             if (canLink) TextButton(onClick = onLoadProfiles,
                                 enabled = !importState.busy && state.storageProblem == null) { Text("Load Atlas accounts") }
                         }

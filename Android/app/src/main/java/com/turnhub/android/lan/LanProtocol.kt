@@ -14,14 +14,15 @@ internal const val LAN_MAX_FRAME = 512 * 1024
  * QR-only joining. Never log it or keep it in saved state.
  */
 internal data class LanInvite(val address: String, val port: Int, val pin: String, val session: String, val key: String) {
-    fun encode() = "turnhub://join/$LAN_VERSION/$address/$port/$pin/$session/$key"
+    fun encode(kind: String = "join") = "turnhub://$kind/$LAN_VERSION/$address/$port/$pin/$session/$key"
     override fun toString() = "LanInvite($address:$port)"
 
     companion object {
-        fun parse(text: String): LanInvite {
+        /** [kind] is "join" for Play together, "account" for copying an account between devices. */
+        fun parse(text: String, kind: String = "join"): LanInvite {
             require(text.length <= 512)
             val uri = URI(text.trim())
-            require(uri.scheme == "turnhub" && uri.host == "join" && uri.rawQuery == null && uri.fragment == null && uri.userInfo == null)
+            require(uri.scheme == "turnhub" && uri.host == kind && uri.rawQuery == null && uri.fragment == null && uri.userInfo == null)
             val p = uri.path.split('/').drop(1)
             require(p.size == 6 && p[0] == "$LAN_VERSION" && privateIpv4(p[1]))
             val port = p[2].toIntOrNull()?.takeIf { it in 1024..65535 } ?: error("Invalid port")

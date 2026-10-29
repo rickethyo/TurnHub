@@ -175,6 +175,28 @@ class StandaloneTable(
         return setDeviceAdmin(created.localId)
     }
 
+    enum class CopyResult { ADDED, ALREADY_HERE, NOT_SAVED }
+
+    /**
+     * Adds an account copied from another of the owner's devices ([AccountCopy]) under a new
+     * local ID and the same profile ID; [admin] makes it this device's Admin when there is none.
+     * The caller has already checked its PIN or password, so the account opens unlocked.
+     */
+    fun addCopiedAccount(copy: org.json.JSONObject, admin: Boolean): CopyResult {
+        val before = _state.value
+        val player = runCatching { AccountCopy.fromJson(copy, newId()) }.getOrNull() ?: return CopyResult.NOT_SAVED
+        if (before.library.players.any { it.profileId == player.profileId }) return CopyResult.ALREADY_HERE
+        // Another local account may already hold one of its Atlas links; this device keeps that one.
+        val links = player.links.filterNot { l -> before.library.players.any { p -> p.links.any { it.atlasId == l.atlasId && it.profileId == l.profileId } } }
+        val added = player.copy(links = links)
+        val makeAdmin = admin && added.credential != null && before.library.deviceAdmin == null
+        val saved = publish(before.copy(library = before.library.copy(players = before.library.players + added,
+            deviceAdmin = if (makeAdmin) added.localId else before.library.deviceAdmin)))
+        if (!saved) return CopyResult.NOT_SAVED
+        unlockedAccounts += added.localId
+        return CopyResult.ADDED
+    }
+
     /** "Not now" on the Admin account prompt; it stays available from the accounts list. */
     fun dismissAdminPrompt(): Boolean {
         val before = _state.value

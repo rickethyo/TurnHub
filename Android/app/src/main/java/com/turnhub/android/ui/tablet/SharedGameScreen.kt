@@ -378,7 +378,8 @@ internal fun LanSecuritySwitch(qrOnly: Boolean, enabled: Boolean, onChange: (Boo
 }
 
 @Composable
-private fun InviteQr(text: String) {
+internal fun InviteQr(text: String,
+    description: String = "Invitation granting access to this shared game. Scan using TurnHub on another device.") {
     val bitmap = remember(text) {
         val bits = MultiFormatWriter().encode(text, BarcodeFormat.QR_CODE, 512, 512, mapOf(EncodeHintType.MARGIN to 2))
         Bitmap.createBitmap(IntArray(512 * 512) { i -> if (bits[i % 512, i / 512]) android.graphics.Color.BLACK else android.graphics.Color.WHITE },
@@ -388,7 +389,7 @@ private fun InviteQr(text: String) {
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Box(Modifier.sizeIn(maxWidth = 300.dp).fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(20.dp))
             .background(Color.White).border(2.dp, palette.accent, RoundedCornerShape(20.dp)).padding(14.dp)) {
-            Image(bitmap, "Invitation granting access to this shared game. Scan using TurnHub on another device.", Modifier.fillMaxSize())
+            Image(bitmap, description, Modifier.fillMaxSize())
         }
     }
 }

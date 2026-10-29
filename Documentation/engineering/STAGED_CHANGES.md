@@ -232,9 +232,9 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 - **Device Admin account** (owner, 2026-10-29): implemented in the app (first
   launch prompt, Admin label, "Install your admin account as the device admin?"
   in Atlas setup; see [Accounts](PLAYERS_AND_ACCOUNTS.md#device-admin-account-owner-2026-10-29)).
-  Open: device checks, and one account across several of the owner's phones
-  and tablets ("Use on another device": a QR over the same Wi-Fi copies the
-  account's ID, name, look and PIN verifier, as Play together joins).
+  "Use on another device" copies one account between the owner's phones and
+  tablets by QR over the same Wi-Fi. Open: device checks; syncing settings and
+  games between those copies without an Atlas.
 - **Local library management:** export/backup, explicit history deletion/
   retention and large-history storage/performance remain open. Local player
   editing, PIN removal, account deletion and retained UUID-based history are
