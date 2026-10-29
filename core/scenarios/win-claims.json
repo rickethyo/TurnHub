@@ -1,0 +1,119 @@
+{
+  "name": "Win claims",
+  "about": "A claimed win is confirmed by each other living player in turn order; a denial withdraws it.",
+  "steps": [
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "A"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "B"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "C"
+      }
+    },
+    {
+      "action": {
+        "do": "start",
+        "nowMs": 1000000,
+        "gameId": "w1"
+      },
+      "random": [
+        0
+      ],
+      "expect": {
+        "active": 0
+      }
+    },
+    {
+      "action": {
+        "do": "requestWin",
+        "index": 1,
+        "nowMs": 1001000
+      },
+      "expect": {
+        "winClaim": 1,
+        "winConfirmed": []
+      }
+    },
+    {
+      "action": {
+        "do": "answerWinClaim",
+        "index": 0,
+        "accept": true,
+        "nowMs": 1002000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "answerWinClaim",
+        "index": 2,
+        "accept": true,
+        "nowMs": 1003000
+      },
+      "expect": {
+        "winClaim": 1,
+        "winConfirmed": [
+          2
+        ]
+      }
+    },
+    {
+      "action": {
+        "do": "answerWinClaim",
+        "index": 0,
+        "accept": false,
+        "nowMs": 1004000
+      },
+      "expect": {
+        "winClaim": null,
+        "winConfirmed": [],
+        "state": "RUNNING"
+      }
+    },
+    {
+      "action": {
+        "do": "requestWin",
+        "index": 1,
+        "nowMs": 1005000
+      },
+      "expect": {
+        "winClaim": 1
+      }
+    },
+    {
+      "action": {
+        "do": "answerWinClaim",
+        "index": 2,
+        "accept": true,
+        "nowMs": 1006000
+      }
+    },
+    {
+      "action": {
+        "do": "answerWinClaim",
+        "index": 0,
+        "accept": true,
+        "nowMs": 1007000
+      },
+      "expect": {
+        "state": "GAME_OVER",
+        "winner": 1,
+        "winners": [
+          1
+        ],
+        "winClaim": null,
+        "winConfirmed": []
+      }
+    }
+  ]
+}

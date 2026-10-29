@@ -73,6 +73,8 @@ data class SetupState(
      * setup ([AtlasSetupAssistant.openUpdates]); Close ends it.
      */
     val updatesOnly: Boolean = false,
+    /** This phone's Admin account name, offered in the account step ("Install your admin account"). */
+    val deviceAdmin: String? = null,
 )
 
 /** What the assistant needs from the screen that owns the Atlas connection. */
@@ -97,6 +99,12 @@ interface SetupHost {
      * Wi-Fi and the session) through polls Atlas is too busy to answer.
      */
     fun holdConnection(hold: Boolean) {}
+
+    /** This phone's Admin account (owner, 2026-10-29), offered as the new Atlas's Admin; null without one. */
+    fun deviceAdmin(): com.turnhub.android.standalone.SavedLocalPlayer? = null
+
+    /** The phone's Admin account is now on this Atlas under its own ID: remember the link. */
+    fun deviceAdminInstalled(localId: String, profileId: String, linkKey: String?) {}
 }
 
 /**
@@ -206,6 +214,36 @@ class AtlasSetupAssistant(
             session.register(endpoint, clean, pin)
             val id = (session.state.value as? PlayerSessionState.SignedIn)?.profileId ?: return@work
             account = ProfileSummary(id, clean, hasPin = true) to pin
+            next()
+        }
+    }
+
+    /**
+     * "Install your admin account as the device admin?": puts this phone's Admin account on Atlas
+     * under its own ID (or signs in to it when it is already there) and continues as that account;
+     * the table code step then makes it Atlas's Admin. The PIN is checked on the phone first.
+     */
+    suspend fun installDeviceAdmin(pin: String) {
+        val endpoint = host.endpoint() ?: return
+        val admin = host.deviceAdmin() ?: return fail("This phone has no Admin account.")
+        if (!ProfileSecret.isValid(pin)) return fail(ProfileSecret.RULE)
+        val credential = admin.credential ?: return fail("Give your Admin account a PIN or password first.")
+        if (!kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { credential.verifies(pin) }) {
+            return fail("That isn't your Admin account's PIN or password.")
+        }
+        work {
+            val onAtlas = session.profiles(endpoint).any { it.profileId == admin.profileId }
+            if (!onAtlas) {
+                val result = try {
+                    session.verifyLocalAccount(endpoint, admin, null, pin)
+                } catch (e: IllegalArgumentException) {
+                    return@work fail(e.message ?: "Atlas could not take your Admin account.")
+                }
+                host.deviceAdminInstalled(admin.localId, result.profileId, result.linkKey)
+            }
+            val profile = ProfileSummary(admin.profileId, admin.name, hasPin = true)
+            session.signIn(endpoint, profile, pin)
+            account = profile to pin
             next()
         }
     }
@@ -597,7 +635,7 @@ class AtlasSetupAssistant(
         } catch (e: AtlasException) {
             emptyList()
         }
-        _state.update { it.copy(profiles = list.filter { it.hasPin }) }
+        _state.update { it.copy(profiles = list.filter { it.hasPin }, deviceAdmin = host.deviceAdmin()?.name) }
     }
 
     /** Runs one step's requests: busy while running, Atlas failures become [SetupState.error]. */

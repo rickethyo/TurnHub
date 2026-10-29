@@ -19,7 +19,7 @@ while IFS= read -r src; do
 done < <(find "$lvgl/src" -name '*.c' | sort)
 fonts=(../../../LVGL/assets/th_eyebrow_13.c ../../../LVGL/assets/th_semi_16.c ../../../LVGL/assets/th_semi_20.c
        ../../../LVGL/assets/th_bold_28.c ../../../LVGL/assets/th_cinzel_32.c ../../../LVGL/assets/th_num_40.c
-       ../../../LVGL/assets/th_num_64.c)
+       ../../../LVGL/assets/th_num_64.c ../../../LVGL/assets/th_icons.c)
 for src in "${fonts[@]}"; do
   obj="$out/lvgl/$(basename "$src" .c).o"
   [ "$obj" -nt "$src" ] || gcc -O1 -c "${defs[@]}" "${cincs[@]}" "$src" -o "$obj"

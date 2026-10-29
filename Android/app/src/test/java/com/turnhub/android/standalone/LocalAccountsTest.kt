@@ -308,4 +308,61 @@ class LocalAccountsTest {
         assertTrue(restored.saveAccount(player.localId, "Changed", LocalPersonalization()))
         assertTrue(runCatching { LocalCredential.create("123") }.isFailure)
     }
+
+    @Test fun `one device Admin account needs a PIN, keeps it, survives restart and is cleared when deleted`() {
+        val store = Store()
+        val table = StandaloneTable(store, shortGameMs = 0)
+        assertTrue(table.createAccount("Guest"))
+        val guest = table.state.value.library.players.single()
+        // Admin needs a PIN or password.
+        assertFalse(table.setDeviceAdmin(guest.localId))
+        assertTrue(table.createAdminAccount("Ricky", LocalCredential.create("1234")))
+        val ricky = table.state.value.library.players.last()
+        assertTrue(table.state.value.library.isDeviceAdmin(ricky.localId))
+        // Only one: setup can't make a second.
+        assertFalse(table.createAdminAccount("Other", LocalCredential.create("5678")))
+        assertFalse(table.clearAccountCredential(ricky.localId))
+
+        val restored = StandaloneTable(store)
+        assertEquals(ricky.localId, restored.state.value.library.deviceAdmin)
+        assertFalse(restored.state.value.library.adminPromptDismissed)
+        // Handing Admin on needs the current Admin unlocked.
+        assertTrue(restored.createAccount("Ana", LocalCredential.create("2468")))
+        val ana = restored.state.value.library.players.last()
+        assertFalse(StandaloneTable(store).setDeviceAdmin(ana.localId))
+        assertTrue(restored.unlockAccount(ricky.localId, "1234"))
+        assertTrue(restored.setDeviceAdmin(ana.localId))
+        assertTrue(restored.clearAccountCredential(ricky.localId))
+
+        assertTrue(restored.dismissAdminPrompt())
+        assertTrue(restored.deleteAccount(ana.localId))
+        assertNull(restored.state.value.library.deviceAdmin)
+        assertFalse(restored.state.value.library.adminPromptDismissed)
+        assertNull(StandaloneTable(store).state.value.library.deviceAdmin)
+    }
+
+    @Test fun `an account copied to another device keeps its ID, look, links and PIN and can be that device's Admin`() {
+        val phone = StandaloneTable(Store(), shortGameMs = 0)
+        assertTrue(phone.createAdminAccount("Ricky", LocalCredential.create("2468")))
+        val ricky = phone.state.value.library.players.single()
+        assertTrue(phone.saveAccount(ricky.localId, "Ricky", LocalPersonalization(color = "#26A69A", avatar = "cat")))
+        assertTrue(phone.linkAccount(ricky.localId, "THA-1", ricky.profileId, "0123456789ABCDEF0123456789ABCDEF"))
+        val copy = AccountCopy.toJson(phone.state.value.library.players.single())
+        assertFalse(copy.toString().contains("2468"))
+
+        val tabletStore = Store()
+        val tablet = StandaloneTable(tabletStore, shortGameMs = 0)
+        assertEquals(StandaloneTable.CopyResult.ADDED, tablet.addCopiedAccount(copy, admin = true))
+        val there = tablet.state.value.library.players.single()
+        assertNotEquals(ricky.localId, there.localId)
+        assertEquals(ricky.profileId, there.profileId)
+        assertEquals("cat", there.personalization.avatar)
+        assertEquals(listOf(AtlasProfileLink("THA-1", ricky.profileId, "0123456789ABCDEF0123456789ABCDEF")), there.links)
+        assertTrue(there.credential!!.verifies("2468"))
+        assertTrue(tablet.state.value.library.isDeviceAdmin(there.localId))
+        assertEquals(there.localId, StandaloneTable(tabletStore).state.value.library.deviceAdmin)
+        // The same account twice is refused; a broken copy is not saved.
+        assertEquals(StandaloneTable.CopyResult.ALREADY_HERE, tablet.addCopiedAccount(copy, admin = false))
+        assertEquals(StandaloneTable.CopyResult.NOT_SAVED, tablet.addCopiedAccount(JSONObject(copy.toString()).put("profileId", "nope"), admin = false))
+    }
 }

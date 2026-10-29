@@ -1,0 +1,139 @@
+{
+  "name": "Lorcana lore and Pokémon prizes",
+  "about": "Lorcana counts lore up to the goal, Pokémon counts Prize cards down to zero; either ends the game at once.",
+  "steps": [
+    {
+      "action": {
+        "do": "setFormat",
+        "profile": "LORCANA"
+      },
+      "expect": {
+        "startingLife": 20
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "A"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "B"
+      }
+    },
+    {
+      "action": {
+        "do": "start",
+        "nowMs": 1000000,
+        "gameId": "l1"
+      },
+      "random": [
+        1
+      ],
+      "expect": {
+        "active": 1,
+        "players.0.life": 0
+      }
+    },
+    {
+      "action": {
+        "do": "changeLife",
+        "index": 0,
+        "delta": 15,
+        "nowMs": 1001000
+      },
+      "expect": {
+        "players.0.life": 15
+      }
+    },
+    {
+      "action": {
+        "do": "changeLife",
+        "index": 0,
+        "delta": -20,
+        "nowMs": 1002000
+      },
+      "expect": {
+        "players.0.life": 0,
+        "players.0.eliminated": false
+      }
+    },
+    {
+      "action": {
+        "do": "changeLife",
+        "index": 0,
+        "delta": -1,
+        "nowMs": 1003000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "changeLife",
+        "index": 1,
+        "delta": 20,
+        "nowMs": 1004000
+      },
+      "expect": {
+        "state": "GAME_OVER",
+        "winner": 1
+      }
+    },
+    {
+      "action": {
+        "do": "reset"
+      },
+      "expect": {
+        "state": "LOBBY",
+        "profile": "LORCANA",
+        "players.1.life": 0
+      }
+    },
+    {
+      "action": {
+        "do": "setFormat",
+        "profile": "POKEMON"
+      },
+      "expect": {
+        "startingLife": 6
+      }
+    },
+    {
+      "action": {
+        "do": "start",
+        "nowMs": 1000000,
+        "gameId": "p1"
+      },
+      "random": [
+        0
+      ],
+      "expect": {
+        "players.0.life": 6
+      }
+    },
+    {
+      "action": {
+        "do": "changeLife",
+        "index": 0,
+        "delta": 1,
+        "nowMs": 1001000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "changeLife",
+        "index": 1,
+        "delta": -6,
+        "nowMs": 1002000
+      },
+      "expect": {
+        "players.1.life": 0,
+        "state": "GAME_OVER",
+        "winner": 1
+      }
+    }
+  ]
+}

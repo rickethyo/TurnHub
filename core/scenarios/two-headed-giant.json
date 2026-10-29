@@ -1,0 +1,122 @@
+{
+  "name": "Two-Headed Giant",
+  "about": "Teams share turns, life and poison; the chosen starter's team goes first; a team at 15 poison loses together.",
+  "steps": [
+    {
+      "action": {
+        "do": "setFormat",
+        "profile": "MTG"
+      }
+    },
+    {
+      "action": {
+        "do": "setTwoHeadedGiant",
+        "on": true
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "A"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "B"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "C"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "D"
+      }
+    },
+    {
+      "action": {
+        "do": "chooseStarter",
+        "index": 3
+      },
+      "expect": {
+        "starter": 3
+      }
+    },
+    {
+      "action": {
+        "do": "start",
+        "nowMs": 1000000,
+        "gameId": "t1"
+      },
+      "expect": {
+        "active": 2,
+        "starter": 2,
+        "players.0.life": 30
+      }
+    },
+    {
+      "action": {
+        "do": "pass",
+        "index": 3,
+        "nowMs": 1020000
+      },
+      "expect": {
+        "active": 0,
+        "players.2.turnsCompleted": 1,
+        "players.3.turnsCompleted": 1,
+        "players.0.turnsCompleted": 0
+      }
+    },
+    {
+      "action": {
+        "do": "changeLife",
+        "index": 0,
+        "delta": -4,
+        "nowMs": 1021000
+      },
+      "expect": {
+        "players.0.life": 26,
+        "players.1.life": 26,
+        "players.2.life": 30
+      }
+    },
+    {
+      "action": {
+        "do": "changeCounter",
+        "index": 1,
+        "kind": "poison",
+        "value": 14,
+        "nowMs": 1022000
+      },
+      "expect": {
+        "players.0.counters.poison": 14,
+        "players.1.counters.poison": 14
+      }
+    },
+    {
+      "action": {
+        "do": "changeCounterForEveryone",
+        "kind": "poison",
+        "delta": 1,
+        "nowMs": 1023000
+      },
+      "expect": {
+        "players.0.eliminated": true,
+        "players.1.eliminated": true,
+        "players.0.outOrder": 1,
+        "players.1.outOrder": 2,
+        "players.2.counters.poison": 0,
+        "state": "GAME_OVER",
+        "winners": [
+          2
+        ],
+        "winner": 2
+      }
+    }
+  ]
+}

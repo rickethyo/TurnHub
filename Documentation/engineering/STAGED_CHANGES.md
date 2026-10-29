@@ -206,8 +206,12 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   text and TalkBack acceptance ([Shared devices](SHARED_DEVICES.md)). Hosting
   is a candidate upgrade; billing/entitlements/pricing remain separate work.
 
-- **Common engine and full phone takeover:** implement the portable engine,
-  validated handoff, fenced phone authority, reconnect reconciliation and
+- **Common engine and full phone takeover:** the portable engine is started
+  in [`core/`](../../core/README.md) (2026-10-29); next, Atlas runs it in place
+  of `GameEngine`/`Lobby`, the app links it through the NDK, the remaining
+  modes (Death May Die, Planechase, Pokémon/Lorcana turn markers) are ported
+  one per PR, then the old engines and Invariant 1's wording go. Then implement
+  the validated handoff, fenced phone authority, reconnect reconciliation and
   durable completion receipts in [Shared table authority](TABLE_AUTHORITY.md).
   Unified lobby/table presentation is implemented; full offline hosting of an
   Atlas game is not.
@@ -225,6 +229,12 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   accounts (`/api/accounts/merge`: summed totals, merged ID archived and
   redirected for sync and imports). Open: device checks, and a durable merge
   record so a cut mid-merge can't leave totals on both accounts.
+- **Device Admin account** (owner, 2026-10-29): implemented in the app (first
+  launch prompt, Admin label, "Install your admin account as the device admin?"
+  in Atlas setup; see [Accounts](PLAYERS_AND_ACCOUNTS.md#device-admin-account-owner-2026-10-29)).
+  "Use on another device" copies one account between the owner's phones and
+  tablets by QR over the same Wi-Fi. Open: device checks; syncing settings and
+  games between those copies without an Atlas.
 - **Local library management:** export/backup, explicit history deletion/
   retention and large-history storage/performance remain open. Local player
   editing, PIN removal, account deletion and retained UUID-based history are

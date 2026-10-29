@@ -1,0 +1,371 @@
+{
+  "name": "Seat actions",
+  "about": "A player's own controls from their seat (a Sigil, a guest phone): stale or foreign actions are refused, and only that player's controls are reachable.",
+  "steps": [
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "A"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "B"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "C"
+      }
+    },
+    {
+      "action": {
+        "do": "start",
+        "nowMs": 1000000,
+        "gameId": "m1"
+      },
+      "random": [
+        0
+      ],
+      "expect": {
+        "active": 0
+      }
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 1,
+        "kind": "life",
+        "value": -3,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1001000
+      },
+      "expect": {
+        "players.0.life": 37
+      }
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 1,
+        "kind": "life",
+        "value": -3,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1001000,
+        "stale": true
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 1,
+        "kind": "life",
+        "value": -3,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1001000,
+        "match": "another-game"
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 4,
+        "kind": "life",
+        "value": -3,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1001000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 1,
+        "kind": "life",
+        "value": -10001,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1001000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 2,
+        "kind": "pass",
+        "value": 0,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1005000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 1,
+        "kind": "pass",
+        "value": 0,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1020000
+      },
+      "expect": {
+        "active": 1,
+        "players.0.turnsCompleted": 1
+      }
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 2,
+        "kind": "commander",
+        "value": 1,
+        "slot": 1,
+        "source": 1,
+        "nowMs": 1021000
+      },
+      "expect": {
+        "players.1.commanderDamage.0": [
+          1,
+          0
+        ],
+        "players.1.life": 39
+      }
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 2,
+        "kind": "commander",
+        "value": 1,
+        "slot": 1,
+        "source": 2,
+        "nowMs": 1021000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 3,
+        "kind": "poison",
+        "value": 1,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1022000
+      },
+      "expect": {
+        "players.2.counters.poison": 1
+      }
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 3,
+        "kind": "poison",
+        "value": 2,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1022000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 3,
+        "kind": "commander-casts",
+        "value": 1,
+        "slot": 2,
+        "source": 0,
+        "nowMs": 1022000
+      },
+      "expect": {
+        "players.2.counters.commanderCasts": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 1,
+        "kind": "pause",
+        "value": 0,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1023000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 1,
+        "kind": "pause",
+        "value": 1,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1024000
+      },
+      "expect": {
+        "state": "PAUSED"
+      }
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 2,
+        "kind": "pause",
+        "value": 1,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1025000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 3,
+        "kind": "pause",
+        "value": 0,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1026000
+      },
+      "expect": {
+        "state": "RUNNING"
+      }
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 2,
+        "kind": "monarch",
+        "value": 0,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1027000
+      },
+      "expect": {
+        "monarch": 1
+      }
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 3,
+        "kind": "win",
+        "value": 0,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1028000
+      },
+      "expect": {
+        "winClaim": 2
+      }
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 2,
+        "kind": "confirm",
+        "value": 0,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1029000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 1,
+        "kind": "confirm",
+        "value": 0,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1029000
+      },
+      "expect": {
+        "winClaim": 2,
+        "winConfirmed": [
+          0
+        ]
+      }
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 2,
+        "kind": "deny",
+        "value": 0,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1030000
+      },
+      "expect": {
+        "winClaim": null,
+        "winConfirmed": []
+      }
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 3,
+        "kind": "concede",
+        "value": 0,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1031000
+      },
+      "expect": {
+        "players.2.conceded": true,
+        "players.2.eliminated": true,
+        "state": "RUNNING"
+      }
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 2,
+        "kind": "eliminate",
+        "value": 0,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1032000
+      },
+      "expect": {
+        "state": "GAME_OVER",
+        "winner": 0,
+        "winners": [
+          0
+        ]
+      }
+    },
+    {
+      "action": {
+        "do": "seat",
+        "player": 1,
+        "kind": "life",
+        "value": -1,
+        "slot": 0,
+        "source": 0,
+        "nowMs": 1033000
+      },
+      "unchanged": true
+    }
+  ]
+}

@@ -50,7 +50,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
-| TH-021 | Shared table authority design | Android, hosting design | UI integrated; common engine/authority staged | Owner / design implementation and device acceptance |
+| TH-021 | Shared table authority design | Android, hosting design, `core/` | UI integrated; shared rules core started (2026-10-29) | Claude / Atlas runs the core, then the app via NDK |
 | TH-020 | Star Commander game mode | Atlas, protocol, Android, stats | Implemented on `claude/master`; host and JVM tests pass | Owner / interpretations below, playtest G14 |
 | TH-019 | iOS foundation and development flow | Android baseline, iOS, contracts, CI | Foundation implemented; port awaits Android stabilization | Owner / Android baseline acceptance; see STAGED_CHANGES |
 | TH-018 | Phone-owned profiles and lighter Atlas requests | Android, account import, documentation | Implemented; local validation passes | Owner / device acceptance and PR review |
@@ -1398,3 +1398,59 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   cut between the two saves leaves totals on both accounts (no durable merge
   record yet). Host scenario covers rules, sums, redirect and import dedupe;
   App Manual and http-v1 updated. No hardware run.
+
+### Atlas and Sigil visual sweep toward the app / Claude / 2026-10-29
+
+Owner asked for the device screens to look and flow more like the current
+Android app, with free rein. Presentation only; no Intent, protocol or state
+changes.
+- Icons: `LVGL/tools/generate_icons.py` re-run (adds table, cards, commander,
+  bug); both firmwares and both preview renderers link `th_icons.c`.
+- Atlas (`atlas_screen_lvgl.cpp`): app navigation bar (icon over label, soft
+  accent pill on the chosen tab); full-width body buttons drawn as one inset
+  grouped list (tinted icon tile, value/Hold/check/chevron, lock for PIN
+  profiles, subtitles on Home); bottom-row buttons are filled primary, tonal
+  accent or critical with a leading icon; the game hero shows the app's turn
+  ring around the clock; a pass slides a turn-coloured banner across on
+  LVGL's top layer (the hero title says the same, so it is not the only cue).
+- Sigil (`sigil_display_lvgl.cpp`): same tab bar and button styles, a large
+  header title, My player on a seat panel that glows in the turn colour, a
+  "Your turn" banner when the Sigil becomes active, grouped-list rows on Home
+  and the profile picker, initials on Table rows. Home's two rows now split
+  150-260 px evenly (touch targets 55 px each).
+- Validation: Linux host suites (Atlas, Sigil) pass; previews rendered with
+  `render-atlas-lvgl.sh` / `render-sigil-lvgl.sh` (new turn-banner frames).
+  Board look and animation smoothness on the classic-ESP32 Sigil need an
+  on-device check.
+
+### One game path: shared rules core / Claude / 2026-10-29
+
+Owner asked for one game path, with Atlas games working like phone games,
+and agreed to a shared core engine for phone and Atlas alike. Started slice 1
+of [Shared table authority](Documentation/engineering/TABLE_AUTHORITY.md):
+
+- `core/`: portable C++17 port of `StandaloneGame` (JSON state and actions,
+  injected time and randomness). Magic formats, 2HG, Star Commander, Emperor,
+  Bag of Doom, Yu-Gi-Oh!, Pokémon prizes, Lorcana lore. Death May Die,
+  Planechase and the Pokémon/Lorcana turn markers come next.
+- `core/scenarios/`: seven shared scenarios (109 steps). `core/tests/run-linux.sh`
+  passes them all (ASan/UBSan); `CoreScenarioTest.kt` replays the same files
+  against the Kotlin rules (CI; no Android SDK in the authoring container).
+- Next: Atlas runs the core in place of `GameEngine`/`Lobby`, then the app
+  links it through the NDK. Codex: any rule change to `StandaloneGame` now
+  needs the same change in `core/` and a scenario step.
+
+
+### Code review and the Death May Die release gate / Claude / 2026-10-29
+
+Review of the app, Atlas outside the game engine, the Sigil link and `core/`.
+Findings with severity are in the owner's review doc. Codex, the open items are:
+`/api/standalone/import` accepts any session, so stats can be forged; changing
+a PIN doesn't ask for the old one; the pairing code has no commitment step;
+and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
+
+- `666fa87`: `core/` JSON takes strict numbers and surrogate pairs only.
+- Owner's licensing rule (CMON): Death May Die stays out of release builds.
+  The lobby picker now offers it only when `BuildConfig.DEBUG` (Preview and
+  debug builds). Its code still ships; moving it to a local-only module or
+  flavor is next. Not yet built (no Android SDK in the container); CI checks it.

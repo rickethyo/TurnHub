@@ -76,6 +76,9 @@ jobs:
               Android/app/src/main/assets/manual.md) ;;
               Android/*) android=true ;;
               data/death-may-die/*|tools/dmd-forge/*) android=true ;;
+              # The shared rules core: its own suite always runs; the app replays
+              # its scenarios and Atlas links it.
+              core/*) android=true atlas=true ;;
               # Signing tool: its tests plus every packaged firmware build.
               tools/firmware/*|tools/ci-requirements.txt) tools=true atlas=true sigil=true ;;
             esac
@@ -104,6 +107,8 @@ jobs:
       - name: Sigil host suites (ASan and UBSan)
         if: env.SIGIL == 'true'
         run: bash Sigil/tests/host/run-linux.sh
+      - name: Shared rules core scenarios (ASan and UBSan)
+        run: bash core/tests/run-linux.sh
       - name: Audit authoritative adapters
         run: python3 Atlas/tests/host/audit_adapters.py
       - name: Persistent branch maintenance safety checks

@@ -56,7 +56,16 @@ data class LocalLibrary(
     val investigatorReferences: Map<String, com.turnhub.android.domain.InvestigatorCard> = emptyMap(),
     /** Death May Die enemy cards typed in at the table, kept for the next game, by name. */
     val enemies: List<com.turnhub.android.domain.EnemyCard> = emptyList(),
+    /**
+     * This device's Admin account (its local ID), the owner's account type (owner, 2026-10-29). It
+     * gives no extra powers on a phone and never travels: uploaded, it is a regular Atlas account.
+     */
+    val deviceAdmin: String? = null,
+    /** The owner chose "Not now" when asked to set up the device's Admin account. */
+    val adminPromptDismissed: Boolean = false,
 ) {
+    fun isDeviceAdmin(localId: String) = deviceAdmin == localId
+
     /** Saves or updates (by name, any case) an enemy card's stats. */
     fun withEnemy(card: com.turnhub.android.domain.EnemyCard): LocalLibrary {
         val clean = card.normalized() ?: return this
@@ -192,6 +201,8 @@ data class LocalLibrary(
         put("investigatorReferences", JSONObject().apply { investigatorReferences.forEach { (id, card) -> put(id, card.toJson()) } })
         put("planarDecks", JSONArray().apply { planarDecks.forEach { put(it.toJson()) } })
         put("enemies", JSONArray().apply { enemies.forEach { put(StandaloneTable.enemyCardToJson(it)) } })
+        put("deviceAdmin", deviceAdmin ?: JSONObject.NULL)
+        put("adminPromptDismissed", adminPromptDismissed)
         put("history", JSONArray().apply { history.forEach { put(it.toJson()) } })
         put("deliveries", JSONArray().apply {
             deliveries.forEach { d -> put(JSONObject().apply {
@@ -236,6 +247,10 @@ data class LocalLibrary(
                 history = (0 until history.length()).map { i ->
                     requireNotNull(GameRecord.fromJson(history.getJSONObject(i))) { "Invalid match" }
                 },
+                // A device Admin whose account is gone is no Admin; setup asks again.
+                deviceAdmin = json.optStringOrNull("deviceAdmin")?.takeIf { id ->
+                    (0 until players.length()).any { players.getJSONObject(it).optString("localId") == id } },
+                adminPromptDismissed = json.optBoolean("adminPromptDismissed", false),
                 deliveries = (0 until deliveries.length()).map { i -> deliveries.getJSONObject(i).let { d ->
                     val ids = d.getJSONArray("profileIds")
                     MatchDelivery(d.getString("recordId"), DeliveryStatus.valueOf(d.getString("status")),

@@ -126,6 +126,8 @@ class StandaloneTable(
         if (!accountUnlocked(localId)) return false
         val before = _state.value
         if (before.library.players.none { it.localId == localId && it.credential != null }) return false
+        // The device's Admin account keeps its PIN or password.
+        if (before.library.isDeviceAdmin(localId)) return false
         return publish(before.copy(library = before.library.copy(players = before.library.players.map {
             if (it.localId == localId) it.copy(credential = null) else it })))
     }
@@ -143,9 +145,62 @@ class StandaloneTable(
         if (game.state != TableState.LOBBY && game.players.any { it.localId == localId }) return false
         var lobby = game
         lobby.players.indexOfFirst { it.localId == localId }.takeIf { it >= 0 }?.let { lobby = lobby.removePlayer(it) }
-        val saved = publish(before.copy(game = lobby, library = before.library.copy(players = before.library.players.filterNot { it.localId == localId })))
+        // Deleting the Admin account leaves the device without one, so setup asks again.
+        val library = before.library.copy(players = before.library.players.filterNot { it.localId == localId },
+            deviceAdmin = before.library.deviceAdmin.takeIf { it != localId },
+            adminPromptDismissed = before.library.adminPromptDismissed && !before.library.isDeviceAdmin(localId))
+        val saved = publish(before.copy(game = lobby, library = library))
         if (saved) unlockedAccounts -= localId
         return saved
+    }
+
+    /**
+     * Makes [localId] this device's Admin account (owner, 2026-10-29): the owner's account type,
+     * with no extra powers on a phone. It needs a PIN or password and must be unlocked; handing
+     * Admin on also needs the current Admin unlocked.
+     */
+    fun setDeviceAdmin(localId: String): Boolean {
+        val before = _state.value
+        val current = before.library.deviceAdmin
+        if (current == localId) return true
+        if (before.library.players.none { it.localId == localId && it.credential != null } || !accountUnlocked(localId) ||
+            (current != null && !accountUnlocked(current))) return false
+        return publish(before.copy(library = before.library.copy(deviceAdmin = localId)))
+    }
+
+    /** First-time setup: a new account with its PIN or password, made the device's Admin. */
+    fun createAdminAccount(name: String, credential: LocalCredential): Boolean {
+        if (_state.value.library.deviceAdmin != null || !createAccount(name, credential)) return false
+        val created = _state.value.library.players.last()
+        return setDeviceAdmin(created.localId)
+    }
+
+    enum class CopyResult { ADDED, ALREADY_HERE, NOT_SAVED }
+
+    /**
+     * Adds an account copied from another of the owner's devices ([AccountCopy]) under a new
+     * local ID and the same profile ID; [admin] makes it this device's Admin when there is none.
+     * The caller has already checked its PIN or password, so the account opens unlocked.
+     */
+    fun addCopiedAccount(copy: org.json.JSONObject, admin: Boolean): CopyResult {
+        val before = _state.value
+        val player = runCatching { AccountCopy.fromJson(copy, newId()) }.getOrNull() ?: return CopyResult.NOT_SAVED
+        if (before.library.players.any { it.profileId == player.profileId }) return CopyResult.ALREADY_HERE
+        // Another local account may already hold one of its Atlas links; this device keeps that one.
+        val links = player.links.filterNot { l -> before.library.players.any { p -> p.links.any { it.atlasId == l.atlasId && it.profileId == l.profileId } } }
+        val added = player.copy(links = links)
+        val makeAdmin = admin && added.credential != null && before.library.deviceAdmin == null
+        val saved = publish(before.copy(library = before.library.copy(players = before.library.players + added,
+            deviceAdmin = if (makeAdmin) added.localId else before.library.deviceAdmin)))
+        if (!saved) return CopyResult.NOT_SAVED
+        unlockedAccounts += added.localId
+        return CopyResult.ADDED
+    }
+
+    /** "Not now" on the Admin account prompt; it stays available from the accounts list. */
+    fun dismissAdminPrompt(): Boolean {
+        val before = _state.value
+        return publish(before.copy(library = before.library.copy(adminPromptDismissed = true)))
     }
 
     // --- the lobby ------------------------------------------------------------------

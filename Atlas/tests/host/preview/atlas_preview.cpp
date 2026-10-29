@@ -88,13 +88,15 @@ void players(AtlasScreen &s, int count, bool game) {
   s.showLife = game;
 }
 
-void renderShell(AtlasScreen &s,const ScreenStyle &style) {
+void renderShell(AtlasScreen &s,const ScreenStyle &style,bool keepBanner=false) {
   if(s.kind!=ScreenKind::Code && s.kind!=ScreenKind::PairCode && s.kind!=ScreenKind::Name && s.kind!=ScreenKind::Pin && s.kind!=ScreenKind::Setup) {
     const TouchAction actions[]={TouchAction::OpenHome,TouchAction::OpenGame,TouchAction::OpenOverview,TouchAction::OpenSettings};
     const uint8_t selected=s.kind==ScreenKind::Home?0:s.kind==ScreenKind::Overview?2:s.kind==ScreenKind::Menu?3:1;
     for(uint8_t i=0;i<4;++i) { auto &b=s.buttons[s.buttonCount++];b.action=actions[i];b.label=TurnHubUi::pageTitle(static_cast<TurnHubUi::Page>(i));b.x=i*80;b.y=432;b.w=80;b.h=48;b.selected=i==selected; }
   }
   renderAtlasScreen(s,style);
+  // Only the turn-banner frame shows the banner a pass starts.
+  if(!keepBanner) lv_obj_clean(lv_layer_top());
 }
 
 void renderAll(const ScreenStyle &style, const std::string &suffix) {
@@ -190,6 +192,15 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     row(s, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Hold to pass"}, {TouchAction::Pause, "Pause"}, {TouchAction::OpenTable, "Table"}}, {4, 2, 2});
     s.buttons[0].holdMs = TOUCH_PASS_HOLD_MS;
     renderShell(s, style); save("game-" + std::to_string(n) + suffix);
+    if (n != 4) continue;
+    // The turn banner mid-slide after Sam passes to Alex.
+    s.players[1].flags &= ~CHIP_ACTIVE; s.players[2].flags |= CHIP_ACTIVE;
+    snprintf(s.title, sizeof(s.title), "Alex's turn");
+    renderShell(s, style, true);
+    nowMs += 400; lv_timer_handler();
+    save("turn-banner" + suffix);
+    nowMs += 3000; lv_timer_handler();
+    lv_obj_clean(lv_layer_top());
   }
   {
     AtlasScreen s = base("QR", "Join this table", "Scan with a phone camera");

@@ -38,6 +38,8 @@ void save(const std::string &name) {
         static_cast<uint8_t>((c >> 5 & 63) * 255 / 63), static_cast<uint8_t>((c & 31) * 255 / 31)};
     fwrite(rgb, 1, 3, f);
   }
+  // A turn banner belongs to the frame it was saved in.
+  lv_obj_clean(lv_layer_top());
   fclose(f);
   printf("%s\n", path.c_str());
 }
@@ -107,6 +109,8 @@ int main() {
         {Key::Left, A(SigilAction::AddSeatB)}, {Key::Right, A(SigilAction::CycleStarter)}}));
     d.showState(2, DisplayMode::Lobby, 1, 0, 0, DISPLAY_FLAG_STARTER); save("lobby" + suffix);
     d.setMenuView(menu({{Key::Up, MENU_LOCAL_DEVICE_MENU}, {Key::Select, A(SigilAction::Pass)}}, true));
+    d.showGame(game("Ricky", 40, true, 5));
+    nowMs += 400; lv_timer_handler(); save("turn-banner" + suffix);
     d.showGame(game("Ricky", 40, true, 5)); save("game-turn" + suffix);
     LifeOverlay o;
     o.pending = -3;

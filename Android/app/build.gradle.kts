@@ -79,6 +79,8 @@ android {
 
     buildFeatures {
         compose = true
+        // BuildConfig.DEBUG keeps Death May Die out of release (Play) builds.
+        buildConfig = true
     }
 }
 

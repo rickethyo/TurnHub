@@ -6,6 +6,7 @@
 
 #include "sigil_display_lvgl.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -20,6 +21,11 @@ extern const lv_font_t th_semi_20;
 extern const lv_font_t th_bold_28;
 extern const lv_font_t th_num_40;
 extern const lv_font_t th_num_64;
+extern const lv_image_dsc_t th_icon_home_24, th_icon_timer_24, th_icon_table_24, th_icon_sliders_24,
+    th_icon_chevron_right_24, th_icon_chevron_left_24, th_icon_pause_24, th_icon_play_24, th_icon_pass_24,
+    th_icon_more_24, th_icon_hub_24, th_icon_palette_24, th_icon_crown_24, th_icon_flag_24, th_icon_check_24,
+    th_icon_close_24, th_icon_minus_24, th_icon_plus_24, th_icon_sigil_24, th_icon_link_24, th_icon_power_24,
+    th_icon_users_24, th_icon_contrast_24, th_icon_refresh_24;
 }
 
 namespace TurnHubSigil {
@@ -98,6 +104,121 @@ void pill(lv_obj_t *parent, const char *s, uint32_t fill, uint32_t ink, int16_t 
   text(p, s, &th_eyebrow_13, ink, 0, 3, w, LV_TEXT_ALIGN_CENTER);
 }
 
+
+lv_color_t mixRgb(uint32_t a, uint32_t b, uint8_t t) { return lv_color_mix(rgb(b), rgb(a), t); }
+
+// A short top sheen, the glossy touch the Atlas buttons have too.
+void sheen(lv_obj_t *o, uint32_t base) {
+  lv_obj_set_style_bg_color(o, mixRgb(base, 0xFFFFFF, pal().light ? 18 : 26), 0);
+  lv_obj_set_style_bg_grad_color(o, rgb(base), 0);
+  lv_obj_set_style_bg_grad_dir(o, LV_GRAD_DIR_VER, 0);
+}
+
+// A design-system icon (an A8 mask) tinted to the given colour.
+lv_obj_t *icon(lv_obj_t *parent, const lv_image_dsc_t *src, int16_t x, int16_t y, uint32_t color) {
+  lv_obj_t *img = lv_image_create(parent);
+  lv_obj_remove_style_all(img);
+  lv_image_set_src(img, src);
+  lv_obj_set_pos(img, x, y);
+  lv_obj_set_style_image_recolor(img, rgb(color), 0);
+  lv_obj_set_style_image_recolor_opa(img, LV_OPA_COVER, 0);
+  return img;
+}
+
+// The app's icon for a key's label, or nullptr. Labels come from the menu
+// model, so this matches by text.
+const lv_image_dsc_t *labelIcon(const char *label) {
+  static const struct { const char *label; const lv_image_dsc_t *icon; } ICONS[] = {
+      {"Pause", &th_icon_pause_24}, {"Resume", &th_icon_play_24}, {"Pass turn", &th_icon_pass_24},
+      {"Pass", &th_icon_pass_24}, {"More", &th_icon_more_24}, {"Device", &th_icon_hub_24},
+      {"Theme", &th_icon_palette_24}, {"Claim win", &th_icon_crown_24}, {"I'm out", &th_icon_flag_24},
+      {"Concede", &th_icon_flag_24}, {"Approve", &th_icon_check_24}, {"Join", &th_icon_check_24},
+      {"Join game", &th_icon_play_24}, {"Start game", &th_icon_play_24}, {"Apply", &th_icon_check_24},
+      {"Deny", &th_icon_close_24}, {"Cancel", &th_icon_close_24}, {"Back", &th_icon_chevron_left_24},
+      {"Previous", &th_icon_chevron_left_24}, {"Prev", &th_icon_chevron_left_24},
+      {"Next", &th_icon_chevron_right_24}, {"Pair", &th_icon_sigil_24}, {"Unpair", &th_icon_link_24},
+      {"Factory reset", &th_icon_power_24}, {"Invert", &th_icon_contrast_24}, {"Rematch", &th_icon_refresh_24},
+      {"Add seat B", &th_icon_users_24}, {"Close", &th_icon_close_24}, {"Undo", &th_icon_refresh_24},
+  };
+  for (const auto &entry : ICONS)
+    if (strcmp(entry.label, label) == 0) return entry.icon;
+  return nullptr;
+}
+
+// Seat and avatar hues, as the app's Palette.avatarColor and the Atlas tiles.
+uint32_t hsl(float h, float s, float l) {
+  const float c = (1 - fabsf(2 * l - 1)) * s, hp = h / 60, x = c * (1 - fabsf(fmodf(hp, 2.0f) - 1)), m = l - c / 2;
+  float r = 0, g = 0, b = 0;
+  if (hp < 1) { r = c; g = x; } else if (hp < 2) { r = x; g = c; } else if (hp < 3) { g = c; b = x; }
+  else if (hp < 4) { g = x; b = c; } else if (hp < 5) { r = x; b = c; } else { r = c; b = x; }
+  auto to = [&](float v) { return static_cast<uint32_t>(lroundf((v + m) * 255)); };
+  return to(r) << 16 | to(g) << 8 | to(b);
+}
+
+uint32_t seatColor(uint8_t number) {
+  static const float hues[] = {38, 168, 12, 205, 95, 280, 330, 60};
+  const bool contrast = styleTheme == TurnHubTheme::Id::Contrast;
+  const float sat = contrast ? 0.0f : pal().ornament ? 0.42f : 0.5f;
+  const float light = contrast ? 0.18f : pal().ornament ? 0.34f : pal().light ? 0.44f : 0.38f;
+  return hsl(hues[(number + 7) % 8], sat, light);
+}
+
+// A filled disc in the seat's hue holding the name's initial.
+lv_obj_t *token(lv_obj_t *parent, const char *name, uint8_t number, int16_t x, int16_t y, int16_t side) {
+  lv_obj_t *disc = box(parent, x, y, side, side);
+  lv_obj_set_style_radius(disc, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_opa(disc, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(disc, rgb(seatColor(number)), 0);
+  char initial[2] = {name && name[0] ? name[0] : '?', 0};
+  lv_obj_t *l = lv_label_create(disc);
+  lv_obj_remove_style_all(l);
+  lv_label_set_text(l, initial);
+  lv_obj_set_style_text_font(l, side >= 36 ? &th_semi_20 : &th_semi_16, 0);
+  lv_obj_set_style_text_color(l, lv_color_white(), 0);
+  lv_obj_center(l);
+  return disc;
+}
+
+// PowerPoint-style "Your turn": a turn-coloured card pushes in from the
+// right, rests and slides off left, on LVGL's top layer so redraws under it
+// leave it alone. The YOUR TURN pill says the same, so it is never the only
+// sign.
+lv_obj_t *banner = nullptr;
+
+void slideX(void *obj, int32_t v) { lv_obj_set_x(static_cast<lv_obj_t *>(obj), v); }
+
+void showTurnBanner(const char *name, uint8_t number) {
+  if (banner) lv_obj_delete(banner);
+  constexpr int16_t bw = W - 20, bh = 80;
+  banner = box(lv_layer_top(), W, 96, bw, bh);
+  lv_obj_add_event_cb(banner, [](lv_event_t *) { banner = nullptr; }, LV_EVENT_DELETE, nullptr);
+  card(banner, pal().turn, pal().turn, 18);
+  sheen(banner, pal().turn);
+  lv_obj_t *disc = token(banner, name, number, 14, (bh - 40) / 2, 40);
+  lv_obj_set_style_border_width(disc, 2, 0);
+  lv_obj_set_style_border_color(disc, rgb(pal().onTurn), 0);
+  text(banner, "Your turn", &th_bold_28, pal().onTurn, 64, 14, bw - 72);
+  text(banner, name, &th_semi_16, pal().onTurn, 65, 48, bw - 72);
+  lv_anim_t in;
+  lv_anim_init(&in);
+  lv_anim_set_var(&in, banner);
+  lv_anim_set_exec_cb(&in, slideX);
+  lv_anim_set_values(&in, W, 10);
+  lv_anim_set_duration(&in, 300);
+  lv_anim_set_path_cb(&in, lv_anim_path_ease_out);
+  lv_anim_start(&in);
+  lv_anim_t out;
+  lv_anim_init(&out);
+  lv_anim_set_var(&out, banner);
+  lv_anim_set_exec_cb(&out, slideX);
+  lv_anim_set_values(&out, 10, -W);
+  lv_anim_set_delay(&out, 300 + 1000);
+  lv_anim_set_duration(&out, 260);
+  lv_anim_set_path_cb(&out, lv_anim_path_ease_in);
+  lv_anim_set_completed_cb(&out, lv_obj_delete_anim_completed_cb);
+  lv_anim_start(&out);
+}
+
 // Life totals use the digit-only numeral fonts.
 void lifeNumber(lv_obj_t *parent, int32_t life, int16_t y, bool large) {
   char digits[12];
@@ -133,9 +254,14 @@ lv_obj_t *LvglSigilDisplay::frame(const char *title, uint8_t, uint8_t) {
   lv_obj_set_style_bg_color(screen, rgb(pal().bg), 0);
   lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
   lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
+  // The app's top bar: the screen's colour with a hairline under the title.
   lv_obj_t *bar = box(screen, 0, 0, W, HEADER_H);
-  card(bar, pal().surface1, pal().separator, 0);
-  text(bar, title, &th_semi_20, pal().text, M, 12, W - 2 * M);
+  lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_BOTTOM, 0);
+  lv_obj_set_style_border_width(bar, 1, 0);
+  lv_obj_set_style_border_color(bar, rgb(pal().separator), 0);
+  // Large while it clears the header's More key; the smaller title otherwise.
+  const bool large = textWidth(title, &th_bold_28) <= W - 2 * M - 80;
+  text(bar, title, large ? &th_bold_28 : &th_semi_20, pal().text, M, large ? 6 : 11, W - 2 * M);
   return screen;
 }
 
@@ -143,39 +269,83 @@ void LvglSigilDisplay::button(const char *label, const char *note, PadRect r,
     uint8_t target, bool accent, uint32_t meaning) {
   if (!label || !label[0]) return;
   lv_obj_t *b = box(lv_screen_active(), r.x, r.y, r.w, r.h);
-  card(b, accent ? pal().accent : pal().surface2,
-      accent ? pal().accent : pal().separatorStrong, 12);
-  const uint32_t ink = accent ? pal().onAccent : pal().text;
-  const lv_font_t *font = textWidth(label, &th_semi_20) <= r.w - 16 ? &th_semi_20 : &th_semi_16;
-  const int16_t lh = lv_font_get_line_height(font);
-  const bool wrap = textWidth(label, font) > r.w - 16;
-  const int16_t height = (wrap ? 2 : 1) * lh;
-  const int16_t y = (r.h - height - (note ? 15 : 0)) / 2;
-  auto *l = text(b, label, font, ink, 8, y, r.w - 16, LV_TEXT_ALIGN_CENTER);
-  if (wrap) { lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP); lv_obj_set_height(l, height); }
-  if (note) text(b, note, &th_eyebrow_13, accent ? pal().onAccent : pal().textSecondary,
-      4, y + height + 1, r.w - 8, LV_TEXT_ALIGN_CENTER);
+  // Names on the profile picker are list rows (the app's join list): the
+  // player's initial, the name and its note, and a chevron.
+  const bool row = layout_ == Layout::Picker && r.w >= W - 2 * M && target < KEY_COUNT &&
+      target != static_cast<uint8_t>(Key::Select) && target != static_cast<uint8_t>(Key::Left);
+  if (row) {
+    card(b, pal().light ? pal().surface1 : pal().surface2, pal().separator, 14);
+    uint8_t hue = 0;
+    for (const char *c = label; *c; ++c) hue = static_cast<uint8_t>(hue * 31 + *c);
+    token(b, label, hue, 10, (r.h - 32) / 2, 32);
+    const int16_t textW = r.w - 52 - 30;
+    if (note) {
+      text(b, label, &th_semi_20, pal().text, 52, (r.h - 40) / 2, textW);
+      text(b, note, &th_eyebrow_13, pal().textSecondary, 52, (r.h - 40) / 2 + 24, textW);
+    } else {
+      text(b, label, &th_semi_20, pal().text, 52, (r.h - 24) / 2, textW);
+    }
+    icon(b, &th_icon_chevron_right_24, r.w - 30, (r.h - 24) / 2, pal().textTertiary);
+  } else {
+    // The app's filled primary for the main action; tonal accent for the rest.
+    const uint32_t base = accent ? pal().accent : pal().accentSoft;
+    card(b, base, base, 14);
+    if (accent) lv_obj_set_style_border_width(b, 0, 0);
+    else lv_obj_set_style_border_color(b, mixRgb(pal().accentSoft, pal().accent, 110), 0);
+    sheen(b, base);
+    const uint32_t ink = accent ? pal().onAccent : pal().accent;
+    const lv_image_dsc_t *glyph = labelIcon(label);
+    int16_t room = r.w - 16;
+    const lv_font_t *font = textWidth(label, &th_semi_20) <= room ? &th_semi_20 : &th_semi_16;
+    if (glyph && textWidth(label, font) + 28 > room) glyph = nullptr;
+    if (glyph) room -= 28;
+    const int16_t lh = lv_font_get_line_height(font);
+    const bool wrap = textWidth(label, font) > room;
+    const int16_t height = (wrap ? 2 : 1) * lh;
+    const int16_t y = (r.h - height - (note ? 15 : 0)) / 2;
+    if (glyph) {
+      const int16_t tw = static_cast<int16_t>(textWidth(label, font));
+      const int16_t x = (r.w - tw - 28) / 2;
+      icon(b, glyph, x, y + (lh - 24) / 2, ink);
+      text(b, label, font, ink, x + 28, y, tw + 2);
+    } else {
+      auto *l = text(b, label, font, ink, 8, y, r.w - 16, LV_TEXT_ALIGN_CENTER);
+      if (wrap) { lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP); lv_obj_set_height(l, height); }
+    }
+    if (note) text(b, note, &th_eyebrow_13, accent ? pal().onAccent : pal().textSecondary,
+        4, y + height + 1, r.w - 8, LV_TEXT_ALIGN_CENTER);
+  }
   // A newly labeled control cannot inherit a contact from the old action.
   for (const char *c = label; *c; ++c) meaning = (meaning ^ static_cast<uint8_t>(*c)) * 16777619u;
   touchMap_.add(r, target, meaning);
   if (target < KEY_COUNT) keys_[target] = b;
 }
 
+// The app's bottom navigation bar: an icon over each label, the chosen tab's
+// icon on a soft accent pill, a hairline along the top.
 void LvglSigilDisplay::navigation(TurnHubUi::Page selected) {
+  static const lv_image_dsc_t *const ICONS[] = {&th_icon_home_24, &th_icon_timer_24, &th_icon_table_24,
+      &th_icon_sliders_24};
+  auto *bar = box(lv_screen_active(), 0, NAV_Y, W, NAV_H);
+  card(bar, pal().surface1, pal().surface1, 0);
+  lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_TOP, 0);
+  lv_obj_set_style_border_color(bar, rgb(pal().separator), 0);
+  // Settings, the longest label, gets the widest tab.
+  static const int16_t WIDTHS[] = {56, 56, 56, 72};
   int16_t x = 0;
-  const int16_t widths[] = {50,50,50,90};
-  for (uint8_t i = 0; i < TurnHubUi::PAGE_COUNT; ++i) {
+  for (uint8_t i = 0; i < TurnHubUi::PAGE_COUNT; ++i, x += WIDTHS[i - 1]) {
     const auto page = static_cast<TurnHubUi::Page>(i);
-    auto *tab = box(lv_screen_active(), x, NAV_Y, widths[i], NAV_H);
-    card(tab, selected == page ? pal().accentSoft : pal().surface1, pal().separator, 0);
-    if (selected == page) {
-      auto *mark = box(tab, 10, 0, widths[i]-20, 3);
-      card(mark, pal().accent, pal().accent, 1);
+    const bool chosen = selected == page;
+    const int16_t w = WIDTHS[i];
+    const uint32_t ink = chosen ? pal().accent : pal().textSecondary;
+    const int16_t pillW = 48, pillX = x + (w - pillW) / 2;
+    if (chosen) {
+      auto *indicator = box(bar, pillX, 3, pillW, 26);
+      card(indicator, pal().accentSoft, pal().accentSoft, 13);
     }
-    text(tab, TurnHubUi::pageTitle(page), &th_eyebrow_13,
-        selected == page ? pal().accent : pal().textSecondary, 0, 18, widths[i], LV_TEXT_ALIGN_CENTER);
-    touchMap_.add({x, NAV_Y, widths[i], NAV_H}, TOUCH_NAV + i, TOUCH_NAV + i);
-    x += widths[i];
+    icon(bar, ICONS[i], pillX + (pillW - 24) / 2, 4, ink);
+    text(bar, TurnHubUi::pageTitle(page), &th_eyebrow_13, ink, x, 30, w, LV_TEXT_ALIGN_CENTER);
+    touchMap_.add({x, NAV_Y, w, NAV_H}, TOUCH_NAV + i, TOUCH_NAV + i);
   }
 }
 
@@ -376,7 +546,14 @@ void LvglSigilDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &g) {
     finish(labels);
     return;
   }
-  text(s,g.primary.name,nameFont(g.primary.name,220),pal().text,10,52,220,LV_TEXT_ALIGN_CENTER);
+  // The player's panel, as the app's seat panels: the turn glows.
+  static bool wasActive = false;
+  auto *panel=box(s,M,48,W-2*M,122);
+  card(panel,active ? pal().turnSoft : pal().surface1,active ? pal().turn : pal().separator,16);
+  if (active) lv_obj_set_style_border_width(panel,2,0);
+  if (active && !wasActive && !life_.passPending) showTurnBanner(g.primary.name,displayPrimaryPlayer(g.state));
+  wasActive=active;
+  text(s,g.primary.name,nameFont(g.primary.name,200),pal().text,20,52,200,LV_TEXT_ALIGN_CENTER);
   pill(s,life_.passPending ? "PASSING" : active ? "YOUR TURN" : "WAITING",
       active ? pal().turn : pal().fill,active ? pal().onTurn : pal().textSecondary,84);
   char digits[14];
@@ -384,7 +561,7 @@ void LvglSigilDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &g) {
   snprintf(digits,sizeof(digits),"%ld",static_cast<long>(preview));
   const lv_font_t *const fonts[]={&th_num_64,&th_num_40,&th_bold_28,&th_semi_20};
   const lv_font_t *font=fitted(digits,108,fonts,4);
-  text(s,digits,font,pal().text,64,110,112,LV_TEXT_ALIGN_CENTER);
+  text(s,digits,font,active ? pal().turn : pal().text,64,110,112,LV_TEXT_ALIGN_CENTER);
   PadLabels labels=menuLabels();
   char other[40];
   if (shared && labels.text[static_cast<uint8_t>(Key::Down)]) {
@@ -523,8 +700,23 @@ void LvglSigilDisplay::showHome(uint8_t sigilId, bool connected, const char *nam
       &th_semi_16,connected ? pal().good : pal().warning,10,114,220);
   const char *status=mode==static_cast<uint8_t>(TurnHubProtocol::DisplayMode::Running) ? "Your player controls" :
       mode==static_cast<uint8_t>(TurnHubProtocol::DisplayMode::Paused) ? "Game paused" : "Lobby and player controls";
-  button("Game",status,{10,150,220,50},TOUCH_NAV+1,true,TOUCH_NAV+1);
-  button("Table","Everyone at the table",{10,210,220,50},TOUCH_NAV+2,false,TOUCH_NAV+2);
+  // The app's grouped list: one card, two rows, a hairline between them.
+  auto *group=box(s,10,150,220,110);
+  card(group,pal().light ? pal().surface1 : pal().surface2,pal().separator,16);
+  auto *rule=box(group,52,55,168,1); card(rule,pal().separator,pal().separator,0);
+  const struct { const char *label, *detail; const lv_image_dsc_t *glyph; uint32_t tint; uint8_t target; } rows[]={
+      {"Game",status,&th_icon_timer_24,pal().turn,TOUCH_NAV+1},
+      {"Table","Everyone at the table",&th_icon_table_24,pal().info,TOUCH_NAV+2}};
+  for (uint8_t i=0;i<2;++i) {
+    const int16_t y=i*55;
+    auto *tile=box(group,10,y+11,32,32);
+    card(tile,rows[i].tint,rows[i].tint,9); sheen(tile,rows[i].tint);
+    icon(tile,rows[i].glyph,4,4,pal().bg);
+    text(group,rows[i].label,&th_semi_20,pal().text,52,y+6,140);
+    text(group,rows[i].detail,&th_eyebrow_13,pal().textSecondary,52,y+31,140);
+    icon(group,&th_icon_chevron_right_24,188,y+15,pal().textTertiary);
+    touchMap_.add({10,static_cast<int16_t>(150+y),220,55},rows[i].target,rows[i].target);
+  }
   navigation(page_); present();
 }
 
@@ -550,11 +742,14 @@ void LvglSigilDisplay::showTable(uint8_t sigilId, const TableSnapshot &table, ui
     for(uint8_t i=0;i<3 && page*3+i<table.total;++i) {
       const auto &row=table.rows[page*3+i];
       auto *c=box(s,10,72+i*49,220,44);
-      card(c,pal().surface1,row.flags&TurnHubProtocol::TABLE_ACTIVE ? pal().turn : pal().separator,10);
-      text(c,row.name,&th_semi_16,pal().text,8,5,116);
+      const bool turn=row.flags&TurnHubProtocol::TABLE_ACTIVE;
+      card(c,turn ? pal().turnSoft : pal().surface1,turn ? pal().turn : pal().separator,12);
+      if (turn) lv_obj_set_style_border_width(c,2,0);
+      token(c,row.name,page*3+i+1,8,8,28);
+      text(c,row.name,&th_semi_16,pal().text,44,4,84);
       const char *tag=row.flags&TurnHubProtocol::TABLE_WINNER ? "WINNER" : row.flags&TurnHubProtocol::TABLE_OUT ? "OUT" :
           row.flags&TurnHubProtocol::TABLE_ACTIVE ? "TURN" : row.flags&TurnHubProtocol::TABLE_STARTER ? "STARTS" : "";
-      text(c,tag,&th_eyebrow_13,pal().turn,8,25,116);
+      text(c,tag,&th_eyebrow_13,pal().turn,44,24,84);
       char life[14]; snprintf(life,sizeof(life),"%ld",static_cast<long>(row.life));
       const lv_font_t *const sizes[]={&th_semi_20,&th_semi_16};
       text(c,life,fitted(life,84,sizes,2),pal().text,128,10,84,LV_TEXT_ALIGN_RIGHT);
