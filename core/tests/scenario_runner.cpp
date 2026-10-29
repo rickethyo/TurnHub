@@ -108,6 +108,15 @@ int runFile(const std::string &path) {
         ++failures;
       }
     }
+    // "record": the whole match record once the game is over (null before), so
+    // the app and Atlas keep exactly the same fields.
+    if (step.has("record")) {
+      const Json record = turnhub::gameRecord(game);
+      if (record != step.get("record")) {
+        std::printf("FAIL %s: record = %s, expected %s\n", where.c_str(), record.dump().c_str(), step.get("record").dump().c_str());
+        ++failures;
+      }
+    }
     const Json &timer = step.get("timer");
     if (timer.isObject()) {
       const auto t = game.turnTimer(timer.get("nowMs").asInt());

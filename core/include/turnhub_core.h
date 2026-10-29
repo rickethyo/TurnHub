@@ -228,6 +228,9 @@ class Game {
 // --- JSON: the state every client renders and the actions they send --------
 Json toJson(const Game &game);
 Game gameFromJson(const Json &json);
+// The finished game as a match record (protocol/game-record.schema.json): the
+// one format the app and Atlas keep, import and show. Null until the game is over.
+Json gameRecord(const Game &game);
 // Applies one action ({"do": "changeLife", "index": 0, "delta": -1, "nowMs": ...});
 // the scenarios and the transports use this one door.
 Game applyAction(const Game &game, const Json &action, Random &random);

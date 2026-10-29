@@ -4,6 +4,7 @@
 // the Pokémon/Lorcana turn markers follow in later steps. Keep each rule in
 // the same order as the Kotlin so the shared scenarios agree.
 
+#include <cctype>
 #include "turnhub_core.h"
 
 #include <algorithm>
@@ -1180,6 +1181,67 @@ Json toJson(const Game &g) {
   j.set("radDue", ints(g.radDue));
   j.set("revision", g.revision);
   return j;
+}
+
+Json gameRecord(const Game &g) {
+  if (g.state != TableState::GameOver || g.gameId.empty()) return Json();
+  std::string wire = profileName(g.profile);
+  for (char &c : wire) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  Json r = Json::object();
+  if (g.twoHeadedGiant) r.set("twoHeadedGiant", true);
+  r.set("recordId", g.gameId);
+  r.set("gameProfile", wire);
+  r.set("startingLife", g.startingLife);
+  r.set("startedAtMs", g.startedAtMs);
+  r.set("durationMs", g.elapsedMs);
+  r.set("starter", opt(g.starter));
+  r.set("winner", opt(g.winner));
+  r.set("winners", ints(g.winners));
+  Json players = Json::array();
+  for (size_t i = 0; i < g.players.size(); ++i) {
+    const Player &p = g.players[i];
+    Json j = Json::object();
+    j.set("name", p.name);
+    j.set("profileId", optString(p.profileId));
+    j.set("localId", optString(p.localId));
+    j.set("finalLife", p.life);
+    j.set("turnsCompleted", p.turnsCompleted);
+    j.set("demerits", p.demerits);
+    j.set("extensionsUsed", p.extensionsUsed);
+    j.set("turnMs", p.turnMs);
+    j.set("fastestTurnMs", p.fastestTurnMs);
+    j.set("longestTurnMs", p.longestTurnMs);
+    j.set("outOrder", opt(p.outOrder));
+    j.set("conceded", p.conceded);
+    j.set("eliminatedBy", opt(p.eliminatedBy));
+    j.set("bagDrawn", (g.doomBag.drawn & (1u << i)) != 0);
+    j.set("selfEliminated", p.selfEliminated);
+    int received = 0;
+    for (const auto &d : p.commanderDamage) received += d.second[0] + d.second[1];
+    j.set("commanderDamageReceived", received);
+    // The record keeps the counters that matter after the game: not treasure or rad.
+    Json counters = Json::object();
+    counters.set("poison", p.counters.poison);
+    counters.set("energy", p.counters.energy);
+    counters.set("experience", p.counters.experience);
+    Json casts = Json::array();
+    casts.push(p.counters.commanderCasts[0]);
+    casts.push(p.counters.commanderCasts[1]);
+    counters.set("commanderCasts", casts);
+    counters.set("cityBlessing", p.counters.cityBlessing);
+    j.set("counters", counters);
+    Json bySource = Json::object();
+    for (const auto &d : p.commanderDamage) {
+      Json pair = Json::array();
+      pair.push(d.second[0]);
+      pair.push(d.second[1]);
+      bySource.set(std::to_string(d.first), pair);
+    }
+    j.set("commanderBySource", bySource);
+    players.push(j);
+  }
+  r.set("players", players);
+  return r;
 }
 
 Game gameFromJson(const Json &j) {

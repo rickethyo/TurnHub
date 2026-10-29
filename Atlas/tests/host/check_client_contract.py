@@ -79,4 +79,12 @@ assert len(generated) >= 8, "Run native scenarios first"
 examples = sorted((PROTOCOL / "examples").glob("*.response.json"))
 for path in generated + examples:
     validate(path)
-print(f"PASS: {len(generated)} actual HTTP/projection responses and {len(examples)} shared fixtures")
+
+# Match records the shared core scenarios expect (core/scenarios, "record").
+record_schema = json.loads((PROTOCOL / "game-record-v1.schema.json").read_text())
+records = [step["record"] for path in sorted((ROOT / "core" / "scenarios").glob("*.json"))
+           for step in json.loads(path.read_text())["steps"] if step.get("record")]
+for record in records:
+    check(record, record_schema)
+print(f"PASS: {len(generated)} actual HTTP/projection responses, {len(examples)} shared fixtures "
+      f"and {len(records)} match records")

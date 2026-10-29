@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TurnHub match record: one finished game, the format the app and Atlas both keep, import, show and export",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "recordId",
+    "gameProfile",
+    "startingLife",
+    "startedAtMs",
+    "durationMs",
+    "starter",
+    "winner",
+    "winners",
+    "players"
+  ],
+  "properties": {
+    "recordId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 48
+    },
+    "gameProfile": {
+      "enum": [
+        "generic",
+        "mtg",
+        "mtg_commander",
+        "mtg_star_commander",
+        "mtg_bag_of_doom",
+        "mtg_emperor",
+        "mtg_commander_emperor",
+        "yugioh",
+        "pokemon",
+        "lorcana",
+        "death_may_die"
+      ]
+    },
+    "twoHeadedGiant": {
+      "const": true,
+      "description": "Present only when true."
+    },
+    "startingLife": {
+      "type": "integer"
+    },
+    "startedAtMs": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Wall clock (Unix ms) the game started."
+    },
+    "durationMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "starter": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 9
+    },
+    "winner": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 9
+    },
+    "winners": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9
+      }
+    },
+    "elderOne": {
+      "type": "string"
+    },
+    "episode": {
+      "type": "string"
+    },
+    "players": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "profileId",
+          "localId",
+          "finalLife",
+          "turnsCompleted",
+          "demerits",
+          "extensionsUsed",
+          "turnMs",
+          "fastestTurnMs",
+          "longestTurnMs",
+          "outOrder",
+          "conceded",
+          "eliminatedBy",
+          "bagDrawn",
+          "selfEliminated",
+          "commanderDamageReceived",
+          "counters",
+          "commanderBySource"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "profileId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Public profile ID on the device that kept the record; null for a guest."
+          },
+          "localId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The app's local account ID; null on Atlas and for guests."
+          },
+          "investigator": {
+            "type": "string",
+            "description": "Death May Die only."
+          },
+          "finalLife": {
+            "type": "integer"
+          },
+          "turnsCompleted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "demerits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "extensionsUsed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "turnMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "fastestTurnMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "longestTurnMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outOrder": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "1 for the first player out; null for whoever was still in."
+          },
+          "conceded": {
+            "type": "boolean"
+          },
+          "eliminatedBy": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9,
+            "description": "Index of the credited opponent."
+          },
+          "bagDrawn": {
+            "type": "boolean"
+          },
+          "selfEliminated": {
+            "type": "boolean"
+          },
+          "commanderDamageReceived": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "counters": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "poison",
+              "energy",
+              "experience",
+              "commanderCasts",
+              "cityBlessing"
+            ],
+            "properties": {
+              "poison": {
+                "type": "integer"
+              },
+              "energy": {
+                "type": "integer"
+              },
+              "experience": {
+                "type": "integer"
+              },
+              "commanderCasts": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "cityBlessing": {
+                "type": "boolean"
+              }
+            }
+          },
+          "commanderBySource": {
+            "type": "object",
+            "description": "Commander damage received, keyed by the source player's index: one total per commander."
+          }
+        }
+      }
+    }
+  }
+}
