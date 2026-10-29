@@ -34,7 +34,9 @@ Atlas, stage Welcome: "Welcome to TurnHub"
   [Pair a Sigil] [Skip for now] [Menu]
 
 Phone, "Set up this table" (Step n of 5):
-  1. Your account   create one or sign in
+  1. Your account   "Install your admin account as the device admin?" when
+                    the phone has an Admin account (it uploads under its
+                    own ID), or create one or sign in
   2. At the table   type the code Atlas shows; this account becomes the Admin
   3. Sigils         pair each one (code check on the Atlas screen), or skip
   4. Updates        Atlas and every Sigil: running vs available; Install all

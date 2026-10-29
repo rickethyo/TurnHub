@@ -67,6 +67,15 @@ private class FakeAtlas : AtlasSessionTransport {
 
     override suspend fun raw(method: String, path: String, token: String, fields: List<Pair<String, String>>): RawResponse {
         calls += "$method $path"
+        if ("$method $path" == "POST /api/profiles/register") {
+            // A phone account uploaded under its own ID (public route).
+            val arg = fields.toMap()
+            val id = arg.getValue("profileId")
+            if (id in profiles) return RawResponse(409, """{"error":"Profile ID already exists"}""")
+            profiles[id] = arg.getValue("name") to arg.getValue("pin")
+            val login = login(id, arg.getValue("pin"))
+            return RawResponse(200, """{"ok":true,"token":"${login.token}","profileId":"$id"}""")
+        }
         val id = who(token) ?: return RawResponse(401, """{"error":"Sign in first"}""")
         val arg = fields.toMap()
         return when ("$method $path") {
@@ -140,6 +149,10 @@ private class FakeHost(val atlas: FakeAtlas) : SetupHost {
         return true
     }
     override fun holdConnection(hold: Boolean) { holds += hold }
+    var deviceAdmin: com.turnhub.android.standalone.SavedLocalPlayer? = null
+    val installed = mutableListOf<Pair<String, String>>()
+    override fun deviceAdmin() = deviceAdmin
+    override fun deviceAdminInstalled(localId: String, profileId: String, linkKey: String?) { installed += localId to profileId }
 }
 
 class AtlasSetupAssistantTest {
@@ -317,5 +330,43 @@ class AtlasSetupAssistantTest {
         assistant.confirmCode("123456")
         assertEquals(SetupStep.TABLE_CODE, assistant.state.value.step)
         assertTrue(assistant.state.value.error!!.contains("already has an Admin"))
+    }
+
+    @Test
+    fun `the phone's Admin account can be installed as a new Atlas's Admin`() = runTest {
+        val (assistant, atlas, host) = setup()
+        host.deviceAdmin = com.turnhub.android.standalone.SavedLocalPlayer("local-1", "Ricky", "1A2B3C4D",
+            credential = com.turnhub.android.standalone.LocalCredential.create("2468"))
+        assistant.check()
+        assistant.next()
+        assertEquals(SetupStep.ACCOUNT, assistant.state.value.step)
+        assertEquals("Ricky", assistant.state.value.deviceAdmin)
+
+        // The PIN is checked on the phone before anything reaches Atlas.
+        assistant.installDeviceAdmin("1357")
+        assertNotNull(assistant.state.value.error)
+        assertTrue(atlas.profiles.isEmpty())
+
+        assistant.installDeviceAdmin("2468")
+        assertEquals(SetupStep.TABLE_CODE, assistant.state.value.step)
+        assertEquals("Ricky" to "2468", atlas.profiles["1A2B3C4D"])
+        assertEquals(listOf("local-1" to "1A2B3C4D"), host.installed)
+        assistant.confirmCode("123456")
+        assertEquals("1A2B3C4D", atlas.admin)
+        assertEquals(SetupStep.SIGILS, assistant.state.value.step)
+    }
+
+    @Test
+    fun `an Admin account already on this Atlas signs in instead of uploading again`() = runTest {
+        val (assistant, atlas, host) = setup()
+        atlas.profiles["1A2B3C4D"] = "Ricky" to "2468"
+        host.deviceAdmin = com.turnhub.android.standalone.SavedLocalPlayer("local-1", "Ricky", "1A2B3C4D",
+            credential = com.turnhub.android.standalone.LocalCredential.create("2468"))
+        assistant.check()
+        assistant.next()
+        assistant.installDeviceAdmin("2468")
+        assertEquals(SetupStep.TABLE_CODE, assistant.state.value.step)
+        assertTrue(host.installed.isEmpty())
+        assertFalse(atlas.calls.contains("POST /api/profiles/register"))
     }
 }

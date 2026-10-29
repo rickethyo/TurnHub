@@ -439,6 +439,10 @@ class MainActivity : ComponentActivity() {
                         LaunchedEffect(standalone, localStats) {
                             homeViewModel.onPresentationForeground(!standalone && !localStats && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
                         }
+                        // First-time setup: this device's Admin account (owner, 2026-10-29).
+                        if (localState.storageProblem == null && localState.library.deviceAdmin == null &&
+                            !localState.library.adminPromptDismissed && !lanState.joined)
+                            com.turnhub.android.ui.tablet.DeviceAdminSetupDialog(localState.library, standaloneViewModel.table)
                         val shellState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
                         if (sharedGameOpen || lanState.joined) {
                             com.turnhub.android.ui.tablet.SharedGameScreen(lanState, localState.game, lanViewModel,

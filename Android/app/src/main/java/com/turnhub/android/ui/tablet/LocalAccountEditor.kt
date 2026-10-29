@@ -1,6 +1,8 @@
 package com.turnhub.android.ui.tablet
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -126,7 +128,82 @@ fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destina
         }, enabled = !destination.busy && ProfileSecret.isValid(secret))
         Text(ProfileSecret.RULE, color = palette.muted)
     }
+    DeviceAdminControls(player, table)
     DeleteLocalAccount(player, table)
+}
+
+/**
+ * The device's Admin account (owner, 2026-10-29): the account type of whoever owns this phone or
+ * tablet. It gives no extra powers here and stays on this device; on an Atlas it is a regular
+ * account unless setup installs it as that Atlas's Admin.
+ */
+@Composable
+private fun DeviceAdminControls(player: SavedLocalPlayer, table: StandaloneTable) {
+    val library = table.state.collectAsState().value.library
+    var refused by remember(player.localId) { mutableStateOf(false) }
+    when {
+        library.isDeviceAdmin(player.localId) ->
+            Text("This device's Admin account. It keeps a PIN or password.", color = palette.muted)
+        player.credential == null -> if (library.deviceAdmin == null)
+            Text("Set a PIN or password to make this the device's Admin account.", color = palette.muted)
+        else -> {
+            val current = library.players.firstOrNull { library.isDeviceAdmin(it.localId) }
+            ToneButton("Make this the device Admin", { refused = !table.setDeviceAdmin(player.localId) }, Modifier.fillMaxWidth())
+            if (current != null) Text("${current.name} is the Admin now. Unlock ${current.name}'s settings first to hand it over.",
+                color = palette.muted)
+        }
+    }
+    if (refused) Text("Couldn't change the device Admin.", color = palette.warn)
+}
+
+/**
+ * First-time setup on a phone or tablet: the owner's account becomes the device's Admin account.
+ * "Not now" closes it; an account can still be made Admin from its settings.
+ */
+@Composable
+fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable) {
+    val p = palette
+    val scope = rememberCoroutineScope()
+    var name by rememberSaveable { mutableStateOf("") }
+    // Secrets deliberately do not survive saved instance state.
+    var secret by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = {},
+        containerColor = p.surface,
+        title = { Text("Set up your Admin account") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Every TurnHub device has one Admin account: yours, as its owner. Every player at the table " +
+                    "stays equal. You can add a separate everyday profile later.", color = p.muted)
+                if (library.players.any { it.credential != null })
+                    Text("Already have an account here? Choose Not now, then make it the Admin from Players, Edit.", color = p.muted)
+                OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) }, label = { Text("Your name") },
+                    enabled = !saving, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(secret, { secret = it.take(ProfileSecret.MAX_CHARS) }, label = { Text("PIN (4–8 digits) or password") },
+                    enabled = !saving, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(confirm, { confirm = it.take(ProfileSecret.MAX_CHARS) }, label = { Text("Type it again") },
+                    enabled = !saving, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                    isError = confirm.isNotEmpty() && confirm != secret, modifier = Modifier.fillMaxWidth())
+                Text(ProfileSecret.RULE, color = p.muted)
+                error?.let { Text(it, color = p.warn) }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = !saving && name.isNotBlank() && ProfileSecret.isValid(secret) && confirm == secret, onClick = {
+                saving = true; error = null
+                scope.launch {
+                    val credential = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { LocalCredential.create(secret) }
+                    if (!table.createAdminAccount(name, credential)) error = "Could not save your account. Please try again."
+                    saving = false
+                }
+            }) { Text(if (saving) "Saving…" else "Create Admin account") }
+        },
+        dismissButton = { TextButton({ table.dismissAdminPrompt() }, enabled = !saving) { Text("Not now") } },
+    )
 }
 
 /** Deletes the account from this phone after a confirmation; its finished games stay in History. */

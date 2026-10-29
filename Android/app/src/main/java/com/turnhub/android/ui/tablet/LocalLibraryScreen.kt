@@ -155,6 +155,8 @@ fun LocalLibraryScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
                                         Text(player.name, color = p.text, style = MaterialTheme.typography.titleMedium)
+                                        if (state.library.isDeviceAdmin(player.localId))
+                                            Text("Device Admin", color = p.accent, style = MaterialTheme.typography.labelMedium)
                                         Text("${totals.played} played · ${totals.won} won · ${totals.draws} draws", color = p.muted,
                                             style = MaterialTheme.typography.bodySmall)
                                         Text("ID ${player.profileId}", color = p.faint, style = MaterialTheme.typography.labelSmall)

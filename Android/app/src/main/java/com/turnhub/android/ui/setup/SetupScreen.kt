@@ -25,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -161,6 +162,23 @@ private fun Account(state: SetupState, actions: SetupActions) {
     var confirm by rememberSaveable { mutableStateOf("") }
     var approvalRequired by rememberSaveable { mutableStateOf(state.status?.uploadApprovalRequired ?: true) }
     var chosen by rememberSaveable { mutableStateOf<String?>(null) }
+    var separate by rememberSaveable { mutableStateOf(false) }
+    val phoneAdmin = state.deviceAdmin
+    if (phoneAdmin != null && !separate) {
+        // Owner, 2026-10-29: a phone's Admin account can become the new Atlas's Admin too.
+        Text("Install your admin account as the device admin?", color = p.text, style = MaterialTheme.typography.titleMedium)
+        Text("$phoneAdmin, this phone's Admin account, becomes this Atlas's Admin. It keeps its ID, name and look, " +
+            "and its games can come along.", color = p.muted)
+        PinField(pin, { pin = it }, "$phoneAdmin's PIN or password")
+        AccentButton(
+            "Install $phoneAdmin as Admin",
+            { actions.run { installDeviceAdmin(pin) } },
+            Modifier.fillMaxWidth(),
+            enabled = !state.busy && pin.isNotEmpty(),
+        )
+        TextButton({ separate = true; pin = "" }) { Text("Set up a separate account instead") }
+        return
+    }
     if (!existing || state.profiles.isEmpty()) {
         Text("This account becomes the table's Admin. Your name and statistics stay with it.", color = p.muted)
         OutlinedTextField(name, { name = it.take(32) }, label = { Text("Your name") }, singleLine = true, modifier = Modifier.fillMaxWidth())

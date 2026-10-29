@@ -256,6 +256,24 @@ all exact profile identities before crediting a new record. Existing session
 sign-in is still required; profile linking does not itself grant permissions.
 See [import contract](../../protocol/http-v1.md#standalone-tablet-game-import-2026-10-07).
 
+## Device Admin account (owner, 2026-10-29)
+
+*Implemented in the app; host/JVM tests only, device checks open.* Every
+device has one Admin account: its owner's account type. On Atlas it is the
+first-run Admin with Admin permissions. On a phone or tablet,
+`LocalLibrary.deviceAdmin` names it; it needs a PIN or password and gives no
+extra powers, so phone players stay equal. First launch asks the owner to
+create it ("Not now" closes the prompt; any account with a PIN can be made
+Admin from its settings, and handing it on needs the current Admin unlocked).
+Deleting it leaves the device without one, and the prompt returns.
+
+The type stays on its home device: uploads, merges and syncs carry no
+permissions. Atlas first-run setup offers "Install your admin account as the
+device admin?", which uploads the phone's Admin under its own ID (or signs in
+to it if already there); the table-code step then makes it Atlas's Admin.
+Using one Admin account on several phones and tablets is planned
+(`STAGED_CHANGES.md`).
+
 ## Player artwork (2026-10-10)
 
 *Implemented; host/build validation recorded in COLLABORATION.md; physical

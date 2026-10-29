@@ -381,6 +381,12 @@ class HomeViewModel(
             // recursed until the stack overflowed (crash after Finish, 2026-09-30).
             override suspend fun reconnectAfterRestart(): Boolean = this@HomeViewModel.reconnectAfterRestart()
             override fun holdConnection(hold: Boolean) = repository.holdThroughOutages(hold)
+            override fun deviceAdmin() = standalone?.state?.value?.library?.let { library ->
+                library.players.firstOrNull { library.isDeviceAdmin(it.localId) && it.credential != null } }
+            override fun deviceAdminInstalled(localId: String, profileId: String, linkKey: String?) {
+                val atlasId = repository.tableSummary.value?.atlasId ?: return
+                standalone?.linkAccount(localId, atlasId, profileId, linkKey)
+            }
         },
     )
     val setupState: StateFlow<SetupState> = setupAssistant.state
