@@ -140,6 +140,8 @@ Before implementation begins on any significant feature, the design MUST answer:
 6. **Does it require a shared protocol/contract change?**
 7. **What third-party dependencies does it add?** (update `Documentation/legal/`)
 8. **What is its accessibility impact?** (see `ACCESSIBILITY.md`)
+9. **What is its counterpart on the other side?** (Invariant 12: the app's
+   change on Atlas, or Atlas's change in the app)
 
 These questions are a feature gate, not optional design guidance.
 
@@ -179,6 +181,21 @@ At minimum:
 Web and application surfaces SHOULD target WCAG 2.2 Level AA. Physical Atlas/Sigil design MUST follow the separate requirements in `ACCESSIBILITY.md`, including redundant cues and assistive-input considerations.
 
 A feature is not complete merely because its default interaction works for a user who can perceive every cue and perform every default gesture.
+
+## Invariant 12: The app and Atlas stay at parity (owner, 2026-10-29)
+
+Anything built for the app is built for Atlas, and anything built for Atlas is
+built for the app, so TurnHub never again splits into two ecosystems.
+Accounts, statistics, game rules, records, settings and their behavior work
+the same whether a game is played on a phone, a tablet or an Atlas.
+
+- A feature lands on both sides in the same PR, or the PR records the
+  counterpart in `STAGED_CHANGES.md` as the next slice. Neither side ships a
+  user-visible feature the other can't reach without that entry.
+- Shared formats (game records, statistics, account copies) have one schema
+  that both sides read and write; neither keeps a richer private version.
+- The only exceptions are features that need hardware one side doesn't have
+  (Sigils, the Atlas radio, a phone camera); the PR names them as such.
 
 ## Code review tests
 

@@ -150,6 +150,8 @@ durable completion receipts and replay-safe persistence exist. See
   6. protocol/contract change
   7. third-party dependency impact (update `Documentation/legal/`)
   8. accessibility impact (see `ACCESSIBILITY.md`)
+  9. its counterpart on the other side: the app's change on Atlas or Atlas's in the app
+- **App and Atlas parity (owner, 2026-10-29):** anything done for one is done for the other, in the same PR or as the next slice recorded in `STAGED_CHANGES.md`, so the ecosystem never splits again. Accounts, statistics, game rules, records and settings behave the same on a phone, a tablet or an Atlas; only hardware-bound features (Sigils, the radio, a phone camera) are exempt. See Invariant 12 in `ARCHITECTURAL_INVARIANTS.md`.
 - **Structural changes:** review the engineering index, `ARCHITECTURAL_INVARIANTS.md`, `STAGED_CHANGES.md` and the affected reference docs first. If code would contradict the docs, resolve the docs explicitly rather than drifting.
 - **Where work is tracked:** agreed but unimplemented work goes in `Documentation/engineering/STAGED_CHANGES.md`, not long-lived branches. Abandoned experiments are marked historical, not deleted from history.
 - **Accessibility:** no essential info or action may rely on only color, sound or LED cadence. Accessible alternatives use the same Intent path. Web UIs target WCAG 2.2 AA.

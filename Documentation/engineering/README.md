@@ -73,8 +73,8 @@ these documents describe the code as it is.
 - **Feature gate.** Before a significant feature, define: (1) state owner,
   (2) Intent, (3) validator, (4) persistence owner, (5) rendering clients,
   (6) protocol/contract change, (7) third-party dependency impact (update
-  `Documentation/legal/`), (8) accessibility impact. Put the answers in the
-  topic document.
+  `Documentation/legal/`), (8) accessibility impact, (9) its app or Atlas
+  counterpart (parity, Invariant 12). Put the answers in the topic document.
 - **Structural changes:** review the invariants, Staged Changes and the
   affected topic first; if code would contradict the docs, resolve the docs
   explicitly.
