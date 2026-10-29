@@ -256,6 +256,15 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 
 ### Table, controllers and accessibility
 
+- **One app and Atlas player experience** (owner, 2026-10-28): Home/Game/Table/
+  Settings and Share Play-style Sigil life controls are implemented on physical
+  touchscreens, with a read-only Atlas roster. Validate navigation, held/dragged
+  touches, modal prompts, shared seats, offline/reconnect, full rosters and themes
+  on both boards. Remaining convergence: common player presentation contracts,
+  counters, artwork, Planechase and transport-independent actions, following the
+  existing shared-authority plan. Each live game keeps one host; direct
+  phone-hosted Sigils and live authority transfer are separate work.
+
 - **Atlas gameplay parity:** add commander names/art and the Star Commander
   Sean Mode rematch through Atlas-owned state and semantic actions. Android
   standalone implementations exist. Two-Headed Giant and Star Commander
@@ -276,10 +285,9 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 - **Scheduled extra turns:** settle grant order, permissions and team behavior,
   then implement temporary turns separately from lobby seat ordering.
 - **S3 display/controller behavior:** Atlas touchscreen game selection with
-  Game 2 pairing/order, Sigil startup profile choice, player-facing LEDs,
-  accessible pairing/error cues and guest preferences remain open. Resolve
-  optional waiting-light breathing and variable LED/audio controls alongside
-  the S3 input/output design; retain reduced-motion behavior.
+  Game 2 pairing/order, Sigil startup profile choice, accessible pairing/error
+  cues and guest preferences remain open. Sigil is touchscreen-only; LED and
+  joystick work is removed from the firmware scope. Retain reduced-motion behavior.
 - **S3 theme and battery acceptance:** verify supported themes, contrast,
   QR scanning and persistence on the new displays. Calibrate battery indication
   against real discharge; verify source/charge ambiguity, critical protection,
@@ -297,13 +305,14 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   own details; the simulator is not physical acceptance. *Experimental*
   (2026-10-28): `env:sigil-e32r28t` runs the Sigil firmware on the old
   E32R28T Atlas board with an LVGL Sigil screen and the five keys as
-  on-screen buttons, a stand-in until the S3 Sigil exists; its touch
+  on-screen buttons, the default touchscreen-only Sigil until S3 exists; its touch
   calibration is a default, not checked per panel.
-- **Player controls and PCB:** carry the required player-facing Sigil LEDs
-  into the S3 design; settle count, brightness, current and case fit. Evaluate
-  the proposed pass/action button alongside the joystick, including semantic
-  routing and wake. Verify footprints, GPIO, power and connectors; complete
-  layout/DRC and assembled-board inspection before freezing revisions.
+- **Player controls and PCB:** Sigil firmware is touchscreen-only (owner,
+  2026-10-28): no LED/ring, joystick or sleep. Validate touch hold/release,
+  pairing, calibration and portrait layouts on the prototype, then bind the
+  S3 touch board. Revisit navigation hardware and power management only with
+  an explicit product decision. Verify footprints, power and connectors;
+  complete layout/DRC and assembled-board inspection before freezing revisions.
 - **Transport and power:** compare S3 memory relief/second-radio options using
   measured multi-phone evidence. Measure idle/radio/display/audio/LED/sleep
   current and power-bank behavior (H03). Product transport, battery/charging
@@ -321,7 +330,7 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 ## Open checks
 
 Hardware checks that need a deliberate bench setup. Firmware/display/OTA checks
-apply to the S3 targets once available; master has no physical board drivers.
+apply to the S3 targets and the E32R28T touchscreen Sigil where supported.
 Gen 1 maintenance checks belong on `legacy/gen1`. Record runs as
 `ID | PASS/FAIL | build | device(s) | evidence` here until they pass, then
 delete the line. A host or compile result never checks off a hardware line.

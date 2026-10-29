@@ -244,7 +244,7 @@ void drawHero(lv_obj_t *root, const AtlasScreen &s) {
 // (it opens the player's screen), the life total in the middle with faint
 // - and + marking the halves that change it, and a status pill. The turn is
 // the one thing that glows.
-void drawChip(lv_obj_t *root, const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_t w, int16_t h) {
+void drawChip(lv_obj_t *root, const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_t w, int16_t h, bool readOnly = false) {
   const bool active = p.flags & CHIP_ACTIVE;
   const bool out = p.flags & CHIP_OUT;
   const bool winner = p.flags & CHIP_WINNER;
@@ -289,7 +289,7 @@ void drawChip(lv_obj_t *root, const ScreenPlayer &p, bool showLife, int16_t x, i
   const int16_t lh = lv_font_get_line_height(font);
   const int16_t timeRoom = tall && p.turnTime[0] ? 20 : 0;
   text(tile, life, font, lifeInk, 0, lowerY + (lowerH - timeRoom - lh) / 2, w, LV_TEXT_ALIGN_CENTER);
-  if (!out) {
+  if (!out && !readOnly) {
     const int16_t signY = lowerY + (lowerH - timeRoom - lv_font_get_line_height(&th_bold_28)) / 2;
     text(tile, "-", &th_bold_28, pal().textTertiary, 12, signY, 24);
     text(tile, "+", &th_bold_28, pal().textTertiary, w - 30, signY, 24, LV_TEXT_ALIGN_RIGHT);
@@ -351,11 +351,11 @@ void drawBody(lv_obj_t *root, const AtlasScreen &s) {
     drawLines(root, s, 16, y, W - 32);
     return;
   }
-  if (buttonsUseBody(s)) return;
+  if (s.kind == ScreenKind::Home || buttonsUseBody(s)) return;
   for (uint8_t i = 0; i < s.playerCount; ++i) {
     int16_t x, y, w, h;
     screenChipCell(i, s.playerCount, x, y, w, h);
-    drawChip(root, s.players[i], s.showLife, x, y, w, h);
+    drawChip(root, s.players[i], s.showLife, x, y, w, h, s.kind == ScreenKind::Overview);
   }
   if (s.playerCount > 0) return;
   const int16_t bodyH = BUTTON_ROW_Y - 8 - SCREEN_BODY_Y;
@@ -374,6 +374,15 @@ void drawBody(lv_obj_t *root, const AtlasScreen &s) {
 }
 
 void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
+    if (b.y == 432 && (b.action == TouchAction::OpenHome || b.action == TouchAction::OpenGame ||
+        b.action == TouchAction::OpenOverview || b.action == TouchAction::OpenSettings)) {
+    auto *tab=box(root,b.x,b.y,b.w,b.h);
+    card(tab,b.selected ? pal().accentSoft : pal().surface1,pal().separator,0);
+    if(b.selected) { auto *mark=box(tab,16,0,b.w-32,3); card(mark,pal().accent,pal().accent,1); }
+    text(tab,b.label,&th_eyebrow_13,b.selected ? pal().accent : pal().textSecondary,0,18,b.w,LV_TEXT_ALIGN_CENTER);
+    return;
+  }
+
   const bool pressed = s.pressed == b.action && s.pressedArg == b.arg;
   // Keyboard keys stay flat (no shadow): thirty of them redraw per key press.
   const bool key = b.action == TouchAction::NameKey ||

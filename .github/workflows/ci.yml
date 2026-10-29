@@ -158,7 +158,7 @@ jobs:
             product: ''
           - project: Sigil
             environment: sigil
-            product: sigil-eink
+            product: ''
     env:
       # Steps are skipped (not the job) when this project is unaffected, so
       # each matrix check still reports under its own name.

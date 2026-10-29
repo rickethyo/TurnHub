@@ -1,19 +1,16 @@
-// Sigil player controller firmware. Buttons become ESP-NOW packets for
-// Atlas; Atlas's packets drive the LEDs, buzzer and selected display. Sigil
+// Sigil touchscreen controller firmware. Touches become ESP-NOW requests
+// for Atlas; Atlas packets drive the LVGL screen and speaker. Sigil
 // decides nothing about the game (ARCHITECTURAL_INVARIANTS.md, Invariant 1):
 // it only persists the minimum pairing binding needed to find Atlas again.
 //
 // Threads: ESP-NOW receive callbacks only enqueue packets; loop() handles
-// them. Rendering runs on its own task (displayTask) because e-paper refresh
-// blocks for seconds; state shared with it is guarded by displayProfileMux.
+// them. LVGL rendering runs on its own task (displayTask); state shared
+// with it is guarded by displayProfileMux.
 
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
-#include <esp_sleep.h>
-#include <driver/rtc_io.h>
-#include <driver/gpio.h>
 #include <nvs_flash.h>
 #include <Preferences.h>
 #include <freertos/queue.h>
@@ -23,7 +20,6 @@
 #include "protocol.h"
 #include "three_part_button.h"
 #include "sigil_display.h"
-#include "sigil_led.h"
 #include "received_packet.h"
 #include "pairing_v2.h"
 #include "secure_session.h"
@@ -31,29 +27,19 @@
 #include "firmware_package.h"
 
 // This build's identity, read by tools/firmware/thfw.py when it packages
-// firmware.bin for OTA (FIRMWARE_UPDATES.md). The Wokwi build has none, so it can't
-// be packaged.
+// firmware.bin (FIRMWARE_UPDATES.md). This touch target is USB-only; the
+// retired descriptor ID is retained for the shared updater contract, not OTA delivery.
 constexpr TurnHubFirmwarePackage::Product SIGIL_PRODUCT = TurnHubFirmwarePackage::Product::SigilEink;
 TURNHUB_FIRMWARE_DESCRIPTOR(sigilFirmwareDescriptor, SIGIL_PRODUCT, TurnHubSigilFirmware::MAJOR,
     TurnHubSigilFirmware::MINOR, TurnHubSigilFirmware::PATCH, TurnHubProtocol::VERSION);
 #include "sigil_updater.h"
 #define TURNHUB_OTA 1
 
-#include "joystick_input.h"
-// Every Sigil has the same thumbstick (five keys), Atlas's action menu and
-// the Jewel ring, on the same GPIOs; only the display differs (2026-10-01).
 #include "sigil_menu.h"
-#include "picker_list.h"
 #include "life_adjust.h"
-#include "status_ring.h"
-#include "idle_sleep.h"
 #include "sigil_board.h"
-#if defined(TURNHUB_BOARD_E32R28T)
 #include "sigil_touch.h"
-#define TURNHUB_SIGIL_TOUCH 1
-#else
-#define TURNHUB_SIGIL_TOUCH 0
-#endif
+#include "sigil_touch_pad.h"
 
 namespace {
 
@@ -65,19 +51,13 @@ using TurnHubSigil::SigilDisplay;
 constexpr uint8_t UNASSIGNED_SIGIL_ID = 0xFF;
 constexpr uint8_t WIFI_CHANNEL = 6;
 
-using TurnHubSigilBoard::STATUS_RING_PIN;
-using TurnHubSigilBoard::JOYSTICK_X_PIN;
-using TurnHubSigilBoard::JOYSTICK_Y_PIN;
 using TurnHubSigilBoard::BUZZER_PIN;
 constexpr uint8_t PAIR_BUTTON = TurnHubSigilBoard::PAIR_BUTTON_PIN;
-// Five keys (Up, Down, Left, Right, Select). Each is a debounced button: a
-// real GPIO switched to GND, or a virtual pin (0xE0+) read from the stick
-// (or, on the touch Sigil, from the screen's keys, Select included at 0xE4).
-constexpr uint8_t STICK_UP_PIN = 0xE0;  // 0xE0-0xE3: Up, Down, Left, Right.
-constexpr uint8_t JOYSTICK_CALIBRATION_SAMPLES = 16;
-constexpr uint32_t JOYSTICK_SAMPLE_MS = 5;
-constexpr uint8_t KEY_PINS[] = {STICK_UP_PIN, STICK_UP_PIN + 1, STICK_UP_PIN + 2,
-    STICK_UP_PIN + 3, TurnHubSigilBoard::JOYSTICK_SELECT_PIN};
+// Virtual active-low inputs for the five on-screen touch buttons.
+constexpr uint8_t TOUCH_KEY_BASE = 0xE0;
+constexpr uint8_t KEY_PINS[] = {TOUCH_KEY_BASE, TOUCH_KEY_BASE + 1, TOUCH_KEY_BASE + 2,
+    TOUCH_KEY_BASE + 3, TOUCH_KEY_BASE + 4};
+constexpr uint32_t TOUCH_SAMPLE_MS = 5;
 constexpr uint8_t BUZZER_CHANNEL = 7;
 
 // Hello announces only what varies between Sigils (protocol.h). There is one
@@ -87,11 +67,8 @@ uint8_t deviceCapabilities() { return 0; }
 constexpr uint32_t DEBOUNCE_MS = 30;
 constexpr uint32_t HELLO_INTERVAL_MS = 2000;
 constexpr uint32_t PAIRING_DURATION_MS = TurnHubProtocol::PAIRING_WINDOW_MS;
-// Status light: frames are rendered at most this often.
-constexpr uint32_t LED_FRAME_MS = 20;
-// LVGL renders synchronously on this task (the touch Sigil): its label
-// drawing needs far more stack than the e-ink did.
-constexpr uint32_t DISPLAY_TASK_STACK_BYTES = TURNHUB_SIGIL_TOUCH ? 12288 : 4096;
+// LVGL label drawing needs a 12 KB display task stack.
+constexpr uint32_t DISPLAY_TASK_STACK_BYTES = 12288;
 constexpr uint32_t PROFILE_REQUEST_RETRY_MS = 1000;
 constexpr uint8_t PROFILE_REQUEST_MAX_ATTEMPTS = 4;
 constexpr uint8_t PROFILE_SLOT_MASK = 0x03;
@@ -125,9 +102,8 @@ TurnHubProtocol::ThreePartButton pairGesture;
 ButtonState keys[] = {ButtonState(KEY_PINS[0]), ButtonState(KEY_PINS[1]),
     ButtonState(KEY_PINS[2]), ButtonState(KEY_PINS[3]), ButtonState(KEY_PINS[4])};
 static_assert(sizeof(keys) / sizeof(keys[0]) == TurnHubSigil::KEY_COUNT, "One button per key");
-// The fixed-key compass menu; hold progress is shown on the light.
-TurnHubSigil::SigilMenu sigilMenu(TurnHubSigil::MenuStyle::Compass);
-TurnHubProtocol::SigilAction lastSelectedAction = TurnHubProtocol::SigilAction::Count;
+// The touch-button menu; holds are shown on screen.
+TurnHubSigil::SigilMenu sigilMenu;
 // Menu snapshot for the display task (guarded by displayProfileMux).
 TurnHubSigil::MenuView publishedMenuView;
 TurnHubSigil::MenuView pendingMenuView;
@@ -135,7 +111,7 @@ bool menuViewChanged = false;
 // Atlas's profile picker (ProfilePickerPacket). Latest page from Atlas
 // (guarded by displayProfileMux). While open, the keys go to the picker
 // (PickerKey) instead of the menu. pickerCursor is the list row
-// (picker_list.h), reset on every new page.
+// reset on every new page.
 TurnHubProtocol::CommanderFlowPacket pendingCommander{};
 volatile bool commanderActive = false;
 bool commanderChanged = false;
@@ -145,6 +121,7 @@ TurnHubProtocol::ProfilePickerPacket pendingPicker{};
 volatile bool pickerActive = false;
 bool pickerChanged = false;
 uint8_t pickerCursor = 0;
+uint8_t pickerDrawnRevision = 0xFF;
 // Life (AdjustLife, LifeRequest): Left/Right presses batched by lifeAdjuster;
 // the request shown for this Sigil's answer. lifeKeyRouted remembers which
 // key-downs went to life so their releases do not reach the menu.
@@ -171,11 +148,6 @@ uint8_t atlasMac[6] = {};
 volatile uint8_t sigilId = UNASSIGNED_SIGIL_ID;
 uint32_t lastHelloMs = 0;
 uint32_t buzzerStopAtMs = 0;
-// Status light: Atlas's LedState plus Sigil-local
-// pairing and pass-ack, rendered to the Jewel ring.
-TurnHubSigil::SigilLedModel ledModel;
-uint32_t lastLedFrameMs = 0;
-bool ledOutputValid = false;
 volatile bool pairingActive = false;
 uint32_t pairingStartMs = 0;
 int32_t pairingToken = 0;
@@ -327,121 +299,72 @@ void sendHello() {
   esp_now_send(atlasMac, reinterpret_cast<const uint8_t *>(&hello), sizeof(hello));
 }
 
-// Renders the current light state to the Jewel ring (hardware Sigils) or the
-// RGB LED pins (Wokwi; PWM on all three for full color). Hardware changes
-// only when the frame differs.
-// "identify" on the serial console blinks the whole ring white until then,
-// so the owner can tell boards apart on the bench.
-constexpr uint32_t IDENTIFY_MS = 10000;
-uint32_t identifyUntilMs = 0;
-bool identifying = false;
-uint32_t ringTestStartedMs = 0;
-bool ringTesting = false;
 bool screenTestPending = false;  // Guarded by displayProfileMux.
 bool screenTestBusy = false;     // Guarded by displayProfileMux.
+constexpr uint32_t TOUCH_PAIR_HOLD_MS = 3000;
+void startPairing();
+bool touchPairHolding = false;
+bool touchPairUsed = false;  // This press already opened a window.
+uint32_t touchPairStartMs = 0;
+
 void publishMenuView();
 void publishLifeOverlay();
 
-void updateLeds() {
-  const uint32_t nowMs = millis();
-  if (ledOutputValid && nowMs - lastLedFrameMs < LED_FRAME_MS) return;
-  lastLedFrameMs = nowMs;
-  if (identifying && static_cast<int32_t>(nowMs - identifyUntilMs) >= 0) identifying = false;
-  TurnHubSigil::LedFrame frame = ledModel.render(nowMs);
-  if (ringTesting) {
-    const uint32_t elapsed = nowMs - ringTestStartedMs;
-    if (elapsed >= 6000) ringTesting = false;
-    else {
-      const TurnHubSigil::Rgb colors[] = {{80, 0, 0}, {0, 80, 0}, {0, 0, 80}, {80, 80, 80}};
-      for (auto &pixel : frame.pixels) pixel = colors[elapsed / 1500];
-    }
-  }
-  if (identifying) {
-    const bool on = nowMs % 500 < 250;
-    for (auto &pixel : frame.pixels) pixel = on ? TurnHubSigil::Rgb(80, 80, 80) : TurnHubSigil::Rgb();
-  }
-  TurnHubSigil::statusRingShow(frame);
-  ledOutputValid = true;
-}
-
-// Both physical builds swap the stick axes. Owner case-installation check
-// (2026-10-09): both sticks report reversed cardinal directions after the
-// 180-degree mounting rotation; reverse both axes in each physical profile.
-TurnHubSigil::StickConfig stickConfig() {
-  TurnHubSigil::StickConfig config;
-  config.swapAxes = true;
-  config.invertX = true;
-  config.invertY = false;
-  return config;
-}
-TurnHubSigil::StickTracker stick(stickConfig());
-uint32_t lastStickSampleMs = 0;
-// The screen key under a finger (touch Sigil), Key::Count for none.
 TurnHubSigil::Key touchKey = TurnHubSigil::Key::Count;
+uint32_t lastTouchSampleMs = 0;
+TurnHubUi::Page selectedPage = TurnHubUi::Page::Home;
+bool navigationChanged = true;
+uint8_t tablePage = 0;
+TurnHubSigil::TableSnapshot tableSnapshot;
+void notifyDisplayTask();
+uint8_t shownPlayer();
 
-// Rest the stick at boot: a missing or held stick disables the directions
-// (the click still works as Select).
-void calibrateJoystick() {
-  if (!TurnHubSigilBoard::HAS_THUMBSTICK) {
-#if TURNHUB_SIGIL_TOUCH
-    TurnHubSigil::sigilTouchBegin();
-    Serial.println("SIGIL|TOUCH|READY");
-#endif
-    return;
+void updateTouch(uint32_t nowMs) {
+  if (nowMs - lastTouchSampleMs < TOUCH_SAMPLE_MS) return;
+  lastTouchSampleMs = nowMs;
+  const auto input = TurnHubSigil::sigilTouchRead();
+  const uint8_t target = static_cast<uint8_t>(input);
+  static uint8_t previous = TurnHubSigil::TOUCH_NONE;
+  touchKey = target < TurnHubSigil::KEY_COUNT ? input : TurnHubSigil::Key::Count;
+  if (pickerActive && pickerDrawnRevision != pendingPicker.revision)
+    touchKey = TurnHubSigil::Key::Count;
+  if (selectedPage == TurnHubUi::Page::Game && !pickerActive && !commanderActive &&
+      TurnHubSigil::sigilTouchMenuRevision() != sigilMenu.revision())
+    touchKey = TurnHubSigil::Key::Count;
+  if (selectedPage == TurnHubUi::Page::Game && gameDisplayValid && !pickerActive && !commanderActive &&
+      TurnHubSigil::sigilTouchPlayer() != shownPlayer()) touchKey = TurnHubSigil::Key::Count;
+  const uint16_t request = static_cast<uint16_t>(lifeRequest.target << 8) | lifeRequest.tag;
+  if (selectedPage == TurnHubUi::Page::Game && gameDisplayValid && !pickerActive && !commanderActive &&
+      TurnHubSigil::sigilTouchLifeRequest() != request) touchKey = TurnHubSigil::Key::Count;
+  if (target != previous && target >= TurnHubSigil::TOUCH_NAV) {
+    if (target < TurnHubSigil::TOUCH_NAV + TurnHubUi::PAGE_COUNT) {
+      const auto page = static_cast<TurnHubUi::Page>(target - TurnHubSigil::TOUCH_NAV);
+      sigilMenu.cancelInput();
+      lifeAdjuster.release(nowMs);
+      for (bool &routed : lifeKeyRouted) routed = false;
+      if (page == TurnHubUi::Page::Settings) sigilMenu.openDeviceMenu(nowMs);
+      portENTER_CRITICAL(&displayProfileMux);
+      selectedPage = page; navigationChanged = true;
+      portEXIT_CRITICAL(&displayProfileMux);
+    } else if (target == TurnHubSigil::TOUCH_PREV || target == TurnHubSigil::TOUCH_NEXT) {
+      portENTER_CRITICAL(&displayProfileMux);
+      if (target == TurnHubSigil::TOUCH_PREV && tablePage) --tablePage;
+      if (target == TurnHubSigil::TOUCH_NEXT && tablePage + 1 < (tableSnapshot.total + 2) / 3) ++tablePage;
+      navigationChanged = true;
+      portEXIT_CRITICAL(&displayProfileMux);
+    }
+    publishMenuView();
+    displayNeedsRefresh = true; notifyDisplayTask();
   }
-  const auto config = stickConfig();
-  Serial.printf("SIGIL|JOYSTICK|ORIENTATION|SWAP_XY|%u|INVERT_X|%u|INVERT_Y|%u\n",
-      static_cast<unsigned>(config.swapAxes), static_cast<unsigned>(config.invertX),
-      static_cast<unsigned>(config.invertY));
-  int16_t xs[JOYSTICK_CALIBRATION_SAMPLES];
-  int16_t ys[JOYSTICK_CALIBRATION_SAMPLES];
-  for (uint8_t i = 0; i < JOYSTICK_CALIBRATION_SAMPLES; ++i) {
-    xs[i] = static_cast<int16_t>(analogRead(JOYSTICK_X_PIN));
-    ys[i] = static_cast<int16_t>(analogRead(JOYSTICK_Y_PIN));
-    delay(2);
-  }
-  const bool ok = stick.calibrate(xs, ys, JOYSTICK_CALIBRATION_SAMPLES);
-  Serial.printf("SIGIL|JOYSTICK|%s|CENTER|%d|%d\n", ok ? "READY" : "NOT_CENTERED_DISABLED",
-      stick.centerX(), stick.centerY());
+  previous = target;
 }
 
-void updateJoystick(uint32_t nowMs) {
-  if (nowMs - lastStickSampleMs < JOYSTICK_SAMPLE_MS) return;
-  lastStickSampleMs = nowMs;
-#if TURNHUB_SIGIL_TOUCH
-  touchKey = TurnHubSigil::sigilTouchRead();
-#endif
-  if (!TurnHubSigilBoard::HAS_THUMBSTICK) return;
-  const TurnHubSigil::StickDirection before = stick.direction();
-  const TurnHubSigil::StickDirection after = stick.update(
-      static_cast<int16_t>(analogRead(JOYSTICK_X_PIN)),
-      static_cast<int16_t>(analogRead(JOYSTICK_Y_PIN)));
-  if (after != before) {
-    Serial.print("SIGIL|JOYSTICK|");
-    Serial.println(TurnHubSigil::stickDirectionName(after));
-  }
-}
-
-// Active-low reading; joystick virtual pins are LOW while pushed that way.
 bool readButton(uint8_t pin) {
-#if TURNHUB_SIGIL_TOUCH
-  if (pin >= STICK_UP_PIN && pin <= STICK_UP_PIN + 4) {
-    static constexpr TurnHubSigil::Key KEYS[] = {TurnHubSigil::Key::Up, TurnHubSigil::Key::Down,
-        TurnHubSigil::Key::Left, TurnHubSigil::Key::Right, TurnHubSigil::Key::Select};
-    return touchKey == KEYS[pin - STICK_UP_PIN] ? LOW : HIGH;
-  }
-#endif
-  if (pin >= STICK_UP_PIN && pin <= STICK_UP_PIN + 3) {
-    static constexpr TurnHubSigil::StickDirection DIRECTIONS[] = {
-        TurnHubSigil::StickDirection::Up, TurnHubSigil::StickDirection::Down,
-        TurnHubSigil::StickDirection::Left, TurnHubSigil::StickDirection::Right};
-    return stick.direction() == DIRECTIONS[pin - STICK_UP_PIN] ? LOW : HIGH;
+  if (pin >= TOUCH_KEY_BASE && pin < TOUCH_KEY_BASE + TurnHubSigil::KEY_COUNT) {
+    return static_cast<uint8_t>(touchKey) == pin - TOUCH_KEY_BASE ? LOW : HIGH;
   }
   return digitalRead(pin);
 }
-
-// The last key, joystick or Pair press or release (auto sleep, idle_sleep.h).
-uint32_t lastInputMs = 0;
 
 // Returns true once each time the button settles in a new state.
 bool debouncedEdge(ButtonState &button, uint32_t nowMs) {
@@ -454,7 +377,7 @@ bool debouncedEdge(ButtonState &button, uint32_t nowMs) {
     return false;
   }
   button.stableState = button.rawState;
-  lastInputMs = nowMs;
+
   return true;
 }
 
@@ -476,7 +399,6 @@ void loadDisplayTheme() {
   pendingInverted = selectedInverted;
   sigilDisplay.setInverted(selectedInverted);
   sigilDisplay.setTheme(selectedTheme);
-  ledModel.setTheme(selectedTheme);
 }
 
 void cycleDisplayTheme() {
@@ -487,7 +409,6 @@ void cycleDisplayTheme() {
   prefs.end();
   if (!saved) { Serial.println("SIGIL|THEME|STORE_ERROR"); return; }
   selectedTheme = next;
-  ledModel.setTheme(next);
   portENTER_CRITICAL(&displayProfileMux);
   pendingTheme = next;
   themeChanged = true;
@@ -669,30 +590,18 @@ void updateDisplayProfileSync() {
   Serial.println(profileRequestAttempts);
 }
 
-// Device menu Sleep (owner, 2026-10-02): the display task draws the sleep
-// screen once (showSleeping), then loop() powers down in enterDeepSleep. A
-// joystick click (GPIO32, ext0) or the Pair/BOOT button (GPIO0, ext1) wakes
-// the Sigil, which restarts: its pairing is saved, so it reconnects.
-volatile bool sleepRequested = false;
-volatile bool sleepScreenDrawn = false;
-uint32_t sleepRequestedMs = 0;
-// The e-ink's full refresh takes a few seconds; never wait longer than this.
-constexpr uint32_t SLEEP_SCREEN_TIMEOUT_MS = 8000;
-// The touch Sigil has no click to wake with: only BOOT wakes it.
-constexpr gpio_num_t WAKE_CLICK_PIN = TURNHUB_SIGIL_TOUCH ? GPIO_NUM_NC :
-    static_cast<gpio_num_t>(TurnHubSigilBoard::JOYSTICK_SELECT_PIN);
-
 void updateDisplay() {
-  if (sleepRequested) {
-    if (!sleepScreenDrawn) sigilDisplay.showSleeping();
-    sleepScreenDrawn = true;
-    displayNeedsRefresh = false;
-    return;
-  }
   static TurnHubProtocol::GameDisplayPacket renderedGame{};
   static bool renderedGameValid = false;
+  portENTER_CRITICAL(&displayProfileMux);
+  const auto page = selectedPage;
+  const bool changedNavigation = navigationChanged;
+  navigationChanged = false;
+  portEXIT_CRITICAL(&displayProfileMux);
+  if (changedNavigation) { renderedGameValid = false; displayNeedsRefresh = true; }
   static bool pickerShown = false;
   static bool commanderShown = false;
+  if (changedNavigation) { pickerShown = false; commanderShown = false; }
   portENTER_CRITICAL(&displayProfileMux);
   const bool changedTheme = themeChanged;
   const auto theme = pendingTheme;
@@ -710,7 +619,7 @@ void updateDisplay() {
   // state it sent (Atlas resends it too, but unchanged packets draw nothing).
   static bool lostDrawn = false;
   static bool codeDrawn = false;
-  if (changedTheme) { lostDrawn = false; codeDrawn = false; }
+  if (changedTheme || changedNavigation) { lostDrawn = false; codeDrawn = false; }
   static uint16_t drawnCode = 0;
   bool updateEnded = false;
 #if TURNHUB_OTA
@@ -757,6 +666,26 @@ void updateDisplay() {
     if (!codeDrawn || code != drawnCode) sigilDisplay.showPairingCode(code);
     codeDrawn = true;
     drawnCode = code;
+    return;
+  }
+  if (page != TurnHubUi::Page::Game) {
+    if (!displayNeedsRefresh && !changedNavigation && !changedTheme) return;
+    displayNeedsRefresh = false;
+    TurnHubSigil::MenuView menu;
+    TurnHubSigil::LifeOverlay life;
+    TurnHubSigil::TableSnapshot roster;
+    char player[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
+    uint8_t rosterPage, mode;
+    portENTER_CRITICAL(&displayProfileMux);
+    menu = pendingMenuView; life = pendingLifeOverlay; roster = tableSnapshot; rosterPage = tablePage;
+    const int32_t state = gameDisplayValid ? static_cast<int32_t>(pendingGameDisplay.state) : static_cast<int32_t>(displayPayload);
+    mode = static_cast<uint8_t>(TurnHubProtocol::displayMode(state));
+    snprintf(player, sizeof(player), "%s", gameDisplayValid ? pendingGameDisplay.primary.name : pendingSeatNames[0]);
+    portEXIT_CRITICAL(&displayProfileMux);
+    sigilDisplay.setMenuView(menu); sigilDisplay.setLifeOverlay(life);
+    if (page == TurnHubUi::Page::Home) sigilDisplay.showHome(sigilId, atlasKnown && !atlasLostShown, player, mode);
+    else if (page == TurnHubUi::Page::Table) sigilDisplay.showTable(sigilId, roster, rosterPage, atlasKnown && !atlasLostShown);
+    else sigilDisplay.showSettings(sigilId);
     return;
   }
   // After the code or Atlas lost, redraw whatever comes next in full.
@@ -815,7 +744,12 @@ void updateDisplay() {
   portEXIT_CRITICAL(&displayProfileMux);
   if (showPicker) {
     displayNeedsRefresh = false;
-    if (newPage || !pickerShown) sigilDisplay.showPicker(picker, cursor);
+    if (newPage || !pickerShown) {
+      sigilDisplay.showPicker(picker, cursor);
+      portENTER_CRITICAL(&displayProfileMux);
+      pickerDrawnRevision = picker.revision;
+      portEXIT_CRITICAL(&displayProfileMux);
+    }
     pickerShown = true;
     return;
   }
@@ -918,17 +852,17 @@ void displayTask(void *parameter) {
   Serial.println("SIGIL|DISPLAY|TASK|READY");
 
   for (;;) {
-    // Sleep until a packet wakes us or the panel's clean-up is due.
+    // Wait for state changes or LVGL timer work.
     const uint32_t due = sigilDisplay.idleWorkDueInMs(millis());
     if (ulTaskNotifyTake(pdTRUE, due == UINT32_MAX ? portMAX_DELAY : pdMS_TO_TICKS(due)) == 0) {
       sigilDisplay.idleWork(millis());
       continue;
     }
-    // State, game and menu packets arrive together: one e-ink refresh for all.
-    vTaskDelay(pdMS_TO_TICKS(80));
+    // Coalesce state, game and menu packets into one frame.
+    vTaskDelay(pdMS_TO_TICKS(20));
     updateDisplay();
 
-    // A newer display packet may have arrived while the e-paper was busy.
+    // A newer display packet may have arrived while drawing.
     // Render the newest state immediately instead of waiting for another event.
     if (displayNeedsRefresh) {
       xTaskNotifyGive(displayTaskHandle);
@@ -991,6 +925,9 @@ void factoryResetDevice(const char *reason) {
 // medium Pair hold, the device menu's Unpair or Atlas's Unpair. Atlas keeps its own record until an admin
 // forgets this Sigil there (which also sends Unpair if the Sigil is in range).
 void forgetPairing(const char *reason) {
+  portENTER_CRITICAL(&displayProfileMux);
+  tableSnapshot.clear();
+  portEXIT_CRITICAL(&displayProfileMux);
   Preferences prefs;
   bool erased = false;
   if (prefs.begin(PAIRING_NAMESPACE, false)) {
@@ -1015,8 +952,6 @@ void forgetPairing(const char *reason) {
   pairingCodeShown = false;
   TurnHubSecureLink::wipe(atlasPairKey, sizeof(atlasPairKey));
   linkSession.clear();
-  ledModel.setAtlasLost(false, millis());
-  ledModel.clear();
   sigilMenu.clear();
   lifeAdjuster.cancel();
   commanderActive = false; commanderChanged = true;
@@ -1029,7 +964,6 @@ void forgetPairing(const char *reason) {
   pickerActive = false;
   pickerChanged = true;
   portEXIT_CRITICAL(&displayProfileMux);
-  ledModel.setPairing(false, millis());
   stopBuzzer();
   portENTER_CRITICAL(&displayProfileMux);
   gameDisplayValid = false;
@@ -1061,7 +995,6 @@ void endPairingCodeCheck(const char *reason) {
   pairingV2.cancel();
   pairingActive = false;
   pairingCodeShown = false;
-  ledModel.setPairing(false, millis());
   Serial.print("SIGIL|PAIR|V2|");
   Serial.println(reason);
   displayNeedsRefresh = true;
@@ -1092,7 +1025,6 @@ void storePairingV2(const uint8_t *mac, uint8_t slot, const uint8_t *key) {
   rememberAtlas(mac);
   sigilId = slot;
   atlasLink.start(millis());
-  ledModel.setPairing(false, millis());
   profileSyncStartPending = true;
   queueReadyDisplay();
   Serial.println("SIGIL|PAIR|SUCCESS|SECURE");
@@ -1115,7 +1047,6 @@ void applyAtlasLinkChange(TurnHubSigil::LinkChange change) {
   } else {
     sigilMenu.endOffline();
   }
-  ledModel.setAtlasLost(lost, millis());
   atlasLostShown = lost;
   Serial.println(lost ? "SIGIL|ATLAS|LOST" : "SIGIL|ATLAS|RESTORED");
   displayNeedsRefresh = true;
@@ -1132,13 +1063,12 @@ void sendUpdateStatus(int32_t value) {
   sendPacket(PacketType::SigilUpdateStatus, value);
 }
 
-// Called from inside updater.run(), which blocks loop(): the light is driven
-// from here, the screen by the display task.
+// Called from updater.run(); the display task renders progress.
 void showUpdateProgress(const char *status, int8_t percent) {
   static char shownText[sizeof(updateScreenText)] = {};
   static int8_t shownBucket = -2;
-  // A slow display redraws per quarter, not per 10%.
-  const int8_t bucket = percent < 0 ? -1 : static_cast<int8_t>(percent / 25);
+  // Redraw in five-percent steps.
+  const int8_t bucket = percent < 0 ? -1 : static_cast<int8_t>(percent / 5);
   const bool redraw = strcmp(shownText, status) != 0 || bucket != shownBucket;
   if (redraw) {
     strncpy(shownText, status, sizeof(shownText) - 1);
@@ -1151,9 +1081,7 @@ void showUpdateProgress(const char *status, int8_t percent) {
     portEXIT_CRITICAL(&displayProfileMux);
     notifyDisplayTask();
   }
-  ledModel.setUpdating(true, percent < 0 ? 0 : static_cast<uint8_t>(percent), millis());
-  ledOutputValid = false;
-  updateLeds();
+
 }
 
 void endUpdateScreen() {
@@ -1161,7 +1089,6 @@ void endUpdateScreen() {
   updateScreenActive = false;
   updateScreenChanged = true;
   portEXIT_CRITICAL(&displayProfileMux);
-  ledModel.setUpdating(false, 0, millis());
   displayNeedsRefresh = true;
   notifyDisplayTask();
 }
@@ -1218,6 +1145,22 @@ void handleAtlasPacket(
     pickerChanged = pickerChanged || changed;
     portEXIT_CRITICAL(&displayProfileMux);
     if (changed) { displayNeedsRefresh = true; notifyDisplayTask(); }
+    return;
+  }
+  if (length == sizeof(TurnHubProtocol::TableDisplayPacket)) {
+    TurnHubProtocol::TableDisplayPacket roster{};
+    memcpy(&roster, incomingData, sizeof(roster));
+    if (!atlasKnown || memcmp(mac, atlasMac, 6) || roster.sigilId != sigilId ||
+        !TurnHubProtocol::validTableDisplay(roster)) return;
+    noteAtlasHeard();
+    portENTER_CRITICAL(&displayProfileMux);
+    const bool changed = tableSnapshot.accept(roster);
+    if (changed && tablePage >= (tableSnapshot.total + 2) / 3) tablePage = 0;
+    portEXIT_CRITICAL(&displayProfileMux);
+    if (changed) {
+      Serial.printf("SIGIL|TABLE|SNAPSHOT|GAME|%u|PLAYERS|%u\n", roster.game, roster.total);
+      displayNeedsRefresh = true; notifyDisplayTask();
+    }
     return;
   }
   if (length == sizeof(TurnHubProtocol::GameDisplayPacket)) {
@@ -1277,10 +1220,6 @@ void handleAtlasPacket(
       Serial.print("SIGIL|ACK|");
       Serial.println(packet.value);
 
-      if (packet.value == static_cast<int32_t>(PacketType::SelectAction) &&
-          lastSelectedAction == TurnHubProtocol::SigilAction::Pass) {
-        ledModel.flashPassAck(millis());
-      }
       break;
 
     case PacketType::MenuState2:
@@ -1290,7 +1229,6 @@ void handleAtlasPacket(
       lifeRequest = TurnHubProtocol::decodeLifeRequest(packet.value);
       break;
     case PacketType::SeatColor: {
-      ledModel.applySeatColor(packet.value);
       const uint8_t slot = TurnHubProtocol::seatColorSlot(packet.value);
       if (slot == 1 || slot == 2) seatAvatars[slot - 1] = TurnHubProtocol::seatAvatar(packet.value);
       break;
@@ -1303,14 +1241,6 @@ void handleAtlasPacket(
       break;
     case PacketType::UpdateNotice:
       updateNotice = static_cast<uint8_t>(constrain(packet.value, 0, 2));
-      break;
-
-    case PacketType::LedState:
-      ledModel.applyLedState(packet.value, millis());
-      break;
-
-    case PacketType::TableClock:
-      ledModel.syncTableClock(packet.value, millis());
       break;
 
     case PacketType::Buzzer:
@@ -1329,11 +1259,8 @@ void handleAtlasPacket(
         for (bool &routed : lifeKeyRouted) routed = false;
         publishMenuView();
         publishLifeOverlay();
-        lastInputMs = millis();
+
         notifyDisplayTask();
-      } else if (packet.value == 2) {
-        ringTestStartedMs = millis();
-        ringTesting = true;
       }
       break;
 
@@ -1451,7 +1378,13 @@ void handleEspNowReceive(
 
 // Hands the display task a new menu snapshot when what it shows changed.
 void publishMenuView() {
-  const TurnHubSigil::MenuView view = sigilMenu.view();
+  TurnHubSigil::MenuView view = sigilMenu.view();
+  // Quantize progress to limit full screen rebuilds while a finger is held.
+  view.holdPercent = static_cast<uint8_t>((sigilMenu.holdProgress(millis()) * 20u / 255u) * 5u);
+  const uint8_t pairProgress = touchPairHolding ? static_cast<uint8_t>(
+      min<uint32_t>(100u, (millis() - touchPairStartMs) * 100u / TOUCH_PAIR_HOLD_MS)) : 0;
+  view.pairPercent = static_cast<uint8_t>((pairProgress / 5u) * 5u);
+  view.pairing = pairingActive;
   if (view == publishedMenuView) return;
   publishedMenuView = view;
   portENTER_CRITICAL(&displayProfileMux);
@@ -1472,9 +1405,11 @@ uint8_t shownPlayer() {
 }
 
 // Hands the display task the life overlay when what it shows changed. The
-// e-ink leaves the running total to the status ring (a redraw takes seconds).
+// The touchscreen shows the pending running total before Atlas commits it.
 void publishLifeOverlay() {
   TurnHubSigil::LifeOverlay overlay;
+  overlay.pending = lifeAdjuster.pending();
+  overlay.pendingPlayer = lifeAdjuster.player();
   overlay.request = lifeRequest;
   overlay.avatar[0] = seatAvatars[0];
   overlay.avatar[1] = seatAvatars[1];
@@ -1484,7 +1419,6 @@ void publishLifeOverlay() {
       TurnHubProtocol::sigilActionBit(TurnHubProtocol::SigilAction::CancelPass)) != 0;
   overlay.passingPlayer = passingPlayer;
   overlay.update = updateNotice;
-  ledModel.setPassPending(overlay.passPending || passingPlayer != 0, overlay.passPending, millis());
   if (overlay == publishedLifeOverlay) return;
   publishedLifeOverlay = overlay;
   portENTER_CRITICAL(&displayProfileMux);
@@ -1529,7 +1463,7 @@ bool routeLifeKey(TurnHubSigil::Key key, bool down, uint32_t nowMs) {
 }
 
 // Repeats a held life key, sends the batched total once it settles, and
-// shows the running total on the ring.
+// previews the pending total on the touchscreen.
 void updateLife(uint32_t nowMs) {
   if (!sigilMenu.lifeOffered() && lifeAdjuster.pending() != 0) {
     Serial.println("SIGIL|LIFE|DROPPED|NOT_OFFERED");
@@ -1546,48 +1480,38 @@ void updateLife(uint32_t nowMs) {
     Serial.println(delta);
     sendPacket(PacketType::LifeAdjust, TurnHubProtocol::encodeLifeAdjust(player, delta));
   }
-  ledModel.setLifePending(lifeAdjuster.pendingSteps());
   publishLifeOverlay();
 }
 
-// Backup Pair control (owner, 2026-10-02): in a closed case the BOOT button
-// cannot be reached, so while this Sigil is unpaired, holding the thumbstick
-// click for JOYSTICK_PAIR_HOLD_MS opens the pairing window, like a quick Pair
-// press. Only while unpaired: once paired, the click belongs to the menu. One
-// window per press. Returns the hold's 0-255 progress for the ring (0: none).
-constexpr uint32_t JOYSTICK_PAIR_HOLD_MS = 3000;
-void startPairing();
-bool joystickPairHolding = false;
-bool joystickPairUsed = false;  // This press already opened a window.
-uint32_t joystickPairStartMs = 0;
-
-uint8_t updateJoystickPair(uint32_t nowMs) {
+// Hold the on-screen Pair button while unpaired to open the pairing window.
+// One window per touch; BOOT remains available for physical recovery.
+uint8_t updateTouchPair(uint32_t nowMs) {
   const bool down = keys[static_cast<uint8_t>(TurnHubSigil::Key::Select)].stableState == LOW;
-  if (!down) joystickPairUsed = false;
+  if (!down) touchPairUsed = false;
   const bool eligible = sigilId == UNASSIGNED_SIGIL_ID && !pairingActive && !sigilMenu.deviceMenuOpen() &&
       pairingV2.state() != TurnHubSecureLink::SigilPairing::State::AwaitingConfirm;
-  if (!down || !eligible || joystickPairUsed) {
-    joystickPairHolding = false;
+  if (!down || !eligible || touchPairUsed) {
+    touchPairHolding = false;
     return 0;
   }
-  if (!joystickPairHolding) {
-    joystickPairHolding = true;
-    joystickPairStartMs = nowMs;
+  if (!touchPairHolding) {
+    touchPairHolding = true;
+    touchPairStartMs = nowMs;
   }
-  const uint32_t elapsed = nowMs - joystickPairStartMs;
-  if (elapsed >= JOYSTICK_PAIR_HOLD_MS) {
-    joystickPairHolding = false;
-    joystickPairUsed = true;
-    Serial.println("SIGIL|PAIR|JOYSTICK_HOLD");
+  const uint32_t elapsed = nowMs - touchPairStartMs;
+  if (elapsed >= TOUCH_PAIR_HOLD_MS) {
+    touchPairHolding = false;
+    touchPairUsed = true;
+    Serial.println("SIGIL|PAIR|TOUCH_HOLD");
     startPairing();
     return 0;
   }
-  const uint32_t level = elapsed * 255 / JOYSTICK_PAIR_HOLD_MS;
+  const uint32_t level = elapsed * 255 / TOUCH_PAIR_HOLD_MS;
   return static_cast<uint8_t>(level == 0 ? 1 : level);
 }
 
 // Five-key input: key edges go to the menu, and a finished choice becomes a
-// SelectAction. Hold progress drives the status light.
+// SelectAction. Hold progress is drawn on screen.
 void sendCommanderKey(uint8_t key, bool repeat = false) {
   portENTER_CRITICAL(&displayProfileMux);
   const auto page = pendingCommander;
@@ -1595,9 +1519,9 @@ void sendCommanderKey(uint8_t key, bool repeat = false) {
   const bool amountDrawn = commanderDrawnStage == TurnHubProtocol::CommanderStage::Amount &&
       page.stage == TurnHubProtocol::CommanderStage::Amount;
   portEXIT_CRITICAL(&displayProfileMux);
-  // Confirm only a preview that finished drawing, even on slow e-ink. Once the
+  // Confirm only a preview that finished drawing. Once the
   // Amount stage is on screen, Left/Right taps and holds go straight through
-  // instead of waiting out each full e-ink refresh; Select still waits, and
+  // without waiting for another frame; Select still waits, and
   // the Confirm page must be drawn before the hit is applied.
   if (!drawn && !(amountDrawn && (repeat || key == 2 || key == 3))) return;
   sendPacket(PacketType::CommanderKey,TurnHubProtocol::encodeCommanderKey(key,page.revision));
@@ -1606,6 +1530,14 @@ void updateMenuKeys() {
   static uint32_t commanderRepeatAt = 0;
   static uint8_t commanderRepeatKey = 255;
   const uint32_t nowMs = millis();
+  if (selectedPage == TurnHubUi::Page::Home || selectedPage == TurnHubUi::Page::Table) {
+    for (auto &key : keys) debouncedEdge(key, nowMs);
+    updateLife(nowMs);
+    return;
+  }
+  const bool settings = selectedPage == TurnHubUi::Page::Settings;
+  if (settings && !sigilMenu.deviceMenuOpen() && !TurnHubSigil::sigilTouchCalibrating())
+    sigilMenu.openDeviceMenu(nowMs);
   portENTER_CRITICAL(&displayProfileMux);
   const bool testing = screenTestBusy;
   portEXIT_CRITICAL(&displayProfileMux);
@@ -1618,17 +1550,21 @@ void updateMenuKeys() {
       if (keys[k].rawState == LOW || keys[k].stableState == LOW) released = false;
     }
     commanderRepeatKey = 255;
-    ledModel.setHoldProgress(0);
     if (!testing && released) waitForRelease = false;
     return;
   }
   if (sigilId == UNASSIGNED_SIGIL_ID && !sigilMenu.active()) sigilMenu.setOffline();
   sigilMenu.setHoldTimes(static_cast<uint16_t>(longPressMs), static_cast<uint16_t>(winHoldMs));
-  lifeAdjuster.setPace(TurnHubSigil::lifePaceFor(true, longPressMs));
+  lifeAdjuster.setPace(TurnHubSigil::lifePaceFor(longPressMs));
   lifeAdjuster.setUnit(TurnHubSigil::lifeUnitFor(startingLife));
   for (uint8_t k = 0; k < TurnHubSigil::KEY_COUNT; ++k) {
     if (!debouncedEdge(keys[k], nowMs)) continue;
     const auto key = static_cast<TurnHubSigil::Key>(k);
+    if (settings) {
+      if (keys[k].stableState == LOW) sigilMenu.keyDown(key, nowMs);
+      else sigilMenu.keyUp(key, nowMs);
+      continue;
+    }
     // Nothing reaches a lost Atlas; only the device menu works (setOffline).
     if (atlasLink.lost()) {
       if (keys[k].stableState == LOW) sigilMenu.keyDown(key, nowMs);
@@ -1674,7 +1610,7 @@ void updateMenuKeys() {
       sigilMenu.keyUp(key, nowMs);
     }
   }
-  if (commanderActive && !atlasLink.lost()) {
+  if (commanderActive && !atlasLink.lost() && !settings) {
     // Stop any normal life adjustment while the modal owns the keys.
     if (commanderRepeatKey < TurnHubSigil::KEY_COUNT && keys[commanderRepeatKey].stableState == LOW &&
         static_cast<int32_t>(nowMs-commanderRepeatAt) >= 0) {
@@ -1689,18 +1625,8 @@ void updateMenuKeys() {
     cycleDisplayTheme();
   } else if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_INVERT) {
     toggleDisplayInversion();
-#if TURNHUB_SIGIL_TOUCH
   } else if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_CALIBRATE) {
     TurnHubSigil::sigilTouchStartCalibration();
-#endif
-  } else if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_SLEEP) {
-    // Chosen in the device menu: Atlas is not asked (it sees the Sigil go
-    // quiet, as when it is unplugged).
-    Serial.println("SIGIL|MENU|SLEEP");
-    sleepRequested = true;
-    sleepRequestedMs = millis();
-    displayNeedsRefresh = true;
-    notifyDisplayTask();
   } else if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_UNPAIR) {
     // Held to the end in the device menu: forget Atlas, like the Pair button's
     // 3 s hold. Atlas keeps its record until an admin forgets this Sigil.
@@ -1721,75 +1647,16 @@ void updateMenuKeys() {
       for (bool &routed : lifeKeyRouted) routed = false;
       publishLifeOverlay();
     }
-    lastSelectedAction = choice.action;
     Serial.print("SIGIL|");
     Serial.print(sigilId);
     Serial.print("|MENU|");
     Serial.println(TurnHubSigil::sigilActionLabel(choice.action));
     sendPacket(PacketType::SelectAction, TurnHubProtocol::encodeSelectAction(choice.action, choice.revision, shownPlayer()));
   }
-  const uint8_t pairHold = updateJoystickPair(nowMs);
-  ledModel.setHoldProgress(pairHold ? pairHold : sigilMenu.holdProgress(nowMs));
+  updateTouchPair(nowMs);
   publishMenuView();
 }
 
-
-// Powers down until a joystick click or the Pair button. The ring is dark and
-// its data line held low, so it cannot light while the ESP32 sleeps; the
-// click's pull-up moves to the RTC domain, which stays on. Never returns:
-// waking restarts the Sigil (setup() releases the holds).
-void enterDeepSleep() {
-  Serial.println("SIGIL|SLEEP|ENTER");
-  Serial.flush();
-  stopBuzzer();
-  TurnHubSigil::statusRingShow(TurnHubSigil::LedFrame{});
-  delay(5);
-  pinMode(STATUS_RING_PIN, OUTPUT);
-  digitalWrite(STATUS_RING_PIN, LOW);
-  gpio_hold_en(static_cast<gpio_num_t>(STATUS_RING_PIN));
-  gpio_deep_sleep_hold_en();
-  if (WAKE_CLICK_PIN != GPIO_NUM_NC) {
-    rtc_gpio_pullup_en(WAKE_CLICK_PIN);
-    rtc_gpio_pulldown_dis(WAKE_CLICK_PIN);
-    esp_sleep_enable_ext0_wakeup(WAKE_CLICK_PIN, 0);
-  }
-  // The DevKit pulls BOOT (GPIO0, an RTC pin) up on the board.
-  esp_sleep_enable_ext1_wakeup(1ULL << PAIR_BUTTON, ESP_EXT1_WAKEUP_ALL_LOW);
-  esp_deep_sleep_start();
-}
-
-// Waits for the sleep screen (or its timeout) and for every wake button to be
-// released, so the press that chose Sleep cannot wake the Sigil at once.
-void updateSleep(uint32_t nowMs) {
-  TurnHubSigil::statusRingShow(TurnHubSigil::LedFrame{});
-  const bool drawn = sleepScreenDrawn || nowMs - sleepRequestedMs >= SLEEP_SCREEN_TIMEOUT_MS;
-  const bool released = (WAKE_CLICK_PIN == GPIO_NUM_NC || digitalRead(WAKE_CLICK_PIN) == HIGH)
-      && digitalRead(PAIR_BUTTON) == HIGH
-      ;
-  if (drawn && released) enterDeepSleep();
-}
-
-// Auto sleep (idle_sleep.h): the device menu's Sleep, chosen by itself after
-// a while untouched outside a game, or with no Atlas to play with.
-void updateIdleSleep(uint32_t nowMs) {
-  TurnHubSigil::IdleSleepInputs in;
-  in.nowMs = nowMs;
-  in.lastInputMs = lastInputMs;
-  in.atlasAbsent = sigilId == UNASSIGNED_SIGIL_ID || atlasLink.lost();
-  // A running game arrives as game display packets, not a display state.
-  in.mode = gameDisplayValid ? DisplayMode::Running : TurnHubProtocol::displayMode(displayPayload);
-  in.busy = pairingActive || sleepRequested
-#if TURNHUB_OTA
-      || updater.pending()
-#endif
-      ;
-  if (!TurnHubSigil::idleSleepDue(in)) return;
-  Serial.println("SIGIL|SLEEP|IDLE");
-  sleepRequested = true;
-  sleepRequestedMs = nowMs;
-  displayNeedsRefresh = true;
-  notifyDisplayTask();
-}
 
 // Only a physical Pair press enables broadcast association requests.
 void startPairing() {
@@ -1807,7 +1674,6 @@ void startPairing() {
   lastPairRequestMs = millis() - HELLO_INTERVAL_MS;
   pairingStartMs = millis();
   pairingActive = true;
-  ledModel.setPairing(true, pairingStartMs);
   Serial.print("SIGIL|PAIR|START|DURATION_MS|");
   Serial.println(PAIRING_DURATION_MS);
 }
@@ -1826,7 +1692,6 @@ void updatePairing() {
   if (elapsedMs >= PAIRING_DURATION_MS) {
     pairingActive = false;
     pairingV2.cancel();
-    ledModel.setPairing(false, millis());
     Serial.println("SIGIL|PAIR|TIMEOUT");
     return;
   }
@@ -1945,28 +1810,11 @@ bool startEspNow() {
 }  // namespace
 
 void setup() {
-  // Back from Sleep: give the click, Pair button and ring pins back to the
-  // digital GPIO driver before anything configures them.
-  const esp_sleep_wakeup_cause_t wake = esp_sleep_get_wakeup_cause();
-  if (wake == ESP_SLEEP_WAKEUP_EXT0 || wake == ESP_SLEEP_WAKEUP_EXT1) {
-    if (WAKE_CLICK_PIN != GPIO_NUM_NC) rtc_gpio_deinit(WAKE_CLICK_PIN);
-    rtc_gpio_deinit(static_cast<gpio_num_t>(PAIR_BUTTON));
-  }
-  gpio_hold_dis(static_cast<gpio_num_t>(STATUS_RING_PIN));
-  gpio_deep_sleep_hold_dis();
   Serial.begin(115200);
   delay(250);
-  if (wake == ESP_SLEEP_WAKEUP_EXT0) Serial.println("SIGIL|WAKE|CLICK");
-  if (wake == ESP_SLEEP_WAKEUP_EXT1) Serial.println("SIGIL|WAKE|PAIR_BUTTON");
-
-  for (auto &key : keys) {
-    if (key.pin < STICK_UP_PIN) pinMode(key.pin, INPUT_PULLUP);
-  }
-  calibrateJoystick();
-  for (auto &key : keys) key.rawState = key.stableState = readButton(key.pin);
-
-  TurnHubSigil::statusRingBegin(STATUS_RING_PIN);
-  updateLeds();
+  TurnHubSigil::sigilTouchBegin();
+  Serial.println("SIGIL|TOUCH|READY");
+  for (auto &key : keys) key.rawState = key.stableState = HIGH;
 
   if (TurnHubSigilBoard::AUDIO_ENABLE_PIN >= 0) pinMode(TurnHubSigilBoard::AUDIO_ENABLE_PIN, OUTPUT);
   ledcSetup(BUZZER_CHANNEL, 2000, 8);
@@ -1974,7 +1822,7 @@ void setup() {
   stopBuzzer();
 
   Serial.println();
-  Serial.println("SIGIL|BOOT|UNASSIGNED|UNIFIED");
+  Serial.println("SIGIL|BOOT|UNASSIGNED|TOUCHSCREEN");
   runSecureLinkSelfTest();
   loadSavedPairing();
   loadDisplayTheme();
@@ -2022,7 +1870,7 @@ void setup() {
   Serial.println("SIGIL|READY");
 }
 
-// Bench commands typed on the serial console: "identify", then the display's own.
+// Bench calibration and display commands typed on the serial console.
 void readSerialCommands() {
   static char line[40];
   static uint8_t length = 0;
@@ -2030,14 +1878,8 @@ void readSerialCommands() {
     const char c = static_cast<char>(Serial.read());
     if (c == '\r' || c == '\n') {
       line[length] = '\0';
-      if (length && strcmp(line, "identify") == 0) {
-        identifying = true;
-        identifyUntilMs = millis() + IDENTIFY_MS;
-        Serial.println("SIGIL|IDENTIFY");
-#if TURNHUB_SIGIL_TOUCH
-      } else if (length && strcmp(line, "touch cal") == 0) {
+      if (length && strcmp(line, "touch cal") == 0) {
         TurnHubSigil::sigilTouchStartCalibration();
-#endif
       } else if (length && !sigilDisplay.handleCommand(line)) {
         Serial.print("SIGIL|SERIAL|UNKNOWN|");
         Serial.println(line);
@@ -2051,13 +1893,6 @@ void readSerialCommands() {
 
 void loop() {
   readSerialCommands();
-  // Going to sleep: nothing else runs (the display task draws the screen).
-  if (sleepRequested) {
-    if (displayTaskHandle == nullptr) updateDisplay();
-    updateSleep(millis());
-    delay(1);
-    return;
-  }
   ReceivedPacket received;
   // Bounded so a packet burst cannot starve the buttons.
   for (uint8_t n = 0; receiveQueue && n < RECEIVE_QUEUE_LENGTH &&
@@ -2070,13 +1905,12 @@ void loop() {
   updater.confirmBoot(linkSession.ready(), millis());
   if (updater.pending()) updater.run();  // Blocks; restarts on success.
 #endif
-  updateJoystick(millis());
+  updateTouch(millis());
   updateMenuKeys();
   updatePairButton();
   updatePairing();
   applyAtlasLinkChange(atlasLink.update(millis()));
-  updateIdleSleep(millis());
-  updateLeds();
+
   updateBuzzer();
   updateDisplayProfileSync();
 

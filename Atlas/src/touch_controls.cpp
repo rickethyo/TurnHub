@@ -49,7 +49,8 @@ char noticeText[sizeof(AtlasScreen::notice)] = {};
 uint32_t noticeAtMs = 0;
 
 // Which screen is up, and the QR code chosen on the QR screen.
-ScreenKind openScreen = ScreenKind::Status;
+ScreenKind openScreen = ScreenKind::Home;
+uint8_t overviewPage = 0;
 TouchAction qrChoice = TouchAction::QrPortal;
 // The Player screen: whose it is (by controller and slot, since lobby player
 // numbers change with the turn order), and whether Concede is waiting for
@@ -148,9 +149,9 @@ bool matchInProgress() {
   return table().hubState == HubState::Running || table().hubState == HubState::Paused;
 }
 
-// The Menu belongs between games (the lobby and a finished game).
+// Settings navigation remains available in every game state.
 bool menuAvailable() {
-  return table().hubState == HubState::Lobby || table().hubState == HubState::GameOver;
+  return true;  // Navigation/settings remain available during play.
 }
 
 // The first Sigil waiting for its pairing code to be checked, or INVALID_ID.
@@ -201,7 +202,7 @@ bool setupScreenDue() {
 
 // A code a phone asked for shows over whatever screen is open, then a
 // pairing code waiting to be checked. The Table screen belongs to a match and
-// closes when it ends; the Menu closes when a game starts.
+// closes when it ends; Settings remains available during a game.
 ScreenKind activeScreen(uint32_t nowMs) {
   if (openScreen == ScreenKind::Table && !matchInProgress()) openScreen = ScreenKind::Status;
   // A player's screen closes when the lobby or match it belongs to ends, or
@@ -218,7 +219,7 @@ ScreenKind activeScreen(uint32_t nowMs) {
   if (seating && table().hubState != HubState::Lobby) openScreen = ScreenKind::Status;
   if (pendingPresenceCode(nowMs) != nullptr) return ScreenKind::Code;
   if (waitingPairSlot() != INVALID_ID) return ScreenKind::PairCode;
-  if (openScreen == ScreenKind::Status && setupScreenDue()) return ScreenKind::Setup;
+  if ((openScreen == ScreenKind::Status || openScreen == ScreenKind::Home) && setupScreenDue()) return ScreenKind::Setup;
   return openScreen;
 }
 
@@ -252,10 +253,13 @@ void layoutDevice(AtlasScreen &screen) {
   ButtonSpec upper[2];
   uint8_t n = 0;
   if (table().hubState == HubState::Lobby) upper[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", DEVICE_UNPAIR_HOLD_MS, 1};
-  upper[n++] = {TouchAction::FactoryResetAtlas, "Factory reset", DEVICE_RESET_HOLD_MS, 1};
+  if (!matchInProgress()) upper[n++] = {TouchAction::FactoryResetAtlas, "Factory reset", DEVICE_RESET_HOLD_MS, 1};
   addColumn(screen, upper, n);
-  const ButtonSpec lower[] = {{TouchAction::OpenThemes, "Theme", 0, 1}, {TouchAction::SleepAtlas, "Sleep", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
-  addRow(screen, BUTTON_ROW_Y, lower, 3);
+  ButtonSpec lower[3] = {{TouchAction::OpenThemes, "Theme", 0, 1}};
+  uint8_t lowerCount = 1;
+  if (!matchInProgress()) lower[lowerCount++] = {TouchAction::SleepAtlas, "Sleep", 0, 1};
+  lower[lowerCount++] = {TouchAction::CloseScreen,"Back",0,1};
+  addRow(screen,BUTTON_ROW_Y,lower,lowerCount);
 }
 
 void layoutThemes(AtlasScreen &screen) {
@@ -425,9 +429,22 @@ bool chipAction(TouchAction action) {
 }
 
 // The buttons for the open screen and the table state.
-void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
+void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
   screen.buttonCount = 0;
   switch (activeScreen(nowMs)) {
+    case ScreenKind::Home:
+      addKey(screen,TouchAction::OpenGame,"Game",8,112,304,64,1);
+      addKey(screen,TouchAction::OpenOverview,"Table",8,184,304,64,1);
+      addKey(screen,TouchAction::OpenSettings,"Settings",8,256,304,64,1);
+      return;
+    case ScreenKind::Overview: {
+      const uint8_t count = table().hubState == HubState::Lobby ? table().lobby.playerCount() : table().game.playerCount();
+      if (count > MAX_SCREEN_PLAYERS) {
+        const ButtonSpec row[] = {{TouchAction::OverviewNext, "More players", 0, 1}};
+        addRow(screen, BUTTON_ROW_Y, row, 1);
+      }
+      return;
+    }
     case ScreenKind::Code: {
       const ButtonSpec row[] = {{TouchAction::CancelCode, "Cancel", 0, 1}};
       addRow(screen, BUTTON_ROW_Y, row, 1);
@@ -500,12 +517,12 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
     // on the Table screen, out of the way during play.
     case HubState::Running: {
       const ButtonSpec row[] = {{TouchAction::PassTurn, "Hold to pass", TOUCH_PASS_HOLD_MS, 4},
-          {TouchAction::Pause, "Pause", 0, 2}, {TouchAction::OpenTable, "Table", 0, 2}};
+          {TouchAction::Pause, "Pause", 0, 2}, {TouchAction::OpenTable, "Actions", 0, 2}};
       addRow(screen, BUTTON_ROW_Y, row, 3);
       break;
     }
     case HubState::Paused: {
-      const ButtonSpec row[] = {{TouchAction::Resume, "Resume", 0, 3}, {TouchAction::OpenTable, "Table", 0, 2}};
+      const ButtonSpec row[] = {{TouchAction::Resume, "Resume", 0, 3}, {TouchAction::OpenTable, "Actions", 0, 2}};
       addRow(screen, BUTTON_ROW_Y, row, 2);
       break;
     }
@@ -520,6 +537,22 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
       addRow(screen, BUTTON_ROW_Y, row, 1);
       break;
     }
+  }
+}
+
+// The same destinations as the app and Sigil; actions remain role-specific.
+void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
+  layoutContentButtons(screen, nowMs);
+  const auto kind = activeScreen(nowMs);
+  if (kind == ScreenKind::Code || kind == ScreenKind::PairCode || kind == ScreenKind::Name ||
+      kind == ScreenKind::Pin || kind == ScreenKind::Setup) return;
+  const TouchAction actions[] = {TouchAction::OpenHome, TouchAction::OpenGame,
+      TouchAction::OpenOverview, TouchAction::OpenSettings};
+  const uint8_t selected = kind == ScreenKind::Home ? 0 : kind == ScreenKind::Status ||
+      kind == ScreenKind::Player || kind == ScreenKind::Table ? 1 : kind == ScreenKind::Overview ? 2 : 3;
+  for (uint8_t i=0; i<TurnHubUi::PAGE_COUNT; ++i) {
+    addKey(screen,actions[i],TurnHubUi::pageTitle(static_cast<TurnHubUi::Page>(i)),i*80,432,80,48,0);
+    screen.buttons[screen.buttonCount-1].selected = i == selected;
   }
 }
 
@@ -551,6 +584,11 @@ TouchAction buttonAt(int16_t x, int16_t y, uint32_t nowMs) {
 
 const char *actionName(TouchAction action) {
   switch (action) {
+    case TouchAction::OpenHome: return "OPEN_HOME";
+    case TouchAction::OpenGame: return "OPEN_GAME";
+    case TouchAction::OpenOverview: return "OPEN_OVERVIEW";
+    case TouchAction::OpenSettings: return "OPEN_SETTINGS";
+    case TouchAction::OverviewNext: return "OVERVIEW_NEXT";
     case TouchAction::Pair: return "PAIR";
     case TouchAction::StartGame: return "START_GAME";
     case TouchAction::CancelStart: return "CANCEL_START";
@@ -701,6 +739,11 @@ void typeNameKey(uint8_t index) {
 // available, and everything else for the status screen.
 bool navigate(TouchAction action) {
   switch (action) {
+    case TouchAction::OpenHome: openScreen = ScreenKind::Home; return true;
+    case TouchAction::OpenGame: openScreen = ScreenKind::Status; return true;
+    case TouchAction::OpenOverview: openScreen = ScreenKind::Overview; return true;
+    case TouchAction::OpenSettings: openScreen = ScreenKind::Menu; return true;
+    case TouchAction::OverviewNext: overviewPage = overviewPage ? 0 : 1; return true;
     case TouchAction::OpenMenu: openScreen = ScreenKind::Menu; return true;
     case TouchAction::OpenInfo: openScreen = ScreenKind::Info; return true;
     case TouchAction::OpenQr: openScreen = ScreenKind::Qr; return true;
@@ -1087,22 +1130,23 @@ void playerName(const PlayerSeat &seat, const String &profileId, uint32_t nowMs,
 
 // Player chips: the game's seats once a game exists, otherwise the lobby's.
 void addPlayers(AtlasScreen &screen, uint32_t nowMs) {
-  PlayerSeat seats[MAX_SCREEN_PLAYERS];
+  PlayerSeat seats[MAX_PLAYERS];
   uint8_t count = 0;
   const bool inGame = table().game.hasPlayers() && table().hubState != HubState::Lobby;
   if (inGame) {
-    for (uint8_t i = 0; i < table().game.playerCount() && count < MAX_SCREEN_PLAYERS; ++i) {
+    for (uint8_t i = 0; i < table().game.playerCount() && count < MAX_PLAYERS; ++i) {
       const PlayerSeat *seat = table().game.playerAt(i);
       if (seat != nullptr) seats[count++] = *seat;
     }
   } else {
-    count = table().lobby.buildPlayers(seats, MAX_SCREEN_PLAYERS);
+    count = table().lobby.buildPlayers(seats, MAX_PLAYERS);
   }
   PlayerSeat starter;
   const bool hasStarter = !inGame && table().lobby.selectedStarter(starter);
   const uint8_t waitingOn = table().game.hasWinClaim() ? table().game.nextWinConfirmationPlayerNumber() : 0;
   screen.showLife = inGame;
-  for (uint8_t i = 0; i < count; ++i) {
+  const uint8_t first = screen.kind == ScreenKind::Overview && overviewPage && count > MAX_SCREEN_PLAYERS ? MAX_SCREEN_PLAYERS : 0;
+  for (uint8_t i = first; i < count && screen.playerCount < MAX_SCREEN_PLAYERS; ++i) {
     const PlayerSeat &seat = seats[i];
     ScreenPlayer &p = screen.players[screen.playerCount++];
     p.number = seat.playerNumber;
@@ -1332,7 +1376,7 @@ void formatPairCode(AtlasScreen &screen, uint32_t nowMs) {
 // The Table screen: whose turn a master pass would skip, in words.
 void formatTable(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.badge, sizeof(screen.badge), "TABLE");
-  snprintf(screen.title, sizeof(screen.title), "Table controls");
+  snprintf(screen.title, sizeof(screen.title), "Game actions");
   if (table().hubState != HubState::Running) {
     snprintf(screen.detail, sizeof(screen.detail), "Resume to use Master pass");
     return;
@@ -1354,8 +1398,8 @@ void formatUpdateLine(char *out, size_t size, TurnHub::UpdateKind kind) {
 }
 
 void formatMenu(AtlasScreen &screen) {
-  snprintf(screen.badge, sizeof(screen.badge), "MENU");
-  snprintf(screen.title, sizeof(screen.title), "Table menu");
+  snprintf(screen.badge, sizeof(screen.badge), "SETTINGS");
+  snprintf(screen.title, sizeof(screen.title), "Settings");
   const TurnHub::UpdateKind update = firmwareUpdateKind();
   if (update != TurnHub::UpdateKind::None) {
     formatUpdateLine(screen.detail, sizeof(screen.detail), update);
@@ -1566,6 +1610,25 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen.update = firmwareUpdateKind();
   screen.sigilsOnline = sigilBus.activeCount(nowMs);
   switch (screen.kind) {
+    case ScreenKind::Home: {
+      formatStatus(screen, nowMs);
+      const uint8_t players = table().hubState == HubState::Lobby ? table().lobby.playerCount() : table().game.playerCount();
+      screen.playerCount = 0;
+      snprintf(screen.badge,sizeof(screen.badge),"ATLAS");
+      snprintf(screen.title,sizeof(screen.title),"TurnHub");
+      snprintf(screen.detail,sizeof(screen.detail),"%u players / %u Sigils online",players,screen.sigilsOnline);
+      snprintf(screen.lines[screen.lineCount++],sizeof(screen.lines[0]),"%s / %u players",stateName(table().hubState),players);
+      snprintf(screen.lines[screen.lineCount++],sizeof(screen.lines[0]),"%u Sigils connected",screen.sigilsOnline);
+      snprintf(screen.lines[screen.lineCount++],sizeof(screen.lines[0]),"Game: play and manage the match");
+      snprintf(screen.lines[screen.lineCount++],sizeof(screen.lines[0]),"Table: see everyone, read only");
+      snprintf(screen.lines[screen.lineCount++],sizeof(screen.lines[0]),"Settings: pair, connect, appearance");
+      break;
+    }
+    case ScreenKind::Overview:
+      formatStatus(screen,nowMs);
+      snprintf(screen.title,sizeof(screen.title),"Table");
+      snprintf(screen.detail,sizeof(screen.detail),"Read only / %s",overviewPage ? "players 9-16" : "players 1-8");
+      break;
     case ScreenKind::Status: formatStatus(screen, nowMs); break;
     case ScreenKind::Info: formatInfo(screen, nowMs); break;
     case ScreenKind::Qr: formatQr(screen, nowMs); break;
@@ -1648,7 +1711,7 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
   pressInside = false;
 }
 
-void resetTouchControls() {
+void resetTouchControls(bool startAtHome) {
   touchDown = false;
   pressInside = false;
   holdFired = false;
@@ -1657,7 +1720,7 @@ void resetTouchControls() {
   noticeText[0] = '\0';
   seatRowCount = seatPage = seatPages = pinRow = 0;
   typedName[0] = typedPin[0] = '\0';
-  openScreen = ScreenKind::Status;
+  openScreen = startAtHome ? ScreenKind::Home : ScreenKind::Status;
   qrChoice = TouchAction::QrPortal;
   shownSeat = pressedSeat = PlayerSeat();
   concedeArmed = false;

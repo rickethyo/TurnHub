@@ -14,5 +14,5 @@ struct SerialStub {
   }
 };
 extern SerialStub Serial;
-// Boot pauses (the OLED splash hold) cost no time on the host.
+// Boot pauses (the splash hold) cost no time on the host.
 inline void delay(uint32_t) {}

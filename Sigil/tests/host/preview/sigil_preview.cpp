@@ -80,7 +80,25 @@ int main() {
     const auto theme = t == 0 ? TurnHubTheme::Id::Graphite : TurnHubTheme::Id::Brass;
     const std::string suffix = t == 0 ? "" : "-brass";
     d.setTheme(theme);
+    d.showHome(2,true,"Alexandria",static_cast<uint8_t>(DisplayMode::Running)); save("home"+suffix);
+    TableSnapshot roster;roster.valid=true;roster.total=4;
+    for(uint8_t i=0;i<4;++i) { auto &r=roster.rows[i];r.player=i+1;r.life=40-i*3;snprintf(r.name,sizeof(r.name),"Player %u",i+1); }
+    roster.rows[1].flags=TABLE_ACTIVE;
+    d.showTable(2,roster,0,true); save("table"+suffix);
+    d.showTable(2,roster,1,true); save("table-next"+suffix);
+    SigilMenu device;device.openDeviceMenu(0);
+    d.setMenuView(device.view());d.showSettings(2);save("settings"+suffix);
+    d.setMenuView(MenuView());
     d.showUnpaired(); save("unpaired" + suffix);
+    MenuView pairing;
+    pairing.pairPercent = 50;
+    d.setMenuView(pairing);
+    d.showUnpaired(); save("pair-hold" + suffix);
+    pairing.pairPercent = 0;
+    pairing.pairing = true;
+    d.setMenuView(pairing);
+    d.showUnpaired(); save("pair-search" + suffix);
+    d.setMenuView(MenuView());
     d.showPairingCode(4271); save("pairing-code" + suffix);
     d.setMenuView(menu({{Key::Up, MENU_LOCAL_DEVICE_MENU}, {Key::Select, A(SigilAction::Join)}}));
     d.showReady(2); save("ready" + suffix);
@@ -105,6 +123,10 @@ int main() {
     open.deviceMenu = true;
     d.setMenuView(open);
     d.showGame(game("Ricky", 22, false, 7)); save("menu" + suffix);
+    open.holdAction = A(SigilAction::ClaimWin);
+    open.holdPercent = 50;
+    d.setMenuView(open);
+    d.showGame(game("Ricky", 22, false, 7)); save("action-hold" + suffix);
     d.setMenuView(MenuView());
     ProfilePickerPacket p{};
     p.sigilId = 2; p.mode = PickerMode::List; p.page = 0; p.pageCount = 2; p.itemCount = 3;

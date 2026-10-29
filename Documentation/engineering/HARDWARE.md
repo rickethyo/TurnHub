@@ -47,23 +47,38 @@ storage and HTTP API keep compiling for the target:
   factory resets (quick, 3 s, 10 s) and wakes from sleep; the microSD card
   uses the default VSPI pins (18/23/19, CS 5). The touchscreen's screen model
   and buttons (`touch_controls.cpp`) stay host-tested for the S3 renderer.
-- **Sigil** (`pio run -e sigil`, default partitions). Every pin is in
-  `Sigil/include/sigil_board.h`; the display is headless (`NoDisplay`).
+- **Sigil** (`pio run -e sigil`, alias `sigil-e32r28t`, `huge_app.csv`):
+  touchscreen-only E32R28T target with a 240 × 320 portrait ILI9341,
+  XPT2046 resistive touch and LVGL. Board pins and drivers are in
+  `Sigil/include/sigil_board.h` and `Sigil/src/sigil_board_e32r28t.cpp`.
+  No LED/ring output, analog joystick or headless display fallback.
+  E-ink/OLED firmware is maintained only on `legacy/gen1`.
 
-| Sigil function | GPIO | Notes |
-|---|---:|---|
-| Thumbstick X / Y / click | 34 / 35 / 32 | ADC1 only (ADC2 is unusable with ESP-NOW). The click is Select and wakes from sleep |
-| Status ring data | 26 | 7-pixel NeoPixel ring, the only status light |
-| Buzzer | 33 | Passive piezo |
-| Pair | 0 | BOOT button: quick press pairs, 3 s unpairs, 10 s factory resets |
+**Touchscreen navigation:** both Atlas S3 and the touchscreen Sigil open on
+Home, with persistent **Home / Game / Table / Settings** destinations. Pairing
+codes and update progress temporarily take priority over navigation. Atlas Game
+retains its host controls; Actions holds master pass and End match. Table is a
+read-only roster; browsing its tiles changes no player or match state. Settings
+stays available during play, with destructive Atlas device actions hidden then.
 
-**Sigil controls:** the click is the obvious next step (Join, Start, Pass,
-Undo pass, Resume, Rematch, Confirm); Left/Right change life in a game (seat B
-and next starter in the lobby, answers in a decision); Down switches seat on a
-shared Sigil; Up opens **Menu** with every other action, then Device (Sleep,
-Unpair, Factory reset). Holds use the seated players' times: long press 2 s
-default (1-4 s), win hold 5 s (3-10 s, at least 1 s longer); the ring fills
-while held. An unpaired Sigil also opens pairing with a 3 s click hold.
+**Sigil controls:** Game follows the personal Share Play panel: a large life
+total with direct minus/plus buttons, a primary action and More for the other
+Atlas-offered actions. Pending life changes preview the total. Profiles are
+full-width touch rows; menu actions are touch tiles. Only visible controls have
+hit regions. A drag, changed action, changed player or changed request cancels
+a contact until release. Atlas validates every request. Hold on-screen Pair for
+3 seconds while unpaired, then compare the code with Atlas. Settings includes
+theme, inversion, touch calibration, held Unpair and held Factory reset.
+
+The Sigil Table page receives an encrypted read-only roster from its Atlas game:
+up to 16 players, names, life, turn/out/winner/starter labels and local paging.
+Two radio pages form one revision; incomplete pages never mix into the visible
+roster. No profile IDs, PINs, private account data or game rules are sent.
+The last roster remains visible with an offline label after disconnection.
+BOOT remains quick-press pairing, 3-second unpair and 10-second factory reset.
+Sleep is removed for now; Sigil stays awake while powered. Speaker cues use
+GPIO 26 with active-low amplifier enable GPIO 4. Upload over USB; S3 Sigil
+hardware and OTA integration remain staged.
 
 ## Identifying and flashing boards
 

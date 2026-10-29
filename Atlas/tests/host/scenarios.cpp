@@ -28,6 +28,12 @@
 #include "../../../Sigil/include/display_name.h"
 
 namespace TurnHub { extern uint32_t fixturePairingWindowSaved; extern int fixtureSpeakerVolumeSaved; }
+static TurnHubProtocol::TableDisplayPacket sentTableDisplays[8][2]{};
+bool TurnHub::SigilBus::sendTableDisplay(const TurnHubProtocol::TableDisplayPacket &p) {
+  assert(TurnHubProtocol::validTableDisplay(p));
+  sentTableDisplays[p.sigilId][p.page] = p;
+  return true;
+}
 esp_err_t readError = ESP_ERR_NVS_NOT_FOUND;
 esp_err_t eraseError = ESP_ERR_NVS_NOT_FOUND;
 esp_err_t injectedCommitError = ESP_OK;
@@ -2426,11 +2432,13 @@ static void pressButton(TouchAction action) {
 static void tapButton(TouchAction action) { pressButton(action); testNow+=30; pressButton(action); touchRelease(); }
 // Pair, QR codes, Tests and Info live on the between-games Menu screen.
 static void openMenuScreen() {
-  if (currentScreen().kind!=ScreenKind::Menu) tapButton(TouchAction::OpenMenu);
+  if (currentScreen().kind!=ScreenKind::Menu) tapButton(TouchAction::OpenSettings);
   assert(currentScreen().kind==ScreenKind::Menu);
 }
 // End match and Master pass live on the in-game Table screen.
 static void openTableScreen() {
+  if (currentScreen().kind!=ScreenKind::Status && currentScreen().kind!=ScreenKind::Table)
+    tapButton(TouchAction::OpenGame);
   if (!screenButton(currentScreen(),TouchAction::EndMatch)) tapButton(TouchAction::OpenTable);
 }
 // Holds the on-screen End match button for the full hold, then lets go.
@@ -2462,7 +2470,7 @@ static void touchControls() {
   resetTouchControls(); freshLobby(2); TurnHub::fixtureRadio=true; pairingActive=false;
   AtlasScreen s=currentScreen();
   // The lobby row keeps Add player and Start up front; the rest waits under Menu.
-  assert(String(s.title)=="Lobby" && s.buttonCount==3 && screenButton(s,TouchAction::StartGame) &&
+  assert(String(s.title)=="Lobby" && s.buttonCount==7 && screenButton(s,TouchAction::StartGame) &&
       screenButton(s,TouchAction::OpenSeat) && screenButton(s,TouchAction::OpenMenu) && !screenButton(s,TouchAction::ClearLobby) &&
       !screenButton(s,TouchAction::Pair) && !screenButton(s,TouchAction::OpenQr) && !screenButton(s,TouchAction::OpenInfo));
   assert(s.round==0 && s.gameClock[0]=='\0' && s.players[0].turnTime[0]=='\0');
@@ -2470,7 +2478,7 @@ static void touchControls() {
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
     assert(b.w>=44 && b.h>=44 && b.x>=0 && b.y>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
   tapButton(TouchAction::OpenMenu); s=currentScreen();
-  assert(s.kind==ScreenKind::Menu && String(s.badge)=="MENU" && screenButton(s,TouchAction::Pair) &&
+  assert(s.kind==ScreenKind::Menu && String(s.badge)=="SETTINGS" && screenButton(s,TouchAction::Pair) &&
       screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::OpenInfo) &&
       screenButton(s,TouchAction::CloseScreen) && table().hubState==HubState::Lobby);
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
@@ -2528,14 +2536,14 @@ static void touchControls() {
   // Running: Hold to pass (the active player's pass, as on the app's shared
   // table), Pause and Table.
   startFromHost(); s=currentScreen();
-  assert(startsWith(s.title,"Player ") && s.buttonCount==3 && screenButton(s,TouchAction::PassTurn) &&
+  assert(startsWith(s.title,"Player ") && s.buttonCount==7 && screenButton(s,TouchAction::PassTurn) &&
       screenButton(s,TouchAction::Pause) && screenButton(s,TouchAction::OpenTable) &&
       !screenButton(s,TouchAction::EndMatch) && !screenButton(s,TouchAction::MasterPass));
   seatPass(); assert(String(currentScreen().detail)=="Passing in 3s: that seat can cancel");
   testNow+=PASS_GRACE_MS; updatePendingPass(testNow);
   tapButton(TouchAction::Pause); assert(table().hubState==HubState::Paused);
   s=currentScreen();
-  assert(String(s.title)=="Paused" && s.buttonCount==2 && screenButton(s,TouchAction::Resume) &&
+  assert(String(s.title)=="Paused" && s.buttonCount==6 && screenButton(s,TouchAction::Resume) &&
       screenButton(s,TouchAction::OpenTable));
   // Paused, the Table screen offers End match but not the master pass.
   tapButton(TouchAction::OpenTable); s=currentScreen();
@@ -2576,7 +2584,7 @@ static void touchControls() {
     int16_t cx,cy,cw,ch; screenChipCell(1,table().game.playerCount(),cx,cy,cw,ch);
     touchAt(cx+cw/2,cy+10); testNow+=30; touchAt(cx+cw/2,cy+10); touchRelease();
     s=currentScreen();
-    assert(s.kind==ScreenKind::Player && String(s.badge)=="PLAYER" && s.buttonCount==6 &&
+    assert(s.kind==ScreenKind::Player && String(s.badge)=="PLAYER" && s.buttonCount==10 &&
         String(screenButton(s,TouchAction::LifeMinus5)->label)=="-5" && screenButton(s,TouchAction::CloseScreen) &&
         !screenButton(s,TouchAction::Concede)->hold());
     for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None) assert(b.w>=44 && b.h>=44);
@@ -2591,7 +2599,7 @@ static void touchControls() {
 
   // End match needs the full hold, shows a countdown, and acts once.
   tapButton(TouchAction::OpenTable); s=currentScreen();
-  assert(s.kind==ScreenKind::Table && String(s.badge)=="TABLE" && s.buttonCount==3 &&
+  assert(s.kind==ScreenKind::Table && String(s.badge)=="TABLE" && s.buttonCount==7 &&
       screenButton(s,TouchAction::MasterPass)->holdMs==MASTER_PASS_HOLD_MS &&
       screenButton(s,TouchAction::EndMatch)->holdMs==END_MATCH_HOLD_MS && screenButton(s,TouchAction::CloseScreen));
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
@@ -2608,7 +2616,7 @@ static void touchControls() {
   assert(completedGames==1);
   s=currentScreen();
   assert(s.kind==ScreenKind::Status && String(s.title)=="Game over" && String(s.detail)=="The match ended in a draw" &&
-      s.buttonCount==3 && screenButton(s,TouchAction::Rematch) && screenButton(s,TouchAction::ResetTable) &&
+      s.buttonCount==7 && screenButton(s,TouchAction::Rematch) && screenButton(s,TouchAction::ResetTable) &&
       screenButton(s,TouchAction::OpenMenu));
   // After a game the Menu has no Pair; the round and match length stay up.
   assert(s.round>=1 && s.gameClock[0]!='\0');
@@ -2823,10 +2831,12 @@ static void atlasScreens() {
   // Back steps out one level: QR codes to the Menu, then the Menu to the lobby.
   tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Menu);
   tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Status);
-  // A game starting closes the Menu.
+  // Settings remains available when a game starts; Game returns to live play.
   openMenuScreen();
 
-  startFromHost(); s=currentScreen();
+  startFromHost();
+  assert(currentScreen().kind==ScreenKind::Menu);
+  tapButton(TouchAction::OpenGame); s=currentScreen();
   assert(s.kind==ScreenKind::Status && String(s.badge)=="PLAYING" && s.showLife && s.playerCount==3 &&
       s.clock[0]!='\0' && s.timerPermille==-1);
   // Round 1, the match clock and every player's own turn time.
@@ -2917,7 +2927,7 @@ static void touchTableLifecycle() {
   freshLobby(3); tapButton(TouchAction::StartGame);
   assert(table().hubState==HubState::Starting);
   AtlasScreen s=currentScreen();
-  assert(s.buttonCount==1 && screenButton(s,TouchAction::CancelStart));
+  assert(s.buttonCount==5 && screenButton(s,TouchAction::CancelStart));
   tapButton(TouchAction::CancelStart); assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==3);
   // Only the touchscreen skips the seat and arming: an unseated browser cannot.
   Intent stranger=start; stranger.actor.origin=IntentOrigin::Browser;
@@ -3956,9 +3966,11 @@ static void touchDeviceScreen() {
   assert(factoryResetScheduled());
   serviceFactoryReset(millis()+2000);
   assert(fixtureFactoryResets==1 && !factoryResetScheduled());
-  // A game starting closes the Device screen with the Menu.
+  // Device settings stays open during play, without reset/unpair/sleep actions.
   enterEmptyLobby(); freshLobby(2); resetTouchControls(); openMenuScreen(); tapButton(TouchAction::OpenDevice);
-  startFromHost(); assert(currentScreen().kind==ScreenKind::Status);
+  startFromHost(); assert(currentScreen().kind==ScreenKind::Device);
+  assert(!screenButton(currentScreen(),TouchAction::FactoryResetAtlas) &&
+      !screenButton(currentScreen(),TouchAction::UnpairSigils) && !screenButton(currentScreen(),TouchAction::SleepAtlas));
   enterEmptyLobby(); resetTouchControls();
   TurnHub::fixtureUnpairs[3]=0;
 }
@@ -5785,7 +5797,38 @@ static void explicitAttributionHttp() {
   for(int i=0;i<2;++i) { request("/api/session/logout",tokens[i]);ProfileFixture::profiles.erase(ids[i].c_str());TurnHubAccounts::accounts.erase(ids[i].c_str()); }
 }
 
+static void deviceNavigation() {
+  freshLobby(3); pairingActive=false; resetTouchControls(true);
+  assert(currentScreen().kind==ScreenKind::Home);
+  for (TouchAction action : {TouchAction::OpenHome,TouchAction::OpenGame,TouchAction::OpenOverview,TouchAction::OpenSettings})
+    assert(screenButton(currentScreen(),action));
+  tapButton(TouchAction::OpenGame);
+  assert(currentScreen().kind==ScreenKind::Status);
+  startFromHost();
+  const auto player=*table().game.playerAt(0);
+  const auto life=table().game.lifeTotal(player.playerNumber);
+  const auto active=table().game.activePlayerNumber();
+  tapButton(TouchAction::OpenOverview);
+  assert(currentScreen().kind==ScreenKind::Overview && currentScreen().playerCount==3);
+  int16_t x,y,w,h;screenChipCell(0,3,x,y,w,h);
+  touchAt(x+w/4,y+h-8);touchRelease();touchAt(x+3*w/4,y+h-8);touchRelease();
+  assert(currentScreen().kind==ScreenKind::Overview && table().game.lifeTotal(player.playerNumber)==life &&
+      table().game.activePlayerNumber()==active);
+  tapButton(TouchAction::OpenSettings);tapButton(TouchAction::OpenDevice);
+  assert(!screenButton(currentScreen(),TouchAction::UnpairSigils) &&
+      !screenButton(currentScreen(),TouchAction::FactoryResetAtlas) && !screenButton(currentScreen(),TouchAction::SleepAtlas));
+  LedRenderer presentation(sigilBus);
+  presentation.render(HubState::Running,table().lobby,table().game,0,0,0,testNow);
+  const auto &roster=sentTableDisplays[0][0];
+  assert(roster.total==3 && roster.game==1 && roster.rows[0].player==player.playerNumber && roster.rows[0].life==life);
+  tapButton(TouchAction::OpenGame);
+  assert(currentScreen().kind==ScreenKind::Status && table().game.activePlayerNumber()==active);
+  enterEmptyLobby();resetTouchControls();
+}
+
 int main() {
+  // Most scenarios inspect the interactive Game destination explicitly.
+  resetTouchControls();
   // These scenarios exercise the presence code; tableCodeOptional() covers
   // the default (off).
   tableCodeRequired=true;
@@ -5793,6 +5836,7 @@ int main() {
   randomStarterByDefault=false;  // Player 1 starts unless a scenario chooses; officialRulesAndStarter() checks random.
   sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
+  deviceNavigation(); std::cout<<"PASS device navigation, read-only table, live settings and Atlas roster projection\n";
   observeClientState(); intents.setObserver(observeIntent);
   GameEngine::setGameCompletedCallback(completed);
   eliminationCredit(); std::cout<<"PASS elimination credit, validation, team counts, recovery and shared statistics\n";

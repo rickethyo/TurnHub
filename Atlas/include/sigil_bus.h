@@ -86,6 +86,7 @@ class SigilBus {
 
   bool sendCommanderFlow(const TurnHubProtocol::CommanderFlowPacket &packet);
   bool sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &packet);
+  bool sendTableDisplay(const TurnHubProtocol::TableDisplayPacket &packet);
   bool sendUpdateOffer(const TurnHubProtocol::SigilUpdateOfferPacket &packet);
   bool sendProfilePicker(const TurnHubProtocol::ProfilePickerPacket &packet);
 
@@ -113,7 +114,7 @@ class SigilBus {
   struct TxRequest {
     uint8_t mac[6] = {};
     // The largest sealed packet: an update offer plus the envelope.
-    uint8_t data[sizeof(TurnHubProtocol::SigilUpdateOfferPacket) + TurnHubSecureLink::SECURE_OVERHEAD] = {};
+    uint8_t data[sizeof(TurnHubProtocol::TableDisplayPacket) + TurnHubSecureLink::SECURE_OVERHEAD] = {};
     uint8_t length = 0;
   };
 

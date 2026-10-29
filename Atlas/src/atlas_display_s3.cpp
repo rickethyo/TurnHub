@@ -186,7 +186,7 @@ void serviceScreenTest(uint32_t nowMs) {
 
 void beginAtlasDisplay() {
   loadThemePreference();
-  resetTouchControls();
+  resetTouchControls(true);
   if (!tft.init()) {
     serialLog.println("ATLAS|DISPLAY|INIT_FAILED");
     return;

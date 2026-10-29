@@ -1,8 +1,6 @@
 #include "sigil_menu.h"
-#include "picker_list.h"
 #include "life_adjust.h"
 #include "three_part_button.h"
-#include "idle_sleep.h"
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -24,8 +22,8 @@ static uint8_t id(A a) { return static_cast<uint8_t>(a); }
 int main() {
   // A diagnostic overlay cancels held and queued actions, preserving the
   // menu Atlas offered. Releasing a key afterward must not perform a choice.
-  for (MenuStyle style : {MenuStyle::Compass, MenuStyle::List}) {
-    SigilMenu m(style);
+  {
+    SigilMenu m;
     m.applyMenuState2(menu({A::Join}, A::Join, 7), 0);
     m.keyDown(Key::Select, 10);
     m.cancelInput();
@@ -123,7 +121,8 @@ int main() {
         SigilMenu::bareAction(out, Key::Left) == id(A::CancelElimination));
     // Nothing else on offer: Menu is the Device entries.
     n = SigilMenu::menuEntries(0, e);
-    assert(n == 5 && e[4] == MENU_LOCAL_INVERT && e[0] == MENU_LOCAL_SLEEP && e[1] == MENU_LOCAL_UNPAIR && e[2] == MENU_LOCAL_FACTORY_RESET && e[3] == MENU_LOCAL_THEME);
+    assert(n == 5 && e[0] == MENU_LOCAL_UNPAIR && e[1] == MENU_LOCAL_FACTORY_RESET &&
+        e[2] == MENU_LOCAL_THEME && e[3] == MENU_LOCAL_INVERT && e[4] == MENU_LOCAL_CALIBRATE);
     // Every offered action is reachable: on a bare key or in Menu.
     for (uint8_t a = 0; a < MENU_MAX_ITEMS; ++a) {
       if (a == id(A::AdjustLife)) continue;
@@ -138,7 +137,7 @@ int main() {
 
   // No menu yet: inactive, keys ignored.
   {
-    SigilMenu idle(MenuStyle::Compass);
+    SigilMenu idle;
     assert(!idle.active() && idle.keyAction(Key::Select) == MENU_NONE);
     idle.keyDown(Key::Select, 0);
     assert(!idle.update(10).ready);
@@ -147,7 +146,7 @@ int main() {
   // E-ink Menu: compass pages (click, Up, Right, Down; Down is More while more
   // follow), Left back a page or out. Choosing an entry closes Menu.
   {
-    SigilMenu cmd(MenuStyle::Compass);
+    SigilMenu cmd;
     cmd.applyMenuState2(menu({A::Pass, A::ClaimWin, A::Pause, A::AdjustLife, A::CommanderDamage,
         A::UndoCommanderHit, A::AddPartner}, A::Pass, 3), 0);
     assert(cmd.lifeOffered() && cmd.keyAction(Key::Up) == MENU_LOCAL_DEVICE_MENU);
@@ -164,8 +163,8 @@ int main() {
         cmd.keyAction(Key::Down) == MENU_NONE);
     // Device, then Back to the page that opened it, Back to page 1, Back out.
     cmd.keyDown(Key::Right, 40); cmd.keyUp(Key::Right, 50);
-    assert(cmd.view().recovery && cmd.keyAction(Key::Select) == MENU_LOCAL_SLEEP &&
-        cmd.keyAction(Key::Up) == MENU_LOCAL_UNPAIR && cmd.keyAction(Key::Right) == MENU_LOCAL_FACTORY_RESET);
+    assert(cmd.view().recovery && cmd.keyAction(Key::Select) == MENU_LOCAL_UNPAIR &&
+        cmd.keyAction(Key::Up) == MENU_LOCAL_FACTORY_RESET && cmd.keyAction(Key::Right) == MENU_LOCAL_THEME);
     cmd.keyDown(Key::Left, 60); assert(!cmd.view().recovery && cmd.view().page == 1);
     cmd.keyDown(Key::Left, 70); assert(cmd.view().page == 0);
     cmd.keyDown(Key::Left, 80); assert(!cmd.deviceMenuOpen());
@@ -182,9 +181,9 @@ int main() {
     assert(cmd.holdProgress(5000 + DEFAULT_WIN_HOLD_MS / 2) > 0);
     c = cmd.update(5000 + DEFAULT_WIN_HOLD_MS);
     assert(c.ready && c.action == A::ClaimWin && !cmd.deviceMenuOpen());
-    // The compass view never carries hold state (no e-ink refresh for it).
+    // A held touch action is visible until release or stale rejection.
     cmd.keyDown(Key::Up, 6000); cmd.keyDown(Key::Down, 6010); cmd.keyDown(Key::Select, 6020);
-    assert(cmd.view().holdAction == MENU_NONE);
+    assert(cmd.view().holdAction == id(A::ClaimWin));
     // A held action that stops being offered is dropped.
     cmd.applyMenuState2(menu({A::Pause, A::AdjustLife}, A::Pass, 4), 6030);
     assert(!cmd.update(6020 + DEFAULT_WIN_HOLD_MS).ready);
@@ -194,35 +193,35 @@ int main() {
     assert(!cmd.update(6020 + MENU_DEVICE_IDLE_MS).ready && !cmd.deviceMenuOpen());
   }
 
-  // Device entries: Sleep is a tap; Unpair and Factory reset are held.
+  // Device settings remain available; destructive actions require a hold.
   {
-    SigilMenu dev(MenuStyle::Compass);
+    SigilMenu dev;
     dev.applyMenuState2(menu({A::Join}, A::Join, 1), 0);
-    dev.keyDown(Key::Up, 0);  // Menu is the Device entries: nothing else offered.
-    assert(dev.view().recovery && dev.keyAction(Key::Select) == MENU_LOCAL_SLEEP);
+    dev.keyDown(Key::Up, 0);
+    assert(dev.view().recovery && dev.keyAction(Key::Select) == MENU_LOCAL_UNPAIR);
+    assert(dev.keyAction(Key::Up) == MENU_LOCAL_FACTORY_RESET);
+    assert(dev.keyAction(Key::Right) == MENU_LOCAL_THEME);
     assert(dev.keyAction(Key::Down) == MENU_LOCAL_MORE);
-    dev.keyDown(Key::Down, 5);
-    assert(dev.view().page == 1 && dev.keyAction(Key::Select) == MENU_LOCAL_THEME &&
-        dev.keyAction(Key::Up) == MENU_LOCAL_INVERT);
-    dev.keyDown(Key::Select, 6);
-    const auto theme = dev.update(6);
+    dev.keyDown(Key::Right, 1);
+    const auto theme = dev.update(1);
     assert(theme.ready && static_cast<uint8_t>(theme.action) == MENU_LOCAL_THEME && dev.deviceMenuOpen());
+    dev.keyUp(Key::Right, 2);
+    dev.keyDown(Key::Down, 5);
+    assert(dev.view().page == 1 && dev.keyAction(Key::Select) == MENU_LOCAL_INVERT &&
+        dev.keyAction(Key::Up) == MENU_LOCAL_CALIBRATE);
+    dev.keyDown(Key::Select, 6);
+    const auto invert = dev.update(6);
+    assert(invert.ready && static_cast<uint8_t>(invert.action) == MENU_LOCAL_INVERT && dev.deviceMenuOpen());
     dev.keyUp(Key::Select, 7);
     dev.keyDown(Key::Up, 8);
-    const auto invert = dev.update(8);
-    assert(invert.ready && static_cast<uint8_t>(invert.action) == MENU_LOCAL_INVERT && dev.deviceMenuOpen());
+    const auto calibrate = dev.update(8);
+    assert(calibrate.ready && static_cast<uint8_t>(calibrate.action) == MENU_LOCAL_CALIBRATE && !dev.deviceMenuOpen());
     dev.keyUp(Key::Up, 9);
-    dev.keyDown(Key::Left, 9); // Return to the first Device page.
-    dev.keyUp(Key::Left, 9);
-    dev.keyUp(Key::Down, 9);
-    dev.keyDown(Key::Select, 10);
-    MenuChoice c = dev.update(20);
-    assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_SLEEP && !dev.deviceMenuOpen());
-    dev.keyDown(Key::Up, 100); dev.keyDown(Key::Right, 110);
+    dev.keyDown(Key::Up, 100); dev.keyDown(Key::Up, 110);
     assert(!dev.update(110 + MENU_FACTORY_RESET_HOLD_MS - 1).ready);
-    c = dev.update(110 + MENU_FACTORY_RESET_HOLD_MS);
+    MenuChoice c = dev.update(110 + MENU_FACTORY_RESET_HOLD_MS);
     assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_FACTORY_RESET && !dev.deviceMenuOpen());
-    dev.keyDown(Key::Up, 20000); dev.keyDown(Key::Up, 20010);
+    dev.keyDown(Key::Up, 20000); dev.keyDown(Key::Select, 20010);
     c = dev.update(20010 + MENU_UNPAIR_HOLD_MS);
     assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_UNPAIR);
     // Back from the Device entries opened directly closes Menu.
@@ -240,13 +239,13 @@ int main() {
   // Atlas lost: Atlas's menu (even mid-game) gives way to Menu on Up, on the
   // Device entries; a menu from Atlas ends it.
   {
-    SigilMenu lost(MenuStyle::Compass);
+    SigilMenu lost;
     lost.applyMenuState2(menu({A::Pass, A::Pause, A::AdjustLife}, A::Pass, 1), 0);
     lost.setOffline();
     assert(lost.offline() && !lost.lifeOffered() && lost.keyAction(Key::Select) == MENU_NONE &&
         lost.keyAction(Key::Up) == MENU_LOCAL_DEVICE_MENU);
     lost.keyDown(Key::Up, 10);
-    assert(lost.view().recovery && lost.keyAction(Key::Up) == MENU_LOCAL_UNPAIR);
+    assert(lost.view().recovery && lost.keyAction(Key::Select) == MENU_LOCAL_UNPAIR);
     lost.applyMenuState2(menu({A::Pass, A::AdjustLife}, A::Pass, 2), 20);
     assert(!lost.offline() && lost.keyAction(Key::Select) == id(A::Pass));
     lost.setOffline(); lost.endOffline();
@@ -255,7 +254,7 @@ int main() {
 
   // Leave lobby is a long-press hold from Menu.
   {
-    SigilMenu leaver(MenuStyle::Compass);
+    SigilMenu leaver;
     leaver.applyMenuState2(menu({A::CycleStarter, A::AddSeatB, A::Leave}, A::CycleStarter, 5), 0);
     leaver.keyDown(Key::Up, 0);
     assert(leaver.keyAction(Key::Select) == id(A::Leave));
@@ -263,32 +262,6 @@ int main() {
     assert(!leaver.update(10 + DEFAULT_LONG_PRESS_MS - 1).ready);
     const MenuChoice left = leaver.update(10 + DEFAULT_LONG_PRESS_MS);
     assert(left.ready && left.action == A::Leave && left.revision == 5);
-  }
-
-  // OLED picker list: names, More, Back; a chosen row becomes the compass key.
-  {
-    ProfilePickerPacket page{};
-    page.mode = PickerMode::List; page.itemCount = 3; page.page = 0; page.pageCount = 2;
-    PickerRows rows = pickerRows(page);
-    assert(rows.count == 5 && rows.rows[3] == PickerRow::More && rows.rows[4] == PickerRow::Back);
-    uint8_t cursor = 0;
-    PickerKeyCode code = PickerKeyCode::Count;
-    assert(!pickerListKey(page, cursor, Key::Up, code) && cursor == 0);
-    assert(pickerListKey(page, cursor, Key::Select, code) && code == PickerKeyCode::Up);
-    assert(!pickerListKey(page, cursor, Key::Down, code) && cursor == 1);
-    assert(pickerListKey(page, cursor, Key::Right, code) && code == PickerKeyCode::Right);
-    cursor = 2; assert(pickerListKey(page, cursor, Key::Select, code) && code == PickerKeyCode::Down);
-    cursor = 3; assert(pickerListKey(page, cursor, Key::Select, code) && code == PickerKeyCode::Select);
-    for (int i = 0; i < 5; ++i) pickerListKey(page, cursor, Key::Down, code);
-    assert(cursor == 4 && pickerListKey(page, cursor, Key::Select, code) && code == PickerKeyCode::Left);
-    assert(pickerListKey(page, cursor, Key::Left, code) && code == PickerKeyCode::Left);
-    page.pageCount = 1; page.itemCount = 2;
-    assert(pickerRows(page).count == 3);  // Two names and Back; no More.
-    page.mode = PickerMode::Confirm; page.itemCount = 1;
-    rows = pickerRows(page);
-    assert(rows.count == 2 && rows.rows[0] == PickerRow::Yes && rows.rows[1] == PickerRow::Back);
-    cursor = 0; assert(pickerListKey(page, cursor, Key::Select, code) && code == PickerKeyCode::Select);
-    cursor = 9; assert(!pickerListKey(page, cursor, Key::Up, code) && cursor == 0);  // Stale cursor resets.
   }
 
   // Life presses batch: a tap is 1, a hold repeats then speeds to 5s, and one
@@ -324,27 +297,18 @@ int main() {
     assert(life.update(43110, delta, player) && delta == -200);
   }
   {
-    // E-ink counts slower than the OLED, and a longer hold preference slows
-    // either one (playtest 2026-09-29, item 6).
+    // A longer hold preference slows the touch repeat and acceleration.
     using TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
-    const LifePace oled = lifePaceFor(false, DEFAULT_LONG_PRESS_MS);
-    assert(oled.repeatDelayMs == TurnHubProtocol::LIFE_ADJUST_REPEAT_DELAY_MS &&
-        oled.repeatMs == TurnHubProtocol::LIFE_ADJUST_REPEAT_MS);
-    const LifePace eink = lifePaceFor(true, DEFAULT_LONG_PRESS_MS);
-    assert(eink.repeatDelayMs == 700 && eink.repeatMs == 300 && eink.fastStep == 1);
-    assert(oled.fastStep == TurnHubProtocol::LIFE_ADJUST_FAST_STEP);
-    const LifePace patient = lifePaceFor(true, 4000);
-    assert(patient.repeatDelayMs == 1400 && patient.repeatMs == 600 && patient.fastAfterMs == 6000);
-    LifeAdjuster slow;
-    slow.setPace(eink);
-    int32_t delta = 0;
-    uint8_t player = 0;
-    slow.press(1, 2, 0);
-    for (uint32_t t = 0; t <= 2000; t += 10) assert(!slow.update(t, delta, player));
-    assert(slow.pending() == 1 + 5);  // Tap, then +1 at 0.7, 1.0, 1.3, 1.6 and 1.9 s.
-    // A long hold never jumps: ones all the way (+1 every 0.3 s to 4 s).
-    for (uint32_t t = 2010; t <= 4000; t += 10) assert(!slow.update(t, delta, player));
-    assert(slow.pending() == 1 + 12);
+    const LifePace touch = lifePaceFor(DEFAULT_LONG_PRESS_MS);
+    assert(touch.repeatDelayMs == TurnHubProtocol::LIFE_ADJUST_REPEAT_DELAY_MS &&
+        touch.repeatMs == TurnHubProtocol::LIFE_ADJUST_REPEAT_MS &&
+        touch.fastStep == TurnHubProtocol::LIFE_ADJUST_FAST_STEP);
+    const LifePace patient = lifePaceFor(DEFAULT_LONG_PRESS_MS * 2);
+    assert(patient.repeatDelayMs == touch.repeatDelayMs * 2 &&
+        patient.repeatMs == touch.repeatMs * 2 && patient.fastAfterMs == touch.fastAfterMs * 2);
+    const LifePace fallback = lifePaceFor(0);
+    assert(fallback.repeatDelayMs == touch.repeatDelayMs && fallback.repeatMs == touch.repeatMs);
+
   }
 
   // Every action has a short label.
@@ -352,10 +316,10 @@ int main() {
     const char *label = sigilActionLabel(static_cast<A>(a));
     assert(label[0] && std::strlen(label) <= 12);
   }
-  for (MenuStyle style : {MenuStyle::Compass, MenuStyle::List}) {
-    // Both Sigils: Select passes, and pressed again in the grace period it
+  {
+    // Touch Select passes, and pressed again in the grace period it
     // undoes the pass (Undo pass is on the click, like Atlas's "pass again").
-    SigilMenu sigil(style);
+    SigilMenu sigil;
     sigil.applyMenuState2(menu({A::Pass, A::Pause, A::ClaimWin, A::LinkPhone}, A::Pass, 1), 0);
     sigil.keyDown(Key::Select, 10); sigil.keyUp(Key::Select, 20);
     MenuChoice c = sigil.update(20);
@@ -366,76 +330,5 @@ int main() {
     c = sigil.update(50);
     assert(c.ready && c.action == A::CancelPass);
   }
-  // OLED: the same bare keys; Menu is a scrolling list of the same entries,
-  // then Back. Up/Down move, the click or Right chooses, Left goes back.
-  {
-    SigilMenu oled(MenuStyle::List);
-    oled.applyMenuState2(menu({A::Pass, A::ClaimWin, A::Pause, A::AdjustLife, A::CommanderDamage,
-        A::DropPartner, A::SwitchSeat}, A::Pass, 2), 0);
-    assert(oled.keyAction(Key::Select) == id(A::Pass) && oled.keyAction(Key::Down) == id(A::SwitchSeat) &&
-        oled.keyAction(Key::Up) == MENU_LOCAL_DEVICE_MENU && oled.keyAction(Key::Left) == MENU_NONE);
-    oled.keyDown(Key::Up, 0);
-    MenuView v = oled.view();
-    const uint8_t want[] = {id(A::CommanderDamage), id(A::Pause), id(A::ClaimWin), id(A::DropPartner),
-        MENU_LOCAL_DEVICE, MENU_LOCAL_BACK};
-    assert(v.deviceMenu && v.list && v.rowCount == sizeof(want) && std::memcmp(v.rows, want, v.rowCount) == 0);
-    assert(v.cursor == 0 && oled.keyAction(Key::Select) == id(A::CommanderDamage) &&
-        oled.keyAction(Key::Right) == id(A::CommanderDamage) && oled.keyAction(Key::Left) == MENU_LOCAL_BACK);
-    // An unsent life total survives the open list; its keys are the list's.
-    assert(oled.lifeOffered());
-    for (int i = 0; i < 3; ++i) oled.keyDown(Key::Down, 10 + i);
-    assert(oled.view().cursor == 3 && oled.keyAction(Key::Select) == id(A::DropPartner));
-    oled.keyDown(Key::Down, 20);
-    oled.keyDown(Key::Select, 30);  // Device.
-    v = oled.view();
-    assert(v.recovery && v.rowCount == 6 && v.rows[0] == MENU_LOCAL_SLEEP && v.rows[3] == MENU_LOCAL_THEME && v.rows[4] == MENU_LOCAL_INVERT && v.rows[5] == MENU_LOCAL_BACK);
-    oled.keyDown(Key::Left, 40);  // Back onto the Device row.
-    v = oled.view();
-    assert(!v.recovery && v.rows[v.cursor] == MENU_LOCAL_DEVICE);
-    oled.keyDown(Key::Up, 50); oled.keyDown(Key::Up, 55); oled.keyDown(Key::Up, 60);
-    oled.keyDown(Key::Right, 70);
-    MenuChoice c = oled.update(80);
-    assert(c.ready && c.action == A::Pause && !oled.deviceMenuOpen());
-    // Holds show on the list (the OLED redraws cheaply).
-    oled.keyDown(Key::Up, 100); oled.keyDown(Key::Down, 110); oled.keyDown(Key::Down, 120);
-    oled.keyDown(Key::Select, 130);
-    assert(oled.view().holdAction == id(A::ClaimWin));
-    c = oled.update(130 + DEFAULT_WIN_HOLD_MS);
-    assert(c.ready && c.action == A::ClaimWin && !oled.deviceMenuOpen());
-    // Rows never repeat.
-    oled.keyDown(Key::Up, 200);
-    v = oled.view();
-    for (uint8_t i = 0; i < v.rowCount; ++i)
-      for (uint8_t j = 0; j < i; ++j) assert(v.rows[i] != v.rows[j]);
-  }
-  // Auto sleep: never mid-game, sooner with no Atlas, never while busy.
-  {
-    IdleSleepInputs in;
-    in.lastInputMs = 1000;
-    in.nowMs = 1000 + IDLE_SLEEP_MS - 1;
-    in.mode = DisplayMode::Lobby;
-    assert(!idleSleepDue(in));
-    in.nowMs = 1000 + IDLE_SLEEP_MS;
-    assert(idleSleepDue(in));
-    for (DisplayMode m : {DisplayMode::Starting, DisplayMode::Running, DisplayMode::Paused}) {
-      in.mode = m;
-      assert(!idleSleepDue(in));
-    }
-    in.mode = DisplayMode::GameOver;
-    assert(idleSleepDue(in));
-    in.busy = true;
-    assert(!idleSleepDue(in));
-    in.busy = false;
-    in.mode = DisplayMode::Running;
-    in.atlasAbsent = true;
-    in.nowMs = 1000 + IDLE_SLEEP_NO_ATLAS_MS - 1;
-    assert(!idleSleepDue(in));
-    in.nowMs = 1000 + IDLE_SLEEP_NO_ATLAS_MS;
-    assert(idleSleepDue(in));
-    // millis() wrapping is still just elapsed time.
-    in.lastInputMs = 0xFFFFFF00u;
-    in.nowMs = in.lastInputMs + IDLE_SLEEP_NO_ATLAS_MS;
-    assert(idleSleepDue(in));
-  }
-  std::cout << "Menu wire format, bare keys, e-ink pages, OLED list, Device, holds, stale menus and auto sleep passed\n";
+  std::cout << "Menu wire format, bare keys, touch pages, Device, holds, stale menus passed\n";
 }

@@ -27,7 +27,7 @@ namespace {
 
 constexpr int16_t W = SIGIL_SCREEN_W;
 constexpr int16_t M = 10;  // Side margin.
-constexpr int16_t HEADER_H = 30;
+constexpr int16_t HEADER_H = 44;
 
 TurnHubTheme::Id styleTheme = TurnHubTheme::Id::Graphite;
 bool styleInverted = false;
@@ -123,69 +123,96 @@ bool LvglSigilDisplay::lifeKeysShown() const {
       menu_.compass[static_cast<uint8_t>(Key::Right)] == MENU_NONE;
 }
 
-// A fresh screen with its header: the Sigil number, a title and the turn.
-lv_obj_t *LvglSigilDisplay::frame(const char *title, uint8_t sigilId, uint8_t turn) {
-  styleTheme = theme_;
-  styleInverted = inverted_;
+// Each frame owns its visible touch regions; blank space has no action.
+lv_obj_t *LvglSigilDisplay::frame(const char *title, uint8_t, uint8_t) {
+  styleTheme = theme_; styleInverted = inverted_;
+  touchMap_ = TouchMap();
+  for (auto &key : keys_) key = nullptr;
   lv_obj_t *screen = lv_screen_active();
   lv_obj_clean(screen);
-  for (auto &k : keys_) k = nullptr;
   lv_obj_set_style_bg_color(screen, rgb(pal().bg), 0);
   lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
   lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_t *bar = box(screen, 0, 0, W, HEADER_H);
-  lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
-  lv_obj_set_style_bg_color(bar, rgb(pal().surface1), 0);
-  lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_BOTTOM, 0);
-  lv_obj_set_style_border_width(bar, 1, 0);
-  lv_obj_set_style_border_color(bar, rgb(pal().separator), 0);
-  char left[12] = "SIGIL";
-  if (sigilId != 0xFF) snprintf(left, sizeof(left), "SIGIL %u", static_cast<unsigned>(sigilId + 1));
-  text(bar, left, &th_eyebrow_13, pal().accent, M, 8, 70);
-  text(bar, title, &th_semi_16, pal().text, 70, 5, 100, LV_TEXT_ALIGN_CENTER);
-  if (turn) {
-    char t[12];
-    snprintf(t, sizeof(t), "TURN %u", static_cast<unsigned>(turn));
-    text(bar, t, &th_eyebrow_13, pal().textSecondary, W - 80, 8, 80 - M, LV_TEXT_ALIGN_RIGHT);
-  }
-  if (const char *update = updateNoticeText(life_.update)) {
-    text(screen, update, &th_eyebrow_13, pal().info, M, PAD_TOP - 16, W - 2 * M, LV_TEXT_ALIGN_CENTER);
-  }
+  card(bar, pal().surface1, pal().separator, 0);
+  text(bar, title, &th_semi_20, pal().text, M, 12, W - 2 * M);
   return screen;
 }
 
-// The five keys. Blank keys stay as faint outlines so the layout never moves.
-void LvglSigilDisplay::pad(const PadLabels &labels) {
-  lv_obj_t *screen = lv_screen_active();
-  for (uint8_t i = 0; i < KEY_COUNT; ++i) {
-    const Key key = static_cast<Key>(i);
-    const PadRect r = padRect(key);
-    lv_obj_t *b = box(screen, r.x, r.y, r.w, r.h);
-    keys_[i] = b;
-    const char *label = labels.text[i];
-    if (!label || !label[0]) {
-      lv_obj_set_style_radius(b, 12, 0);
-      lv_obj_set_style_border_width(b, 1, 0);
-      lv_obj_set_style_border_color(b, rgb(pal().separator), 0);
-      continue;
+void LvglSigilDisplay::button(const char *label, const char *note, PadRect r,
+    uint8_t target, bool accent, uint32_t meaning) {
+  if (!label || !label[0]) return;
+  lv_obj_t *b = box(lv_screen_active(), r.x, r.y, r.w, r.h);
+  card(b, accent ? pal().accent : pal().surface2,
+      accent ? pal().accent : pal().separatorStrong, 12);
+  const uint32_t ink = accent ? pal().onAccent : pal().text;
+  const lv_font_t *font = textWidth(label, &th_semi_20) <= r.w - 16 ? &th_semi_20 : &th_semi_16;
+  const int16_t lh = lv_font_get_line_height(font);
+  const bool wrap = textWidth(label, font) > r.w - 16;
+  const int16_t height = (wrap ? 2 : 1) * lh;
+  const int16_t y = (r.h - height - (note ? 15 : 0)) / 2;
+  auto *l = text(b, label, font, ink, 8, y, r.w - 16, LV_TEXT_ALIGN_CENTER);
+  if (wrap) { lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP); lv_obj_set_height(l, height); }
+  if (note) text(b, note, &th_eyebrow_13, accent ? pal().onAccent : pal().textSecondary,
+      4, y + height + 1, r.w - 8, LV_TEXT_ALIGN_CENTER);
+  // A newly labeled control cannot inherit a contact from the old action.
+  for (const char *c = label; *c; ++c) meaning = (meaning ^ static_cast<uint8_t>(*c)) * 16777619u;
+  touchMap_.add(r, target, meaning);
+  if (target < KEY_COUNT) keys_[target] = b;
+}
+
+void LvglSigilDisplay::navigation(TurnHubUi::Page selected) {
+  int16_t x = 0;
+  const int16_t widths[] = {50,50,50,90};
+  for (uint8_t i = 0; i < TurnHubUi::PAGE_COUNT; ++i) {
+    const auto page = static_cast<TurnHubUi::Page>(i);
+    auto *tab = box(lv_screen_active(), x, NAV_Y, widths[i], NAV_H);
+    card(tab, selected == page ? pal().accentSoft : pal().surface1, pal().separator, 0);
+    if (selected == page) {
+      auto *mark = box(tab, 10, 0, widths[i]-20, 3);
+      card(mark, pal().accent, pal().accent, 1);
     }
-    const bool accent = labels.accent[i];
-    card(b, accent ? pal().accent : pal().surface2, accent ? pal().accent : pal().separatorStrong, 12);
-    const uint32_t ink = accent ? pal().onAccent : pal().text;
-    const char *note = labels.note[i];
-    const lv_font_t *font = textWidth(label, &th_semi_20) <= r.w - 8 ? &th_semi_20 : &th_semi_16;
-    const int16_t lh = static_cast<int16_t>(lv_font_get_line_height(font));
-    // A label too long for one line wraps onto two when there is no note.
-    const bool wrap = !note && textWidth(label, font) > r.w - 8;
-    const int16_t top = note ? (r.h - lh - 14) / 2 : wrap ? (r.h - 2 * lh) / 2 : (r.h - lh) / 2;
-    lv_obj_t *t = text(b, label, font, ink, 4, top, r.w - 8, LV_TEXT_ALIGN_CENTER);
-    if (wrap) {
-      lv_label_set_long_mode(t, LV_LABEL_LONG_WRAP);
-      lv_obj_set_height(t, 2 * lh);
-    }
-    if (note) text(b, note, &th_eyebrow_13, accent ? pal().onAccent : pal().textSecondary, 4, top + lh, r.w - 8,
-        LV_TEXT_ALIGN_CENTER);
+    text(tab, TurnHubUi::pageTitle(page), &th_eyebrow_13,
+        selected == page ? pal().accent : pal().textSecondary, 0, 18, widths[i], LV_TEXT_ALIGN_CENTER);
+    touchMap_.add({x, NAV_Y, widths[i], NAV_H}, TOUCH_NAV + i, TOUCH_NAV + i);
+    x += widths[i];
   }
+}
+
+void LvglSigilDisplay::pad(const PadLabels &labels) {
+  touchMap_.menuRevision = menu_.revision;
+  if (layout_ == Layout::Hidden) { present(); return; }
+  const uint8_t up=0, down=1, left=2, right=3, select=4;
+  PadRect rects[KEY_COUNT] = {};
+  if (layout_ == Layout::Menu) {
+    rects[select]={10,54,106,72}; rects[up]={124,54,106,72};
+    rects[right]={10,134,106,72}; rects[down]={124,134,106,72}; rects[left]={10,214,220,48};
+  } else if (layout_ == Layout::Picker) {
+    rects[up]={10,54,220,50}; rects[right]={10,110,220,50}; rects[down]={10,166,220,50};
+    rects[left]={10,222,106,44}; rects[select]={124,222,106,44};
+  } else if (layout_ == Layout::Game) {
+    rects[up]={164,0,76,44}; rects[left]={10,112,52,56}; rects[right]={178,112,52,56};
+    rects[down]={10,170,220,44}; rects[select]={10,218,220,48};
+  } else if (layout_ == Layout::Commander) {
+    rects[up]={164,0,76,44}; rects[left]={10,154,106,52}; rects[right]={124,154,106,52};
+    rects[down]={10,164,220,44}; rects[select]={10,216,220,48};
+  } else {
+    rects[up]={164,0,76,44}; rects[left]={10,164,106,44}; rects[right]={124,164,106,44};
+    rects[down]={10,112,220,44}; rects[select]={10,216,220,48};
+  }
+  for (uint8_t i=0; i<KEY_COUNT; ++i) {
+    const uint32_t meaning = (context_ * 65536u + menu_.revision * 256u +
+        (menu_.compass[i] == MENU_NONE ? i : menu_.compass[i])) ^ (touchMap_.actor * 2654435761u) ^
+        (static_cast<uint32_t>(touchMap_.lifeRequest) << 16);
+    button(labels.text[i], labels.note[i], rects[i], i, labels.accent[i], meaning);
+  }
+  const uint8_t progress = menu_.pairPercent ? menu_.pairPercent : menu_.holdPercent;
+  if (progress) {
+    auto *track=box(lv_screen_active(),10,266,220,4);
+    card(track,pal().fillStrong,pal().fillStrong,2);
+    auto *fill=box(track,0,0,220*progress/100,4); card(fill,pal().accent,pal().accent,2);
+  }
+  navigation(page_);
   setPressedKey(pressed_);
 }
 
@@ -200,26 +227,29 @@ void LvglSigilDisplay::setPressedKey(Key key) {
   }
 }
 
-// The menu view's keys, as the e-ink legend names them.
+// Current action labels for the touch buttons.
 PadLabels LvglSigilDisplay::menuLabels() const {
   PadLabels l;
   if (!menu_.active) return l;
   for (uint8_t i = 0; i < KEY_COUNT; ++i) {
     const uint8_t action = menu_.compass[i];
     if (action == MENU_NONE) continue;
-    l.text[i] = sigilActionLabel(static_cast<TurnHubProtocol::SigilAction>(action));
+    l.text[i] = action == MENU_LOCAL_DEVICE_MENU ? "More" : sigilActionLabel(static_cast<TurnHubProtocol::SigilAction>(action));
     if (menuActionNeedsHold(action)) l.note[i] = "HOLD";
   }
   const uint8_t left = static_cast<uint8_t>(Key::Left), right = static_cast<uint8_t>(Key::Right);
+  if (menu_.pairPercent) {
+    l.note[static_cast<uint8_t>(Key::Select)] = "HOLD TO PAIR";
+  }
   if (lifeRequestShown()) {
     l.text[left] = "Deny";
     l.text[right] = "Approve";
     l.note[left] = l.note[right] = nullptr;
     l.accent[right] = true;
   } else if (lifeKeysShown()) {
-    l.text[left] = "-1";
-    l.text[right] = "+1";
-    l.note[left] = l.note[right] = "LIFE";
+    l.text[left] = life_.startingLife >= 1000 ? "-100" : "-1";
+    l.text[right] = life_.startingLife >= 1000 ? "+100" : "+1";
+    l.note[left] = l.note[right] = nullptr;
   }
   l.accent[static_cast<uint8_t>(Key::Select)] = !menu_.deviceMenu && l.text[static_cast<uint8_t>(Key::Select)];
   return l;
@@ -233,9 +263,9 @@ void LvglSigilDisplay::finish(const PadLabels &labels) {
 void LvglSigilDisplay::statusScreen(const char *title, const char *line1, const char *line2,
     uint8_t sigilId, PadLabels labels) {
   lv_obj_t *s = frame("TurnHub", sigilId);
-  text(s, title, &th_bold_28, pal().text, M, 62, W - 2 * M, LV_TEXT_ALIGN_CENTER);
-  if (line1) text(s, line1, &th_semi_16, pal().textSecondary, M, 104, W - 2 * M, LV_TEXT_ALIGN_CENTER);
-  if (line2) text(s, line2, &th_semi_16, pal().textSecondary, M, 126, W - 2 * M, LV_TEXT_ALIGN_CENTER);
+  text(s, title, &th_bold_28, pal().text, M, 58, W - 2 * M, LV_TEXT_ALIGN_CENTER);
+  if (line1) text(s, line1, &th_semi_16, pal().textSecondary, M, 94, W - 2 * M, LV_TEXT_ALIGN_CENTER);
+  if (line2) text(s, line2, &th_semi_16, pal().textSecondary, M, 118, W - 2 * M, LV_TEXT_ALIGN_CENTER);
   finish(labels);
 }
 
@@ -249,34 +279,41 @@ bool LvglSigilDisplay::drawDeviceMenu(uint8_t sigilId) {
     snprintf(detail, sizeof(detail), "Page %u of %u", static_cast<unsigned>(menu_.page + 1),
         static_cast<unsigned>(menu_.pageCount));
   }
-  statusScreen(menu_.recovery ? "Device" : "Menu", detail[0] ? detail : nullptr, "Choose below", sigilId,
-      menuLabels());
+  layout_ = Layout::Menu;
+  frame(menu_.recovery ? "Device settings" : "Player controls", sigilId);
+  pad(menuLabels());
+  present();
   return true;
 }
 
-void LvglSigilDisplay::showBooting() { statusScreen("Starting", "Looking for Atlas", nullptr, 0xFF, PadLabels()); }
+void LvglSigilDisplay::showBooting() { layout_=Layout::Hidden; statusScreen("Starting", "Looking for Atlas", nullptr, 0xFF, PadLabels()); }
 
 void LvglSigilDisplay::showUnpaired() {
+  page_=TurnHubUi::Page::Game; layout_=Layout::Actions; context_=1;
   if (drawDeviceMenu(0xFF)) return;
   PadLabels l = menuLabels();
-  // Holding the click opens pairing while unpaired (main.cpp's joystick hold).
-  l.text[static_cast<uint8_t>(Key::Select)] = "Pair";
+  // Hold the on-screen Pair button to open pairing while unpaired.
+  l.text[static_cast<uint8_t>(Key::Select)] = menu_.pairing ? nullptr : "Pair";
   l.note[static_cast<uint8_t>(Key::Select)] = "HOLD";
   l.accent[static_cast<uint8_t>(Key::Select)] = true;
-  statusScreen("Unpaired", "Hold Pair, then confirm", "the code on Atlas", 0xFF, l);
+  statusScreen(menu_.pairing ? "Pairing" : "Unpaired",
+      menu_.pairing ? "Searching for Atlas" : "Hold Pair, then confirm", "the code on Atlas", 0xFF, l);
 }
 
 void LvglSigilDisplay::showReady(uint8_t sigilId) {
+  page_=TurnHubUi::Page::Game; layout_=Layout::Actions; context_=1;
   if (drawDeviceMenu(sigilId)) return;
-  statusScreen("Ready", "Welcome to TurnHub!", "Join from the keys below", sigilId, menuLabels());
+  statusScreen("Ready", "Welcome to TurnHub!", "Choose Join game below", sigilId, menuLabels());
 }
 
 void LvglSigilDisplay::showAtlasLost(uint8_t sigilId) {
+  page_=TurnHubUi::Page::Game; layout_=Layout::Actions; context_=1;
   if (drawDeviceMenu(sigilId)) return;
   statusScreen("Atlas lost", "Searching for Atlas", nullptr, sigilId, menuLabels());
 }
 
 void LvglSigilDisplay::showPairingCode(uint16_t code) {
+  layout_=Layout::Hidden;
   char digits[5];
   TurnHubSecureLink::formatPairingCode(code, digits);
   lv_obj_t *s = frame("Pairing");
@@ -289,6 +326,7 @@ void LvglSigilDisplay::showPairingCode(uint16_t code) {
 }
 
 void LvglSigilDisplay::showUpdate(const char *status, int8_t percent) {
+  layout_=Layout::Hidden;
   lv_obj_t *s = frame("Update");
   text(s, "Updating", &th_bold_28, pal().text, M, 62, W - 2 * M, LV_TEXT_ALIGN_CENTER);
   text(s, status, &th_semi_16, pal().textSecondary, M, 104, W - 2 * M, LV_TEXT_ALIGN_CENTER);
@@ -301,10 +339,6 @@ void LvglSigilDisplay::showUpdate(const char *status, int8_t percent) {
   finish(PadLabels());
 }
 
-void LvglSigilDisplay::showSleeping() {
-  statusScreen("Asleep", "Press BOOT or reset", "to wake", 0xFF, PadLabels());
-}
-
 bool LvglSigilDisplay::setSeatName(uint8_t slot, const char *name) {
   if (slot > 1) return false;
   char next[sizeof(seatName_[0])];
@@ -315,72 +349,68 @@ bool LvglSigilDisplay::setSeatName(uint8_t slot, const char *name) {
 }
 
 void LvglSigilDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &g) {
+  page_=TurnHubUi::Page::Game; layout_=Layout::Game; context_=2;
   if (drawDeviceMenu(g.sigilId)) return;
   using namespace TurnHubProtocol;
-  const bool active = hasDisplayFlag(g.state, DISPLAY_FLAG_ACTIVE);
-  const bool shared = displaySecondaryPlayer(g.state) != 0;
-  const bool seatB = hasDisplayFlag(g.state, DISPLAY_FLAG_PRIMARY_B);
-  const bool cmd = commanderDamageShown(g);
-  lv_obj_t *s = frame(g.commander ? "Commander" : "Game", g.sigilId, displayTurnNumber(g.state));
-
+  const bool active=hasDisplayFlag(g.state,DISPLAY_FLAG_ACTIVE);
+  const bool shared=displaySecondaryPlayer(g.state)!=0;
+  const bool seatB=hasDisplayFlag(g.state,DISPLAY_FLAG_PRIMARY_B);
+  auto *s=frame("My player",g.sigilId);
+  touchMap_.actor=displayPrimaryPlayer(g.state);
+  touchMap_.lifeRequest=static_cast<uint16_t>(life_.request.target << 8) | life_.request.tag;
   if (lifeRequestShown()) {
-    char ask[32];
-    snprintf(ask, sizeof(ask), "P%u asks %+ld life", static_cast<unsigned>(life_.request.requester),
+    layout_=Layout::Actions;
+    frame("Life request",g.sigilId);
+    touchMap_.actor=displayPrimaryPlayer(g.state);
+    touchMap_.lifeRequest=static_cast<uint16_t>(life_.request.target << 8) | life_.request.tag;
+    char request[48];
+    snprintf(request,sizeof(request),"Player %u requests",life_.request.requester);
+    text(s,request,&th_semi_20,pal().text,10,62,220,LV_TEXT_ALIGN_CENTER);
+    snprintf(request,sizeof(request),"%+ld life",static_cast<long>(life_.request.delta));
+    text(s,request,&th_bold_28,pal().warning,10,94,220,LV_TEXT_ALIGN_CENTER);
+    snprintf(request,sizeof(request),"Current life: %ld",static_cast<long>(g.primary.life));
+    text(s,request,&th_semi_16,pal().textSecondary,10,132,220,LV_TEXT_ALIGN_CENTER);
+    auto labels=menuLabels();
+    labels.text[static_cast<uint8_t>(Key::Select)]=nullptr;
+    labels.text[static_cast<uint8_t>(Key::Down)]=nullptr;
+    finish(labels);
+    return;
+  }
+  text(s,g.primary.name,nameFont(g.primary.name,220),pal().text,10,52,220,LV_TEXT_ALIGN_CENTER);
+  pill(s,life_.passPending ? "PASSING" : active ? "YOUR TURN" : "WAITING",
+      active ? pal().turn : pal().fill,active ? pal().onTurn : pal().textSecondary,84);
+  char digits[14];
+  const int32_t preview=g.primary.life + life_.pending;
+  snprintf(digits,sizeof(digits),"%ld",static_cast<long>(preview));
+  const lv_font_t *const fonts[]={&th_num_64,&th_num_40,&th_bold_28,&th_semi_20};
+  const lv_font_t *font=fitted(digits,108,fonts,4);
+  text(s,digits,font,pal().text,64,110,112,LV_TEXT_ALIGN_CENTER);
+  PadLabels labels=menuLabels();
+  char other[40];
+  if (shared && labels.text[static_cast<uint8_t>(Key::Down)]) {
+    snprintf(other,sizeof(other),"%s / %ld",g.secondary.name,static_cast<long>(g.secondary.life));
+    labels.text[static_cast<uint8_t>(Key::Down)]=other;
+  }
+  if (lifeRequestShown()) {
+    char request[40]; snprintf(request,sizeof(request),"P%u requests %+ld life",life_.request.requester,
         static_cast<long>(life_.request.delta));
-    text(s, ask, &th_semi_20, pal().warning, M, 36, W - 2 * M, LV_TEXT_ALIGN_CENTER);
-  } else {
-    text(s, g.primary.name, nameFont(g.primary.name, W - 2 * M), pal().text, M, 34, W - 2 * M,
-        LV_TEXT_ALIGN_CENTER);
+    text(s,request,&th_semi_16,pal().warning,10,182,220,LV_TEXT_ALIGN_CENTER);
+  } else if (!shared) {
+    char detail[48];
+    if (life_.pending) snprintf(detail,sizeof(detail),"%+ld life pending",static_cast<long>(life_.pending));
+    else if (g.sourceCount) {
+      char damage[24]; formatCommanderDamage(g.sources[0],damage,sizeof(damage));
+      snprintf(detail,sizeof(detail),"Cmd / %.12s %s",g.sources[0].name,damage);
+    } else snprintf(detail,sizeof(detail),"%s / Round %u",g.commander ? "Commander" : "Life",displayTurnNumber(g.state));
+    text(s,detail,&th_eyebrow_13,pal().textSecondary,10,184,220,LV_TEXT_ALIGN_CENTER);
   }
-  if (life_.passPending) pill(s, "PASSING", pal().warning, pal().bg, 68);
-  else if (active) pill(s, "YOUR TURN", pal().turn, pal().onTurn, 68);
-  else pill(s, "WAITING", pal().fill, pal().textSecondary, 68);
-
-  // The life card; smaller when another seat or commander damage needs room.
-  const bool compact = shared || cmd;
-  const int16_t cardH = compact ? 56 : 80;
-  lv_obj_t *lifeCard = box(s, M, 96, W - 2 * M, cardH);
-  card(lifeCard, pal().surface1, active ? pal().turn : pal().separator);
-  char label[16] = "LIFE";
-  if (shared) snprintf(label, sizeof(label), "SEAT %c LIFE", seatB ? 'B' : 'A');
-  text(lifeCard, label, &th_eyebrow_13, pal().textTertiary, 10, 6, 100);
-  char digits[12];
-  snprintf(digits, sizeof(digits), "%ld", static_cast<long>(g.primary.life));
-  text(lifeCard, digits, compact ? &th_num_40 : &th_num_64, pal().text, 0, compact ? 10 : 8, W - 2 * M,
-      LV_TEXT_ALIGN_CENTER);
-  if (life_.pending) {
-    char delta[12];
-    snprintf(delta, sizeof(delta), "%+ld", static_cast<long>(life_.pending));
-    text(lifeCard, delta, &th_semi_20, life_.pending > 0 ? pal().good : pal().critical, W - 2 * M - 70, 4, 60,
-        LV_TEXT_ALIGN_RIGHT);
-  }
-
-  int16_t y = 96 + cardH + 4;
-  if (shared && y + 20 <= PAD_TOP) {
-    char other[32];
-    snprintf(other, sizeof(other), "%c: %s", seatB ? 'A' : 'B', g.secondary.name);
-    text(s, other, &th_semi_16, pal().textSecondary, M, y, W - 2 * M - 50);
-    snprintf(digits, sizeof(digits), "%ld", static_cast<long>(g.secondary.life));
-    text(s, digits, &th_semi_16, pal().text, W - M - 50, y, 50, LV_TEXT_ALIGN_RIGHT);
-    y += 20;
-  }
-  if (cmd && y + 18 <= PAD_TOP) {
-    // Damage taken, as many sources as fit on one line.
-    char line[48] = "CMD";
-    for (uint8_t i = 0; i < g.sourceCount; ++i) {
-      char damage[24];
-      formatCommanderDamage(g.sources[i], damage, sizeof(damage));
-      const size_t used = strlen(line);
-      snprintf(line + used, sizeof(line) - used, "  %.6s %s", g.sources[i].name, damage);
-    }
-    text(s, line, &th_eyebrow_13, pal().critical, M, y, W - 2 * M);
-  }
-  finish(menuLabels());
+  finish(labels);
 }
 
 void LvglSigilDisplay::showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode, uint8_t primaryPlayer,
     uint8_t secondaryPlayer, uint8_t turnNumber, uint8_t flags) {
   using namespace TurnHubProtocol;
+  page_=TurnHubUi::Page::Game; layout_=Layout::Actions; context_=3;
   if (drawDeviceMenu(sigilId)) return;
   const bool active = flags & DISPLAY_FLAG_ACTIVE;
   const bool starter = flags & DISPLAY_FLAG_STARTER;
@@ -431,36 +461,37 @@ void LvglSigilDisplay::showState(uint8_t sigilId, TurnHubProtocol::DisplayMode m
     text(c, shown, nameFont(shown, W - 2 * M - 20), pal().text, 10, h > 50 ? 26 : 20, W - 2 * M - 20);
   };
   if (secondaryPlayer) {
-    seat("SEAT A", seatName_[0], 38, 52, lit && !focusB);
-    seat("SEAT B", seatName_[1], 94, 52, lit && focusB);
+    seat("SEAT A", seatName_[0], 50, 48, lit && !focusB);
+    seat("SEAT B", seatName_[1], 104, 48, lit && focusB);
   } else {
     char tag[16] = "READY";
     if (primaryPlayer) snprintf(tag, sizeof(tag), "PLAYER %u", static_cast<unsigned>(primaryPlayer));
-    seat(tag, seatName_[0], 38, 92, lit);
+    seat(tag, seatName_[0], 50, 88, lit);
   }
   if (lit) pill(s, status, mode == DisplayMode::GameOver ? pal().accent : pal().turn,
-      mode == DisplayMode::GameOver ? pal().onAccent : pal().onTurn, 150);
-  else pill(s, status, pal().fill, pal().textSecondary, 150);
+      mode == DisplayMode::GameOver ? pal().onAccent : pal().onTurn, 140);
+  else pill(s, status, pal().fill, pal().textSecondary, 140);
   finish(menuLabels());
 }
 
 void LvglSigilDisplay::showCommander(const TurnHubProtocol::CommanderFlowPacket &page) {
   using TurnHubProtocol::CommanderStage;
+  page_=TurnHubUi::Page::Game; layout_=Layout::Commander; context_=16 + static_cast<uint8_t>(page.stage) + page.revision * 32u;
   const CommanderFlowView v = commanderFlowView(page);
   lv_obj_t *s = frame("Cmd damage", page.sigilId);
-  text(s, v.title, &th_eyebrow_13, pal().accent, M, 38, W - 2 * M, LV_TEXT_ALIGN_CENTER);
-  text(s, v.lines[0], &th_semi_16, pal().textSecondary, M, 60, W - 2 * M, LV_TEXT_ALIGN_CENTER);
-  text(s, v.lines[1], &th_semi_16, pal().textSecondary, M, 82, W - 2 * M, LV_TEXT_ALIGN_CENTER);
-  text(s, v.lines[2], &th_semi_20, pal().text, M, 110, W - 2 * M, LV_TEXT_ALIGN_CENTER);
+  text(s, v.title, &th_eyebrow_13, pal().accent, M, 50, W - 2 * M, LV_TEXT_ALIGN_CENTER);
+  text(s, v.lines[0], &th_semi_16, pal().textSecondary, M, 72, W - 2 * M, LV_TEXT_ALIGN_CENTER);
+  text(s, v.lines[1], &th_semi_16, pal().textSecondary, M, 94, W - 2 * M, LV_TEXT_ALIGN_CENTER);
+  text(s, v.lines[2], &th_semi_20, pal().text, M, 116, W - 2 * M, LV_TEXT_ALIGN_CENTER);
   if (v.lines[3][0] && page.stage >= CommanderStage::Confirm)
-    text(s, v.lines[3], &th_semi_20, pal().text, M, 136, W - 2 * M, LV_TEXT_ALIGN_CENTER);
+    text(s, v.lines[3], &th_semi_20, pal().text, M, 138, W - 2 * M, LV_TEXT_ALIGN_CENTER);
   PadLabels l;
   const uint8_t up = 0, down = 1, left = 2, right = 3, select = 4;
   static_assert(static_cast<uint8_t>(Key::Select) == 4 && static_cast<uint8_t>(Key::Left) == 2, "key order");
   switch (page.stage) {
     case CommanderStage::Source:
       l.text[left] = "Prev"; l.text[right] = "Next"; l.text[select] = "Choose";
-      l.text[up] = l.text[down] = "Cancel";
+      l.text[up] = "Cancel";
       break;
     case CommanderStage::Commander:
       l.text[left] = "C1"; l.text[right] = "C2"; l.text[select] = "Next"; l.text[up] = "Back";
@@ -483,11 +514,64 @@ void LvglSigilDisplay::showCommander(const TurnHubProtocol::CommanderFlowPacket 
   finish(l);
 }
 
+void LvglSigilDisplay::showHome(uint8_t sigilId, bool connected, const char *name, uint8_t mode) {
+  page_=TurnHubUi::Page::Home; layout_=Layout::Actions;
+  auto *s=frame("TurnHub",sigilId);
+  text(s,"YOUR SIGIL",&th_eyebrow_13,pal().accent,10,56,220);
+  text(s,name && name[0] ? name : "Welcome",&th_bold_28,pal().text,10,78,220);
+  text(s,sigilId==0xFF ? "Pair with an Atlas to play" : connected ? "Connected to Atlas" : "Atlas lost / reconnecting",
+      &th_semi_16,connected ? pal().good : pal().warning,10,114,220);
+  const char *status=mode==static_cast<uint8_t>(TurnHubProtocol::DisplayMode::Running) ? "Your player controls" :
+      mode==static_cast<uint8_t>(TurnHubProtocol::DisplayMode::Paused) ? "Game paused" : "Lobby and player controls";
+  button("Game",status,{10,150,220,50},TOUCH_NAV+1,true,TOUCH_NAV+1);
+  button("Table","Everyone at the table",{10,210,220,50},TOUCH_NAV+2,false,TOUCH_NAV+2);
+  navigation(page_); present();
+}
+
+void LvglSigilDisplay::showSettings(uint8_t sigilId) {
+  page_=TurnHubUi::Page::Settings; layout_=Layout::Menu; context_=4;
+  frame("Sigil settings",sigilId);
+  pad(menuLabels()); present();
+}
+
+void LvglSigilDisplay::showTable(uint8_t sigilId, const TableSnapshot &table, uint8_t page, bool connected) {
+  page_=TurnHubUi::Page::Table;
+  auto *s=frame("Table / read only",sigilId);
+  if (!table.valid) {
+    text(s,"Waiting for Atlas",&th_semi_20,pal().text,10,100,220,LV_TEXT_ALIGN_CENTER);
+    text(s,"The roster appears here",&th_semi_16,pal().textSecondary,10,130,220,LV_TEXT_ALIGN_CENTER);
+  } else if (!table.total) {
+    text(s,"No players yet",&th_semi_20,pal().text,10,100,220,LV_TEXT_ALIGN_CENTER);
+  } else {
+    const uint8_t pages=(table.total+2)/3;
+    page=page<pages ? page : 0;
+    char caption[40]; snprintf(caption,sizeof(caption),"%u players / %u/%u%s",table.total,page+1,pages,connected ? "" : " / offline");
+    text(s,caption,&th_eyebrow_13,connected ? pal().textSecondary : pal().warning,10,50,220);
+    for(uint8_t i=0;i<3 && page*3+i<table.total;++i) {
+      const auto &row=table.rows[page*3+i];
+      auto *c=box(s,10,72+i*49,220,44);
+      card(c,pal().surface1,row.flags&TurnHubProtocol::TABLE_ACTIVE ? pal().turn : pal().separator,10);
+      text(c,row.name,&th_semi_16,pal().text,8,5,116);
+      const char *tag=row.flags&TurnHubProtocol::TABLE_WINNER ? "WINNER" : row.flags&TurnHubProtocol::TABLE_OUT ? "OUT" :
+          row.flags&TurnHubProtocol::TABLE_ACTIVE ? "TURN" : row.flags&TurnHubProtocol::TABLE_STARTER ? "STARTS" : "";
+      text(c,tag,&th_eyebrow_13,pal().turn,8,25,116);
+      char life[14]; snprintf(life,sizeof(life),"%ld",static_cast<long>(row.life));
+      const lv_font_t *const sizes[]={&th_semi_20,&th_semi_16};
+      text(c,life,fitted(life,84,sizes,2),pal().text,128,10,84,LV_TEXT_ALIGN_RIGHT);
+    }
+    if(pages>1) {
+      if(page) button("Previous",nullptr,{10,222,106,44},TOUCH_PREV,false,TOUCH_PREV);
+      if(page+1<pages) button("Next",nullptr,{124,222,106,44},TOUCH_NEXT,false,TOUCH_NEXT);
+    }
+  }
+  navigation(page_); present();
+}
+
 // Atlas's profile picker: Up, Right and Down are the names on the page.
 void LvglSigilDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &page, uint8_t) {
   using namespace TurnHubProtocol;
   const bool confirm = page.mode == PickerMode::Confirm;
-  lv_obj_t *s = frame(confirm ? "Join" : "Who plays?", page.sigilId);
+  page_=TurnHubUi::Page::Game; layout_=confirm ? Layout::Actions : Layout::Picker; context_=128 + page.revision;
   const char *notice = nullptr;
   switch (page.notice) {
     case PickerNotice::NeedsPhone: notice = "Sign in on your phone"; break;
@@ -496,6 +580,7 @@ void LvglSigilDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &pa
     case PickerNotice::Failed: notice = "Try again"; break;
     default: break;
   }
+  lv_obj_t *s = frame(notice ? notice : confirm ? "Join" : "Who plays?", page.sigilId);
   PadLabels l;
   const uint8_t left = static_cast<uint8_t>(Key::Left), select = static_cast<uint8_t>(Key::Select);
   if (confirm) {
@@ -506,14 +591,7 @@ void LvglSigilDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &pa
     l.accent[select] = true;
     l.text[left] = "Back";
   } else {
-    text(s, "Choose a name below", &th_semi_16, pal().textSecondary, M, 50, W - 2 * M, LV_TEXT_ALIGN_CENTER);
-    if (page.pageCount > 1) {
-      char pages[20];
-      snprintf(pages, sizeof(pages), "Page %u of %u", static_cast<unsigned>(page.page + 1),
-          static_cast<unsigned>(page.pageCount));
-      text(s, pages, &th_eyebrow_13, pal().textTertiary, M, 74, W - 2 * M, LV_TEXT_ALIGN_CENTER);
-      l.text[select] = "More";
-    }
+    if (page.pageCount > 1) l.text[select] = "More";
     static const Key ROW_KEYS[] = {Key::Up, Key::Right, Key::Down};
     for (uint8_t i = 0; i < page.itemCount && i < PICKER_PAGE_ITEMS; ++i) {
       const uint8_t k = static_cast<uint8_t>(ROW_KEYS[i]);
@@ -524,7 +602,6 @@ void LvglSigilDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &pa
     }
     l.text[left] = page.page > 0 ? "Back" : "Cancel";
   }
-  if (notice) pill(s, notice, pal().warning, pal().bg, 120);
   finish(l);
 }
 

@@ -28,7 +28,7 @@ TurnHub is a local-first tabletop game-management system (turn timer, lobby, lif
 |---|---|---|
 | `Atlas/` | ESP32 table controller: **the authoritative game engine**, Wi-Fi AP, web portal and HTTP API, ESP-NOW radio to Sigils, NVS persistence | PlatformIO, Arduino ESP32, C++ |
 | `LVGL/` | Isolated experimental desktop Atlas/Sigil presentation simulator; never a second production game authority | CMake, pinned LVGL/SDL, C++17; see `LVGL/README.md` |
-| `Sigil/` | ESP32 player controller: one `sigil` build (thumbstick, status ring, buzzer, ESP-NOW, pairing, updater); display behind `sigil_display.h`, headless there; `sigil-e32r28t` binds the LVGL Sigil screen (`sigil_display_lvgl.cpp`) on the old E32R28T Atlas board as a touch stand-in | PlatformIO, Arduino ESP32, C++ |
+| `Sigil/` | Touchscreen-only player controller: `sigil` (alias `sigil-e32r28t`) runs LVGL on the E32R28T touch board, with secure ESP-NOW, pairing and speaker cues. No LED, joystick or headless target; Gen 1 display firmware stays on `legacy/gen1`. | PlatformIO, Arduino ESP32, C++ |
 | `Android/` | Native client over HTTP (`HttpAtlasRepository`, polling `/api/v1/state`): live table, player controls, first-run setup, firmware updates | Gradle, Kotlin |
 | `iOS/` | SwiftUI iPhone/iPad foundation; local `TurnHubCore` package; see `iOS/README.md` and `Documentation/engineering/IOS_DEVELOPMENT.md` | Xcode 16+, Swift 6, SwiftPM |
 | `shared/include/` | Firmware headers shared by Atlas and Sigil (currently `protocol.h`, the ESP-NOW radio contract) | C++ |
@@ -82,8 +82,8 @@ There is no per-test filter. To run one group, build the single executable (the 
 
 ### Sigil firmware (run from `Sigil/`)
 ```
-pio run -e sigil                      # the one Sigil build (sigil-s3 replaces it with the S3 drivers)
-pio run -e sigil-e32r28t              # the old E32R28T Atlas board as a touch Sigil stand-in (LVGL screen, on-screen keys)
+pio run -e sigil                      # touchscreen-only E32R28T Sigil (default)
+pio run -e sigil-e32r28t              # explicit board-name alias of sigil
 bash tests/host/render-sigil-lvgl.sh  # host preview of that LVGL Sigil screen (after one sigil-e32r28t build)
 ```
 

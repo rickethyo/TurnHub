@@ -12,8 +12,9 @@ namespace TurnHub {
 //   SigilLedState  -> colors and cadences on the Jewel ring     the Sigil
 //
 // Atlas selects the cue and sends it as LedState with the player's style
-// (default, reduced motion, monochrome-safe); every Sigil draws it itself
-// (Sigil/src/sigil_led.cpp). Selection never looks at colors or cadences, so
+// (default, reduced motion, monochrome-safe). Touchscreen-only Sigils ignore
+// the LED packet; legacy/gen1 owns the physical light rendering. Selection
+// never looks at colors or cadences, so
 // presentation can change without touching game logic. Every cue must stay
 // distinguishable by pattern/cadence, not only by hue (ACCESSIBILITY.md), and
 // essential meaning also reaches the portal/app as text.

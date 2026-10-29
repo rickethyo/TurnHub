@@ -68,6 +68,8 @@ class LedRenderer {
     bool displayValid = false;
     int32_t displayPayload = 0;
     TurnHubProtocol::GameDisplayPacket gameDisplay{};
+    uint32_t tableRevision = 0;
+    uint32_t lastTableTxMs = 0;
   };
 
   // One LedState packet per change; the Sigil draws the cue.
@@ -84,6 +86,12 @@ class LedRenderer {
   TurnHubProtocol::LedStyle styles_[MAX_PHYSICAL_SIGILS];
   Cache cache_[MAX_PHYSICAL_SIGILS];
   SeatFocus focus_[MAX_PHYSICAL_SIGILS];
+  struct TableCache {
+    const Lobby *owner = nullptr;
+    bool valid = false;
+    uint32_t builtAt = 0;
+    TurnHubProtocol::TableDisplayPacket pages[2] = {};
+  } tableCache_[2];
 };
 
 }  // namespace TurnHub
