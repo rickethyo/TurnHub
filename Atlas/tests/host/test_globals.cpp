@@ -45,6 +45,14 @@ TurnHubStorage::BlobStore *TurnHubAtlas::sdBlobStore() { return nullptr; }
 bool fixtureSdCardReady = true;
 bool TurnHubAtlas::sdCardReady() { return fixtureSdCardReady; }
 uint32_t TurnHubAtlas::sdCardGeneration() { return 0; }
+bool fixtureSdUsbShared = false;
+bool TurnHubAtlas::shareSdCardOverUsb(bool share) {
+  if (share && !fixtureSdCardReady) return false;
+  fixtureSdUsbShared = share;
+  return true;
+}
+bool TurnHubAtlas::sdCardUsbShareWanted() { return fixtureSdUsbShared; }
+bool TurnHubAtlas::sdCardOnUsb() { return fixtureSdUsbShared; }
 // Firmware-only (mbedTLS); the link logic itself is host-tested in
 // Sigil/tests/host/secure_link_scenarios.cpp.
 bool TurnHubAtlas::runSecureLinkSelfTest() { return true; }

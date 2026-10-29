@@ -207,6 +207,7 @@ void drawHeader(lv_obj_t *root, const AtlasScreen &s) {
   size_t n = 0;
   if (s.round > 0) n += snprintf(right + n, sizeof(right) - n, "Round %u  ", static_cast<unsigned>(s.round));
   if (s.gameClock[0]) n += snprintf(right + n, sizeof(right) - n, "%s  ", s.gameClock);
+  if (s.sdOnUsb) n += snprintf(right + n, sizeof(right) - n, "USB DRIVE  ");
   if (s.sdMissing) n += snprintf(right + n, sizeof(right) - n, "NO SD  ");
   if (s.update != TurnHub::UpdateKind::None) n += snprintf(right + n, sizeof(right) - n, "Update  ");
   snprintf(right + n, sizeof(right) - n, "Sigils %u", static_cast<unsigned>(s.sigilsOnline));

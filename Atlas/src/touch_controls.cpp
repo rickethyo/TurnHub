@@ -249,11 +249,16 @@ void layoutMenu(AtlasScreen &screen) {
 // only when held for the BOOT button's times, which they stand in for; Sleep
 // is a tap (nothing saved is lost, and a touch wakes Atlas).
 void layoutDevice(AtlasScreen &screen) {
-  ButtonSpec upper[2];
+  ButtonSpec upper[3];
   uint8_t n = 0;
   if (table().hubState == HubState::Lobby) upper[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", DEVICE_UNPAIR_HOLD_MS, 1};
   if (!matchInProgress()) upper[n++] = {TouchAction::FactoryResetAtlas, "Factory reset", DEVICE_RESET_HOLD_MS, 1};
+  const bool usbWanted = sdCardUsbShareWanted();
+  upper[n++] = {TouchAction::UsbDrive, usbWanted ? "USB drive: on" : "USB drive: off", 0, 1};
   addColumn(screen, upper, n);
+  for (uint8_t i = 0; i < screen.buttonCount; ++i) {
+    if (screen.buttons[i].action == TouchAction::UsbDrive) screen.buttons[i].selected = usbWanted;
+  }
   ButtonSpec lower[3] = {{TouchAction::OpenThemes, "Theme", 0, 1}};
   uint8_t lowerCount = 1;
   if (!matchInProgress()) lower[lowerCount++] = {TouchAction::SleepAtlas, "Sleep", 0, 1};
@@ -632,6 +637,7 @@ const char *actionName(TouchAction action) {
     case TouchAction::OpenDevice: return "OPEN_DEVICE";
     case TouchAction::OpenThemes: return "OPEN_THEMES";
     case TouchAction::InvertDisplay: return "INVERT_DISPLAY";
+    case TouchAction::UsbDrive: return "USB_DRIVE";
     case TouchAction::ThemeGraphite: return "THEME_GRAPHITE";
     case TouchAction::ThemeDaylight: return "THEME_DAYLIGHT";
     case TouchAction::ThemeBrass: return "THEME_BRASS";
@@ -748,6 +754,14 @@ bool navigate(TouchAction action) {
     case TouchAction::OpenQr: openScreen = ScreenKind::Qr; return true;
     case TouchAction::OpenTable: openScreen = ScreenKind::Table; return true;
     case TouchAction::OpenThemes: openScreen = ScreenKind::Themes; return true;
+    case TouchAction::UsbDrive: {
+      const bool share = !sdCardUsbShareWanted();
+      if (!shareSdCardOverUsb(share)) showNotice(millis(), "Insert a working SD card first");
+      else showNotice(millis(), share ? "Sharing SD card over USB" : "SD card back on Atlas");
+      serialLog.print("ATLAS|TOUCH|USB_DRIVE|");
+      serialLog.println(share ? "ON" : "OFF");
+      return true;
+    }
     case TouchAction::InvertDisplay:
       if (!chooseAtlasDisplayInverted(!atlasDisplayInverted())) showNotice(millis(), "Inversion could not be saved");
       return true;
@@ -1601,7 +1615,8 @@ void formatSeat(AtlasScreen &screen) {
 void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen = AtlasScreen();
   screen.kind = activeScreen(nowMs);
-  screen.sdMissing = !sdCardReady();
+  screen.sdOnUsb = sdCardOnUsb();
+  screen.sdMissing = !screen.sdOnUsb && !sdCardReady();
   const TurnHub::BatteryReading &battery = atlasBattery();
   screen.batteryPercent = battery.present ? static_cast<int8_t>(battery.percent) : -1;
   screen.batteryLow = battery.present && battery.low;
