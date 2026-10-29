@@ -1490,5 +1490,6 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
   Sigil wedge a little steeper, its light larger, round and still at the front.
 - Sigil case: 8° wedge, thick end at USB-C; the light bar ends in a round 6 mm
   lens in the front wall (cavity 1 mm deeper). New STLs and previews.
-- Owner: case changes only. Neither firmware's screen rotation changes; the
-  Atlas case geometry is unchanged, only its README describes the new way round.
+- Atlas case geometry is unchanged; its firmware now draws upside down to
+  match (`LCD_ROTATION = 2`, owner asked). The Sigil keeps its rotation
+  (owner: it reads right as it is).
