@@ -1441,7 +1441,7 @@ of [Shared table authority](Documentation/engineering/TABLE_AUTHORITY.md):
   needs the same change in `core/` and a scenario step.
 
 
-### 2026-10-29 Claude: code review and the Death May Die release gate
+### Code review and the Death May Die release gate / Claude / 2026-10-29
 
 Review of the app, Atlas outside the game engine, the Sigil link and `core/`.
 Findings with severity are in the owner's review doc. Codex, the open items are:
