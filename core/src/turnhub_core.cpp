@@ -1223,6 +1223,45 @@ Game gameFromJson(const Json &j) {
   return g;
 }
 
+Game applySeatAction(const Game &game, const SeatAction &a, int64_t now) {
+  const int n = static_cast<int>(game.players.size());
+  // Planechase and Death May Die seats arrive with their ports.
+  if (a.kind.rfind("planar-", 0) == 0 || game.profile == Profile::DeathMayDie) return game;
+  if (game.gameId != a.match || game.revision != a.revision || a.player < 1 || a.player > n ||
+      (game.state != TableState::Running && game.state != TableState::Paused)) return game;
+  const bool cards = ProfileRules::magic(game.profile) || game.profile == Profile::Pokemon ||
+      game.profile == Profile::Lorcana || game.profile == Profile::Yugioh;
+  if (!cards) return game;
+  const int index = a.player - 1;
+  const bool simple = a.value == 0 && a.slot == 0 && a.source == 0;
+  const std::string &k = a.kind;
+  if (k == "life" && a.slot == 0 && a.source == 0 && a.value != 0 && a.value >= -10000 && a.value <= 10000)
+    return game.changeLife(index, a.value, now);
+  if (k == "commander" && a.slot >= 1 && a.slot <= 2 && a.source >= 1 && a.source <= n && (a.value == -1 || a.value == 1))
+    return game.commanderDamage(index, a.source - 1, a.slot, a.value, now);
+  if (simple) {
+    if (k == "pass") return game.pass(index, now);
+    if (k == "extend-turn") return game.extendTurn(index, now);
+    // A claim waits on the other players, as a Sigil's does.
+    if (k == "win") return game.requestWin(index, now);
+    if (k == "confirm") return game.answerWinClaim(index, true, now);
+    if (k == "deny") return game.answerWinClaim(index, false, now);
+    if (k == "concede") return game.concede(index, now);
+    if (k == "eliminate") return game.eliminate(index, now);
+    if (k == "monarch") return game.claimMonarch(index);
+  }
+  // 1 pauses and 0 resumes, so a retried or crossed command never undoes another player's tap.
+  if (k == "pause" && a.slot == 0 && a.source == 0 && (a.value == 0 || a.value == 1))
+    return (game.state == TableState::Running) == (a.value == 1) ? game.togglePause(now) : game;
+  if (k == "rad-resolve" && a.slot == 0 && a.source == 0 && a.value >= 0 && a.value <= Game::MAX_LIFE)
+    return game.changeCounter(index, k, a.value, 1, now);
+  static const char *const counters[] = {"poison", "energy", "experience", "treasure", "rad", "commander-casts", "city-blessing", "initiative"};
+  if (a.source == 0 && a.slot >= 0 && a.slot <= 2 && a.value >= -1 && a.value <= 1)
+    for (const char *c : counters) if (k == c) return game.changeCounter(index, k, a.value, std::max(a.slot, 1), now);
+  // Turn actions and Pokémon Special Conditions arrive with their port.
+  return game;
+}
+
 Game applyAction(const Game &g, const Json &a, Random &random) {
   const std::string &d = a.get("do").asString();
   const int64_t now = a.get("nowMs").asInt();
@@ -1274,6 +1313,17 @@ Game applyAction(const Game &g, const Json &a, Random &random) {
   if (d == "doomEligibility") return g.doomEligibility(i("player"), a.get("inBag").asBool(), a.get("cycle").asInt());
   if (d == "doomCredit") return g.doomCredit(i("victim"), i("source"), a.get("cycle").asInt());
   if (d == "drawDoom") return g.drawDoom(a.get("cycle").asInt(), now, random);
+  if (d == "seat") {
+    SeatAction seat;
+    seat.match = a.get("match").asString();
+    seat.revision = a.get("revision").asInt();
+    seat.player = i("player");
+    seat.kind = a.get("kind").asString();
+    seat.value = i("value");
+    seat.slot = i("slot");
+    seat.source = i("source");
+    return applySeatAction(g, seat, now);
+  }
   return g;
 }
 

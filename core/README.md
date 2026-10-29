@@ -16,6 +16,9 @@ C++ interop.
   unchanged `revision` when it doesn't apply, exactly like the Kotlin.
 - Time is passed in (`nowMs`) and so are random draws (`turnhub::Random`), so
   a game is replayable from its actions.
+- A player's own controls (a Sigil, a guest phone, the Atlas screen) go
+  through `applySeatAction`, the port of the app's Play together door
+  (`StandaloneTable.applyLanAction`): it checks match, revision and seat.
 - Data in, data out: `toJson(game)`, `gameFromJson(json)` and
   `applyAction(game, action, random)`. JSON field names are the Kotlin
   property names; enums use the Kotlin names (`MTG_COMMANDER`, `RUNNING`).
@@ -26,15 +29,26 @@ and Back to setup; turns, timeout, extensions and pause; life (Pokémon
 prizes, Lorcana lore), Commander damage, counters and rad; monarch,
 initiative, day/night and reversed order; elimination rules, attribution,
 concession and win claims; Star Commander, Emperor and Bag of Doom.
-Not yet: Death May Die, Planechase, Pokémon/Lorcana turn markers and
-Special Conditions, commander selection and the finished-game record.
+Not yet: Planechase, Pokémon/Lorcana turn markers and Special Conditions,
+commander selection and the finished-game record.
+
+Death May Die can't ship in a released version (licensing, owner
+2026-10-29). Its rules will live in a separate local-only module,
+`core/local/death-may-die/`, compiled only with `TURNHUB_LOCAL_DMD` for local
+and preview builds, never in release firmware or Play builds. Keep its rules,
+names and data out of the main core.
 
 ## Actions
+
+Atlas links the core as a PlatformIO library (`lib_deps = symlink://../core`,
+built with gnu++17).
 
 Each action is a JSON object whose `do` is the Kotlin method name, with its
 parameters by name, for example
 `{"do": "changeLife", "index": 0, "delta": -3, "nowMs": 1000}`.
-The full list is in `applyAction` (`src/turnhub_core.cpp`); anything else is
+`{"do": "seat", "player": 1, "kind": "life", "value": -1, ...}` sends a seat
+action; scenarios leave out `match` and `revision` (the current ones are
+used, or the one before with `"stale": true`). The full list is in `applyAction` (`src/turnhub_core.cpp`); anything else is
 ignored.
 
 ## Scenarios

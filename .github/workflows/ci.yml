@@ -76,8 +76,9 @@ jobs:
               Android/app/src/main/assets/manual.md) ;;
               Android/*) android=true ;;
               data/death-may-die/*|tools/dmd-forge/*) android=true ;;
-              # The shared rules core: its own suite always runs; the app replays its scenarios.
-              core/*) android=true ;;
+              # The shared rules core: its own suite always runs; the app replays
+              # its scenarios and Atlas links it.
+              core/*) android=true atlas=true ;;
               # Signing tool: its tests plus every packaged firmware build.
               tools/firmware/*|tools/ci-requirements.txt) tools=true atlas=true sigil=true ;;
             esac

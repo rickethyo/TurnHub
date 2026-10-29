@@ -31,7 +31,7 @@ TurnHub is a local-first tabletop game-management system (turn timer, lobby, lif
 | `Sigil/` | Touchscreen-only player controller: one build, `sigil`, runs LVGL on the E32R28T touch board, with secure ESP-NOW, pairing and speaker cues. No LED, joystick or headless target; Gen 1 display firmware stays on `legacy/gen1`. | PlatformIO, Arduino ESP32, C++ |
 | `Android/` | Native client over HTTP (`HttpAtlasRepository`, polling `/api/v1/state`): live table, player controls, first-run setup, firmware updates | Gradle, Kotlin |
 | `iOS/` | SwiftUI iPhone/iPad foundation; local `TurnHubCore` package; see `iOS/README.md` and `Documentation/engineering/IOS_DEVELOPMENT.md` | Xcode 16+, Swift 6, SwiftPM |
-| `core/` | Experimental shared rules core: the app's `StandaloneGame` rules ported to portable C++17, JSON in and out, checked by shared scenarios against both; see `core/README.md` | C++17 |
+| `core/` | Experimental shared rules core: the app's `StandaloneGame` rules ported to portable C++17, JSON in and out, checked by shared scenarios against both; Atlas links it as a PlatformIO library (the Atlas build is gnu++17); see `core/README.md` | C++17 |
 | `shared/include/` | Firmware headers shared by Atlas and Sigil (currently `protocol.h`, the ESP-NOW radio contract) | C++ |
 | `protocol/` | Transport-neutral client contract: JSON schemas, `http-v1.md`, example responses | — |
 | `design/` | V1 design system shared by the portal and Android: `tokens.json` (themes, type, motion), the icon set, Inter and Cinzel fonts, web components and the style guide. `python3 design/build_tokens.py` regenerates `design/dist/` and Android's `DesignTokens.kt` and `ic_th_*` drawables (CI runs `--check`); see `design/README.md` | Python (stdlib) |

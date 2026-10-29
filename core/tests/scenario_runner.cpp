@@ -59,6 +59,17 @@ Json withoutRevision(const Json &state) {
   return copy;
 }
 
+// A seat action names the current match and revision unless the step says
+// otherwise ("stale": true sends the revision before it). Revisions count
+// differently in the two engines, so scenarios never spell them out.
+Json withSeatDefaults(const Json &action, const Game &game) {
+  if (action.get("do").asString() != "seat") return action;
+  Json a = action;
+  if (!a.has("match")) a.set("match", game.gameId);
+  a.set("revision", game.revision - (action.get("stale").asBool() ? 1 : 0));
+  return a;
+}
+
 int runFile(const std::string &path) {
   std::ifstream in(path);
   std::stringstream text;
@@ -76,7 +87,7 @@ int runFile(const std::string &path) {
     const Json &draws = step.get("random");
     for (size_t i = 0; i < draws.size(); ++i) random.draws.push_back(static_cast<int>(draws[i].asInt()));
     const Game before = game;
-    game = turnhub::applyAction(game, step.get("action"), random);
+    game = turnhub::applyAction(game, withSeatDefaults(step.get("action"), game), random);
     const Json state = turnhub::toJson(game);
     const std::string where = name + " step " + std::to_string(s + 1) + " (" + step.get("action").get("do").asString() + ")";
     if (random.overrun || random.next != random.draws.size()) {

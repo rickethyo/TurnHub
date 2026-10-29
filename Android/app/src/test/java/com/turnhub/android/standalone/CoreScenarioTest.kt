@@ -129,8 +129,29 @@ class CoreScenarioTest {
             "doomEligibility" -> g.doomEligibility(i("player"), a.getBoolean("inBag"), a.getLong("cycle"))
             "doomCredit" -> g.doomCredit(i("victim"), i("source"), a.getLong("cycle"))
             "drawDoom" -> g.drawDoom(a.getLong("cycle"), now, random)
+            "seat" -> seat(g, a, now)
             else -> error("unknown action ${a.getString("do")}")
         }
+    }
+
+    /**
+     * A seat action goes through the real Play together door, [StandaloneTable.applyLanAction],
+     * on a table holding [g]. It names the current match and revision unless the step says
+     * otherwise ("stale": the revision before), as revisions count differently in the core.
+     */
+    private fun seat(g: StandaloneGame, a: JSONObject, now: Long): StandaloneGame {
+        val store = object : StandaloneStore {
+            var game = StandaloneTable.gameToJson(g).toString()
+            override fun loadGame() = game
+            override fun loadRecords(): String? = null
+            override fun loadLibrary(): String? = null
+            override fun saveSnapshot(game: String, library: String): Boolean { this.game = game; return true }
+        }
+        val table = StandaloneTable(store, wallClock = { now }, shortGameMs = 0)
+        val action = com.turnhub.android.lan.LanAction(a.optString("match").ifEmpty { g.gameId },
+            table.state.value.game.revision - if (a.optBoolean("stale")) 1 else 0, a.getInt("player"), a.getString("kind"),
+            a.getInt("value"), a.getInt("slot"), a.optInt("source"))
+        return if (table.applyLanAction(action)) table.state.value.game else g
     }
 
     private fun coreJson(g: StandaloneGame): JSONObject = JSONObject().apply {

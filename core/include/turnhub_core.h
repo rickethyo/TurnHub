@@ -232,6 +232,20 @@ Game gameFromJson(const Json &json);
 // the scenarios and the transports use this one door.
 Game applyAction(const Game &game, const Json &action, Random &random);
 
+// A player's own action from their seat: a Sigil, a guest phone or the Atlas
+// screen. The same door as the app's Play together guests
+// (StandaloneTable.applyLanAction): the transport authenticates the seat,
+// [match] and [revision] must name the current game, and only that player's
+// controls are reachable. player counts from 1.
+struct SeatAction {
+  std::string match;
+  int64_t revision = 0;
+  int player = 0;
+  std::string kind;
+  int value = 0, slot = 0, source = 0;
+};
+Game applySeatAction(const Game &game, const SeatAction &action, int64_t nowMs);
+
 const char *profileName(Profile p);
 bool profileFromName(const std::string &name, Profile &out);
 const char *stateName(TableState s);
