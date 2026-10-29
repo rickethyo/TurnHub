@@ -5,6 +5,7 @@
 #include "atlas_app.h"
 #include "profile_statistics.h"
 #include "web_api_internal.h"
+#include "serial_log.h"
 #include "avatars.h"
 #include "avatar_artwork.h"
 #include "game_profile.h"
@@ -154,6 +155,27 @@ void handleRegistration(WebServer &server) {
       sendError(server, 409, "Profile ID already exists; sign in to link the existing account");
       return;
     }
+  }
+  // A PIN-less local account uploaded from a phone (owner decision 2026-10-28):
+  // any signed-in session may bring it under its own ID, and the first person
+  // to sign in to it sets its PIN, as for a profile made on a Sigil.
+  if (importingId && pin.length() == 0) {
+    if (sessionForRequest(server) == nullptr) {
+      sendError(server, 401, "Sign in first to upload a profile without a PIN");
+      return;
+    }
+    if (name.length() == 0 || name.length() > MAX_NAME_LENGTH) {
+      sendError(server, 400, "A name (1-32 characters) is required");
+      return;
+    }
+    if (TurnHubProfiles::createProfileWithName(name, requestedId).length() == 0) {
+      sendError(server, 503, "Could not create profile; storage may be full");
+      return;
+    }
+    TurnHub::serialLog.print("ATLAS|PROFILE|UPLOADED_WITHOUT_PIN|");
+    TurnHub::serialLog.println(requestedId);
+    sendJson(server, 200, String("{\"ok\":true,\"profileId\":\"") + requestedId + "\",\"hasPin\":false}");
+    return;
   }
   if (name.length() == 0 || name.length() > MAX_NAME_LENGTH || !validPin(pin)) {
     sendError(server, 400, "A name (1-32 characters) and a 4-8 digit PIN or an 8-64 character password are required");

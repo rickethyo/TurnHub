@@ -1365,3 +1365,17 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   Sigil host suites, adapter audit, client contract, `thfw.py` tests and the
   doc check pass. Android unit tests could not run in the cloud container
   (Gradle plugins unreachable); CI runs them.
+
+### Profile transfer: Bring players to this table / Claude / 2026-10-29
+
+- Atlas 0.7.18-dev: `/api/profiles/register` with `profileId` and an empty
+  `pin` creates a PIN-less profile under that ID for a signed-in session (owner
+  decision 2026-10-28: first sign-in sets its PIN).
+- Android: Players shows a "Bring players to this table" card once the Atlas
+  accounts are loaded: each local account's state in words (on this table / ID
+  already here / new, no PIN / new, has a PIN). PIN-less accounts upload in one
+  tap; PIN accounts with their PIN (existing import path). Games follow.
+- Validation: Linux host suites with sanitizers pass (new PIN-less upload
+  checks); contract and adapter audits pass. New BringPlayersTest; Android is
+  compiled on the owner's PC / CI, not in this cloud session. No hardware run.
+- Next in plans/profile-transfer.md: automatic same-ID sync, then Atlas merge.

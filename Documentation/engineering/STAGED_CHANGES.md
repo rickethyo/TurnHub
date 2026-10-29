@@ -216,10 +216,10 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   Done: imported matches accept guest seats and per-(record, profile)
   receipts ([import contract](../../protocol/http-v1.md#standalone-tablet-game-import-2026-10-07)),
   and Android delivers every match with one linked player, re-sending it when
-  another of its players is linked. Next: a "Bring players to
-  this table" screen uploads or merges every local account at once, and
-  PIN-less accounts upload PIN-less on the phone's signed-in session (owner,
-  2026-10-28; the first sign-in sets a PIN); then merging two Atlas profiles
+  another of its players is linked, and "Bring players to this table" uploads
+  every local account (PIN-less ones together on the signed-in session, owner
+  2026-10-28). Next: automatic sync of profiles that share an ID (newest
+  activity wins settings, owner 2026-10-29); then merging two Atlas profiles
   (summed totals, survivor keeps links, absorbed ID kept as an alias).
 - **Local library management:** export/backup, explicit history deletion/
   retention and large-history storage/performance remain open. Local player

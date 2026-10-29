@@ -585,6 +585,13 @@ request may overwrite an existing identity, credentials, permissions or statisti
 The profile marker is published only after its name and credential hash are saved.
 Omitting `profileId` preserves Atlas-generated registration behavior.
 
+On Atlas 0.7.18+ (2026-10-29), `profileId` with an empty `pin` uploads a
+**PIN-less** local account: it needs a signed-in session (`X-TurnHub-Token`,
+401 otherwise) and answers `{"ok":true,"profileId":"…","hasPin":false}`
+without a login token. The same ID rules apply (400 malformed, 409 taken). The
+first `/api/session/login` to that profile sets its PIN, as for a profile made
+on a Sigil or the tablet (owner decision 2026-10-28).
+
 To merge future imports into an existing account, Android authenticates through
 `/api/session/login`, verifies `/api/session/me`, then saves a scoped link and
 revokes the temporary token. This does not modify the active table login. It

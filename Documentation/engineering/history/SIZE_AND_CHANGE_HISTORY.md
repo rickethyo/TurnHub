@@ -1086,3 +1086,11 @@ mappings on it). Standalone imports accept guest seats; the NVS `sgimport` ring
 becomes schema 2 with 128 per-(record, profile) receipts, 1,027 bytes instead of
 515. No radio, checkpoint, statistics layout or dependency change. Flash/RAM
 were not measured in this cloud session; the CI Atlas compile reports them.
+
+## 2026-10-29: Atlas 0.7.18, PIN-less profile upload
+
+Baseline `1ec000a`. `/api/profiles/register` with `profileId` and an empty
+`pin` creates a PIN-less profile under that ID for a signed-in session (the app's
+"Bring players to this table"); the Android app gates it on 0.7.18. No storage
+layout, radio, checkpoint or dependency change. Flash/RAM not measured in this
+cloud session; the CI Atlas compile reports them.

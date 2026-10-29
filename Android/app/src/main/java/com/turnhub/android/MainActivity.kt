@@ -494,7 +494,8 @@ class MainActivity : ComponentActivity() {
                                     canLink = uiState.connectionState == AtlasConnectionState.CONNECTED,
                                     importState = homeViewModel.localImport.collectAsStateWithLifecycle().value,
                                     onLoadProfiles = homeViewModel::onLoadLocalImportProfiles,
-                                    onLinkAccount = homeViewModel::onLinkLocalAccount)
+                                    onLinkAccount = homeViewModel::onLinkLocalAccount,
+                                    onBringPlayers = homeViewModel::onBringLocalAccounts)
                             },
                             localPlanesContent = {
                                 com.turnhub.android.ui.tablet.PlanesTab(localState, standaloneViewModel.table)

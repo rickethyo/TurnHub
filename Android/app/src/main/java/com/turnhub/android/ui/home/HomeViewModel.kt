@@ -165,6 +165,72 @@ class HomeViewModel(
         val table = standalone ?: return
         val player = table.state.value.library.players.firstOrNull { it.localId == localId } ?: return
         if (!table.accountUnlocked(localId)) return
+        linkLocalAccount(summary, endpoint, table, player, targetId, secret)
+    }
+
+    /**
+     * "Bring players to this table": puts each local account that isn't on
+     * this Atlas yet there under its own ID and links it, then sends their
+     * games. PIN-less accounts go together on the signed-in session (Atlas
+     * 0.7.18+, owner decision 2026-10-28: their first sign-in sets a PIN). An
+     * account with a PIN is brought one at a time with that PIN ([secret]).
+     */
+    fun onBringLocalAccounts(localId: String? = null, secret: String? = null) {
+        val summary = repository.tableSummary.value ?: return
+        val endpoint = repository.endpoint.value ?: return
+        val table = standalone ?: return
+        val choices = _localImport.value
+        if (choices.atlasId != summary.atlasId) return
+        val players = table.state.value.library.players
+        if (localId != null && secret != null) {
+            val player = players.firstOrNull { it.localId == localId } ?: return
+            if (player.credential == null) return
+            linkLocalAccount(summary, endpoint, table, player, null, secret)
+            return
+        }
+        if (localImportJob?.isActive == true || repository.connectionState.value != AtlasConnectionState.CONNECTED) return
+        if (!supportsPinlessUpload(summary.firmwareVersion)) {
+            _localImport.value = choices.copy(message = "Uploading players without a PIN needs Atlas 0.7.18 or later.")
+            return
+        }
+        if (playerSession.state.value !is PlayerSessionState.SignedIn) {
+            _localImport.value = choices.copy(message = "Sign in to this Atlas first, then bring your players.")
+            return
+        }
+        val onAtlas = choices.profiles.map { it.profileId }.toSet()
+        val waiting = players.filter { p -> p.credential == null && p.links.none { it.atlasId == summary.atlasId } && p.profileId !in onAtlas }
+        if (waiting.isEmpty()) return
+        _localImport.value = choices.copy(busy = true, message = null)
+        localImportJob = viewModelScope.launch {
+            var brought = 0
+            val problems = mutableListOf<String>()
+            try {
+                for (player in waiting) {
+                    if (repository.tableSummary.value?.atlasId != summary.atlasId ||
+                        repository.connectionState.value != AtlasConnectionState.CONNECTED) break
+                    val response = try { playerSession.raw("POST", "/api/profiles/register",
+                        listOf("name" to player.name, "pin" to "", "profileId" to player.profileId)) } catch (_: AtlasException) { null }
+                    when {
+                        response?.ok == true && table.linkAccount(player.localId, summary.atlasId, player.profileId) -> brought++
+                        response?.code == 409 -> problems += "${player.name}'s ID is already on this Atlas; open Edit to link it with that account's PIN"
+                        else -> problems += "${player.name} could not be uploaded"
+                    }
+                }
+                val profiles = playerSession.profiles(endpoint)
+                _localImport.value = com.turnhub.android.standalone.LocalImportState(summary.atlasId, profiles, busy = true,
+                    message = (listOf("$brought player${if (brought == 1) "" else "s"} brought to this table; their games are on the way") + problems)
+                        .joinToString(". ") + ".")
+                if (playerSession.state.value is PlayerSessionState.SignedIn) sendAutomaticLocalRecords(summary.atlasId, profiles)
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) {
+                _localImport.value = _localImport.value.copy(message = (e as? AtlasException)?.failure?.userMessage ?: "Upload stopped. Local data is retained.")
+            } finally { _localImport.value = _localImport.value.copy(busy = false) }
+        }
+    }
+
+    private fun linkLocalAccount(summary: TableSummary, endpoint: AtlasEndpoint, table: com.turnhub.android.standalone.StandaloneTable,
+                                 player: com.turnhub.android.standalone.SavedLocalPlayer, targetId: String?, secret: String) {
+        val localId = player.localId
         if (localImportJob?.isActive == true || repository.connectionState.value != AtlasConnectionState.CONNECTED) return
         if (targetId == null && !supportsLocalAccountIds(summary.firmwareVersion)) {
             _localImport.value = _localImport.value.copy(message = "Account import needs Atlas 0.7.15 or later. You can still link an existing account by signing in.")
@@ -211,6 +277,12 @@ class HomeViewModel(
     private fun supportsGuestImport(version: String): Boolean {
         val parts = version.substringBefore('-').split('.').map { it.toIntOrNull() ?: return false }
         return parts.size == 3 && (parts[0] > 0 || parts[1] > 7 || (parts[1] == 7 && parts[2] >= 16))
+    }
+
+    /** Atlas 0.7.18+ takes a PIN-less local account from a signed-in phone. */
+    private fun supportsPinlessUpload(version: String): Boolean {
+        val parts = version.substringBefore('-').split('.').map { it.toIntOrNull() ?: return false }
+        return parts.size == 3 && (parts[0] > 0 || parts[1] > 7 || (parts[1] == 7 && parts[2] >= 18))
     }
 
     private fun supportsLocalAccountIds(version: String): Boolean {

@@ -75,10 +75,11 @@ String createProfileWithCredentials(const String &name,const String &pin,PinHash
   if(requestedId.length() && profileExists(requestedId)) return String();
   const String id=requestedId.length()?requestedId:createProfile(); profiles[id].name=name; profiles[id].hash=hash(id,pin); return id;
 }
-String createProfileWithName(const String &name) {
+String createProfileWithName(const String &name,const String &requestedId) {
   char ids[MAX_LOGIN_PROFILES][9];
   if(name.length()==0||listProfileIds(ids,MAX_LOGIN_PROFILES)>=MAX_LOGIN_PROFILES) return String();
-  const String id=createProfile(); profiles[id].name=name; return id;
+  if(requestedId.length() && profileExists(requestedId)) return String();
+  const String id=requestedId.length()?requestedId:createProfile(); profiles[id].name=name; return id;
 }
 size_t listProfileIds(char (*ids)[9],size_t capacity) {
   size_t n=0; for(const auto &p:profiles) {

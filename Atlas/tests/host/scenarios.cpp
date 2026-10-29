@@ -454,6 +454,18 @@ static void virtualProfileFlow() {
   assert(request("/api/session/logout",responseField("token"))==200);
   assert(request("/api/profiles/register","",{{"name","Bad imported ID"},{"pin","1234"},{"profileId","NOTHEX!!"}})==400);
   ProfileFixture::profiles.erase("C0DE1234"); // Leave the shared capacity fixture unchanged.
+  // A PIN-less local account: uploaded by any signed-in phone under its own ID,
+  // never over an existing one; its first sign-in sets the PIN.
+  assert(request("/api/profiles/register","",{{"name","No PIN friend"},{"pin",""},{"profileId","FEED0001"}})==401);
+  assert(request("/api/profiles/register",afterLimit,{{"name","No PIN friend"},{"pin",""},{"profileId","FEED0001"}})==200);
+  assert(responseField("profileId")=="FEED0001" && server.body.find("\"hasPin\":false")!=std::string::npos);
+  assert(TurnHubProfiles::nameForProfile("FEED0001")=="No PIN friend" && !TurnHubProfiles::hasPinForProfile("FEED0001"));
+  assert(request("/api/profiles/register",afterLimit,{{"name","Again"},{"pin",""},{"profileId","FEED0001"}})==409);
+  assert(request("/api/profiles/register",afterLimit,{{"name",""},{"pin",""},{"profileId","FEED0002"}})==400);
+  assert(request("/api/session/login","",{{"profileId","FEED0001"},{"pin","1357"}})==200);
+  assert(TurnHubProfiles::hasPinForProfile("FEED0001"));
+  assert(request("/api/session/logout",responseField("token"))==200);
+  ProfileFixture::profiles.erase("FEED0001");
   for(const char *bad:{"","123","pass1","seven77","tab\there!",
       "this password is far too long to be accepted by atlas at all, honestly"})
     assert(request("/api/profiles/register","",{{"name","Bad secret"},{"pin",bad}})==400);
