@@ -261,9 +261,11 @@ tests only*): after a reinstall or on a new phone, Players lists the loaded
 Atlas accounts that aren't on the device ("Get my account from this Atlas").
 Atlas checks the account's PIN; the app recreates it under the same profile
 ID with Atlas's name and look, a verifier for that PIN and a link key, so
-profile sync and the Atlas totals take over. Atlas keeps totals, not match
-records, so the phone's own match history does not come back. PIN-less
-Atlas accounts need a PIN set on Atlas first.
+profile sync and the Atlas totals take over. The games Atlas kept for that
+account (its match history, `/api/profiles/history`, needs Atlas's microSD
+card) come back into the device's history as already delivered there; games
+that never reached that Atlas do not. PIN-less Atlas accounts need a PIN set
+on Atlas first.
 
 ## Device Admin account (owner, 2026-10-29)
 

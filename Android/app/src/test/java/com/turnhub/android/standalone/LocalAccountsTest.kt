@@ -386,6 +386,25 @@ class LocalAccountsTest {
         assertEquals(1, table.state.value.library.players.size)
     }
 
+    @Test fun `games an Atlas kept come back into history as already delivered there`() {
+        val table = StandaloneTable(Store(), shortGameMs = 0)
+        assertTrue(table.restoreAccount("THA-1", "AABBCCDD", "Ricky", LocalPersonalization(), null, LocalCredential.create("2468")))
+        val ricky = table.state.value.library.players.single()
+        val record = com.turnhub.android.testing.Fixtures.json("match-record.json").apply {
+            getJSONArray("players").getJSONObject(0).put("profileId", "AABBCCDD").put("localId", JSONObject.NULL)
+        }
+        assertEquals(1, table.addAtlasRecords("THA-1", listOf(record, JSONObject("{}"))))
+        assertEquals(0, table.addAtlasRecords("THA-1", listOf(record)))
+        val kept = table.state.value.library.history.single()
+        assertEquals(ricky.localId, kept.players[0].localId)
+        assertNull(kept.players[1].localId)
+        assertEquals(1, table.state.value.library.totals(ricky.localId).played)
+        val delivery = table.state.value.library.delivery(kept.recordId)
+        assertEquals(DeliveryStatus.IMPORTED, delivery.status)
+        assertEquals("THA-1", delivery.atlasId)
+        assertEquals("AABBCCDD", delivery.profileIds[0])
+    }
+
     @Test fun `an account copied to another device keeps its ID, look, links and PIN and can be that device's Admin`() {
         val phone = StandaloneTable(Store(), shortGameMs = 0)
         assertTrue(phone.createAdminAccount("Ricky", LocalCredential.create("2468")))

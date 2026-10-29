@@ -184,8 +184,8 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   imported games (`games.jsonl`, `games.csv`, `/api/profiles/history`;
   `protocol/http-v1.md`, "Match records and CSV") are implemented. Open:
   Atlas's own games in that history (owner choosing between running the core
-  next and an interim adapter), the app pulling history on restore, a
-  retention limit, the same statistics computed from records on both sides,
+  next and an interim adapter), pulling history for accounts linked before
+  (restore already pulls it), a retention limit, the same statistics computed from records on both sides,
   and CSV download from the portal and app.
 - **Counter extensions:** per-counter profile statistics and arbitrary custom
   counters remain later work; built-in Magic counters/statuses are implemented.
