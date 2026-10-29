@@ -218,7 +218,9 @@ class CoreScenarioTest {
     private fun same(a: Any?, b: Any?): Boolean = when {
         a is Number && b is Number -> a.toDouble() == b.toDouble()
         a is JSONArray && b is JSONArray -> a.length() == b.length() && (0 until a.length()).all { same(a.get(it), b.get(it)) }
-        a is JSONObject && b is JSONObject -> a.keySet() == b.keySet() && a.keySet().all { same(a.get(it), b.get(it)) }
+        a is JSONObject && b is JSONObject -> a.keys().asSequence().toSet().let { keys ->
+            keys == b.keys().asSequence().toSet() && keys.all { same(a.get(it), b.get(it)) }
+        }
         else -> a == b
     }
 }
