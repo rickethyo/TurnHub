@@ -156,6 +156,16 @@ String profileIdForPhysicalSeat(uint8_t controllerId, uint8_t slot);
 bool hasPin(uint8_t controllerId, uint8_t slot);
 bool validPin(const String &pin);
 String profilePinHash(const String &profileId, const String &pin);
+// Profile sync (plans: profile-transfer F). A link key lets one phone sync a
+// profile without signing in; Atlas keeps only its hash. Empty on failure.
+String issueLinkKey(const String &profileId);
+bool linkKeyValid(const String &profileId, const String &key);
+// Atlas has no real-time clock: a phone's sync tells it the time.
+void observeWallClock(uint64_t epochMs);
+uint64_t wallClockNow();  // 0 until a phone has told it the time since boot
+// Stamps a change to a profile's synced settings (name, color, avatar,
+// reduced motion) so the next sync knows which side is newer.
+void noteProfileChange(const String &profileId);
 // Trims and truncates a user-supplied display name.
 String cleanName(const String &raw);
 
@@ -170,6 +180,8 @@ void handleSessionGame(WebServer &server);
 
 void handleProfiles(WebServer &server);
 void handleRegistration(WebServer &server);
+void handleLinkKey(WebServer &server);
+void handleProfileSync(WebServer &server);
 void handleParticipation(WebServer &server, WebControl control);
 void handleProfile(WebServer &server);
 void handleProfilePolicy(WebServer &server);

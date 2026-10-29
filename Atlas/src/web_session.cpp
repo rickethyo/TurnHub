@@ -353,6 +353,65 @@ String profilePinHash(const String &profileId, const String &pin) {
   return sha256Hex(material);
 }
 
+namespace {
+bool wallClockKnown = false;
+uint64_t wallClockAtMillis = 0;
+uint32_t wallClockMillis = 0;
+
+String linkKeyHash(const String &profileId, const String &key) {
+  String material = "TurnHubLink:";
+  material += profileId;
+  material += ':';
+  material += key;
+  return sha256Hex(material).substring(0, TurnHubProfiles::LINK_KEY_HASH_LENGTH);
+}
+}  // namespace
+
+String issueLinkKey(const String &profileId) {
+  TurnHubProfiles::ProfileSync sync;
+  if (!TurnHubProfiles::loadSyncForProfile(profileId, sync)) return String();
+  const String key = requestIdText(random64()) + requestIdText(random64());
+  const String hash = linkKeyHash(profileId, key);
+  if (hash.length() != TurnHubProfiles::LINK_KEY_HASH_LENGTH) return String();
+  // The oldest of the two phones' keys gives way.
+  memcpy(sync.keyHashes[sync.nextKey], hash.c_str(), TurnHubProfiles::LINK_KEY_HASH_LENGTH);
+  sync.nextKey = static_cast<uint8_t>((sync.nextKey + 1) % TurnHubProfiles::MAX_LINK_KEYS);
+  return TurnHubProfiles::saveSyncForProfile(profileId, sync) ? key : String();
+}
+
+bool linkKeyValid(const String &profileId, const String &key) {
+  TurnHubProfiles::ProfileSync sync;
+  if (key.length() != 2 * REQUEST_ID_LENGTH || !TurnHubProfiles::loadSyncForProfile(profileId, sync)) return false;
+  const String hash = linkKeyHash(profileId, key);
+  bool found = false;
+  for (uint8_t k = 0; k < TurnHubProfiles::MAX_LINK_KEYS; ++k)
+    found = found || (sync.keyHashes[k][0] != 0 && hash == String(sync.keyHashes[k]));
+  return found;
+}
+
+void observeWallClock(uint64_t epochMs) {
+  wallClockKnown = true;
+  wallClockAtMillis = epochMs;
+  wallClockMillis = millis();
+}
+
+uint64_t wallClockNow() {
+  return wallClockKnown ? wallClockAtMillis + static_cast<uint32_t>(millis() - wallClockMillis) : 0;
+}
+
+void noteProfileChange(const String &profileId) {
+  TurnHubProfiles::ProfileSync sync;
+  if (!TurnHubProfiles::loadSyncForProfile(profileId, sync)) return;
+  const uint64_t now = wallClockNow();
+  if (now) {
+    sync.activityMs = now;
+    sync.changedWithoutClock = false;
+  } else {
+    sync.changedWithoutClock = true;
+  }
+  TurnHubProfiles::saveSyncForProfile(profileId, sync);
+}
+
 String cleanName(const String &raw) {
   String name = raw;
   name.trim();

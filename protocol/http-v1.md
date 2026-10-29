@@ -590,7 +590,27 @@ On Atlas 0.7.18+ (2026-10-29), `profileId` with an empty `pin` uploads a
 401 otherwise) and answers `{"ok":true,"profileId":"…","hasPin":false}`
 without a login token. The same ID rules apply (400 malformed, 409 taken). The
 first `/api/session/login` to that profile sets its PIN, as for a profile made
-on a Sigil or the tablet (owner decision 2026-10-28).
+on a Sigil or the tablet (owner decision 2026-10-28). That answer also carries a
+`linkKey` for the uploading phone (below).
+
+### Profile sync (Atlas 0.7.18+, 2026-10-29)
+
+A phone keeps each linked profile in sync without signing in, using a link key:
+
+- `POST /api/profiles/link-key` (signed-in session): `{"ok":true,"profileId","linkKey"}`
+  for the session's own profile. A PIN-less upload's answer carries one too.
+  Atlas keeps hashes of the newest two keys per profile; a third retires the oldest.
+- `POST /api/profiles/sync`: `profileId`, `linkKey` (401 if not current),
+  `now` (the phone's wall-clock ms; Atlas has no clock of its own and takes the
+  time from it), `activity` (when the phone's copy last changed), `name`,
+  optional `color` (`#rrggbb` or `none`), `avatar` (0 or a preset id) and
+  `reduceMotion` (`0`/`1`). The newer copy wins as a whole: if the phone's
+  `activity` is later, Atlas takes its settings; otherwise Atlas's stand. A
+  change made on Atlas before any phone told it the time since boot counts as
+  newest. Statistics never sync this way (matches travel through the import).
+  Answers `applied` (`phone`, `atlas` or `same`), Atlas's resulting `activity`,
+  `name`, `color`, `avatar`, `reduceMotion`, `hasPin`, and the core
+  `gamesPlayed`/`gamesWon`. PINs are not synced (each side keeps its own).
 
 To merge future imports into an existing account, Android authenticates through
 `/api/session/login`, verifies `/api/session/me`, then saves a scoped link and

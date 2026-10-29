@@ -459,8 +459,46 @@ static void virtualProfileFlow() {
   assert(request("/api/profiles/register","",{{"name","No PIN friend"},{"pin",""},{"profileId","FEED0001"}})==401);
   assert(request("/api/profiles/register",afterLimit,{{"name","No PIN friend"},{"pin",""},{"profileId","FEED0001"}})==200);
   assert(responseField("profileId")=="FEED0001" && server.body.find("\"hasPin\":false")!=std::string::npos);
+  const String uploadKey=responseField("linkKey");
   assert(TurnHubProfiles::nameForProfile("FEED0001")=="No PIN friend" && !TurnHubProfiles::hasPinForProfile("FEED0001"));
   assert(request("/api/profiles/register",afterLimit,{{"name","Again"},{"pin",""},{"profileId","FEED0001"}})==409);
+  // Profile sync (plans: profile-transfer F): the uploading phone's link key
+  // syncs the profile's settings; the newer side wins, stats never do.
+  {
+    const String key=uploadKey; assert(key.length()==32);
+    auto sync=[&](const String &linkKey,const char *activity,const char *name){
+      return request("/api/profiles/sync","",{{"profileId","FEED0001"},{"linkKey",linkKey},{"now","1800000000000"},
+        {"activity",activity},{"name",name},{"color","#112233"},{"avatar","2"},{"reduceMotion","1"}});
+    };
+    assert(sync("0123456789ABCDEF0123456789ABCDEF","1799999990000","Thief")==401);
+    assert(request("/api/profiles/sync","",{{"profileId","FEED0001"},{"linkKey",key},{"now","12"},{"activity","1"},{"name","x"}})==400);
+    // The phone's copy is newer: it replaces Atlas's as a whole.
+    const uint32_t played=ProfileFixture::profiles["FEED0001"].stats.gamesPlayed;
+    assert(sync(key,"1799999990000","Renamed on phone")==200 && server.body.find("\"applied\":\"phone\"")!=std::string::npos);
+    assert(TurnHubProfiles::nameForProfile("FEED0001")=="Renamed on phone" && TurnHubProfiles::avatarForProfile("FEED0001")==2);
+    uint32_t rgb=0; assert(TurnHubProfiles::jewelColorForProfile("FEED0001",rgb) && rgb==0x112233);
+    TurnHubProfiles::AccessibilityPrefs prefs; TurnHubProfiles::loadAccessibilityForProfile("FEED0001",prefs);
+    assert(prefs.ledStyle==TurnHubProfiles::LedStyle::ReducedMotion);
+    assert(server.body.find("\"activity\":1799999990000")!=std::string::npos);
+    assert(ProfileFixture::profiles["FEED0001"].stats.gamesPlayed==played);
+    assert(sync(key,"1799999990000","Same time")==200 && server.body.find("\"applied\":\"same\"")!=std::string::npos);
+    assert(TurnHubProfiles::nameForProfile("FEED0001")=="Renamed on phone");
+    // A later change on Atlas wins over the phone's older copy.
+    TurnHubProfiles::setNameForProfile("FEED0001","Renamed on Atlas");
+    TurnHubWebApi::internal::noteProfileChange("FEED0001");
+    assert(sync(key,"1799999995000","Older phone copy")==200 && server.body.find("\"applied\":\"atlas\"")!=std::string::npos);
+    assert(TurnHubProfiles::nameForProfile("FEED0001")=="Renamed on Atlas");
+    assert(server.body.find("\"name\":\"Renamed on Atlas\"")!=std::string::npos);
+    // Two phones may hold keys; a third link retires the oldest.
+    const String second=TurnHubWebApi::internal::issueLinkKey("FEED0001");
+    assert(second.length()==32 && TurnHubWebApi::internal::linkKeyValid("FEED0001",key));
+    assert(TurnHubWebApi::internal::issueLinkKey("FEED0001").length()==32);
+    assert(!TurnHubWebApi::internal::linkKeyValid("FEED0001",key) && TurnHubWebApi::internal::linkKeyValid("FEED0001",second));
+    // A signed-in phone asks for its own profile's key.
+    assert(request("/api/profiles/link-key","")==401);
+    assert(request("/api/profiles/link-key",afterLimit)==200 && responseField("profileId")==firstId);
+    assert(TurnHubWebApi::internal::linkKeyValid(firstId,responseField("linkKey")));
+  }
   assert(request("/api/profiles/register",afterLimit,{{"name",""},{"pin",""},{"profileId","FEED0002"}})==400);
   assert(request("/api/session/login","",{{"profileId","FEED0001"},{"pin","1357"}})==200);
   assert(TurnHubProfiles::hasPinForProfile("FEED0001"));

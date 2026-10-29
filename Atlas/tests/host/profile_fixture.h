@@ -2,7 +2,7 @@
 #include "profile_store.h"
 #include <map>
 namespace ProfileFixture {
-struct Profile { String name, hash; TurnHubProfiles::ProfileStats stats; TurnHubProfiles::ModerationStats moderation; TurnHubProfiles::ProfilePolicy policy; bool policyReadable = true; TurnHubProfiles::AccessibilityPrefs accessibility; };
+struct Profile { String name, hash; TurnHubProfiles::ProfileStats stats; TurnHubProfiles::ModerationStats moderation; TurnHubProfiles::ProfilePolicy policy; bool policyReadable = true; TurnHubProfiles::AccessibilityPrefs accessibility; TurnHubProfiles::ProfileSync sync; };
 extern std::map<std::string,Profile> profiles;
 extern std::map<std::string,String> bindings;
 extern bool gameSettingsWritable;

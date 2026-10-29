@@ -89,6 +89,23 @@ bool setPinHashForProfile(const String &profileId, const String &hash);
 bool clearPinForProfile(const String &profileId);
 bool hasPinForProfile(const String &profileId);
 
+// Profile sync with phones (plans: profile-transfer F). activityMs is when the
+// synced settings (name, color, avatar, reduced motion) last changed, in a
+// phone's wall-clock milliseconds; changedWithoutClock marks a change made
+// while no phone had told Atlas the time, which wins the next sync. Up to
+// MAX_LINK_KEYS phones hold a link key for the profile; only hashes are kept.
+constexpr uint8_t MAX_LINK_KEYS = 2;
+constexpr size_t LINK_KEY_HASH_LENGTH = 32;
+struct ProfileSync {
+  uint64_t activityMs = 0;
+  bool changedWithoutClock = false;
+  uint8_t nextKey = 0;
+  char keyHashes[MAX_LINK_KEYS][LINK_KEY_HASH_LENGTH + 1] = {};
+};
+// A missing record loads the defaults and succeeds.
+bool loadSyncForProfile(const String &profileId, ProfileSync &sync);
+bool saveSyncForProfile(const String &profileId, const ProfileSync &sync);
+
 bool loadPolicyForProfile(const String &profileId, ProfilePolicy &policy);
 bool savePolicyForProfile(const String &profileId, const ProfilePolicy &policy);
 

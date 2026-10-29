@@ -254,6 +254,40 @@ bool savePolicyForProfile(const String &profileId, const ProfilePolicy &policy) 
       TurnHubStorage::Status::Ok;
 }
 
+// "t<profileId>": schema 1, flags (bit 0 changed without a clock), next key
+// slot, activity (8 bytes little-endian), then the link key hashes.
+constexpr uint8_t SYNC_SCHEMA = 1;
+constexpr size_t SYNC_SIZE = 11 + MAX_LINK_KEYS * LINK_KEY_HASH_LENGTH;
+
+bool loadSyncForProfile(const String &profileId, ProfileSync &sync) {
+  sync = ProfileSync{};
+  if (!preferencesReady || !profileExists(profileId) ||
+      statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
+  uint8_t data[SYNC_SIZE] = {};
+  size_t size = 0;
+  const auto status = statsStorage.read(profileKey('t', profileId).c_str(), data, sizeof(data), size);
+  if (status == TurnHubStorage::Status::NotFound) return true;
+  if (status != TurnHubStorage::Status::Ok || size != SYNC_SIZE || data[0] != SYNC_SCHEMA ||
+      data[2] >= MAX_LINK_KEYS) return false;
+  sync.changedWithoutClock = (data[1] & 1) != 0;
+  sync.nextKey = data[2];
+  for (uint8_t b = 0; b < 8; ++b) sync.activityMs |= static_cast<uint64_t>(data[3 + b]) << (8 * b);
+  for (uint8_t k = 0; k < MAX_LINK_KEYS; ++k) memcpy(sync.keyHashes[k], data + 11 + k * LINK_KEY_HASH_LENGTH, LINK_KEY_HASH_LENGTH);
+  return true;
+}
+
+bool saveSyncForProfile(const String &profileId, const ProfileSync &sync) {
+  if (!preferencesReady || !profileExists(profileId) || sync.nextKey >= MAX_LINK_KEYS ||
+      statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
+  uint8_t data[SYNC_SIZE] = {};
+  data[0] = SYNC_SCHEMA;
+  data[1] = sync.changedWithoutClock ? 1 : 0;
+  data[2] = sync.nextKey;
+  for (uint8_t b = 0; b < 8; ++b) data[3 + b] = static_cast<uint8_t>(sync.activityMs >> (8 * b));
+  for (uint8_t k = 0; k < MAX_LINK_KEYS; ++k) memcpy(data + 11 + k * LINK_KEY_HASH_LENGTH, sync.keyHashes[k], LINK_KEY_HASH_LENGTH);
+  return statsStorage.write(profileKey('t', profileId).c_str(), data, sizeof(data)) == TurnHubStorage::Status::Ok;
+}
+
 bool loadAccessibilityForProfile(const String &profileId, AccessibilityPrefs &prefs) {
   // A missing record means the defaults; an unreadable one keeps the defaults
   // for presentation but reports failure so the portal can say so.

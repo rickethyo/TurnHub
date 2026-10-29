@@ -112,6 +112,12 @@ String nameForProfile(const String &id) { return profileExists(id)?profiles[id].
 bool setNameForProfile(const String &id,const String &name) { if(!profileExists(id))return false; profiles[id].name=name; return true; }
 String storedPinHashForProfile(const String &id) { return profileExists(id)?profiles[id].hash:String(); }
 bool hasPinForProfile(const String &id) { return storedPinHashForProfile(id).length()==64; }
+bool loadSyncForProfile(const String &id, ProfileSync &sync) {
+  sync=ProfileSync{}; if(!profileExists(id)) return false; sync=profiles[id.c_str()].sync; return true;
+}
+bool saveSyncForProfile(const String &id, const ProfileSync &sync) {
+  if(!profileExists(id)||!gameSettingsWritable) return false; profiles[id.c_str()].sync=sync; return true;
+}
 bool loadPolicyForProfile(const String &id,ProfilePolicy &policy) {
   if(!profileExists(id)||!profiles[id].policyReadable)return false;
   policy=profiles[id].policy;return true;

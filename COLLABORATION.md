@@ -1379,3 +1379,8 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   checks); contract and adapter audits pass. New BringPlayersTest; Android is
   compiled on the owner's PC / CI, not in this cloud session. No hardware run.
 - Next in plans/profile-transfer.md: automatic same-ID sync, then Atlas merge.
+- Atlas profile sync (same day): per-profile link keys (hashes of the newest two
+  in NVS `t<id>` with the activity time) and `POST /api/profiles/sync`; the
+  newer copy of name/color/avatar/reduced motion wins; Atlas takes wall-clock
+  time from the phone. Host scenario covers keys, rotation, phone-newer,
+  same, Atlas-newer and bad input. The app side is next.
