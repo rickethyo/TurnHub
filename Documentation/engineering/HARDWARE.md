@@ -42,8 +42,10 @@ headless Sigil (2026-10-28) and the board-less classic `atlas` build
   ([ESP32-S3 refresh](hardware/ESP32_S3_REFRESH.md)), `default_16MB.csv`. The
   board boundary is `atlas_board.h`, `atlas_display.h`, `atlas_battery.h` and
   `atlas_speaker.h`: the screen is `atlas_display_s3.cpp`, and
-  `atlas_board_none.cpp` covers the parts without drivers yet (no status LED,
-  speaker or battery; `present` false). BOOT (GPIO 0) pairs, unpairs all and
+  `atlas_battery_s3.cpp` reads the cell on GPIO 9 through the board's 1/2
+  divider (`battery_gauge.h`, shown in the screen header), and
+  `atlas_board_none.cpp` covers the parts without drivers yet (no status LED
+  or speaker). BOOT (GPIO 0) pairs, unpairs all and
   factory resets (quick, 3 s, 10 s) and wakes from sleep; the microSD card is
   4-bit SDMMC. Pins are in `Atlas/include/config.h`.
 - **Sigil** (`pio run -e sigil`, `huge_app.csv`):

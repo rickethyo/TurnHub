@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 // Atlas battery state of charge from the cell voltage alone (no fuel-gauge
-// chip on the E32R28T). Pure logic, host-tested; atlas_battery.cpp feeds it
+// chip on the ES3C40P). Pure logic, host-tested; atlas_battery_s3.cpp feeds it
 // the ADC readings on firmware.
 //
 // A single-cell LiPo's voltage is flat through the middle of its charge and
@@ -63,7 +63,7 @@ constexpr uint8_t BATTERY_LOW_PERCENT = 15;
 // The low warning clears only once the charge is this much above the threshold.
 constexpr uint8_t BATTERY_LOW_CLEAR_MARGIN = 5;
 
-// Charging. The board's TP4054 charges at about 300 mA (R27, 3.3 kOhm, on
+// Charging. The board's TP4054 charges at about 300 mA (R12, 3.3 kOhm, on
 // PROG) to 4.2 V, then tapers and stops; with USB in, the board runs from USB,
 // so all of it goes into the cell. Plugged in, the reading is the charger's,
 // not the cell's: the cell plus the charge current through its resistance
@@ -73,8 +73,8 @@ constexpr uint8_t BATTERY_LOW_CLEAR_MARGIN = 5;
 // can fill the cell, more slowly once the reading has reached the limit, and
 // shows 100 only after a while there. *Needs verification*: an estimate; the
 // board can't measure the charge current.
-constexpr uint16_t BATTERY_CAPACITY_MAH = 250;  // The 502030 cell.
-constexpr uint16_t BATTERY_CHARGE_MA = 300;     // TP4054 with R27 = 3.3 kOhm.
+constexpr uint16_t BATTERY_CAPACITY_MAH = 250;  // The 502030 cell; *Needs verification* on the S3 Atlas.
+constexpr uint16_t BATTERY_CHARGE_MA = 300;     // TP4054 with R12 = 3.3 kOhm.
 // One point of charge at full charge current: capacity / 100 / current.
 constexpr uint32_t CHARGE_MS_PER_POINT = 36000UL * BATTERY_CAPACITY_MAH / BATTERY_CHARGE_MA;
 // At the charger's voltage limit the current tapers; half the rate on average.

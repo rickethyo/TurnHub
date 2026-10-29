@@ -42,6 +42,15 @@ constexpr int8_t TOUCH_SCL_PIN = 15;
 constexpr int8_t TOUCH_RST_PIN = 18;
 constexpr int8_t TOUCH_INT_PIN = 17;
 
+// Battery voltage on GPIO9 (ADC1, usable with Wi-Fi) through the board's
+// 100 kOhm / 100 kOhm divider from JP1 BAT+ (a 1S LiPo charged by the TP4054
+// at about 290 mA). The cell voltage is the pin voltage times NUMERATOR /
+// DENOMINATOR. *Needs verification*: if the reading disagrees with a meter
+// at the battery plug, correct the ratio here (atlas_battery_s3.cpp).
+constexpr uint8_t BATTERY_ADC_PIN = 9;
+constexpr uint32_t BATTERY_DIVIDER_NUMERATOR = 2;
+constexpr uint32_t BATTERY_DIVIDER_DENOMINATOR = 1;
+
 // The board's BOOT button (GPIO0, pulled up, low when pressed). GPIO0 is a
 // strapping pin only at reset, so it is free to use once Atlas is running:
 // quick press pairs, a medium hold forgets every Sigil, a long hold factory

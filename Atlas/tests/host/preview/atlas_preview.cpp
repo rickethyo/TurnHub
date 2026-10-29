@@ -69,6 +69,7 @@ AtlasScreen base(const char *badge, const char *title, const char *detail) {
   snprintf(s.title, sizeof(s.title), "%s", title);
   snprintf(s.detail, sizeof(s.detail), "%s", detail);
   s.sigilsOnline = 2;
+  s.batteryPercent = 72;
   return s;
 }
 
@@ -123,6 +124,7 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
   }
   {
     AtlasScreen s = base("LOBBY", "Lobby", "0 players, 2 Sigils");
+    s.batteryPercent = 12; s.batteryLow = true;
     const char *lines[] = {"Tap Add player to seat someone,", "or join from the app or a Sigil.", "Menu: pair, QR codes, info."};
     for (auto *l : lines) snprintf(s.lines[s.lineCount++], 40, "%s", l);
     row(s, BUTTON_ROW_Y, {{TouchAction::OpenSeat, "Add player"}, {TouchAction::OpenMenu, "Menu"}}, {3, 2});
@@ -181,6 +183,7 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
   }
   for (int n : {3, 4, 6, 8}) {
     AtlasScreen s = base("PLAYING", "Sam's turn", "Hold Pass on your Sigil to pass");
+    s.batteryCharging = true;
     s.round = 3; snprintf(s.gameClock, sizeof(s.gameClock), "42:10"); snprintf(s.clock, sizeof(s.clock), "1:23");
     s.timerPermille = 600;
     players(s, n, true);

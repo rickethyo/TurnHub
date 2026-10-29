@@ -14,7 +14,10 @@ screen model, laid out for the panel's native 320 × 480 portrait since
 rev 0.2, flash JEDEC 5E4018 = 16 MB (the 4-inch schematic's W25X40 is wrong),
 8 MB PSRAM, SDHC card mounted, AP and ESP-NOW up, no resets. Rotation, colour
 inversion and touch orientation are `LCD_ROTATION`/`LCD_INVERT` in `config.h`
-and still need a look at the panel. Audio, battery and RGB drivers come next;
+and still need a look at the panel. The battery reading (GPIO 9, 1/2 divider,
+`atlas_battery_s3.cpp`) landed 2026-10-29 with the Gen 1 gauge and curve, which
+*need verification* against a meter and a timed discharge on this board's cell.
+Audio and RGB drivers come next;
 the Sigil target does not exist yet.
 
 ## Evidence and confidence
