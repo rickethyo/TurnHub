@@ -228,6 +228,8 @@ function renderPerson(){const a=accounts.find(x=>x.profileId===openPersonId);if(
    return row}).join('')+'</div>'}
  if(flags&1){const blocked=a.primary?'The initial Admin cannot be archived.':a.atTable&&live?'They must leave the table first.':'';
   html+=`<div class="link-list danger">${live?`<button type="button" onclick="archiveAccount(true)" ${blocked?'disabled':''}><span>Archive account</span><small>${esc(blocked||'Blocks sign-in and Sigil use. Statistics stay saved, and you can restore it later.')}</small></button>`:`<button type="button" class="restore" onclick="archiveAccount(false)"><span>Restore account</span><small>Lets them sign in again, with the roles they had.</small></button>`}</div>`}
+ if(flags&1&&live&&!a.primary){const others=accounts.filter(x=>!x.archived&&x.profileId!==a.profileId).sort((x,y)=>personName(x).localeCompare(personName(y)));
+  if(others.length)html+=`<h3 class="sheet-label">Same person, two accounts?</h3><p class="small" id="mergeHint">Merge ${esc(personName(a))} into another account: their statistics add up there, and this account is archived. Phones linked to it follow automatically.</p><div class="group"><label for="mergeInto">Merge into</label><select id="mergeInto" aria-describedby="mergeHint">${others.map(o=>`<option value="${esc(o.profileId)}">${esc(personName(o))} · ${esc(o.profileId)}</option>`).join('')}</select><button type="button" onclick="mergeAccount()" ${a.atTable?'disabled':''}>Merge accounts</button></div>`}
  if(!html)html='<p class="small">Nothing to manage for this account.</p>';
  const focused=document.activeElement&&personBody.contains(document.activeElement)?document.activeElement.dataset.bit||document.activeElement.id:'';
  if(personBody.innerHTML!==html){personBody.innerHTML=html;if(focused)(personBody.querySelector(`[data-bit="${focused}"]`)||document.getElementById(focused))?.focus()}}
@@ -240,6 +242,9 @@ async function saveRoles(){const a=accounts.find(x=>x.profileId===openPersonId);
 async function archiveAccount(archived){const a=accounts.find(x=>x.profileId===openPersonId);if(!a)return;
  if(archived&&!await uiAsk({title:`Archive ${personName(a)}?`,text:'They can no longer sign in or use a Sigil. Their statistics stay saved, and you can restore the account later.',ok:'Archive',danger:true}))return;
  try{await accountPost('archive',{profileId:a.profileId,archived:archived?'1':'0'});await refreshAccountList();personStatus.textContent=archived?'Account archived.':'Account restored.';showToast(personStatus.textContent)}catch(e){personStatus.textContent=e.message;showToast(e.message,true)}}
+async function mergeAccount(){const a=accounts.find(x=>x.profileId===openPersonId),into=document.getElementById('mergeInto')?.value,b=accounts.find(x=>x.profileId===into);if(!a||!b)return;
+ if(!await uiAsk({title:`Merge ${personName(a)} into ${personName(b)}?`,text:`${personName(b)} keeps their name, PIN and look, and gets ${personName(a)}'s statistics added. ${personName(a)} is archived. This can't be undone.`,ok:'Merge',danger:true}))return;
+ try{await accountPost('merge',{profileId:a.profileId,into:b.profileId});await refreshAccountList();personStatus.textContent='Accounts merged.';showToast(personStatus.textContent)}catch(e){personStatus.textContent=e.message;showToast(e.message,true)}}
 // First-run setup in the portal (FIRST_RUN_SETUP.md): the same steps and endpoints as the app.
 let setupInfo=null;
 function newWifiPassword(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';const a=new Uint32Array(16);crypto.getRandomValues(a);return [...a].map(n=>chars[n%chars.length]).join('')}

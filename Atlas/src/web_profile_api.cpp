@@ -268,6 +268,14 @@ void handleProfileSync(WebServer &server) {
     sendError(server, 503, "Profile sync record could not be read");
     return;
   }
+  // Merged into another profile: this phone follows it there with a new key.
+  if (sync.mergedInto[0] != 0) {
+    const String into = TurnHubProfiles::mergedProfileFor(id);
+    const String key = issueLinkKey(into);
+    sendJson(server, 409, String("{\"ok\":false,\"error\":\"This profile was merged into another\",\"mergedInto\":\"") +
+        into + "\",\"linkKey\":\"" + key + "\"}");
+    return;
+  }
   const char *applied = "same";
   if (!sync.changedWithoutClock && activity > sync.activityMs) {
     const String name = cleanName(server.arg("name"));

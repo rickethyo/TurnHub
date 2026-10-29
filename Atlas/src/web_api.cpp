@@ -185,6 +185,7 @@ const Route ROUTES[] = {
   {"/api/accounts", HTTP_GET, handleAccounts},
   {"/api/accounts/permissions", HTTP_POST, handleAccountPermissions},
   {"/api/accounts/archive", HTTP_POST, handleAccountArchive},
+  {"/api/accounts/merge", HTTP_POST, handleAccountMerge},
   {"/api/accounts/moderate", HTTP_POST, handleModerate},
   {"/api/diagnostics/log", HTTP_GET, handleSerialLogDownload},
   {"/api/devices", HTTP_GET, handleDevices},

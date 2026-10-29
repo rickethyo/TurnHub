@@ -118,6 +118,11 @@ bool loadSyncForProfile(const String &id, ProfileSync &sync) {
 bool saveSyncForProfile(const String &id, const ProfileSync &sync) {
   if(!profileExists(id)||!gameSettingsWritable) return false; profiles[id.c_str()].sync=sync; return true;
 }
+String mergedProfileFor(const String &profileId) {
+  String id=profileId;
+  for(int hop=0;hop<4&&profileExists(id)&&profiles[id.c_str()].sync.mergedInto[0];++hop) id=String(profiles[id.c_str()].sync.mergedInto);
+  return id;
+}
 bool loadPolicyForProfile(const String &id,ProfilePolicy &policy) {
   if(!profileExists(id)||!profiles[id].policyReadable)return false;
   policy=profiles[id].policy;return true;

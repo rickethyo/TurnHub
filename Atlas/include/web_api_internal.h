@@ -259,6 +259,7 @@ void handlePresenceLock(WebServer &server);
 void handleAccounts(WebServer &server);
 void handleAccountPermissions(WebServer &server);
 void handleAccountArchive(WebServer &server);
+void handleAccountMerge(WebServer &server);
 void handleModerate(WebServer &server);
 
 // --- Tablet mode (web_tablet_api.cpp) ------------------------------------------------

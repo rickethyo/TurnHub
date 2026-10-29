@@ -72,6 +72,33 @@ void applyGameResult(ProfileStats &persistent, const GameResult &result) {
   persistent.lastGameLongestTurnMs = result.longestTurnMs;
 }
 
+void mergeStats(ProfileStats &into, const ProfileStats &from) {
+  const bool survivorPlayed = into.gamesPlayed > 0;
+  ProfileStats last = survivorPlayed ? into : from;
+  into.totalTurnMs += from.totalTurnMs;
+  into.totalGameMs += from.totalGameMs;
+  into.gamesPlayed += from.gamesPlayed;
+  into.gamesWon += from.gamesWon;
+  into.gamesStarted += from.gamesStarted;
+  into.gamesEliminated += from.gamesEliminated;
+  into.gamesConceded += from.gamesConceded;
+  into.turnsCompleted += from.turnsCompleted;
+  into.starGamesPlayed += from.starGamesPlayed;
+  into.starGamesWon += from.starGamesWon;
+  into.eliminationsMade += from.eliminationsMade;
+  if (from.fastestTurnMs > 0 && (into.fastestTurnMs == 0 || from.fastestTurnMs < into.fastestTurnMs))
+    into.fastestTurnMs = from.fastestTurnMs;
+  if (from.longestTurnMs > into.longestTurnMs) into.longestTurnMs = from.longestTurnMs;
+  into.lastGameDurationMs = last.lastGameDurationMs;
+  into.lastGameTurns = last.lastGameTurns;
+  into.lastGameTurnMs = last.lastGameTurnMs;
+  into.lastGameFastestTurnMs = last.lastGameFastestTurnMs;
+  into.lastGameLongestTurnMs = last.lastGameLongestTurnMs;
+  into.lastGameResult = last.lastGameResult;
+  into.lastGameProfile = last.lastGameProfile;
+  into.lastGameEliminationsMade = last.lastGameEliminationsMade;
+}
+
 uint8_t recordCompletedGame(
     const GameEngine &game,
     ResolveProfileIdCallback resolveProfileId) {

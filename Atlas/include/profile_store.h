@@ -101,7 +101,12 @@ struct ProfileSync {
   bool changedWithoutClock = false;
   uint8_t nextKey = 0;
   char keyHashes[MAX_LINK_KEYS][LINK_KEY_HASH_LENGTH + 1] = {};
+  // Set on a profile an Admin merged into another (archived): imports and
+  // syncs that still name it go to this profile instead.
+  char mergedInto[PROFILE_ID_LENGTH + 1] = {};
 };
+// Follows merges (a few hops) to the profile that now stands for this one.
+String mergedProfileFor(const String &profileId);
 // A missing record loads the defaults and succeeds.
 bool loadSyncForProfile(const String &profileId, ProfileSync &sync);
 bool saveSyncForProfile(const String &profileId, const ProfileSync &sync);
