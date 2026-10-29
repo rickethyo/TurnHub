@@ -1440,3 +1440,17 @@ of [Shared table authority](Documentation/engineering/TABLE_AUTHORITY.md):
   links it through the NDK. Codex: any rule change to `StandaloneGame` now
   needs the same change in `core/` and a scenario step.
 
+
+### 2026-10-29 Claude: code review and the Death May Die release gate
+
+Review of the app, Atlas outside the game engine, the Sigil link and `core/`.
+Findings with severity are in the owner's review doc. Codex, the open items are:
+`/api/standalone/import` accepts any session, so stats can be forged; changing
+a PIN doesn't ask for the old one; the pairing code has no commitment step;
+and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
+
+- `666fa87`: `core/` JSON takes strict numbers and surrogate pairs only.
+- Owner's licensing rule (CMON): Death May Die stays out of release builds.
+  The lobby picker now offers it only when `BuildConfig.DEBUG` (Preview and
+  debug builds). Its code still ships; moving it to a local-only module or
+  flavor is next. Not yet built (no Android SDK in the container); CI checks it.

@@ -238,14 +238,18 @@ internal enum class GameFamily(val title: String) {
 /** One game in the picker; [detail] says what the table counts and who plays. */
 internal data class GameChoice(val profile: GameProfile, val label: String, val detail: String, val family: GameFamily)
 
-/** Formats offered in the shared lobby, by family; Atlas runs those that are [GameProfile.atlasSupported]. */
-internal val FORMATS = listOf(
+/**
+ * Formats offered in the shared lobby, by family; Atlas runs those that are [GameProfile.atlasSupported].
+ * Death May Die is offered only in debug (Preview) builds: CMON's licensing keeps it out of release builds.
+ */
+internal val FORMATS = listOfNotNull(
     GameChoice(GameProfile.MTG_COMMANDER, "Commander", "40 life · 2+ players", GameFamily.MAGIC),
     GameChoice(GameProfile.MTG, "Standard", "20 life · 2+ players", GameFamily.MAGIC),
     GameChoice(GameProfile.YUGIOH, "Yu-Gi-Oh!", "8000 Life Points · 2 players", GameFamily.CARD_GAMES),
     GameChoice(GameProfile.POKEMON, "Pokémon", "6 Prize cards · 2 players", GameFamily.CARD_GAMES),
     GameChoice(GameProfile.LORCANA, "Lorcana", "Race to 20 lore · 2+ players", GameFamily.CARD_GAMES),
-    GameChoice(GameProfile.DEATH_MAY_DIE, "Death May Die", "Co-op · turns each round · investigators", GameFamily.BOARD_GAMES),
+    GameChoice(GameProfile.DEATH_MAY_DIE, "Death May Die", "Co-op · turns each round · investigators", GameFamily.BOARD_GAMES)
+        .takeIf { com.turnhub.android.BuildConfig.DEBUG },
     GameChoice(GameProfile.GENERIC, "Other", "Any life total and player count", GameFamily.CUSTOM),
 )
 
