@@ -19,11 +19,14 @@ standoffs and the board's own holes, then self-tap into the bezel bosses
 
 ## Layout
 
-Looking at the screen, the microphone end is the top and USB-C is at the
-bottom, like a phone. The vendor drawing places the mic hole and the
-back-side mic part at the same corner, which confirms that orientation. If
-the UI draws upside down in the case, flip `LCD_ROTATION` in
-`Atlas/include/config.h` instead of the case.
+The case lies flat with USB-C facing away from the player, so the cable
+leaves from the back of the table and the microphone end is nearest the
+player. The board is therefore upside down, and the firmware draws the UI
+rotated 180° (`LCD_ROTATION = 2` in `Atlas/include/config.h`, since
+2026-10-29; touch follows it). The vendor drawing places the mic hole and the
+back-side mic part at the same corner. If the UI draws upside down in the
+case, change `LCD_ROTATION`, not the case. Feature positions below are given
+as if looking at the board right way up, with USB-C at the bottom.
 
 - **USB-C:** a 13 × 7 mm slot at the bottom, centred on the receptacle.
 - **microSD:** a slot on the left side (looking at the screen) with a

@@ -1483,3 +1483,13 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
   runners now build C++17 and link the core (MSVC and firmware already did);
   Codex, `run-gcc.ps1`/`run.cmd` changed blind, please confirm on Windows.
   Linux host suites, adapter audit and contract check pass.
+
+### Cases turned round: USB-C at the back / Claude / 2026-10-29
+
+- Owner: USB-C should leave from the back of the table on both cases, the
+  Sigil wedge a little steeper, its light larger, round and still at the front.
+- Sigil case: 8° wedge, thick end at USB-C; the light bar ends in a round 6 mm
+  lens in the front wall (cavity 1 mm deeper). New STLs and previews.
+- Firmware draws both screens upside down: Atlas `LCD_ROTATION = 2`, Sigil
+  `setRotation(2)` with the default touch calibration reversed and a new NVS
+  key (`cal2`), so old calibrations are ignored. Not yet checked on hardware.

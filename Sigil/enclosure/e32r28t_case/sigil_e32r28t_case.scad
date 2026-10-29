@@ -1,13 +1,14 @@
 // TurnHub Sigil stand-in: phone-style case for the 2.8-inch E32R28T board
 // (the old Gen 1 Atlas board), in the same style as the Atlas S3 case in
-// Atlas/enclosure/s3_phone_case. Portrait, rounded, flat or gently tilted.
+// Atlas/enclosure/s3_phone_case. Portrait, rounded, flat or tilted toward
+// the player.
 //
 // Two printed parts held together by four M3 screws from the back that pass
 // through the board's own mounting holes, plus an optional clear light bar:
 //   tub   - back (flat or wedge), walls, standoffs, side gutters for plugs
 //   bezel - front frame with the display window
 //   pipe  - clear light bar (print in clear PETG/PLA) that carries the
-//           board's back-facing RGB LED to a glowing slot under USB-C
+//           board's back-facing RGB LED to a round lens in the front end
 //
 // Board numbers come from the LCDWIKI E32R28T outline drawing V1.0
 // (2024-08-31): PCB 50 x 86 x 1.6 mm, R3.5 corners, four 3.2 mm holes 4 mm
@@ -16,14 +17,16 @@
 //
 // Coordinates: origin at the board centre, z = 0 on the board's back
 // (component) face, +z towards the screen, +Y towards the top (away from
-// USB-C), +X to the right when looking at the screen. Features read off the
+// USB-C), +X to the right when looking at the screen. On the table USB-C
+// faces away from the player (the UI is drawn upside down to match, see
+// Sigil/src/sigil_board_e32r28t.cpp), so -Y is the back and +Y the front. Features read off the
 // drawing's "Back" view (xb from its left, yb from its top) map with
 // X = W/2 - xb, Y = L/2 - yb.
 //
-// Render one part: openscad -D 'part="tub"' -D tilt=5 -o tub.stl sigil_e32r28t_case.scad
+// Render one part: openscad -D 'part="tub"' -D tilt=8 -o tub.stl sigil_e32r28t_case.scad
 
-part = "assembly"; // "tub", "bezel", "pipe", "assembly"
-tilt = 0;          // degrees; > 0 makes the back a wedge, thick end at the top
+part = "assembly"; // "tub", "bezel", "pipe", "assembly", "closed"
+tilt = 0;          // degrees; > 0 makes the back a wedge, thick end at USB-C (the back)
 
 /* [Board, from the vendor drawing] */
 W = 50.0;
@@ -41,7 +44,7 @@ clr_usb = 1.0;
 gutter = 4.5;       // room beside each long edge for the side-entry plugs
 wall = 2.0;
 back_t = 1.6;
-back_clear = 7.6;   // back parts 5.09 + the light bar under them
+back_clear = 8.6;   // back parts 5.09 + the light bar under them
 lip_t = 1.2;
 glass_gap = 0.4;    // resistive touch: the bezel must never press on it
 R_out = 7;
@@ -77,10 +80,13 @@ sd_recess_depth = 1.0;
 // The only RGB LED faces the back, about mid-width and 41.5 mm from the USB
 // end (from Ricky's photo, *Needs verification*). A clear bar lies on the
 // floor: a post rises to just under the LED, a 45-degree face turns the light
-// toward USB-C, and the bar ends flush in a slot below the USB-C opening.
+// toward the front, and past the board's end the bar swells into a round lens
+// that sits flush in the front wall, facing the player.
 led_c = [0, -L / 2 + 41.5];
-pipe_w = 4.0;
-pipe_h = 1.8;
+pipe_w = 6.0;
+pipe_h = 2.6;
+lens_d = 6.0;
+lens_z = -back_clear + lens_d / 2;  // lens centre, resting on the floor
 pipe_post_d = 3.2;
 pipe_post_gap = 1.0;  // stays this far below the board's back face
 pipe_clr = 0.25;
@@ -100,10 +106,10 @@ out_top = in_top + wall;
 out_bot = in_bot - wall;
 eps = 0.01;
 
-pipe_y1 = led_c[1] + pipe_post_d / 2;  // far end, with the 45-degree face
-pipe_y0 = out_bot;                      // flush with the outside of the bottom wall
+pipe_y0 = led_c[1] - pipe_post_d / 2;  // far end, with the 45-degree face
+pipe_y1 = out_top;                      // flush with the outside of the front wall
 
-function back_z(y) = z_bot - tan(tilt) * (y - out_bot); // underside of the wedge
+function back_z(y) = z_bot - tan(tilt) * (out_top - y); // underside of the wedge
 
 module rrect(x0, y0, x1, y1, r) {
     hull() for (x = [x0 + r, x1 - r], y = [y0 + r, y1 - r])
@@ -157,12 +163,12 @@ module tub() {
                 cube([gutter + eps, sd_cut[0], sd_z_top - sd_cut[1] - z_floor + eps]);
             // Low rails that keep the light bar on its line.
             for (sx = [-1, 1])
-                translate([sx * (pipe_w / 2 + pipe_clr + 0.6) - 0.6, in_bot, z_floor - eps])
-                    cube([1.2, pipe_y1 - in_bot, 1.0 + eps]);
+                translate([sx * (pipe_w / 2 + pipe_clr + 0.6) - 0.6, pipe_y0, z_floor - eps])
+                    cube([1.2, in_top - pipe_y0, 1.0 + eps]);
         }
-        // Slot in the bottom wall where the light bar shows, under USB-C.
-        translate([-pipe_w / 2 - pipe_clr, out_bot - 1, z_floor - eps])
-            cube([pipe_w + 2 * pipe_clr, wall + clr_usb + 2, pipe_h + pipe_clr]);
+        // Round hole in the front wall for the light bar's lens.
+        translate([0, in_top - 1, lens_z]) rotate([-90, 0, 0])
+            cylinder(d = lens_d + 2 * pipe_clr, h = wall + 2);
         holes_at() {
             translate([0, 0, -60]) cylinder(d = screw_clear, h = 80);
             translate([0, 0, -60]) cylinder(d = head_d, h = head_seat_z + 60);
@@ -200,17 +206,23 @@ module bezel() {
     }
 }
 
-// In place in the case: bar on the floor, post up to the LED.
+// In place in the case: bar on the floor, post up to the LED, lens through
+// the front wall. The lens only rises above the bar past the board's end.
 module light_pipe() {
     post_top = -pipe_post_gap;
+    lens_y0 = L / 2 + 0.2;
     difference() {
         union() {
-            translate([-pipe_w / 2, pipe_y0, z_floor]) cube([pipe_w, pipe_y1 - pipe_y0, pipe_h]);
+            translate([-pipe_w / 2, pipe_y0, z_floor]) cube([pipe_w, lens_y0 - pipe_y0, pipe_h]);
+            hull() {
+                translate([-pipe_w / 2, lens_y0 - eps, z_floor]) cube([pipe_w, eps, pipe_h]);
+                translate([0, lens_y0, lens_z]) rotate([-90, 0, 0]) cylinder(d = lens_d, h = pipe_y1 - lens_y0);
+            }
             translate([led_c[0], led_c[1], z_floor]) cylinder(d = pipe_post_d, h = post_top - z_floor);
         }
-        // 45-degree face under the post bounces the light toward USB-C.
-        translate([0, led_c[1] - pipe_post_d / 2, z_floor]) rotate([45, 0, 0])
-            translate([-5, 0, -20]) cube([10, 30, 20]);
+        // 45-degree face under the post bounces the light toward the front.
+        translate([0, led_c[1] + pipe_post_d / 2, z_floor]) rotate([-45, 0, 0])
+            translate([-5, -30, -20]) cube([10, 30, 20]);
     }
 }
 
@@ -222,9 +234,10 @@ module board() {
 }
 
 // The tub prints on its back: a tilted one is rotated so the wedge lies flat.
-if (part == "tub") rotate([tilt, 0, 0]) tub();
+if (part == "tub") rotate([-tilt, 0, 0]) tub();
 else if (part == "bezel") translate([0, 0, z_top]) rotate([180, 0, 0]) bezel();
 else if (part == "pipe") rotate([0, 90, 0]) translate([pipe_w / 2, 0, 0]) light_pipe(); // on its side
+else if (part == "closed") { tub(); bezel(); color("white") light_pipe(); board(); } // previews
 else {
     color("dimgray") tub();
     color("white", 0.7) light_pipe();
@@ -233,5 +246,5 @@ else {
 }
 
 echo(str("Outside: ", 2 * out_x, " x ", out_top - out_bot, " mm; ",
-         z_top - z_bot, " mm thick at the bottom, ", z_top - back_z(out_top), " at the top"));
+         z_top - back_z(out_top), " mm thick at the front, ", z_top - back_z(out_bot), " at the USB-C end"));
 echo(str("Screw: M3 reaching ", z_top - 1 - head_seat_z, " mm max from the head seat"));
