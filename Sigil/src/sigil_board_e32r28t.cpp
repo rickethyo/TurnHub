@@ -84,6 +84,12 @@ class Panel : public lgfx::LGFX_Device {
 Panel tft;
 lv_display_t *display = nullptr;
 volatile uint8_t touchedKey = static_cast<uint8_t>(Key::Count);
+TouchMap activeTouchMap;
+portMUX_TYPE touchMapMux = portMUX_INITIALIZER_UNLOCKED;
+TouchContact contact;
+uint8_t inputMenuRevision = 0;
+uint8_t inputPlayer = 0;
+uint16_t inputLifeRequest = 0;
 
 // The calibration run, shared by loop() (sampling) and the display task
 // (drawing): the target shown, or CAL_IDLE, and a message under it.
@@ -160,7 +166,13 @@ class TouchSigilDisplay : public LvglSigilDisplay {
 
  protected:
   void present() override {
-    if (display) lv_refr_now(display);
+    if (display) {
+      lv_refr_now(display);
+      // Publish hit regions only after the corresponding frame reaches the panel.
+      portENTER_CRITICAL(&touchMapMux);
+      activeTouchMap = touchMap();
+      portEXIT_CRITICAL(&touchMapMux);
+    }
   }
 
  private:
@@ -449,6 +461,7 @@ Key sigilTouchRead() {
   static bool logged = false;
   static Key last = Key::Count;
   static uint32_t lastSeenMs = 0;
+  static int16_t lastX = 0, lastY = 0;
   uint16_t rawX = 0, rawY = 0;
   Key key = Key::Count;
   const uint32_t nowMs = millis();
@@ -456,6 +469,8 @@ Key sigilTouchRead() {
     // Calibrating: presses aim at the crosses, never at keys.
     const bool touched = readRaw(rawX, rawY);
     serviceCalibration(nowMs, touched, rawX, rawY);
+    const TouchMap empty;
+    contact.sample(empty, true, -100, -100);
     last = Key::Count;
     touchedKey = static_cast<uint8_t>(Key::Count);
     return Key::Count;
@@ -463,7 +478,16 @@ Key sigilTouchRead() {
   if (readRaw(rawX, rawY)) {
     int16_t x = 0, y = 0;
     mapTouch(touchCal, rawX, rawY, SIGIL_SCREEN_W, SIGIL_SCREEN_H, x, y);
-    key = padKeyAt(x, y);
+    TouchMap map;
+    portENTER_CRITICAL(&touchMapMux);
+    map = activeTouchMap;
+    portEXIT_CRITICAL(&touchMapMux);
+    inputMenuRevision = map.menuRevision;
+    inputPlayer = map.actor;
+    inputLifeRequest = map.lifeRequest;
+    const uint8_t target = contact.sample(map, true, x, y);
+    key = target == TOUCH_NONE ? Key::Count : static_cast<Key>(target);
+    lastX = x; lastY = y;
     if (!logged) {
       // One line per press, for checking the calibration.
       Serial.printf("SIGIL|TOUCH|RAW|%u|%u|SCREEN|%d|%d|KEY|%u\n", rawX, rawY, x, y,
@@ -475,10 +499,11 @@ Key sigilTouchRead() {
   } else if (nowMs - lastSeenMs < RELEASE_MS) {
     key = last;
   } else {
+    contact.sample(activeTouchMap, false, lastX, lastY);
     logged = false;
     last = Key::Count;
   }
-  touchedKey = static_cast<uint8_t>(key);
+  touchedKey = static_cast<uint8_t>(key) < KEY_COUNT ? static_cast<uint8_t>(key) : static_cast<uint8_t>(Key::Count);
   return key;
 }
 
@@ -486,6 +511,10 @@ SigilDisplay &getSigilDisplay() {
   static TouchSigilDisplay display;
   return display;
 }
+
+uint8_t sigilTouchMenuRevision() { return inputMenuRevision; }
+uint8_t sigilTouchPlayer() { return inputPlayer; }
+uint16_t sigilTouchLifeRequest() { return inputLifeRequest; }
 
 }  // namespace TurnHubSigil
 

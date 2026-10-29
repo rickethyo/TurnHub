@@ -54,16 +54,31 @@ storage and HTTP API keep compiling for the target:
   No LED/ring output, analog joystick or headless display fallback.
   E-ink/OLED firmware is maintained only on `legacy/gen1`.
 
-**Sigil controls:** five labeled touch buttons request Atlas actions: Select
-is the next step; minus/plus change life; Menu exposes the other offered actions
-and Device settings. Deliberate actions show hold progress on screen. A held
-life adjustment repeats and accelerates using the player's timing preference.
-Hold on-screen Pair for 3 seconds while unpaired, then compare the code with
-Atlas. Device > Calibrate (or serial `touch cal`) calibrates the resistive panel.
-BOOT (GPIO 0) remains quick-press pairing, 3-second unpair and 10-second factory
-reset. Sleep and automatic sleep are removed for now; the Sigil stays awake while powered.
-Speaker cues use GPIO 26 with active-low amplifier enable GPIO 4. Upload only
-over USB; S3 Sigil hardware and OTA integration remain staged.
+**Touchscreen navigation:** both Atlas S3 and the touchscreen Sigil open on
+Home, with persistent **Home / Game / Table / Settings** destinations. Pairing
+codes and update progress temporarily take priority over navigation. Atlas Game
+retains its host controls; Actions holds master pass and End match. Table is a
+read-only roster; browsing its tiles changes no player or match state. Settings
+stays available during play, with destructive Atlas device actions hidden then.
+
+**Sigil controls:** Game follows the personal Share Play panel: a large life
+total with direct minus/plus buttons, a primary action and More for the other
+Atlas-offered actions. Pending life changes preview the total. Profiles are
+full-width touch rows; menu actions are touch tiles. Only visible controls have
+hit regions. A drag, changed action, changed player or changed request cancels
+a contact until release. Atlas validates every request. Hold on-screen Pair for
+3 seconds while unpaired, then compare the code with Atlas. Settings includes
+theme, inversion, touch calibration, held Unpair and held Factory reset.
+
+The Sigil Table page receives an encrypted read-only roster from its Atlas game:
+up to 16 players, names, life, turn/out/winner/starter labels and local paging.
+Two radio pages form one revision; incomplete pages never mix into the visible
+roster. No profile IDs, PINs, private account data or game rules are sent.
+The last roster remains visible with an offline label after disconnection.
+BOOT remains quick-press pairing, 3-second unpair and 10-second factory reset.
+Sleep is removed for now; Sigil stays awake while powered. Speaker cues use
+GPIO 26 with active-low amplifier enable GPIO 4. Upload over USB; S3 Sigil
+hardware and OTA integration remain staged.
 
 ## Identifying and flashing boards
 

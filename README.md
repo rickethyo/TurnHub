@@ -7,7 +7,7 @@ authoritative **Atlas** table controller runs connected games; player-facing
 semantic actions from it. The Android app also runs separate standalone games;
 an iPhone/iPad app is at the framework stage.
 
-**Current firmware:** Atlas **0.7.16-dev**, Sigil **0.9.18-dev** (protocol 3).
+**Current firmware:** Atlas **0.7.17-dev**, Sigil **0.9.19-dev** (protocol 3).
 Signed releases are published on GitHub Releases and installed from the
 Android app or the Atlas portal.
 

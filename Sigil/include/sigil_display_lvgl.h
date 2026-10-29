@@ -1,10 +1,8 @@
 #pragma once
 
-// The LVGL Sigil screen: 240 x 320 portrait, the five compass keys as
-// touch buttons along the bottom (sigil_touch_pad.h), drawn in the app's
-// style (design tokens, flat cards). Hardware-free: a board subclass creates
-// the LVGL display and flushes it (sigil_board_e32r28t.cpp), and the host
-// preview (tests/host/render-sigil-lvgl.sh) draws it to images.
+// The LVGL Sigil client: app-style navigation, personal player controls,
+// read-only table and device settings. The board owns display flush and touch;
+// the renderer publishes the exact visible hit regions with each frame.
 
 #include <lvgl.h>
 
@@ -40,6 +38,10 @@ class LvglSigilDisplay : public SigilDisplay {
 
   // The key a finger is on (Key::Count for none), lit on the pad.
   void setPressedKey(Key key);
+  void showHome(uint8_t sigilId, bool connected, const char *name, uint8_t mode) override;
+  void showTable(uint8_t sigilId, const TableSnapshot &table, uint8_t page, bool connected) override;
+  void showSettings(uint8_t sigilId) override;
+  const TouchMap &touchMap() const { return touchMap_; }
 
  protected:
   // Called after each screen is built; the board pushes it to the panel.
@@ -48,6 +50,9 @@ class LvglSigilDisplay : public SigilDisplay {
  private:
   lv_obj_t *frame(const char *title, uint8_t sigilId = 0xFF, uint8_t turn = 0);
   void pad(const PadLabels &labels);
+  void button(const char *label, const char *note, PadRect rect, uint8_t target,
+      bool accent = false, uint32_t meaning = 0);
+  void navigation(TurnHubUi::Page selected);
   PadLabels menuLabels() const;
   bool drawDeviceMenu(uint8_t sigilId);
   void statusScreen(const char *title, const char *line1, const char *line2, uint8_t sigilId,
@@ -59,6 +64,11 @@ class LvglSigilDisplay : public SigilDisplay {
   char seatName_[2][TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
   lv_obj_t *keys_[KEY_COUNT] = {};
   Key pressed_ = Key::Count;
+  enum class Layout : uint8_t { Actions, Game, Menu, Picker, Commander, Hidden };
+  Layout layout_ = Layout::Actions;
+  TouchMap touchMap_;
+  TurnHubUi::Page page_ = TurnHubUi::Page::Game;
+  uint32_t context_ = 0;
 };
 
 }  // namespace TurnHubSigil

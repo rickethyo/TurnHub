@@ -11,6 +11,17 @@ must scan a QR code** is on shows a QR invitation instead, and guests must scan
 it. Sharing lasts through the lobby, the match and rematches until the host
 stops it, without deleting its game.
 
+## Physical touchscreen clients
+
+The Atlas S3 and E32R28T touchscreen Sigil use the same Home, Game, Table and
+Settings navigation. Sigil Game adopts the personal Share Play layout, while
+Atlas Game exposes host controls. Both Table destinations are read-only.
+Physical Sigils remain paired with Atlas over their encrypted radio session;
+they do not join the Android LAN host or run a local game. The radio now carries
+a paged public table roster; it does not yet carry Share Play's full counters,
+artwork or Planechase presentation. The remaining convergence work belongs in
+[Staged Changes](STAGED_CHANGES.md), without a second game authority.
+
 ## Authority and feature gate
 
 | Concern | Owner |

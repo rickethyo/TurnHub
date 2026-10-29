@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include "update_notice.h"
+#include "device_navigation.h"
 
 namespace TurnHubAtlas {
 
@@ -34,9 +35,9 @@ constexpr uint32_t TOUCH_NOTICE_MS = 4000;
 constexpr int16_t SCREEN_HEADER_H = 32;
 constexpr int16_t SCREEN_HERO_Y = 36;       // Title and detail/notice line.
 constexpr int16_t SCREEN_BODY_Y = 104;      // Players, QR code or info.
-constexpr int16_t BUTTON_ROW_H = 64;        // Well above the 44 px minimum target.
-constexpr int16_t BUTTON_ROW_Y = 408;       // The one row most screens use, at the bottom.
-constexpr int16_t BUTTON_UPPER_ROW_Y = 336; // Second row, just above it (within thumb reach).
+constexpr int16_t BUTTON_ROW_H = 56;        // Well above the 44 px minimum target.
+constexpr int16_t BUTTON_ROW_Y = 368;       // The one row most screens use, at the bottom.
+constexpr int16_t BUTTON_UPPER_ROW_Y = 304; // Second row, just above it (within thumb reach).
 // In a game, the top of a player's tile (token and name) opens their screen;
 // the rest is split into life down (left) and up (right).
 constexpr int16_t CHIP_NAME_BAND_H = 32;
@@ -45,6 +46,7 @@ constexpr uint32_t TOUCH_PASS_HOLD_MS = 600;
 
 enum class TouchAction : uint8_t {
   None, Pair, Pause, Resume, EndMatch,
+  OpenHome, OpenGame, OpenOverview, OpenSettings, OverviewNext,
   // Between games: start (lobby), cancel the countdown, rematch or reset.
   StartGame, CancelStart, Rematch, ResetTable,
   // Lobby hold: send everyone back out of an unstarted lobby.
@@ -99,7 +101,7 @@ enum class TouchAction : uint8_t {
 // Setup: first-run setup in the lobby, Welcome or "You're all set".
 // Device: under Menu, Unpair Sigils and Factory reset (held), and Sleep.
 // Seat, Name and Pin: Add player's profile list, name keyboard and PIN keypad.
-enum class ScreenKind : uint8_t { Status, Info, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Themes, Seat, Name, Pin };
+enum class ScreenKind : uint8_t { Home, Overview, Status, Info, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Themes, Seat, Name, Pin };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -291,6 +293,6 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y);
 
 
 // Clears press, notice and screen state (tests, and boot).
-void resetTouchControls();
+void resetTouchControls(bool startAtHome = false);
 
 }  // namespace TurnHubAtlas

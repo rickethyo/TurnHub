@@ -39,6 +39,7 @@ TURNHUB_FIRMWARE_DESCRIPTOR(sigilFirmwareDescriptor, SIGIL_PRODUCT, TurnHubSigil
 #include "life_adjust.h"
 #include "sigil_board.h"
 #include "sigil_touch.h"
+#include "sigil_touch_pad.h"
 
 namespace {
 
@@ -120,6 +121,7 @@ TurnHubProtocol::ProfilePickerPacket pendingPicker{};
 volatile bool pickerActive = false;
 bool pickerChanged = false;
 uint8_t pickerCursor = 0;
+uint8_t pickerDrawnRevision = 0xFF;
 // Life (AdjustLife, LifeRequest): Left/Right presses batched by lifeAdjuster;
 // the request shown for this Sigil's answer. lifeKeyRouted remembers which
 // key-downs went to life so their releases do not reach the menu.
@@ -310,11 +312,51 @@ void publishLifeOverlay();
 
 TurnHubSigil::Key touchKey = TurnHubSigil::Key::Count;
 uint32_t lastTouchSampleMs = 0;
+TurnHubUi::Page selectedPage = TurnHubUi::Page::Home;
+bool navigationChanged = true;
+uint8_t tablePage = 0;
+TurnHubSigil::TableSnapshot tableSnapshot;
+void notifyDisplayTask();
+uint8_t shownPlayer();
 
 void updateTouch(uint32_t nowMs) {
   if (nowMs - lastTouchSampleMs < TOUCH_SAMPLE_MS) return;
   lastTouchSampleMs = nowMs;
-  touchKey = TurnHubSigil::sigilTouchRead();
+  const auto input = TurnHubSigil::sigilTouchRead();
+  const uint8_t target = static_cast<uint8_t>(input);
+  static uint8_t previous = TurnHubSigil::TOUCH_NONE;
+  touchKey = target < TurnHubSigil::KEY_COUNT ? input : TurnHubSigil::Key::Count;
+  if (pickerActive && pickerDrawnRevision != pendingPicker.revision)
+    touchKey = TurnHubSigil::Key::Count;
+  if (selectedPage == TurnHubUi::Page::Game && !pickerActive && !commanderActive &&
+      TurnHubSigil::sigilTouchMenuRevision() != sigilMenu.revision())
+    touchKey = TurnHubSigil::Key::Count;
+  if (selectedPage == TurnHubUi::Page::Game && gameDisplayValid && !pickerActive && !commanderActive &&
+      TurnHubSigil::sigilTouchPlayer() != shownPlayer()) touchKey = TurnHubSigil::Key::Count;
+  const uint16_t request = static_cast<uint16_t>(lifeRequest.target << 8) | lifeRequest.tag;
+  if (selectedPage == TurnHubUi::Page::Game && gameDisplayValid && !pickerActive && !commanderActive &&
+      TurnHubSigil::sigilTouchLifeRequest() != request) touchKey = TurnHubSigil::Key::Count;
+  if (target != previous && target >= TurnHubSigil::TOUCH_NAV) {
+    if (target < TurnHubSigil::TOUCH_NAV + TurnHubUi::PAGE_COUNT) {
+      const auto page = static_cast<TurnHubUi::Page>(target - TurnHubSigil::TOUCH_NAV);
+      sigilMenu.cancelInput();
+      lifeAdjuster.release(nowMs);
+      for (bool &routed : lifeKeyRouted) routed = false;
+      if (page == TurnHubUi::Page::Settings) sigilMenu.openDeviceMenu(nowMs);
+      portENTER_CRITICAL(&displayProfileMux);
+      selectedPage = page; navigationChanged = true;
+      portEXIT_CRITICAL(&displayProfileMux);
+    } else if (target == TurnHubSigil::TOUCH_PREV || target == TurnHubSigil::TOUCH_NEXT) {
+      portENTER_CRITICAL(&displayProfileMux);
+      if (target == TurnHubSigil::TOUCH_PREV && tablePage) --tablePage;
+      if (target == TurnHubSigil::TOUCH_NEXT && tablePage + 1 < (tableSnapshot.total + 2) / 3) ++tablePage;
+      navigationChanged = true;
+      portEXIT_CRITICAL(&displayProfileMux);
+    }
+    publishMenuView();
+    displayNeedsRefresh = true; notifyDisplayTask();
+  }
+  previous = target;
 }
 
 bool readButton(uint8_t pin) {
@@ -551,8 +593,15 @@ void updateDisplayProfileSync() {
 void updateDisplay() {
   static TurnHubProtocol::GameDisplayPacket renderedGame{};
   static bool renderedGameValid = false;
+  portENTER_CRITICAL(&displayProfileMux);
+  const auto page = selectedPage;
+  const bool changedNavigation = navigationChanged;
+  navigationChanged = false;
+  portEXIT_CRITICAL(&displayProfileMux);
+  if (changedNavigation) { renderedGameValid = false; displayNeedsRefresh = true; }
   static bool pickerShown = false;
   static bool commanderShown = false;
+  if (changedNavigation) { pickerShown = false; commanderShown = false; }
   portENTER_CRITICAL(&displayProfileMux);
   const bool changedTheme = themeChanged;
   const auto theme = pendingTheme;
@@ -570,7 +619,7 @@ void updateDisplay() {
   // state it sent (Atlas resends it too, but unchanged packets draw nothing).
   static bool lostDrawn = false;
   static bool codeDrawn = false;
-  if (changedTheme) { lostDrawn = false; codeDrawn = false; }
+  if (changedTheme || changedNavigation) { lostDrawn = false; codeDrawn = false; }
   static uint16_t drawnCode = 0;
   bool updateEnded = false;
 #if TURNHUB_OTA
@@ -617,6 +666,26 @@ void updateDisplay() {
     if (!codeDrawn || code != drawnCode) sigilDisplay.showPairingCode(code);
     codeDrawn = true;
     drawnCode = code;
+    return;
+  }
+  if (page != TurnHubUi::Page::Game) {
+    if (!displayNeedsRefresh && !changedNavigation && !changedTheme) return;
+    displayNeedsRefresh = false;
+    TurnHubSigil::MenuView menu;
+    TurnHubSigil::LifeOverlay life;
+    TurnHubSigil::TableSnapshot roster;
+    char player[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
+    uint8_t rosterPage, mode;
+    portENTER_CRITICAL(&displayProfileMux);
+    menu = pendingMenuView; life = pendingLifeOverlay; roster = tableSnapshot; rosterPage = tablePage;
+    const int32_t state = gameDisplayValid ? static_cast<int32_t>(pendingGameDisplay.state) : static_cast<int32_t>(displayPayload);
+    mode = static_cast<uint8_t>(TurnHubProtocol::displayMode(state));
+    snprintf(player, sizeof(player), "%s", gameDisplayValid ? pendingGameDisplay.primary.name : pendingSeatNames[0]);
+    portEXIT_CRITICAL(&displayProfileMux);
+    sigilDisplay.setMenuView(menu); sigilDisplay.setLifeOverlay(life);
+    if (page == TurnHubUi::Page::Home) sigilDisplay.showHome(sigilId, atlasKnown && !atlasLostShown, player, mode);
+    else if (page == TurnHubUi::Page::Table) sigilDisplay.showTable(sigilId, roster, rosterPage, atlasKnown && !atlasLostShown);
+    else sigilDisplay.showSettings(sigilId);
     return;
   }
   // After the code or Atlas lost, redraw whatever comes next in full.
@@ -675,7 +744,12 @@ void updateDisplay() {
   portEXIT_CRITICAL(&displayProfileMux);
   if (showPicker) {
     displayNeedsRefresh = false;
-    if (newPage || !pickerShown) sigilDisplay.showPicker(picker, cursor);
+    if (newPage || !pickerShown) {
+      sigilDisplay.showPicker(picker, cursor);
+      portENTER_CRITICAL(&displayProfileMux);
+      pickerDrawnRevision = picker.revision;
+      portEXIT_CRITICAL(&displayProfileMux);
+    }
     pickerShown = true;
     return;
   }
@@ -851,6 +925,9 @@ void factoryResetDevice(const char *reason) {
 // medium Pair hold, the device menu's Unpair or Atlas's Unpair. Atlas keeps its own record until an admin
 // forgets this Sigil there (which also sends Unpair if the Sigil is in range).
 void forgetPairing(const char *reason) {
+  portENTER_CRITICAL(&displayProfileMux);
+  tableSnapshot.clear();
+  portEXIT_CRITICAL(&displayProfileMux);
   Preferences prefs;
   bool erased = false;
   if (prefs.begin(PAIRING_NAMESPACE, false)) {
@@ -1068,6 +1145,22 @@ void handleAtlasPacket(
     pickerChanged = pickerChanged || changed;
     portEXIT_CRITICAL(&displayProfileMux);
     if (changed) { displayNeedsRefresh = true; notifyDisplayTask(); }
+    return;
+  }
+  if (length == sizeof(TurnHubProtocol::TableDisplayPacket)) {
+    TurnHubProtocol::TableDisplayPacket roster{};
+    memcpy(&roster, incomingData, sizeof(roster));
+    if (!atlasKnown || memcmp(mac, atlasMac, 6) || roster.sigilId != sigilId ||
+        !TurnHubProtocol::validTableDisplay(roster)) return;
+    noteAtlasHeard();
+    portENTER_CRITICAL(&displayProfileMux);
+    const bool changed = tableSnapshot.accept(roster);
+    if (changed && tablePage >= (tableSnapshot.total + 2) / 3) tablePage = 0;
+    portEXIT_CRITICAL(&displayProfileMux);
+    if (changed) {
+      Serial.printf("SIGIL|TABLE|SNAPSHOT|GAME|%u|PLAYERS|%u\n", roster.game, roster.total);
+      displayNeedsRefresh = true; notifyDisplayTask();
+    }
     return;
   }
   if (length == sizeof(TurnHubProtocol::GameDisplayPacket)) {
@@ -1315,6 +1408,8 @@ uint8_t shownPlayer() {
 // The touchscreen shows the pending running total before Atlas commits it.
 void publishLifeOverlay() {
   TurnHubSigil::LifeOverlay overlay;
+  overlay.pending = lifeAdjuster.pending();
+  overlay.pendingPlayer = lifeAdjuster.player();
   overlay.request = lifeRequest;
   overlay.avatar[0] = seatAvatars[0];
   overlay.avatar[1] = seatAvatars[1];
@@ -1368,7 +1463,7 @@ bool routeLifeKey(TurnHubSigil::Key key, bool down, uint32_t nowMs) {
 }
 
 // Repeats a held life key, sends the batched total once it settles, and
-// shows the running total on the ring.
+// previews the pending total on the touchscreen.
 void updateLife(uint32_t nowMs) {
   if (!sigilMenu.lifeOffered() && lifeAdjuster.pending() != 0) {
     Serial.println("SIGIL|LIFE|DROPPED|NOT_OFFERED");
@@ -1435,6 +1530,14 @@ void updateMenuKeys() {
   static uint32_t commanderRepeatAt = 0;
   static uint8_t commanderRepeatKey = 255;
   const uint32_t nowMs = millis();
+  if (selectedPage == TurnHubUi::Page::Home || selectedPage == TurnHubUi::Page::Table) {
+    for (auto &key : keys) debouncedEdge(key, nowMs);
+    updateLife(nowMs);
+    return;
+  }
+  const bool settings = selectedPage == TurnHubUi::Page::Settings;
+  if (settings && !sigilMenu.deviceMenuOpen() && !TurnHubSigil::sigilTouchCalibrating())
+    sigilMenu.openDeviceMenu(nowMs);
   portENTER_CRITICAL(&displayProfileMux);
   const bool testing = screenTestBusy;
   portEXIT_CRITICAL(&displayProfileMux);
@@ -1457,6 +1560,11 @@ void updateMenuKeys() {
   for (uint8_t k = 0; k < TurnHubSigil::KEY_COUNT; ++k) {
     if (!debouncedEdge(keys[k], nowMs)) continue;
     const auto key = static_cast<TurnHubSigil::Key>(k);
+    if (settings) {
+      if (keys[k].stableState == LOW) sigilMenu.keyDown(key, nowMs);
+      else sigilMenu.keyUp(key, nowMs);
+      continue;
+    }
     // Nothing reaches a lost Atlas; only the device menu works (setOffline).
     if (atlasLink.lost()) {
       if (keys[k].stableState == LOW) sigilMenu.keyDown(key, nowMs);
@@ -1502,7 +1610,7 @@ void updateMenuKeys() {
       sigilMenu.keyUp(key, nowMs);
     }
   }
-  if (commanderActive && !atlasLink.lost()) {
+  if (commanderActive && !atlasLink.lost() && !settings) {
     // Stop any normal life adjustment while the modal owns the keys.
     if (commanderRepeatKey < TurnHubSigil::KEY_COUNT && keys[commanderRepeatKey].stableState == LOW &&
         static_cast<int32_t>(nowMs-commanderRepeatAt) >= 0) {

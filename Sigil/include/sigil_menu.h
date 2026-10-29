@@ -54,6 +54,7 @@ const char *sigilActionLabel(TurnHubProtocol::SigilAction action);
 
 // Everything a display needs to draw the menu; copied to the display task.
 struct MenuView {
+  uint8_t revision = 0;
   bool active = false;          // Atlas has sent a menu (none yet after pairing).
   uint8_t compass[KEY_COUNT];   // Action per key (MENU_NONE if none).
   bool deviceMenu = false;      // Menu is open (the compass holds its entries).
@@ -98,10 +99,14 @@ class SigilMenu {
   // Menu is open.
   bool deviceMenuOpen() const { return menuOpen_; }
   uint32_t actions() const { return actions_; }
+  uint8_t revision() const { return revision_; }
   // What a key does right now (an action, a device-local entry or MENU_NONE).
   uint8_t keyAction(Key key) const;
 
   void keyDown(Key key, uint32_t nowMs);
+  void openDeviceMenu(uint32_t nowMs) {
+    active_ = true; menuOpen_ = deviceOpen_ = deviceDirect_ = true; page_ = 0; lastKeyMs_ = nowMs;
+  }
   void keyUp(Key key, uint32_t nowMs);
   // Completes holds and idle-closes Menu; returns a choice to send once.
   MenuChoice update(uint32_t nowMs);

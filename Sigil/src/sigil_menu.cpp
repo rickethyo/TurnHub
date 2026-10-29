@@ -109,7 +109,7 @@ MenuView::MenuView() {
 }
 
 bool MenuView::operator==(const MenuView &o) const {
-  return active == o.active && deviceMenu == o.deviceMenu && life == o.life &&
+  return revision == o.revision && active == o.active && deviceMenu == o.deviceMenu && life == o.life &&
       holdAction == o.holdAction && memcmp(compass, o.compass, sizeof(compass)) == 0 &&
       holdPercent == o.holdPercent && pairPercent == o.pairPercent && pairing == o.pairing &&
       recovery == o.recovery && page == o.page && pageCount == o.pageCount;
@@ -324,6 +324,7 @@ uint8_t SigilMenu::holdProgress(uint32_t nowMs) const {
 
 MenuView SigilMenu::view() const {
   MenuView v;
+  v.revision = revision_;
   v.active = active_;
   if (!active_) return v;
   for (uint8_t k = 0; k < KEY_COUNT; ++k) v.compass[k] = keyAction(static_cast<Key>(k));

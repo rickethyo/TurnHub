@@ -87,7 +87,31 @@ void players(AtlasScreen &s, int count, bool game) {
   s.showLife = game;
 }
 
+void renderShell(AtlasScreen &s,const ScreenStyle &style) {
+  if(s.kind!=ScreenKind::Code && s.kind!=ScreenKind::PairCode && s.kind!=ScreenKind::Name && s.kind!=ScreenKind::Pin && s.kind!=ScreenKind::Setup) {
+    const TouchAction actions[]={TouchAction::OpenHome,TouchAction::OpenGame,TouchAction::OpenOverview,TouchAction::OpenSettings};
+    const uint8_t selected=s.kind==ScreenKind::Home?0:s.kind==ScreenKind::Overview?2:s.kind==ScreenKind::Menu?3:1;
+    for(uint8_t i=0;i<4;++i) { auto &b=s.buttons[s.buttonCount++];b.action=actions[i];b.label=TurnHubUi::pageTitle(static_cast<TurnHubUi::Page>(i));b.x=i*80;b.y=432;b.w=80;b.h=48;b.selected=i==selected; }
+  }
+  renderAtlasScreen(s,style);
+}
+
 void renderAll(const ScreenStyle &style, const std::string &suffix) {
+  {
+    auto s=base("ATLAS","TurnHub","Your table controller");s.kind=ScreenKind::Home;
+    const TouchAction targets[]={TouchAction::OpenGame,TouchAction::OpenOverview,TouchAction::OpenSettings};
+    const char *labels[]={"Game","Table","Settings"};
+    for(uint8_t i=0;i<3;++i){ auto &b=s.buttons[s.buttonCount++];b.action=targets[i];b.label=labels[i];b.x=8;b.y=112+i*72;b.w=304;b.h=64;b.arg=1; }
+
+    const char *lines[]={"RUNNING / 4 players","2 Sigils connected","Game: play and manage the match","Table: see everyone, read only","Settings: pair, connect, appearance"};
+    for(auto line:lines) snprintf(s.lines[s.lineCount++],sizeof(s.lines[0]),"%s",line);
+    renderShell(s,style);save("home"+suffix);
+  }
+  {
+    auto s=base("PLAYING","Table","Read only / players 1-8");s.kind=ScreenKind::Overview;players(s,4,true);
+    renderShell(s,style);save("table-overview"+suffix);
+  }
+
   {
     AtlasScreen s = base("SETUP", "Welcome to TurnHub", "Set up this table from a phone");
     s.kind = ScreenKind::Setup;
@@ -95,27 +119,27 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
         "2. No app? Join Wi-Fi TurnHub-Atlas,", "   password TurnHub-Setup,", "   then open 192.168.4.1"};
     for (auto *l : lines) snprintf(s.lines[s.lineCount++], 40, "%s", l);
     row(s, BUTTON_ROW_Y, {{TouchAction::Pair, "Pair a Sigil"}, {TouchAction::SkipSetup, "Skip"}, {TouchAction::OpenMenu, "Menu"}}, {3, 2, 2});
-    renderAtlasScreen(s, style); save("setup" + suffix);
+    renderShell(s, style); save("setup" + suffix);
   }
   {
     AtlasScreen s = base("LOBBY", "Lobby", "0 players, 2 Sigils");
     const char *lines[] = {"Tap Add player to seat someone,", "or join from the app or a Sigil.", "Menu: pair, QR codes, info."};
     for (auto *l : lines) snprintf(s.lines[s.lineCount++], 40, "%s", l);
     row(s, BUTTON_ROW_Y, {{TouchAction::OpenSeat, "Add player"}, {TouchAction::OpenMenu, "Menu"}}, {3, 2});
-    renderAtlasScreen(s, style); save("lobby-empty" + suffix);
+    renderShell(s, style); save("lobby-empty" + suffix);
   }
   {
     AtlasScreen s = base("LOBBY", "Lobby", "4 players, 2 Sigils");
     players(s, 4, false);
     row(s, BUTTON_ROW_Y, {{TouchAction::OpenSeat, "Add player"}, {TouchAction::StartGame, "Start"}, {TouchAction::OpenMenu, "Menu"}}, {3, 3, 2});
-    renderAtlasScreen(s, style); save("lobby-4" + suffix);
+    renderShell(s, style); save("lobby-4" + suffix);
   }
   {
     AtlasScreen s = base("MENU", "Table menu", "Pair Sigils, share codes, table info");
     s.kind = ScreenKind::Menu;
     column(s, {{TouchAction::OpenSetup, "Setup"}, {TouchAction::Pair, "Pair a Sigil"}, {TouchAction::OpenQr, "QR codes"}});
     row(s, BUTTON_ROW_Y, {{TouchAction::OpenInfo, "Info"}, {TouchAction::OpenDevice, "Device"}, {TouchAction::CloseScreen, "Back"}});
-    renderAtlasScreen(s, style); save("menu" + suffix);
+    renderShell(s, style); save("menu" + suffix);
   }
   {
     AtlasScreen s = base("ADD PLAYER", "Who's playing?", "Tap a name to seat them (1 of 2)");
@@ -124,7 +148,7 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
         {TouchAction::SeatProfile, "Morgan"}, {TouchAction::SeatProfile, "Riley"}});
     for (uint8_t i = 0; i < 4; ++i) s.buttons[i].arg = i;
     row(s, BUTTON_ROW_Y, {{TouchAction::NewPlayer, "New player"}, {TouchAction::SeatMore, "More"}, {TouchAction::CloseScreen, "Back"}}, {3, 2, 2});
-    renderAtlasScreen(s, style); save("seat" + suffix);
+    renderShell(s, style); save("seat" + suffix);
   }
   {
     // touch_controls.cpp's layoutName: six 47 x 56 keys a row, Space two wide.
@@ -140,7 +164,7 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     }
     s.pressed = TouchAction::NameKey; s.pressedArg = 13;
     row(s, BUTTON_ROW_Y, {{TouchAction::CloseScreen, "Cancel"}, {TouchAction::NameBack, "Delete"}, {TouchAction::NameDone, "Add"}});
-    renderAtlasScreen(s, style); save("name" + suffix);
+    renderShell(s, style); save("name" + suffix);
   }
   {
     AtlasScreen s = base("ADD PLAYER", "Casey's PIN", "* * *");
@@ -153,7 +177,7 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
       b.x = 8 + (i % 3) * (kw + 8); b.y = SCREEN_BODY_Y + (i / 3) * (kh + 8); b.w = kw; b.h = kh;
     }
     row(s, BUTTON_ROW_Y, {{TouchAction::CloseScreen, "Cancel"}});
-    renderAtlasScreen(s, style); save("pin" + suffix);
+    renderShell(s, style); save("pin" + suffix);
   }
   for (int n : {3, 4, 6, 8}) {
     AtlasScreen s = base("PLAYING", "Sam's turn", "Hold Pass on your Sigil to pass");
@@ -162,7 +186,7 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     players(s, n, true);
     row(s, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Hold to pass"}, {TouchAction::Pause, "Pause"}, {TouchAction::OpenTable, "Table"}}, {4, 2, 2});
     s.buttons[0].holdMs = TOUCH_PASS_HOLD_MS;
-    renderAtlasScreen(s, style); save("game-" + std::to_string(n) + suffix);
+    renderShell(s, style); save("game-" + std::to_string(n) + suffix);
   }
   {
     AtlasScreen s = base("QR", "Join this table", "Scan with a phone camera");
@@ -171,7 +195,7 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     snprintf(s.qrCaption, sizeof(s.qrCaption), "Wi-Fi TurnHub-Atlas");
     row(s, BUTTON_ROW_Y, {{TouchAction::QrWifi, "Wi-Fi"}, {TouchAction::QrPortal, "Portal"}, {TouchAction::QrSignIn, "Sign in"}, {TouchAction::CloseScreen, "Back"}});
     s.buttons[0].selected = true;
-    renderAtlasScreen(s, style); save("qr" + suffix);
+    renderShell(s, style); save("qr" + suffix);
   }
 }
 

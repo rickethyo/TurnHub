@@ -76,6 +76,7 @@ constexpr uint16_t HOLD_STEP_MS = 250;
 // newer Atlas firmware can identify older Sigil packets.
 enum class PacketType : uint8_t {
   Hello = 1,
+  TableDisplay = 51,  // Atlas -> Sigil: read-only roster pages, never commands.
   Ack = 2,
   // Unused numbers (3-8, 10-11, 14, 20-22, 26-27) belonged to retired packets:
   // the three-button gestures, keyless pairing, the per-channel light stream,
@@ -289,6 +290,42 @@ struct __attribute__((packed)) GameDisplayPacket {
   DisplayCommanderSource sources[DISPLAY_COMMANDER_SOURCES];
 };
 static_assert(sizeof(GameDisplayPacket) == 110, "Game display wire layout changed");
+
+constexpr uint8_t TABLE_PAGE_ROWS = 8;
+constexpr uint8_t TABLE_MAX_PLAYERS = 16;
+constexpr uint8_t TABLE_ACTIVE = 1, TABLE_OUT = 2, TABLE_WINNER = 4, TABLE_STARTER = 8;
+struct __attribute__((packed)) TableDisplayRow {
+  uint8_t player;
+  uint8_t flags;
+  int32_t life;
+  char name[DISPLAY_NAME_MAX_LENGTH + 1];
+};
+struct __attribute__((packed)) TableDisplayPacket {
+  uint8_t version;
+  PacketType type;
+  uint8_t sigilId;
+  uint32_t revision;
+  uint8_t game;  // Presentation scope, 1 or 2; pages cannot cross table ownership.
+  uint8_t mode;  // DisplayMode, shared by both roster pages.
+  uint8_t page;
+  uint8_t total;
+  uint8_t round;
+  TableDisplayRow rows[TABLE_PAGE_ROWS];
+};
+static_assert(sizeof(TableDisplayPacket) == 164, "Table display wire layout changed");
+inline bool validTableDisplay(const TableDisplayPacket &p) {
+  if (p.version != VERSION || p.type != PacketType::TableDisplay || p.sigilId >= MAX_SIGILS ||
+      p.game < 1 || p.game > 2 || p.mode > static_cast<uint8_t>(DisplayMode::GameOver) || p.total > TABLE_MAX_PLAYERS ||
+      p.page >= (p.total > TABLE_PAGE_ROWS ? 2 : 1)) return false;
+  for (uint8_t i = 0; i < TABLE_PAGE_ROWS; ++i) {
+    const auto &r = p.rows[i];
+    const uint8_t index = p.page * TABLE_PAGE_ROWS + i;
+    if (index >= p.total) { if (r.player) return false; continue; }
+    if (r.player != index + 1 || (r.flags & ~15u) || r.life < -1000000 || r.life > 1000000 ||
+        !terminatedWithin(r.name, sizeof(r.name))) return false;
+  }
+  return true;
+}
 inline bool validGameDisplay(const GameDisplayPacket &p) {
   if (p.version != VERSION || p.type != PacketType::GameDisplay ||
       p.sigilId >= MAX_SIGILS || p.commander > 1 ||

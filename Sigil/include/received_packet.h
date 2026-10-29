@@ -11,9 +11,9 @@ namespace TurnHubSigil {
 // unsealed sizes stay accepted here only so the loop can recognise and drop
 // them.
 struct ReceivedPacket {
-  // The largest: a sealed update offer (FIRMWARE_UPDATES.md).
+  // The largest current payload is a sealed read-only roster page.
   static constexpr size_t MAX_BYTES =
-      sizeof(TurnHubProtocol::SigilUpdateOfferPacket) + TurnHubSecureLink::SECURE_OVERHEAD;
+      sizeof(TurnHubProtocol::TableDisplayPacket) + TurnHubSecureLink::SECURE_OVERHEAD;
   uint8_t mac[6];
   uint16_t length;
   uint8_t data[MAX_BYTES];
@@ -30,6 +30,7 @@ struct ReceivedPacket {
     switch (size) {
       case sizeof(TurnHubProtocol::Packet):
       case sizeof(TurnHubProtocol::GameDisplayPacket):
+      case sizeof(TurnHubProtocol::TableDisplayPacket):
       case sizeof(TurnHubProtocol::ProfilePickerPacket):
       case sizeof(TurnHubSecureLink::PairAccept2Packet):
       case sizeof(TurnHubSecureLink::PairResultPacket):
@@ -38,6 +39,7 @@ struct ReceivedPacket {
       case sizeof(TurnHubProtocol::ProfilePickerPacket) + SECURE_OVERHEAD:
       case sizeof(TurnHubProtocol::CommanderFlowPacket) + SECURE_OVERHEAD:
       case sizeof(TurnHubProtocol::GameDisplayPacket) + SECURE_OVERHEAD:
+      case sizeof(TurnHubProtocol::TableDisplayPacket) + SECURE_OVERHEAD:
       case sizeof(TurnHubProtocol::SigilUpdateOfferPacket) + SECURE_OVERHEAD:
         return true;
       default:

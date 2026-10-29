@@ -80,6 +80,15 @@ int main() {
     const auto theme = t == 0 ? TurnHubTheme::Id::Graphite : TurnHubTheme::Id::Brass;
     const std::string suffix = t == 0 ? "" : "-brass";
     d.setTheme(theme);
+    d.showHome(2,true,"Alexandria",static_cast<uint8_t>(DisplayMode::Running)); save("home"+suffix);
+    TableSnapshot roster;roster.valid=true;roster.total=4;
+    for(uint8_t i=0;i<4;++i) { auto &r=roster.rows[i];r.player=i+1;r.life=40-i*3;snprintf(r.name,sizeof(r.name),"Player %u",i+1); }
+    roster.rows[1].flags=TABLE_ACTIVE;
+    d.showTable(2,roster,0,true); save("table"+suffix);
+    d.showTable(2,roster,1,true); save("table-next"+suffix);
+    SigilMenu device;device.openDeviceMenu(0);
+    d.setMenuView(device.view());d.showSettings(2);save("settings"+suffix);
+    d.setMenuView(MenuView());
     d.showUnpaired(); save("unpaired" + suffix);
     MenuView pairing;
     pairing.pairPercent = 50;

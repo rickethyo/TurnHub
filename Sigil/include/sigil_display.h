@@ -3,6 +3,8 @@
 #include "protocol.h"
 #include "device_theme.h"
 #include "sigil_menu.h"
+#include "device_navigation.h"
+#include "table_snapshot.h"
 
 namespace TurnHubSigil {
 
@@ -72,6 +74,9 @@ class SigilDisplay {
   virtual void showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
       uint8_t primaryPlayer, uint8_t secondaryPlayer, uint8_t turnNumber,
       uint8_t flags) = 0;
+  virtual void showHome(uint8_t sigilId, bool connected, const char *name, uint8_t mode) = 0;
+  virtual void showTable(uint8_t sigilId, const TableSnapshot &table, uint8_t page, bool connected) = 0;
+  virtual void showSettings(uint8_t sigilId) = 0;
 
   // Atlas-owned modal pages replace the normal game screen.
   virtual void showCommander(const TurnHubProtocol::CommanderFlowPacket &page) { (void)page; }

@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include "profile_store.h"
+#include "controller_profiles.h"
 
 namespace TurnHub {
 
@@ -426,11 +427,67 @@ void LedRenderer::render(
     uint8_t winConfirmationPlayer,
     uint32_t nowMs,
     uint16_t sigilMask) {
+  using namespace TurnHubProtocol;
+  // One bounded roster build per game per second, shared by its Sigils.
+  TableCache *roster = nullptr;
+  for (auto &entry : tableCache_) if (entry.owner == &lobby) roster = &entry;
+  if (!roster) for (auto &entry : tableCache_) if (!entry.owner) { roster = &entry; entry.owner = &lobby; break; }
+  if (roster && (!roster->valid || nowMs - roster->builtAt >= 1000)) {
+    TableDisplayPacket pages[2] = {};
+    const bool inGame = state != HubState::Lobby && game.hasPlayers();
+    PlayerSeat seats[MAX_PLAYERS];
+    const uint8_t count = inGame ? game.playerCount() : lobby.buildPlayers(seats, MAX_PLAYERS);
+    PlayerSeat starter;
+    const bool chosenStarter = !inGame && lobby.selectedStarter(starter);
+    const DisplayMode mode = state == HubState::Lobby ? DisplayMode::Lobby : state == HubState::Starting ?
+        DisplayMode::Starting : state == HubState::Running ? DisplayMode::Running :
+        state == HubState::Paused ? DisplayMode::Paused : DisplayMode::GameOver;
+    for (uint8_t page = 0; page < 2; ++page) {
+      auto &p = pages[page];
+      p.version = VERSION; p.type = PacketType::TableDisplay; p.mode = static_cast<uint8_t>(mode);
+      p.game = static_cast<uint8_t>(roster - tableCache_ + 1);
+      p.page = page; p.total = count; p.round = inGame ? std::min<uint16_t>(255, game.currentRound()) : 0;
+      for (uint8_t i = 0; i < TABLE_PAGE_ROWS && page * TABLE_PAGE_ROWS + i < count; ++i) {
+        const uint8_t index = page * TABLE_PAGE_ROWS + i;
+        const PlayerSeat &seat = inGame ? *game.playerAt(index) : seats[index];
+        auto &row = p.rows[i]; row.player = seat.playerNumber;
+        row.life = inGame ? game.lifeTotal(seat.playerNumber) : game.settings().startingLife;
+        if (inGame && state != HubState::GameOver && game.hasTurn(seat.playerNumber)) row.flags |= TABLE_ACTIVE;
+        if (inGame && game.isEliminated(seat.playerNumber)) row.flags |= TABLE_OUT;
+        if (state == HubState::GameOver && game.isWinner(seat.playerNumber)) row.flags |= TABLE_WINNER;
+        if (chosenStarter && seat.sameSeat(starter)) row.flags |= TABLE_STARTER;
+        const String profile = inGame ? String(seat.profileId) : TurnHubControllers::profileForSeat(seat.controllerId, seat.slot);
+        const String name = TurnHubProfiles::nameForProfile(profile);
+        if (name.length()) {
+          for (size_t c = 0; c < name.length() && c < DISPLAY_NAME_MAX_LENGTH; ++c)
+            row.name[c] = name[c] >= 32 && name[c] <= 126 ? name[c] : '?';
+        } else snprintf(row.name, sizeof(row.name), "Player %u", row.player);
+      }
+    }
+    // Compare facts without transport revision; unchanged rosters retain theirs.
+    const uint32_t previous = roster->pages[0].revision;
+    for (auto &p : pages) p.revision = previous;
+    if (!roster->valid || memcmp(pages, roster->pages, sizeof(pages))) {
+      for (auto &p : pages) p.revision = previous + 1;
+      memcpy(roster->pages, pages, sizeof(pages));
+    }
+    roster->valid = true; roster->builtAt = nowMs;
+  }
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     if ((sigilMask & (1u << id)) == 0) continue;
     if (!bus_.isOnline(id, nowMs)) {
       invalidate(id);
       continue;
+    }
+
+    if (roster && (!cache_[id].displayValid || cache_[id].tableRevision != roster->pages[0].revision ||
+        nowMs - cache_[id].lastTableTxMs >= 5000)) {
+      bool sent = true;
+      for (uint8_t page = 0; page < (roster->pages[0].total > TABLE_PAGE_ROWS ? 2 : 1); ++page) {
+        auto packet = roster->pages[page]; packet.sigilId = id;
+        if (!bus_.sendTableDisplay(packet)) sent = false;
+      }
+      if (sent) { cache_[id].tableRevision = roster->pages[0].revision; cache_[id].lastTableTxMs = nowMs; }
     }
 
     syncDisplay(

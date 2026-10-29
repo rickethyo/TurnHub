@@ -649,6 +649,13 @@ bool SigilBus::sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &packet)
   return sigil != nullptr && sendSealed(*sigil, &packet, sizeof(packet));
 }
 
+bool SigilBus::sendTableDisplay(const TurnHubProtocol::TableDisplayPacket &packet) {
+  static_assert(sizeof(packet) + TurnHubSecureLink::SECURE_OVERHEAD <= sizeof(TxRequest::data),
+      "A sealed roster page must fit a radio frame");
+  SigilRecord *sigil = const_cast<SigilRecord *>(record(packet.sigilId));
+  return sigil != nullptr && sendSealed(*sigil, &packet, sizeof(packet));
+}
+
 bool SigilBus::sendUpdateOffer(const TurnHubProtocol::SigilUpdateOfferPacket &packet) {
   SigilRecord *sigil = const_cast<SigilRecord *>(record(packet.sigilId));
   return sigil != nullptr && sendSealed(*sigil, &packet, sizeof(packet));

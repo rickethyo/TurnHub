@@ -1313,3 +1313,36 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
 
 - Owner follow-up: remove manual and automatic sleep for now; remove the Device
   Sleep entry, idle-sleep module/tests and GPIO wake/deep-sleep handling.
+
+## 2026-10-28 Codex: Share Play style Sigil player view
+
+- Owner: Codex on `codex/master`, baseline `369186e` (touchscreen-only firmware
+  committed at owner request). Origin fetched; no open PRs or overlapping scope.
+- Owner direction: Sigil stays Atlas-connected and adopts the personal Share
+  Play experience. Ultimate direction is seamless app/Atlas play, one player
+  experience across clients. Existing host owns rules, state and statistics.
+- Scope: replace the compass-shaped screen controls with a player card, direct
+  life controls, primary action, contextual menus and profile rows. Renderer
+  and touch hit regions must agree; changing screens under a held finger must
+  not trigger another action. Preserve secure pairing and Atlas validation.
+- Owner expanded the sweep to Atlas S3, with a shared four-destination shell
+  (Home/Game/Table/Settings), role-specific Game controls and read-only Table.
+  Added an encrypted 16-player roster projection, atomically assembled from
+  bounded pages. Counters, artwork and Planechase need further presentation work.
+  No phone-hosted Sigil transport or second game engine in this slice.
+- Validation: Atlas host gameplay, storage, profile-store and OTA suites pass;
+  all six Sigil host suites pass, including held-contact cancellation and atomic
+  16-player roster pages. Native/shared response contracts (16 + 12), adapter
+  audit, documentation, whitespace and Android manual export checks pass.
+- Builds pass: classic Atlas, Atlas S3 and touchscreen Sigil. Host-rendered
+  Home, Game, Table, Settings, picker, request and menu views reviewed; Atlas
+  previews cover Graphite, Brass and Daylight. No Android gameplay code changed.
+- Owner authorized USB flashing both boards: Atlas `0.7.17-dev` and Sigil
+  `0.9.19-dev`, with verified image hashes. Atlas responds on serial; Sigil boot
+  confirms saved calibration, LVGL, secure self-test/pairing/session, roster
+  receipt and complete profile sync. Physical tapping/play acceptance remains
+  open; the bench table was empty, not a multi-player physical playtest.
+- Manual prototype navigation text and generated Android manual asset updated.
+  DOCX layout remains unverified for the previously recorded local renderer
+  limitation; original preserved outside Git. Owner authorized committing the
+  redesign on `codex/master` after the initial cleanup commit `369186e`.
