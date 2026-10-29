@@ -7,6 +7,8 @@
 #include "turnhub_core.h"
 
 #include <algorithm>
+#include <cctype>
+#include <cstdio>
 #include <cstdlib>
 
 namespace turnhub {
@@ -1180,6 +1182,146 @@ Json toJson(const Game &g) {
   j.set("radDue", ints(g.radDue));
   j.set("revision", g.revision);
   return j;
+}
+
+Json gameRecord(const Game &g) {
+  if (g.state != TableState::GameOver || g.gameId.empty()) return Json();
+  std::string wire = profileName(g.profile);
+  for (char &c : wire) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  Json r = Json::object();
+  if (g.twoHeadedGiant) r.set("twoHeadedGiant", true);
+  r.set("recordId", g.gameId);
+  r.set("gameProfile", wire);
+  r.set("startingLife", g.startingLife);
+  r.set("startedAtMs", g.startedAtMs);
+  r.set("durationMs", g.elapsedMs);
+  r.set("starter", opt(g.starter));
+  r.set("winner", opt(g.winner));
+  r.set("winners", ints(g.winners));
+  Json players = Json::array();
+  for (size_t i = 0; i < g.players.size(); ++i) {
+    const Player &p = g.players[i];
+    Json j = Json::object();
+    j.set("name", p.name);
+    j.set("profileId", optString(p.profileId));
+    j.set("localId", optString(p.localId));
+    j.set("finalLife", p.life);
+    j.set("turnsCompleted", p.turnsCompleted);
+    j.set("demerits", p.demerits);
+    j.set("extensionsUsed", p.extensionsUsed);
+    j.set("turnMs", p.turnMs);
+    j.set("fastestTurnMs", p.fastestTurnMs);
+    j.set("longestTurnMs", p.longestTurnMs);
+    j.set("outOrder", opt(p.outOrder));
+    j.set("conceded", p.conceded);
+    j.set("eliminatedBy", opt(p.eliminatedBy));
+    j.set("bagDrawn", (g.doomBag.drawn & (1u << i)) != 0);
+    j.set("selfEliminated", p.selfEliminated);
+    int received = 0;
+    for (const auto &d : p.commanderDamage) received += d.second[0] + d.second[1];
+    j.set("commanderDamageReceived", received);
+    // The record keeps the counters that matter after the game: not treasure or rad.
+    Json counters = Json::object();
+    counters.set("poison", p.counters.poison);
+    counters.set("energy", p.counters.energy);
+    counters.set("experience", p.counters.experience);
+    Json casts = Json::array();
+    casts.push(p.counters.commanderCasts[0]);
+    casts.push(p.counters.commanderCasts[1]);
+    counters.set("commanderCasts", casts);
+    counters.set("cityBlessing", p.counters.cityBlessing);
+    j.set("counters", counters);
+    Json bySource = Json::object();
+    for (const auto &d : p.commanderDamage) {
+      Json pair = Json::array();
+      pair.push(d.second[0]);
+      pair.push(d.second[1]);
+      bySource.set(std::to_string(d.first), pair);
+    }
+    j.set("commanderBySource", bySource);
+    players.push(j);
+  }
+  r.set("players", players);
+  return r;
+}
+
+// --- CSV: one row per player per game ---------------------------------------
+
+namespace {
+
+// RFC 4180 quoting, and a leading ' on text a spreadsheet would run as a formula.
+std::string csvField(const std::string &text) {
+  std::string v = text;
+  if (!v.empty() && (v[0] == '=' || v[0] == '+' || v[0] == '-' || v[0] == '@' || v[0] == '\t' || v[0] == '\r')) v = "'" + v;
+  if (v.find_first_of(",\"\r\n") == std::string::npos) return v;
+  std::string quoted = "\"";
+  for (char c : v) { if (c == '"') quoted += '"'; quoted += c; }
+  return quoted + "\"";
+}
+
+std::string csvNumber(const Json &j) { return j.isNumber() ? std::to_string(j.asInt()) : std::string(); }
+std::string csvBool(bool b) { return b ? "true" : "false"; }
+
+// Unix ms as UTC "YYYY-MM-DDTHH:MM:SSZ" (days-from-civil inverse, H. Hinnant).
+std::string isoUtc(int64_t ms) {
+  int64_t secs = ms / 1000;
+  if (ms < 0 && ms % 1000) --secs;
+  int64_t days = secs / 86400, rem = secs % 86400;
+  if (rem < 0) { rem += 86400; --days; }
+  days += 719468;
+  const int64_t era = (days >= 0 ? days : days - 146096) / 146097;
+  const int64_t doe = days - era * 146097;
+  const int64_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+  const int64_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+  const int64_t mp = (5 * doy + 2) / 153;
+  const int64_t d = doy - (153 * mp + 2) / 5 + 1;
+  const int64_t m = mp < 10 ? mp + 3 : mp - 9;
+  const int64_t y = yoe + era * 400 + (m <= 2 ? 1 : 0);
+  char out[128];
+  std::snprintf(out, sizeof(out), "%04lld-%02lld-%02lldT%02lld:%02lld:%02lldZ", static_cast<long long>(y),
+                static_cast<long long>(m), static_cast<long long>(d), static_cast<long long>(rem / 3600),
+                static_cast<long long>(rem % 3600 / 60), static_cast<long long>(rem % 60));
+  return out;
+}
+
+}  // namespace
+
+const char *const RECORD_CSV_HEADER =
+    "record_id,started_at_utc,game_profile,two_headed_giant,starting_life,duration_ms,players,seat,name,profile_id,"
+    "starter,won,draw,out_order,conceded,eliminated_by_seat,self_eliminated,final_life,turns,turn_ms,"
+    "average_turn_ms,fastest_turn_ms,longest_turn_ms,commander_damage_received,poison,energy,experience,"
+    "commander_casts_1,commander_casts_2,city_blessing,demerits,extensions_used,bag_drawn\n";
+
+std::string recordCsvRows(const Json &r) {
+  std::string out;
+  const Json &players = r.get("players");
+  const Json &winners = r.get("winners");
+  const bool draw = winners.size() == 0;
+  const std::string common = csvField(r.get("recordId").asString()) + "," + isoUtc(r.get("startedAtMs").asInt()) + "," +
+      csvField(r.get("gameProfile").asString()) + "," + csvBool(r.get("twoHeadedGiant").asBool()) + "," +
+      csvNumber(r.get("startingLife")) + "," + csvNumber(r.get("durationMs")) + "," + std::to_string(players.size());
+  for (size_t i = 0; i < players.size(); ++i) {
+    const Json &p = players[i];
+    bool won = false;
+    for (size_t w = 0; w < winners.size(); ++w) won = won || winners[w].asInt(-1) == static_cast<int64_t>(i);
+    const int64_t turns = p.get("turnsCompleted").asInt();
+    const Json &by = p.get("eliminatedBy");
+    const Json &counters = p.get("counters");
+    out += common + "," + std::to_string(i + 1) + "," + csvField(p.get("name").asString()) + "," +
+        csvField(p.get("profileId").asString()) + "," +
+        csvBool(r.get("starter").asInt(-1) == static_cast<int64_t>(i)) + "," + csvBool(won) + "," + csvBool(draw) + "," +
+        csvNumber(p.get("outOrder")) + "," + csvBool(p.get("conceded").asBool()) + "," +
+        (by.isNumber() ? std::to_string(by.asInt() + 1) : std::string()) + "," +
+        csvBool(p.get("selfEliminated").asBool()) + "," + csvNumber(p.get("finalLife")) + "," + std::to_string(turns) + "," +
+        csvNumber(p.get("turnMs")) + "," + (turns > 0 ? std::to_string(p.get("turnMs").asInt() / turns) : std::string()) + "," +
+        csvNumber(p.get("fastestTurnMs")) + "," + csvNumber(p.get("longestTurnMs")) + "," +
+        csvNumber(p.get("commanderDamageReceived")) + "," + csvNumber(counters.get("poison")) + "," +
+        csvNumber(counters.get("energy")) + "," + csvNumber(counters.get("experience")) + "," +
+        csvNumber(counters.get("commanderCasts")[0]) + "," + csvNumber(counters.get("commanderCasts")[1]) + "," +
+        csvBool(counters.get("cityBlessing").asBool()) + "," + csvNumber(p.get("demerits")) + "," +
+        csvNumber(p.get("extensionsUsed")) + "," + csvBool(p.get("bagDrawn").asBool()) + "\n";
+  }
+  return out;
 }
 
 Game gameFromJson(const Json &j) {

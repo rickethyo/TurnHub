@@ -288,6 +288,32 @@ class StandaloneTable(
         return saved
     }
 
+    /**
+     * Games an Atlas kept for a linked account (`/api/profiles/history`), added to this device's
+     * history as already delivered there, so they count here and are never sent back. Players
+     * linked to this Atlas become their local accounts; a record already here is skipped.
+     * Returns how many were added.
+     */
+    fun addAtlasRecords(atlasId: String, records: List<org.json.JSONObject>): Int {
+        val before = _state.value
+        val local = before.library.players.flatMap { p -> p.links.filter { it.atlasId == atlasId }.map { it.profileId to p } }.toMap()
+        var library = before.library
+        var added = 0
+        for (json in records) {
+            val record = GameRecord.fromJson(json) ?: continue
+            if (library.history.any { it.recordId == record.recordId }) continue
+            val atlasIds = record.players.map { it.profileId.orEmpty() }
+            val mine = record.copy(players = record.players.map { p ->
+                local[p.profileId]?.let { p.copy(localId = it.localId, profileId = it.profileId) } ?: p.copy(localId = null)
+            })
+            library = library.copy(history = library.history + mine)
+                .withDelivery(MatchDelivery(mine.recordId, DeliveryStatus.IMPORTED, atlasId = atlasId, profileIds = atlasIds))
+            added++
+        }
+        if (added > 0 && !publish(before.copy(library = library))) return 0
+        return added
+    }
+
     fun linkAccount(localId: String, atlasId: String, profileId: String, linkKey: String? = null): Boolean {
         val before = _state.value
         if (atlasId.isBlank() || !LocalProfileIds.valid(profileId) || before.library.players.none { it.localId == localId } ||

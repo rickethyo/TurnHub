@@ -22,6 +22,10 @@ C++ interop.
 - Data in, data out: `toJson(game)`, `gameFromJson(json)` and
   `applyAction(game, action, random)`. JSON field names are the Kotlin
   property names; enums use the Kotlin names (`MTG_COMMANDER`, `RUNNING`).
+- `gameRecord(game)`: the finished game as a match record
+  (`protocol/game-record-v1.schema.json`), the port of `StandaloneGame.record()`.
+  It is the one format the app and Atlas keep, import, show and export
+  (Invariant 12); a scenario step's `"record"` checks it whole on both sides.
 
 Ported so far: the lobby (players, formats, house rules, Two-Headed Giant,
 starting life, turn timer and its rules), start, rematch, Sean Mode, reset
@@ -30,7 +34,7 @@ prizes, Lorcana lore), Commander damage, counters and rad; monarch,
 initiative, day/night and reversed order; elimination rules, attribution,
 concession and win claims; Star Commander, Emperor and Bag of Doom.
 Not yet: Planechase, Pokémon/Lorcana turn markers and Special Conditions,
-commander selection and the finished-game record.
+and commander selection.
 
 Death May Die can't ship in a released version (licensing, owner
 2026-10-29). Its rules will live in a separate local-only module,

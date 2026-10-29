@@ -194,7 +194,12 @@ class HomeViewModel(
                     _localImport.value = _localImport.value.copy(message = "Could not add this account here, or it's already on this device.")
                     return@launch
                 }
-                _localImport.value = _localImport.value.copy(message = "$name is on this device again, with their totals from this Atlas.")
+                val games = restored.linkKey?.let { pullAtlasHistory(endpoint, summary.atlasId, restored.profileId, it) } ?: 0
+                _localImport.value = _localImport.value.copy(message = when (games) {
+                    0 -> "$name is on this device again, with their totals from this Atlas."
+                    1 -> "$name is on this device again, with 1 game from this Atlas."
+                    else -> "$name is on this device again, with $games games from this Atlas."
+                })
                 syncLinkedProfiles(summary, endpoint)
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
             catch (e: Exception) {
@@ -202,6 +207,24 @@ class HomeViewModel(
                     ?: (e as? IllegalArgumentException)?.message ?: "Could not get the account from Atlas.")
             } finally { _localImport.value = _localImport.value.copy(busy = false) }
         }
+    }
+
+    /** Pages through an account's match records on Atlas into this device's history; returns how many were added. */
+    private suspend fun pullAtlasHistory(endpoint: AtlasEndpoint, atlasId: String, profileId: String, linkKey: String): Int {
+        val table = standalone ?: return 0
+        val records = mutableListOf<org.json.JSONObject>()
+        var skip = 0
+        // At most 100 pages (2,000 games); older Atlas firmware has no history (404).
+        repeat(100) {
+            val response = try { playerSession.profileHistory(endpoint, profileId, linkKey, skip) } catch (_: AtlasException) { return table.addAtlasRecords(atlasId, records) }
+            val page = runCatching { org.json.JSONObject(response.body) }.getOrNull()
+            if (!response.ok || page == null) return table.addAtlasRecords(atlasId, records)
+            val items = page.optJSONArray("records") ?: return table.addAtlasRecords(atlasId, records)
+            for (i in 0 until items.length()) items.optJSONObject(i)?.let(records::add)
+            skip += items.length()
+            if (!page.optBoolean("more") || items.length() == 0) return table.addAtlasRecords(atlasId, records)
+        }
+        return table.addAtlasRecords(atlasId, records)
     }
 
     /**

@@ -8,4 +8,4 @@ mkdir -p "$out"
   -I"$root/core/include" \
   "$root/core/src/turnhub_json.cpp" "$root/core/src/turnhub_core.cpp" "$root/core/tests/scenario_runner.cpp" \
   -o "$out/scenario_runner"
-"$out/scenario_runner" "$root/core/scenarios"
+"$out/scenario_runner" "$root/core/scenarios" "$root/protocol/examples"

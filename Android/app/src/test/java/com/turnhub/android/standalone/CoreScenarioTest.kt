@@ -70,6 +70,11 @@ class CoreScenarioTest {
                     if (!same(actual, expect.get(path))) failures += "$where: $path = $actual, expected ${expect.get(path)}"
                 }
             }
+            // The whole match record once the game is over (null before): the app and Atlas keep the same fields.
+            if (step.has("record")) {
+                val record: Any = game.record()?.toJson() ?: JSONObject.NULL
+                if (!same(record, step.get("record"))) failures += "$where: record = $record, expected ${step.get("record")}"
+            }
             step.optJSONObject("timer")?.let { timer ->
                 val t = game.turnTimer(timer.getLong("nowMs"))
                 if (timer.has("phase") && timer.getString("phase") != t.phase.name) failures += "$where: timer phase ${t.phase}, expected ${timer.get("phase")}"

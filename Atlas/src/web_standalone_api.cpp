@@ -5,6 +5,7 @@
 #include "web_api_internal.h"
 
 #include "game_profile.h"
+#include "match_archive.h"
 #include "standalone_import.h"
 
 namespace TurnHubWebApi {
@@ -136,6 +137,22 @@ void handleStandaloneImport(WebServer &server) {
     sendError(server, 400, "That game record is not valid");
     return;
   }
+  // The whole match record (2026-10-29, optional): Atlas keeps it in its match
+  // history with this mapping's Atlas profile IDs. It must describe this game.
+  turnhub::Json kept;
+  const bool hasRecord = server.hasArg("record");
+  if (hasRecord) {
+    String names[TurnHubStandalone::MAX_IMPORT_PLAYERS], ids[TurnHubStandalone::MAX_IMPORT_PLAYERS];
+    for (uint8_t i = 0; i < game.playerCount; ++i) { names[i] = game.players[i].name; ids[i] = game.players[i].profileId; }
+    bool parsed = false;
+    const String text = server.arg("record");
+    const turnhub::Json phone = text.length() <= TurnHubHistory::MAX_RECORD_BYTES
+        ? turnhub::Json::parse(text.c_str(), &parsed) : turnhub::Json();
+    if (!parsed || !TurnHubHistory::adoptImportedRecord(phone, game.recordId, game.playerCount, names, ids, kept)) {
+      sendError(server, 400, "That game record is not valid");
+      return;
+    }
+  }
   const auto result = TurnHubStandalone::importGame(game);
   switch (result.status) {
     case ImportStatus::Invalid:
@@ -150,6 +167,8 @@ void handleStandaloneImport(WebServer &server) {
     default:
       break;
   }
+  // Statistics are credited either way; the history needs a card.
+  const char *history = hasRecord ? TurnHubHistory::keepStatusName(TurnHubHistory::keep(kept)) : "not_sent";
   String body = "{\"ok\":true,\"duplicate\":";
   body += result.status == ImportStatus::Duplicate ? "true" : "false";
   body += ",\"credited\":";
@@ -165,7 +184,9 @@ void handleStandaloneImport(WebServer &server) {
     body += jsonEscape(result.unmatched[i]);
     body += '"';
   }
-  body += "]}";
+  body += "],\"history\":\"";
+  body += history;
+  body += "\"}";
   sendJson(server, 200, body);
 }
 

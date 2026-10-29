@@ -464,6 +464,38 @@ window. It does not guarantee arbitrary long-term replay protection. Imported ga
 started, completed turns and turn times, and set the last-game fields like a
 live game.
 
+### Match records and CSV (2026-10-29)
+
+A finished game is one match record, the same on every device
+(`game-record-v1.schema.json`, built by the shared core's `gameRecord` and the
+app's `StandaloneGame.record()`; example `examples/match-record.json`). Records export as CSV, one row
+per player per game, with the header and columns of `examples/match-record.csv`:
+times are UTC (`started_at_utc`) and milliseconds; `seat`, `eliminated_by_seat`
+count from 1; booleans are `true`/`false`; empty means none. Text is RFC 4180
+quoted, and a name starting with `=`, `+`, `-` or `@` gets a leading `'` so a
+spreadsheet shows it rather than running it. The app and Atlas produce the
+same text (checked against the example by both test suites).
+
+**Atlas match history** (*Implemented, host tests only*): Atlas keeps records
+on its microSD card, one JSON line per game in `turnhub/games.jsonl` and the
+same game's CSV rows in `turnhub/games.csv` (header written once), readable
+over the USB-drive mode. A record is kept once per record ID; a torn last line
+is skipped. Without a card nothing is kept and the NVS totals still count.
+
+- `POST /api/standalone/import` takes an optional `record`: the app's whole
+  record as JSON text (at most 16 KB). It must have the import's `recordId`
+  and player count, or the import is refused (400) before any credit. Atlas
+  keeps it with each player's mapped Atlas profile ID (null for a guest),
+  the imported names and no `localId`. The answer adds `history`: `kept`,
+  `already_kept`, `no_card`, `invalid`, `write_failed` or `not_sent`.
+- `GET /api/profiles/history?profileId=&skip=&limit=` (that profile's own
+  session, or `linkKey` as for profile sync; 401 otherwise) answers
+  `{"ok":true,"records":[...],"more":bool}`: the records the profile played
+  in, oldest first, `limit` 1 to 20 (default 10) after `skip`. 503 without a
+  card.
+
+Atlas's own games join the history once Atlas runs the shared core (staged).
+
 ### Native game-context guard (2026-10-10)
 
 Raw native tablet/game actions can include `expectedGame` as the decimal 1-based

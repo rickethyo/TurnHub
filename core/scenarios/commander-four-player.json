@@ -201,7 +201,142 @@
         "delta": -1,
         "nowMs": 1061000
       },
-      "unchanged": true
+      "unchanged": true,
+      "record": {
+        "recordId": "g1",
+        "gameProfile": "mtg_commander",
+        "startingLife": 40,
+        "startedAtMs": 1000000,
+        "durationMs": 60000,
+        "starter": 2,
+        "winner": 0,
+        "winners": [
+          0
+        ],
+        "players": [
+          {
+            "name": "Ana",
+            "profileId": null,
+            "localId": null,
+            "finalLife": 35,
+            "turnsCompleted": 0,
+            "demerits": 0,
+            "extensionsUsed": 0,
+            "turnMs": 0,
+            "fastestTurnMs": 0,
+            "longestTurnMs": 0,
+            "outOrder": null,
+            "conceded": false,
+            "eliminatedBy": null,
+            "bagDrawn": false,
+            "selfEliminated": false,
+            "commanderDamageReceived": 0,
+            "counters": {
+              "poison": 0,
+              "energy": 0,
+              "experience": 0,
+              "commanderCasts": [
+                0,
+                1
+              ],
+              "cityBlessing": false
+            },
+            "commanderBySource": {}
+          },
+          {
+            "name": "Ben",
+            "profileId": null,
+            "localId": null,
+            "finalLife": 19,
+            "turnsCompleted": 0,
+            "demerits": 0,
+            "extensionsUsed": 0,
+            "turnMs": 0,
+            "fastestTurnMs": 0,
+            "longestTurnMs": 0,
+            "outOrder": 1,
+            "conceded": false,
+            "eliminatedBy": null,
+            "bagDrawn": false,
+            "selfEliminated": false,
+            "commanderDamageReceived": 21,
+            "counters": {
+              "poison": 0,
+              "energy": 0,
+              "experience": 0,
+              "commanderCasts": [
+                0,
+                0
+              ],
+              "cityBlessing": false
+            },
+            "commanderBySource": {
+              "0": [
+                21,
+                0
+              ]
+            }
+          },
+          {
+            "name": "Cal",
+            "profileId": null,
+            "localId": null,
+            "finalLife": 0,
+            "turnsCompleted": 1,
+            "demerits": 0,
+            "extensionsUsed": 0,
+            "turnMs": 30000,
+            "fastestTurnMs": 30000,
+            "longestTurnMs": 30000,
+            "outOrder": 3,
+            "conceded": false,
+            "eliminatedBy": null,
+            "bagDrawn": false,
+            "selfEliminated": false,
+            "commanderDamageReceived": 0,
+            "counters": {
+              "poison": 0,
+              "energy": 0,
+              "experience": 0,
+              "commanderCasts": [
+                0,
+                0
+              ],
+              "cityBlessing": false
+            },
+            "commanderBySource": {}
+          },
+          {
+            "name": "Dee",
+            "profileId": null,
+            "localId": null,
+            "finalLife": 40,
+            "turnsCompleted": 0,
+            "demerits": 0,
+            "extensionsUsed": 0,
+            "turnMs": 0,
+            "fastestTurnMs": 0,
+            "longestTurnMs": 0,
+            "outOrder": 2,
+            "conceded": true,
+            "eliminatedBy": null,
+            "bagDrawn": false,
+            "selfEliminated": false,
+            "commanderDamageReceived": 0,
+            "counters": {
+              "poison": 0,
+              "energy": 0,
+              "experience": 0,
+              "commanderCasts": [
+                0,
+                0
+              ],
+              "cityBlessing": false
+            },
+            "commanderBySource": {}
+          }
+        ]
+      }
     },
     {
       "action": {
@@ -220,7 +355,8 @@
         "players.2.life": 40,
         "winners": [],
         "monarch": null
-      }
+      },
+      "record": null
     }
   ]
 }

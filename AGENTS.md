@@ -23,6 +23,9 @@ editing. `Documentation/engineering/AGENT_WORKFLOW.md` owns the Git workflow.
 - Keep each PR reviewable and target `master`. Use a separate temporary branch
   and worktree only when scope, ownership, dependencies or reviewability require
   separation; explain the reason in `COLLABORATION.md`.
+- App and Atlas parity (owner, 2026-10-29): anything built for one is built for
+  the other, in the same PR or as the next slice in `STAGED_CHANGES.md`
+  (Invariant 12 in `ARCHITECTURAL_INVARIANTS.md`).
 - Prune documentation your change makes obsolete, and keep agent-only setup
   text in agent files (`AGENT_WORKFLOW.md`, "Documentation hygiene").
 - Run the relevant checks and record actual results. Only documentation-only

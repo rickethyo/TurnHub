@@ -2,6 +2,8 @@
 // name/PIN edits, the per-profile policy and statistics.
 
 #include "account_access.h"
+
+#include <vector>
 #include "atlas_app.h"
 #include "profile_statistics.h"
 #include "web_api_internal.h"
@@ -9,6 +11,7 @@
 #include "avatars.h"
 #include "avatar_artwork.h"
 #include "game_profile.h"
+#include "match_archive.h"
 
 namespace TurnHubWebApi {
 namespace internal {
@@ -348,6 +351,40 @@ void handleProfileSync(WebServer &server) {
   body += ",\"hasPin\":"; body += jsonBool(TurnHubProfiles::hasPinForProfile(id));
   body += ",\"gamesPlayed\":"; body += String(stats.gamesPlayed);
   body += ",\"gamesWon\":"; body += String(stats.gamesWon);
+  body += '}';
+  sendJson(server, 200, body);
+}
+
+// The match records a profile played in (match_archive.h), oldest first, for a
+// phone linked to it (link key, like profile sync) or its own signed-in
+// session: a reinstalled app restores its games from here.
+void handleProfileHistory(WebServer &server) {
+  String id = server.arg("profileId");
+  WebSession *session = sessionForRequest(server);
+  const bool own = session && id.length() && sessionProfileId(*session) == id;
+  if (!profileStoreReady || !TurnHubProfiles::profileExists(id) || (!own && !linkKeyValid(id, server.arg("linkKey")))) {
+    sendError(server, 401, "This phone's link to that profile has expired; link it again");
+    return;
+  }
+  uint64_t skip = 0, limit = 10;
+  if ((server.hasArg("skip") && !parseMs(server.arg("skip"), skip)) ||
+      (server.hasArg("limit") && (!parseMs(server.arg("limit"), limit) || limit == 0 || limit > 20))) {
+    sendError(server, 400, "skip must be a whole number and limit 1 to 20");
+    return;
+  }
+  std::vector<turnhub::Json> records;
+  bool more = false;
+  if (!TurnHubHistory::historyFor(id, static_cast<size_t>(skip), static_cast<size_t>(limit), records, more)) {
+    sendError(server, 503, "Atlas has no match history without its microSD card");
+    return;
+  }
+  String body = "{\"ok\":true,\"records\":[";
+  for (size_t i = 0; i < records.size(); ++i) {
+    if (i) body += ',';
+    body += records[i].dump().c_str();
+  }
+  body += "],\"more\":";
+  body += jsonBool(more);
   body += '}';
   sendJson(server, 200, body);
 }

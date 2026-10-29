@@ -142,6 +142,9 @@ data class GameRecord(
             add("bagDrawn$i" to if (p.bagDrawn) "1" else "0")
             add("selfEliminated$i" to if (p.selfEliminated) "1" else "0")
         }
+        // The whole record (Atlas 2026-10-29+): Atlas keeps it in its match history
+        // under the mapped Atlas profile IDs; older firmware ignores it.
+        add("record" to toJson().toString())
     }
 
     companion object {

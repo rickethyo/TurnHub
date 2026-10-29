@@ -77,7 +77,7 @@ python3 Atlas/web/build.py                         # embedded portal preview (WE
 There is no per-test filter. To run one group, build the single executable (the command lines are in `tests/host/README.md`).
 - **Adding a new `src/*.cpp` to Atlas:** add it to the source lists in `run.cmd`, `run-gcc.ps1` and the README command lines too. Those lists also carry the `shared/include` path. The exception is firmware-only code that needs a hardware library: `atlas_board_none.cpp`, `atlas_battery_s3.cpp`, `atlas_display_s3.cpp` and `atlas_screen_lvgl.cpp` (the board boundary in `atlas_board.h`, `atlas_display.h`, `atlas_battery.h` and `atlas_speaker.h`; battery logic is the header-only `battery_gauge.h`), `sd_card.cpp` (Arduino SD_MMC), `factory_reset.cpp` (NVS erase + restart) and `secure_link_backend.cpp` (mbedTLS) are left out, and `test_globals.cpp` stubs them.
 - **Python and `pio`:** PlatformIO's `%USERPROFILE%\.platformio\penv\Scripts` is on the user PATH ahead of the Microsoft Store stub, so shells resolve `python` and `pio` there; use the full path if a shell doesn't. That interpreter runs both `.py` checks with the standard library only.
-- **Packed-struct flag:** the GCC runner uses `-mno-ms-bitfields` and C++14 to preserve the packed radio packet layout. Keep it.
+- **Packed-struct flag:** the GCC runners use `-mno-ms-bitfields` to preserve the packed radio packet layout. Keep it. They build C++17 like the firmware and MSVC, since Atlas links the shared core (`-I../../../core/include`).
 - **Test ordering:** the recovery scenario runs last on purpose (the recovery store is a one-way process-wide latch).
 
 ### Sigil firmware (run from `Sigil/`)
@@ -123,7 +123,7 @@ transport adapter (ESP-NOW packet / HTTP handler / GPIO)
 
 **Persistence:** profiles, PIN data, seat bindings, statistics, game settings, profile policy, per-player accessibility preferences, AP config, the pairing window, the speaker volume (`spkvol`), the table code setting (`tcode`), the first-run setup stage (`setup`, see `FIRST_RUN_SETUP.md`) and the display theme (`display`) live in NVS (`profile_store`, `profile_stats_storage`, `nvs_blob_store`, `game_settings_store`, `optional_preferences`). Sessions, table participation and live game state are RAM-only, apart from the in-progress interrupted-match recovery record (`game_checkpoint`/`game_recovery*`). That record must restore **paused** and must never replay the stats-completion callback. The engine's game-completed event invokes `profile_stats_bridge` once per match, whatever the ending path; the durability limit is described below.
 
-**microSD card:** optional; play never depends on it. Luxury records (detailed statistics, `s<profileId>`) and the rotating diagnostics log live there; the NVS core record `c<profileId>` keeps games played and won without a card. All card access goes through `sd_card.cpp`: application code uses only `sdBlobStore()` (from the application task), whose calls take the same card lock as the background log worker. Never call the Arduino `SD` library directly elsewhere.
+**microSD card:** optional; play never depends on it. Luxury records (detailed statistics, `s<profileId>`), the match history (`games.jsonl` and `games.csv`, `match_archive.h`, through `sdArchiveFiles()`) and the rotating diagnostics log live there; the NVS core record `c<profileId>` keeps games played and won without a card. All card access goes through `sd_card.cpp`: application code uses only `sdBlobStore()` and `sdArchiveFiles()` (from the application task), whose calls take the same card lock as the background log worker. Never call the Arduino `SD` library directly elsewhere.
 
 **Completion ordering:** `profile_stats_bridge.cpp` must successfully commit the
 finished-match checkpoint before incrementing profile statistics. Failed or
@@ -150,6 +150,8 @@ durable completion receipts and replay-safe persistence exist. See
   6. protocol/contract change
   7. third-party dependency impact (update `Documentation/legal/`)
   8. accessibility impact (see `ACCESSIBILITY.md`)
+  9. its counterpart on the other side: the app's change on Atlas or Atlas's in the app
+- **App and Atlas parity (owner, 2026-10-29):** anything done for one is done for the other, in the same PR or as the next slice recorded in `STAGED_CHANGES.md`, so the ecosystem never splits again. Accounts, statistics, game rules, records and settings behave the same on a phone, a tablet or an Atlas; only hardware-bound features (Sigils, the radio, a phone camera) are exempt. See Invariant 12 in `ARCHITECTURAL_INVARIANTS.md`.
 - **Structural changes:** review the engineering index, `ARCHITECTURAL_INVARIANTS.md`, `STAGED_CHANGES.md` and the affected reference docs first. If code would contradict the docs, resolve the docs explicitly rather than drifting.
 - **Where work is tracked:** agreed but unimplemented work goes in `Documentation/engineering/STAGED_CHANGES.md`, not long-lived branches. Abandoned experiments are marked historical, not deleted from history.
 - **Accessibility:** no essential info or action may rely on only color, sound or LED cadence. Accessible alternatives use the same Intent path. Web UIs target WCAG 2.2 AA.

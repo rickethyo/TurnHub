@@ -130,6 +130,11 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         LocalAccountTransfer(transports.create(endpoint)).verify(player, targetId, secret)
     }
 
+    /** One page of a linked profile's match records on Atlas (no sign-in: the link key). */
+    suspend fun profileHistory(endpoint: AtlasEndpoint, profileId: String, linkKey: String, skip: Int): RawResponse = call {
+        transports.create(endpoint).raw("GET", "/api/profiles/history?profileId=$profileId&linkKey=$linkKey&skip=$skip&limit=20", "")
+    }
+
     /** Reads an Atlas account to recreate on this phone; leaves the active table login unchanged. */
     suspend fun restoreAccount(endpoint: AtlasEndpoint, profileId: String, secret: String): LocalAccountTransfer.Restored = call {
         LocalAccountTransfer(transports.create(endpoint)).restore(profileId, secret)

@@ -148,6 +148,15 @@ private fun LocalTable(state: StandaloneState, table: StandaloneTable, reduceMot
             }
             share
         },
+        onShareCsv = game.record()?.let { record ->
+            val share: () -> Unit = {
+                scope.launch {
+                    com.turnhub.android.ui.components.shareCsv(context, "turnhub-game-${record.recordId.take(8)}.csv",
+                        com.turnhub.android.standalone.MatchCsv.HEADER + com.turnhub.android.standalone.MatchCsv.rows(record.toJson()))
+                }
+            }
+            share
+        },
         shortGameUnsaved = table.unsavedShortGame() != null,
         onCountGame = { table.saveShortGame() },
     )
