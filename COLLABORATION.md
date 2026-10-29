@@ -1390,3 +1390,11 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   Sync runs when the Atlas accounts load; Atlas's newer copy applies without
   restamping; 401 drops the key. New LocalAccountsTest case; Android compile
   is CI's/the PC's.
+- Atlas account merge (same day): `POST /api/accounts/merge` (Admin; portal
+  person sheet) sums core and SD statistics plus moderation into the kept
+  account, saves it, then marks the other `mergedInto` and archives it. Sync on
+  a merged ID answers 409 with the kept ID and a fresh key; imports resolve
+  merged IDs (up to 4 hops) and check receipts under both IDs. Known gap: a
+  cut between the two saves leaves totals on both accounts (no durable merge
+  record yet). Host scenario covers rules, sums, redirect and import dedupe;
+  App Manual and http-v1 updated. No hardware run.

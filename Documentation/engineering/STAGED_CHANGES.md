@@ -211,7 +211,7 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   durable completion receipts in [Shared table authority](TABLE_AUTHORITY.md).
   Unified lobby/table presentation is implemented; full offline hosting of an
   Atlas game is not.
-- **Profile transfer and merge** (owner, 2026-10-28; *Planned*): profiles live
+- **Profile transfer and merge** (owner, 2026-10-28; host-tested, device checks open): profiles live
   on the device that created them and carry all their statistics to an Atlas.
   Done: imported matches accept guest seats and per-(record, profile)
   receipts ([import contract](../../protocol/http-v1.md#standalone-tablet-game-import-2026-10-07)),
@@ -221,8 +221,10 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   2026-10-28). Automatic sync is in (link keys,
   `/api/profiles/sync`, newest activity wins name/color/avatar/reduced motion,
   owner 2026-10-29; the app syncs whenever the Atlas accounts load and shows
-  each linked account's Atlas totals). PINs don't sync. Next: merging two Atlas profiles
-  (summed totals, survivor keeps links, absorbed ID kept as an alias).
+  each linked account's Atlas totals). PINs don't sync. An Admin can merge two Atlas
+  accounts (`/api/accounts/merge`: summed totals, merged ID archived and
+  redirected for sync and imports). Open: device checks, and a durable merge
+  record so a cut mid-merge can't leave totals on both accounts.
 - **Local library management:** export/backup, explicit history deletion/
   retention and large-history storage/performance remain open. Local player
   editing, PIN removal, account deletion and retained UUID-based history are

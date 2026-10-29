@@ -256,6 +256,16 @@ moderation powers need Game Master, roles need a PIN, the initial Admin keeps
 Admin and cannot be archived, and archiving waits until the account has left
 the table.
 
+`POST /api/accounts/merge` (`profileId`, `into`; Admin, Atlas 0.7.18+) merges
+two accounts of one person: `profileId`'s statistics and moderation history are
+added to `into`, then `profileId` is archived and remembers `into`. Both must be
+different, unarchived and away from the table, and the initial Admin can't be
+merged away. Afterwards `/api/profiles/sync` for the merged ID answers 409
+`{"mergedInto","linkKey"}` (a key for the kept account), and imported games
+naming it count for the kept account, deduplicated across both IDs. A power cut
+between saving the kept account and archiving the other can leave both live with
+the totals on each (*Needs verification*).
+
 ## Sigil accessibility preferences
 
 `GET /api/session/accessibility` and `POST /api/session/accessibility`
