@@ -43,15 +43,17 @@ fun BringPlayersCard(players: List<SavedLocalPlayer>, destination: LocalImportSt
                      onBring: (localId: String?, secret: String?) -> Unit) {
     val p = palette
     val states = players.associate { it.localId to bringState(it, destination) }
-    if (states.values.all { it == BringState.LINKED }) return
+    val allHere = states.values.all { it == BringState.LINKED }
     BrassCard {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Bring players to this table", color = p.text, style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.semantics { heading() })
-            Text("Uploads your players to this Atlas with all their games.", color = p.muted)
+            Text(if (allHere) "Your players on this table" else "Bring players to this table", color = p.text,
+                style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+            Text(if (allHere) "Their names and looks stay in sync with this Atlas; the newest change wins."
+                else "Uploads your players to this Atlas with all their games.", color = p.muted)
             players.forEach { player ->
                 when (states.getValue(player.localId)) {
-                    BringState.LINKED -> Text("${player.name}: on this table", color = p.muted)
+                    BringState.LINKED -> Text("${player.name}: on this table" +
+                        (destination.atlasTotals[player.localId]?.let { (played, won) -> " · $played played, $won won here" } ?: ""), color = p.muted)
                     BringState.ALREADY_THERE -> Text("${player.name}: this ID is already on this Atlas. Open Edit to link it with that account's PIN.", color = p.text)
                     BringState.NEW_NO_PIN -> Text("${player.name}: new here, no PIN. The first person to sign in sets one.", color = p.text)
                     BringState.NEW_WITH_PIN -> {

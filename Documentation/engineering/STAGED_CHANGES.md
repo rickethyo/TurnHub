@@ -218,9 +218,10 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   and Android delivers every match with one linked player, re-sending it when
   another of its players is linked, and "Bring players to this table" uploads
   every local account (PIN-less ones together on the signed-in session, owner
-  2026-10-28). Atlas side of automatic sync is in (link keys,
-  `/api/profiles/sync`, newest activity wins settings, owner 2026-10-29); the
-  app's sync on connect is next, then merging two Atlas profiles
+  2026-10-28). Automatic sync is in (link keys,
+  `/api/profiles/sync`, newest activity wins name/color/avatar/reduced motion,
+  owner 2026-10-29; the app syncs whenever the Atlas accounts load and shows
+  each linked account's Atlas totals). PINs don't sync. Next: merging two Atlas profiles
   (summed totals, survivor keeps links, absorbed ID kept as an alias).
 - **Local library management:** export/backup, explicit history deletion/
   retention and large-history storage/performance remain open. Local player

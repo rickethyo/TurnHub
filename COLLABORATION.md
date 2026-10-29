@@ -1384,3 +1384,9 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   newer copy of name/color/avatar/reduced motion wins; Atlas takes wall-clock
   time from the phone. Host scenario covers keys, rotation, phone-newer,
   same, Atlas-newer and bad input. The app side is next.
+- App profile sync (same day): links keep the Atlas link key (from
+  `/api/profiles/link-key` during import/link, or the PIN-less upload answer);
+  players carry `lastActivityMs`, stamped only when a synced field changes.
+  Sync runs when the Atlas accounts load; Atlas's newer copy applies without
+  restamping; 401 drops the key. New LocalAccountsTest case; Android compile
+  is CI's/the PC's.

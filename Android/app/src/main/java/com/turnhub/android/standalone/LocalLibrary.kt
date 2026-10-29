@@ -11,6 +11,8 @@ data class SavedLocalPlayer(
     val personalization: LocalPersonalization = LocalPersonalization(),
     val links: List<AtlasProfileLink> = emptyList(),
     val credential: LocalCredential? = null,
+    /** When the synced settings (name, color, avatar, reduced motion) last changed; 0 never. */
+    val lastActivityMs: Long = 0,
 )
 
 enum class DeliveryStatus { NEEDS_LINKING, PENDING, IMPORTED, REJECTED }
@@ -183,7 +185,8 @@ data class LocalLibrary(
             players.forEach { p -> put(JSONObject().put("localId", p.localId).put("name", p.name)
                 .put("profileId", p.profileId).put("personalization", p.personalization.toJson())
                 .put("links", JSONArray().apply { p.links.forEach { put(JSONObject()
-                    .put("atlasId", it.atlasId).put("profileId", it.profileId)) } })
+                    .put("atlasId", it.atlasId).put("profileId", it.profileId).put("linkKey", it.linkKey ?: JSONObject.NULL)) } })
+                .put("lastActivityMs", p.lastActivityMs)
                 .put("credential", p.credential?.let { JSONObject().put("salt", it.salt).put("hash", it.hash) } ?: JSONObject.NULL)) }
         })
         put("investigatorReferences", JSONObject().apply { investigatorReferences.forEach { (id, card) -> put(id, card.toJson()) } })
@@ -226,8 +229,9 @@ data class LocalLibrary(
                         it.optString("profileId").ifBlank { LocalProfileIds.create() },
                         it.optJSONObject("personalization")?.let(LocalPersonalization::fromJson) ?: LocalPersonalization(),
                         (0 until links.length()).map { i -> links.getJSONObject(i).let { l ->
-                            AtlasProfileLink(l.getString("atlasId"), l.getString("profileId")) } },
-                        it.optJSONObject("credential")?.let { c -> LocalCredential(c.getString("salt"), c.getString("hash")) })
+                            AtlasProfileLink(l.getString("atlasId"), l.getString("profileId"), l.optStringOrNull("linkKey")) } },
+                        it.optJSONObject("credential")?.let { c -> LocalCredential(c.getString("salt"), c.getString("hash")) },
+                        it.optLong("lastActivityMs", 0))
                 } },
                 history = (0 until history.length()).map { i ->
                     requireNotNull(GameRecord.fromJson(history.getJSONObject(i))) { "Invalid match" }
@@ -248,7 +252,8 @@ data class LocalLibrary(
                     java.util.Base64.getDecoder().decode(c.salt).size == 16 && java.util.Base64.getDecoder().decode(c.hash).size == 32
                 } ?: true })
                 require(library.players.all { LocalProfileIds.valid(it.profileId) && it.links.all { l ->
-                    l.atlasId.isNotBlank() && LocalProfileIds.valid(l.profileId) } &&
+                    l.atlasId.isNotBlank() && LocalProfileIds.valid(l.profileId) &&
+                    (l.linkKey == null || l.linkKey.matches(Regex("[0-9A-F]{32}"))) } &&
                     it.links.map { l -> l.atlasId }.distinct().size == it.links.size })
                 require(library.history.map { it.recordId }.distinct().size == library.history.size)
                 require(library.deliveries.map { it.recordId }.distinct().size == library.deliveries.size)
@@ -272,6 +277,8 @@ data class LocalImportState(
     val profiles: List<com.turnhub.android.protocol.ProfileSummary> = emptyList(),
     val busy: Boolean = false,
     val message: String? = null,
+    /** Each linked local account's totals on this Atlas (local ID to played and won), from the last sync. */
+    val atlasTotals: Map<String, Pair<Int, Int>> = emptyMap(),
 )
 
 data class ElderOneResult(val elderOne: String, val won: Int, val lost: Int)

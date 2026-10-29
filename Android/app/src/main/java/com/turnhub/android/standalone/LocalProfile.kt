@@ -10,8 +10,11 @@ import javax.crypto.spec.PBEKeySpec
 import java.util.Base64
 import org.json.JSONObject
 
-/** Local UUID owns history; the compatible public ID is never proof of account ownership. */
-data class AtlasProfileLink(val atlasId: String, val profileId: String)
+/**
+ * Local UUID owns history; the compatible public ID is never proof of account ownership.
+ * [linkKey] (Atlas 0.7.18+) lets this phone sync the profile's settings with that Atlas.
+ */
+data class AtlasProfileLink(val atlasId: String, val profileId: String, val linkKey: String? = null)
 
 data class LocalPersonalization(
     val color: String? = null,
@@ -27,6 +30,9 @@ data class LocalPersonalization(
         avatar != "none" -> AvatarIcon(1, avatar, avatar.replaceFirstChar { it.uppercase() }, emptyList())
         else -> null
     }
+    /** The part that syncs with a linked Atlas profile. */
+    fun syncedPart() = Triple(color, if (image != null) "custom" else avatar, reduceMotion)
+
     fun toJson() = JSONObject().put("color", color ?: JSONObject.NULL).put("avatar", avatar)
         .put("image", image ?: JSONObject.NULL).put("reduceMotion", reduceMotion).put("thumbnail", thumbnail ?: JSONObject.NULL)
         .put("tileBackground", JSONObject().put("style", tileBackground.style.key)
