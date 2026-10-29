@@ -143,7 +143,7 @@ int main() {
     assert(!idle.update(10).ready);
   }
 
-  // E-ink Menu: compass pages (click, Up, Right, Down; Down is More while more
+  // Menu: compass pages (click, Up, Right, Down; Down is More while more
   // follow), Left back a page or out. Choosing an entry closes Menu.
   {
     SigilMenu cmd;

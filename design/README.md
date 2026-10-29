@@ -103,9 +103,8 @@ The web references `#i-<name>` in the sprite; Android uses
 
 The four color themes reach devices through `shared/include/device_theme.h`
 (opaque RGB888 role palettes) and `shared/include/theme_emblem.h` (header
-marks). Master's board-less Atlas and headless Sigil draw no screen; the LVGL
-simulator ([`LVGL/README.md`](../LVGL/README.md)) renders the themes for the S3
-boards. The Gen 1 TFT, e-paper and OLED renderers and their Inter, Cinzel and
+marks). The S3 Atlas and the touch Sigil stand-in draw them with LVGL, as the
+simulator ([`LVGL/README.md`](../LVGL/README.md)) does. The Gen 1 TFT, e-paper and OLED renderers and their Inter, Cinzel and
 Oswald bitmap fonts are on `legacy/gen1`.
 
 ## Player artwork for LCD hardware (2026-10-10)

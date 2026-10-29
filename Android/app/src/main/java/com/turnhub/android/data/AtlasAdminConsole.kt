@@ -37,7 +37,6 @@ data class DeviceInfo(
     val hardwareId: String,
     val online: Boolean,
     val firmware: String,
-    val display: String,
     val sessionCount: Int,
     /** Hello capability bits (shared/include/protocol.h); 0x80 marks a test harness. */
     val capabilities: Int = 0,
@@ -226,7 +225,6 @@ class AtlasAdminConsole(
                     hardwareId = x.optString("hardwareId"),
                     online = x.optBoolean("online"),
                     firmware = x.optString("firmware"),
-                    display = x.optString("display"),
                     sessionCount = x.optInt("sessionCount"),
                     capabilities = x.optInt("capabilities"),
                 )

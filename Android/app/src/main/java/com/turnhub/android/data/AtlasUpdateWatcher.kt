@@ -92,8 +92,7 @@ class AtlasUpdateWatcher(
 
         fun reportFields(feed: FirmwareReleaseFeed): List<Pair<String, String>> = listOfNotNull(
             feed.packageFor(FirmwareProduct.ATLAS)?.let { "atlas" to it.version.toString() },
-            feed.packageFor(FirmwareProduct.SIGIL_EINK)?.let { "sigilEink" to it.version.toString() },
-            feed.packageFor(FirmwareProduct.SIGIL_OLED)?.let { "sigilOled" to it.version.toString() },
+            feed.packageFor(FirmwareProduct.SIGIL)?.let { "sigil" to it.version.toString() },
         )
     }
 }

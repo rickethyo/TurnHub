@@ -34,26 +34,23 @@ static void otaServiceScenarios() {
     u.status=UPLOAD_FILE_END;server.uploads["/api/sigil-firmware"]();
     server.routes["1/api/sigil-firmware"](); return server.status;
   };
-  assert(upload(player,otaTestPackage(3))==403);
-  assert(upload(admin,otaTestPackage(3))==403); // Not verified yet.
+  assert(upload(player,otaTestPackage(2))==403);
+  assert(upload(admin,otaTestPackage(2))==403); // Not verified yet.
   verifyAtTable(admin);
   assert(upload(admin,otaTestPackage(1))==400); // Atlas image rejected.
-  auto bad=otaTestPackage(3);bad.back()^=1;assert(upload(admin,bad)==400);
+  assert(upload(admin,otaTestPackage(3))==400); // No such product.
+  auto bad=otaTestPackage(2);bad.back()^=1;assert(upload(admin,bad)==400);
   assert(upload(admin,otaTestPackage(2))==200);
-  auto &r=fixtureRecords[0];r.helloInfoValid=true;r.capabilities=CAPABILITY_DISPLAY_OLED;
+  auto &r=fixtureRecords[0];r.helloInfoValid=true;r.capabilities=0;
   r.firmwareMajor=0;r.firmwareMinor=8;r.firmwarePatch=0;
   fixtureConnectOta(r);r.sessionGeneration=1;r.confirmedSessionGeneration=1;
-  assert(request("/api/sigil-update",admin,{{"module","0"}})==409); // E-ink cannot go to OLED.
-  assert(upload(admin,otaTestPackage(3))==200);
-  r.capabilities=0;assert(request("/api/sigil-update",admin,{{"module","0"}})==409); // Nor vice versa.
-  r.capabilities=CAPABILITY_DISPLAY_OLED;
   assert(request("/api/sigil-update",admin,{{"module","abc"}})==400);
   table().hubState=HubState::Running;assert(request("/api/sigil-update",admin,{{"module","0"}})==409);table().hubState=HubState::Lobby;
   assert(request("/api/sigil-update",admin,{{"module","0"}})==200 && sigilUpdatesBusy());
   serviceSigilUpdates(testNow);
   assert(strcmp(fixtureUpdateOffer.ssid, "OTA test AP")==0);
   assert(strcmp(fixtureUpdateOffer.password, "test-password")==0);
-  assert(fixtureUpdateOffer.product==3 && fixtureUpdateOffer.packageSize==otaTestPackage(3).size());
+  assert(fixtureUpdateOffer.product==2 && fixtureUpdateOffer.packageSize==otaTestPackage(2).size());
   assert(upload(admin,otaTestPackage(2))==403); // Cannot replace an active package.
   Intent start;start.type=IntentType::StartGame;assert(intents.dispatch(start).status==IntentStatus::Conflict);
   char token[33];for(size_t i=0;i<16;++i)snprintf(token+2*i,3,"%02x",fixtureUpdateOffer.token[i]);

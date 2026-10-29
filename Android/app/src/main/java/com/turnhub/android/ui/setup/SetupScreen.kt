@@ -301,8 +301,7 @@ private fun Sigils(state: SetupState, actions: SetupActions) {
         Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Paired:", color = p.text, fontWeight = FontWeight.SemiBold)
             state.sigils.forEach { s ->
-                val display = when (s.display) { "oled" -> "OLED"; "epaper" -> "E-ink"; else -> "display unknown" }
-                Text("• ${s.label} ($display, firmware ${s.firmware}${if (s.online) "" else ", offline"})", color = p.text)
+                Text("• ${s.label} (firmware ${s.firmware}${if (s.online) "" else ", offline"})", color = p.text)
             }
         }
     }

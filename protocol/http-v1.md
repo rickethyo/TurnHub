@@ -80,7 +80,7 @@ period; it does not mean the next turn has started. State confirms the later com
 
 Atlas has no internet. A client that can read the public release feed
 (`turnhub-firmware.json`) may report the newest versions with
-`POST /api/updates/latest`, form fields `atlas`, `sigilEink` and `sigilOled`
+`POST /api/updates/latest`, form fields `atlas` and `sigil`
 (`major.minor.patch`, optional `-suffix`; at least one). No sign-in. Atlas keeps
 the report in RAM until it restarts, blinks its on-board LED blue while Atlas or
 any paired Sigil runs an older version, and says so on its screen.

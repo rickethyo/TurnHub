@@ -49,7 +49,7 @@ A 128-byte signed header, then the plain `firmware.bin`. Little-endian. Code: `s
 off size field
   0   8  magic "THFWPKG1"
   8   1  header format (1)
-  9   1  product: 1 Atlas, 2 Sigil e-ink, 3 Sigil OLED (4 is retired)
+  9   1  product: 1 Atlas, 2 Sigil (3 and 4 are retired)
  10   3  version major, minor, patch
  13   1  radio protocol VERSION
  14   2  flags (0)
@@ -117,7 +117,8 @@ tampered feed can only point at a package that fails its signature check.
 Atlas's UI is embedded in its firmware package; the feed lists only Atlas and
 both Sigil variants. The app updates Atlas, then Sigils; old `portal` entries
 are ignored. Release and local-signing workflows do not build or carry portal
-archives forward. Product 4 is no longer accepted by firmware or signing tools.
+archives forward. Products 3 (the Gen 1 OLED Sigil) and 4 are no longer accepted by firmware or
+signing tools; product 2 is the one Sigil (2026-10-29).
 
 ## Updating a Sigil
 

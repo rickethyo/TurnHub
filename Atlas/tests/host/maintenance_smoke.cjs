@@ -25,7 +25,7 @@ const site = path.resolve(__dirname, '../../web/dist/site');
    }
    switch(u.pathname){
     case '/api/status':data={firmware:'0.7.7',build:'smoke'};break;
-    case '/api/devices':data={devices:[{id:0,label:'E-paper',online:true,metadata:true,display:'epaper',capabilities:0,firmware:'0.9.17'},{id:1,label:'OLED',online:true,metadata:true,display:'oled',capabilities:0,firmware:'0.9.17'}]};break;
+    case '/api/devices':data={devices:[{id:0,label:'Kitchen',online:true,metadata:true,capabilities:0,firmware:'0.9.17'},{id:1,label:'Hall',online:true,metadata:true,capabilities:0,firmware:'0.9.17'}]};break;
     case '/api/sigil-firmware':if(req.method()==='POST')staged=true;data={staged,product:3,version:'0.9.18',busy:false,stage:'idle',message:'Package checked'};break;
     case '/api/sigil-update':data={message:'Update started'};break;
     case '/api/firmware':return route.fulfill({status:400,contentType:'application/json',body:'{"error":"Signed package required"}'});

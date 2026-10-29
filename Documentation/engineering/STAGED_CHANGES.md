@@ -303,7 +303,7 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   simulator's Atlas screens for it before binding them. [Hardware plan](hardware/ESP32_S3_REFRESH.md),
   [LVGL migration](LVGL_MIGRATION.md) and [desktop foundation](../../LVGL/README.md)
   own details; the simulator is not physical acceptance. *Experimental*
-  (2026-10-28): `env:sigil-e32r28t` runs the Sigil firmware on the old
+  (2026-10-28): `env:sigil` runs the Sigil firmware on the old
   E32R28T Atlas board with an LVGL Sigil screen and the five keys as
   on-screen buttons, the default touchscreen-only Sigil until S3 exists; its touch
   calibration is a default, not checked per panel.

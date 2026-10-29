@@ -18,14 +18,15 @@ class FirmwareReleasesTest {
         {"schema":1,"release":"0.9.0","packages":[
           {"product":"atlas","version":"0.7.0","radioProtocol":2,"file":"atlas-0.7.0.thfw","size":300,
            "sha256":"${sha(atlasBytes)}","buildId":"abc"},
-          {"product":"sigil-oled","version":"0.9.0","file":"sigil-oled-0.9.0.thfw","size":10,"sha256":"${"a".repeat(64)}"},
-          {"product":"sigil-eink","version":"0.9.0","file":"sigil-eink-0.9.0.thfw","size":10,"sha256":"not-a-hash"},
+          {"product":"sigil","version":"0.9.0","file":"sigil-0.9.0.thfw","size":10,"sha256":"${"a".repeat(64)}"},
+          {"product":"sigil","version":"0.9.1","file":"sigil-0.9.1.thfw","size":10,"sha256":"not-a-hash"},
+          {"product":"sigil-eink","version":"0.9.0","file":"sigil-eink-0.9.0.thfw","size":10,"sha256":"${"a".repeat(64)}"},
           {"product":"toaster","version":"1.0.0","file":"toaster.thfw","size":10,"sha256":"${"b".repeat(64)}"}
         ]}
     """.trimIndent()
 
-    private fun device(id: Int, display: String, firmware: String, capabilities: Int = 0, online: Boolean = true) =
-        DeviceInfo(id, "Sigil ${id + 1}", "Sigil ${id + 1}", "", "THS-$id", online, firmware, display, 0, capabilities)
+    private fun device(id: Int, firmware: String, capabilities: Int = 0, online: Boolean = true) =
+        DeviceInfo(id, "Sigil ${id + 1}", "Sigil ${id + 1}", "", "THS-$id", online, firmware, 0, capabilities)
 
     @Test
     fun `versions compare numerically and ignore suffixes`() {
@@ -38,7 +39,7 @@ class FirmwareReleasesTest {
     fun `the feed keeps well-formed known packages only`() {
         val feed = FirmwareReleaseFeed.parse(feedJson)
         assertEquals("0.9.0", feed.release)
-        assertEquals(listOf(FirmwareProduct.ATLAS, FirmwareProduct.SIGIL_OLED), feed.packages.map { it.product })
+        assertEquals(listOf(FirmwareProduct.ATLAS, FirmwareProduct.SIGIL), feed.packages.map { it.product })
         assertThrows(IllegalArgumentException::class.java) { FirmwareReleaseFeed.parse("""{"schema":2,"packages":[]}""") }
         assertThrows(IllegalArgumentException::class.java) { FirmwareReleaseFeed.parse("<html>") }
     }
@@ -50,15 +51,15 @@ class FirmwareReleasesTest {
             feed,
             "0.6.0-dev",
             listOf(
-                device(1, "oled", "0.8.2"),
-                device(0, "oled", "0.9.0"),
-                device(2, "epaper", "0.8.0"), // No valid e-ink package in this feed.
-                device(3, "unknown", "unknown"),
-                device(4, "oled", "0.8.0", capabilities = DeviceInfo.CAPABILITY_HARNESS),
+                device(1, "0.8.2"),
+                device(0, "0.9.0"),
+                device(2, "0.9.1"),
+                device(3, "unknown"), // Unknown firmware: offer the release.
+                device(4, "0.8.0", capabilities = DeviceInfo.CAPABILITY_HARNESS),
             ),
         )
         assertEquals(listOf("Atlas", "Sigil 1", "Sigil 2", "Sigil 3", "Sigil 4"), plan.targets.map { it.label })
-        assertEquals(listOf("Atlas", "Sigil 2"), plan.pending.map { it.label })
+        assertEquals(listOf("Atlas", "Sigil 2", "Sigil 4"), plan.pending.map { it.label })
         assertTrue(plan.anyUpdate)
         assertFalse(UpdatePlan.build(feed, "0.7.0", emptyList()).anyUpdate)
     }

@@ -90,10 +90,9 @@ static void setStatusLed(bool red, bool blue, bool green = false) {
 void noteLatestFirmware(const TurnHub::LatestFirmware &reported) {
   latest = reported;
   latestReported = true;
-  serialLog.printf("ATLAS|UPDATES|LATEST|atlas=%u.%u.%u|eink=%u.%u.%u|oled=%u.%u.%u|AVAILABLE|%u\n",
+  serialLog.printf("ATLAS|UPDATES|LATEST|atlas=%u.%u.%u|sigil=%u.%u.%u|AVAILABLE|%u\n",
       latest.atlas.major, latest.atlas.minor, latest.atlas.patch,
-      latest.sigilEink.major, latest.sigilEink.minor, latest.sigilEink.patch,
-      latest.sigilOled.major, latest.sigilOled.minor, latest.sigilOled.patch,
+      latest.sigil.major, latest.sigil.minor, latest.sigil.patch,
       static_cast<unsigned>(firmwareUpdatesAvailable()));
 }
 
@@ -112,8 +111,7 @@ uint8_t sigilsBehind() {
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     const TurnHub::SigilRecord *record = sigilBus.record(id);
     if (record == nullptr || !record->helloInfoValid) continue;
-    const bool oled = (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_OLED) != 0;
-    if (TurnHub::releaseNewer(oled ? latest.sigilOled : latest.sigilEink, record->firmwareMajor,
+    if (TurnHub::releaseNewer(latest.sigil, record->firmwareMajor,
             record->firmwareMinor, record->firmwarePatch)) ++count;
   }
   return count;

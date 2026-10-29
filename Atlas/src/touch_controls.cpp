@@ -2,8 +2,7 @@
 // adapter only builds Intents (IntentOrigin::AtlasHardware); the handlers
 // decide. The exceptions change no table state: Cancel takes a presence code
 // off the screen (front_panel.cpp), and the Menu, Info, QR and Table
-// buttons switch screens. The board draws the screen model (atlas_board.h);
-// master's board-less build draws nothing.
+// buttons switch screens. The board draws the screen model (atlas_board.h).
 
 #include "avatars.h"
 #include "touch_controls.h"

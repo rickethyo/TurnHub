@@ -16,7 +16,7 @@ using namespace TurnHubFirmwarePackage;
 using TurnHubTest::Sha256;
 using TurnHubTest::TestPackageCrypto;
 
-TURNHUB_FIRMWARE_DESCRIPTOR(testDescriptor, Product::SigilOled, 0, 8, 1, 2);
+TURNHUB_FIRMWARE_DESCRIPTOR(testDescriptor, Product::Sigil, 0, 8, 1, 2);
 
 namespace {
 
@@ -65,7 +65,7 @@ std::vector<uint8_t> package(const Header &h, const std::vector<uint8_t> &img) {
 }
 
 Policy sigilPolicy() {
-  return Policy{KEY, KEY_ID, productBit(Product::SigilOled), Version{0, 8, 0}, 1310720};
+  return Policy{KEY, KEY_ID, productBit(Product::Sigil), Version{0, 8, 0}, 1310720};
 }
 
 struct RecordingSink : Sink {
@@ -112,13 +112,13 @@ void versionRule() {
 void descriptorLayout() {
   const uint8_t *raw = reinterpret_cast<const uint8_t *>(&testDescriptor);
   assert(memcmp(raw, "THFWDSC1", 8) == 0);
-  assert(raw[8] == 3 && raw[9] == 0 && raw[10] == 8 && raw[11] == 1 && raw[12] == 2);
+  assert(raw[8] == 2 && raw[9] == 0 && raw[10] == 8 && raw[11] == 1 && raw[12] == 2);
   assert(raw[13] == 0 && raw[14] == 0 && raw[15] == 0);
 }
 
 void goodPackageStreamsThrough() {
   const std::vector<uint8_t> img = image(5000);
-  const std::vector<uint8_t> bytes = package(headerFor(img, Product::SigilOled, {0, 9, 0}), img);
+  const std::vector<uint8_t> bytes = package(headerFor(img, Product::Sigil, {0, 9, 0}), img);
   for (size_t chunk : {size_t(1), size_t(37), size_t(128), size_t(129), bytes.size()}) {
     RecordingSink sink;
     assert(feed(bytes, sigilPolicy(), sink, chunk) == Error::None);
@@ -126,13 +126,13 @@ void goodPackageStreamsThrough() {
   }
   // The same version reinstalls.
   RecordingSink sink;
-  const std::vector<uint8_t> same = package(headerFor(img, Product::SigilOled, {0, 8, 0}), img);
+  const std::vector<uint8_t> same = package(headerFor(img, Product::Sigil, {0, 8, 0}), img);
   assert(feed(same, sigilPolicy(), sink) == Error::None);
 }
 
 void badHeadersAreRefusedBeforeAnyWrite() {
   const std::vector<uint8_t> img = image(3000);
-  const Header good = headerFor(img, Product::SigilOled, {0, 9, 0});
+  const Header good = headerFor(img, Product::Sigil, {0, 9, 0});
   struct Case {
     Header header;
     Error expected;
@@ -147,16 +147,15 @@ void badHeadersAreRefusedBeforeAnyWrite() {
   h = good;
   h.keyId[0] ^= 1;
   cases.push_back({h, Error::UnknownKey});
-  cases.push_back({headerFor(img, Product::SigilOled, {0, 9, 0}, OTHER_KEY), Error::BadSignature});
+  cases.push_back({headerFor(img, Product::Sigil, {0, 9, 0}, OTHER_KEY), Error::BadSignature});
   h = good;
   h.version.minor = 10;  // Edited after signing.
   cases.push_back({h, Error::BadSignature});
   h = good;
   h.signature[63] ^= 1;
   cases.push_back({h, Error::BadSignature});
-  cases.push_back({headerFor(img, Product::SigilEink, {0, 9, 0}), Error::WrongProduct});
   cases.push_back({headerFor(img, Product::Atlas, {0, 9, 0}), Error::WrongProduct});
-  cases.push_back({headerFor(img, Product::SigilOled, {0, 7, 5}), Error::OlderVersion});
+  cases.push_back({headerFor(img, Product::Sigil, {0, 7, 5}), Error::OlderVersion});
 
   for (const Case &c : cases) {
     RecordingSink sink;
@@ -170,12 +169,12 @@ void badHeadersAreRefusedBeforeAnyWrite() {
   RecordingSink sink;
   assert(feed(package(good, img), tight, sink) == Error::TooLarge && !sink.sawHeader);
 
-  // Atlas stages either Sigil's package, never its own.
+  // Atlas stages the Sigil's package, never its own.
   Policy staging = sigilPolicy();
   staging.products = ANY_SIGIL;
   staging.running = Version{0, 0, 0};
-  RecordingSink eink;
-  assert(feed(package(headerFor(img, Product::SigilEink, {0, 1, 0}), img), staging, eink) == Error::None);
+  RecordingSink sigil;
+  assert(feed(package(headerFor(img, Product::Sigil, {0, 1, 0}), img), staging, sigil) == Error::None);
   RecordingSink atlas;
   assert(feed(package(headerFor(img, Product::Atlas, {9, 0, 0}), img), staging, atlas) ==
       Error::WrongProduct);
@@ -187,7 +186,7 @@ void badHeadersAreRefusedBeforeAnyWrite() {
 
 void badImagesFailAtTheEnd() {
   const std::vector<uint8_t> img = image(3000);
-  const std::vector<uint8_t> good = package(headerFor(img, Product::SigilOled, {0, 9, 0}), img);
+  const std::vector<uint8_t> good = package(headerFor(img, Product::Sigil, {0, 9, 0}), img);
 
   std::vector<uint8_t> flipped = good;
   flipped[sizeof(Header) + 1234] ^= 0x40;
@@ -224,9 +223,7 @@ void badImagesFailAtTheEnd() {
 void errorNames() {
   assert(strcmp(errorName(Error::BadSignature), "badSignature") == 0);
   assert(strcmp(errorName(Error::OlderVersion), "olderVersion") == 0);
-  assert(knownProduct(1) && knownProduct(3) && !knownProduct(4) && !knownProduct(0) && !knownProduct(5));
-  assert(productForSigilCapabilities(0x10, 0x10) == Product::SigilOled);
-  assert(productForSigilCapabilities(0x07, 0x10) == Product::SigilEink);
+  assert(knownProduct(1) && knownProduct(2) && !knownProduct(3) && !knownProduct(0));
 }
 
 void sha256KnownAnswer() {
@@ -245,7 +242,7 @@ void updateOffers() {
   offer.version = VERSION;
   offer.type = PacketType::SigilUpdateOffer;
   offer.sigilId = 2;
-  offer.product = static_cast<uint8_t>(Product::SigilOled);
+  offer.product = static_cast<uint8_t>(Product::Sigil);
   offer.major = 0;
   offer.minor = 9;
   offer.patch = 0;
@@ -256,7 +253,7 @@ void updateOffers() {
   const Version running{0, 8, 0};
   TurnHubSigil::UpdaterMemory memory;
   const auto check = [&](const SigilUpdateOfferPacket &o) {
-    return TurnHubSigil::checkUpdateOffer(o, 2, Product::SigilOled, running, memory);
+    return TurnHubSigil::checkUpdateOffer(o, 2, Product::Sigil, running, memory);
   };
   assert(check(offer).decision == OfferDecision::Accept);
   SigilUpdateOfferPacket other = offer;
@@ -266,9 +263,8 @@ void updateOffers() {
   other.ssid[0] = '\0';
   assert(check(other).decision == OfferDecision::Ignore);  // Malformed.
   other = offer;
-  other.product = static_cast<uint8_t>(Product::SigilEink);
-  assert(check(other).decision == OfferDecision::Refuse &&
-      check(other).error == static_cast<uint8_t>(Error::WrongProduct));
+  other.product = static_cast<uint8_t>(Product::Atlas);
+  assert(check(other).decision == OfferDecision::Ignore);  // Not a Sigil package.
   other = offer;
   other.minor = 7;
   assert(check(other).decision == OfferDecision::Refuse &&

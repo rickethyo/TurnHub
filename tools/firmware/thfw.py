@@ -46,7 +46,7 @@ DESCRIPTOR_MAGIC = b"THFWDSC1"
 HEADER_FORMAT = 1
 HEADER_BYTES = 128
 SIGNED_BYTES = 64
-PRODUCTS = {1: "atlas", 2: "sigil-eink", 3: "sigil-oled"}
+PRODUCTS = {1: "atlas", 2: "sigil"}
 PRODUCT_IDS = {name: pid for pid, name in PRODUCTS.items()}
 # magic, format, product, major, minor, patch, radio, flags, size, hash, build, keyid
 HEADER_STRUCT = struct.Struct("<8sBBBBBBHI32s8s4s")

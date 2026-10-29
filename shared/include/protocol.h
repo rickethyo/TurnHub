@@ -47,14 +47,10 @@ constexpr uint32_t LINK_TIMEOUT_MS = 7000;
 // (InputTiming) and the NeoPixel Jewel status ring it draws itself (LedState).
 // The byte carries only what varies (owner, 2026-09-30).
 //
-// 0x01, 0x02, 0x04, 0x08, 0x20, 0x40 and 0x80 are free (0x40 was the Gen 1
-// spare Sigil and 0x80 its test harness, both on legacy/gen1; 0x01 was the OLED Sigil's
-// five-button d-pad, retired 2026-10-01 when every Sigil got the thumbstick;
-// the others were the feature bits protocol 2 used to announce the baseline).
-//
-// The Sigil has the OLED display (sigil-oled); clear: e-paper. Also picks the
-// OTA package. Both displays seat two players.
-constexpr uint8_t CAPABILITY_DISPLAY_OLED = 0x10;
+// Every bit is free today: the Gen 1 bits (0x01 the OLED Sigil's d-pad, 0x10
+// its OLED display, 0x40 the spare Sigil, 0x80 the test harness) stay on
+// legacy/gen1, and the others were the feature bits protocol 2 used to
+// announce the baseline.
 
 
 // Action-button hold thresholds. Atlas chooses them from the seated players'
@@ -212,7 +208,7 @@ inline bool terminatedWithin(const char *text, size_t capacity) {
 
 inline bool validUpdateOffer(const SigilUpdateOfferPacket &p) {
   return p.version == VERSION && p.type == PacketType::SigilUpdateOffer &&
-      p.sigilId < MAX_SIGILS && p.product >= 2 && p.product <= 3 && p.packageSize > 128 &&
+      p.sigilId < MAX_SIGILS && p.product == 2 && p.packageSize > 128 &&
       p.ssid[0] != '\0' && terminatedWithin(p.ssid, UPDATE_SSID_BYTES) &&
       terminatedWithin(p.password, UPDATE_PASSWORD_BYTES);
 }
@@ -345,9 +341,8 @@ inline bool validGameDisplay(const GameDisplayPacket &p) {
 }
 
 // Profile picker (every Sigil but the test harness). Atlas owns the list, the
-// page and every rule; the Sigil draws the page and reports compass keys. Keys
-// map to fixed places so an e-ink panel redraws once per page, not per cursor
-// move (the OLED shows a list and turns the chosen row into the same key):
+// page and every rule; the Sigil draws the page and reports compass keys,
+// each at a fixed place on the page:
 //   Up, Right, Down: the three names on the page     Left: back / cancel
 //   Select (click): more names (List) or yes (Confirm)
 constexpr uint8_t PICKER_PAGE_ITEMS = 3;

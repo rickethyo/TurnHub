@@ -149,16 +149,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - project: Atlas
-            environment: atlas
-            product: atlas
-          # The ES3C40P S3 Atlas, USB-flashed until S3 OTA lands.
+          # One build per real board. The ES3C40P S3 Atlas, USB-flashed
+          # until S3 OTA lands.
           - project: Atlas
             environment: atlas-s3
-            product: ''
+            product: atlas
+          # The E32R28T touch Sigil stand-in (refuses OTA until the S3 Sigil).
           - project: Sigil
             environment: sigil
-            product: ''
+            product: sigil
     env:
       # Steps are skipped (not the job) when this project is unaffected, so
       # each matrix check still reports under its own name.
@@ -204,7 +203,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/firmware"
           cp "$PIO_PROJECT/.pio/build/$PIO_ENVIRONMENT/firmware.bin" "$RUNNER_TEMP/firmware/"
           cp "$PIO_PROJECT/.pio/build/$PIO_ENVIRONMENT/firmware.elf" "$RUNNER_TEMP/firmware/"
-          if [ "$PIO_ENVIRONMENT" = atlas ]; then
+          if [ "$PIO_ENVIRONMENT" = atlas-s3 ]; then
             cp "$PIO_PROJECT/.pio/build/$PIO_ENVIRONMENT/firmware.map" "$RUNNER_TEMP/firmware/"
             # Preserve paths so same-named framework/project reports don't collide.
             (cd "$PIO_PROJECT/.pio/build/$PIO_ENVIRONMENT" && find . -name '*.su' -print0 |

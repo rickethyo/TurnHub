@@ -5,8 +5,8 @@ Earlier generations are in [Generation History](history/GENERATION_HISTORY.md).
 > **Branches (2026-10-13).** The Gen 1 ESP32 boards (E32R28T Atlas, e-ink and
 > OLED Sigils), their drivers, the Sigil carrier PCB, the 3D enclosures and the
 > board setup/flash scripts live on the `legacy/gen1` branch; fix Gen 1 bugs
-> there. Master builds board-less until the S3 boards
-> ([ESP32-S3 refresh](hardware/ESP32_S3_REFRESH.md)) land.
+> there. Master builds one firmware per real board: the S3 Atlas and the
+> E32R28T touch Sigil stand-in ([ESP32-S3 refresh](hardware/ESP32_S3_REFRESH.md)).
 
 ## Hardware development direction (owner, 2026-10-10)
 
@@ -30,24 +30,23 @@ Atlas's SD card. Android previews provisional 64/128-pixel icon slots for the
 Atlas rendered a small approved RGB332 thumbnail in a 16-pixel slot; the S3
 layouts consume the master rather than enlarging that thumbnail.
 
-## Master's board-less builds (2026-10-13)
+## Master's builds: one per real board (2026-10-29)
 
-Master no longer drives the Gen 1 boards. Their hardware pages (the E32R28T
-Atlas TFT, touch calibration, speaker, battery wiring, the e-ink and OLED
-Sigils, themes on those panels) are on `legacy/gen1`. Until the S3 boards
-land, master builds for a generic 4 MB ESP32 dev board so the engine, radio,
-storage and HTTP API keep compiling for the target:
+Master no longer drives the Gen 1 boards as Gen 1 devices. Their hardware
+pages (the E32R28T Atlas TFT, touch calibration, speaker, battery wiring, the
+e-ink and OLED Sigils, themes on those panels) are on `legacy/gen1`. The
+board-less `atlas` and headless `sigil` builds were removed on 2026-10-29
+(owner: one build per real board):
 
-- **Atlas** (`pio run -e atlas`, `min_spiffs.csv`: two 1.9 MB OTA slots, NVS
-  at `0x9000`). The board boundary is `atlas_board.h`, `atlas_display.h`,
-  `atlas_battery.h` and `atlas_speaker.h`, implemented by
-  `atlas_board_none.cpp`: no screen, no status LED, no speaker, no battery
-  (`present` false). It keeps the saved theme and inversion (`display` NVS
-  namespace) for the next screen. BOOT (GPIO 0) pairs, unpairs all and
-  factory resets (quick, 3 s, 10 s) and wakes from sleep; the microSD card
-  uses the default VSPI pins (18/23/19, CS 5). The touchscreen's screen model
-  and buttons (`touch_controls.cpp`) stay host-tested for the S3 renderer.
-- **Sigil** (`pio run -e sigil`, alias `sigil-e32r28t`, `huge_app.csv`):
+- **Atlas** (`pio run -e atlas-s3`): the 4-inch ES3C40P
+  ([ESP32-S3 refresh](hardware/ESP32_S3_REFRESH.md)), `default_16MB.csv`. The
+  board boundary is `atlas_board.h`, `atlas_display.h`, `atlas_battery.h` and
+  `atlas_speaker.h`: the screen is `atlas_display_s3.cpp`, and
+  `atlas_board_none.cpp` covers the parts without drivers yet (no status LED,
+  speaker or battery; `present` false). BOOT (GPIO 0) pairs, unpairs all and
+  factory resets (quick, 3 s, 10 s) and wakes from sleep; the microSD card is
+  4-bit SDMMC. Pins are in `Atlas/include/config.h`.
+- **Sigil** (`pio run -e sigil`, `huge_app.csv`):
   touchscreen-only E32R28T target with a 240 × 320 portrait ILI9341,
   XPT2046 resistive touch and LVGL. Board pins and drivers are in
   `Sigil/include/sigil_board.h` and `Sigil/src/sigil_board_e32r28t.cpp`.

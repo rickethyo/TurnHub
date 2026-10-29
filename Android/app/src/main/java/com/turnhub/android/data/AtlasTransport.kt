@@ -203,7 +203,7 @@ interface AtlasSessionTransport : AvatarImageTransport {
 
     /**
      * `POST /api/updates/latest` (public): the newest release versions
-     * (`atlas`, `sigilEink`, `sigilOled`), so Atlas can show that an update is
+     * (`atlas`, `sigil`), so Atlas can show that an update is
      * available. Returns how many devices Atlas now counts as behind
      * (`updatesAvailable`). Atlas's refusal is [AtlasFailure.Rejected].
      */

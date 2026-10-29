@@ -441,7 +441,7 @@ class AtlasSetupAssistant(
         host.holdConnection(true)
         try {
             fun show(detail: String) = setUpdates(UpdatesState.Installing(lines.toList(), detail))
-            // One package is staged on Atlas at a time: group by display type.
+            // One package is staged on Atlas at a time, per product.
             for ((product, group) in targets.groupBy { it.product }) {
                 val pkg = group.first().available ?: continue
                 val indexes = group.map { t -> firstLine + targets.indexOf(t) }
@@ -648,7 +648,6 @@ class AtlasSetupAssistant(
                     hardwareId = x.optString("hardwareId"),
                     online = x.optBoolean("online"),
                     firmware = x.optString("firmware"),
-                    display = x.optString("display"),
                     sessionCount = x.optInt("sessionCount"),
                     capabilities = x.optInt("capabilities"),
                 )

@@ -11,11 +11,9 @@ namespace AtlasConfig {
 constexpr size_t LOOP_TASK_STACK_BYTES = 16 * 1024;
 constexpr uint32_t LOOP_STACK_WARNING_BYTES = 3 * 1024;
 
-// Board pins. env:atlas is board-less on a generic ESP32 (the Gen 1 E32R28T
-// pin map lives on legacy/gen1); env:atlas-s3 builds for the 4-inch ES3C40P
-// (TURNHUB_BOARD_ES3C40P; pins from its schematic, see
-// hardware/ESP32_S3_REFRESH.md, not yet bench-verified).
-#if defined(TURNHUB_BOARD_ES3C40P)
+// Board pins of the 4-inch ES3C40P (env:atlas-s3; pins from its schematic,
+// see hardware/ESP32_S3_REFRESH.md). The Gen 1 E32R28T pin map lives on
+// legacy/gen1.
 // microSD over 4-bit SDMMC (the board has no SPI wiring to the slot).
 constexpr int8_t SD_CLK_PIN = 38;
 constexpr int8_t SD_CMD_PIN = 40;
@@ -43,15 +41,6 @@ constexpr int8_t TOUCH_SDA_PIN = 16;
 constexpr int8_t TOUCH_SCL_PIN = 15;
 constexpr int8_t TOUCH_RST_PIN = 18;
 constexpr int8_t TOUCH_INT_PIN = 17;
-#else
-// microSD on the ESP32's default VSPI pins.
-constexpr int8_t SD_SCLK_PIN = 18;
-constexpr int8_t SD_MOSI_PIN = 23;
-constexpr int8_t SD_MISO_PIN = 19;
-constexpr int8_t SD_CS_PIN = 5;
-// Conservative clock for bring-up; raise once cards are proven on the bench.
-constexpr uint32_t SD_SPI_HZ = 4000000;
-#endif
 
 // The board's BOOT button (GPIO0, pulled up, low when pressed). GPIO0 is a
 // strapping pin only at reset, so it is free to use once Atlas is running:

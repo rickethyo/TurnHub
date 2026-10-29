@@ -18,12 +18,12 @@
 
   Atlas firmware includes the admin portal; no separate portal package is built.
 
-.PARAMETER Products  atlas, sigil-eink, sigil-oled. Default: all three.
+.PARAMETER Products  atlas, sigil. Default: both.
 .PARAMETER Key       Path to the PEM key. Default: the single .pem in ..\Private\TurnHub-keys.
 .PARAMETER OutDir    Where packages go. Default: ..\Private\TurnHub-builds\local-<time>-<commit>.
 #>
 param(
-  [string[]]$Products = @('atlas', 'sigil-eink', 'sigil-oled'),
+  [string[]]$Products = @('atlas', 'sigil'),
   [string]$Key,
   [string]$OutDir
 )
@@ -38,13 +38,12 @@ function Fail($message) { Write-Host "`nERROR: $message" -ForegroundColor Red; e
 # `powershell -File ... -Products a,b` delivers one string "a,b": split it.
 $Products = @($Products | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 foreach ($p in $Products) {
-  if ($p -notin 'atlas', 'sigil-eink', 'sigil-oled') { Fail "Unknown product '$p' (atlas, sigil-eink, sigil-oled)." }
+  if ($p -notin 'atlas', 'sigil') { Fail "Unknown product '$p' (atlas, sigil)." }
 }
 
 $map = @{
-  'atlas'      = @{ Dir = 'Atlas'; Env = 'atlas' }
-  'sigil-eink' = @{ Dir = 'Sigil'; Env = 'sigil' }
-  'sigil-oled' = @{ Dir = 'Sigil'; Env = 'sigil-oled' }
+  'atlas' = @{ Dir = 'Atlas'; Env = 'atlas-s3' }
+  'sigil' = @{ Dir = 'Sigil'; Env = 'sigil-e32r28t' }
 }
 
 $pio = (Get-Command pio -ErrorAction SilentlyContinue).Source
