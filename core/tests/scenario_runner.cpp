@@ -133,6 +133,26 @@ int runFile(const std::string &path) {
   return failures;
 }
 
+// The parser takes strict JSON only: what it accepts must dump back as JSON.
+int parserChecks() {
+  int failures = 0;
+  const char *rejected[] = {"NaN", "nan", "inf", "-Infinity", "0x10", "+1", "01", "1.", ".5", "1e", "--1",
+      "\"\\udc00\"", "\"\\ud800\"", "\"\\ud800\\u0041\"", "\"\\u12\"", "1e999"};
+  for (const char *text : rejected) {
+    bool ok = true;
+    Json::parse(text, &ok);
+    if (ok) { std::printf("FAIL parser accepted %s\n", text); ++failures; }
+  }
+  const std::pair<const char *, const char *> accepted[] = {{"-0.5e+2", "-50"}, {"[0,1.25,1E2]", "[0,1.25,100]"},
+      {"\"\\ud83d\\ude00\"", "\"\xF0\x9F\x98\x80\""}};
+  for (const auto &c : accepted) {
+    bool ok = false;
+    const Json value = Json::parse(c.first, &ok);
+    if (!ok || value.dump() != c.second) { std::printf("FAIL parser read %s as %s\n", c.first, value.dump().c_str()); ++failures; }
+  }
+  return failures;
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -147,7 +167,7 @@ int main(int argc, char **argv) {
   }
   std::sort(files.begin(), files.end());
   if (files.empty()) { std::printf("FAIL no scenarios in %s\n", dir.c_str()); return 1; }
-  int failures = 0;
+  int failures = parserChecks();
   for (const auto &f : files) failures += runFile(f);
   std::printf("%zu scenarios, %d failures\n", files.size(), failures);
   return failures ? 1 : 0;

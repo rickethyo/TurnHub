@@ -66,6 +66,7 @@ struct Parser {
   size_t i = 0;
   bool ok = true;
 
+  static bool isDigit(char c) { return c >= '0' && c <= '9'; }
   void ws() { while (i < s.size() && (s[i] == ' ' || s[i] == '\n' || s[i] == '\r' || s[i] == '\t')) ++i; }
   bool eat(char c) { ws(); if (i < s.size() && s[i] == c) { ++i; return true; } return false; }
   bool word(const char *w) { size_t n = 0; while (w[n]) ++n; if (s.compare(i, n, w) == 0) { i += n; return true; } return false; }
@@ -110,9 +111,14 @@ struct Parser {
         case 't': out += '\t'; break;
         case 'u': {
           uint32_t cp = hex4();
-          if (cp >= 0xD800 && cp < 0xDC00 && i + 6 <= s.size() && s[i] == '\\' && s[i + 1] == 'u') {
+          if (!ok) return out;
+          // A surrogate is valid only as a high/low pair; a lone half is not text.
+          if (cp >= 0xDC00 && cp < 0xE000) { ok = false; return out; }
+          if (cp >= 0xD800 && cp < 0xDC00) {
+            if (i + 6 > s.size() || s[i] != '\\' || s[i + 1] != 'u') { ok = false; return out; }
             i += 2;
             const uint32_t lo = hex4();
+            if (!ok || lo < 0xDC00 || lo >= 0xE000) { ok = false; return out; }
             cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
           }
           utf8(cp, out);
@@ -160,11 +166,26 @@ struct Parser {
     if (word("true")) return Json(true);
     if (word("false")) return Json(false);
     if (word("null")) return Json();
-    const char *start = s.c_str() + i;
-    char *end = nullptr;
-    const double d = strtod(start, &end);
-    if (end == start) { ok = false; return Json(); }
-    i += static_cast<size_t>(end - start);
+    // JSON's number grammar only: strtod alone would also take nan, inf, hex,
+    // a leading + or leading zeros, and a NaN would later dump as invalid JSON.
+    const size_t start = i;
+    if (i < s.size() && s[i] == '-') ++i;
+    if (i < s.size() && s[i] == '0') ++i;
+    else if (i < s.size() && s[i] >= '1' && s[i] <= '9') { while (i < s.size() && isDigit(s[i])) ++i; }
+    else { ok = false; return Json(); }
+    if (i < s.size() && s[i] == '.') {
+      ++i;
+      if (i >= s.size() || !isDigit(s[i])) { ok = false; return Json(); }
+      while (i < s.size() && isDigit(s[i])) ++i;
+    }
+    if (i < s.size() && (s[i] == 'e' || s[i] == 'E')) {
+      ++i;
+      if (i < s.size() && (s[i] == '+' || s[i] == '-')) ++i;
+      if (i >= s.size() || !isDigit(s[i])) { ok = false; return Json(); }
+      while (i < s.size() && isDigit(s[i])) ++i;
+    }
+    const double d = strtod(s.substr(start, i - start).c_str(), nullptr);
+    if (!std::isfinite(d)) { ok = false; return Json(); }
     return Json(d);
   }
 };
