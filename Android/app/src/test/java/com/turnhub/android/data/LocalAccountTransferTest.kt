@@ -35,6 +35,7 @@ class LocalAccountTransferTest {
         override suspend fun setTurnTimer(token: String, turnTimerMs: Long): String? = null
         override suspend fun getAccessibility(token: String) = AtlasWireParser.parseAccessibility(Fixtures.text("accessibility.response.json"))
         override suspend fun saveAccessibility(token: String, sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int, lifeApprovalMs: Int) = getAccessibility(token)
+        override suspend fun getPersonalization(token: String) = Personalization("#112233", 0, true)
         override suspend fun savePersonalization(token: String, color: String?, avatar: Int?): Personalization {
             preferenceWrites++
             if (rejectPersonalization) throw AtlasException(AtlasFailure.Rejected("No card"))
@@ -81,6 +82,21 @@ class LocalAccountTransferTest {
     @Test fun `older Atlas assigning a different ID cannot silently establish the wrong link`() = runTest {
         val atlas = Atlas().apply { id = "AABBCCDD" }
         assertTrue(runCatching { LocalAccountTransfer(atlas).verify(player, null, "1234") }.isFailure)
+        assertEquals(1, atlas.logouts)
+    }
+
+    @Test fun `restoring reads the Atlas account's name, look and link key, and needs its PIN`() = runTest {
+        val atlas = Atlas().apply { rejectLogin = true }
+        assertTrue(runCatching { LocalAccountTransfer(atlas).restore("AABBCCDD", "1234") }.isFailure)
+        atlas.rejectLogin = false
+        val restored = LocalAccountTransfer(atlas).restore("AABBCCDD", "1234")
+        assertEquals("AABBCCDD", restored.profileId)
+        assertEquals("Owner", restored.name)
+        assertEquals("#112233", restored.color)
+        assertEquals("none", restored.avatar)
+        assertEquals("0123456789ABCDEF0123456789ABCDEF", restored.linkKey)
+        assertNull(atlas.registration)
+        assertEquals(0, atlas.preferenceWrites)
         assertEquals(1, atlas.logouts)
     }
 }

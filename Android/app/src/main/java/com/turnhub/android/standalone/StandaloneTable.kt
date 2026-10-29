@@ -267,6 +267,27 @@ class StandaloneTable(
     }
 
     /** Called only after Atlas creation or credential verification; never from a name match. */
+    /**
+     * Brings an Atlas account back onto this device (a fresh install or a new phone): same
+     * profile ID, Atlas's name and look, linked with [linkKey] so profile sync takes over.
+     * [credential] is the PIN or password just checked by Atlas. Refused if it's already here.
+     */
+    fun restoreAccount(atlasId: String, profileId: String, name: String, look: LocalPersonalization,
+                       linkKey: String?, credential: LocalCredential): Boolean {
+        val before = _state.value
+        val clean = name.trim().take(StandaloneGame.MAX_NAME)
+        if (atlasId.isBlank() || clean.isBlank() || !LocalProfileIds.valid(profileId) ||
+            (linkKey != null && !linkKey.matches(Regex("[0-9A-F]{32}"))) ||
+            before.library.players.any { it.profileId == profileId || it.links.any { l -> l.atlasId == atlasId && l.profileId == profileId } })
+            return false
+        // Never edited here (0), and already matching Atlas's copy, so the first sync changes nothing.
+        val player = SavedLocalPlayer(newId(), clean, profileId, look.copy(image = null, thumbnail = null),
+            listOf(AtlasProfileLink(atlasId, profileId, linkKey)), credential)
+        val saved = publish(before.copy(library = before.library.copy(players = before.library.players + player)))
+        if (saved) unlockedAccounts += player.localId
+        return saved
+    }
+
     fun linkAccount(localId: String, atlasId: String, profileId: String, linkKey: String? = null): Boolean {
         val before = _state.value
         if (atlasId.isBlank() || !LocalProfileIds.valid(profileId) || before.library.players.none { it.localId == localId } ||

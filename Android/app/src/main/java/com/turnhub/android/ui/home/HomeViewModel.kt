@@ -170,6 +170,41 @@ class HomeViewModel(
     }
 
     /**
+     * Gets an Atlas account onto this phone (a fresh install or a new device): checks its
+     * PIN on Atlas, recreates it here under the same ID and links it; profile sync and the
+     * Atlas totals take over from there.
+     */
+    fun onRestoreAccount(profileId: String, secret: String) {
+        val summary = repository.tableSummary.value ?: return
+        val endpoint = repository.endpoint.value ?: return
+        val table = standalone ?: return
+        if (localImportJob?.isActive == true || repository.connectionState.value != AtlasConnectionState.CONNECTED) return
+        val fallbackName = _localImport.value.profiles.firstOrNull { it.profileId == profileId }?.name.orEmpty()
+        _localImport.value = _localImport.value.copy(busy = true, message = null)
+        localImportJob = viewModelScope.launch {
+            try {
+                val restored = playerSession.restoreAccount(endpoint, profileId, secret)
+                val credential = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    com.turnhub.android.standalone.LocalCredential.create(secret) }
+                if (repository.tableSummary.value?.atlasId != summary.atlasId || repository.endpoint.value != endpoint) return@launch
+                val look = com.turnhub.android.standalone.LocalPersonalization(color = restored.color, avatar = restored.avatar,
+                    reduceMotion = restored.reduceMotion)
+                val name = restored.name.ifBlank { fallbackName }
+                if (!table.restoreAccount(summary.atlasId, restored.profileId, name, look, restored.linkKey, credential)) {
+                    _localImport.value = _localImport.value.copy(message = "Could not add this account here, or it's already on this device.")
+                    return@launch
+                }
+                _localImport.value = _localImport.value.copy(message = "$name is on this device again, with their totals from this Atlas.")
+                syncLinkedProfiles(summary, endpoint)
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) {
+                _localImport.value = _localImport.value.copy(message = (e as? AtlasException)?.failure?.userMessage
+                    ?: (e as? IllegalArgumentException)?.message ?: "Could not get the account from Atlas.")
+            } finally { _localImport.value = _localImport.value.copy(busy = false) }
+        }
+    }
+
+    /**
      * "Bring players to this table": puts each local account that isn't on
      * this Atlas yet there under its own ID and links it, then sends their
      * games. PIN-less accounts go together on the signed-in session (Atlas

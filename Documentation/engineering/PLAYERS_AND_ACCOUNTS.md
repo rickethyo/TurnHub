@@ -256,6 +256,15 @@ all exact profile identities before crediting a new record. Existing session
 sign-in is still required; profile linking does not itself grant permissions.
 See [import contract](../../protocol/http-v1.md#standalone-tablet-game-import-2026-10-07).
 
+**Getting an account back from Atlas** (owner, 2026-10-29; *implemented, JVM
+tests only*): after a reinstall or on a new phone, Players lists the loaded
+Atlas accounts that aren't on the device ("Get my account from this Atlas").
+Atlas checks the account's PIN; the app recreates it under the same profile
+ID with Atlas's name and look, a verifier for that PIN and a link key, so
+profile sync and the Atlas totals take over. Atlas keeps totals, not match
+records, so the phone's own match history does not come back. PIN-less
+Atlas accounts need a PIN set on Atlas first.
+
 ## Device Admin account (owner, 2026-10-29)
 
 *Implemented in the app; host/JVM tests only, device checks open.* Every

@@ -1454,3 +1454,14 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
   The lobby picker now offers it only when `BuildConfig.DEBUG` (Preview and
   debug builds). Its code still ships; moving it to a local-only module or
   flavor is next. Not yet built (no Android SDK in the container); CI checks it.
+
+### Device Admin for existing setups; getting an account back from Atlas / Claude / 2026-10-29
+
+- First-launch Admin prompt can promote an account already on the device
+  (`StandaloneTable.promoteToDeviceAdmin`), for installs from before Admin accounts.
+- Owner: after a reinstall or on a new phone, accounts saved on an Atlas come
+  back "like nothing happened". Players, "Get my account from this Atlas":
+  `LocalAccountTransfer.restore` signs in with the PIN, reads name, look and a
+  link key; `StandaloneTable.restoreAccount` recreates it under the same ID.
+  Totals come from profile sync; local match history does not (Atlas keeps
+  totals only). JVM tests added; CI is the first build.
