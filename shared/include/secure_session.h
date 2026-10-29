@@ -5,7 +5,7 @@
 // pair key and both sides' random nonces, then every packet travels sealed in
 // a Channel (secure_link.h). A packet recorded in an earlier session never
 // opens in a later one. Pure logic over the Crypto interface, shared by both
-// firmwares, the TestHarness and the Wokwi fake Atlas; host-tested.
+// firmwares; host-tested.
 
 #include <stddef.h>
 #include <stdint.h>
