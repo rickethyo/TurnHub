@@ -35,8 +35,8 @@ layouts consume the master rather than enlarging that thumbnail.
 Master no longer drives the Gen 1 boards as Gen 1 devices. Their hardware
 pages (the E32R28T Atlas TFT, touch calibration, speaker, battery wiring, the
 e-ink and OLED Sigils, themes on those panels) are on `legacy/gen1`. The
-board-less `atlas` and headless `sigil` builds were removed on 2026-10-29
-(owner: one build per real board):
+headless Sigil (2026-10-28) and the board-less classic `atlas` build
+(2026-10-29) were removed; the owner wants one build per real board:
 
 - **Atlas** (`pio run -e atlas-s3`): the 4-inch ES3C40P
   ([ESP32-S3 refresh](hardware/ESP32_S3_REFRESH.md)), `default_16MB.csv`. The
