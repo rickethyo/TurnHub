@@ -313,11 +313,14 @@ bool readRaw(uint16_t &x, uint16_t &y) {
 
 void loadCalibration() {
   Preferences prefs;
-  if (!prefs.begin(CAL_NAMESPACE, true)) return;
   TouchCalibration saved;
-  const bool ok = prefs.getBytesLength(CAL_KEY) == sizeof(saved) &&
-      prefs.getBytes(CAL_KEY, &saved, sizeof(saved)) == sizeof(saved) && validTouchCalibration(saved);
-  prefs.end();
+  // A board never calibrated has no namespace yet: read-only begin fails.
+  bool ok = prefs.begin(CAL_NAMESPACE, true);
+  if (ok) {
+    ok = prefs.getBytesLength(CAL_KEY) == sizeof(saved) &&
+        prefs.getBytes(CAL_KEY, &saved, sizeof(saved)) == sizeof(saved) && validTouchCalibration(saved);
+    prefs.end();
+  }
   if (ok) touchCal = saved;
   Serial.printf("SIGIL|TOUCH|CALIBRATION|%s|swap=%u|x=%d..%d|y=%d..%d\n", ok ? "SAVED" : "DEFAULT",
       static_cast<unsigned>(touchCal.swapXY), touchCal.xAtFirst, touchCal.xAtLast, touchCal.yAtFirst,
