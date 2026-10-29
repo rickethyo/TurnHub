@@ -142,8 +142,14 @@ fun HomeScreen(
     tabletActions: com.turnhub.android.ui.tablet.TabletActions = com.turnhub.android.ui.tablet.TabletActions(),
     onFollowGame: (Int) -> Unit = {},
     onAtlasOpened: () -> Unit = {},
-    /** The device game's Game page; openTable switches to the Table tab, openPlanes to the Planes tab. */
-    localGameContent: @Composable (openTable: () -> Unit, openPlanes: () -> Unit) -> Unit = { _, _ -> },
+    /**
+     * The device game's Game page around [running], the shared Game tab drawn
+     * for it once it starts; the lobby before. openTable switches to the
+     * Table tab, openPlanes to the Planes tab.
+     */
+    localGameContent: @Composable (openTable: () -> Unit, openPlanes: () -> Unit, running: @Composable () -> Unit) -> Unit = { _, _, _ -> },
+    /** Plays the device game full screen. */
+    onPlayOnDevice: () -> Unit = {},
     /** The device game's table, in the Table tab; onSetUp returns to Game. */
     localTableContent: @Composable (onSetUp: () -> Unit, onOpenPlanes: () -> Unit) -> Unit = { _, _ -> },
     requestedTab: String? = null,
@@ -195,7 +201,21 @@ fun HomeScreen(
     val canSettings = info?.has(com.turnhub.android.protocol.AccountPermission.ADMIN) == true
     val canPeople = canSettings || info?.has(com.turnhub.android.protocol.AccountPermission.GAME_MASTER) == true
     val canDev = info?.has(com.turnhub.android.protocol.AccountPermission.DEVELOPER) == true
-    var atlasGame by rememberSaveable { mutableStateOf(false) }
+    // One Game tab: Atlas's game or this device's, never both side by side.
+    var chosenSource by rememberSaveable { mutableStateOf<GameSource?>(null) }
+    // A finished device game keeps the tab until the next one is set up, so its results stay in view.
+    val deviceUnderway = localState.game.state != TableState.LOBBY
+    val source = gameSource(atlasTable = summary != null, seatedAtAtlas = me != null,
+        deviceGameUnderway = deviceUnderway, chosen = chosenSource)
+    val atlasGame = source == GameSource.ATLAS
+    val deviceSummary = androidx.compose.runtime.remember(localState.game, localState.library.players) {
+        localState.game.toSummary(System.currentTimeMillis(), com.turnhub.android.domain.TableClock.nowMs(),
+            localState.library.players.associate { it.localId to it.personalization })
+    }
+    val deviceGameActions = GameActions(
+        onOpenTablet = onPlayOnDevice,
+        onEliminationRule = { field, value -> localTable?.changeEliminationRule(field, value) },
+    )
     val planes = localState.game.profile.magicRules
     // Atlas doesn't run Death May Die, so the tab is for this device's own game only.
     val elderOne = localState.game.profile.deathMayDie && !atlasGame
@@ -321,18 +341,21 @@ fun HomeScreen(
             }
         },
     ) { innerPadding ->
+        val shownGame = if (atlasGame) summary else deviceSummary
         val nowMs = rememberNowMs(
-            ticking = summary != null &&
-                (summary.state == TableState.RUNNING || summary.pending.passPlayer != null ||
-                    summary.players.any { it.lifeRequest?.state == LifeRequestState.PENDING }),
+            ticking = shownGame != null &&
+                (shownGame.state == TableState.RUNNING || shownGame.pending.passPlayer != null ||
+                    shownGame.players.any { it.lifeRequest?.state == LifeRequestState.PENDING }),
         )
         val labels = summary?.players?.associate { it.playerNumber to it.label }.orEmpty()
         val labelFor: (Int) -> String = { number -> labels[number] ?: "Player $number" }
         Column(Modifier.fillMaxSize().padding(innerPadding)) {
             if (!setup.visible && tab == HomeTab.GAME && summary != null) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    androidx.compose.material3.FilterChip(!atlasGame, { atlasGame = false }, label = { Text("This device") })
-                    androidx.compose.material3.FilterChip(atlasGame, { atlasGame = true; onAtlasOpened() }, label = { Text("Atlas") })
+                GameSourceSwitch(source, otherUnderway = if (atlasGame) deviceUnderway else summary.state.underway(),
+                    shownInLobby = (if (atlasGame) summary.state else localState.game.state) in listOf(TableState.LOBBY, TableState.GAME_OVER),
+                    seatedAtAtlas = me != null) { next ->
+                    chosenSource = next
+                    if (next == GameSource.ATLAS) onAtlasOpened()
                 }
             }
             if (!setup.visible && tab == HomeTab.PLAYERS && summary != null) {
@@ -372,7 +395,12 @@ fun HomeScreen(
                         !setup.visible && shown == HomeTab.PLANES -> localPlanesContent()
                         !setup.visible && shown == HomeTab.ELDER -> localElderContent()
                         !setup.visible && shown == HomeTab.PLAYERS && (summary == null || playersPage == "Device") -> localPlayersContent()
-                        !setup.visible && shown == HomeTab.GAME && (summary == null || !atlasGame) -> localGameContent({ tab = HomeTab.TABLE }, { tab = HomeTab.PLANES })
+                        !setup.visible && shown == HomeTab.GAME && !atlasGame -> localGameContent({ tab = HomeTab.TABLE }, { tab = HomeTab.PLANES }) {
+                            val labelFor: (Int) -> String = { n -> deviceSummary.players.firstOrNull { it.playerNumber == n }?.label ?: "Player $n" }
+                            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
+                                GameTab(uiState, deviceSummary, nowMs, reduceMotion, deviceGameActions, labelFor, GameSource.DEVICE)
+                            }
+                        }
                         else -> Column(
                             Modifier.widthIn(max = 720.dp).fillMaxWidth()
                                 .verticalScroll(rememberScrollState()).padding(16.dp),
@@ -390,7 +418,7 @@ fun HomeScreen(
                                 HomeTab.GAME -> if (summary != null) {
                                     GameSelector(summary, onFollowGame, enabled = !uiState.isOffline && uiState.player?.busy != true && seatClaim?.waiting != true)
                                     if (updatesAvailable > 0) UpdateAvailableCard(updatesAvailable, onOpenUpdates)
-                                    GameTab(uiState, summary, nowMs, reduceMotion, gameActions.copy(onOpenTablet = { showTablet = true }), labelFor)
+                                    GameTab(uiState, summary, nowMs, reduceMotion, gameActions.copy(onOpenTablet = { showTablet = true }), labelFor, GameSource.ATLAS)
                                 }
                                 HomeTab.PLAYERS -> if (summary != null) {
                                     if (playersPage == "Me") {
@@ -678,3 +706,27 @@ private fun ErrorCard(message: String, detail: String?, retrying: Boolean, onOpe
     }
 }
 
+/**
+ * One line over the Game tab while an Atlas is in reach: says where the game
+ * runs and offers the other only when it makes sense (setting up or done
+ * here, or a game already under way there), so a game isn't left by accident.
+ */
+@Composable
+private fun GameSourceSwitch(source: GameSource, otherUnderway: Boolean, shownInLobby: Boolean, seatedAtAtlas: Boolean,
+    onChoose: (GameSource) -> Unit) {
+    val p = palette
+    val atlas = source == GameSource.ATLAS
+    val offer = otherUnderway || (shownInLobby && !(atlas && seatedAtAtlas))
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(if (atlas) "Playing at the Atlas table" else "Playing on this device", color = p.muted,
+            style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        if (offer) TextButton(onClick = { onChoose(if (atlas) GameSource.DEVICE else GameSource.ATLAS) }) {
+            Text(when {
+                atlas && otherUnderway -> "Back to this device's game"
+                atlas -> "Play on this device"
+                otherUnderway -> "Back to the Atlas game"
+                else -> "Play at Atlas"
+            })
+        }
+    }
+}

@@ -49,9 +49,11 @@ countdown; clocks start after it finishes. Back to setup returns to Game,
 including from the full-screen table. The engine is `standalone/Planechase.kt`, and
 `PlanechaseScenarioTest` runs the shared scenarios in
 `protocol/scenarios/planechase/`. A finished phone-hosted Star game also offers Sean Mode, a rematch that
-reseats the five players so allies become enemies. Game shows local
-setup or the same stage/life overview used for connected play; when Atlas is
-available, This device and Atlas select which game is shown. Players keeps local
+reseats the five players so allies become enemies. Game is one tab
+(`GameTab`) for either game source: Atlas's game when connected, unless the
+device already has one under way (`gameSource`), with a switch while setting
+up. A device game shows its local setup, then the same stage/life overview
+and game settings as connected play, without the per-seat Atlas controls. Players keeps local
 profiles available and adds Table and Me sections when connected. History keeps
 local results and Atlas import controls. Settings contains appearance, reduced
 motion, sound and Atlas connection; authorized administration and developer

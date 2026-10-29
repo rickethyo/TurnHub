@@ -327,7 +327,7 @@ An Atlas lets every player use their own phone, adds Sigils and the Atlas screen
 
 Open **Settings > Atlas connection** and choose **Connect**. The app joins the Atlas's Wi-Fi network (TurnHub-Atlas) by itself: it tries a saved password, then the default TurnHub-Setup, and asks only if neither works. Allow **Nearby devices** when Android asks; without it Android blocks the connection. A new Atlas shows **Welcome to TurnHub**; tap **Set up a new table** in the app and follow the steps (the Hardware Manual describes them).
 
-Atlas discovery stays on in the background and reconnects to a known Atlas when the phone is on its network. Turning it off disconnects. With an Atlas connected, **Game** lets you choose **This device** or **Atlas**, and Players adds Table and Me sections.
+Atlas discovery stays on in the background and reconnects to a known Atlas when the phone is on its network. Turning it off disconnects. **Game** is one tab whichever runs the game. With an Atlas connected it shows the Atlas table's game, unless this device already has a game under way; a line at the top says where you are playing and, while setting up (or when the other has a game going), offers to switch. Players adds Table and Me sections.
 
 ## Your Atlas Account
 

@@ -151,6 +151,31 @@ internal fun HomeUiState.me(): TablePlayer? {
     return tableSummary.players.firstOrNull { it.playerNumber == info.playerNumber }
 }
 
+/** Who decides the game the Game tab shows: Atlas, or this device. */
+enum class GameSource { DEVICE, ATLAS }
+
+/**
+ * The one game the Game and Table tabs show. Without an Atlas it is this
+ * device's; with one, Atlas runs it unless this device already has a game
+ * under way and the player isn't seated at Atlas. [chosen] is the player's
+ * own pick from the Game tab and wins while an Atlas is there.
+ */
+fun gameSource(atlasTable: Boolean, seatedAtAtlas: Boolean, deviceGameUnderway: Boolean, chosen: GameSource?): GameSource = when {
+    !atlasTable -> GameSource.DEVICE
+    chosen != null -> chosen
+    deviceGameUnderway && !seatedAtAtlas -> GameSource.DEVICE
+    else -> GameSource.ATLAS
+}
+
+/** A game that is being played (not being set up or finished). */
+fun TableState.underway(): Boolean = this == TableState.STARTING || this == TableState.RUNNING || this == TableState.PAUSED
+
+/**
+ * The Game tab, for whichever [source] runs the game: both arrive as a
+ * [TableSummary] with [GameActions]. Seats, life requests and per-player
+ * controls exist only at Atlas, where this phone is one player's controller;
+ * a device game is played from its table, so here it shows the overview.
+ */
 @Composable
 fun GameTab(
     uiState: HomeUiState,
@@ -159,8 +184,11 @@ fun GameTab(
     reduceMotion: Boolean,
     actions: GameActions,
     labelFor: (Int) -> String,
+    source: GameSource = GameSource.ATLAS,
 ) {
-    val me = uiState.me()
+    val atlas = source == GameSource.ATLAS
+    val me = if (atlas) uiState.me() else null
+    val busy = atlas && uiState.player?.busy == true
     val p = palette
     var bagPrompt by com.turnhub.android.ui.tablet.rememberBagPromptState(summary)
     val bag = summary.doomBag
@@ -171,7 +199,7 @@ fun GameTab(
             actions.onResolveElimination(pendingSource.playerNumber, source,
                 com.turnhub.android.protocol.GameActionToken(summary.bootId, summary.revision, bag?.cycle ?: 0, summary.game))
         }, onCancel = { sourceOpen = false })
-    if (pendingSource == null && bag != null && summary.state in listOf(TableState.RUNNING, TableState.PAUSED) &&
+    if (atlas && pendingSource == null && bag != null && summary.state in listOf(TableState.RUNNING, TableState.PAUSED) &&
         bagPrompt.shouldShow(bag)) {
         fun closeBag() { bagPrompt = bagPrompt.dismiss(bag) }
         com.turnhub.android.ui.tablet.DoomBagDialog(summary, me != null && !me.eliminated && uiState.player?.busy != true,
@@ -182,22 +210,22 @@ fun GameTab(
     }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         StageCard(summary, me?.playerNumber, nowMs, labelFor, reduceMotion)
-        IncomingLifeRequest(summary, me, nowMs, labelFor, actions)
-        if (pendingSource != null) BrassCard {
+        if (atlas) IncomingLifeRequest(summary, me, nowMs, labelFor, actions)
+        if (atlas && pendingSource != null) BrassCard {
             Text("Elimination source needed · ${pendingSource.label}", color = p.text, style = MaterialTheme.typography.titleMedium)
             ToneButton("Eliminated by?", { sourceOpen = true }, Modifier.fillMaxWidth(), enabled = me != null)
         }
-        summary.doomBag?.let { bag ->
+        summary.doomBag?.takeIf { atlas }?.let { bag ->
             BrassCard {
                 Text(if (bag.pending) "Bag check due" else "Bag of Doom", color = p.text, style = MaterialTheme.typography.titleMedium)
                 ToneButton("Open bag", { if (pendingSource != null) sourceOpen = true else bagPrompt = bagPrompt.open() }, Modifier.fillMaxWidth())
             }
         }
-        SeatCard(uiState, summary, me, actions, reduceMotion)
+        if (atlas) SeatCard(uiState, summary, me, actions, reduceMotion)
         if (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED ||
             summary.state == TableState.GAME_OVER
         ) {
-            LifeCard(summary, me, nowMs, labelFor, actions, busy = uiState.player?.busy == true, reduceMotion = reduceMotion)
+            LifeCard(summary, me, nowMs, labelFor, actions, busy = busy, reduceMotion = reduceMotion)
         }
         if (me != null && summary.settings.profile.commanderRules &&
             (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)
@@ -220,7 +248,7 @@ fun GameTab(
                 if (editing) {
                     MagicCountersEditor(me.counters, summary.initiativePlayerNumber == me.playerNumber,
                         summary.settings.profile.commanderRules,
-                        enabled = !me.eliminated && uiState.player?.busy != true && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null,
+                        enabled = !me.eliminated && !busy && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null,
                         commanderName = me.namedCommander,
                         commanderRarity = com.turnhub.android.ui.tablet.rememberCommanderArt(me.namedCommander, me.commanderArt)?.rarity,
                         // Treasure and rad, where Atlas reports them (with day/night).
@@ -238,11 +266,11 @@ fun GameTab(
         if (showSettings) {
             GameSettingsScreen(onClose = { showSettings = false }) {
                 // Format, life, timer and teams are chosen in the lobby; Atlas keeps them fixed during a game.
-                if (summary.state == TableState.LOBBY) SetupCard(summary, uiState.gameSettings, me != null, actions)
-                if (me != null && (summary.state == TableState.LOBBY || summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)) {
+                if (atlas && summary.state == TableState.LOBBY) SetupCard(summary, uiState.gameSettings, me != null, actions)
+                if ((me != null || !atlas) && (summary.state == TableState.LOBBY || summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)) {
                     BrassCard {
                         EliminationRulesEditor(summary.settings,
-                            enabled = uiState.player?.busy != true && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null,
+                            enabled = !busy && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null,
                             onChange = actions.onEliminationRule)
                     }
                 } else {
@@ -253,19 +281,6 @@ fun GameTab(
             }
         }
 
-    }
-}
-
-/** Device games use the same stage and life overview as connected games. */
-@Composable
-fun DeviceGameOverview(summary: TableSummary, reduceMotion: Boolean, onOpenTable: () -> Unit) {
-    val now = com.turnhub.android.ui.components.rememberNowMs(ticking = summary.state == TableState.RUNNING)
-    val labelFor: (Int) -> String = { number -> summary.players.firstOrNull { it.playerNumber == number }?.label ?: "Player $number" }
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        StageCard(summary, null, now, labelFor, reduceMotion)
-        AccentButton("Open table", onOpenTable, Modifier.fillMaxWidth())
-        LifeCard(summary, null, now, labelFor, GameActions(), busy = false, reduceMotion = reduceMotion)
     }
 }
 
