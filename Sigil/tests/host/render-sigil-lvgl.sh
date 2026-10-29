@@ -17,7 +17,7 @@ while IFS= read -r src; do
   [ "$obj" -nt "$src" ] || gcc -O1 -c "${defs[@]}" "${cincs[@]}" "$src" -o "$obj"
   objs+=("$obj")
 done < <(find "$lvgl/src" -name '*.c' | sort)
-for font in eyebrow_13 semi_16 semi_20 bold_28 num_40 num_64; do
+for font in eyebrow_13 semi_16 semi_20 bold_28 num_40 num_64 icons; do
   src=../../../LVGL/assets/th_$font.c
   obj="$out/lvgl/th_$font.o"
   [ "$obj" -nt "$src" ] || gcc -O1 -c "${defs[@]}" "${cincs[@]}" "$src" -o "$obj"
