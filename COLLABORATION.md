@@ -1398,3 +1398,27 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   cut between the two saves leaves totals on both accounts (no durable merge
   record yet). Host scenario covers rules, sums, redirect and import dedupe;
   App Manual and http-v1 updated. No hardware run.
+
+### Atlas and Sigil visual sweep toward the app / Claude / 2026-10-29
+
+Owner asked for the device screens to look and flow more like the current
+Android app, with free rein. Presentation only; no Intent, protocol or state
+changes.
+- Icons: `LVGL/tools/generate_icons.py` re-run (adds table, cards, commander,
+  bug); both firmwares and both preview renderers link `th_icons.c`.
+- Atlas (`atlas_screen_lvgl.cpp`): app navigation bar (icon over label, soft
+  accent pill on the chosen tab); full-width body buttons drawn as one inset
+  grouped list (tinted icon tile, value/Hold/check/chevron, lock for PIN
+  profiles, subtitles on Home); bottom-row buttons are filled primary, tonal
+  accent or critical with a leading icon; the game hero shows the app's turn
+  ring around the clock; a pass slides a turn-coloured banner across on
+  LVGL's top layer (the hero title says the same, so it is not the only cue).
+- Sigil (`sigil_display_lvgl.cpp`): same tab bar and button styles, a large
+  header title, My player on a seat panel that glows in the turn colour, a
+  "Your turn" banner when the Sigil becomes active, grouped-list rows on Home
+  and the profile picker, initials on Table rows. Home's two rows now split
+  150-260 px evenly (touch targets 55 px each).
+- Validation: Linux host suites (Atlas, Sigil) pass; previews rendered with
+  `render-atlas-lvgl.sh` / `render-sigil-lvgl.sh` (new turn-banner frames).
+  Board look and animation smoothness on the classic-ESP32 Sigil need an
+  on-device check.
