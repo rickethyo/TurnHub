@@ -6,17 +6,13 @@
 
 namespace TurnHubSigil {
 
-// Life shown over the game screen: a change not yet sent (the e-ink leaves
-// that to the status ring), and a life request waiting for this Sigil's
-// answer (Right approves, Left denies). Also carries the other game-screen
-// extras Atlas sends outside GameDisplay: the starting life and a pending
-// pass.
+// Life adjustment preview and requests supplied by Atlas, plus game-screen extras.
 struct LifeOverlay {
   uint8_t avatar[2] = {0, 0};  // Seat A and B preset avatars (SeatColor).
   int32_t pending = 0;
   uint8_t pendingPlayer = 0;
   TurnHubProtocol::LifeRequestFields request;  // target 0 = none
-  int32_t startingLife = 0;  // StartingLife: sizes the heart (life_heart.h).
+  int32_t startingLife = 0;  // StartingLife supplied by Atlas.
   // Atlas offers Cancel pass: this Sigil's pass is in its grace period.
   bool passPending = false;
   // PassPending: the player whose pass is pending anywhere at the table (0 =
@@ -71,37 +67,27 @@ class SigilDisplay {
   // A firmware update (FIRMWARE_UPDATES.md): what is happening in words, and the
   // percent downloaded (or -1). Replaces every other screen, with no menu.
   virtual void showUpdate(const char *status, int8_t percent) = 0;
-  // Device menu Sleep: the last screen before deep sleep, saying how to wake
-  // (a joystick click). The e-ink keeps it unpowered; the OLED shows it
-  // briefly, then switches its panel off. Nothing is drawn after it.
-  virtual void showSleeping() {}
   virtual bool setSeatName(uint8_t slot, const char *name) = 0;
   virtual void showGame(const TurnHubProtocol::GameDisplayPacket &snapshot) = 0;
   virtual void showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
       uint8_t primaryPlayer, uint8_t secondaryPlayer, uint8_t turnNumber,
       uint8_t flags) = 0;
 
-  // The profile picker page (see ProfilePickerPacket). It replaces every
-  // other screen while Atlas keeps it open. cursor is the OLED list row
-  // (picker_list.h); the e-ink compass ignores it.
+  // Atlas-owned modal pages replace the normal game screen.
   virtual void showCommander(const TurnHubProtocol::CommanderFlowPacket &page) { (void)page; }
   virtual void showPicker(const TurnHubProtocol::ProfilePickerPacket &page, uint8_t cursor) {
     (void)page; (void)cursor;
   }
 
-  // The action menu drawn with the next screen: the key legend (the OLED
-  // shows it a line at a time), or the device menu (the OLED's scrolling
-  // list) while it is open. Set by the display task before show*().
+  // Display task snapshot of the touch action labels and hold progress.
   void setMenuView(const MenuView &view) { menu_ = view; }
   const MenuView &menuView() const { return menu_; }
   void setLifeOverlay(const LifeOverlay &life) { life_ = life; }
 
-  // Deferred panel upkeep (the e-ink's clean-up refresh after partial
-  // updates): milliseconds until idleWork() is due, or UINT32_MAX for none.
-  // The display task wakes for it; both run on the display task.
+  // LVGL timers and pressed-button feedback run on the display task.
   virtual uint32_t idleWorkDueInMs(uint32_t nowMs) const { (void)nowMs; return UINT32_MAX; }
   virtual void idleWork(uint32_t nowMs) { (void)nowMs; }
-  // A bench serial command for the display ("epd ..."); true if handled.
+  // A bench serial command for the display; true if handled.
   virtual bool handleCommand(const char *line) { (void)line; return false; }
 
  protected:

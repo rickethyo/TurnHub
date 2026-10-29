@@ -25,7 +25,7 @@ inline CommanderFlowView commanderFlowView(const TurnHubProtocol::CommanderFlowP
     char totals[48];
     snprintf(totals,sizeof(totals),"Life %ld -> %ld",static_cast<long>(p.life),static_cast<long>(p.life-amount));
     if (strlen(totals)<22) snprintf(v.lines[2],sizeof(v.lines[2]),"%.21s",totals);
-    // Keep numeric bounds readable on the 21-column OLED.
+    // Keep numeric bounds readable in compact touch labels.
     if (strlen(totals)>=22) snprintf(v.lines[2],sizeof(v.lines[2]),"Life after: %ld",static_cast<long>(p.life-amount));
     snprintf(totals,sizeof(totals),"Cmd %ld -> %ld",static_cast<long>(p.damage),static_cast<long>(p.damage+amount));
     if (strlen(totals)<22) snprintf(v.lines[3],sizeof(v.lines[3]),"%.21s",totals);

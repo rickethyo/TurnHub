@@ -148,7 +148,7 @@ lv_obj_t *LvglSigilDisplay::frame(const char *title, uint8_t sigilId, uint8_t tu
     snprintf(t, sizeof(t), "TURN %u", static_cast<unsigned>(turn));
     text(bar, t, &th_eyebrow_13, pal().textSecondary, W - 80, 8, 80 - M, LV_TEXT_ALIGN_RIGHT);
   }
-  if (const char *update = updateNoticeText(life_.update)) {
+  if (const char *update = menu_.holdPercent || menu_.pairPercent ? nullptr : updateNoticeText(life_.update)) {
     text(screen, update, &th_eyebrow_13, pal().info, M, PAD_TOP - 16, W - 2 * M, LV_TEXT_ALIGN_CENTER);
   }
   return screen;
@@ -186,6 +186,17 @@ void LvglSigilDisplay::pad(const PadLabels &labels) {
     if (note) text(b, note, &th_eyebrow_13, accent ? pal().onAccent : pal().textSecondary, 4, top + lh, r.w - 8,
         LV_TEXT_ALIGN_CENTER);
   }
+  const uint8_t progress = menu_.pairPercent ? menu_.pairPercent : menu_.holdPercent;
+  if (progress) {
+    char caption[40];
+    snprintf(caption, sizeof(caption), "%s %u%%", menu_.pairPercent ? "Hold to pair" : "Keep holding",
+        static_cast<unsigned>(progress));
+    text(screen, caption, &th_eyebrow_13, pal().accent, M, PAD_TOP - 22, W - 2 * M, LV_TEXT_ALIGN_CENTER);
+    lv_obj_t *track = box(screen, M, PAD_TOP - 7, W - 2 * M, 4);
+    card(track, pal().fillStrong, pal().fillStrong, 2);
+    lv_obj_t *fill = box(track, 0, 0, (W - 2 * M) * progress / 100, 4);
+    card(fill, pal().accent, pal().accent, 2);
+  }
   setPressedKey(pressed_);
 }
 
@@ -200,7 +211,7 @@ void LvglSigilDisplay::setPressedKey(Key key) {
   }
 }
 
-// The menu view's keys, as the e-ink legend names them.
+// Current action labels for the touch buttons.
 PadLabels LvglSigilDisplay::menuLabels() const {
   PadLabels l;
   if (!menu_.active) return l;
@@ -211,6 +222,9 @@ PadLabels LvglSigilDisplay::menuLabels() const {
     if (menuActionNeedsHold(action)) l.note[i] = "HOLD";
   }
   const uint8_t left = static_cast<uint8_t>(Key::Left), right = static_cast<uint8_t>(Key::Right);
+  if (menu_.pairPercent) {
+    l.note[static_cast<uint8_t>(Key::Select)] = "HOLD TO PAIR";
+  }
   if (lifeRequestShown()) {
     l.text[left] = "Deny";
     l.text[right] = "Approve";
@@ -259,11 +273,12 @@ void LvglSigilDisplay::showBooting() { statusScreen("Starting", "Looking for Atl
 void LvglSigilDisplay::showUnpaired() {
   if (drawDeviceMenu(0xFF)) return;
   PadLabels l = menuLabels();
-  // Holding the click opens pairing while unpaired (main.cpp's joystick hold).
-  l.text[static_cast<uint8_t>(Key::Select)] = "Pair";
+  // Hold the on-screen Pair button to open pairing while unpaired.
+  l.text[static_cast<uint8_t>(Key::Select)] = menu_.pairing ? nullptr : "Pair";
   l.note[static_cast<uint8_t>(Key::Select)] = "HOLD";
   l.accent[static_cast<uint8_t>(Key::Select)] = true;
-  statusScreen("Unpaired", "Hold Pair, then confirm", "the code on Atlas", 0xFF, l);
+  statusScreen(menu_.pairing ? "Pairing" : "Unpaired",
+      menu_.pairing ? "Searching for Atlas" : "Hold Pair, then confirm", "the code on Atlas", 0xFF, l);
 }
 
 void LvglSigilDisplay::showReady(uint8_t sigilId) {
@@ -299,10 +314,6 @@ void LvglSigilDisplay::showUpdate(const char *status, int8_t percent) {
     card(fill, pal().accent, pal().accent, 4);
   }
   finish(PadLabels());
-}
-
-void LvglSigilDisplay::showSleeping() {
-  statusScreen("Asleep", "Press BOOT or reset", "to wake", 0xFF, PadLabels());
 }
 
 bool LvglSigilDisplay::setSeatName(uint8_t slot, const char *name) {

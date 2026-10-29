@@ -1,12 +1,9 @@
 #pragma once
 
-// Batched life changes from Left/Right (AdjustLife). A tap is one step
-// (lifeUnitFor: 1 life, or 100 in a game counted in hundreds); holding
-// repeats (LifePace); on the OLED in LIFE_ADJUST_FAST_STEP steps once held
-// long enough, so +11 or -39 are quick, and always one step at a time on
-// e-ink. The total goes to Atlas as one LifeAdjust once no key is held and
-// nothing changed for LIFE_ADJUST_COMMIT_MS. Atlas decides whether it
-// applies. Pure logic, host-tested.
+// Batched life changes from the touchscreen's minus/plus buttons. A tap is
+// one step (1 life, or 100 for games counted in hundreds); holding repeats
+// and accelerates. Atlas validates the total after release and the quiet
+// interval. Pure logic, host-tested.
 
 #include <stdint.h>
 
@@ -14,11 +11,7 @@
 
 namespace TurnHubSigil {
 
-// How fast a held life key repeats. The protocol constants suit the OLED,
-// which redraws every step; an e-ink panel shows only some of them, so it
-// counts slower (playtest 2026-09-29, item 6). Both scale with the seated
-// player's hold-timing preference (InputTiming long press, default 2 s): a
-// player who needs longer holds also gets a slower ramp.
+// Touch repeat timing scales with the seated player's hold preference.
 // A constructor rather than default member values: the ESP32 toolchain
 // builds as C++11, where such a struct can't be brace-initialized.
 struct LifePace {
@@ -34,17 +27,12 @@ struct LifePace {
       : repeatDelayMs(delayMs), repeatMs(everyMs), fastAfterMs(fastMs), fastStep(step) {}
 };
 
-// E-ink always counts in ones: the panel can't show every step, so the
-// player counts the status-light blinks, and jumps of 5 can't be followed
-// by eye (owner decision 2026-09-29).
-constexpr LifePace EINK_LIFE_PACE(700, 300, 3000, 1);
-
 // Life per step. A game that starts at 1000 life or more (Yu-Gi-Oh!'s 8000)
 // counts in hundreds, as the portal and the Atlas screen do.
 inline int32_t lifeUnitFor(int32_t startingLife) { return startingLife >= 1000 ? 100 : 1; }
 
-inline LifePace lifePaceFor(bool eink, uint32_t longPressMs) {
-  LifePace pace = eink ? EINK_LIFE_PACE : LifePace();
+inline LifePace lifePaceFor(uint32_t longPressMs) {
+  LifePace pace;
   if (longPressMs == 0) longPressMs = TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
   const auto scale = [longPressMs](uint32_t ms) {
     return ms * longPressMs / TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
@@ -100,7 +88,7 @@ class LifeAdjuster {
   // Drop the total (life no longer adjustable, or unpaired).
   void cancel() { pending_ = 0; held_ = 0; }
   int32_t pending() const { return pending_; }
-  // The total in steps, for the status ring's laps.
+  // The pending total in button steps.
   int32_t pendingSteps() const { return pending_ / unit_; }
   uint8_t player() const { return player_; }
   bool holding() const { return held_ != 0; }

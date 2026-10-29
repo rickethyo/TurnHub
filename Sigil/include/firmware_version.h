@@ -6,7 +6,7 @@ namespace TurnHubSigilFirmware {
 
 constexpr uint8_t MAJOR = 0;
 constexpr uint8_t MINOR = 9;
-constexpr uint8_t PATCH = 17;
-constexpr const char *VERSION = "0.9.17-dev";
+constexpr uint8_t PATCH = 18;
+constexpr const char *VERSION = "0.9.18-dev";
 
 }  // namespace TurnHubSigilFirmware

@@ -81,6 +81,15 @@ int main() {
     const std::string suffix = t == 0 ? "" : "-brass";
     d.setTheme(theme);
     d.showUnpaired(); save("unpaired" + suffix);
+    MenuView pairing;
+    pairing.pairPercent = 50;
+    d.setMenuView(pairing);
+    d.showUnpaired(); save("pair-hold" + suffix);
+    pairing.pairPercent = 0;
+    pairing.pairing = true;
+    d.setMenuView(pairing);
+    d.showUnpaired(); save("pair-search" + suffix);
+    d.setMenuView(MenuView());
     d.showPairingCode(4271); save("pairing-code" + suffix);
     d.setMenuView(menu({{Key::Up, MENU_LOCAL_DEVICE_MENU}, {Key::Select, A(SigilAction::Join)}}));
     d.showReady(2); save("ready" + suffix);
@@ -105,6 +114,10 @@ int main() {
     open.deviceMenu = true;
     d.setMenuView(open);
     d.showGame(game("Ricky", 22, false, 7)); save("menu" + suffix);
+    open.holdAction = A(SigilAction::ClaimWin);
+    open.holdPercent = 50;
+    d.setMenuView(open);
+    d.showGame(game("Ricky", 22, false, 7)); save("action-hold" + suffix);
     d.setMenuView(MenuView());
     ProfilePickerPacket p{};
     p.sigilId = 2; p.mode = PickerMode::List; p.page = 0; p.pageCount = 2; p.itemCount = 3;

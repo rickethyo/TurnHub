@@ -7,7 +7,7 @@ authoritative **Atlas** table controller runs connected games; player-facing
 semantic actions from it. The Android app also runs separate standalone games;
 an iPhone/iPad app is at the framework stage.
 
-**Current firmware:** Atlas **0.6.6**, Sigil **0.9.8** (protocol 3), on `master`.
+**Current firmware:** Atlas **0.7.16-dev**, Sigil **0.9.18-dev** (protocol 3).
 Signed releases are published on GitHub Releases and installed from the
 Android app or the Atlas portal.
 
@@ -27,7 +27,7 @@ branch from `legacy/gen1` and open the PR against it. The two never merge.
 | Path | What |
 |---|---|
 | [`Atlas/`](Atlas/README.md) | ESP32 table controller: game engine, Wi-Fi AP, web portal and HTTP API, ESP-NOW radio, NVS and optional microSD storage |
-| [`Sigil/`](Sigil/platformio.ini) | ESP32 player controller: one build (radio, pairing, input, status ring), headless until the LVGL renderer is bound |
+| [`Sigil/`](Sigil/platformio.ini) | Touchscreen player controller: LVGL touch buttons, secure radio, pairing and speaker; E32R28T target |
 | [`LVGL/`](LVGL/README.md) | Desktop LVGL simulator for the ESP32-S3 Atlas and Sigil screens |
 | [`Android/`](Android/README.md) | Native client: table view, player controls, guided setup and firmware updates |
 | [`iOS/`](iOS/README.md) | SwiftUI iPhone/iPad foundation, core package and staged development plan; gameplay not yet implemented |

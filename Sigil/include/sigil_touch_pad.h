@@ -3,7 +3,7 @@
 // The touch Sigil's on-screen keys (the E32R28T stand-in for the S3 Sigil):
 // the five compass keys drawn as buttons along the bottom of the 240 x 320
 // portrait screen. A press on one is that key held, so the menu, picker,
-// life and commander rules are the joystick's (sigil_menu.h). Pure geometry,
+// life and commander requests use sigil_menu.h. Pure geometry,
 // shared by the renderer (sigil_display_lvgl.cpp) and the touch input
 // (main.cpp), so what is drawn is what is pressed.
 

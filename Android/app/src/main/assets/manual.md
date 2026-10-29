@@ -870,7 +870,7 @@ New TurnHub hardware is in development on the ESP32-S3:
 
 - **A new Atlas:** almost entirely capacitive touch, with at most one physical button, and a richer, animated table screen.
 
-- **One unified Sigil:** a single model with the thumbstick and light ring and a larger color screen, replacing the e-ink and OLED versions.
+- **One touchscreen Sigil: a larger color screen with labeled touch controls, replacing the joystick, light ring, e-ink and OLED versions. The current touchscreen prototype uses the former 2.8-inch Atlas board. Hold Pair for 3 seconds, then compare the code on Atlas; Device includes touch calibration. It stays awake while powered, with no Sleep option. BOOT still provides pairing, unpair and factory reset.**
 
 Newer Atlas firmware already adds Star Commander, official rules with House rules, a random starter when nobody is chosen, Back to setup during the first three minutes, not counting very short games, and creating an Atlas account from a player saved in the app. They need the new Atlas; the current prototype boards keep the behavior in this manual. This manual will be revised when the new hardware arrives.
 

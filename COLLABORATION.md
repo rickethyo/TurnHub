@@ -1285,3 +1285,31 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   same style for the 2.8-inch E32R28T board (63.8 x 91.4 mm, flat 14.4 mm or
   a 5-degree wedge to 22.4 mm; one bezel fits both tubs). From the vendor
   outline drawing; not caliper-checked or printed.
+
+## 2026-10-28 Codex: touchscreen-only Sigil
+
+- Owner scope: remove Sigil LED/ring, joystick and e-ink/OLED paths; use touch only.
+- Owner: Codex on `codex/master`, baseline `9bd7819`; clean tree, no open PRs.
+- The default `sigil` target becomes the existing E32R28T LVGL touchscreen;
+  `sigil-e32r28t` remains its board-name alias. S3 Sigil hardware bindings remain
+  separate work. BOOT pairing/recovery and speaker cues remain available.
+- Remove dead hardware modules, headless fallback and LED tests/dependency;
+  show pairing and deliberate-action hold progress on screen. Preserve Atlas
+  authority, secure pairing/session and game/menu/commander requests.
+- Validation: default `sigil` PlatformIO build passes (1,162,769 bytes flash,
+  51,244 bytes static RAM); all six Windows Sigil host suites pass. LVGL host
+  previews rendered and reviewed for pairing/search, hold progress and gameplay.
+  Documentation links, whitespace and Android manual export checks pass.
+- Owner authorized USB flashing; uploaded `0.9.18-dev` to the E32R28T stand-in.
+  USB image hashes verified; boot capture confirms saved calibration, LVGL
+  240 x 320, saved secure pairing, secure session ready and complete profile
+  synchronization. Physical touch/gameplay acceptance still needs the owner.
+- Hardware manual new-hardware paragraph and Android manual asset updated.
+  DOCX text parses; visual DOCX QA is unavailable locally (no LibreOffice;
+  Word rejects both the unchanged original and edited document). No claim of
+  verified document layout. Original preserved outside Git in Private backups.
+- GitHub Desktop auto-stashed the in-progress changes during this session;
+  recovered them from its stash and retained that recovery snapshot.
+
+- Owner follow-up: remove manual and automatic sleep for now; remove the Device
+  Sleep entry, idle-sleep module/tests and GPIO wake/deep-sleep handling.

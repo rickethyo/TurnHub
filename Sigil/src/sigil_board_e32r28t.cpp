@@ -68,7 +68,7 @@ class Panel : public lgfx::LGFX_Device {
       cfg.pin_bl = TFT_BACKLIGHT_PIN;
       cfg.invert = false;
       cfg.freq = 12000;
-      cfg.pwm_channel = 4;  // The RGB LED has 0-2 and the buzzer 7.
+      cfg.pwm_channel = 4;  // Speaker tone uses channel 7.
       light_.config(cfg);
       panel_.setLight(&light_);
     }
@@ -143,7 +143,9 @@ class TouchSigilDisplay : public LvglSigilDisplay {
     Serial.printf("SIGIL|DISPLAY|ILI9341|%dx%d|LVGL\n", tft.width(), tft.height());
   }
 
-  uint32_t idleWorkDueInMs(uint32_t) const override { return display ? IDLE_WORK_MS : UINT32_MAX; }
+  uint32_t idleWorkDueInMs(uint32_t) const override {
+    return display ? IDLE_WORK_MS : UINT32_MAX;
+  }
 
   void idleWork(uint32_t) override {
     if (!display) return;

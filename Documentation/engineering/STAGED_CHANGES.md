@@ -297,13 +297,14 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   own details; the simulator is not physical acceptance. *Experimental*
   (2026-10-28): `env:sigil-e32r28t` runs the Sigil firmware on the old
   E32R28T Atlas board with an LVGL Sigil screen and the five keys as
-  on-screen buttons, a stand-in until the S3 Sigil exists; its touch
+  on-screen buttons, the default touchscreen-only Sigil until S3 exists; its touch
   calibration is a default, not checked per panel.
-- **Player controls and PCB:** carry the required player-facing Sigil LEDs
-  into the S3 design; settle count, brightness, current and case fit. Evaluate
-  the proposed pass/action button alongside the joystick, including semantic
-  routing and wake. Verify footprints, GPIO, power and connectors; complete
-  layout/DRC and assembled-board inspection before freezing revisions.
+- **Player controls and PCB:** Sigil firmware is touchscreen-only (owner,
+  2026-10-28): no LED/ring, joystick or sleep. Validate touch hold/release,
+  pairing, calibration and portrait layouts on the prototype, then bind the
+  S3 touch board. Revisit navigation hardware and power management only with
+  an explicit product decision. Verify footprints, power and connectors;
+  complete layout/DRC and assembled-board inspection before freezing revisions.
 - **Transport and power:** compare S3 memory relief/second-radio options using
   measured multi-phone evidence. Measure idle/radio/display/audio/LED/sleep
   current and power-bank behavior (H03). Product transport, battery/charging
@@ -321,7 +322,7 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 ## Open checks
 
 Hardware checks that need a deliberate bench setup. Firmware/display/OTA checks
-apply to the S3 targets once available; master has no physical board drivers.
+apply to the S3 targets and the E32R28T touchscreen Sigil where supported.
 Gen 1 maintenance checks belong on `legacy/gen1`. Record runs as
 `ID | PASS/FAIL | build | device(s) | evidence` here until they pass, then
 delete the line. A host or compile result never checks off a hardware line.

@@ -47,23 +47,23 @@ storage and HTTP API keep compiling for the target:
   factory resets (quick, 3 s, 10 s) and wakes from sleep; the microSD card
   uses the default VSPI pins (18/23/19, CS 5). The touchscreen's screen model
   and buttons (`touch_controls.cpp`) stay host-tested for the S3 renderer.
-- **Sigil** (`pio run -e sigil`, default partitions). Every pin is in
-  `Sigil/include/sigil_board.h`; the display is headless (`NoDisplay`).
+- **Sigil** (`pio run -e sigil`, alias `sigil-e32r28t`, `huge_app.csv`):
+  touchscreen-only E32R28T target with a 240 × 320 portrait ILI9341,
+  XPT2046 resistive touch and LVGL. Board pins and drivers are in
+  `Sigil/include/sigil_board.h` and `Sigil/src/sigil_board_e32r28t.cpp`.
+  No LED/ring output, analog joystick or headless display fallback.
+  E-ink/OLED firmware is maintained only on `legacy/gen1`.
 
-| Sigil function | GPIO | Notes |
-|---|---:|---|
-| Thumbstick X / Y / click | 34 / 35 / 32 | ADC1 only (ADC2 is unusable with ESP-NOW). The click is Select and wakes from sleep |
-| Status ring data | 26 | 7-pixel NeoPixel ring, the only status light |
-| Buzzer | 33 | Passive piezo |
-| Pair | 0 | BOOT button: quick press pairs, 3 s unpairs, 10 s factory resets |
-
-**Sigil controls:** the click is the obvious next step (Join, Start, Pass,
-Undo pass, Resume, Rematch, Confirm); Left/Right change life in a game (seat B
-and next starter in the lobby, answers in a decision); Down switches seat on a
-shared Sigil; Up opens **Menu** with every other action, then Device (Sleep,
-Unpair, Factory reset). Holds use the seated players' times: long press 2 s
-default (1-4 s), win hold 5 s (3-10 s, at least 1 s longer); the ring fills
-while held. An unpaired Sigil also opens pairing with a 3 s click hold.
+**Sigil controls:** five labeled touch buttons request Atlas actions: Select
+is the next step; minus/plus change life; Menu exposes the other offered actions
+and Device settings. Deliberate actions show hold progress on screen. A held
+life adjustment repeats and accelerates using the player's timing preference.
+Hold on-screen Pair for 3 seconds while unpaired, then compare the code with
+Atlas. Device > Calibrate (or serial `touch cal`) calibrates the resistive panel.
+BOOT (GPIO 0) remains quick-press pairing, 3-second unpair and 10-second factory
+reset. Sleep and automatic sleep are removed for now; the Sigil stays awake while powered.
+Speaker cues use GPIO 26 with active-low amplifier enable GPIO 4. Upload only
+over USB; S3 Sigil hardware and OTA integration remain staged.
 
 ## Identifying and flashing boards
 
