@@ -29,12 +29,10 @@ through the standoffs and the board's holes, self-tapping into the bezel
 ## Layout
 
 The screen is portrait and USB-C faces away from the player, so the cable
-leaves from the back of the table. The board sits upside down for that: the
-firmware draws the UI rotated 180° (`setRotation(2)` in
-`Sigil/src/sigil_board_e32r28t.cpp`, with the touch calibration to match). If
-the picture runs the wrong way round, change the rotation there, not the case.
-A Sigil calibrated before 2026-10-29 falls back to the default calibration
-once; recalibrate it from the Device menu if taps land off target.
+leaves from the back of the table. The firmware keeps the panel's own
+rotation (the owner checked it reads right, 2026-10-29). If the picture runs
+the wrong way round, change `setRotation` in
+`Sigil/src/sigil_board_e32r28t.cpp`, not the case.
 
 - **Display:** a 46 × 60.6 mm window over the touch area. The lip sits 0.4 mm
   above the resistive touch film so it can never press a phantom touch.

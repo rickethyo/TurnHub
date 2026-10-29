@@ -18,8 +18,7 @@
 // Coordinates: origin at the board centre, z = 0 on the board's back
 // (component) face, +z towards the screen, +Y towards the top (away from
 // USB-C), +X to the right when looking at the screen. On the table USB-C
-// faces away from the player (the UI is drawn upside down to match, see
-// Sigil/src/sigil_board_e32r28t.cpp), so -Y is the back and +Y the front. Features read off the
+// faces away from the player, so -Y is the back and +Y the front. Features read off the
 // drawing's "Back" view (xb from its left, yb from its top) map with
 // X = W/2 - xb, Y = L/2 - yb.
 //

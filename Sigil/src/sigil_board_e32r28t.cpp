@@ -130,8 +130,7 @@ class TouchSigilDisplay : public LvglSigilDisplay {
       Serial.println("SIGIL|DISPLAY|INIT_FAILED");
       return;
     }
-    // Upside-down portrait: in the case USB-C faces away from the player.
-    tft.setRotation(2);
+    tft.setRotation(0);  // The panel's own portrait.
     tft.setBrightness(BACKLIGHT_ON);
     lv_init();
     lv_tick_set_cb(tick);
@@ -247,21 +246,20 @@ class TouchSigilDisplay : public LvglSigilDisplay {
 // --- Touch (XPT2046, bit-banged SPI mode 0) ----------------------------------
 
 // The fallback until a calibration is saved (Device menu > Calibrate): raw
-// Y runs along screen x, raw X rises down screen y. Read from bench taps on
-// the first board, 2026-10-28, and reversed for the upside-down rotation.
+// Y runs along screen x, raw X falls down screen y. Read from bench taps on
+// the first board, 2026-10-28.
 TouchCalibration defaultCalibration() {
   TouchCalibration cal;
   cal.swapXY = 1;
-  cal.xAtFirst = 3717;
-  cal.xAtLast = 469;
-  cal.yAtFirst = 293;
-  cal.yAtLast = 3586;
+  cal.xAtFirst = 469;
+  cal.xAtLast = 3717;
+  cal.yAtFirst = 3586;
+  cal.yAtLast = 293;
   return cal;
 }
 TouchCalibration touchCal = defaultCalibration();
 constexpr char CAL_NAMESPACE[] = "th_touch";
-// "cal" held calibrations for the old right-way-up rotation; they are ignored.
-constexpr char CAL_KEY[] = "cal2";
+constexpr char CAL_KEY[] = "cal";
 constexpr uint32_t CAL_SETTLE_MS = 100;  // A press's first samples are dropped.
 constexpr uint8_t CAL_MIN_SAMPLES = 3;
 constexpr uint32_t CAL_IDLE_MS = 30000;  // Gives up without a touch.
