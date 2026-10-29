@@ -162,6 +162,27 @@ int parserChecks() {
   return failures;
 }
 
+std::string readText(const std::string &path) {
+  std::ifstream in(path, std::ios::binary);
+  std::stringstream text;
+  text << in.rdbuf();
+  return text.str();
+}
+
+// The shared CSV fixture: the app's MatchCsv must give the same text.
+int csvChecks(const std::string &examples) {
+  bool ok = false;
+  const Json record = Json::parse(readText(examples + "/match-record.json"), &ok);
+  const std::string expected = readText(examples + "/match-record.csv");
+  const std::string actual = std::string(turnhub::RECORD_CSV_HEADER) + turnhub::recordCsvRows(record);
+  if (!ok || expected.empty() || actual != expected) {
+    std::printf("FAIL match-record.csv differs:\n%s", actual.c_str());
+    return 1;
+  }
+  std::printf("ok   match record CSV\n");
+  return 0;
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -176,7 +197,7 @@ int main(int argc, char **argv) {
   }
   std::sort(files.begin(), files.end());
   if (files.empty()) { std::printf("FAIL no scenarios in %s\n", dir.c_str()); return 1; }
-  int failures = parserChecks();
+  int failures = parserChecks() + csvChecks(argc > 2 ? argv[2] : dir + "/../../protocol/examples");
   for (const auto &f : files) failures += runFile(f);
   std::printf("%zu scenarios, %d failures\n", files.size(), failures);
   return failures ? 1 : 0;

@@ -464,6 +464,19 @@ window. It does not guarantee arbitrary long-term replay protection. Imported ga
 started, completed turns and turn times, and set the last-game fields like a
 live game.
 
+### Match records and CSV (2026-10-29)
+
+A finished game is one match record, the same on every device
+(`game-record-v1.schema.json`, built by the shared core's `gameRecord` and the
+app's `StandaloneGame.record()`; example `examples/match-record.json`). Atlas
+will keep these on its microSD card (staged). Records export as CSV, one row
+per player per game, with the header and columns of `examples/match-record.csv`:
+times are UTC (`started_at_utc`) and milliseconds; `seat`, `eliminated_by_seat`
+count from 1; booleans are `true`/`false`; empty means none. Text is RFC 4180
+quoted, and a name starting with `=`, `+`, `-` or `@` gets a leading `'` so a
+spreadsheet shows it rather than running it. The app and Atlas produce the
+same text (checked against the example by both test suites).
+
 ### Native game-context guard (2026-10-10)
 
 Raw native tablet/game actions can include `expectedGame` as the decimal 1-based

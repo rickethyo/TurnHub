@@ -181,7 +181,18 @@ fun LocalLibraryScreen(
                         }
                     }
                     LibrarySection.GAMES -> {
-                        item(key = "statistics") { ToneButton("Statistics", onStats, Modifier.fillMaxWidth()) }
+                        item(key = "statistics") {
+                            ToneButton("Statistics", onStats, Modifier.fillMaxWidth())
+                            // Every game as CSV, one row per player per game (the same file Atlas keeps).
+                            if (state.library.history.isNotEmpty()) {
+                                val context = androidx.compose.ui.platform.LocalContext.current
+                                val csvScope = rememberCoroutineScope()
+                                TextButton({ csvScope.launch {
+                                    com.turnhub.android.ui.components.shareCsv(context, "turnhub-games.csv",
+                                        com.turnhub.android.standalone.MatchCsv.of(state.library.history))
+                                } }) { Text("Export all games (CSV)") }
+                            }
+                        }
                         val elderOnes = state.library.elderOneRecord()
                         if (elderOnes.isNotEmpty()) item(key = "elder-ones") {
                             BrassCard {

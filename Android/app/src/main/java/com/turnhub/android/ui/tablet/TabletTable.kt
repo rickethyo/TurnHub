@@ -216,6 +216,8 @@ internal fun TabletTable(
     standalone: Boolean = false,
     /** Shares the finished game with a picture of the table; null hides the button. */
     onShareResult: ((android.graphics.Bitmap) -> Unit)? = null,
+    /** Shares the finished game's record as CSV, one row per player; null hides the button. */
+    onShareCsv: (() -> Unit)? = null,
     /** The finished game was under a minute and isn't counted until [onCountGame]. */
     shortGameUnsaved: Boolean = summary.shortGameUncounted,
     onCountGame: () -> Unit = { summary.anySeat()?.let { seat -> controls { control(seat, "count-game") } } },
@@ -632,6 +634,7 @@ internal fun TabletTable(
                             scope.launch { onShareResult(tableShot.toImageBitmap().asAndroidBitmap()) }
                         }, Modifier.fillMaxWidth())
                     }
+                    if (onShareCsv != null) ToneButton("Export CSV", onShareCsv, Modifier.fillMaxWidth())
                     OverlayButtons {
                         ToneButton("New players", { send(anySeat, "reset") }, Modifier.weight(1f))
                         AccentButton(if (standalone && summary.settings.profile.deathMayDie) "Set up rematch" else "Rematch", { send(anySeat, "rematch") }, Modifier.weight(1f))

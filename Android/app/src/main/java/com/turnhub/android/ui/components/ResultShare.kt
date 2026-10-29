@@ -59,3 +59,20 @@ private fun withBanner(table: Bitmap, lines: List<String>, background: Int, titl
     }
     return out
 }
+
+/** Shares match records as a CSV file ([MatchCsv][com.turnhub.android.standalone.MatchCsv]) for a spreadsheet. */
+suspend fun shareCsv(context: Context, fileName: String, csv: String) {
+    val file = withContext(Dispatchers.IO) {
+        val dir = File(context.cacheDir, "shared").apply { mkdirs() }
+        File(dir, fileName).also { it.writeText(csv) }
+    }
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.share", file)
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "text/csv"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        putExtra(Intent.EXTRA_SUBJECT, fileName)
+        clipData = ClipData.newRawUri(null, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(send, "Share CSV"))
+}

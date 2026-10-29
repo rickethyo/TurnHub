@@ -84,6 +84,7 @@ for path in generated + examples:
 record_schema = json.loads((PROTOCOL / "game-record-v1.schema.json").read_text())
 records = [step["record"] for path in sorted((ROOT / "core" / "scenarios").glob("*.json"))
            for step in json.loads(path.read_text())["steps"] if step.get("record")]
+records.append(json.loads((PROTOCOL / "examples" / "match-record.json").read_text()))
 for record in records:
     check(record, record_schema)
 print(f"PASS: {len(generated)} actual HTTP/projection responses, {len(examples)} shared fixtures "

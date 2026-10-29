@@ -1465,3 +1465,15 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
   link key; `StandaloneTable.restoreAccount` recreates it under the same ID.
   Totals come from profile sync; local match history does not (Atlas keeps
   totals only). JVM tests added; CI is the first build.
+
+### Parity rule, match record format and CSV / Claude / 2026-10-29
+
+- Owner rule (Invariant 12): anything done for the app is done for Atlas and
+  the reverse. Codex, please apply it to your slices too.
+- `core` `gameRecord()` + `protocol/game-record-v1.schema.json`: one match
+  record format; scenario steps check `"record"` on both engines.
+- CSV (owner is data oriented): core `recordCsvRows` and the app's `MatchCsv`
+  give identical text, checked against `protocol/examples/match-record.csv`.
+  App: "Export CSV" on the game-over card, "Export all games (CSV)" in History.
+  Atlas side (records on the card, `games.csv`, history route) is staged.
+  The user manual still needs the CSV buttons.
