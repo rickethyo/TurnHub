@@ -2,15 +2,18 @@ package com.turnhub.android.ui.tablet
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -70,6 +73,52 @@ fun BringPlayersCard(players: List<SavedLocalPlayer>, destination: LocalImportSt
             val pinless = states.values.count { it == BringState.NEW_NO_PIN }
             if (pinless > 0) ToneButton(if (pinless == 1) "Bring 1 player without a PIN" else "Bring $pinless players without a PIN",
                 { onBring(null, null) }, Modifier.fillMaxWidth(), enabled = enabled)
+        }
+    }
+}
+
+/** Atlas accounts this device doesn't have yet: not here under their ID and not linked to a local account. */
+fun restorableAccounts(players: List<SavedLocalPlayer>, destination: LocalImportState) = destination.profiles.filter { profile ->
+    players.none { it.profileId == profile.profileId || it.links.any { l -> l.atlasId == destination.atlasId && l.profileId == profile.profileId } }
+}
+
+/**
+ * "Get my account from this Atlas": after a fresh install or on a new device, an account
+ * saved on this Atlas comes back under its own ID with its PIN, and its totals here.
+ */
+@Composable
+fun RestoreAccountCard(players: List<SavedLocalPlayer>, destination: LocalImportState, enabled: Boolean,
+                       onRestore: (profileId: String, secret: String) -> Unit) {
+    val p = palette
+    val accounts = restorableAccounts(players, destination)
+    if (accounts.isEmpty()) return
+    var open by remember { mutableStateOf(false) }
+    var chosen by remember { mutableStateOf<String?>(null) }
+    // Secrets deliberately do not survive saved instance state.
+    var secret by remember { mutableStateOf("") }
+    BrassCard {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Get my account from this Atlas", color = p.text,
+                style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+            Text("New phone or reinstalled the app? Your account comes back with its PIN, look and totals on this Atlas.", color = p.muted)
+            if (!open) ToneButton("Choose my account", { open = true }, Modifier.fillMaxWidth(), enabled = enabled)
+            else {
+                accounts.forEach { profile ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(chosen == profile.profileId, { chosen = profile.profileId; secret = "" },
+                            enabled = enabled && profile.hasPin)
+                        Text(if (profile.hasPin) profile.name else "${profile.name} (no PIN yet: set one on Atlas first)",
+                            color = if (profile.hasPin) p.text else p.muted)
+                    }
+                }
+                val pick = accounts.firstOrNull { it.profileId == chosen }
+                if (pick != null) {
+                    OutlinedTextField(secret, { secret = it.take(ProfileSecret.MAX_CHARS) }, label = { Text("${pick.name}'s PIN or password") },
+                        visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+                    ToneButton("Get ${pick.name} on this device", { onRestore(pick.profileId, secret); secret = "" },
+                        Modifier.fillMaxWidth(), enabled = enabled && ProfileSecret.isValid(secret))
+                }
+            }
         }
     }
 }

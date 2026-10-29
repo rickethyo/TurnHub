@@ -8,6 +8,43 @@ import kotlinx.coroutines.withContext
 /** Credentials prove a link; a public eight-digit ID alone never proves ownership. */
 class LocalAccountTransfer(private val transport: AtlasSessionTransport) {
     data class Result(val profileId: String, val warning: String? = null, val linkKey: String? = null)
+    /** An Atlas account as it stands there, to recreate on this phone (fresh install or a new device). */
+    data class Restored(val profileId: String, val name: String, val color: String?, val avatar: String,
+                        val reduceMotion: Boolean, val linkKey: String?)
+
+    /**
+     * Signs in to an Atlas account with its PIN and reads what this phone needs to
+     * recreate it: name, look and a link key, so the usual profile sync takes over.
+     */
+    suspend fun restore(profileId: String, secret: String): Restored {
+        require(ProfileSecret.isValid(secret)) { ProfileSecret.RULE }
+        val login = transport.login(profileId, secret)
+        try {
+            val info = transport.me(login.token)
+            require(login.profileId == profileId && info.profileId == profileId) { "Atlas did not verify this account." }
+            val linkKey = try {
+                val response = transport.raw("POST", "/api/profiles/link-key", login.token)
+                if (response.ok) org.json.JSONObject(response.body).optString("linkKey").takeIf { it.matches(Regex("[0-9A-F]{32}")) } else null
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+            // The look is a courtesy: without a card or on older firmware the account still comes back.
+            val look = try { transport.getPersonalization(login.token) }
+                catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+            val avatar = look?.avatar?.takeIf { it > 0 }?.let { id ->
+                try { transport.getAvatars().firstOrNull { it.id == id }?.key }
+                catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+            }
+            val reduceMotion = try {
+                transport.getAccessibility(login.token).ledStyle == com.turnhub.android.protocol.LedStyle.REDUCED_MOTION
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { false }
+            return Restored(profileId, info.name.orEmpty(), look?.color?.takeIf { it.startsWith("#") },
+                avatar?.takeIf { it in com.turnhub.android.standalone.LocalPersonalization.AVATARS } ?: "none", reduceMotion, linkKey)
+        } finally {
+            withContext(NonCancellable) {
+                try { transport.logout(login.token) } catch (_: Exception) { /* RAM token will expire. */ }
+            }
+        }
+    }
+
     suspend fun verify(player: SavedLocalPlayer, targetId: String?, secret: String): Result {
         require(ProfileSecret.isValid(secret)) { ProfileSecret.RULE }
         if (targetId == null) require(withContext(kotlinx.coroutines.Dispatchers.Default) {

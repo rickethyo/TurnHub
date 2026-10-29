@@ -341,6 +341,51 @@ class LocalAccountsTest {
         assertNull(StandaloneTable(store).state.value.library.deviceAdmin)
     }
 
+    @Test fun `an account already on the device can be promoted to its Admin`() {
+        val store = Store()
+        val table = StandaloneTable(store, shortGameMs = 0)
+        assertTrue(table.createAccount("Ricky", LocalCredential.create("1234")))
+        assertTrue(table.createAccount("Ana"))
+        val (ricky, ana) = table.state.value.library.players
+        val locked = StandaloneTable(store)
+        assertFalse(locked.promoteToDeviceAdmin(ricky.localId, "9999"))
+        assertNull(locked.state.value.library.deviceAdmin)
+        // A PIN-less account needs one chosen first.
+        assertFalse(locked.promoteToDeviceAdmin(ana.localId, null))
+        assertTrue(locked.promoteToDeviceAdmin(ricky.localId, "1234"))
+        assertTrue(locked.state.value.library.isDeviceAdmin(ricky.localId))
+        // Only while the device has no Admin.
+        assertFalse(locked.promoteToDeviceAdmin(ana.localId, null, LocalCredential.create("2468")))
+
+        val fresh = StandaloneTable(Store(), shortGameMs = 0)
+        assertTrue(fresh.createAccount("Sam"))
+        val sam = fresh.state.value.library.players.last()
+        assertTrue(fresh.promoteToDeviceAdmin(sam.localId, null, LocalCredential.create("2468")))
+        assertTrue(fresh.state.value.library.players.last().credential!!.verifies("2468"))
+        assertTrue(fresh.state.value.library.isDeviceAdmin(sam.localId))
+    }
+
+    @Test fun `an Atlas account comes back onto a fresh install under its own ID, linked and unlocked`() {
+        val store = Store()
+        val table = StandaloneTable(store, shortGameMs = 0)
+        val key = "0123456789ABCDEF0123456789ABCDEF"
+        val look = LocalPersonalization(color = "#26A69A", avatar = "cat")
+        assertTrue(table.restoreAccount("THA-1", "AABBCCDD", "Ricky", look, key, LocalCredential.create("2468")))
+        val ricky = table.state.value.library.players.single()
+        assertEquals("AABBCCDD", ricky.profileId)
+        assertEquals(listOf(AtlasProfileLink("THA-1", "AABBCCDD", key)), ricky.links)
+        assertEquals("cat", ricky.personalization.avatar)
+        assertEquals(0L, ricky.lastActivityMs)
+        assertTrue(ricky.credential!!.verifies("2468"))
+        assertTrue(table.accountUnlocked(ricky.localId))
+        assertEquals("AABBCCDD", StandaloneTable(store).state.value.library.players.single().profileId)
+        // Once only, and only well-formed.
+        assertFalse(table.restoreAccount("THA-1", "AABBCCDD", "Ricky", look, key, LocalCredential.create("2468")))
+        assertFalse(table.restoreAccount("THA-1", "nope", "Ana", look, null, LocalCredential.create("2468")))
+        assertFalse(table.restoreAccount("THA-1", "11223344", " ", look, null, LocalCredential.create("2468")))
+        assertEquals(1, table.state.value.library.players.size)
+    }
+
     @Test fun `an account copied to another device keeps its ID, look, links and PIN and can be that device's Admin`() {
         val phone = StandaloneTable(Store(), shortGameMs = 0)
         assertTrue(phone.createAdminAccount("Ricky", LocalCredential.create("2468")))

@@ -256,6 +256,15 @@ all exact profile identities before crediting a new record. Existing session
 sign-in is still required; profile linking does not itself grant permissions.
 See [import contract](../../protocol/http-v1.md#standalone-tablet-game-import-2026-10-07).
 
+**Getting an account back from Atlas** (owner, 2026-10-29; *implemented, JVM
+tests only*): after a reinstall or on a new phone, Players lists the loaded
+Atlas accounts that aren't on the device ("Get my account from this Atlas").
+Atlas checks the account's PIN; the app recreates it under the same profile
+ID with Atlas's name and look, a verifier for that PIN and a link key, so
+profile sync and the Atlas totals take over. Atlas keeps totals, not match
+records, so the phone's own match history does not come back. PIN-less
+Atlas accounts need a PIN set on Atlas first.
+
 ## Device Admin account (owner, 2026-10-29)
 
 *Implemented in the app; host/JVM tests only, device checks open.* Every
@@ -263,8 +272,10 @@ device has one Admin account: its owner's account type. On Atlas it is the
 first-run Admin with Admin permissions. On a phone or tablet,
 `LocalLibrary.deviceAdmin` names it; it needs a PIN or password and gives no
 extra powers, so phone players stay equal. First launch asks the owner to
-create it ("Not now" closes the prompt; any account with a PIN can be made
-Admin from its settings, and handing it on needs the current Admin unlocked).
+create it or choose an account already on the device (its PIN unlocks it, or
+one without a PIN chooses one first). "Not now" closes the prompt; any account
+with a PIN can be made Admin from its settings, and handing it on needs the
+current Admin unlocked.
 Deleting it leaves the device without one, and the prompt returns.
 
 The type stays on its home device: uploads, merges and syncs carry no

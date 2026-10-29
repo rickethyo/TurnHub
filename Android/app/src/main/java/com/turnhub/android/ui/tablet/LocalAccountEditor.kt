@@ -160,7 +160,8 @@ private fun DeviceAdminControls(player: SavedLocalPlayer, table: StandaloneTable
 }
 
 /**
- * First-time setup on a phone or tablet: the owner's account becomes the device's Admin account.
+ * First-time setup on a phone or tablet: the owner's account becomes the device's Admin account,
+ * either a new one or one already here (devices set up before Admin accounts existed).
  * "Not now" closes it; an account can still be made Admin from its settings.
  */
 @Composable
@@ -168,6 +169,9 @@ fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable) {
     val p = palette
     val scope = rememberCoroutineScope()
     var name by rememberSaveable { mutableStateOf("") }
+    // An account already on this device to promote; null makes a new one.
+    var chosenId by rememberSaveable { mutableStateOf<String?>(null) }
+    val chosen = library.players.firstOrNull { it.localId == chosenId }
     // Secrets deliberately do not survive saved instance state.
     var secret by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
@@ -178,6 +182,13 @@ fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable) {
         CopyAccountDialog(table, admin = true) { copying = false }
         return
     }
+    fun choose(localId: String?) { chosenId = localId; secret = ""; confirm = ""; error = null }
+    val unlocking = chosen?.credential != null
+    val ready = when {
+        chosen == null -> name.isNotBlank() && ProfileSecret.isValid(secret) && confirm == secret
+        unlocking -> secret.isNotEmpty()
+        else -> ProfileSecret.isValid(secret) && confirm == secret
+    }
     AlertDialog(
         onDismissRequest = {},
         containerColor = p.surface,
@@ -186,30 +197,60 @@ fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable) {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Every TurnHub device has one Admin account: yours, as its owner. Every player at the table " +
                     "stays equal. You can add a separate everyday profile later.", color = p.muted)
-                if (library.players.any { it.credential != null })
-                    Text("Already have an account here? Choose Not now, then make it the Admin from Players, Edit.", color = p.muted)
-                OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) }, label = { Text("Your name") },
-                    enabled = !saving, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(secret, { secret = it.take(ProfileSecret.MAX_CHARS) }, label = { Text("PIN (4–8 digits) or password") },
+                if (library.players.isNotEmpty()) {
+                    Text("Is your account already here? Choose it:", color = p.muted)
+                    library.players.forEach { player ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            RadioButton(chosenId == player.localId, { choose(player.localId) }, enabled = !saving)
+                            Text(player.name)
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        RadioButton(chosenId == null, { choose(null) }, enabled = !saving)
+                        Text("A new account")
+                    }
+                }
+                if (chosen == null) OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) },
+                    label = { Text("Your name") }, enabled = !saving, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(secret, { secret = it.take(ProfileSecret.MAX_CHARS); error = null },
+                    label = { Text(when {
+                        unlocking -> "${chosen!!.name}'s PIN or password"
+                        chosen != null -> "Choose a PIN or password for ${chosen.name}"
+                        else -> "PIN (4–8 digits) or password"
+                    }) },
                     enabled = !saving, singleLine = true, visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(confirm, { confirm = it.take(ProfileSecret.MAX_CHARS) }, label = { Text("Type it again") },
-                    enabled = !saving, singleLine = true, visualTransformation = PasswordVisualTransformation(),
-                    isError = confirm.isNotEmpty() && confirm != secret, modifier = Modifier.fillMaxWidth())
-                Text(ProfileSecret.RULE, color = p.muted)
+                if (!unlocking) {
+                    OutlinedTextField(confirm, { confirm = it.take(ProfileSecret.MAX_CHARS) }, label = { Text("Type it again") },
+                        enabled = !saving, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                        isError = confirm.isNotEmpty() && confirm != secret, modifier = Modifier.fillMaxWidth())
+                    Text(if (chosen != null) "The Admin account always keeps a PIN or password. ${ProfileSecret.RULE}"
+                        else ProfileSecret.RULE, color = p.muted)
+                }
                 error?.let { Text(it, color = p.warn) }
                 TextButton({ copying = true }, enabled = !saving) { Text("Use my account from another device") }
             }
         },
         confirmButton = {
-            TextButton(enabled = !saving && name.isNotBlank() && ProfileSecret.isValid(secret) && confirm == secret, onClick = {
+            TextButton(enabled = !saving && ready, onClick = {
                 saving = true; error = null
                 scope.launch {
-                    val credential = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { LocalCredential.create(secret) }
-                    if (!table.createAdminAccount(name, credential)) error = "Could not save your account. Please try again."
+                    val done = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                        when {
+                            chosen == null -> table.createAdminAccount(name, LocalCredential.create(secret))
+                            unlocking -> table.promoteToDeviceAdmin(chosen.localId, secret)
+                            else -> table.promoteToDeviceAdmin(chosen.localId, null, LocalCredential.create(secret))
+                        }
+                    }
+                    if (!done) error = if (unlocking) "That PIN or password doesn't match ${chosen!!.name}'s."
+                        else "Could not save your account. Please try again."
                     saving = false
                 }
-            }) { Text(if (saving) "Saving…" else "Create Admin account") }
+            }) { Text(when {
+                saving -> "Saving…"
+                chosen != null -> "Make ${chosen.name} the Admin"
+                else -> "Create Admin account"
+            }) }
         },
         dismissButton = { TextButton({ table.dismissAdminPrompt() }, enabled = !saving) { Text("Not now") } },
     )

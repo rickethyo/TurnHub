@@ -499,7 +499,8 @@ class MainActivity : ComponentActivity() {
                                     importState = homeViewModel.localImport.collectAsStateWithLifecycle().value,
                                     onLoadProfiles = homeViewModel::onLoadLocalImportProfiles,
                                     onLinkAccount = homeViewModel::onLinkLocalAccount,
-                                    onBringPlayers = homeViewModel::onBringLocalAccounts)
+                                    onBringPlayers = homeViewModel::onBringLocalAccounts,
+                                    onRestoreAccount = homeViewModel::onRestoreAccount)
                             },
                             localPlanesContent = {
                                 com.turnhub.android.ui.tablet.PlanesTab(localState, standaloneViewModel.table)

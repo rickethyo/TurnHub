@@ -130,6 +130,11 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         LocalAccountTransfer(transports.create(endpoint)).verify(player, targetId, secret)
     }
 
+    /** Reads an Atlas account to recreate on this phone; leaves the active table login unchanged. */
+    suspend fun restoreAccount(endpoint: AtlasEndpoint, profileId: String, secret: String): LocalAccountTransfer.Restored = call {
+        LocalAccountTransfer(transports.create(endpoint)).restore(profileId, secret)
+    }
+
     /** Signs in; throws [AtlasException] with Atlas's reason (e.g. wrong PIN, throttled). */
     suspend fun signIn(endpoint: AtlasEndpoint, profile: ProfileSummary, pin: String) {
         mutex.withLock {
