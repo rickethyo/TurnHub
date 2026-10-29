@@ -13,6 +13,8 @@
 // loop. Firmware-only (needs the Arduino SD library); host tests use the
 // stubs in test_globals.cpp.
 
+namespace TurnHubHistory { class ArchiveFiles; }
+
 namespace TurnHubAtlas {
 
 // Mounts the card on its own VSPI bus, never formatting it, then writes and
@@ -28,6 +30,9 @@ String sdCardDiagnosticsJson();
 // holds while writing, and re-checks the card, so a store kept from boot turns
 // Unavailable after a later I/O error. Call it from the application task.
 TurnHubStorage::BlobStore *sdBlobStore();
+// The match history's files (match_archive.h) in Atlas's card folder, or
+// nullptr whenever sdBlobStore() is. Each call takes the card lock.
+TurnHubHistory::ArchiveFiles *sdArchiveFiles();
 // A card is mounted and its store works (the "NO SD CARD" warning otherwise).
 bool sdCardReady();
 // Changes whenever a card is mounted or dropped. The application loop

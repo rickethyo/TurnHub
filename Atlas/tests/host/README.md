@@ -6,7 +6,7 @@ and `IntentDispatcher`. Clock, radio, GPIO, web server, presentation, and
 NVS boundaries are replaced by deterministic stubs. No firmware is flashed.
 
 On Linux, run `bash Atlas/tests/host/run-linux.sh` from the repository root.
-It builds the application, storage, profile-store, OTA and battery-adapter suites with C++14, AddressSanitizer and UBSan, then runs them.
+It builds the application, storage, profile-store, OTA and battery-adapter suites with C++17 (like the firmware; the gameplay suite links the shared core), AddressSanitizer and UBSan, then runs them.
 GitHub Actions uses this runner; see [CI checks](../../../Documentation/engineering/CONTINUOUS_INTEGRATION.md).
 
 On Windows, run `Atlas\tests\host\run.cmd` from an x64 Native Tools Command
@@ -14,8 +14,8 @@ Prompt for Visual Studio (C++ workload required). Assertions must remain enabled
 
 Alternatively, run `Atlas\tests\host\run-gcc.ps1` in PowerShell with the
 PlatformIO `platformio/toolchain-gccmingw32` package installed, or pass
-`-Compiler` with another Windows GCC path. This runner uses C++14-compatible
-test globals and `-mno-ms-bitfields` to preserve the packed radio layout.
+`-Compiler` with another Windows GCC path. This runner uses C++17
+and `-mno-ms-bitfields` to preserve the packed radio layout.
 Both Windows runners execute gameplay and storage scenarios.
 They also compile the real `profile_store.cpp` against an in-memory NVS boundary
 and run `profile_store_scenarios`: unused seat lookups, 100 reconnect cycles,
@@ -37,13 +37,14 @@ With GCC/Clang on another host, from this directory:
 ```sh
 mkdir -p build
 python3 ../../web/build.py --header build/generated/web_assets.h
-c++ -std=c++17 -Wall -Wextra -Istubs -Ibuild/generated -I../../include -I../../../shared/include scenarios.cpp test_globals.cpp profile_fixture.cpp \
+c++ -std=c++17 -Wall -Wextra -Istubs -Ibuild/generated -I../../include -I../../../shared/include -I../../../core/include scenarios.cpp test_globals.cpp profile_fixture.cpp \
     ../../src/app_context.cpp ../../src/gameplay_intents.cpp ../../src/table_intents.cpp \
     ../../src/moderation_intent.cpp ../../src/sigil_input.cpp ../../src/sigil_menu.cpp ../../src/commander_picker.cpp ../../src/profile_picker.cpp ../../src/web_adapters.cpp ../../src/front_panel.cpp ../../src/touch_controls.cpp ../../src/sigil_accessibility.cpp \
     ../../src/audio_controller.cpp ../../src/led_renderer.cpp ../../src/controller_profiles.cpp ../../src/web_api.cpp ../../src/web_session.cpp ../../src/web_profile_api.cpp ../../src/web_game_api.cpp ../../src/web_tablet_api.cpp ../../src/web_standalone_api.cpp ../../src/standalone_import.cpp ../../src/web_admin_api.cpp ../../src/sigil_update_service.cpp ../../src/sigil_update_jobs.cpp \
     ../../src/profile_statistics.cpp ../../src/profile_stats_bridge.cpp ../../src/web_pages.cpp ../../src/ota_manager.cpp \
     ../../src/game_engine.cpp ../../src/lobby.cpp ../../src/intent_dispatcher.cpp ../../src/client_state.cpp \
     ../../src/game_checkpoint.cpp ../../src/game_recovery.cpp ../../src/game_recovery_store.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp \
+    ../../src/match_archive.cpp ../../../core/src/turnhub_json.cpp ../../../core/src/turnhub_core.cpp \
     -o build/scenarios
 ./build/scenarios
 c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -Ibuild/generated -I../../include -I../../../shared/include \

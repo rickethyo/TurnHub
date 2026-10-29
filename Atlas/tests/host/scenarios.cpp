@@ -5,6 +5,8 @@
 #include "profile_fixture.h"
 #include "profile_statistics.h"
 #include "standalone_import.h"
+#include "match_archive.h"
+#include "turnhub_core.h"
 #ifdef _MSC_VER
 // Keep the production packet's packed layout when compiling with MSVC.
 #define __attribute__(...)
@@ -4727,6 +4729,87 @@ static void standaloneImport() {
   TurnHubStandalone::useImportStore(nullptr);
 }
 
+// Atlas's match history (match_archive.h): a phone's game arrives with its
+// whole record; Atlas keeps it once on the card, with its own profile IDs,
+// plus CSV rows, and serves it back to that profile's phone.
+struct MemoryArchive : TurnHubHistory::ArchiveFiles {
+  std::map<std::string,std::string> files;
+  bool size(const char *name,size_t &size) override {
+    auto f=files.find(name); if(f==files.end()) return false; size=f->second.size(); return true;
+  }
+  bool append(const char *name,const char *data,size_t size) override { files[name].append(data,size); return true; }
+  bool readAt(const char *name,size_t offset,char *data,size_t capacity,size_t &got) override {
+    auto f=files.find(name); if(f==files.end()) return false;
+    got=offset<f->second.size()?std::min(capacity,f->second.size()-offset):0;
+    memcpy(data,f->second.data()+offset,got); return true;
+  }
+};
+static void matchHistory() {
+  MemoryBlobs blobs; TurnHubStandalone::useImportStore(&blobs);
+  enterEmptyLobby(); TurnHub::fixtureRadio=false; testNow=1000;
+  String anaId,benId; const String ana=registerPhone("Ana History",anaId); const String ben=registerPhone("Ben History",benId);
+  auto phoneRecord=[](const char *id){
+    return String("{\"recordId\":\"")+id+"\",\"gameProfile\":\"mtg_commander\",\"startingLife\":40,\"startedAtMs\":1793131200000,"
+      "\"durationMs\":1800000,\"starter\":1,\"winner\":0,\"winners\":[0],\"players\":["
+      "{\"name\":\"Ana\",\"profileId\":\"AAAA0000\",\"localId\":\"phone-uuid\",\"finalLife\":12,\"turnsCompleted\":6,\"demerits\":0,"
+      "\"extensionsUsed\":0,\"turnMs\":600000,\"fastestTurnMs\":30000,\"longestTurnMs\":200000,\"outOrder\":null,\"conceded\":false,"
+      "\"eliminatedBy\":null,\"bagDrawn\":false,\"selfEliminated\":false,\"commanderDamageReceived\":5,\"counters\":{\"poison\":1,"
+      "\"energy\":0,\"experience\":0,\"commanderCasts\":[2,0],\"cityBlessing\":false},\"commanderBySource\":{\"1\":[5,0]}},"
+      "{\"name\":\"Guest\",\"profileId\":null,\"localId\":null,\"finalLife\":0,\"turnsCompleted\":6,\"demerits\":0,\"extensionsUsed\":0,"
+      "\"turnMs\":500000,\"fastestTurnMs\":20000,\"longestTurnMs\":150000,\"outOrder\":1,\"conceded\":false,\"eliminatedBy\":0,"
+      "\"bagDrawn\":false,\"selfEliminated\":false,\"commanderDamageReceived\":0,\"counters\":{\"poison\":0,\"energy\":0,"
+      "\"experience\":0,\"commanderCasts\":[0,0],\"cityBlessing\":false},\"commanderBySource\":{}}]}";
+  };
+  std::map<std::string,String> record={
+    {"recordId","1a2b3c4d-1111-4222-8333-444455556666"},{"atlasId",TurnHubWebApi::internal::atlasHardwareId()},
+    {"gameProfile","mtg_commander"},{"durationMs","1800000"},{"players","2"},{"starter","1"},{"winner","0"},
+    {"name0","Ana"},{"profile0",anaId},{"turns0","6"},{"turnMs0","600000"},{"fastest0","30000"},{"longest0","200000"},{"out0","0"},
+    {"eliminatedBy1","0"},{"name1","Guest"},{"profile1",""},{"turns1","6"},{"turnMs1","500000"},{"fastest1","20000"},{"longest1","150000"},{"out1","1"},
+    {"record",phoneRecord("1a2b3c4d-1111-4222-8333-444455556666")},
+  };
+  // No card: statistics still count, the history says so.
+  TurnHubHistory::useFiles(nullptr);
+  assert(request("/api/standalone/import",ana,record)==200 && server.body.find("\"history\":\"no_card\"")!=std::string::npos);
+  MemoryArchive archive; TurnHubHistory::useFiles(&archive);
+  // A record of another game, or not a record, is refused before any credit.
+  auto bad=record; bad["recordId"]="1a2b3c4d-2222-4222-8333-444455556666"; assert(request("/api/standalone/import",ana,bad)==400);
+  bad=record; bad["record"]="{not json"; assert(request("/api/standalone/import",ana,bad)==400);
+  assert(archive.files.empty());
+  // The duplicate receipt still lets the record into the history once.
+  assert(request("/api/standalone/import",ana,record)==200 && server.body.find("\"history\":\"kept\"")!=std::string::npos);
+  assert(request("/api/standalone/import",ana,record)==200 && server.body.find("\"history\":\"already_kept\"")!=std::string::npos);
+  const std::string &lines=archive.files[TurnHubHistory::RECORDS_FILE];
+  assert(std::count(lines.begin(),lines.end(),'\n')==1);
+  assert(lines.find(std::string("\"profileId\":\"")+anaId.c_str()+"\"")!=std::string::npos);
+  assert(lines.find("AAAA0000")==std::string::npos && lines.find("phone-uuid")==std::string::npos);
+  const std::string &csv=archive.files[TurnHubHistory::CSV_FILE];
+  assert(csv.rfind(turnhub::RECORD_CSV_HEADER,0)==0 && std::count(csv.begin(),csv.end(),'\n')==3);
+  assert(csv.find(std::string(",1,Ana,")+anaId.c_str()+",false,true,false,,false,,false,12,6,600000,100000,")!=std::string::npos);
+  // A torn last line (power cut mid-write) is not a record, and the next one starts on its own line.
+  archive.files[TurnHubHistory::RECORDS_FILE]+="{\"recordId\":\"torn";
+  auto second=record; second["recordId"]="1a2b3c4d-3333-4222-8333-444455556666";
+  second["record"]=phoneRecord("1a2b3c4d-3333-4222-8333-444455556666");
+  assert(request("/api/standalone/import",ana,second)==200 && server.body.find("\"history\":\"kept\"")!=std::string::npos);
+
+  // Served back to the profile's own session or its linked phone, oldest first.
+  assert(request("/api/profiles/history","",{{"profileId",anaId}},HTTP_GET)==401);
+  assert(request("/api/profiles/history",ben,{{"profileId",anaId}},HTTP_GET)==401);
+  assert(request("/api/profiles/history",ana,{{"profileId",anaId},{"limit","0"}},HTTP_GET)==400);
+  assert(request("/api/profiles/history",ana,{{"profileId",anaId},{"limit","1"}},HTTP_GET)==200);
+  assert(server.body.find("1a2b3c4d-1111")!=std::string::npos && server.body.find("1a2b3c4d-3333")==std::string::npos);
+  assert(server.body.find("\"more\":true")!=std::string::npos);
+  assert(request("/api/profiles/link-key",ana)==200); const String key=responseField("linkKey");
+  assert(request("/api/profiles/history","",{{"profileId",anaId},{"linkKey",key},{"skip","1"}},HTTP_GET)==200);
+  assert(server.body.find("1a2b3c4d-3333")!=std::string::npos && server.body.find("\"more\":false")!=std::string::npos);
+  assert(request("/api/profiles/history",ben,{{"profileId",benId}},HTTP_GET)==200 && server.body.find("\"records\":[]")!=std::string::npos);
+  TurnHubHistory::useFiles(nullptr);
+  assert(request("/api/profiles/history",ana,{{"profileId",anaId}},HTTP_GET)==503);
+  assert(request("/api/session/logout",ana)==200 && request("/api/session/logout",ben)==200);
+  ProfileFixture::profiles.erase(anaId.c_str()); ProfileFixture::profiles.erase(benId.c_str());
+  TurnHubAccounts::accounts.erase(anaId.c_str()); TurnHubAccounts::accounts.erase(benId.c_str());
+  TurnHubStandalone::useImportStore(nullptr);
+}
+
 // Battery charge from the cell voltage: the LiPo curve, smoothing, the shown
 // percent's hysteresis, the low warning, and /api/devices.
 static void batteryGauge() {
@@ -5969,6 +6052,7 @@ int main() {
   powerSource(); std::cout<<"PASS power source: USB pulled and plugged in, slow discharge, no cell, started on the cell\n";
   tenPlayerImportCredit(); std::cout<<"PASS ten-player imports, high winner bit, elimination credit and retry deduplication\n";
   standaloneImport(); std::cout<<"PASS standalone import: exact Atlas/profile scope, no name fallback, invalid mapping, guests, per-player receipts, duplicates, storage failure, draw\n";
+  matchHistory(); std::cout<<"PASS match history: whole records kept once with Atlas profile IDs, CSV rows, torn lines, history route\n";
   touchSeatsPlayers(); std::cout<<"PASS touchscreen Add player: saved profiles, PIN keypad, New player keyboard, unique names\n";
   tabletMode(); std::cout<<"PASS tablet mode: presence code, Tablet access role, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";

@@ -39,7 +39,7 @@ builds, the test harness) and the tag-driven firmware release workflow live on
 the `legacy/gen1` branch since 2026-10-13, where its own copy of this workflow
 runs them. Master carries the LVGL/S3 track.
 
-Host suites use GCC, C++14, AddressSanitizer and UBSan on Ubuntu 24.04, with
+Host suites use GCC, C++17 (Atlas links the shared core), AddressSanitizer and UBSan on Ubuntu 24.04, with
 assertions enabled. Sanitizer failures fail the check. The firmware jobs use
 PlatformIO Core 6.2.0 and the existing project configurations. Some platform and
 library versions are still floating in those configurations; this workflow does

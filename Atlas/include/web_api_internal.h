@@ -182,6 +182,7 @@ void handleProfiles(WebServer &server);
 void handleRegistration(WebServer &server);
 void handleLinkKey(WebServer &server);
 void handleProfileSync(WebServer &server);
+void handleProfileHistory(WebServer &server);
 void handleParticipation(WebServer &server, WebControl control);
 void handleProfile(WebServer &server);
 void handleProfilePolicy(WebServer &server);

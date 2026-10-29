@@ -42,6 +42,7 @@ void TurnHubAtlas::releaseSleepWakePins() {}
 void TurnHubAtlas::beginSdCard() {}
 String TurnHubAtlas::sdCardDiagnosticsJson() { return "{\"state\":\"no_card\"}"; }
 TurnHubStorage::BlobStore *TurnHubAtlas::sdBlobStore() { return nullptr; }
+TurnHubHistory::ArchiveFiles *TurnHubAtlas::sdArchiveFiles() { return nullptr; }
 bool fixtureSdCardReady = true;
 bool TurnHubAtlas::sdCardReady() { return fixtureSdCardReady; }
 uint32_t TurnHubAtlas::sdCardGeneration() { return 0; }

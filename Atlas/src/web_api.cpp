@@ -218,6 +218,7 @@ const Route ROUTES[] = {
   {"/api/profiles/register", HTTP_POST, handleRegistration},
   {"/api/profiles/link-key", HTTP_POST, handleLinkKey},
   {"/api/profiles/sync", HTTP_POST, handleProfileSync},
+  {"/api/profiles/history", HTTP_GET, handleProfileHistory},
   {"/api/session/join", HTTP_POST, joinSession},
   {"/api/session/leave", HTTP_POST, leaveSession},
   {"/api/session/request", HTTP_POST, handleSessionRequest},

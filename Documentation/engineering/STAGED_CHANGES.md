@@ -179,13 +179,14 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   rapid same-actor reversals within about a second count as corrections
   (`40 -> 48 -> 47` is +7 gained), with raw events kept.
 - **Atlas match history at app parity** (owner, 2026-10-29; Invariant 12):
-  Atlas keeps the app's match records in one format
-  (`protocol/game-record-v1.schema.json`, built by core `gameRecord`; done),
-  on the card with a retention limit, separate from the recovery record.
-  Imports keep the whole record, a history route serves it back so a restored
-  account gets its games, the same statistics are computed from records on
-  both sides, and a CSV (one row per player per game) is shared after each
-  game and appended to `games.csv` on the card.
+  one match record format (`protocol/game-record-v1.schema.json`, core
+  `gameRecord`), CSV export from the app and Atlas's card history for
+  imported games (`games.jsonl`, `games.csv`, `/api/profiles/history`;
+  `protocol/http-v1.md`, "Match records and CSV") are implemented. Open:
+  Atlas's own games in that history (owner choosing between running the core
+  next and an interim adapter), the app pulling history on restore, a
+  retention limit, the same statistics computed from records on both sides,
+  and CSV download from the portal and app.
 - **Counter extensions:** per-counter profile statistics and arbitrary custom
   counters remain later work; built-in Magic counters/statuses are implemented.
 

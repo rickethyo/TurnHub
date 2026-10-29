@@ -1477,3 +1477,9 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
   App: "Export CSV" on the game-over card, "Export all games (CSV)" in History.
   Atlas side (records on the card, `games.csv`, history route) is staged.
   The user manual still needs the CSV buttons.
+- Atlas match history (same PR): `match_archive.cpp` keeps imported records
+  on the card (`games.jsonl`, `games.csv`), `/api/profiles/history` serves
+  them, and the app sends the whole record with each import. The GCC host
+  runners now build C++17 and link the core (MSVC and firmware already did);
+  Codex, `run-gcc.ps1`/`run.cmd` changed blind, please confirm on Windows.
+  Linux host suites, adapter audit and contract check pass.

@@ -17,6 +17,7 @@
 #include "diagnostic_log.h"
 #include "firmware_version.h"
 #include "game_recovery.h"
+#include "match_archive.h"
 #include "runtime_diagnostics.h"
 #include "sd_blob_store.h"
 #include "sd_hotplug.h"
@@ -163,6 +164,40 @@ class LockedSdStore final : public TurnHubStorage::BlobStore {
   }
 };
 LockedSdStore lockedStore;
+
+// The match history's files, by name inside the store's folder, under the
+// same lock and checks as the record store.
+class LockedArchiveFiles final : public TurnHubHistory::ArchiveFiles {
+ public:
+  bool size(const char *name, size_t &size) override {
+    size = 0;
+    if (!storeUsable()) return false;
+    CardLock lock;
+    return storeUsable() && sdFileSystem.exists(path(name).c_str()) && sdFileSystem.fileSize(path(name).c_str(), size);
+  }
+  bool append(const char *name, const char *data, size_t size) override {
+    if (!storeUsable()) return false;
+    CardLock lock;
+    return storeUsable() && sdFileSystem.appendFile(path(name).c_str(), data, size);
+  }
+  bool readAt(const char *name, size_t offset, char *data, size_t capacity, size_t &got) override {
+    got = 0;
+    if (!storeUsable()) return false;
+    CardLock lock;
+    if (!storeUsable()) return false;
+    File file = cardFs.open(path(name).c_str(), FILE_READ);
+    if (!file || file.isDirectory()) return false;
+    const bool ok = file.seek(offset);
+    if (ok) got = file.read(reinterpret_cast<uint8_t *>(data), capacity);
+    file.close();
+    return ok;
+  }
+
+ private:
+  // The record store's folder (sdStore.begin in mountCard).
+  static String path(const char *name) { return String("/turnhub/") + name; }
+};
+LockedArchiveFiles archiveFiles;
 
 const char *cardTypeName() {
   switch (cardFs.cardType()) {
@@ -594,6 +629,10 @@ String sdCardDiagnosticsJson() {
 
 TurnHubStorage::BlobStore *sdBlobStore() {
   return storeUsable() ? &lockedStore : nullptr;
+}
+
+TurnHubHistory::ArchiveFiles *sdArchiveFiles() {
+  return storeUsable() ? &archiveFiles : nullptr;
 }
 
 bool sdCardReady() { return storeUsable(); }

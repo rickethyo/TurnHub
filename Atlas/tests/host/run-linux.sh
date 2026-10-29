@@ -4,10 +4,10 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
 compiler="${CXX:-g++}"
-flags=(-std=c++14 -Wall -Wextra -mno-ms-bitfields -g -O1
+flags=(-std=c++17 -Wall -Wextra -mno-ms-bitfields -g -O1
        -fsanitize=address,undefined -fno-omit-frame-pointer)
 export UBSAN_OPTIONS="${UBSAN_OPTIONS:-halt_on_error=1:print_stacktrace=1}"
-includes=(-Istubs -Ibuild/generated -I../../include -I../../../shared/include)
+includes=(-Istubs -Ibuild/generated -I../../include -I../../../shared/include -I../../../core/include)
 application_sources=(
   scenarios.cpp test_globals.cpp profile_fixture.cpp
   ../../src/app_context.cpp ../../src/gameplay_intents.cpp ../../src/table_intents.cpp
@@ -21,6 +21,7 @@ application_sources=(
   ../../src/game_engine.cpp ../../src/lobby.cpp ../../src/intent_dispatcher.cpp
   ../../src/client_state.cpp ../../src/game_checkpoint.cpp ../../src/game_recovery.cpp
   ../../src/game_recovery_store.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp
+  ../../src/match_archive.cpp ../../../core/src/turnhub_json.cpp ../../../core/src/turnhub_core.cpp
 )
 
 mkdir -p build
