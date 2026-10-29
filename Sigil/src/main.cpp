@@ -1689,6 +1689,10 @@ void updateMenuKeys() {
     cycleDisplayTheme();
   } else if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_INVERT) {
     toggleDisplayInversion();
+#if TURNHUB_SIGIL_TOUCH
+  } else if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_CALIBRATE) {
+    TurnHubSigil::sigilTouchStartCalibration();
+#endif
   } else if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_SLEEP) {
     // Chosen in the device menu: Atlas is not asked (it sees the Sigil go
     // quiet, as when it is unplugged).
@@ -2030,6 +2034,10 @@ void readSerialCommands() {
         identifying = true;
         identifyUntilMs = millis() + IDENTIFY_MS;
         Serial.println("SIGIL|IDENTIFY");
+#if TURNHUB_SIGIL_TOUCH
+      } else if (length && strcmp(line, "touch cal") == 0) {
+        TurnHubSigil::sigilTouchStartCalibration();
+#endif
       } else if (length && !sigilDisplay.handleCommand(line)) {
         Serial.print("SIGIL|SERIAL|UNKNOWN|");
         Serial.println(line);

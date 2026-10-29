@@ -48,7 +48,9 @@ constexpr uint8_t MENU_LOCAL_MORE = MENU_MAX_ITEMS + 6;
 // Cycles the local display appearance without closing Menu; never sent to Atlas.
 constexpr uint8_t MENU_LOCAL_THEME = MENU_MAX_ITEMS + 7;
 constexpr uint8_t MENU_LOCAL_INVERT = MENU_MAX_ITEMS + 8;
-static_assert(MENU_LOCAL_INVERT < TurnHubProtocol::SIGIL_ACTION_NONE, "menu ids must stay below MENU_NONE");
+// Touch Sigil only (TURNHUB_BOARD_E32R28T): the on-screen touch calibration.
+constexpr uint8_t MENU_LOCAL_CALIBRATE = MENU_MAX_ITEMS + 9;
+static_assert(MENU_LOCAL_CALIBRATE < TurnHubProtocol::SIGIL_ACTION_NONE, "menu ids must stay below MENU_NONE");
 constexpr uint32_t MENU_UNPAIR_HOLD_MS = 3000;
 constexpr uint32_t MENU_FACTORY_RESET_HOLD_MS = 5000;
 // The most Menu rows: every Atlas action but AdjustLife, then Device and Back.

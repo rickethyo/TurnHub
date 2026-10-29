@@ -11,5 +11,9 @@ namespace TurnHubSigil {
 void sigilTouchBegin();
 // Reads the panel; Key::Count when nothing is pressed.
 Key sigilTouchRead();
+// Device menu > Calibrate (or the "touch cal" serial command): four
+// crosses, saved to NVS. While it runs every read returns Key::Count.
+void sigilTouchStartCalibration();
+bool sigilTouchCalibrating();
 
 }  // namespace TurnHubSigil

@@ -33,3 +33,6 @@ mkdir -p "$build_dir"
 
 "$compiler" "${flags[@]}" "${includes[@]}"   firmware_package_scenarios.cpp -o "$build_dir/firmware_package_scenarios"
 "$build_dir/firmware_package_scenarios"
+
+"$compiler" "${flags[@]}" "${includes[@]}" touch_scenarios.cpp -o "$build_dir/touch_scenarios"
+"$build_dir/touch_scenarios"
