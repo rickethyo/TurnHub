@@ -45,8 +45,8 @@ the wrong way round, change `setRotation` in
   the lens into its hole first, then lay the bar between the rails. The LED position (about
   mid-width, 41.5 mm from the USB end) comes from a photo
   (*Needs verification*); move `led_c` if the post misses it.
-- **microSD:** a slot on the left side with a fingertip recess and a guide
-  shelf; the card sits about 6 mm in.
+- **microSD:** no slot (removed 2026-10-29: behind the plug gutter the card
+  sat 7.5 mm in and could not be swapped). The Sigil doesn't need a card.
 - **RESET / BOOT:** paper-clip holes in the back near the USB-C end.
 - **Edge connectors (speaker, SPI, UART, battery):** a 4.5 mm gutter down each
   side leaves room for the plugs.
