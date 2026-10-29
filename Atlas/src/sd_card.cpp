@@ -5,6 +5,7 @@
 #include <SD_MMC.h>
 #include <USB.h>
 #include <USBMSC.h>
+#include <esp32-hal-tinyusb.h>
 #include <ff.h>
 #include <diskio_impl.h>
 #include <atomic>
@@ -342,6 +343,25 @@ bool usbDiskStartStop(uint8_t, bool start, bool loadEject) {
   if (loadEject && !start) usbShareWanted.store(false);
   return true;
 }
+// Windows asks for the disk's name when USB starts, before setup(), so it is
+// set during static initialization, after usbDisk (same file, so in order).
+struct UsbDiskName {
+  UsbDiskName() {
+    usbDisk.vendorID("TurnHub");
+    usbDisk.productID("Atlas microSD");
+    usbDisk.productRevision("1.0");
+  }
+} usbDiskName;
+
+// The core reboots into the ROM loader on any DTR/RTS pattern like esptool's,
+// and closing a serial monitor on Windows can make one (seen 2026-10-29).
+// Only the 1200 baud touch does it here; platformio.ini makes upload send it.
+void usbSerialEvent(void *, esp_event_base_t, int32_t id, void *data) {
+  if (id != ARDUINO_USB_CDC_LINE_CODING_EVENT || data == nullptr) return;
+  const auto *event = static_cast<const arduino_usb_cdc_event_data_t *>(data);
+  if (event->line_coding.bit_rate == 1200) usb_persist_restart(RESTART_BOOTLOADER);
+}
+
 // Cable pulled or computer asleep: the card comes back to Atlas.
 void usbEvent(void *, esp_event_base_t, int32_t id, void *) {
   if (id == ARDUINO_USB_STOPPED_EVENT || id == ARDUINO_USB_SUSPEND_EVENT) usbShareWanted.store(false);
@@ -521,9 +541,8 @@ void sdTask(void *) {
 void beginSdCard() {
   cardFs.setPins(AtlasConfig::SD_CLK_PIN, AtlasConfig::SD_CMD_PIN, AtlasConfig::SD_D0_PIN,
                  AtlasConfig::SD_D1_PIN, AtlasConfig::SD_D2_PIN, AtlasConfig::SD_D3_PIN);
-  usbDisk.vendorID("TurnHub");
-  usbDisk.productID("Atlas microSD");
-  usbDisk.productRevision("1.0");
+  Serial.enableReboot(false);
+  Serial.onEvent(ARDUINO_USB_CDC_LINE_CODING_EVENT, usbSerialEvent);
   usbDisk.onRead(usbDiskRead);
   usbDisk.onWrite(usbDiskWrite);
   usbDisk.onStartStop(usbDiskStartStop);

@@ -107,10 +107,12 @@ recorded and the stats API reports `"detailed": false`.
   The application loop follows `sdCardGeneration()` and moves detailed
   statistics to or from the card. The Atlas screen shows **NO SD CARD** while
   none is ready.
-- **USB drive** (*Experimental*, host-built 2026-10-29, not yet tried on the
-  board): the S3 Atlas's USB-C port is TinyUSB CDC (serial) plus a mass-storage
+- **USB drive** (*Experimental*, 2026-10-29: the board enumerates as serial plus
+  a disk; sharing the card is not yet tried on it): the S3 Atlas's USB-C port is TinyUSB CDC (serial) plus a mass-storage
   disk (`ARDUINO_USB_MODE=0`, so the USB Serial/JTAG peripheral and its JTAG
-  debugging are gone). Menu > Device > **USB drive** asks the SD worker to lend
+  debugging are gone; upload reaches the ROM loader by a 1200 baud touch, and
+  closing a serial monitor no longer reboots into it). Menu > Device >
+  **USB drive** asks the SD worker to lend
   the card: it ends the record store and logging, detaches FatFs, then shows
   the computer the whole card as raw sectors; the header says **USB DRIVE**.
   Tapping it again, the computer's Eject or a USB stop/suspend hides the disk
