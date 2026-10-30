@@ -34,6 +34,8 @@ namespace {
 constexpr int16_t W = SIGIL_SCREEN_W;
 constexpr int16_t M = 10;  // Side margin.
 constexpr int16_t HEADER_H = 44;
+// Menu's grouped list: four rows above the navigation bar.
+constexpr int16_t MENU_TOP = 50, MENU_ROW_H = 53;
 
 TurnHubTheme::Id styleTheme = TurnHubTheme::Id::Graphite;
 bool styleInverted = false;
@@ -139,6 +141,12 @@ const lv_image_dsc_t *labelIcon(const char *label) {
       {"Next", &th_icon_chevron_right_24}, {"Pair", &th_icon_sigil_24}, {"Unpair", &th_icon_link_24},
       {"Factory reset", &th_icon_power_24}, {"Invert", &th_icon_contrast_24}, {"Rematch", &th_icon_refresh_24},
       {"Add seat B", &th_icon_users_24}, {"Close", &th_icon_close_24}, {"Undo", &th_icon_refresh_24},
+      {"Done", &th_icon_check_24}, {"More actions", &th_icon_more_24}, {"Drop seat B", &th_icon_users_24},
+      {"Partner: off", &th_icon_users_24}, {"Partner: on", &th_icon_users_24}, {"Leave lobby", &th_icon_close_24},
+      {"Reset table", &th_icon_refresh_24}, {"Link phone", &th_icon_link_24}, {"Switch seat", &th_icon_users_24},
+      {"Switch game", &th_icon_table_24}, {"Random start", &th_icon_refresh_24},
+      {"Next starter", &th_icon_chevron_right_24}, {"Undo hit", &th_icon_refresh_24},
+      {"Cmd damage", &th_icon_crown_24}, {"Calibrate", &th_icon_sigil_24}, {"Undo pass", &th_icon_refresh_24},
   };
   for (const auto &entry : ICONS)
     if (strcmp(entry.label, label) == 0) return entry.icon;
@@ -245,20 +253,29 @@ bool LvglSigilDisplay::lifeKeysShown() const {
 }
 
 // Each frame owns its visible touch regions; blank space has no action.
-lv_obj_t *LvglSigilDisplay::frame(const char *title, uint8_t, uint8_t) {
+lv_obj_t *LvglSigilDisplay::frame(const char *title, uint8_t, uint8_t, const char *subtitle) {
   styleTheme = theme_; styleInverted = inverted_;
   touchMap_ = TouchMap();
+  touchMap_.actor = actor_;
+  touchMap_.lifeRequest = lifeRequestKey_;
   for (auto &key : keys_) key = nullptr;
   lv_obj_t *screen = lv_screen_active();
   lv_obj_clean(screen);
   lv_obj_set_style_bg_color(screen, rgb(pal().bg), 0);
   lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_grad_dir(screen, LV_GRAD_DIR_NONE, 0);
   lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
   // The app's top bar: the screen's colour with a hairline under the title.
   lv_obj_t *bar = box(screen, 0, 0, W, HEADER_H);
   lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_BOTTOM, 0);
   lv_obj_set_style_border_width(bar, 1, 0);
   lv_obj_set_style_border_color(bar, rgb(pal().separator), 0);
+  if (subtitle) {
+    // A two-line header: the title over a small caption, clear of the header key.
+    text(bar, title, &th_semi_20, pal().text, M, 2, W - 2 * M - 80);
+    text(bar, subtitle, &th_eyebrow_13, pal().textSecondary, M, 26, W - 2 * M - 80);
+    return screen;
+  }
   // Large while it clears the header's More key; the smaller title otherwise.
   const bool large = textWidth(title, &th_bold_28) <= W - 2 * M - 80;
   text(bar, title, large ? &th_bold_28 : &th_semi_20, pal().text, M, large ? 6 : 11, W - 2 * M);
@@ -355,8 +372,11 @@ void LvglSigilDisplay::pad(const PadLabels &labels) {
   const uint8_t up=0, down=1, left=2, right=3, select=4;
   PadRect rects[KEY_COUNT] = {};
   if (layout_ == Layout::Menu) {
-    rects[select]={10,54,106,72}; rects[up]={124,54,106,72};
-    rects[right]={10,134,106,72}; rects[down]={124,134,106,72}; rects[left]={10,214,220,48};
+    // One grouped list of rows in page order (Select, Up, Right, Down), the
+    // header's Done or Back where More was.
+    rects[select]={M,MENU_TOP,W-2*M,MENU_ROW_H}; rects[up]={M,MENU_TOP+MENU_ROW_H,W-2*M,MENU_ROW_H};
+    rects[right]={M,MENU_TOP+2*MENU_ROW_H,W-2*M,MENU_ROW_H}; rects[down]={M,MENU_TOP+3*MENU_ROW_H,W-2*M,MENU_ROW_H};
+    rects[left]={164,0,76,44};
   } else if (layout_ == Layout::Picker) {
     rects[up]={10,54,220,50}; rects[right]={10,110,220,50}; rects[down]={10,166,220,50};
     rects[left]={10,222,106,44}; rects[select]={124,222,106,44};
@@ -370,13 +390,30 @@ void LvglSigilDisplay::pad(const PadLabels &labels) {
     rects[up]={164,0,76,44}; rects[left]={10,164,106,44}; rects[right]={124,164,106,44};
     rects[down]={10,112,220,44}; rects[select]={10,216,220,48};
   }
+  if (layout_ == Layout::Menu) {
+    static const Key ROWS[] = {Key::Select, Key::Up, Key::Right, Key::Down};
+    uint8_t rows = 0;
+    for (Key k : ROWS) if (labels.text[static_cast<uint8_t>(k)]) ++rows;
+    if (rows) {
+      auto *group = box(lv_screen_active(), M, MENU_TOP, W - 2 * M, rows * MENU_ROW_H);
+      card(group, pal().light ? pal().surface1 : pal().surface2, pal().separator, 16);
+      for (uint8_t i = 1; i < rows; ++i) {
+        auto *rule = box(group, 52, i * MENU_ROW_H, W - 2 * M - 52, 1);
+        card(rule, pal().separator, pal().separator, 0);
+      }
+    }
+  }
   for (uint8_t i=0; i<KEY_COUNT; ++i) {
     const uint32_t meaning = (context_ * 65536u + menu_.revision * 256u +
         (menu_.compass[i] == MENU_NONE ? i : menu_.compass[i])) ^ (touchMap_.actor * 2654435761u) ^
         (static_cast<uint32_t>(touchMap_.lifeRequest) << 16);
-    button(labels.text[i], labels.note[i], rects[i], i, labels.accent[i], meaning);
+    if (layout_ == Layout::Menu && i == left) menuClose(labels.text[i], rects[i], meaning);
+    else if (layout_ == Layout::Menu) menuRow(labels.text[i], labels.note[i], rects[i], i, menu_.compass[i], meaning);
+    else button(labels.text[i], labels.note[i], rects[i], i, labels.accent[i], meaning);
   }
-  const uint8_t progress = menu_.pairPercent ? menu_.pairPercent : menu_.holdPercent;
+  // Menu shows a hold inside its row; the pairing hold has no row.
+  const uint8_t progress = menu_.pairPercent ? menu_.pairPercent :
+      layout_ == Layout::Menu ? 0 : menu_.holdPercent;
   if (progress) {
     auto *track=box(lv_screen_active(),10,266,220,4);
     card(track,pal().fillStrong,pal().fillStrong,2);
@@ -404,7 +441,8 @@ PadLabels LvglSigilDisplay::menuLabels() const {
   for (uint8_t i = 0; i < KEY_COUNT; ++i) {
     const uint8_t action = menu_.compass[i];
     if (action == MENU_NONE) continue;
-    l.text[i] = action == MENU_LOCAL_DEVICE_MENU ? "More" : sigilActionLabel(static_cast<TurnHubProtocol::SigilAction>(action));
+    l.text[i] = action == MENU_LOCAL_DEVICE_MENU ? "More" : action == MENU_LOCAL_MORE && menu_.deviceMenu ? "More actions" :
+        sigilActionLabel(static_cast<TurnHubProtocol::SigilAction>(action));
     if (menuActionNeedsHold(action)) l.note[i] = "HOLD";
   }
   const uint8_t left = static_cast<uint8_t>(Key::Left), right = static_cast<uint8_t>(Key::Right);
@@ -439,21 +477,95 @@ void LvglSigilDisplay::statusScreen(const char *title, const char *line1, const 
   finish(labels);
 }
 
-// Open Menu replaces the screen; the keys hold its entries.
-bool LvglSigilDisplay::drawDeviceMenu(uint8_t sigilId) {
+// Open Menu replaces the screen, as the app's player menu: the player's name
+// over a grouped list of rows, Done or Back in the header.
+bool LvglSigilDisplay::drawDeviceMenu(uint8_t sigilId, const char *who, uint8_t number) {
   if (!menu_.active || !menu_.deviceMenu) return false;
-  char detail[24] = "";
-  if (menu_.recovery) {
-    snprintf(detail, sizeof(detail), "%s%s", pal().label, inverted() ? ", inverted" : "");
-  } else if (menu_.pageCount > 1) {
-    snprintf(detail, sizeof(detail), "Page %u of %u", static_cast<unsigned>(menu_.page + 1),
-        static_cast<unsigned>(menu_.pageCount));
-  }
+  char detail[40] = "";
+  int n = 0;
+  if (who && who[0] && !menu_.recovery && menu_.pageCount <= 1) n = snprintf(detail, sizeof(detail), "Player controls");
+  if (menu_.pageCount > 1 && n >= 0 && static_cast<size_t>(n) < sizeof(detail))
+    snprintf(detail + n, sizeof(detail) - n, "%sPage %u of %u", n ? " / " : "",
+        static_cast<unsigned>(menu_.page + 1), static_cast<unsigned>(menu_.pageCount));
   layout_ = Layout::Menu;
-  frame(menu_.recovery ? "Device settings" : "Player controls", sigilId);
-  pad(menuLabels());
+  const char *title = menu_.recovery ? "Device" : who && who[0] ? who : "Player controls";
+  lv_obj_t *s = frame(title, sigilId, 0, detail[0] ? detail : nullptr);
+  // The app's player menu washes the screen in the player's hue.
+  if (who && who[0] && !menu_.recovery && number) {
+    const uint32_t hue = seatColor(number);
+    lv_obj_set_style_bg_color(s, mixRgb(pal().bg, hue, 26), 0);
+    lv_obj_set_style_bg_grad_color(s, mixRgb(pal().bg, hue, 72), 0);
+    lv_obj_set_style_bg_grad_dir(s, LV_GRAD_DIR_VER, 0);
+  }
+  PadLabels labels = menuLabels();
+  // Settings has nothing to close back to: its Menu reopens at once.
+  if (page_ == TurnHubUi::Page::Settings && !menu_.canGoBack) labels.text[static_cast<uint8_t>(Key::Left)] = nullptr;
+  pad(labels);
   present();
   return true;
+}
+
+// A row of the open Menu: a tinted icon tile, the label, its detail, and a
+// chevron on rows that open another page. Tone follows the app: winning in
+// good, leaving or erasing in critical.
+void LvglSigilDisplay::menuRow(const char *label, const char *note, PadRect r, uint8_t key, uint8_t action,
+    uint32_t meaning) {
+  if (!label || !label[0]) return;
+  using TurnHubProtocol::SigilAction;
+  const bool danger = action == MENU_LOCAL_UNPAIR || action == MENU_LOCAL_FACTORY_RESET ||
+      action == static_cast<uint8_t>(SigilAction::BeginElimination) ||
+      action == static_cast<uint8_t>(SigilAction::Leave) || action == static_cast<uint8_t>(SigilAction::ResetTable);
+  const bool good = action == static_cast<uint8_t>(SigilAction::ClaimWin) ||
+      action == static_cast<uint8_t>(SigilAction::ConfirmWin);
+  const bool opens = action == MENU_LOCAL_DEVICE || action == MENU_LOCAL_MORE;
+  const uint32_t tint = danger ? pal().critical : good ? pal().good : opens ? pal().info : pal().accent;
+  auto *row = box(lv_screen_active(), r.x, r.y, r.w, r.h);
+  lv_obj_set_style_radius(row, 16, 0);
+  auto *tile = box(row, 10, (r.h - 32) / 2, 32, 32);
+  card(tile, tint, tint, 9);
+  sheen(tile, tint);
+  const lv_image_dsc_t *glyph = labelIcon(label);
+  icon(tile, glyph ? glyph : &th_icon_sigil_24, 4, 4, pal().bg);
+  const int16_t textW = r.w - 52 - (opens ? 34 : 10);
+  const char *detail = note && strcmp(note, "HOLD") == 0 ? "Hold to confirm" : note;
+  if (action == MENU_LOCAL_DEVICE) detail = "Theme and pairing";
+  // The look rows say what is chosen now.
+  if (action == MENU_LOCAL_THEME) detail = pal().label;
+  if (action == MENU_LOCAL_INVERT) detail = inverted() ? "On" : "Off";
+  const uint32_t ink = danger ? pal().critical : pal().text;
+  if (detail) {
+    text(row, label, &th_semi_20, ink, 52, (r.h - 40) / 2, textW);
+    text(row, detail, &th_eyebrow_13, pal().textSecondary, 52, (r.h - 40) / 2 + 24, textW);
+  } else {
+    text(row, label, &th_semi_20, ink, 52, (r.h - 24) / 2, textW);
+  }
+  if (opens) icon(row, &th_icon_chevron_right_24, r.w - 32, (r.h - 24) / 2, pal().textTertiary);
+  if (menu_.holdPercent && menu_.holdAction == action) {
+    auto *track = box(row, 52, r.h - 7, r.w - 64, 4);
+    card(track, pal().fillStrong, pal().fillStrong, 2);
+    auto *fill = box(track, 0, 0, (r.w - 64) * menu_.holdPercent / 100, 4);
+    card(fill, tint, tint, 2);
+  }
+  // A newly labeled control cannot inherit a contact from the old action.
+  for (const char *c = label; *c; ++c) meaning = (meaning ^ static_cast<uint8_t>(*c)) * 16777619u;
+  touchMap_.add(r, key, meaning);
+  keys_[key] = row;
+}
+
+// Menu's Done or Back: the app's pill-shaped header button.
+void LvglSigilDisplay::menuClose(const char *label, PadRect r, uint32_t meaning) {
+  if (!label || !label[0]) return;
+  const char *shown = menu_.canGoBack ? "Back" : "Done";
+  auto *hit = box(lv_screen_active(), r.x, r.y, r.w, r.h);
+  auto *pill = box(hit, 2, 6, r.w - 10, 32);
+  card(pill, pal().surface1, pal().separatorStrong, 16);
+  const int16_t tw = static_cast<int16_t>(textWidth(shown, &th_semi_16));
+  const int16_t x = (r.w - 10 - tw - 22) / 2;
+  icon(pill, menu_.canGoBack ? &th_icon_chevron_left_24 : &th_icon_check_24, x - 4, 3, pal().text);
+  text(pill, shown, &th_semi_16, pal().text, x + 22, 6, tw + 2);
+  for (const char *c = shown; *c; ++c) meaning = (meaning ^ static_cast<uint8_t>(*c)) * 16777619u;
+  touchMap_.add(r, static_cast<uint8_t>(Key::Left), meaning);
+  keys_[static_cast<uint8_t>(Key::Left)] = pill;
 }
 
 void LvglSigilDisplay::showBooting() { layout_=Layout::Hidden; statusScreen("Starting", "Looking for Atlas", nullptr, 0xFF, PadLabels()); }
@@ -520,19 +632,17 @@ bool LvglSigilDisplay::setSeatName(uint8_t slot, const char *name) {
 
 void LvglSigilDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &g) {
   page_=TurnHubUi::Page::Game; layout_=Layout::Game; context_=2;
-  if (drawDeviceMenu(g.sigilId)) return;
   using namespace TurnHubProtocol;
+  actor_=displayPrimaryPlayer(g.state);
+  lifeRequestKey_=static_cast<uint16_t>(life_.request.target << 8) | life_.request.tag;
+  if (drawDeviceMenu(g.sigilId,g.primary.name,actor_)) return;
   const bool active=hasDisplayFlag(g.state,DISPLAY_FLAG_ACTIVE);
   const bool shared=displaySecondaryPlayer(g.state)!=0;
   const bool seatB=hasDisplayFlag(g.state,DISPLAY_FLAG_PRIMARY_B);
   auto *s=frame("My player",g.sigilId);
-  touchMap_.actor=displayPrimaryPlayer(g.state);
-  touchMap_.lifeRequest=static_cast<uint16_t>(life_.request.target << 8) | life_.request.tag;
   if (lifeRequestShown()) {
     layout_=Layout::Actions;
     frame("Life request",g.sigilId);
-    touchMap_.actor=displayPrimaryPlayer(g.state);
-    touchMap_.lifeRequest=static_cast<uint16_t>(life_.request.target << 8) | life_.request.tag;
     char request[48];
     snprintf(request,sizeof(request),"Player %u requests",life_.request.requester);
     text(s,request,&th_semi_20,pal().text,10,62,220,LV_TEXT_ALIGN_CENTER);
@@ -722,8 +832,9 @@ void LvglSigilDisplay::showHome(uint8_t sigilId, bool connected, const char *nam
 
 void LvglSigilDisplay::showSettings(uint8_t sigilId) {
   page_=TurnHubUi::Page::Settings; layout_=Layout::Menu; context_=4;
+  if (drawDeviceMenu(sigilId)) return;
   frame("Sigil settings",sigilId);
-  pad(menuLabels()); present();
+  navigation(page_); present();
 }
 
 void LvglSigilDisplay::showTable(uint8_t sigilId, const TableSnapshot &table, uint8_t page, bool connected) {

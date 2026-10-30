@@ -127,6 +127,14 @@ int main() {
     open.deviceMenu = true;
     d.setMenuView(open);
     d.showGame(game("Ricky", 22, false, 7)); save("menu" + suffix);
+    // Menu over a game keeps the player on its touch map, or main.cpp drops every touch.
+    if (d.touchMap().actor != 1 || !d.touchMap().at(120, 70)) { fprintf(stderr, "menu touch map lost the player\n"); return 1; }
+    open.page = 0; open.pageCount = 2;
+    open.compass[static_cast<uint8_t>(Key::Down)] = MENU_LOCAL_MORE;
+    d.setMenuView(open);
+    d.showGame(game("Ricky", 22, false, 7)); save("menu-paged" + suffix);
+    open.compass[static_cast<uint8_t>(Key::Down)] = MENU_LOCAL_DEVICE;
+    open.pageCount = 0;
     open.holdAction = A(SigilAction::ClaimWin);
     open.holdPercent = 50;
     d.setMenuView(open);
