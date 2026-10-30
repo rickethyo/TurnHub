@@ -129,8 +129,11 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
   }
 
   {
-    auto s=base("ATLAS","TurnHub","RUNNING, 4 players");s.kind=ScreenKind::Home;
-    const char *lines[]={"Wi-Fi: TurnHub-Atlas","Portal: 192.168.4.1","Sigils online: 2","SD card: ready, battery 72%","Atlas v0.7.20, up 1:02:13"};
+    auto s=base("PLAYING","TurnHub","Your table, Game 1");s.kind=ScreenKind::Home;
+    const char *names[]={"Ricky","Avery","Sam","Jordan"};
+    for(uint8_t i=0;i<4;++i){auto &p=s.players[s.playerCount++];p.number=i+1;snprintf(p.name,sizeof(p.name),"%s",names[i]);p.flags=i==1?CHIP_ACTIVE:i==3?CHIP_OUT:0;}
+    s.sigilsOnline=3;s.round=4;
+    const char *lines[]={"Avery's turn","Round 4","Commander","40 life"};
     for(auto line:lines) snprintf(s.lines[s.lineCount++],sizeof(s.lines[0]),"%s",line);
     row(s,BUTTON_ROW_Y,{{TouchAction::OpenManaTap,"Play Mana Tap (best 24)"}});
     renderShell(s,style);save("home"+suffix);

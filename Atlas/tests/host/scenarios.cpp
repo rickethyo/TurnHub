@@ -2962,17 +2962,19 @@ static void atlasScreens() {
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
     assert(b.w>=44 && b.h>=44 && b.x>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
 
-  // Home is the table's status and info, with the tabs and Mana Tap to lead on.
+  // Home is the table at a glance, with the tabs and Mana Tap to lead on:
+  // no clocks and no device details (the header and QR codes hold those).
   tapButton(TouchAction::OpenHome); s=currentScreen();
-  assert(s.kind==ScreenKind::Home && String(s.title)=="TurnHub" && String(s.detail)=="LOBBY, 3 players" && s.lineCount==5 &&
+  assert(s.kind==ScreenKind::Home && String(s.title)=="TurnHub" && String(s.badge)=="LOBBY" && s.lineCount==4 &&
+      String(s.lines[0])=="3 players at the table" && String(s.lines[1])=="Start a game from the Game tab" &&
+      s.lines[2][0] && s.playerCount==3 && s.clock[0]=='\0' &&
       s.buttonCount==5 && screenButton(s,TouchAction::OpenGame) && screenButton(s,TouchAction::OpenSettings) &&
       screenButton(s,TouchAction::OpenManaTap));
-  fixtureSdCardReady=false; assert(String(currentScreen().lines[3])=="SD card: NOT INSERTED"); fixtureSdCardReady=true;
-  fixtureBattery.present=true; fixtureBattery.percent=64;
-  assert(String(currentScreen().lines[3])=="SD card: ready, battery 64%");
-  fixtureBattery.charging=true;
-  assert(currentScreen().batteryCharging && String(currentScreen().lines[3])=="SD card: ready, battery 64%, charging");
-  fixtureSdCardReady=false; assert(String(currentScreen().lines[3])=="SD card: NOT INSERTED, battery 64%"); fixtureSdCardReady=true;
+  for (uint8_t i=0;i<s.lineCount;++i) assert(!strstr(s.lines[i],"Wi-Fi") && !strstr(s.lines[i],"Portal"));
+  fixtureBattery.present=true; fixtureBattery.percent=64; fixtureBattery.charging=true;
+  assert(currentScreen().batteryPercent==64 && currentScreen().batteryCharging);
+  openMenuScreen(); tapButton(TouchAction::OpenDevice);
+  assert(startsWith(currentScreen().detail,"TurnHub Atlas v"));
   fixtureBattery=TurnHub::BatteryReading();
   openMenuScreen(); tapButton(TouchAction::OpenQr); s=currentScreen();
   assert(s.kind==ScreenKind::Qr && String(s.qr)=="http://192.168.4.1/portal" &&
@@ -3051,12 +3053,13 @@ static void updateNotice() {
   openMenuScreen(); AtlasScreen s=currentScreen();
   assert(firmwareUpdateKind()==TurnHub::UpdateKind::Sigils && s.update==TurnHub::UpdateKind::Sigils);
   assert(String(s.detail)=="Update available: use the app");
-  tapButton(TouchAction::OpenHome); assert(String(currentScreen().lines[4])=="Update available: use the app");
+  tapButton(TouchAction::OpenHome); assert(currentScreen().update==TurnHub::UpdateKind::Sigils);
   // Only Atlas behind: the words name it, and every Sigil is told the same.
   assert(request("/api/updates/latest","",{{"atlas",newer},{"sigil","0.9.2"}})==200);
   assert(firmwareUpdatesAvailable()==1 && firmwareUpdateKind()==TurnHub::UpdateKind::AtlasOnly);
   assert(String(TurnHub::updateKindText(firmwareUpdateKind()))=="Update available for Atlas");
-  assert(String(currentScreen().lines[4])=="Update available for Atlas: use the app");
+  openMenuScreen(); assert(String(currentScreen().detail)=="Update available for Atlas: use the app");
+  tapButton(TouchAction::OpenHome);
   AtlasScreen header; buildAtlasScreen(testNow,header);
   assert(header.update==TurnHub::UpdateKind::AtlasOnly);
   syncSigilMenus(testNow);
@@ -3064,9 +3067,9 @@ static void updateNotice() {
   assert(request("/api/updates/latest","",{{"atlas",newer},{"sigil","0.9.4-dev"}})==200);
   syncSigilMenus(testNow);
   assert(TurnHub::fixtureUpdateNotice[0]==static_cast<int32_t>(TurnHub::UpdateKind::Sigils));
-  // Up to date again: the notice goes, and the uptime line comes back.
+  // Up to date again: the header notice goes.
   assert(request("/api/updates/latest","",{{"sigil","0.9.2"}})==200 && firmwareUpdatesAvailable()==0);
-  assert(startsWith(currentScreen().lines[4],"Atlas v") && strstr(currentScreen().lines[4],", up "));
+  assert(currentScreen().update==TurnHub::UpdateKind::None);
   for (auto &record : TurnHub::fixtureRecords) { record.helloInfoValid=false; record.capabilities=0; }
   resetTouchControls();
 }
