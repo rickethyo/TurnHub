@@ -671,7 +671,7 @@ bool GameEngine::endWinClaim(const turnhub::Game &ended, uint32_t nowMs) {
 
 bool GameEngine::denyWinClaim(uint8_t playerNumber, uint32_t nowMs) {
   const int index = indexForPlayerNumber(playerNumber);
-  return index >= 0 && endWinClaim(core_.answerWinClaim(index, false, at(nowMs)), at(nowMs));
+  return index >= 0 && endWinClaim(core_.answerWinClaim(index, false, at(nowMs)), nowMs);
 }
 
 bool GameEngine::cancelWinClaim(uint8_t claimantPlayer, uint32_t nowMs) {

@@ -1569,3 +1569,39 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
   distribution download failed with connection refused. CI must compile the
   Android changes; device navigation, TalkBack, large text and recreation remain
   unverified. No new tests for this presentation-only rearrangement.
+
+### Shared-core follow-up review / Codex / 2026-10-30
+
+- Owner request: review Claude's work and fill verified gaps. Owner: Codex;
+  branch `codex/master`, accepted baseline `73a9eb4f`; no open PRs at startup.
+- Scope: shared-core clock conversion on win denial and recovered match
+  identity/name persistence, with regression coverage and current reference docs.
+  No overlapping unfinished Claude branch is being integrated.
+- Fixed win denial's double clock conversion; regression covers resume,
+  withdrawal, a nonzero clock origin and millis rollover.
+- Checkpoint schema 10 retains the original match ID and 32-byte roster names;
+  restored games no longer share a boot-local history ID or lose their labels.
+  Removed obsolete checkpoint decoders under the prototype no-migration rule;
+  older records remain protected as unsupported and need a prototype reset.
+  History regression encodes, decodes, restores and completes an Atlas match.
+- Corrected the core README and removed the completed native-history backlog
+  item; current layout/reset behavior lives in STORAGE_AND_RECOVERY.md.
+- Validation: all four Linux Atlas host suites pass with ASan/UBSan; all eight
+  shared-core scenarios pass; adapter audit (31), client contract (16 actual
+  responses, 12 fixtures, two records), documentation and whitespace checks pass.
+  PlatformIO and PowerShell are absent here, so firmware builds, Windows runners
+  and physical checks remain unverified. No firmware was flashed.
+
+### PR #168 conflict resolution / Codex / 2026-10-29
+
+- Owner request: resolve the current PR conflict. Codex owns the update on
+  `codex/more-navigation`, PR head `7d7a2038`, accepted baseline `ac849933`.
+  This continues the existing navigation scope; no other agent's unfinished
+  work is being integrated.
+- Merged `origin/master` into the PR branch. The only conflict was concurrent
+  appended entries in this file; retained both the More navigation and
+  shared-core follow-up records. The staged backlog merged cleanly and keeps
+  the Atlas More counterpart while removing the completed history item.
+- Validation: documentation links, generated manual consistency and whitespace
+  checks pass. No unresolved paths remain. Application code merged unchanged;
+  this resolution only reconciles the collaboration records.
