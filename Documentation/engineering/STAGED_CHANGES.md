@@ -206,6 +206,14 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 
 ### Accounts, portal and app
 
+- **More and About** (owner, 2026-10-30): Android's rightmost tab opens
+  About, Settings and Store as separate pages. Next parity slice: provide the
+  same About/project information from Atlas's Info/Settings surfaces, sized
+  for its display, while keeping physical game controls accessible. Owner's
+  biography and motivation, donation destination and store offerings are still
+  pending; the store has no checkout or purchase links. Validate Back,
+  recreation, large text and TalkBack on a device.
+
 - **Shared Death May Die devices:** physical two-/multi-device Wi-Fi, Android
   keystore TLS, QR/paste pairing, investigator ownership and Elder One display
   checks; reconnect, screen lock/background, rotation, process death, large

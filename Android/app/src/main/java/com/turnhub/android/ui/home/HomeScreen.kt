@@ -98,7 +98,7 @@ private enum class HomeTab(val label: String, @DrawableRes val icon: Int) {
     ELDER("Elder One", DesignTokens.Icons.eye),
     PLAYERS("Players", DesignTokens.Icons.users),
     HISTORY("History", DesignTokens.Icons.clock),
-    SETTINGS("Settings", DesignTokens.Icons.sliders),
+    MORE("More", DesignTokens.Icons.more),
 }
 
 /**
@@ -193,6 +193,7 @@ fun HomeScreen(
         com.turnhub.android.ui.tablet.LocalTileBackgroundDialog(player, localTable) { editingBackgroundId = null }
     }
     var tab by rememberSaveable { mutableStateOf(HomeTab.GAME) }
+    var morePage by rememberSaveable { mutableStateOf(MorePage.HOME) }
     androidx.compose.runtime.LaunchedEffect(requestedTab) {
         HomeTab.entries.firstOrNull { it.name == requestedTab }?.let { tab = it; onTabRequestHandled() }
     }
@@ -225,7 +226,10 @@ fun HomeScreen(
     androidx.compose.runtime.LaunchedEffect(elderOne) { if (!elderOne && tab == HomeTab.ELDER) tab = HomeTab.GAME }
     var playersPage by rememberSaveable { mutableStateOf("Device") }
     val pageState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
-    androidx.activity.compose.BackHandler(enabled = tab != HomeTab.GAME && !setup.visible) { tab = HomeTab.GAME }
+    androidx.activity.compose.BackHandler(enabled = tab != HomeTab.GAME && !setup.visible) {
+        if (tab == HomeTab.MORE && morePage != MorePage.HOME) morePage = MorePage.HOME
+        else tab = HomeTab.GAME
+    }
     // Presence also says whether Atlas still needs its first Admin.
     androidx.compose.runtime.LaunchedEffect(info?.profileId) { if (info != null) adminActions.onRefresh() }
     val incomingRequest = me?.lifeRequest?.let { it.state == LifeRequestState.PENDING && it.target == me.playerNumber } == true
@@ -271,10 +275,10 @@ fun HomeScreen(
         com.turnhub.android.ui.components.tableBugReportContext(summary,
             if (setup.visible) "Atlas setup" else tab.label)
     } else {
-        val deviceGame = tab != HomeTab.SETTINGS && !setup.visible
+        val deviceGame = tab != HomeTab.MORE && !setup.visible
         com.turnhub.android.ui.components.BugReportContext(
             mode = if (deviceGame) com.turnhub.android.ui.components.BugReportMode.ON_DEVICE else null,
-            screen = tab.label,
+            screen = if (tab == HomeTab.MORE) morePage.title else tab.label,
             gameFormat = localState.game.profile.wireValue.takeIf { deviceGame },
             gameState = localState.game.state.name.takeIf { deviceGame },
         )
@@ -314,6 +318,7 @@ fun HomeScreen(
                             selected = selected,
                             onClick = {
                                 if (!selected) haptics.tick()
+                                if (entry == HomeTab.MORE) morePage = MorePage.HOME
                                 tab = entry
                             },
                             icon = {
@@ -383,7 +388,7 @@ fun HomeScreen(
                 },
                 label = "tab",
             ) { shown ->
-                pageState.SaveableStateProvider(shown.name) {
+                pageState.SaveableStateProvider(if (shown == HomeTab.MORE) "MORE:${morePage.name}" else shown.name) {
                     when {
                         !setup.visible && shown == HomeTab.TABLE -> if (summary != null && atlasGame) {
                             com.turnhub.android.ui.tablet.TablePreview(summary, reduceMotion) {
@@ -430,7 +435,7 @@ fun HomeScreen(
                                         if (canPeople) PeopleCard(info, admin, uiState.avatars, adminActions)
                                     }
                                 }
-                                HomeTab.SETTINGS -> {
+                                HomeTab.MORE -> MoreTab(morePage, { morePage = it }) {
                                     AppearanceCard(theme, reduceMotion, accountActions)
                                     BrassCard {
                                         val (artOn, setArt) = com.turnhub.android.ui.tablet.rememberCommanderArtEnabled()

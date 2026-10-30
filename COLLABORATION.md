@@ -1544,6 +1544,32 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
 - Sigil host suites, LVGL previews and `pio run -e sigil` pass. Hardware check
   with the owner next.
 
+### More navigation / Codex / 2026-10-30
+
+- Owner: replace the app's rightmost Settings tab with More, opening About,
+  Settings and Store without crowding the main screen. Codex owns this slice
+  on `codex/more-navigation`, baseline `73a9eb4f`, separate worktree
+  `/workspace/TurnHub-more`. Separate PR because #167 is an independent
+  shared-core/recovery fix ready for review; navigation has no dependency on it.
+- Presentation only: app owns navigation; taps/Back change local page state;
+  Compose validates destinations and saves navigation through recreation. No
+  game Intent, canonical state, transport, storage format or new dependency.
+  Scrollable pages, labeled controls and standard Back support accessibility.
+  Existing Admin/Developer permissions remain authoritative. Atlas counterpart
+  and pending owner biography/donation/store details are staged.
+- Implemented the More tab with an ellipsis icon, separate About/Settings/Store
+  pages, Back-to-More controls, Android Back handling, per-page saved scroll
+  state and reselect-to-menu behavior. Existing settings and role gates stay
+  in the Settings page; diagnostics identify the active More subpage.
+- About has project copy only until the owner supplies their story; Store
+  explicitly says it is not open. No payment or donation destination invented.
+- App Manual DOCX and generated offline asset updated; README navigation and
+  staged Atlas counterpart updated. Documentation/manual export and whitespace
+  checks pass. `:app:compileDebugKotlin` could not start: the Gradle 9.8.0
+  distribution download failed with connection refused. CI must compile the
+  Android changes; device navigation, TalkBack, large text and recreation remain
+  unverified. No new tests for this presentation-only rearrangement.
+
 ### Shared-core follow-up review / Codex / 2026-10-30
 
 - Owner request: review Claude's work and fill verified gaps. Owner: Codex;
@@ -1565,3 +1591,17 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
   responses, 12 fixtures, two records), documentation and whitespace checks pass.
   PlatformIO and PowerShell are absent here, so firmware builds, Windows runners
   and physical checks remain unverified. No firmware was flashed.
+
+### PR #168 conflict resolution / Codex / 2026-10-29
+
+- Owner request: resolve the current PR conflict. Codex owns the update on
+  `codex/more-navigation`, PR head `7d7a2038`, accepted baseline `ac849933`.
+  This continues the existing navigation scope; no other agent's unfinished
+  work is being integrated.
+- Merged `origin/master` into the PR branch. The only conflict was concurrent
+  appended entries in this file; retained both the More navigation and
+  shared-core follow-up records. The staged backlog merged cleanly and keeps
+  the Atlas More counterpart while removing the completed history item.
+- Validation: documentation links, generated manual consistency and whitespace
+  checks pass. No unresolved paths remain. Application code merged unchanged;
+  this resolution only reconciles the collaboration records.
