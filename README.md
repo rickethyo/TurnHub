@@ -28,10 +28,11 @@ branch from `legacy/gen1` and open the PR against it. The two never merge.
 |---|---|
 | [`Atlas/`](Atlas/README.md) | ESP32 table controller: game engine, Wi-Fi AP, web portal and HTTP API, ESP-NOW radio, NVS and optional microSD storage |
 | [`Sigil/`](Sigil/platformio.ini) | Touchscreen player controller: LVGL touch buttons, secure radio, pairing and speaker; one build, on the E32R28T board until the S3 Sigil |
-| [`LVGL/`](LVGL/README.md) | Desktop LVGL simulator for the ESP32-S3 Atlas and Sigil screens |
+| [`LVGL/`](LVGL/README.md) | Semi-retired desktop simulator; real Atlas/Sigil hardware is primary |
 | [`Android/`](Android/README.md) | Native client: table view, player controls, guided setup and firmware updates |
 | [`iOS/`](iOS/README.md) | SwiftUI iPhone/iPad foundation, core package and staged development plan; gameplay not yet implemented |
 | [`protocol/`](protocol/README.md) | Client contract: JSON schemas, [`http-v1.md`](protocol/http-v1.md), example responses |
+| [`shared/display/`](shared/display) | Active fonts and icons shared by Atlas, Sigil and optional simulator |
 | [`shared/include/`](shared/include) | Firmware headers shared by Atlas and Sigil (radio contract, firmware package format) |
 | [`Documentation/engineering/`](Documentation/engineering/README.md) | The engineering record: invariants, design references, staged work |
 | [`Documentation/User Manual/`](Documentation/User%20Manual) | The user manuals: the App Manual and the Hardware Manual (newest `.docx` of each; the app bundles both) |

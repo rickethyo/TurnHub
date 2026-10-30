@@ -1,4 +1,8 @@
-# TurnHub LVGL desktop foundation
+# TurnHub LVGL desktop simulator (semi-retired)
+
+**Semi-retired:** real Atlas and Sigil boards are the primary validation targets.
+Keep the simulator for targeted checks; routine UI/layout refreshes are deferred.
+Firmware fonts and icons live in `shared/display/` and remain actively maintained.
 
 **Implemented experimental UI**, not ESP32-S3 firmware. Atlas **480×320 landscape**
 and Sigil **240×320 portrait**. The S3 Atlas firmware switched to 320×480

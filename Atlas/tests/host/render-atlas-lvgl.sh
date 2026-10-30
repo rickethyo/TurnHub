@@ -17,9 +17,9 @@ while IFS= read -r src; do
   [ "$obj" -nt "$src" ] || gcc -O1 -c "${defs[@]}" "${cincs[@]}" "$src" -o "$obj"
   objs+=("$obj")
 done < <(find "$lvgl/src" -name '*.c' | sort)
-fonts=(../../../LVGL/assets/th_eyebrow_13.c ../../../LVGL/assets/th_semi_16.c ../../../LVGL/assets/th_semi_20.c
-       ../../../LVGL/assets/th_bold_28.c ../../../LVGL/assets/th_cinzel_32.c ../../../LVGL/assets/th_num_40.c
-       ../../../LVGL/assets/th_num_64.c ../../../LVGL/assets/th_icons.c)
+fonts=(../../../shared/display/th_eyebrow_13.c ../../../shared/display/th_semi_16.c ../../../shared/display/th_semi_20.c
+       ../../../shared/display/th_bold_28.c ../../../shared/display/th_cinzel_32.c ../../../shared/display/th_num_40.c
+       ../../../shared/display/th_num_64.c ../../../shared/display/th_icons.c)
 for src in "${fonts[@]}"; do
   obj="$out/lvgl/$(basename "$src" .c).o"
   [ "$obj" -nt "$src" ] || gcc -O1 -c "${defs[@]}" "${cincs[@]}" "$src" -o "$obj"

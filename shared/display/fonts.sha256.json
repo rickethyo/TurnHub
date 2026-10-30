@@ -1,0 +1,13 @@
+{
+  "shared/display/th_inter_16.c": "27a8f9d8209f7c20aa5b225a05d98545c1a7ad3b21ded448c5b39263f368e758",
+  "design/fonts/Inter-Variable.ttf": "1dfde26b1b39ce65baab18543588fdde2c69ffad59588f9cf74d8795e52d2009",
+  "shared/display/th_inter_20.c": "58aded02a73b063666e1ddf5ac34629846463343ead1ea0cc94baf83d07f7d32",
+  "shared/display/th_inter_32.c": "6026bfdebeeb9de2c7c8ac14d421d554f83ef773c6740dec629aa710bb9ccaea",
+  "shared/display/th_inter_56.c": "856d665698e18398f4230db472a2357ff3a68ec2d44293a6204259c192154fea",
+  "shared/display/th_inter_72.c": "97c461341d3ff93dbc49c6bdf59f03a0ff786ad8d86f9f0064deb3e2484fc912",
+  "shared/display/th_cinzel_20.c": "76353fd0cd98330b51af5a9a69421fcf02b9c3ef514d32c58a1a849f4797131f",
+  "design/fonts/Cinzel-Variable.ttf": "fdd3d03439e19c4e266ba8cd7b0e1d8ca78b260a24e26eb07b2571a9d47bb4f6",
+  "shared/display/th_cinzel_32.c": "4c7cc8fd7f5531d5319bb78856f4272ea337b4b8b900167b69e073f25d9866f9",
+  "tools/package-lock.json": "3ee27235e50feb0f1d05832817a96687ce046084b878faa33ceaf8dde8018069",
+  "tools/generate_fonts.py": "ba3c8fb436335b16201c0fc55dabec084173a546b3ba104b0e9da68ff6a2b57a"
+}

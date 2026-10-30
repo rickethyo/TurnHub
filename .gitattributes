@@ -61,3 +61,9 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+# Shared contracts and generated display assets are byte-stable on Windows/Linux.
+protocol/examples/*.csv text eol=lf
+shared/display/** text eol=lf
+LVGL/tools/*.py text eol=lf
+LVGL/tools/package-lock.json text eol=lf

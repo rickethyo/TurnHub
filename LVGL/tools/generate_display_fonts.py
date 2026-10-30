@@ -22,7 +22,7 @@ from generate_icons import browser
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / 'design/fonts/Inter-Variable.ttf'
-OUT = ROOT / 'LVGL/assets'
+OUT = ROOT / 'shared/display'
 ASCII = ''.join(chr(c) for c in range(32, 127))
 DIGITS = '+-0123456789:'
 # name, weight, px, characters, tracking (em)
