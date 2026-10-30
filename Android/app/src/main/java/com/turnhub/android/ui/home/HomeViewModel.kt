@@ -711,7 +711,7 @@ class HomeViewModel(
     fun onSignInSubmitted(profile: ProfileSummary, pin: String, remember: Boolean = false) {
         val endpoint = repository.endpoint.value ?: return
         val prompt = local.value.signIn ?: return
-        if (!ProfileSecret.isValid(pin)) {
+        if (pin.isNotEmpty() && !ProfileSecret.isValid(pin)) {
             local.update { it.copy(signIn = prompt.copy(error = ProfileSecret.RULE)) }
             return
         }
@@ -722,7 +722,7 @@ class HomeViewModel(
                 local.update { it.copy(signIn = null) }
                 // Atlas accepted it: now (and only now) offer to keep it behind the phone's lock.
                 val atlasId = repository.tableSummary.value?.atlasId
-                if (remember && atlasId != null && vault?.available == true) {
+                if (remember && pin.isNotEmpty() && atlasId != null && vault?.available == true) {
                     _appLock.value = AppLockRequest.Save(
                         com.turnhub.android.data.SavedProfile(atlasId, profile.profileId, profile.name),
                         pin,
@@ -743,7 +743,7 @@ class HomeViewModel(
         val clean = name.trim()
         val problem = when {
             clean.isEmpty() || clean.length > ProfileSecret.MAX_NAME_CHARS -> "Choose a name of 1 to 32 characters."
-            !ProfileSecret.isValid(pin) -> ProfileSecret.RULE
+            pin.isNotEmpty() && !ProfileSecret.isValid(pin) -> ProfileSecret.RULE
             else -> null
         }
         if (problem != null) {
@@ -757,7 +757,7 @@ class HomeViewModel(
                 local.update { it.copy(signIn = null) }
                 val atlasId = repository.tableSummary.value?.atlasId
                 val profileId = (playerSession.state.value as? PlayerSessionState.SignedIn)?.profileId
-                if (remember && atlasId != null && profileId != null && vault?.available == true) {
+                if (remember && pin.isNotEmpty() && atlasId != null && profileId != null && vault?.available == true) {
                     _appLock.value = AppLockRequest.Save(
                         com.turnhub.android.data.SavedProfile(atlasId, profileId, clean),
                         pin,

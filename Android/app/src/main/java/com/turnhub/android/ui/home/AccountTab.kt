@@ -24,6 +24,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -96,6 +97,7 @@ fun AccountTab(
             }
         } else {
             ProfileCard(uiState, session, actions)
+            TextButton(onClick = actions.onPlayFromPhone) { Text("Unlock stats or admin access with PIN") }
             StatsCard(uiState.profileStats, reduceMotion, actions)
             if (uiState.appLockAvailable) AutomaticSignIn(uiState, actions)
             PrivacyCard(uiState, actions)
@@ -197,34 +199,16 @@ private fun PrivacyCard(uiState: HomeUiState, actions: AccountActions) {
     ) {
         row(
             Modifier.toggleable(
-                value = allow == true,
-                enabled = allow != null && hide != null && !busy,
-                role = Role.Switch,
-                onValueChange = { actions.onSavePolicy(it, hide == true) },
-            ),
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("Allow Sigil and tablet use without a PIN", color = p.text, style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    "When off, a Sigil or a table tablet asks for this PIN first (or sign in on a phone). A game in progress continues.",
-                    color = p.muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            Switch(checked = allow == true, onCheckedChange = null, enabled = allow != null)
-        }
-        row(
-            Modifier.toggleable(
                 value = hide == true,
                 enabled = allow != null && hide != null && !busy,
                 role = Role.Switch,
-                onValueChange = { actions.onSavePolicy(allow == true, it) },
+                onValueChange = { actions.onSavePolicy(true, it) },
             ),
         ) {
             Column(Modifier.weight(1f)) {
-                Text("Hide statistics until signed in", color = p.text, style = MaterialTheme.typography.bodyLarge)
+                Text("Hide statistics until PIN verified", color = p.text, style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    "Your statistics stay hidden on Sigils and screens until you sign in to this profile.",
+                    "Your statistics stay hidden on Sigils and screens until you verify this profile with its PIN.",
                     color = p.muted,
                     style = MaterialTheme.typography.bodySmall,
                 )

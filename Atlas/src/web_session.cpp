@@ -114,6 +114,11 @@ bool admitRateLimited(WebServer &server, const String &profileId) {
 void handleProfileLogin(WebServer &server) {
   const String id = server.arg("profileId");
   const String pin = server.arg("pin");
+  if (pin.length() == 0 && TurnHubProfiles::profileExists(id)) {
+    if (connectionBlocked(id)) { sendError(server,403,"Profile is unavailable for play"); return; }
+    sendLogin(server, createProfileSession(id, millis(), false));
+    return;
+  }
   if (!validPin(pin) || !TurnHubProfiles::profileExists(id)) {
     sendError(server, 401, "Profile or PIN was not accepted");
     return;
@@ -445,13 +450,6 @@ void handleSessionRequest(WebServer &server) {
     return;
   }
 
-  // PIN-free physical play is not permission to obtain a browser credential.
-  // Profiles without a PIN retain the physical bootstrap path to set one.
-  if (!requester && hasPin(controllerId, seatSlot)) {
-    sendError(server, 403, "Sign in with this profile's PIN to use it in a browser");
-    return;
-  }
-
   const uint32_t nowMs = millis();
   cleanup(nowMs);
 
@@ -568,7 +566,7 @@ void handleSessionMe(WebServer &server) {
 
   String response = "{\"ok\":true,\"authenticated\":true,\"module\":";
   response += String(session->controllerId);
-  response += ",\"permissions\":"; response += String(accountReady ? account.permissions : 0);
+  response += ",\"permissions\":"; response += String(accountReady && session->pinVerified ? account.permissions : 0);
   response += ",\"participating\":"; response += jsonBool(participating);
   response += ",\"host\":"; response += jsonBool(snapshot.host);
   response += ",\"virtual\":"; response += jsonBool(session->controllerId >= MAX_PHYSICAL_SIGILS);
@@ -718,7 +716,7 @@ bool profileAuthenticated(const String &profileId) {
   cleanup(millis());
   if (profileId.length() == 0) return false;
   for (const auto &session : sessions) {
-    if (session.used && profileId == session.profileId) return true;
+    if (session.used && session.pinVerified && profileId == session.profileId) return true;
   }
   return false;
 }
@@ -728,9 +726,7 @@ bool physicalUseAllowed(const String &profileId) {
   // their saved authentication and moderation policy below.
   if (profileId.length() == 0) return true;
   if (connectionBlocked(profileId)) return false;
-  TurnHubProfiles::ProfilePolicy policy;
-  return TurnHubProfiles::loadPolicyForProfile(profileId, policy) &&
-      (policy.allowPhysicalWithoutPin || profileAuthenticated(profileId));
+  return TurnHubProfiles::profileExists(profileId);
 }
 
 bool physicalStatsVisible(const String &profileId) {
@@ -761,7 +757,7 @@ void revokeConnections(const String &id) {
 
 bool hasPermission(WebServer &server, uint8_t permission) {
   WebSession *session = sessionForRequest(server);
-  return session != nullptr && TurnHubAccounts::has(String(session->profileId), permission);
+  return session != nullptr && session->pinVerified && TurnHubAccounts::has(String(session->profileId), permission);
 }
 
 bool requirePermission(WebServer &server, uint8_t permission) {
@@ -770,7 +766,7 @@ bool requirePermission(WebServer &server, uint8_t permission) {
     sendError(server, 401, "Sign in first");
     return false;
   }
-  if (!TurnHubAccounts::has(String(session->profileId), permission)) {
+  if (!session->pinVerified || !TurnHubAccounts::has(String(session->profileId), permission)) {
     sendError(server, 403, "Account permission required");
     return false;
   }

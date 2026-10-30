@@ -718,6 +718,16 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `a profile can play without entering or saving a PIN`() = runTest {
+        val viewModel = lockedViewModel(FakeVault(), table("lobby.response.json", 1))
+        viewModel.onPlayFromPhoneClicked()
+        viewModel.onSignInSubmitted(viewModel.uiState.value.signIn!!.profiles.single(), "", remember = true)
+        assertNull(viewModel.uiState.value.signIn)
+        assertEquals(listOf("login p1"), sessionTransport.calls)
+        assertNull(viewModel.appLock.value)
+    }
+
+    @Test
     fun `remembering a profile waits for Atlas and the phone's lock`() = runTest {
         val vault = FakeVault()
         val summary = table("lobby.response.json", 1)

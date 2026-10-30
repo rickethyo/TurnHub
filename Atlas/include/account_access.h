@@ -15,11 +15,8 @@ enum Permission : uint8_t {
   // Moderation abilities; each requires GameMaster.
   ResetConnections = 8,
   RemovePlayer = 16,
-  // Turns tablet mode on without a table presence code (web_tablet_api.cpp),
-  // e.g. a dedicated tablet account that never joins the table itself.
-  TabletAccess = 32,
 };
-constexpr uint8_t ALL_PERMISSIONS = Admin | GameMaster | Developer | ResetConnections | RemovePlayer | TabletAccess;
+constexpr uint8_t ALL_PERMISSIONS = Admin | GameMaster | Developer | ResetConnections | RemovePlayer;
 constexpr uint8_t MODERATION_PERMISSIONS = ResetConnections | RemovePlayer;
 
 struct Account {
@@ -48,10 +45,10 @@ inline TurnHubStorage::Status read(TurnHubStorage::BlobStore &store, const char 
   if (status != Status::Ok) return status;
   if (n != sizeof(b)) return Status::Corrupt;
   if (b[0] != ACCOUNT_SCHEMA) return Status::UnsupportedSchema;
-  if (b[1] > ALL_PERMISSIONS || b[2] > 3 || b[3] > 1) return Status::Corrupt;
+  if (b[1] > (ALL_PERMISSIONS | 32) || b[2] > 3 || b[3] > 1) return Status::Corrupt;
 
   account = Account{};
-  account.permissions = b[1];
+  account.permissions = b[1] & ALL_PERMISSIONS; // Ignore the retired permission bit in saved accounts.
   account.nudgeMuted = b[2] & 1;
   account.archived = b[2] & 2;
   account.reconnectRequired = b[3];

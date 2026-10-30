@@ -135,7 +135,7 @@ class AtlasTablet(
         enable()
     }
 
-    /** Turns this session into the table's tablet; alone, for an account with the Tablet access role. */
+    /** Legacy shared-display session activation; current app controls need no activation. */
     suspend fun enable() {
         val enable = post("/api/tablet/enable") ?: return
         if (!enable.ok) return fail(enable)

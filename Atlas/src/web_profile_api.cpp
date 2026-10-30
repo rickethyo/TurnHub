@@ -73,6 +73,7 @@ WebSession *loadSessionStats(WebServer &server, String &profileId, String &name,
     sendJson(server, 401, "{\"ok\":false,\"error\":\"Browser session is not authorized\"}");
     return nullptr;
   }
+  if (!session->pinVerified) { sendError(server,403,"Enter your profile PIN to view statistics"); return nullptr; }
   profileId = sessionProfileId(*session);
   if (profileId.length() == 0) {
     sendJson(server, 409, "{\"ok\":false,\"error\":\"This session is not attached to a durable profile\"}");
@@ -184,6 +185,14 @@ void handleRegistration(WebServer &server) {
         linkKey + "\"}");
     return;
   }
+  if (!importingId && pin.length() == 0) {
+    if (name.length() == 0 || name.length() > MAX_NAME_LENGTH || !hasFreeSessionSlot()) {
+      sendError(server,400,"Choose a player name; a session must be available"); return;
+    }
+    const String id = TurnHubProfiles::createProfileWithName(name);
+    if (id.length() == 0) { sendError(server,503,"Could not create profile"); return; }
+    sendLogin(server,createProfileSession(id,millis(),false)); return;
+  }
   if (name.length() == 0 || name.length() > MAX_NAME_LENGTH || !validPin(pin)) {
     sendError(server, 400, "A name (1-32 characters) and a 4-8 digit PIN or an 8-64 character password are required");
     return;
@@ -211,6 +220,7 @@ void handleLinkKey(WebServer &server) {
     sendError(server, 401, "Sign in to the profile first");
     return;
   }
+  if (!session->pinVerified) { sendError(server,403,"Enter your PIN to link private statistics"); return; }
   const String key = issueLinkKey(profileId);
   if (key.length() == 0) {
     sendError(server, 503, "Could not save the link; storage may be full");
@@ -386,7 +396,7 @@ void handleProfileSync(WebServer &server) {
 void handleProfileHistory(WebServer &server) {
   String id = server.arg("profileId");
   WebSession *session = sessionForRequest(server);
-  const bool own = session && id.length() && sessionProfileId(*session) == id;
+  const bool own = session && session->pinVerified && id.length() && sessionProfileId(*session) == id;
   if (!profileStoreReady || !TurnHubProfiles::profileExists(id) || (!own && !linkKeyValid(id, server.arg("linkKey")))) {
     sendError(server, 401, "This phone's link to that profile has expired; link it again");
     return;
@@ -452,6 +462,9 @@ void handleProfile(WebServer &server) {
     return;
   }
 
+  if ((clearPin || server.hasArg("pin")) && TurnHubProfiles::hasPinForProfile(profileId) && !session->pinVerified) {
+    sendError(server,403,"Enter your current PIN before changing protected credentials"); return;
+  }
   resolveSessionParticipant(*session);
   const SigilRecord *record = recordForModule(session->controllerId);
   bool displayProfileChanged = false;

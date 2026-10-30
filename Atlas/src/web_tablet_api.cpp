@@ -1,10 +1,6 @@
-// Tablet mode: one shared screen in the middle of the table that seats the
-// players and acts for any of them, as the Atlas touchscreen does. A signed-in
-// account turns it on under the table presence policy; activation replaces
-// that personal credential with a restricted RAM-only Shared tablet account.
-// Every action reuses the seat callbacks a phone uses, so Atlas's Intent
-// handlers still decide (a seat changes only its own life, records only the
-// Commander damage it received, and so on). See protocol/http-v1.md.
+// Shared seat controls: any signed-in profile can use them directly.
+// Each action reuses Atlas's existing authoritative Intent handlers.
+// Legacy shared-display activation remains for older clients only.
 
 #include "web_api_internal.h"
 
@@ -18,16 +14,11 @@ using TurnHub::serialLog;
 
 namespace {
 
-// The session, or null after a 401 / 403 {"tabletRequired":true}.
+// A signed-in session; there is no tablet permission or activation gate.
 WebSession *requireTablet(WebServer &server) {
   WebSession *session = sessionForRequest(server);
   if (!session) {
     sendError(server, 401, "Sign in first");
-    return nullptr;
-  }
-  if (!session->tableDevice) {
-    sendJson(server, 403,
-        "{\"ok\":false,\"tabletRequired\":true,\"error\":\"Turn on tablet mode first\"}");
     return nullptr;
   }
   return session;
@@ -93,17 +84,13 @@ void logOfflineChange(WebServer &server, const char *kind, uint8_t module, uint8
 
 }  // namespace
 
-// POST /api/tablet/enable: needs table presence (POST /api/presence/request
-// with purpose=tablet, then /api/presence/confirm), unless the account holds
-// the Tablet access role.
+// Legacy shared-display session endpoint; signed-in clients can use table actions directly.
 void handleTabletEnable(WebServer &server) {
   WebSession *session = sessionForRequest(server);
   if (!session) {
     sendError(server, 401, "Sign in first");
     return;
   }
-  const bool role = TurnHubAccounts::has(String(session->profileId), TurnHubAccounts::TabletAccess);
-  if (!role && !requirePhysicalPresence(server)) return;
   // Replace this device's personal credential with a RAM-only tablet account.
   // Other devices' sessions and the player's seat remain independent.
   const uint8_t game = requestGame(server);
@@ -113,7 +100,7 @@ void handleTabletEnable(WebServer &server) {
   session->table = game;
   session->lastSeenMs = millis();
   makeToken(session->token);
-  serialLog.println(role ? "ATLAS|TABLET|ON|ROLE" : "ATLAS|TABLET|ON|PRESENCE");
+  serialLog.println("ATLAS|TABLET|ON");
   sendJson(server, 200, String("{\"ok\":true,\"token\":\"") + session->token +
       "\",\"profileId\":\"\",\"message\":\"Shared tablet account active; personal account signed out\"}");
 }
@@ -161,16 +148,7 @@ void handleTabletSeat(WebServer &server) {
       sendError(server, 404, "Unknown profile");
       return;
     }
-    // The profile's "Allow Sigil and tablet use without a PIN" choice, as a
-    // Sigil's picker applies it; otherwise its PIN, entered on the tablet.
-    if (!physicalUseAllowed(profile)) {
-      if (!server.hasArg("pin")) {
-        sendJson(server, 403, String("{\"ok\":false,\"pinRequired\":true,\"error\":\"Enter ") +
-            jsonEscape(TurnHubProfiles::nameForProfile(profile)) + "'s PIN\"}");
-        return;
-      }
-      if (!verifyProfileSecret(server, profile, server.arg("pin"))) return;
-    }
+
   }
   String message;
   if (!profileControlHandler ||

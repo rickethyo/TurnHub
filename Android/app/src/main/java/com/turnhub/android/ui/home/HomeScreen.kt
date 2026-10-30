@@ -407,8 +407,7 @@ fun HomeScreen(
                     else -> shown.name
                 }) {
                     when {
-                        !setup.visible && atlasGame && (shown == HomeTab.TABLE ||
-                            (shown == HomeTab.GAME && summary?.state == TableState.LOBBY)) ->
+                        !setup.visible && atlasGame && (shown == HomeTab.TABLE || shown == HomeTab.GAME) ->
                             com.turnhub.android.ui.tablet.TabletScreen(
                                 summary = summary, session = info, signedIn = uiState.player?.signedIn == true,
                                 tablet = tablet, actions = tabletActions, reduceMotion = reduceMotion,

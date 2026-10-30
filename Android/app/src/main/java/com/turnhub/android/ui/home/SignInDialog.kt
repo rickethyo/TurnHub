@@ -86,13 +86,13 @@ fun SignInDialog(
     val create = creating || (!prompt.loading && prompt.profiles.isEmpty() && prompt.error == null)
     val selected = prompt.profiles.firstOrNull { it.profileId == selectedId }
     // No PIN yet: this sign-in sets it, so it is typed twice like a new account's.
-    val choosing = !create && selected?.hasPin == false
+    val choosing = false
     val mismatch = confirm.isNotEmpty() && confirm != pin
-    val canSubmit = !prompt.submitting && ProfileSecret.isValid(pin) &&
+    val canSubmit = !prompt.submitting && (pin.isEmpty() || ProfileSecret.isValid(pin)) &&
         if (create) newName.isNotBlank() && confirm == pin else selected != null && (!choosing || confirm == pin)
     val submit = {
         if (canSubmit) {
-            val remember = prompt.offerRemember && keep
+            val remember = prompt.offerRemember && keep && pin.isNotEmpty()
             if (create) onCreate(newName.trim(), pin, remember) else selected?.let { onSubmit(it, pin, remember) }
         }
     }
@@ -143,7 +143,7 @@ fun SignInDialog(
                     onValueChange = { value -> pin = value.take(ProfileSecret.MAX_CHARS) },
                     enabled = !prompt.submitting,
                     singleLine = true,
-                    label = { Text("PIN (4–8 digits) or password") },
+                    label = { Text("PIN for stats/admin (optional)") },
                     visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
                         TextButton(onClick = { shown = !shown }) { Text(if (shown) "Hide" else "Show") }
@@ -186,7 +186,7 @@ fun SignInDialog(
                                 Text(profile.name, color = if (enabled) p.text else p.faint, style = MaterialTheme.typography.bodyLarge)
                                 if (!profile.hasPin) {
                                     Text(
-                                        "No PIN or password yet: choose one to sign in.",
+                                        "No PIN needed to play. Set one later for stats or admin access.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = p.muted,
                                     )
@@ -211,7 +211,7 @@ fun SignInDialog(
                         onValueChange = { value -> pin = value.take(ProfileSecret.MAX_CHARS) },
                         enabled = !prompt.submitting,
                         singleLine = true,
-                        label = { Text(if (choosing) "Choose a PIN (4–8 digits) or password" else "PIN or password") },
+                        label = { Text(if (choosing) "Choose a PIN (4–8 digits) or password" else "PIN for stats/admin (optional for play)") },
                         visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             TextButton(onClick = { shown = !shown }) { Text(if (shown) "Hide" else "Show") }

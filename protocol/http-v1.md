@@ -34,7 +34,10 @@ does this: it tries a saved password, then this default, then prompts.
    avatars.
 3. Use `GET /api/profiles`, then `POST /api/session/login` with form fields
    `profileId` and `pin`, or `POST /api/profiles/register` with `name` and `pin`.
-   `pin` is the profile's secret: a PIN of 4 to 8 digits or a password of 8 to
+   Omit `pin` or send it empty for a gameplay-only session; ordinary play never
+   requires it. Supplying the correct secret unlocks private stats and admin
+   permissions. A gameplay-only session cannot change an existing PIN or mint
+   private-history link keys. `pin` is the profile's secret: a PIN of 4 to 8 digits or a password of 8 to
    64 UTF-8 bytes without control characters (since 2026-10-02).
    A profile with no secret yet (`hasPin:false`, e.g. made on a Sigil or the
    tablet) takes the `pin` of its first login as its secret (since 2026-10-07);
@@ -380,21 +383,10 @@ separate future work. No Android application ID is selected here.
 One shared screen at the table acting for every seat. Engineering record:
 `Documentation/engineering/PLAYERS_AND_ACCOUNTS.md` (Tablet mode).
 
-1. Signed in, `POST /api/presence/request` with `purpose=tablet` (open to any
-   account), then `POST /api/presence/confirm` with the `code` the Atlas
-   screen shows, then `POST /api/tablet/enable`. `GET /api/session/me`
-   reports `"tablet":true|false`. An account with the Tablet access role
-   (permission bit 32 in `/api/session/me`) skips the code and calls
-   `POST /api/tablet/enable` directly. With table-code verification off, enable
-   works directly for any signed-in player. Success returns a new `token` and
-   empty `profileId`, revokes the initiating token, and uses a RAM-only Shared
-   tablet account (`tablet:true`, no profile or permissions). Other personal
-   sessions/participants remain intact. This token has only the table route
-   allowlist documented in PLAYERS_AND_ACCOUNTS.md. Personal/admin routes are
-   403. `POST /api/tablet/disable` revokes it; subsequent session use is 401.
-   Native close leaves the app signed out even if Atlas is unavailable.
-   Without the grant every route below answers
-   `403 {"ok":false,"tabletRequired":true,"error":...}`.
+1. Any signed-in profile may use the shared seat routes directly. No tablet
+   permission, presence grant or enable step is required. The personal session
+   and player identity remain intact. The legacy enable/disable endpoints are
+   retained for older shared-display clients, but are not used by current app navigation.
 2. Lobby: `POST /api/tablet/seat` with `name` (creates a profile with no PIN;
    409 when the name exists) or `profileId` (plus `pin` when the answer was
    `403 {"pinRequired":true}`); answers `{"ok":true,"profileId":...}`.
@@ -634,7 +626,7 @@ On Atlas 0.7.18+ (2026-10-29), `profileId` with an empty `pin` uploads a
 **PIN-less** local account: it needs a signed-in session (`X-TurnHub-Token`,
 401 otherwise) and answers `{"ok":true,"profileId":"…","hasPin":false}`
 without a login token. The same ID rules apply (400 malformed, 409 taken). The
-first `/api/session/login` to that profile sets its PIN, as for a profile made
+first `/api/session/login` supplying a nonempty PIN to that profile sets its PIN, as for a profile made
 on a Sigil or the tablet (owner decision 2026-10-28). That answer also carries a
 `linkKey` for the uploading phone (below).
 
@@ -709,7 +701,7 @@ State adds optional `doomBag` (null outside a started Bag of Doom match):
 | `lastDraw`, `lastCheck` | Last completed result and cycle. `lastDraw=0` means everyone was safe; `lastCheck=0` means no check yet. |
 
 `POST /api/control/doom` requires a signed-in living participant.
-`POST /api/tablet/doom` requires Tablet access and an acting living
+`POST /api/tablet/doom` requires a signed-in session and an acting living
 `moduleId`/`slot`. Both require **exact** `expectedBootId`, `expectedRevision`
 and positive uint32 `cycle` from the displayed snapshot. Authentication failures
 are 401/403, stale or inapplicable actions 409, malformed action fields 400.
@@ -752,7 +744,7 @@ Saved commanders: up to six per profile on the microSD card (`d<profileId>`).
 `GET /api/profiles/commanders` (the session's own, or `?profileId=` from a
 tablet) answers `commanders: [{slot, name, art}]`, newest first.
 `POST /api/control/commander-choice` (signed-in seat) and
-`/api/tablet/commander-choice` (Tablet access, `moduleId`/`slot`, lobby only)
+`/api/tablet/commander-choice` (signed-in session, `moduleId`/`slot`, lobby only)
 take `name` (up to 64 characters) and optional `art` (a printing ID) to save
 and choose one, `slot` (1-based, 0 for none) to choose a saved one, or
 `forget` (a slot) to remove it. 409 without a card or for a guest. The chosen
@@ -760,7 +752,7 @@ commander shows as each player's `commander` (`name`, `art`) in the state,
 in the lobby and through the match, and the match record carries it.
 
 `POST /api/control/planar` (signed-in participant) and `/api/tablet/planar`
-(Tablet access, acting `moduleId`/`slot`) take `action`:
+(signed-in session, acting `moduleId`/`slot`) take `action`:
 
 | `action` | Extra form fields | Who |
 | --- | --- | --- |
@@ -787,7 +779,7 @@ Pending attribution defers completion/statistics, including the last removal
 or an all-out batch. Resume, win claims and bag draws wait for these answers.
 
 `POST /api/control/elimination` (seated session, including eliminated players)
-and `POST /api/tablet/elimination` (Tablet access, acting `moduleId`/`slot`) take:
+and `POST /api/tablet/elimination` (signed-in session, acting `moduleId`/`slot`) take:
 
 - `player`: pending victim's 1-based player number.
 - `source`: chosen opponent's 1-based player number, or 0 for Unknown/Self.
