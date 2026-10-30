@@ -1672,3 +1672,24 @@ Owner requests Play parity and semi-retired simulator. Baseline 44d7abbd on orig
 Play audit outcome: GitHub master CI run 541 (41005865957), commit 44d7abbd, Android release tests/build and Publish to Play internal testing all completed successfully. This confirms upload to internal testing, not public production promotion. Locally all 538 Android tests, bundleRelease and lintRelease pass after CSV LF checkout correction. Three shared asset digest checks and docs links pass. Firmware asset-path builds running; cleanup stays separate from uploaded app.
 
 Cleanup validation complete: Atlas atlas-s3 and Sigil firmware builds pass using shared/display paths. No hardware reflash needed for this asset-only relocation. Simulator UI build intentionally deferred under semi-retired status.
+
+## Mana Tap on the Sigil — 2026-10-30, Claude
+
+Owner asked for a small game to play on a Sigil between turns or games, as a
+visible option rather than a hidden easter egg; started after Codex's PR #171
+merged. Home gets a **Play Mana Tap** button (with the player's best score).
+Logic is header-only `Sigil/include/mana_tap.h`; the screen moves only the orb
+objects each frame. It pauses on leaving Home and on this Sigil's turn
+(jumping to the Game tab). Best scores are per player name in NVS. The Atlas
+"champ" line is staged (needs a radio protocol change). Details in HARDWARE.md.
+
+Validation: `mana_tap_scenarios` and the other Sigil host suites pass; preview
+renders checked; CI `pio run -e sigil` passed and it was flashed to the
+E32R28T Sigil (boots, pairs). Hardware play acceptance pending.
+
+Follow-up the same day: owner asked for the Atlas version, to see it on the
+future S3 screen. The logic moved to `shared/include/mana_tap.h` (namespace
+`TurnHub`, field size per device). Atlas: Home's Play Mana Tap button,
+`ScreenKind::ManaTap` in `touch_controls.cpp` (presentation only, pauses on a
+pass), orbs moved in place by `updateAtlasScreenMana` at ~30 fps, one table
+record in NVS. New `manaTapOnAtlas` host scenario; previews rendered.

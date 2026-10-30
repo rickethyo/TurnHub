@@ -320,6 +320,21 @@ TurnHubSigil::TableSnapshot tableSnapshot;
 void notifyDisplayTask();
 uint8_t shownPlayer();
 
+// Mana Tap (mana_tap.h), opened from Home: loop() runs the game and hands the
+// display task a copy (pendingMana*, guarded by displayProfileMux).
+TurnHub::ManaTap manaTap;
+bool manaOpen = false;
+bool manaTurnPaused = false;  // It paused itself for this Sigil's turn.
+TurnHub::ManaTap pendingMana;
+bool pendingManaOpen = false, pendingManaTurnPaused = false;
+bool manaChanged = false, manaRebuild = false;
+uint16_t manaHomeBest = 0;  // The record Home's button shows.
+void openManaTap(uint32_t nowMs);
+void closeManaTap();
+void manaAction(uint32_t nowMs);
+void manaFeedback(TurnHub::ManaEvent event);
+void publishMana(bool rebuild);
+
 void updateTouch(uint32_t nowMs) {
   if (nowMs - lastTouchSampleMs < TOUCH_SAMPLE_MS) return;
   lastTouchSampleMs = nowMs;
@@ -337,8 +352,22 @@ void updateTouch(uint32_t nowMs) {
   const uint16_t request = static_cast<uint16_t>(lifeRequest.target << 8) | lifeRequest.tag;
   if (selectedPage == TurnHubUi::Page::Game && gameDisplayValid && !pickerActive && !commanderActive &&
       TurnHubSigil::sigilTouchLifeRequest() != request) touchKey = TurnHubSigil::Key::Count;
-  if (target != previous && target != TurnHubSigil::TOUCH_NONE && target >= TurnHubSigil::TOUCH_NAV) {
-    if (target < TurnHubSigil::TOUCH_NAV + TurnHubUi::PAGE_COUNT) {
+  if (target != previous && target == TurnHubSigil::TOUCH_MANA_FIELD) {
+    // A tap in Mana Tap's field aims at an orb: no screen rebuild.
+    int16_t x = 0, y = 0;
+    if (manaOpen && TurnHubSigil::sigilTouchPoint(x, y)) {
+      const auto event = manaTap.tap(x, y);
+      manaFeedback(event);
+      if (event != TurnHub::ManaEvent::None) publishMana(false);
+    }
+  } else if (target != previous && target != TurnHubSigil::TOUCH_NONE && target >= TurnHubSigil::TOUCH_NAV) {
+    if (target == TurnHubSigil::TOUCH_MANA_OPEN) {
+      if (selectedPage == TurnHubUi::Page::Home) openManaTap(nowMs);
+    } else if (target == TurnHubSigil::TOUCH_MANA_ACTION) {
+      if (manaOpen) manaAction(nowMs);
+    } else if (target == TurnHubSigil::TOUCH_MANA_QUIT) {
+      closeManaTap();
+    } else if (target < TurnHubSigil::TOUCH_NAV + TurnHubUi::PAGE_COUNT) {
       const auto page = static_cast<TurnHubUi::Page>(target - TurnHubSigil::TOUCH_NAV);
       playerControlsOpen = false;
       sigilMenu.cancelInput();
@@ -683,6 +712,24 @@ void updateDisplay() {
     drawnCode = code;
     return;
   }
+  if (page == TurnHubUi::Page::Home) {
+    TurnHub::ManaTap mana;
+    char player[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
+    portENTER_CRITICAL(&displayProfileMux);
+    const bool open = pendingManaOpen, turnPaused = pendingManaTurnPaused;
+    const bool changed = manaChanged, rebuild = manaRebuild;
+    manaChanged = manaRebuild = false;
+    if (open) mana = pendingMana;
+    snprintf(player, sizeof(player), "%s", gameDisplayValid ? pendingGameDisplay.primary.name : pendingSeatNames[0]);
+    portEXIT_CRITICAL(&displayProfileMux);
+    if (open) {
+      if (!changed && !displayNeedsRefresh && !changedNavigation && !changedTheme) return;
+      displayNeedsRefresh = false;
+      sigilDisplay.showManaTap(sigilId, mana, player, turnPaused, rebuild || changedNavigation || changedTheme);
+      return;
+    }
+    if (changed) displayNeedsRefresh = true;
+  }
   if (page != TurnHubUi::Page::Game) {
     if (!displayNeedsRefresh && !changedNavigation && !changedTheme) return;
     displayNeedsRefresh = false;
@@ -698,6 +745,7 @@ void updateDisplay() {
     snprintf(player, sizeof(player), "%s", gameDisplayValid ? pendingGameDisplay.primary.name : pendingSeatNames[0]);
     portEXIT_CRITICAL(&displayProfileMux);
     sigilDisplay.setMenuView(menu); sigilDisplay.setLifeOverlay(life);
+    sigilDisplay.setManaBest(manaHomeBest);
     if (page == TurnHubUi::Page::Home) sigilDisplay.showHome(sigilId, atlasKnown && !atlasLostShown, player, mode);
     else if (page == TurnHubUi::Page::Table) sigilDisplay.showTable(sigilId, roster, rosterPage, atlasKnown && !atlasLostShown);
     else sigilDisplay.showSettings(sigilId);
@@ -916,6 +964,151 @@ void playBuzzerPayload(int32_t value) {
   Serial.println(durationMs);
 }
 
+// Mana Tap's best scores live in NVS per player name ("manatap" namespace,
+// key "b" and the name's FNV-1a hash), written only when beaten.
+void manaKey(const char *name, char key[12]) {
+  if (!name || !name[0]) { snprintf(key, 12, "bguest"); return; }
+  uint32_t h = 2166136261u;
+  for (const char *c = name; *c; ++c) h = (h ^ static_cast<uint8_t>(*c)) * 16777619u;
+  snprintf(key, 12, "b%08lx", static_cast<unsigned long>(h));
+}
+
+uint16_t loadManaBest(const char *name) {
+  char key[12];
+  manaKey(name, key);
+  Preferences prefs;
+  if (!prefs.begin("manatap", true)) return 0;
+  const uint16_t best = prefs.getUShort(key, 0);
+  prefs.end();
+  return best;
+}
+
+void saveManaBest(const char *name, uint16_t best) {
+  char key[12];
+  manaKey(name, key);
+  Preferences prefs;
+  if (!prefs.begin("manatap", false)) { Serial.println("SIGIL|MANA|STORE_ERROR"); return; }
+  if (prefs.getUShort(key, 0) < best && prefs.putUShort(key, best) != sizeof(uint16_t))
+    Serial.println("SIGIL|MANA|STORE_ERROR");
+  prefs.end();
+}
+
+// The player Mana Tap plays as: the name Home shows.
+void manaPlayerName(char *out, size_t size) {
+  portENTER_CRITICAL(&displayProfileMux);
+  snprintf(out, size, "%s", gameDisplayValid ? pendingGameDisplay.primary.name : pendingSeatNames[0]);
+  portEXIT_CRITICAL(&displayProfileMux);
+}
+
+char manaName[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
+uint32_t manaFlashUntilMs = 0;
+TurnHubSigil::RingPixel manaFlash = {0, 0, 0};
+
+void publishMana(bool rebuild) {
+  portENTER_CRITICAL(&displayProfileMux);
+  pendingMana = manaTap;
+  pendingManaOpen = manaOpen;
+  pendingManaTurnPaused = manaTurnPaused;
+  manaChanged = true;
+  manaRebuild = manaRebuild || rebuild;
+  portEXIT_CRITICAL(&displayProfileMux);
+  notifyDisplayTask();
+}
+
+void keepManaBest() {
+  if (manaTap.newBest()) saveManaBest(manaName, manaTap.best());
+  manaHomeBest = manaTap.best();
+}
+
+void openManaTap(uint32_t nowMs) {
+  (void)nowMs;
+  manaPlayerName(manaName, sizeof(manaName));
+  const uint8_t seat = shownPlayer();
+  manaTap.open(TurnHub::MANA_SIGIL_FIELD, seat ? seat : 1, loadManaBest(manaName), static_cast<uint32_t>(random(1, 0x7FFFFFFF)));
+  manaOpen = true;
+  manaTurnPaused = false;
+  publishMana(true);
+}
+
+void closeManaTap() {
+  if (!manaOpen) return;
+  keepManaBest();
+  manaOpen = false;
+  publishMana(true);
+  displayNeedsRefresh = true;
+}
+
+// Start, Pause, Resume or Play again: whichever the screen offers.
+void manaAction(uint32_t nowMs) {
+  switch (manaTap.phase()) {
+    case TurnHub::ManaPhase::Playing: manaTap.pause(); keepManaBest(); break;
+    case TurnHub::ManaPhase::Paused: manaTap.resume(nowMs); break;
+    default: manaTap.start(nowMs); break;
+  }
+  manaTurnPaused = false;
+  publishMana(true);
+}
+
+// A hit flashes the ring in the seat's colour with a short tick; a miss
+// flashes red with a low tone. The screen shows both (score, lives) too.
+void manaFeedback(TurnHub::ManaEvent event) {
+  if (event == TurnHub::ManaEvent::None) return;
+  const bool hit = event == TurnHub::ManaEvent::Hit;
+  manaFlash = hit ? TurnHubSigil::ringSeatColor(manaTap.seat(), 220) : TurnHubSigil::RingPixel{255, 0, 0};
+  manaFlashUntilMs = millis() + 160;
+  playBuzzerPayload(hit ? TurnHubProtocol::encodeTone(1320, 25) : TurnHubProtocol::encodeTone(220, 120));
+}
+
+// Runs Mana Tap: pauses it when Home is left or this Sigil's turn starts
+// (then shows the Game tab), moves the orbs and hands the display a frame.
+void updateManaTap(uint32_t nowMs) {
+  static bool wasMyTurn = false;
+  static uint32_t lastFrameMs = 0, lastNameCheckMs = 0;
+  portENTER_CRITICAL(&displayProfileMux);
+  const int32_t state = gameDisplayValid ? static_cast<int32_t>(pendingGameDisplay.state) : static_cast<int32_t>(displayPayload);
+  const auto page = selectedPage;
+  portEXIT_CRITICAL(&displayProfileMux);
+  const bool myTurn = TurnHubProtocol::displayMode(state) == DisplayMode::Running &&
+      TurnHubProtocol::hasDisplayFlag(state, TurnHubProtocol::DISPLAY_FLAG_ACTIVE);
+  const bool turnStarted = myTurn && !wasMyTurn;
+  wasMyTurn = myTurn;
+  if (!manaOpen) {
+    // Keep Home's record current for whoever is playing here.
+    if (nowMs - lastNameCheckMs < 500) return;
+    lastNameCheckMs = nowMs;
+    char name[sizeof(manaName)];
+    manaPlayerName(name, sizeof(name));
+    if (strcmp(name, manaName) == 0) return;
+    snprintf(manaName, sizeof(manaName), "%s", name);
+    manaHomeBest = loadManaBest(manaName);
+    if (page == TurnHubUi::Page::Home) { displayNeedsRefresh = true; notifyDisplayTask(); }
+    return;
+  }
+  if (manaTap.phase() == TurnHub::ManaPhase::Playing && (turnStarted || page != TurnHubUi::Page::Home)) {
+    manaTap.pause();
+    keepManaBest();
+    manaTurnPaused = turnStarted;
+    if (turnStarted) {
+      portENTER_CRITICAL(&displayProfileMux);
+      selectedPage = TurnHubUi::Page::Game;
+      navigationChanged = true;
+      portEXIT_CRITICAL(&displayProfileMux);
+      displayNeedsRefresh = true;
+    }
+    publishMana(true);
+    return;
+  }
+  const auto before = manaTap.phase();
+  const auto event = manaTap.update(nowMs);
+  manaFeedback(event);
+  const bool ended = before != manaTap.phase();
+  if (ended) keepManaBest();
+  if (ended || (manaTap.phase() == TurnHub::ManaPhase::Playing && nowMs - lastFrameMs >= 33)) {
+    lastFrameMs = nowMs;
+    publishMana(ended);
+  }
+}
+
 // Redraws the LED ring (led_ring.h) every 20 ms from the state on screen.
 void updateRing() {
   static uint32_t lastMs = 0;
@@ -932,6 +1125,12 @@ void updateRing() {
   TurnHubSigil::RingPixel frame[TurnHubSigil::RING_MAX_LEDS];
   TurnHubSigil::renderRing(in, now, frame, TurnHubSigilBoard::LED_RING_COUNT,
       TurnHubSigilBoard::LED_RING_CENTRE);
+  if (static_cast<int32_t>(manaFlashUntilMs - now) > 0) {
+    // Mana Tap's hit or miss flash, over whatever the ring was showing.
+    for (uint8_t i = 0; i < TurnHubSigilBoard::LED_RING_COUNT && i < TurnHubSigil::RING_MAX_LEDS; ++i)
+      frame[i] = TurnHubSigil::ringScale(manaFlash, TurnHubSigil::RING_BRIGHTNESS);
+    TurnHubSigil::ringLimitCurrent(frame, TurnHubSigilBoard::LED_RING_COUNT);
+  }
   TurnHubSigil::ringShow(frame, TurnHubSigilBoard::LED_RING_COUNT);
 }
 
@@ -1939,6 +2138,7 @@ void loop() {
   updatePairing();
   applyAtlasLinkChange(atlasLink.update(millis()));
 
+  updateManaTap(millis());
   updateBuzzer();
   updateRing();
   updateDisplayProfileSync();

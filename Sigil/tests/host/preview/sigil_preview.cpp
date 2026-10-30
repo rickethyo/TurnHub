@@ -12,6 +12,7 @@
 
 using namespace TurnHubSigil;
 using namespace TurnHubProtocol;
+using namespace TurnHub;
 
 namespace {
 
@@ -83,6 +84,29 @@ int main() {
     const std::string suffix = t == 0 ? "" : "-brass";
     d.setTheme(theme);
     d.showHome(2,true,"Alexandria",static_cast<uint8_t>(DisplayMode::Running)); save("home"+suffix);
+    d.setManaBest(24);
+    d.showHome(2,true,"Alexandria",static_cast<uint8_t>(DisplayMode::Running)); save("home-mana-best"+suffix);
+    {
+      TurnHub::ManaTap mana;
+      mana.open(TurnHub::MANA_SIGIL_FIELD, 3, 24, 7);
+      d.showManaTap(2, mana, "Alexandria", false, true); save("mana-ready"+suffix);
+      uint32_t ms = 0;
+      mana.start(ms);
+      for (int n = 0; n < 240; ++n) {
+        ms += 20;
+        mana.update(ms);
+        for (uint8_t i = 0; i < MANA_ORBS && n % 37 == 0 && n < 150; ++i)
+          if (mana.orb(i).live && mana.orb(i).target) mana.tap(mana.orb(i).x, mana.orb(i).y());
+      }
+      d.showManaTap(2, mana, "Alexandria", false, true);
+      d.showManaTap(2, mana, "Alexandria", false, false); save("mana-playing"+suffix);
+      mana.pause();
+      d.showManaTap(2, mana, "Alexandria", true, false); save("mana-paused-turn"+suffix);
+      mana.resume(ms);
+      while (mana.phase() == ManaPhase::Playing) { ms += 20; mana.update(ms); }
+      d.showManaTap(2, mana, "Alexandria", false, false); save("mana-over"+suffix);
+    }
+    d.setManaBest(0);
     TableSnapshot roster;roster.valid=true;roster.total=4;
     for(uint8_t i=0;i<4;++i) { auto &r=roster.rows[i];r.player=i+1;r.life=40-i*3;snprintf(r.name,sizeof(r.name),"Player %u",i+1); }
     roster.rows[1].flags=TABLE_ACTIVE;

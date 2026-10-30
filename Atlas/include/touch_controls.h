@@ -19,6 +19,7 @@
 #include "player_controls.h"
 #include <string.h>
 
+#include "mana_tap.h"
 #include "update_notice.h"
 #include "device_navigation.h"
 
@@ -106,7 +107,10 @@ enum class TouchAction : uint8_t {
   ConfirmYes, ConfirmNo,
   // Lobby: Start opens New game, the app's game setup (ConfigureGame from
   // the table): each row steps its setting, then Start game.
-  OpenNewGame, GameType, GameMode, GameLife, GameTimer, GameHouseRules
+  OpenNewGame, GameType, GameMode, GameLife, GameTimer, GameHouseRules,
+  // Mana Tap (mana_tap.h) from Home: open it, its Start/Pause/Resume/Play
+  // again button, and Quit. Presentation only: no table state changes.
+  OpenManaTap, ManaAction, ManaQuit
 };
 
 // Home: the table's status and info (version, Wi-Fi, SD card, battery).
@@ -121,7 +125,8 @@ enum class TouchAction : uint8_t {
 // Seat, Name and Pin: Add player's profile list, name keyboard and PIN keypad.
 // Confirm: the popup asking before a hazardous action.
 // NewGame: the lobby's game setup before Start game.
-enum class ScreenKind : uint8_t { Home, Overview, Status, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Themes, Seat, Name, Pin, Confirm, NewGame };
+// ManaTap: the mini game, opened from Home.
+enum class ScreenKind : uint8_t { Home, Overview, Status, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Themes, Seat, Name, Pin, Confirm, NewGame, ManaTap };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -227,6 +232,11 @@ struct AtlasScreen {
   char qrCaption[40] = {};
   char code[8] = {};      // Presence code as "123 456" (Code screen).
 
+  // Mana Tap: a copy of the game (ManaTap screen only), and whether it
+  // paused itself because a turn passed.
+  TurnHub::ManaTap mana;
+  bool manaTurnPaused = false;
+
   TouchButton buttons[MAX_TOUCH_BUTTONS];
   uint8_t buttonCount = 0;
   // The button under a finger right now.
@@ -270,9 +280,23 @@ inline bool sameTimer(const AtlasScreen &a, const AtlasScreen &b) {
   return a.timerPermille == b.timerPermille && a.timerWarning == b.timerWarning && sameScreenText(a.clock, b.clock);
 }
 
+// Mana Tap's moving parts (orbs, score, lives); the display moves them in
+// place (updateAtlasScreenMana). Its phase is part of sameBody.
+inline bool sameMana(const AtlasScreen &a, const AtlasScreen &b) {
+  const TurnHub::ManaTap &x = a.mana, &y = b.mana;
+  if (x.score() != y.score() || x.lives() != y.lives() || x.best() != y.best()) return false;
+  for (uint8_t i = 0; i < TurnHub::MANA_ORBS; ++i) {
+    const TurnHub::ManaOrb &p = x.orb(i), &q = y.orb(i);
+    if (p.live != q.live || (p.live && (p.target != q.target || p.seat != q.seat || p.x != q.x || p.y() != q.y())))
+      return false;
+  }
+  return true;
+}
+
 // times: compare the players' turn times too (otherwise only whether each has one).
 inline bool sameBody(const AtlasScreen &a, const AtlasScreen &b, bool times = true) {
-  if (a.showPlayerControls != b.showPlayerControls || a.controlsPage != b.controlsPage ||
+  if (a.mana.phase() != b.mana.phase() || a.manaTurnPaused != b.manaTurnPaused ||
+      a.showPlayerControls != b.showPlayerControls || a.controlsPage != b.controlsPage ||
       memcmp(&a.controls,&b.controls,sizeof(a.controls)) || a.kind != b.kind || a.playerCount != b.playerCount || a.showLife != b.showLife ||
       a.lineCount != b.lineCount || !sameScreenText(a.qr, b.qr) || !sameScreenText(a.qrCaption, b.qrCaption) ||
       !sameScreenText(a.code, b.code)) {
@@ -304,12 +328,13 @@ inline bool sameButtons(const AtlasScreen &a, const AtlasScreen &b) {
 
 inline bool sameScreen(const AtlasScreen &a, const AtlasScreen &b) {
   return sameHeader(a, b) && sameGameClock(a, b) && sameHero(a, b) && sameTimer(a, b) && sameBody(a, b) &&
-      sameButtons(a, b);
+      sameButtons(a, b) && sameMana(a, b);
 }
 
 // Equal but for the ticking text (game clock, turn clock and its ring, turn
-// times): the display updates those labels in place instead of rebuilding the
-// screen, so a running clock never redraws the whole panel.
+// times) and Mana Tap's moving orbs: the display updates those in place
+// instead of rebuilding the screen, so a running clock never redraws the
+// whole panel.
 inline bool sameScreenButTimes(const AtlasScreen &a, const AtlasScreen &b) {
   return sameHeader(a, b) && sameHero(a, b) && sameButtons(a, b) && sameBody(a, b, false) &&
       (a.gameClock[0] != 0) == (b.gameClock[0] != 0) && (a.clock[0] != 0) == (b.clock[0] != 0) &&

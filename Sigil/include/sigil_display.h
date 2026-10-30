@@ -5,6 +5,7 @@
 #include "sigil_menu.h"
 #include "device_navigation.h"
 #include "table_snapshot.h"
+#include "mana_tap.h"
 
 namespace TurnHubSigil {
 
@@ -78,6 +79,15 @@ class SigilDisplay {
   virtual void showHome(uint8_t sigilId, bool connected, const char *name, uint8_t mode) = 0;
   virtual void showTable(uint8_t sigilId, const TableSnapshot &table, uint8_t page, bool connected) = 0;
   virtual void showSettings(uint8_t sigilId) = 0;
+  // Mana Tap (mana_tap.h), opened from Home. rebuild redraws the whole
+  // screen; otherwise only the orbs, score and lives move. turnPaused: it
+  // paused itself because this Sigil's turn started.
+  virtual void showManaTap(uint8_t sigilId, const TurnHub::ManaTap &game, const char *name, bool turnPaused,
+      bool rebuild) {
+    (void)sigilId; (void)game; (void)name; (void)turnPaused; (void)rebuild;
+  }
+  // The record Home's Play Mana Tap button shows (0: none yet).
+  void setManaBest(uint16_t best) { manaBest_ = best; }
 
   // Atlas-owned modal pages replace the normal game screen.
   virtual void showCommander(const TurnHubProtocol::CommanderFlowPacket &page) { (void)page; }
@@ -101,6 +111,7 @@ class SigilDisplay {
   bool inverted_ = false;
   MenuView menu_;
   LifeOverlay life_;
+  uint16_t manaBest_ = 0;
 };
 
 // Static lifetime, selected at build time. No driver headers reach main.cpp.

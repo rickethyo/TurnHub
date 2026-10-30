@@ -18,6 +18,7 @@
 #include "atlas_display.h"
 #include "controller_profiles.h"
 #include "firmware_version.h"
+#include "optional_preferences.h"
 #include "profile_store.h"
 #include "sd_card.h"
 #include "serial_log.h"
@@ -97,6 +98,44 @@ struct NameCache {
   bool valid = false;
 };
 NameCache names[MAX_SCREEN_PLAYERS];
+
+// Mana Tap (mana_tap.h), opened from Home. Presentation only, like the open
+// screen: it changes no table state. It pauses when its screen is not up and
+// when a turn passes in this table's match (then the Game tab shows); Home's
+// Play Mana Tap carries on a paused run. Atlas keeps one record for the
+// table in NVS ("manatap"/"best"), written only when beaten.
+TurnHub::ManaTap manaTap;
+bool manaTurnPaused = false;
+uint8_t manaTurnPlayer = 0;  // The active player when last checked (0: none).
+int32_t manaStoredBest = -1;  // -1 until read.
+
+uint16_t manaBest() {
+  if (manaStoredBest < 0) {
+    manaStoredBest = 0;
+    TurnHub::OptionalPreferences prefs;
+    if (prefs.begin("manatap", true)) {
+      manaStoredBest = prefs.getString("best", "0").toInt();
+      prefs.end();
+    }
+    if (manaStoredBest < 0 || manaStoredBest > 65535) manaStoredBest = 0;
+  }
+  return static_cast<uint16_t>(manaStoredBest);
+}
+
+void keepManaBest() {
+  if (manaTap.best() <= manaBest()) return;
+  TurnHub::OptionalPreferences prefs;
+  if (!prefs.begin("manatap", false)) return;
+  if (prefs.putString("best", String(manaTap.best())) > 0) manaStoredBest = manaTap.best();
+  prefs.end();
+}
+
+void openManaTap(uint32_t nowMs) {
+  openScreen = ScreenKind::ManaTap;
+  if (manaTap.phase() == TurnHub::ManaPhase::Paused) return;  // Carry on.
+  manaTap.open(TurnHub::MANA_ATLAS_FIELD, 1, manaBest(), nowMs * 2654435761u + 1);
+  manaTurnPaused = false;
+}
 
 // --- Layout -------------------------------------------------------------------
 
@@ -549,9 +588,28 @@ bool chipAction(TouchAction action) {
 void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
   screen.buttonCount = 0;
   switch (activeScreen(nowMs)) {
-    // Home is the table's status and info; the tab bar is the way on.
-    case ScreenKind::Home:
+    // Home is the table's status and info; the tab bar is the way on, and
+    // Mana Tap is there for between turns or games.
+    case ScreenKind::Home: {
+      static char play[32];
+      if (manaBest()) snprintf(play, sizeof(play), "Play Mana Tap (best %u)", manaBest());
+      else snprintf(play, sizeof(play), "Play Mana Tap");
+      const ButtonSpec row[] = {{TouchAction::OpenManaTap, play, 0, 1}};
+      addRow(screen, BUTTON_ROW_Y, row, 1);
       return;
+    }
+    case ScreenKind::ManaTap: {
+      static const char *const ACTION_LABELS[] = {"Start", "Pause", "Resume", "Play again"};
+      const char *label = ACTION_LABELS[static_cast<uint8_t>(manaTap.phase())];
+      if (manaTap.phase() == TurnHub::ManaPhase::Playing) {
+        // Beside the title, clear of the field.
+        addKey(screen, TouchAction::ManaAction, label, ATLAS_SCREEN_WIDTH - MARGIN - 112, SCREEN_HERO_Y + 8, 112, 52, 0);
+      } else {
+        const ButtonSpec row[] = {{TouchAction::ManaAction, label, 0, 3}, {TouchAction::ManaQuit, "Quit", 0, 2}};
+        addRow(screen, BUTTON_ROW_Y, row, 2);
+      }
+      return;
+    }
     case ScreenKind::Confirm: layoutConfirm(screen); return;
     case ScreenKind::NewGame: layoutNewGame(screen); return;
     case ScreenKind::Overview: {
@@ -659,7 +717,7 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
       kind == ScreenKind::Pin || kind == ScreenKind::Setup || kind == ScreenKind::Confirm) return;
   const TouchAction actions[] = {TouchAction::OpenHome, TouchAction::OpenGame,
       TouchAction::OpenOverview, TouchAction::OpenSettings};
-  const uint8_t selected = kind == ScreenKind::Home ? 0 : kind == ScreenKind::Status || kind == ScreenKind::Player ||
+  const uint8_t selected = kind == ScreenKind::Home || kind == ScreenKind::ManaTap ? 0 : kind == ScreenKind::Status || kind == ScreenKind::Player ||
       kind == ScreenKind::Table || kind == ScreenKind::Seat || kind == ScreenKind::NewGame ? 1
       : kind == ScreenKind::Overview ? 2 : 3;
   for (uint8_t i=0; i<TurnHubUi::PAGE_COUNT; ++i) {
@@ -773,6 +831,9 @@ const char *actionName(TouchAction action) {
     case TouchAction::GameLife: return "GAME_LIFE";
     case TouchAction::GameTimer: return "GAME_TIMER";
     case TouchAction::GameHouseRules: return "GAME_HOUSE_RULES";
+    case TouchAction::OpenManaTap: return "OPEN_MANA_TAP";
+    case TouchAction::ManaAction: return "MANA_ACTION";
+    case TouchAction::ManaQuit: return "MANA_QUIT";
     case TouchAction::None: break;
   }
   return "NONE";
@@ -1028,6 +1089,26 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       return;
     }
     dispatchTouchAction(nowMs, asked);
+    return;
+  }
+  if (action == TouchAction::OpenManaTap || action == TouchAction::ManaAction || action == TouchAction::ManaQuit) {
+    if (action == TouchAction::OpenManaTap) {
+      openManaTap(nowMs);
+    } else if (action == TouchAction::ManaQuit) {
+      keepManaBest();
+      manaTap = TurnHub::ManaTap();
+      openScreen = ScreenKind::Home;
+    } else if (manaTap.phase() == TurnHub::ManaPhase::Playing) {
+      manaTap.pause();
+      keepManaBest();
+    } else if (manaTap.phase() == TurnHub::ManaPhase::Paused) {
+      manaTap.resume(nowMs);
+    } else {
+      manaTap.start(nowMs);
+    }
+    if (action != TouchAction::OpenManaTap) manaTurnPaused = false;
+    serialLog.print("ATLAS|TOUCH|");
+    serialLog.println(actionName(action));
     return;
   }
   if (navigate(action)) {
@@ -1690,6 +1771,47 @@ void formatHome(AtlasScreen &screen, uint32_t nowMs) {
   screen.lineCount = 5;
 }
 
+void formatManaTap(AtlasScreen &screen) {
+  const uint16_t best = manaTap.best();
+  snprintf(screen.badge, sizeof(screen.badge), "PLAY");
+  snprintf(screen.title, sizeof(screen.title), "Mana Tap");
+  switch (manaTap.phase()) {
+    case TurnHub::ManaPhase::Ready:
+      snprintf(screen.detail, sizeof(screen.detail), "Tap orbs marked A, let the rest float");
+      break;
+    case TurnHub::ManaPhase::Playing:
+      snprintf(screen.detail, sizeof(screen.detail), "Tap the orbs marked A");
+      break;
+    case TurnHub::ManaPhase::Paused:
+      snprintf(screen.detail, sizeof(screen.detail), "%s", manaTurnPaused ? "Paused: the turn passed" : "Paused");
+      break;
+    case TurnHub::ManaPhase::Over:
+      if (manaTap.newBest()) snprintf(screen.detail, sizeof(screen.detail), "Game over. New best: %u", best);
+      else snprintf(screen.detail, sizeof(screen.detail), "Game over. Best %u", best);
+      break;
+  }
+  screen.mana = manaTap;
+  screen.manaTurnPaused = manaTurnPaused;
+}
+
+// Runs Mana Tap: pauses it when its screen is not up, or when a turn passes
+// in this table's match (and shows the Game tab), otherwise moves the orbs.
+void serviceManaTap(uint32_t nowMs) {
+  const uint8_t active = table().hubState == HubState::Running ? table().game.activePlayerNumber() : 0;
+  const bool passed = active != 0 && manaTurnPlayer != 0 && active != manaTurnPlayer;
+  manaTurnPlayer = active;
+  if (manaTap.phase() != TurnHub::ManaPhase::Playing) return;
+  if (passed || activeScreen(nowMs) != ScreenKind::ManaTap) {
+    manaTap.pause();
+    keepManaBest();
+    manaTurnPaused = passed;
+    if (passed && openScreen == ScreenKind::ManaTap) openScreen = ScreenKind::Status;
+    return;
+  }
+  manaTap.update(nowMs);
+  if (manaTap.phase() == TurnHub::ManaPhase::Over) keepManaBest();
+}
+
 // The confirm popup: what the action will do, in words.
 void formatConfirm(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.badge, sizeof(screen.badge), "CONFIRM");
@@ -1913,7 +2035,10 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen.update = firmwareUpdateKind();
   screen.sigilsOnline = sigilBus.activeCount(nowMs);
   switch (screen.kind) {
-    case ScreenKind::Home: formatHome(screen, nowMs); break;
+    case ScreenKind::Home:
+      formatHome(screen, nowMs);
+      break;
+    case ScreenKind::ManaTap: formatManaTap(screen); break;
     case ScreenKind::Confirm: formatConfirm(screen, nowMs); break;
     case ScreenKind::NewGame: formatNewGame(screen); break;
     case ScreenKind::Overview:
@@ -1953,12 +2078,19 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
 }
 
 void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
+  serviceManaTap(nowMs);
   AtlasScreen layout;
   if (touched) {
     lastContactAtMs = nowMs;
     if (!touchDown) {
       touchDown = true;
       pressedAction = buttonAt(x, y, nowMs);
+      // A press in Mana Tap's field aims at an orb as it lands.
+      const TurnHub::ManaField &field = manaTap.field();
+      if (pressedAction == TouchAction::None && manaTap.phase() == TurnHub::ManaPhase::Playing &&
+          activeScreen(nowMs) == ScreenKind::ManaTap && y >= field.top && y < field.bottom) {
+        manaTap.tap(x, y);
+      }
     }
     const TouchButton *button = currentButton(pressedAction, layout, nowMs);
     pressInside = button != nullptr && button->contains(x, y, TOUCH_SLOP_PX);
@@ -1998,6 +2130,9 @@ void resetTouchControls(bool startAtHome) {
   confirmAction = TouchAction::None;
   playerControlsOpen=false; playerControlsPage=0;
   setupSkipped = false;
+  manaTap = TurnHub::ManaTap();
+  manaTurnPaused = false;
+  manaTurnPlayer = 0;
   for (auto &cache : names) cache = NameCache();
 }
 

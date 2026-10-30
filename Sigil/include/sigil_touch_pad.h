@@ -8,6 +8,9 @@ constexpr int16_t SIGIL_SCREEN_W = 240, SIGIL_SCREEN_H = 320;
 constexpr int16_t NAV_Y = 272, NAV_H = 48;
 constexpr uint8_t TOUCH_NONE = 0xFF, TOUCH_NAV = 0x80, TOUCH_PREV = 0x90, TOUCH_NEXT = 0x91;
 constexpr uint8_t TOUCH_CONTROLS_BACK=0x92, TOUCH_CONTROLS_PREV=0x93, TOUCH_CONTROLS_NEXT=0x94;
+// Mana Tap (mana_tap.h): Home's Play button, the game's field (main.cpp
+// reads where it was hit), its Start/Pause/Resume button and Quit.
+constexpr uint8_t TOUCH_MANA_OPEN=0x95, TOUCH_MANA_FIELD=0x96, TOUCH_MANA_ACTION=0x97, TOUCH_MANA_QUIT=0x98;
 constexpr uint8_t TOUCH_CONTROL=0xA0; // Two targets per shared control: minus/off, plus/on.
 struct PadRect {
   int16_t x, y, w, h;

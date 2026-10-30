@@ -26,7 +26,7 @@ extern const lv_image_dsc_t th_icon_home_24, th_icon_timer_24, th_icon_table_24,
     th_icon_download_24, th_icon_pass_24, th_icon_moon_24, th_icon_sun_24, th_icon_palette_24,
     th_icon_contrast_24, th_icon_close_24, th_icon_info_24, th_icon_hub_24, th_icon_flag_24, th_icon_pause_24,
     th_icon_play_24, th_icon_more_24, th_icon_plus_24, th_icon_refresh_24, th_icon_lock_24, th_icon_check_24,
-    th_icon_users_24, th_icon_minus_24;
+    th_icon_users_24, th_icon_minus_24, th_icon_dice_24;
 }
 
 namespace TurnHubAtlas {
@@ -48,6 +48,11 @@ struct LiveLabels {
   lv_obj_t *arc = nullptr;
   lv_obj_t *gameClock = nullptr;
   lv_obj_t *turnTime[MAX_SCREEN_PLAYERS] = {};
+  // Mana Tap's moving parts, moved in place (updateAtlasScreenMana).
+  lv_obj_t *manaScore = nullptr;
+  lv_obj_t *manaLife[TurnHub::MANA_LIVES] = {};
+  lv_obj_t *manaOrb[TurnHub::MANA_ORBS] = {};
+  lv_obj_t *manaInitial[TurnHub::MANA_ORBS] = {};
 };
 LiveLabels live;
 
@@ -243,6 +248,8 @@ const lv_image_dsc_t *actionIcon(TouchAction a) {
     case TouchAction::Resume: case TouchAction::StartGame: return &th_icon_play_24;
     case TouchAction::OpenTable: return &th_icon_more_24;
     case TouchAction::OpenNewGame: return &th_icon_play_24;
+    case TouchAction::OpenManaTap: return &th_icon_dice_24;
+    case TouchAction::ManaQuit: return &th_icon_close_24;
     case TouchAction::GameType: return &th_icon_sparkle_24;
     case TouchAction::GameMode: return &th_icon_users_24;
     case TouchAction::GameLife: return &th_icon_plus_24;
@@ -397,7 +404,8 @@ void drawHero(lv_obj_t *root, const AtlasScreen &s) {
   const bool clock = s.clock[0] != '\0';
   constexpr int16_t ring = HERO_RING;
   const int16_t x = 14;
-  const int16_t w = W - x - (clock ? ring + 24 : 14);
+  const bool manaPause = s.kind == ScreenKind::ManaTap && s.mana.phase() == TurnHub::ManaPhase::Playing;
+  const int16_t w = W - x - (clock ? ring + 24 : manaPause ? 128 : 14);
   text(root, s.title, pal().ornament ? &th_cinzel_32 : &th_bold_28, pal().text, x, SCREEN_HERO_Y + 6, w);
   const bool notice = s.notice[0] != '\0';
   // A notice is marked in words by its leading arrow as well as its colour.
@@ -641,6 +649,64 @@ void drawStandings(lv_obj_t *root, const AtlasScreen &s) {
   }
 }
 
+// Mana Tap's score, lives and orbs, from the screen's copy of the game.
+void moveManaTap(const AtlasScreen &s) {
+  const TurnHub::ManaTap &game = s.mana;
+  const TurnHub::ManaField &f = game.field();
+  char score[24];
+  snprintf(score, sizeof(score), "Score %u", game.score());
+  if (live.manaScore) lv_label_set_text(live.manaScore, score);
+  for (uint8_t i = 0; i < TurnHub::MANA_LIVES; ++i)
+    if (live.manaLife[i]) lv_obj_set_style_bg_opa(live.manaLife[i], i < game.lives() ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+  for (uint8_t i = 0; i < TurnHub::MANA_ORBS; ++i) {
+    lv_obj_t *orb = live.manaOrb[i];
+    if (!orb) continue;
+    const TurnHub::ManaOrb &o = game.orb(i);
+    if (!o.live) { lv_obj_add_flag(orb, LV_OBJ_FLAG_HIDDEN); continue; }
+    lv_obj_remove_flag(orb, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_pos(orb, o.x - f.radius, o.y() - f.radius - f.top);
+    lv_obj_set_style_bg_color(orb, rgb(seatColor(o.seat)), 0);
+    lv_obj_set_style_border_width(orb, o.target ? 3 : 0, 0);
+    if (o.target) lv_obj_remove_flag(live.manaInitial[i], LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(live.manaInitial[i], LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
+// Mana Tap: a score row, then the field the orbs rise through. Your orbs
+// carry an initial and a ring, so colour is never the only sign; lives are
+// full or hollow discs beside the score.
+void drawManaTap(lv_obj_t *root, const AtlasScreen &s) {
+  const TurnHub::ManaField &f = s.mana.field();
+  live.manaScore = text(root, "", &th_semi_20, pal().text, 14, SCREEN_BODY_Y + 8, 160);
+  for (uint8_t i = 0; i < TurnHub::MANA_LIVES; ++i) {
+    lv_obj_t *life = live.manaLife[i] = box(root, W - 14 - 3 * 26 + i * 26 + 4, SCREEN_BODY_Y + 12, 18, 18);
+    lv_obj_set_style_radius(life, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_width(life, 2, 0);
+    lv_obj_set_style_border_color(life, rgb(pal().critical), 0);
+    lv_obj_set_style_bg_color(life, rgb(pal().critical), 0);
+  }
+  lv_obj_t *field = box(root, 0, f.top, W, f.bottom - f.top);
+  lv_obj_set_style_bg_opa(field, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(field, rgb(pal().light ? pal().surface1 : pal().surface2), 0);
+  lv_obj_set_style_border_side(field, LV_BORDER_SIDE_TOP, 0);
+  lv_obj_set_style_border_width(field, 1, 0);
+  lv_obj_set_style_border_color(field, rgb(pal().separator), 0);
+  for (uint8_t i = 0; i < TurnHub::MANA_ORBS; ++i) {
+    lv_obj_t *orb = live.manaOrb[i] = box(field, 0, 0, 2 * f.radius, 2 * f.radius);
+    lv_obj_set_style_radius(orb, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(orb, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(orb, rgb(pal().text), 0);
+    lv_obj_t *l = live.manaInitial[i] = lv_label_create(orb);
+    lv_obj_remove_style_all(l);
+    lv_label_set_text(l, "A");
+    lv_obj_set_style_text_font(l, &th_semi_20, 0);
+    lv_obj_set_style_text_color(l, lv_color_white(), 0);
+    lv_obj_center(l);
+    lv_obj_add_flag(orb, LV_OBJ_FLAG_HIDDEN);
+  }
+  moveManaTap(s);
+}
+
 void drawBody(lv_obj_t *root, const AtlasScreen &s) {
   if (s.showPlayerControls) {
     uint8_t ids[TurnHubUi::PLAYER_CONTROL_COUNT];
@@ -683,6 +749,10 @@ void drawBody(lv_obj_t *root, const AtlasScreen &s) {
     return;
   }
   if (buttonsUseBody(s)) return;
+  if (s.kind == ScreenKind::ManaTap) {
+    drawManaTap(root, s);
+    return;
+  }
   if (s.kind == ScreenKind::Overview) {
     drawStandings(root, s);
     return;
@@ -1002,6 +1072,13 @@ void renderAtlasScreen(const AtlasScreen &s, const ScreenStyle &chosen) {
   // A new match starts without a banner; only a pass shows one.
   if (!s.showLife) bannerTurn = 0;
   noteTurn(s);
+}
+
+bool updateAtlasScreenMana(const AtlasScreen &s) {
+  if (s.kind != ScreenKind::ManaTap) return true;
+  if (!live.manaScore) return false;
+  moveManaTap(s);
+  return true;
 }
 
 bool updateAtlasScreenTimes(const AtlasScreen &s) {

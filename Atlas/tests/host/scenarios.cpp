@@ -2962,10 +2962,11 @@ static void atlasScreens() {
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
     assert(b.w>=44 && b.h>=44 && b.x>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
 
-  // Home is the table's status and info, with only the tabs to lead on.
+  // Home is the table's status and info, with the tabs and Mana Tap to lead on.
   tapButton(TouchAction::OpenHome); s=currentScreen();
   assert(s.kind==ScreenKind::Home && String(s.title)=="TurnHub" && String(s.detail)=="LOBBY, 3 players" && s.lineCount==5 &&
-      s.buttonCount==4 && screenButton(s,TouchAction::OpenGame) && screenButton(s,TouchAction::OpenSettings));
+      s.buttonCount==5 && screenButton(s,TouchAction::OpenGame) && screenButton(s,TouchAction::OpenSettings) &&
+      screenButton(s,TouchAction::OpenManaTap));
   fixtureSdCardReady=false; assert(String(currentScreen().lines[3])=="SD card: NOT INSERTED"); fixtureSdCardReady=true;
   fixtureBattery.present=true; fixtureBattery.percent=64;
   assert(String(currentScreen().lines[3])=="SD card: ready, battery 64%");
@@ -6134,6 +6135,60 @@ static void explicitAttributionHttp() {
   for(int i=0;i<2;++i) { request("/api/session/logout",tokens[i]);ProfileFixture::profiles.erase(ids[i].c_str());TurnHubAccounts::accounts.erase(ids[i].c_str()); }
 }
 
+// Runs the clock until one of Mana Tap's own orbs is well inside the field.
+static const TurnHub::ManaOrb *awaitManaOrb() {
+  static AtlasScreen s;
+  for (int n=0;n<2000;++n) {
+    s=currentScreen();
+    for (uint8_t i=0;i<TurnHub::MANA_ORBS;++i) {
+      const TurnHub::ManaOrb &o=s.mana.orb(i);
+      if (o.live && o.target && o.y()<s.mana.field().bottom-2*s.mana.field().radius) return &o;
+    }
+    testNow+=20; updateTouchControls(testNow,false,0,0);
+  }
+  return nullptr;
+}
+
+// Mana Tap on the Atlas screen: opened from Home, played by touch, paused
+// when its screen closes or a turn passes; it never changes table state.
+static void manaTapOnAtlas() {
+  freshLobby(3); pairingActive=false; resetTouchControls(true);
+  tapButton(TouchAction::OpenManaTap);
+  AtlasScreen s=currentScreen();
+  assert(s.kind==ScreenKind::ManaTap && s.mana.phase()==TurnHub::ManaPhase::Ready &&
+      screenButton(s,TouchAction::ManaAction) && screenButton(s,TouchAction::ManaQuit) &&
+      screenButton(s,TouchAction::OpenHome)->selected);
+  for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
+    assert(b.w>=44 && b.h>=44 && b.x>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
+  tapButton(TouchAction::ManaAction);
+  s=currentScreen(); assert(s.mana.phase()==TurnHub::ManaPhase::Playing && !screenButton(s,TouchAction::ManaQuit));
+  // The Pause button sits clear of the field.
+  const TouchButton *pause=screenButton(s,TouchAction::ManaAction);
+  assert(pause->y+pause->h<=s.mana.field().top);
+  const TurnHub::ManaOrb *orb=awaitManaOrb(); assert(orb);
+  touchAt(orb->x,orb->y()); touchRelease();
+  assert(currentScreen().mana.score()==1);
+  assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==3);  // No table state changes.
+  // Leaving the screen pauses it; Home's button carries on the same run.
+  tapButton(TouchAction::OpenGame); updateTouchControls(testNow,false,0,0);
+  tapButton(TouchAction::OpenHome); tapButton(TouchAction::OpenManaTap);
+  s=currentScreen(); assert(s.mana.phase()==TurnHub::ManaPhase::Paused && s.mana.score()==1 && !s.manaTurnPaused);
+  tapButton(TouchAction::ManaAction); assert(currentScreen().mana.phase()==TurnHub::ManaPhase::Playing);
+  // A turn passing in the match pauses it and shows the Game tab.
+  tapButton(TouchAction::ManaAction); tapButton(TouchAction::OpenGame); startFromHost();
+  tapButton(TouchAction::OpenHome); tapButton(TouchAction::OpenManaTap); tapButton(TouchAction::ManaAction);
+  assert(currentScreen().mana.phase()==TurnHub::ManaPhase::Playing);
+  seatPass(); testNow+=PASS_GRACE_MS; updatePendingPass(testNow); updateTouchControls(testNow,false,0,0);
+  s=currentScreen(); assert(s.kind==ScreenKind::Status);
+  tapButton(TouchAction::OpenHome); tapButton(TouchAction::OpenManaTap);
+  s=currentScreen(); assert(s.mana.phase()==TurnHub::ManaPhase::Paused && s.manaTurnPaused &&
+      String(s.detail)=="Paused: the turn passed");
+  // Quit keeps the record, shown on Home's button.
+  tapButton(TouchAction::ManaQuit); s=currentScreen();
+  assert(s.kind==ScreenKind::Home && String(screenButton(s,TouchAction::OpenManaTap)->label)=="Play Mana Tap (best 1)");
+  resetTouchControls(); enterEmptyLobby();
+}
+
 static void deviceNavigation() {
   freshLobby(3); pairingActive=false; resetTouchControls(true);
   assert(currentScreen().kind==ScreenKind::Home);
@@ -6174,6 +6229,7 @@ int main() {
   sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
   deviceNavigation(); std::cout<<"PASS device navigation, read-only table, live settings and Atlas roster projection\n";
+  manaTapOnAtlas(); std::cout<<"PASS Mana Tap on Atlas: touch play, pause on leaving or a pass, record, no table state\n";
   observeClientState(); intents.setObserver(observeIntent);
   GameEngine::setGameCompletedCallback(completed);
   eliminationCredit(); std::cout<<"PASS elimination credit, validation, team counts, recovery and shared statistics\n";

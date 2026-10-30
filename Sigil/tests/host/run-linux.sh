@@ -35,3 +35,6 @@ mkdir -p "$build_dir"
 
 "$compiler" "${flags[@]}" "${includes[@]}" ring_scenarios.cpp -o "$build_dir/ring_scenarios"
 "$build_dir/ring_scenarios"
+
+"$compiler" "${flags[@]}" "${includes[@]}" mana_tap_scenarios.cpp -o "$build_dir/mana_tap_scenarios"
+"$build_dir/mana_tap_scenarios"
