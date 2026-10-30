@@ -1543,3 +1543,29 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
   a wash. The Theme and Invert rows show the current choice.
 - Sigil host suites, LVGL previews and `pio run -e sigil` pass. Hardware check
   with the owner next.
+
+### More navigation / Codex / 2026-10-30
+
+- Owner: replace the app's rightmost Settings tab with More, opening About,
+  Settings and Store without crowding the main screen. Codex owns this slice
+  on `codex/more-navigation`, baseline `73a9eb4f`, separate worktree
+  `/workspace/TurnHub-more`. Separate PR because #167 is an independent
+  shared-core/recovery fix ready for review; navigation has no dependency on it.
+- Presentation only: app owns navigation; taps/Back change local page state;
+  Compose validates destinations and saves navigation through recreation. No
+  game Intent, canonical state, transport, storage format or new dependency.
+  Scrollable pages, labeled controls and standard Back support accessibility.
+  Existing Admin/Developer permissions remain authoritative. Atlas counterpart
+  and pending owner biography/donation/store details are staged.
+- Implemented the More tab with an ellipsis icon, separate About/Settings/Store
+  pages, Back-to-More controls, Android Back handling, per-page saved scroll
+  state and reselect-to-menu behavior. Existing settings and role gates stay
+  in the Settings page; diagnostics identify the active More subpage.
+- About has project copy only until the owner supplies their story; Store
+  explicitly says it is not open. No payment or donation destination invented.
+- App Manual DOCX and generated offline asset updated; README navigation and
+  staged Atlas counterpart updated. Documentation/manual export and whitespace
+  checks pass. `:app:compileDebugKotlin` could not start: the Gradle 9.8.0
+  distribution download failed with connection refused. CI must compile the
+  Android changes; device navigation, TalkBack, large text and recreation remain
+  unverified. No new tests for this presentation-only rearrangement.

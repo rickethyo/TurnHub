@@ -31,11 +31,11 @@ The app has the same tabs with or without an Atlas:
 
 - **History:** finished games and statistics.
 
-- **Settings:** appearance, sound, Commander card art, Atlas connection, and administration when you have permission on a connected Atlas.
+- **More:** About TurnHub, Settings and Store. Open More > Settings for appearance, sound, Commander card art, Atlas connection, and administration when you have permission on a connected Atlas. The Store is not open yet. Settings mentioned in this manual are inside More.
 
 Tabs slide sideways as you move between them, unless reduced motion is on. **Full screen** gives a started game the whole screen; this is the way to play with one phone or tablet in the middle of the table.
 
-At the top of the app are two small buttons: the bug button reports a bug (section 15) and the **?** button opens this manual. Long-press either to see its name. The app version and build number are shown in the lobby, at the bottom of Settings and in the table menu; mention them when you report a problem.
+At the top of the app are two small buttons: the bug button reports a bug (section 15) and the **?** button opens this manual. Long-press either to see its name. The app version and build number are shown in the lobby, on More, at the bottom of Settings and in the table menu; mention them when you report a problem.
 
 # 3. Players and Accounts
 

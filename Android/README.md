@@ -13,7 +13,7 @@ The banner holds two small unlabeled buttons beside the connection pill: a bug
 opens the form) and `?` (User manual). TalkBack reads their names, and a long
 press shows them.
 
-The app uses the same **Game, Table, Players, History and Settings** navigation
+The app uses the same **Game, Table, Players, History and More** navigation
 with or without Atlas, and tabs slide sideways as you move between them (no
 motion with reduce motion on). Table shows the game's table inside the app: the
 running or last game, or before a game a practice table built from the lobby's
@@ -55,8 +55,9 @@ device already has one under way (`gameSource`), with a switch while setting
 up. A device game shows its local setup, then the same stage/life overview
 and game settings as connected play, without the per-seat Atlas controls. Players keeps local
 profiles available and adds Table and Me sections when connected. History keeps
-local results and Atlas import controls. Settings contains appearance, reduced
-motion, sound and Atlas connection; authorized administration and developer
+local results and Atlas import controls. More opens About TurnHub, Settings
+and Store as separate pages; the store is not open yet. Settings contains
+appearance, reduced motion, sound and Atlas connection; authorized administration and developer
 controls appear there when available. Navigation and scroll positions survive
 visits to the full-screen table and statistics.
 
