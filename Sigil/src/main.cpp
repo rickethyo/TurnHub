@@ -303,11 +303,8 @@ void sendHello() {
 
 bool screenTestPending = false;  // Guarded by displayProfileMux.
 bool screenTestBusy = false;     // Guarded by displayProfileMux.
-constexpr uint32_t TOUCH_PAIR_HOLD_MS = 3000;
 void startPairing();
-bool touchPairHolding = false;
 bool touchPairUsed = false;  // This press already opened a window.
-uint32_t touchPairStartMs = 0;
 
 void publishMenuView();
 void publishLifeOverlay();
@@ -1421,11 +1418,6 @@ void handleEspNowReceive(
 // Hands the display task a new menu snapshot when what it shows changed.
 void publishMenuView() {
   TurnHubSigil::MenuView view = sigilMenu.view();
-  // Quantize progress to limit full screen rebuilds while a finger is held.
-  view.holdPercent = static_cast<uint8_t>((sigilMenu.holdProgress(millis()) * 20u / 255u) * 5u);
-  const uint8_t pairProgress = touchPairHolding ? static_cast<uint8_t>(
-      min<uint32_t>(100u, (millis() - touchPairStartMs) * 100u / TOUCH_PAIR_HOLD_MS)) : 0;
-  view.pairPercent = static_cast<uint8_t>((pairProgress / 5u) * 5u);
   view.pairing = pairingActive;
   if (view == publishedMenuView) return;
   publishedMenuView = view;
@@ -1485,7 +1477,7 @@ bool routeLifeKey(TurnHubSigil::Key key, bool down, uint32_t nowMs) {
   if (key != TurnHubSigil::Key::Left && key != TurnHubSigil::Key::Right) return false;
   const bool right = key == TurnHubSigil::Key::Right;
   // An open Device menu keeps its keys: Left goes back.
-  if (lifeRequest.target != 0 && !sigilMenu.deviceMenuOpen()) {
+  if (lifeRequest.target != 0 && !sigilMenu.deviceMenuOpen() && !sigilMenu.confirmOpen()) {
     Serial.print("SIGIL|");
     Serial.print(sigilId);
     Serial.println(right ? "|LIFE|APPROVE" : "|LIFE|DENY");
@@ -1525,35 +1517,25 @@ void updateLife(uint32_t nowMs) {
   publishLifeOverlay();
 }
 
-// Hold the on-screen Pair button while unpaired to open the pairing window.
-// One window per touch; BOOT remains available for physical recovery.
-uint8_t updateTouchPair(uint32_t nowMs) {
+// Tap the on-screen Pair button while unpaired to open the pairing window
+// (nothing is lost by pairing, so it needs no confirm). One window per touch;
+// BOOT remains available for physical recovery.
+void updateTouchPair() {
   const bool down = keys[static_cast<uint8_t>(TurnHubSigil::Key::Select)].stableState == LOW;
-  if (!down) touchPairUsed = false;
+  if (!down) {
+    touchPairUsed = false;
+    return;
+  }
   const bool eligible = sigilId == UNASSIGNED_SIGIL_ID && !pairingActive && !sigilMenu.deviceMenuOpen() &&
       pairingV2.state() != TurnHubSecureLink::SigilPairing::State::AwaitingConfirm;
-  if (!down || !eligible || touchPairUsed) {
-    touchPairHolding = false;
-    return 0;
-  }
-  if (!touchPairHolding) {
-    touchPairHolding = true;
-    touchPairStartMs = nowMs;
-  }
-  const uint32_t elapsed = nowMs - touchPairStartMs;
-  if (elapsed >= TOUCH_PAIR_HOLD_MS) {
-    touchPairHolding = false;
-    touchPairUsed = true;
-    Serial.println("SIGIL|PAIR|TOUCH_HOLD");
-    startPairing();
-    return 0;
-  }
-  const uint32_t level = elapsed * 255 / TOUCH_PAIR_HOLD_MS;
-  return static_cast<uint8_t>(level == 0 ? 1 : level);
+  if (!eligible || touchPairUsed) return;
+  touchPairUsed = true;
+  Serial.println("SIGIL|PAIR|TOUCH");
+  startPairing();
 }
 
 // Five-key input: key edges go to the menu, and a finished choice becomes a
-// SelectAction. Hold progress is drawn on screen.
+// SelectAction (a hazardous one only after its confirm popup).
 void sendCommanderKey(uint8_t key, bool repeat = false) {
   portENTER_CRITICAL(&displayProfileMux);
   const auto page = pendingCommander;
@@ -1596,7 +1578,6 @@ void updateMenuKeys() {
     return;
   }
   if (sigilId == UNASSIGNED_SIGIL_ID && !sigilMenu.active()) sigilMenu.setOffline();
-  sigilMenu.setHoldTimes(static_cast<uint16_t>(longPressMs), static_cast<uint16_t>(winHoldMs));
   lifeAdjuster.setPace(TurnHubSigil::lifePaceFor(longPressMs));
   lifeAdjuster.setUnit(TurnHubSigil::lifeUnitFor(startingLife));
   for (uint8_t k = 0; k < TurnHubSigil::KEY_COUNT; ++k) {
@@ -1698,7 +1679,7 @@ void updateMenuKeys() {
     Serial.println(TurnHubSigil::sigilActionLabel(choice.action));
     sendPacket(PacketType::SelectAction, TurnHubProtocol::encodeSelectAction(choice.action, choice.revision, shownPlayer()));
   }
-  updateTouchPair(nowMs);
+  updateTouchPair();
   publishMenuView();
 }
 

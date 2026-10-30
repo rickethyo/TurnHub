@@ -9,7 +9,9 @@
 // and Menu. Menu pages put up to four actions on buttons; Left goes back
 // and Down advances when more actions are offered. Device entries remain
 // available while offline. Atlas validates every requested game action.
-// Deliberate actions (ActionHold) are sent only once their key is held.
+// Deliberate actions (ActionHold: winning, going out, leaving, resetting) and
+// Unpair and Factory reset ask first in a confirm popup: Select confirms, Left
+// cancels. Nothing acts on a hold (owner, 2026-10-30).
 #include <stdint.h>
 
 #include "protocol.h"
@@ -22,7 +24,7 @@ constexpr uint8_t KEY_COUNT = static_cast<uint8_t>(Key::Count);
 constexpr uint8_t MENU_NONE = TurnHubProtocol::SIGIL_ACTION_NONE;
 constexpr uint8_t MENU_MAX_ITEMS = static_cast<uint8_t>(TurnHubProtocol::SigilAction::Count);
 // Device-local entries: never in Atlas's MenuState (the mask names only Atlas actions)
-// and never sent to Atlas. Held in the device menu, Unpair makes main.cpp
+// and never sent to Atlas. Confirmed in the device menu, Unpair makes main.cpp
 // forget the saved Atlas pairing, and Factory reset erases this Sigil. They
 // stand beside the Pair button's holds, which also work when the screen or
 // menu is not.
@@ -30,6 +32,8 @@ constexpr uint8_t MENU_LOCAL_FACTORY_RESET = MENU_MAX_ITEMS;
 constexpr uint8_t MENU_LOCAL_DEVICE_MENU = MENU_MAX_ITEMS + 1;  // Opens Menu (Up).
 constexpr uint8_t MENU_LOCAL_BACK = MENU_MAX_ITEMS + 2;         // Back a level, page or out.
 constexpr uint8_t MENU_LOCAL_UNPAIR = MENU_MAX_ITEMS + 3;
+// The confirm popup's Confirm (Select): sends the action it asked about.
+constexpr uint8_t MENU_LOCAL_CONFIRM = MENU_MAX_ITEMS + 4;
 // Opens the Device entries (Unpair, Factory reset, Theme).
 constexpr uint8_t MENU_LOCAL_DEVICE = MENU_MAX_ITEMS + 5;
 // The next page of Menu.
@@ -41,12 +45,10 @@ constexpr uint8_t MENU_LOCAL_INVERT = MENU_MAX_ITEMS + 8;
 constexpr uint8_t MENU_LOCAL_CALIBRATE = MENU_MAX_ITEMS + 9;
 constexpr uint8_t MENU_LOCAL_COUNTERS = MENU_MAX_ITEMS + 10;
 static_assert(MENU_LOCAL_CALIBRATE < TurnHubProtocol::SIGIL_ACTION_NONE, "menu ids must stay below MENU_NONE");
-constexpr uint32_t MENU_UNPAIR_HOLD_MS = 3000;
-constexpr uint32_t MENU_FACTORY_RESET_HOLD_MS = 5000;
 // The most Menu rows: every Atlas action but AdjustLife, then local controls.
 constexpr uint8_t MENU_LIST_MAX = MENU_MAX_ITEMS - 1 + 2;
-// True for actions chosen by holding a key (shown "(hold)" in the legend).
-bool menuActionNeedsHold(uint8_t action);
+// True for actions that ask first in the confirm popup.
+bool menuActionNeedsConfirm(uint8_t action);
 // An open Menu closes by itself after this long without a key.
 constexpr uint32_t MENU_DEVICE_IDLE_MS = 10000;
 
@@ -59,14 +61,12 @@ struct MenuView {
   bool active = false;          // Atlas has sent a menu (none yet after pairing).
   uint8_t compass[KEY_COUNT];   // Action per key (MENU_NONE if none).
   bool deviceMenu = false;      // Menu is open (the compass holds its entries).
-  uint8_t holdAction = MENU_NONE;  // Being held right now (touch hold feedback).
+  uint8_t confirmAction = MENU_NONE;  // The confirm popup is asking about this.
   bool life = false;            // AdjustLife offered: Left/Right change life when free.
   bool recovery = false;        // The Device entries are shown.
   uint8_t page = 0;             // the Menu page shown (0 first).
   uint8_t pageCount = 0;        // Menu pages (0 when closed).
   bool canGoBack = false;       // Left steps back a page or level rather than closing.
-  uint8_t holdPercent = 0;  // Display-only deliberate-action progress.
-  uint8_t pairPercent = 0;  // Display-only Pair touch progress.
   bool pairing = false;    // Searching for Atlas during the pairing window.
 
   MenuView();
@@ -87,13 +87,12 @@ class SigilMenu {
   void applyMenuState2(int32_t value, uint32_t nowMs);
   void setPlayerControlsAvailable(bool available);
   void clear();  // Unpaired: no menu until Atlas sends one.
-  void cancelInput() { holding_ = false; pending_ = MenuChoice(); closeMenu(); }
+  void cancelInput() { confirm_ = MENU_NONE; pending_ = MenuChoice(); closeMenu(); }
   // Atlas lost: drop Atlas's menu; Up still opens Menu, on the Device entries.
   // endOffline() takes it away again, unless Atlas has sent a menu since.
   void setOffline();
   void endOffline();
   bool offline() const { return offline_; }
-  void setHoldTimes(uint16_t longPressMs, uint16_t winHoldMs);
 
   bool active() const { return active_; }
   // AdjustLife is offered. An unsent life total survives an open Menu; its
@@ -101,6 +100,8 @@ class SigilMenu {
   bool lifeOffered() const { return active_ && inGame(); }
   // Menu is open.
   bool deviceMenuOpen() const { return menuOpen_; }
+  // The confirm popup is up (its keys are Confirm and Cancel).
+  bool confirmOpen() const { return confirm_ != MENU_NONE; }
   uint32_t actions() const { return actions_; }
   uint8_t revision() const { return revision_; }
   // What a key does right now (an action, a device-local entry or MENU_NONE).
@@ -111,11 +112,9 @@ class SigilMenu {
     active_ = true; menuOpen_ = deviceOpen_ = deviceDirect_ = true; page_ = 0; lastKeyMs_ = nowMs;
   }
   void keyUp(Key key, uint32_t nowMs);
-  // Completes holds and idle-closes Menu; returns a choice to send once.
+  // Idle-closes Menu and the confirm popup; returns a choice to send once.
   MenuChoice update(uint32_t nowMs);
 
-  // 0-255 progress of a held deliberate action; 0 when none.
-  uint8_t holdProgress(uint32_t nowMs) const;
   MenuView view() const;
 
   // The action on a key with Menu closed (Up is always Menu).
@@ -141,7 +140,7 @@ class SigilMenu {
   // Menu pages for count entries, and the entry on a key of a page.
   static uint8_t pageCount(uint8_t count);
   static uint8_t pageAction(const uint8_t entries[], uint8_t count, uint8_t page, Key key);
-  void choose(uint8_t action, Key key, uint32_t nowMs);
+  void choose(uint8_t action, uint32_t nowMs);
   void emit(uint8_t action);
   void openMenu();
   void closeMenu() { menuOpen_ = false; deviceOpen_ = false; deviceDirect_ = false; page_ = 0; }
@@ -151,8 +150,6 @@ class SigilMenu {
   bool offline_ = false;
   uint32_t actions_ = 0;
   uint8_t revision_ = 0;
-  uint16_t longPressMs_ = TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
-  uint16_t winHoldMs_ = TurnHubProtocol::DEFAULT_WIN_HOLD_MS;
 
   bool menuOpen_ = false;
   bool deviceOpen_ = false;    // The Device entries are shown.
@@ -160,12 +157,8 @@ class SigilMenu {
   uint8_t page_ = 0;           // Touch menu page.
   uint32_t lastKeyMs_ = 0;
 
-  bool holding_ = false;
-  bool holdFromMenu_ = false;  // Close Menu when the hold completes.
-  Key holdKey_ = Key::Select;
-  uint8_t holdAction_ = MENU_NONE;
-  uint32_t holdStartMs_ = 0;
-  uint32_t holdMs_ = 0;
+  uint8_t confirm_ = MENU_NONE;  // The action the confirm popup asks about.
+  bool confirmFromMenu_ = false;  // Close Menu once it is confirmed.
 
   MenuChoice pending_;
 };

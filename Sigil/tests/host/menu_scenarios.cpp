@@ -20,7 +20,7 @@ static int32_t menu(std::initializer_list<A> actions, A fallback, uint8_t revisi
 static uint8_t id(A a) { return static_cast<uint8_t>(a); }
 
 int main() {
-  // A diagnostic overlay cancels held and queued actions, preserving the
+  // A diagnostic overlay cancels a confirm popup and queued actions, preserving the
   // menu Atlas offered. Releasing a key afterward must not perform a choice.
   {
     SigilMenu m;
@@ -181,28 +181,33 @@ int main() {
     cmd.keyDown(Key::Up, 100); cmd.keyDown(Key::Select, 110);
     MenuChoice c = cmd.update(120);
     assert(c.ready && c.action == A::CommanderDamage && c.revision == 3 && !cmd.deviceMenuOpen());
-    // Claim win from Menu needs the win hold; letting go early abandons it.
+    // Claim win from Menu asks first: a popup whose only keys are Confirm
+    // (Select) and Cancel (Left). Holding does nothing more than a tap.
     cmd.keyDown(Key::Up, 200); cmd.keyDown(Key::Down, 210); cmd.keyDown(Key::Select, 220);
-    assert(!cmd.update(220 + DEFAULT_WIN_HOLD_MS - 1).ready);
-    cmd.keyUp(Key::Select, 220 + DEFAULT_WIN_HOLD_MS - 1);
-    assert(!cmd.update(220 + DEFAULT_WIN_HOLD_MS).ready && cmd.deviceMenuOpen());
-    cmd.keyDown(Key::Select, 5000);
-    assert(cmd.holdProgress(5000 + DEFAULT_WIN_HOLD_MS / 2) > 0);
-    c = cmd.update(5000 + DEFAULT_WIN_HOLD_MS);
-    assert(c.ready && c.action == A::ClaimWin && !cmd.deviceMenuOpen());
-    // A held touch action is visible until release or stale rejection.
+    assert(!cmd.update(220 + DEFAULT_WIN_HOLD_MS).ready && cmd.confirmOpen() &&
+        cmd.view().confirmAction == id(A::ClaimWin));
+    cmd.keyUp(Key::Select, 230);
+    assert(cmd.keyAction(Key::Select) == MENU_LOCAL_CONFIRM && cmd.keyAction(Key::Left) == MENU_LOCAL_BACK &&
+        cmd.keyAction(Key::Up) == MENU_NONE && cmd.keyAction(Key::Right) == MENU_NONE);
+    // Cancel goes back to Menu, where it was asked.
+    cmd.keyDown(Key::Left, 300);
+    assert(!cmd.confirmOpen() && cmd.deviceMenuOpen() && !cmd.update(300).ready);
+    cmd.keyDown(Key::Select, 5000); assert(cmd.confirmOpen());
+    cmd.keyDown(Key::Select, 5100);
+    c = cmd.update(5100);
+    assert(c.ready && c.action == A::ClaimWin && !cmd.deviceMenuOpen() && !cmd.confirmOpen());
+    // A popup about an action that stops being offered closes.
     cmd.keyDown(Key::Up, 6000); cmd.keyDown(Key::Down, 6010); cmd.keyDown(Key::Select, 6020);
-    assert(cmd.view().holdAction == id(A::ClaimWin));
-    // A held action that stops being offered is dropped.
+    assert(cmd.view().confirmAction == id(A::ClaimWin));
     cmd.applyMenuState2(menu({A::Pause, A::AdjustLife}, A::Pass, 4), 6030);
-    assert(!cmd.update(6020 + DEFAULT_WIN_HOLD_MS).ready);
+    assert(!cmd.confirmOpen() && !cmd.update(6040).ready);
     // Fewer entries: the page is kept in range.
     assert(cmd.view().page == 0 && cmd.view().pageCount == 1);
     // An idle Menu closes by itself.
     assert(!cmd.update(6020 + MENU_DEVICE_IDLE_MS).ready && !cmd.deviceMenuOpen());
   }
 
-  // Device settings remain available; destructive actions require a hold.
+  // Device settings remain available; destructive actions ask first.
   {
     SigilMenu dev;
     dev.applyMenuState2(menu({A::Join}, A::Join, 1), 0);
@@ -227,11 +232,14 @@ int main() {
     assert(calibrate.ready && static_cast<uint8_t>(calibrate.action) == MENU_LOCAL_CALIBRATE && !dev.deviceMenuOpen());
     dev.keyUp(Key::Up, 9);
     dev.openDeviceMenu(100); dev.keyDown(Key::Up, 110);
-    assert(!dev.update(110 + MENU_FACTORY_RESET_HOLD_MS - 1).ready);
-    MenuChoice c = dev.update(110 + MENU_FACTORY_RESET_HOLD_MS);
+    assert(!dev.update(5000).ready && dev.confirmOpen() && dev.view().confirmAction == MENU_LOCAL_FACTORY_RESET);
+    // An unanswered popup closes by itself.
+    assert(!dev.update(110 + MENU_DEVICE_IDLE_MS).ready && !dev.confirmOpen());
+    dev.openDeviceMenu(15000); dev.keyDown(Key::Up, 15010); dev.keyDown(Key::Select, 15020);
+    MenuChoice c = dev.update(15030);
     assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_FACTORY_RESET && !dev.deviceMenuOpen());
-    dev.openDeviceMenu(20000); dev.keyDown(Key::Select, 20010);
-    c = dev.update(20010 + MENU_UNPAIR_HOLD_MS);
+    dev.openDeviceMenu(20000); dev.keyDown(Key::Select, 20010); dev.keyDown(Key::Select, 20020);
+    c = dev.update(20030);
     assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_UNPAIR);
     // Back from the Device entries opened directly closes Menu.
     dev.openDeviceMenu(30000); dev.keyDown(Key::Left, 30010);
@@ -261,16 +269,29 @@ int main() {
     assert(!lost.active());
   }
 
-  // Leave lobby is a long-press hold from Menu.
+  // Leave lobby from Menu asks first too.
   {
     SigilMenu leaver;
     leaver.applyMenuState2(menu({A::CycleStarter, A::AddSeatB, A::Leave}, A::CycleStarter, 5), 0);
     leaver.keyDown(Key::Up, 0);
-    assert(leaver.keyAction(Key::Select) == id(A::Leave));
+    assert(leaver.keyAction(Key::Select) == id(A::Leave) && menuActionNeedsConfirm(id(A::Leave)));
     leaver.keyDown(Key::Select, 10);
-    assert(!leaver.update(10 + DEFAULT_LONG_PRESS_MS - 1).ready);
-    const MenuChoice left = leaver.update(10 + DEFAULT_LONG_PRESS_MS);
+    assert(!leaver.update(10 + DEFAULT_LONG_PRESS_MS).ready && leaver.confirmOpen());
+    leaver.keyDown(Key::Select, 20);
+    const MenuChoice left = leaver.update(20);
     assert(left.ready && left.action == A::Leave && left.revision == 5);
+  }
+  // A bare-key action that asks first (Confirm out) answers the same way,
+  // and its Cancel keeps Left from changing life.
+  {
+    SigilMenu out;
+    out.applyMenuState2(menu({A::Eliminate, A::CancelElimination, A::AdjustLife}, A::Eliminate, 6), 0);
+    out.keyDown(Key::Select, 10);
+    assert(out.confirmOpen() && !out.deviceMenuOpen() && out.keyAction(Key::Left) == MENU_LOCAL_BACK);
+    out.keyDown(Key::Left, 20); assert(!out.confirmOpen() && !out.update(20).ready);
+    out.keyDown(Key::Select, 30); out.keyDown(Key::Select, 40);
+    const MenuChoice gone = out.update(40);
+    assert(gone.ready && gone.action == A::Eliminate);
   }
 
   // Life presses batch: a tap is 1, a hold repeats then speeds to 5s, and one

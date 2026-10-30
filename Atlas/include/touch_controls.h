@@ -8,7 +8,12 @@
 // screen is part of the Atlas and its only physical input); Atlas's handlers
 // decide every outcome. Its non-Intent actions change no table state: the
 // presence code screen (canceling a code a phone asked for), moving between screens
-// (status, Menu, info, QR codes, Table).
+// (Home, Game, Table, Settings and their lists) and the confirm popup.
+//
+// Nothing acts on a hold (owner, 2026-10-30): an action that ends, removes or
+// erases something asks first in a confirm popup, and everything else is a
+// tap. Each destination has one path: the tab bar's four pages, and lists
+// under Settings.
 
 #include <Arduino.h>
 #include "player_controls.h"
@@ -42,15 +47,19 @@ constexpr int16_t BUTTON_UPPER_ROW_Y = 304; // Second row, just above it (within
 // In a game, the top of a player's tile (token and name) opens their screen;
 // the rest is split into life down (left) and up (right).
 constexpr int16_t CHIP_NAME_BAND_H = 32;
-// Hold to pass, as long as the app's (TabletTable PASS_HOLD_MS).
-constexpr uint32_t TOUCH_PASS_HOLD_MS = 600;
+// The confirm popup's card, and the two buttons inside it.
+constexpr int16_t CONFIRM_CARD_Y = 140;
+constexpr int16_t CONFIRM_CARD_H = 236;
+constexpr int16_t CONFIRM_BUTTON_Y = CONFIRM_CARD_Y + CONFIRM_CARD_H - BUTTON_ROW_H - 16;
+// Settings lists: rows this tall at most, packed into one grouped card.
+constexpr int16_t LIST_ROW_H = 56;
 
 enum class TouchAction : uint8_t {
   None, Pair, Pause, Resume, EndMatch,
   OpenHome, OpenGame, OpenOverview, OpenSettings, OverviewNext,
   // Between games: start (lobby), cancel the countdown, rematch or reset.
   StartGame, CancelStart, Rematch, ResetTable,
-  // Lobby hold: send everyone back out of an unstarted lobby.
+  // Lobby: send everyone back out of an unstarted lobby (confirmed).
   ClearLobby,
   // In a game: the Table screen and its master pass (a stuck turn).
   OpenTable, MasterPass,
@@ -58,26 +67,24 @@ enum class TouchAction : uint8_t {
   // Presence code screen: cancel the code a phone asked for.
   CancelCode,
   // Screens that change no table state.
-  OpenInfo, OpenQr, CloseScreen, QrWifi, QrPortal, QrSignIn,
-  // Between games: the Menu screen holding Pair, QR codes and Info.
-  OpenMenu,
+  OpenQr, CloseScreen, QrWifi, QrPortal, QrSignIn,
   // Pairing v2 code check: the codes on the Sigil and Atlas match, or not.
   PairConfirm, PairReject,
   // In a game: tap a player's chip for that player's screen, which changes
-  // their life (ChangeLife) and concedes for them (Concede, asked twice).
-  OpenPlayer, LifeMinus5, LifeMinus1, LifePlus1, LifePlus5, Concede, ConfirmConcede, CancelConcede,
+  // their life (ChangeLife) and concedes for them (Concede, confirmed).
+  OpenPlayer, LifeMinus5, LifeMinus1, LifePlus1, LifePlus5, Concede,
   // In the lobby, the same screen sets turn order (MoveSeat).
   MoveEarlier, MoveLater, SeatBLeft, SeatBRight,
-  // ...and takes that one seat out of the lobby (RemoveSeat, held).
+  // ...and takes that one seat out of the lobby (RemoveSeat, confirmed).
   RemoveSeat,
   // First-run setup (FIRST_RUN_SETUP.md). Skip for now hides the Welcome
-  // screen until the next start-up (presentation only); Setup under Menu
+  // screen until the next start-up (presentation only); Setup under Settings
   // brings it back. Pair a Sigil and Done leave "You're all set"
   // (AdvanceSetup to Complete); Pair a Sigil also opens pairing.
   SkipSetup, OpenSetup, SetupPair, SetupDone,
-  // Menu's Device screen (between games): unpair every Sigil (lobby only) or
-  // factory reset Atlas, each held like the BOOT button's gestures; Sleep
-  // (a tap) until the screen is touched.
+  // Settings > Device: unpair every Sigil (lobby only) or factory reset
+  // Atlas, each confirmed (the BOOT button's held gestures); Sleep until the
+  // screen is touched.
   OpenDevice, UnpairSigils, FactoryResetAtlas, SleepAtlas,
   // ...and USB drive (a tap) lends the microSD card to a computer on USB-C,
   // or takes it back (sd_card.h).
@@ -85,7 +92,8 @@ enum class TouchAction : uint8_t {
   OpenThemes, ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast, InvertDisplay,
   // In a game, like the app's table: the lower halves of a player's tile take
   // a life off or add one (ChangeLife for that player), its name band opens
-  // their screen, and Hold to pass passes the active player's turn (Pass).
+  // their screen, and Pass passes the active player's turn (Pass, which keeps
+  // its grace period for the seat to cancel).
   ChipLifeMinus, ChipLifePlus, PassTurn,
   // Lobby: seat a player from this screen, as the app's shared table does.
   // Add player lists the saved profiles not at a table (SeatProfile, arg =
@@ -93,20 +101,27 @@ enum class TouchAction : uint8_t {
   // keypad (PinKey, arg = digit, PinBack, PinDone). New player types a name
   // (NameKey, arg = character, NameBack, NameDone) for a profile with no
   // PIN. Each seat is a JoinProfile Intent; Atlas decides.
-  OpenSeat, SeatProfile, SeatMore, NewPlayer, NameKey, NameBack, NameDone, PinKey, PinBack, PinDone
+  OpenSeat, SeatProfile, SeatMore, NewPlayer, NameKey, NameBack, NameDone, PinKey, PinBack, PinDone,
+  // The confirm popup: do the action it asked about, or not.
+  ConfirmYes, ConfirmNo,
+  // Lobby: Start opens New game, the app's game setup (ConfigureGame from
+  // the table): each row steps its setting, then Start game.
+  OpenNewGame, GameType, GameMode, GameLife, GameTimer, GameHouseRules
 };
 
+// Home: the table's status and info (version, Wi-Fi, SD card, battery).
 // Code: a presence code a phone asked for, shown over any other screen.
 // Table: in-game controls kept off the main row (master pass, End match).
-// Menu: the between-games extras (Pair, QR codes, Info) kept off the
-// lobby's main row.
+// Menu: the Settings tab, one list (Pair a Sigil, QR codes, Theme, Device).
 // PairCode: a Sigil waiting for the owner's pairing-code check (lobby only).
 // Player: one player's screen, from their chip: life and Concede in a game,
 // turn order in the lobby.
 // Setup: first-run setup in the lobby, Welcome or "You're all set".
-// Device: under Menu, Unpair Sigils and Factory reset (held), and Sleep.
+// Device: under Settings, USB drive, Sleep, Unpair Sigils and Factory reset.
 // Seat, Name and Pin: Add player's profile list, name keyboard and PIN keypad.
-enum class ScreenKind : uint8_t { Home, Overview, Status, Info, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Themes, Seat, Name, Pin };
+// Confirm: the popup asking before a hazardous action.
+// NewGame: the lobby's game setup before Start game.
+enum class ScreenKind : uint8_t { Home, Overview, Status, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Themes, Seat, Name, Pin, Confirm, NewGame };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -115,14 +130,12 @@ struct TouchButton {
   int16_t y = 0;
   int16_t w = 0;
   int16_t h = 0;
-  // Hold buttons act once held this long; 0 means the button acts on release.
-  uint32_t holdMs = 0;
+  // Asks in the confirm popup before it acts (a hazardous action).
+  bool confirm = false;
   // Shown as the current choice (the selected QR code).
   bool selected = false;
   // Which key or list row, for actions several buttons share (NameKey...).
   uint8_t arg = 0;
-
-  bool hold() const { return holdMs > 0; }
 
   // slop widens the button on every side (for a press already on it).
   bool contains(int16_t px, int16_t py, int16_t slop = 0) const {
@@ -216,12 +229,9 @@ struct AtlasScreen {
 
   TouchButton buttons[MAX_TOUCH_BUTTONS];
   uint8_t buttonCount = 0;
-  // The button under a finger right now, a hold's whole seconds left, and its
-  // progress (0-1000) for the fill bar.
+  // The button under a finger right now.
   TouchAction pressed = TouchAction::None;
   uint8_t pressedArg = 0;
-  uint8_t holdSecondsLeft = 0;
-  uint16_t holdPermille = 0;
 };
 
 // Region comparisons for the display, which redraws only what changed.
@@ -278,15 +288,14 @@ inline bool sameBody(const AtlasScreen &a, const AtlasScreen &b, bool times = tr
 }
 
 inline bool sameButtons(const AtlasScreen &a, const AtlasScreen &b) {
-  if (a.buttonCount != b.buttonCount || a.pressed != b.pressed || a.pressedArg != b.pressedArg ||
-      a.holdSecondsLeft != b.holdSecondsLeft || a.holdPermille != b.holdPermille) {
+  if (a.buttonCount != b.buttonCount || a.pressed != b.pressed || a.pressedArg != b.pressedArg) {
     return false;
   }
   for (uint8_t i = 0; i < a.buttonCount; ++i) {
     const TouchButton &x = a.buttons[i];
     const TouchButton &y = b.buttons[i];
     if (x.action != y.action || x.arg != y.arg || x.x != y.x || x.y != y.y || x.w != y.w || x.h != y.h ||
-        x.selected != y.selected || strcmp(x.label, y.label) != 0) {
+        x.selected != y.selected || x.confirm != y.confirm || strcmp(x.label, y.label) != 0) {
       return false;
     }
   }

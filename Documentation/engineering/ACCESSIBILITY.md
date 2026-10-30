@@ -148,7 +148,9 @@ Design goals:
 
 The Atlas touchscreen follows the same rules: buttons at least 60 px tall with
 text labels, a pressed state that changes luminance and border rather than hue
-alone, and a visible seconds countdown for every hold (end match, 5 s). Touch
+alone, and no hold gestures (2026-10-30): a hazardous action asks in a confirm
+popup that names it in words, with Cancel beside it, on the Atlas and the
+Sigil alike. Touch
 actions use the same Intents as Sigils and the portal. Proving you are at the
 table (for Admin actions) no longer needs a touch hold (2026-09-25). The Atlas
 screen shows a six-digit code in large digits and a QR code, and the account

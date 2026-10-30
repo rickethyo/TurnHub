@@ -159,7 +159,8 @@ bool codeLayout(const AtlasScreen &s) {
 bool buttonsUseBody(const AtlasScreen &s) {
   return s.kind == ScreenKind::Table || s.kind == ScreenKind::Menu || s.kind == ScreenKind::Player ||
       s.kind == ScreenKind::Device || s.kind == ScreenKind::Themes || s.kind == ScreenKind::Seat ||
-      s.kind == ScreenKind::Name || s.kind == ScreenKind::Pin;
+      s.kind == ScreenKind::Name || s.kind == ScreenKind::Pin || s.kind == ScreenKind::Confirm ||
+      s.kind == ScreenKind::NewGame;
 }
 
 bool primaryAction(TouchAction a) {
@@ -167,7 +168,7 @@ bool primaryAction(TouchAction a) {
     case TouchAction::StartGame: case TouchAction::Rematch:
     case TouchAction::Resume: case TouchAction::Pair: case TouchAction::SetupPair:
     case TouchAction::PairConfirm: case TouchAction::NameDone:
-    case TouchAction::PinDone:
+    case TouchAction::PinDone: case TouchAction::OpenNewGame:
       return true;
     default:
       return false;
@@ -175,12 +176,12 @@ bool primaryAction(TouchAction a) {
 }
 
 // Actions that end, remove or erase something: spelled in the critical colour
-// (and they are holds or ask twice, so colour is never the only warning).
+// (and they ask first in the confirm popup, so colour is never the only warning).
 bool dangerAction(TouchAction a) {
   switch (a) {
     case TouchAction::EndMatch: case TouchAction::ClearLobby: case TouchAction::RemoveSeat:
-    case TouchAction::Concede: case TouchAction::ConfirmConcede: case TouchAction::UnpairSigils:
-    case TouchAction::FactoryResetAtlas: case TouchAction::PairReject:
+    case TouchAction::Concede: case TouchAction::UnpairSigils: case TouchAction::ResetTable:
+    case TouchAction::FactoryResetAtlas: case TouchAction::PairReject: case TouchAction::ConfirmYes:
       return true;
     default:
       return false;
@@ -236,16 +237,24 @@ const lv_image_dsc_t *actionIcon(TouchAction a) {
     case TouchAction::MoveEarlier: return &th_icon_chevron_up_24;
     case TouchAction::MoveLater: return &th_icon_chevron_down_24;
     case TouchAction::RemoveSeat: case TouchAction::PairReject: return &th_icon_close_24;
-    case TouchAction::OpenInfo: return &th_icon_info_24;
     case TouchAction::OpenDevice: return &th_icon_hub_24;
-    case TouchAction::EndMatch: case TouchAction::Concede: case TouchAction::ConfirmConcede: return &th_icon_flag_24;
+    case TouchAction::EndMatch: case TouchAction::Concede: return &th_icon_flag_24;
     case TouchAction::Pause: return &th_icon_pause_24;
     case TouchAction::Resume: case TouchAction::StartGame: return &th_icon_play_24;
-    case TouchAction::OpenTable: case TouchAction::OpenMenu: return &th_icon_more_24;
+    case TouchAction::OpenTable: return &th_icon_more_24;
+    case TouchAction::OpenNewGame: return &th_icon_play_24;
+    case TouchAction::GameType: return &th_icon_sparkle_24;
+    case TouchAction::GameMode: return &th_icon_users_24;
+    case TouchAction::GameLife: return &th_icon_plus_24;
+    case TouchAction::GameTimer: return &th_icon_timer_24;
+    case TouchAction::GameHouseRules: return &th_icon_sliders_24;
+    case TouchAction::ConfirmYes: return &th_icon_check_24;
+    case TouchAction::ConfirmNo: return &th_icon_close_24;
     case TouchAction::OpenSeat: case TouchAction::NewPlayer: return &th_icon_plus_24;
-    case TouchAction::Rematch: case TouchAction::ResetTable: return &th_icon_refresh_24;
+    case TouchAction::Rematch: return &th_icon_refresh_24;
+    case TouchAction::ResetTable: return &th_icon_trash_24;
     case TouchAction::PairConfirm: case TouchAction::SetupDone: case TouchAction::NameDone: return &th_icon_check_24;
-    case TouchAction::CloseScreen: case TouchAction::CancelConcede: case TouchAction::CancelCode:
+    case TouchAction::CloseScreen: case TouchAction::CancelCode:
     case TouchAction::CancelStart: return &th_icon_chevron_left_24;
     case TouchAction::SeatMore: return &th_icon_users_24;
     default: return nullptr;
@@ -273,10 +282,14 @@ bool listRow(const AtlasScreen &s, const TouchButton &b) {
 uint32_t rowTint(TouchAction a) {
   if (dangerAction(a)) return pal().critical;
   switch (a) {
-    case TouchAction::OpenGame: case TouchAction::MasterPass: return pal().turn;
-    case TouchAction::Pair: case TouchAction::OpenSetup: case TouchAction::ThemeBrass: return pal().accent;
+    case TouchAction::OpenGame: case TouchAction::MasterPass: case TouchAction::GameTimer: return pal().turn;
+    case TouchAction::Pair: case TouchAction::OpenSetup: case TouchAction::ThemeBrass: case TouchAction::GameType:
+    case TouchAction::OpenThemes:
+      return pal().accent;
     case TouchAction::OpenQr: case TouchAction::UsbDrive: case TouchAction::OpenOverview: case TouchAction::ThemeDaylight:
+    case TouchAction::GameMode:
       return pal().info;
+    case TouchAction::GameLife: return pal().good;
     case TouchAction::MoveEarlier: case TouchAction::MoveLater: return pal().good;
     default: return pal().textTertiary;
   }
@@ -669,7 +682,7 @@ void drawBody(lv_obj_t *root, const AtlasScreen &s) {
     drawLines(root, s, 16, y, W - 32);
     return;
   }
-  if (s.kind == ScreenKind::Home || buttonsUseBody(s)) return;
+  if (buttonsUseBody(s)) return;
   if (s.kind == ScreenKind::Overview) {
     drawStandings(root, s);
     return;
@@ -724,19 +737,9 @@ void drawTabBar(lv_obj_t *root, const AtlasScreen &s) {
   }
 }
 
-// What a row says under its label, on the Home list.
-const char *rowSubtitle(TouchAction a) {
-  switch (a) {
-    case TouchAction::OpenGame: return "Play the match";
-    case TouchAction::OpenOverview: return "Everyone at a glance";
-    case TouchAction::OpenSettings: return "Sigils, codes, theme";
-    default: return "";
-  }
-}
-
 // One grouped-list row: a tinted icon tile (or the player's initial), the
-// label, and at the right its value, "Hold", a check for the shown choice or
-// a chevron. top/bottom are the row's slice of the group card.
+// label, and at the right its value, a check for the shown choice or a
+// chevron (none on a row that asks first in the popup). top/bottom are the row's slice of the group card.
 void drawListRow(lv_obj_t *group, const AtlasScreen &s, const TouchButton &b, int16_t top, int16_t bottom, bool first) {
   const bool pressed = s.pressed == b.action && s.pressedArg == b.arg;
   const int16_t w = b.w;
@@ -778,17 +781,12 @@ void drawListRow(lv_obj_t *group, const AtlasScreen &s, const TouchButton &b, in
     icon(tile, glyph, 4, 4, pal().bg);
   }
   const uint32_t ink = dangerAction(b.action) ? pal().critical : primaryAction(b.action) ? pal().accent : pal().text;
-  const char *subtitle = rowSubtitle(b.action);
   int16_t right = w - 12;
   // Trailing mark.
   if (b.selected) {
     icon(group, &th_icon_check_24, right - 24, mid - 12, pal().accent);
     right -= 30;
-  } else if (b.hold() && !pressed) {
-    const int16_t tw = static_cast<int16_t>(textWidth("Hold", &th_semi_16));
-    text(group, "Hold", &th_semi_16, pal().textSecondary, right - tw, mid - 10, tw);
-    right -= tw + 8;
-  } else if (!b.hold()) {
+  } else if (!b.confirm && !value[0]) {
     icon(group, &th_icon_chevron_right_24, right - 22, mid - 12, pal().textTertiary);
     right -= 28;
   }
@@ -801,23 +799,7 @@ void drawListRow(lv_obj_t *group, const AtlasScreen &s, const TouchButton &b, in
     icon(group, &th_icon_lock_24, right - 24, mid - 12, pal().textSecondary);
     right -= 28;
   }
-  char shown[32];
-  if (pressed && b.hold() && s.holdSecondsLeft > 0) {
-    snprintf(shown, sizeof(shown), "Hold %u s", static_cast<unsigned>(s.holdSecondsLeft));
-  } else {
-    snprintf(shown, sizeof(shown), "%s", label);
-  }
-  if (subtitle[0]) {
-    text(group, shown, &th_semi_20, ink, 56, mid - 22, right - 56);
-    text(group, subtitle, &th_semi_16, pal().textSecondary, 56, mid + 2, right - 56);
-  } else {
-    text(group, shown, &th_semi_20, ink, 56, mid - 12, right - 56);
-  }
-  if (pressed && b.hold()) {
-    lv_obj_t *fill = box(group, 0, bottom - 4, w * s.holdPermille / 1000, 4);
-    lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(fill, rgb(pal().focus), 0);
-  }
+  text(group, label, &th_semi_20, ink, 56, mid - 12, right - 56);
 }
 
 // Runs of adjacent list rows become one rounded group card.
@@ -845,7 +827,7 @@ void drawLists(lv_obj_t *root, const AtlasScreen &s) {
 }
 
 // A real button (the bottom row, keys and the player screen's steps): the
-// app's filled primary, the turn colour for Hold to pass, tonal accent for
+// app's filled primary, the turn colour for Pass, tonal accent for
 // the rest, and the critical colour for anything that ends or erases.
 void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
   const bool pressed = s.pressed == b.action && s.pressedArg == b.arg;
@@ -853,7 +835,7 @@ void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
   const bool key = keyAction(b.action);
   const bool primary = primaryAction(b.action);
   const bool danger = dangerAction(b.action);
-  // Hold to pass wears the turn colour, as in the app.
+  // Pass wears the turn colour, as in the app.
   const bool turn = b.action == TouchAction::PassTurn;
   const bool tonal = !key && !primary && !turn && !danger;
   lv_obj_t *o = box(root, b.x, b.y, b.w, b.h);
@@ -873,14 +855,8 @@ void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
   const uint32_t ink = turn ? (pressed ? pal().text : pal().onTurn) : primary ? pal().onAccent
       : danger ? pal().critical : tonal ? pal().accent : pal().text;
   char label[32];
-  if (pressed && b.hold() && s.holdSecondsLeft > 0) {
-    snprintf(label, sizeof(label), "Hold %u s", static_cast<unsigned>(s.holdSecondsLeft));
-  } else {
-    snprintf(label, sizeof(label), "%s", b.label);
-  }
-  // "hold" under a hold button, unless its label already says so.
-  const bool saysHold = strncmp(b.label, "Hold", 4) == 0;
-  const char *caption = b.selected && !pressed ? "shown" : (b.hold() && !pressed && !saysHold ? "hold" : "");
+  snprintf(label, sizeof(label), "%s", b.label);
+  const char *caption = b.selected && !pressed ? "shown" : "";
   // The largest type that fits on one line; two lines of the small one
   // otherwise. An icon leads the label when there is room for both.
   const lv_image_dsc_t *glyph = key ? nullptr : actionIcon(b.action);
@@ -916,15 +892,28 @@ void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
     lv_obj_set_style_text_color(c, rgb(turn ? pal().onTurn : primary ? pal().onAccent : pal().textSecondary), 0);
   }
   lv_obj_align(col, LV_ALIGN_CENTER, 0, 0);
-  if (pressed && b.hold()) {
-    lv_obj_t *track = box(o, 12, b.h - 12, b.w - 24, 6);
-    lv_obj_set_style_radius(track, 3, 0);
-    lv_obj_set_style_bg_opa(track, LV_OPA_50, 0);
-    lv_obj_set_style_bg_color(track, lv_color_black(), 0);
-    lv_obj_t *fill = box(track, 0, 0, (b.w - 24) * s.holdPermille / 1000, 6);
-    lv_obj_set_style_radius(fill, 3, 0);
-    lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(fill, rgb(pal().focus), 0);
+}
+
+// The confirm popup: the screen dims, and a card holds the question, what it
+// does, and Cancel / the action (the model places both inside the card).
+void drawConfirm(lv_obj_t *root, const AtlasScreen &s) {
+  lv_obj_t *scrim = box(root, 0, SCREEN_HEADER_H, W, H - SCREEN_HEADER_H);
+  lv_obj_set_style_bg_opa(scrim, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(scrim, rgb(pal().scrim), 0);
+  lv_obj_t *popup = box(root, 16, CONFIRM_CARD_Y, W - 32, CONFIRM_CARD_H);
+  card(popup, pal().light ? pal().surface1 : pal().surface2, pal().separatorStrong, 20);
+  lift(popup);
+  const struct { const char *words; const lv_font_t *font; uint32_t ink; int16_t y; } lines[] = {
+      {s.title, &th_bold_28, pal().text, 18}, {s.notice[0] ? s.notice : s.detail, &th_semi_16, pal().textSecondary, 96}};
+  for (const auto &line : lines) {
+    lv_obj_t *l = lv_label_create(popup);
+    lv_obj_remove_style_all(l);
+    lv_label_set_text(l, line.words);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(l, W - 32 - 36);
+    lv_obj_set_pos(l, 18, line.y);
+    lv_obj_set_style_text_font(l, line.font, 0);
+    lv_obj_set_style_text_color(l, rgb(line.ink), 0);
   }
 }
 
@@ -1001,7 +990,8 @@ void renderAtlasScreen(const AtlasScreen &s, const ScreenStyle &chosen) {
   lv_obj_set_style_bg_grad_dir(root, LV_GRAD_DIR_NONE, 0);
   lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
   drawHeader(root, s);
-  drawHero(root, s);
+  if (s.kind == ScreenKind::Confirm) drawConfirm(root, s);
+  else drawHero(root, s);
   drawBody(root, s);
   drawLists(root, s);
   for (uint8_t i = 0; i < s.buttonCount; ++i) {

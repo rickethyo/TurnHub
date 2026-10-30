@@ -56,11 +56,20 @@ headless Sigil (2026-10-28) and the board-less classic `atlas` build
   E-ink/OLED firmware is maintained only on `legacy/gen1`.
 
 **Touchscreen navigation:** both Atlas S3 and the touchscreen Sigil open on
-Home, with persistent **Home / Game / Table / Settings** destinations. Pairing
-codes and update progress temporarily take priority over navigation. Atlas Game
-retains its host controls; Actions holds master pass and End match. Table is a
-read-only roster; browsing its tiles changes no player or match state. Settings
-stays available during play, with destructive Atlas device actions hidden then.
+Home, with persistent **Home / Game / Table / Settings** destinations, and each
+destination has one path (owner, 2026-10-30): the tab bar. Home is status only
+(on Atlas also the table info: Wi-Fi, portal, Sigils, SD card, battery,
+version). Pairing codes and update progress temporarily take priority over
+navigation. Atlas Game retains its host controls (lobby: Add player, Start,
+Clear; in play: Pass, Pause, Actions); Actions lists master pass and End match.
+Start opens **New game**, the app's game options as a list (game, mode,
+starting life, turn timer, house rules) above Start game; each row steps its
+setting through `ConfigureGame` from the table. Table is a read-only roster;
+browsing its tiles changes no player or match state. Atlas Settings is one
+list (Setup, Pair a Sigil, QR codes, Theme, Device), with Device and Theme as
+lists of their own; it stays available during play, with destructive Atlas
+device actions hidden then. Hazardous actions on either screen ask first in a
+confirm popup; nothing acts on a hold.
 
 **Sigil controls:** Game follows the personal Share Play panel: a large life
 total with direct minus/plus buttons, a primary action and More for the other
@@ -70,9 +79,9 @@ Atlas-offered actions and Counters & status. This paged player panel includes
   life changes preview the total. Profiles are
 full-width touch rows; menu actions are touch tiles. Only visible controls have
 hit regions. A drag, changed action, changed player or changed request cancels
-a contact until release. Atlas validates every request. Hold on-screen Pair for
-3 seconds while unpaired, then compare the code with Atlas. Settings includes
-theme, inversion, touch calibration, held Unpair and held Factory reset.
+a contact until release. Atlas validates every request. Tap on-screen Pair
+while unpaired, then compare the code with Atlas. Settings includes theme,
+inversion, touch calibration, Unpair and Factory reset (each confirmed).
 
 The Sigil Table page receives an encrypted read-only roster from its Atlas game:
 up to 16 players, names, life, turn/out/winner/starter labels and local paging.
