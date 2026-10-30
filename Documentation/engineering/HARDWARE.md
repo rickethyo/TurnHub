@@ -126,7 +126,8 @@ described in `CLAUDE.md`.
   TX (IO1) was rejected because it is the USB serial line and carries boot
   output. `Sigil/include/led_ring.h` draws it (spinner while unpaired, pairing
   or Atlas is lost; seat colour on this Sigil's turn; amber attention pulse;
-  winner chase) and caps it at 200 mA; `TURNHUB_RING_LEDS` sets the count
+  winner chase) at about a fifth of full drive (`TURNHUB_RING_BRIGHTNESS`, 48/255)
+  and caps it at 200 mA; `TURNHUB_RING_LEDS` sets the count
   (default 12). It repeats the screen, so nothing depends on it. 3.3 V data
   into a 5 V ring is *Needs verification*; a diode in the ring's 5V lead
   raises the margin if it flickers.

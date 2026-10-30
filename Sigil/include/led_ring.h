@@ -16,6 +16,12 @@ constexpr uint8_t RING_MAX_LEDS = 24;
 // the backlight and radio, so the whole ring is held to this many mA.
 constexpr uint16_t RING_BUDGET_MA = 200;
 constexpr uint16_t RING_MA_PER_CHANNEL = 20;
+// Overall level, out of 255: bare WS2812s at full drive are glaring at a
+// table (first ring on the bench, 2026-10-30), so every frame is scaled down.
+#ifndef TURNHUB_RING_BRIGHTNESS
+#define TURNHUB_RING_BRIGHTNESS 48
+#endif
+constexpr uint8_t RING_BRIGHTNESS = TURNHUB_RING_BRIGHTNESS;
 
 struct RingInput {
   bool paired = false;
@@ -66,6 +72,30 @@ inline void ringLimitCurrent(RingPixel *frame, uint8_t count) {
   for (uint8_t i = 0; i < count; ++i) frame[i] = ringScale(frame[i], level);
 }
 
+// The game states, once paired and linked.
+inline void renderGame(int32_t state, uint32_t nowMs, RingPixel *frame, uint8_t count) {
+  using namespace TurnHubProtocol;
+  const DisplayMode mode = displayMode(state);
+  const uint8_t player = displayPrimaryPlayer(state);
+  if (hasDisplayFlag(state, DISPLAY_FLAG_ATTENTION)) {
+    const RingPixel amber = ringScale({255, 120, 0}, ringPulse(nowMs, 800));
+    for (uint8_t i = 0; i < count; ++i) frame[i] = amber;
+  } else if (mode == DisplayMode::GameOver && hasDisplayFlag(state, DISPLAY_FLAG_WINNER)) {
+    for (uint8_t i = 0; i < count; ++i) {
+      frame[i] = ringSeatColor(static_cast<uint8_t>(i + nowMs / 90), 200);
+    }
+  } else if (mode == DisplayMode::Running && hasDisplayFlag(state, DISPLAY_FLAG_ACTIVE)) {
+    const RingPixel seat = ringSeatColor(player, 200);
+    for (uint8_t i = 0; i < count; ++i) frame[i] = seat;
+  } else if (mode == DisplayMode::Paused) {
+    const RingPixel seat = ringSeatColor(player, static_cast<uint8_t>(10 + ringPulse(nowMs, 3000) / 6));
+    for (uint8_t i = 0; i < count; i += 2) frame[i] = seat;
+  } else if (mode == DisplayMode::Lobby || mode == DisplayMode::Ready || mode == DisplayMode::Starting) {
+    const RingPixel seat = ringSeatColor(player, static_cast<uint8_t>(8 + ringPulse(nowMs, 2400) / 5));
+    for (uint8_t i = 0; i < count; ++i) frame[i] = seat;
+  }
+}
+
 // One frame: a spinner while unpaired, pairing or Atlas is lost; the seat
 // colour breathing in the lobby; the full ring on this Sigil's turn; amber
 // pulses on attention; a chase for the winner; otherwise dark.
@@ -79,29 +109,16 @@ inline void renderRing(const RingInput &in, uint32_t nowMs, RingPixel *frame, ui
     frame[head] = color;
     frame[(head + count - 1) % count] = ringScale(color, 64);
   };
-  if (in.pairing) return spinner({0, 40, 120}, 60);
-  if (!in.paired) return spinner({40, 40, 40}, 150);
-  if (in.atlasLost) return spinner({120, 50, 0}, 120);
-
-  const DisplayMode mode = displayMode(in.state);
-  const uint8_t player = displayPrimaryPlayer(in.state);
-  if (hasDisplayFlag(in.state, DISPLAY_FLAG_ATTENTION)) {
-    const RingPixel amber = ringScale({255, 120, 0}, ringPulse(nowMs, 800));
-    for (uint8_t i = 0; i < count; ++i) frame[i] = amber;
-  } else if (mode == DisplayMode::GameOver && hasDisplayFlag(in.state, DISPLAY_FLAG_WINNER)) {
-    for (uint8_t i = 0; i < count; ++i) {
-      frame[i] = ringSeatColor(static_cast<uint8_t>(i + nowMs / 90), 200);
-    }
-  } else if (mode == DisplayMode::Running && hasDisplayFlag(in.state, DISPLAY_FLAG_ACTIVE)) {
-    const RingPixel seat = ringSeatColor(player, 200);
-    for (uint8_t i = 0; i < count; ++i) frame[i] = seat;
-  } else if (mode == DisplayMode::Paused) {
-    const RingPixel seat = ringSeatColor(player, static_cast<uint8_t>(10 + ringPulse(nowMs, 3000) / 6));
-    for (uint8_t i = 0; i < count; i += 2) frame[i] = seat;
-  } else if (mode == DisplayMode::Lobby || mode == DisplayMode::Ready || mode == DisplayMode::Starting) {
-    const RingPixel seat = ringSeatColor(player, static_cast<uint8_t>(8 + ringPulse(nowMs, 2400) / 5));
-    for (uint8_t i = 0; i < count; ++i) frame[i] = seat;
+  if (in.pairing) {
+    spinner({0, 40, 120}, 60);
+  } else if (!in.paired) {
+    spinner({40, 40, 40}, 150);
+  } else if (in.atlasLost) {
+    spinner({120, 50, 0}, 120);
+  } else {
+    renderGame(in.state, nowMs, frame, count);
   }
+  for (uint8_t i = 0; i < count; ++i) frame[i] = ringScale(frame[i], RING_BRIGHTNESS);
   ringLimitCurrent(frame, count);
 }
 
