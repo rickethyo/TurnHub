@@ -914,7 +914,8 @@ void updateRing() {
   in.state = gameDisplayValid ? static_cast<int32_t>(pendingGameDisplay.state) : static_cast<int32_t>(displayPayload);
   portEXIT_CRITICAL(&displayProfileMux);
   TurnHubSigil::RingPixel frame[TurnHubSigil::RING_MAX_LEDS];
-  TurnHubSigil::renderRing(in, now, frame, TurnHubSigilBoard::LED_RING_COUNT);
+  TurnHubSigil::renderRing(in, now, frame, TurnHubSigilBoard::LED_RING_COUNT,
+      TurnHubSigilBoard::LED_RING_CENTRE);
   TurnHubSigil::ringShow(frame, TurnHubSigilBoard::LED_RING_COUNT);
 }
 

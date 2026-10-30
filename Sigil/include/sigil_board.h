@@ -24,12 +24,16 @@ constexpr uint8_t TOUCH_IRQ_PIN = 36;
 // Optional WS2812 LED ring (led_ring.h): data on IO27, the SPI connector's CS
 // (free: the case has no microSD); 5V and GND from the UART header.
 #ifndef TURNHUB_RING_LEDS
-#define TURNHUB_RING_LEDS 12
+#define TURNHUB_RING_LEDS 7  // The bench jewel: one centre LED and six round it.
 #endif
 #ifndef TURNHUB_RING_RGBW
 #define TURNHUB_RING_RGBW 1  // SK6812 RGBW (four bytes per LED), the bench ring; 0 for WS2812.
 #endif
+#ifndef TURNHUB_RING_CENTRE
+#define TURNHUB_RING_CENTRE 1  // LED 0 is the jewel's centre.
+#endif
 constexpr uint8_t LED_RING_PIN = 27;
 constexpr uint8_t LED_RING_COUNT = TURNHUB_RING_LEDS;
+constexpr bool LED_RING_CENTRE = TURNHUB_RING_CENTRE;
 
 }  // namespace TurnHubSigilBoard

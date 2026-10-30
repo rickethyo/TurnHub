@@ -99,9 +99,18 @@ inline void renderGame(int32_t state, uint32_t nowMs, RingPixel *frame, uint8_t 
 // One frame: a spinner while unpaired, pairing or Atlas is lost; the seat
 // colour breathing in the lobby; the full ring on this Sigil's turn; amber
 // pulses on attention; a chase for the winner; otherwise dark.
-inline void renderRing(const RingInput &in, uint32_t nowMs, RingPixel *frame, uint8_t count) {
-  using namespace TurnHubProtocol;
+// centre: LED 0 sits in the middle of the others (a 7-LED "jewel"); spinners
+// and chases then run round LEDs 1.., and the centre follows the fill.
+inline void renderRing(const RingInput &in, uint32_t nowMs, RingPixel *frame, uint8_t count,
+    bool centre = false) {
   if (count > RING_MAX_LEDS) count = RING_MAX_LEDS;
+  if (centre && count > 1) {
+    renderRing(in, nowMs, frame + 1, static_cast<uint8_t>(count - 1));
+    const bool spinning = in.pairing || !in.paired || in.atlasLost;
+    frame[0] = spinning ? RingPixel{0, 0, 0} : frame[1];
+    ringLimitCurrent(frame, count);
+    return;
+  }
   for (uint8_t i = 0; i < count; ++i) frame[i] = {0, 0, 0};
   if (count == 0) return;
   auto spinner = [&](RingPixel color, uint32_t stepMs) {

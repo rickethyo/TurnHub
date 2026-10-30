@@ -68,9 +68,18 @@ int main() {
   in.state = encodeDisplayState(DisplayMode::GameOver, 3, 0, 9);
   renderRing(in, 0, f, N);
   assert(lit(f, N) == 0);
+  // A 7-LED jewel: the spinner runs round LEDs 1-6 and leaves the centre dark;
+  // the turn fill lights the centre too.
+  in = RingInput{};
+  renderRing(in, 0, f, 7, true);
+  assert(lit(f, 7) == 2 && !(f[0].r | f[0].g | f[0].b));
+  in.paired = true;
+  in.state = encodeDisplayState(DisplayMode::Running, 3, 0, 1, DISPLAY_FLAG_ACTIVE);
+  renderRing(in, 0, f, 7, true);
+  assert(lit(f, 7) == 7 && f[0].r == f[1].r && sum(f, 7) <= budget);
   // No ring fitted (count 0) is a no-op.
   renderRing(in, 0, f, 0);
 
-  puts("PASS ring: spinners, turn colour, attention, lobby, pause, winner, current cap");
+  puts("PASS ring: spinners, turn colour, attention, lobby, pause, winner, current cap, jewel centre");
   return 0;
 }
