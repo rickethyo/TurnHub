@@ -3,6 +3,15 @@
 // The radio side of the optional home Wi-Fi check-in (home_wifi.h).
 // Firmware only: the host tests stub this file in test_globals.cpp.
 
+// Project headers first: HTTPClient pulls in mbedTLS's TAG_BYTES macro,
+// which would clash with secure_link.h's constant of that name.
+#include "atlas_app.h"
+#include "config.h"
+#include "optional_preferences.h"
+#include "serial_log.h"
+#include "sigil_update_service.h"
+#include "wifi_password_store.h"
+
 #include <Arduino.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
@@ -12,12 +21,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#include "atlas_app.h"
-#include "config.h"
-#include "optional_preferences.h"
-#include "serial_log.h"
-#include "sigil_update_service.h"
-#include "wifi_password_store.h"
+using TurnHub::serialLog;
 
 namespace TurnHubAtlas {
 namespace {
