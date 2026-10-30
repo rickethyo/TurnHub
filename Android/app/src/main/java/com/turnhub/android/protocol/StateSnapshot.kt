@@ -24,6 +24,8 @@ data class StateSnapshot(
     val winnerPlayer: Int?,
     val settings: TableSettings,
     val doomBag: DoomBag? = null,
+    /** Planechase with the players' own plane cards; null when off. */
+    val planechase: AtlasPlanechase? = null,
     val sampledAtMs: Long,
     val gameElapsedMs: Long,
     val turnElapsedMs: Long,

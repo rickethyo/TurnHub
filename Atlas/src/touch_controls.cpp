@@ -383,7 +383,7 @@ const char *modeName(const TurnHub::GameSettings &settings) {
 // setting (ConfigureGame from the table), then Start game once two sit.
 void layoutNewGame(AtlasScreen &screen) {
   const TurnHub::GameSettings &next = table().nextGameSettings;
-  static char game[32], mode[32], life[32], timer[32], house[32];
+  static char game[32], mode[32], life[32], timer[32], house[32], planes[32];
   snprintf(game, sizeof(game), "Game: %s", gameName(next));
   snprintf(mode, sizeof(mode), "Mode: %s", modeName(next));
   TurnHub::OfficialRules locked{};
@@ -392,15 +392,28 @@ void layoutNewGame(AtlasScreen &screen) {
   if (next.turnTimerMs == TurnHub::TURN_TIMER_OFF) snprintf(timer, sizeof(timer), "Turn timer: off");
   else snprintf(timer, sizeof(timer), "Turn timer: %lu min", static_cast<unsigned long>(next.turnTimerMs / 60000));
   snprintf(house, sizeof(house), "House rules: %s", next.houseRules ? "on" : "off");
-  ButtonSpec rows[5];
+  snprintf(planes, sizeof(planes), "Planechase: %s", next.planechase ? "on" : "off");
+  ButtonSpec rows[6];
   uint8_t n = 0;
   rows[n++] = {TouchAction::GameType, game, 0, 1};
   if (TurnHub::magicRules(next.profile)) rows[n++] = {TouchAction::GameMode, mode, 0, 1};
   rows[n++] = {TouchAction::GameLife, life, 0, 1};
   rows[n++] = {TouchAction::GameTimer, timer, 0, 1};
   TurnHub::OfficialRules rules{};
-  if (TurnHub::officialRules(next.profile, next.twoHeadedGiant, rules)) rows[n++] = {TouchAction::GameHouseRules, house, 0, 1};
-  addList(screen, rows, n);
+  const bool hasHouseRules = TurnHub::officialRules(next.profile, next.twoHeadedGiant, rules);
+  if (hasHouseRules) rows[n++] = {TouchAction::GameHouseRules, house, 0, 1};
+  if (TurnHub::magicRules(next.profile)) rows[n++] = {TouchAction::GamePlanechase, planes, 0, 1};
+  if (n <= 5) {
+    addList(screen, rows, n);
+  } else {
+    // Six settings: House rules and Planechase share the last row.
+    addList(screen, rows, 5);
+    const int16_t h = static_cast<int16_t>(screen.buttons[screen.buttonCount - 1].h);
+    const int16_t y = screen.buttons[screen.buttonCount - 1].y;
+    --screen.buttonCount;
+    addRow(screen, y, &rows[4], 2);
+    screen.buttons[screen.buttonCount - 1].h = screen.buttons[screen.buttonCount - 2].h = h;
+  }
   ButtonSpec lower[2];
   uint8_t m = 0;
   if (table().lobby.playerCount() >= 2) lower[m++] = {TouchAction::StartGame, "Start game", 0, 3};
@@ -838,6 +851,7 @@ const char *actionName(TouchAction action) {
     case TouchAction::GameLife: return "GAME_LIFE";
     case TouchAction::GameTimer: return "GAME_TIMER";
     case TouchAction::GameHouseRules: return "GAME_HOUSE_RULES";
+    case TouchAction::GamePlanechase: return "GAME_PLANECHASE";
     case TouchAction::OpenManaTap: return "OPEN_MANA_TAP";
     case TouchAction::ManaAction: return "MANA_ACTION";
     case TouchAction::ManaQuit: return "MANA_QUIT";
@@ -1083,6 +1097,9 @@ const char *stepGameSetting(TouchAction action, TurnHub::GameSettings &next) {
     }
     case TouchAction::GameHouseRules:
       next.houseRules = !next.houseRules;
+      return nullptr;
+    case TouchAction::GamePlanechase:
+      next.planechase = !next.planechase;
       return nullptr;
     default:
       return "Unknown setting";
@@ -1387,7 +1404,8 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
     case TouchAction::GameMode:
     case TouchAction::GameLife:
     case TouchAction::GameTimer:
-    case TouchAction::GameHouseRules: {
+    case TouchAction::GameHouseRules:
+    case TouchAction::GamePlanechase: {
       TurnHub::GameSettings next = table().nextGameSettings;
       const char *refused = stepGameSetting(action, next);
       if (refused != nullptr) {
@@ -1402,7 +1420,8 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
           (next.autoEliminateAtZeroLife ? 0 : TurnHub::GAME_FLAG_MANUAL_ELIMINATION) |
           (next.autoEliminateAtPoisonLimit ? 0 : TurnHub::GAME_FLAG_MANUAL_POISON) |
           (next.autoEliminateAtCommanderDamage ? 0 : TurnHub::GAME_FLAG_MANUAL_COMMANDER) |
-          (next.houseRules ? TurnHub::GAME_FLAG_HOUSE_RULES : 0);
+          (next.houseRules ? TurnHub::GAME_FLAG_HOUSE_RULES : 0) |
+          (next.planechase && TurnHub::magicRules(next.profile) ? TurnHub::GAME_FLAG_PLANECHASE : 0);
       intent.payload.value = next.startingLife;
       intent.payload.poisonLimit = next.poisonLimit;
       intent.payload.durationMs = next.turnTimerMs;

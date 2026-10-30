@@ -281,6 +281,7 @@ IntentResult handleCancelStartIntent(const Intent &intent, void *);
 IntentResult handleResetIntent(const Intent &intent, void *);
 IntentResult handleBackToSetupIntent(const Intent &intent, void *);
 IntentResult handleCountShortGameIntent(const Intent &intent, void *);
+IntentResult handlePlanarIntent(const Intent &intent, void *);
 // A finished match under SHORT_GAME_MS that nobody has counted yet.
 bool shortGameUncounted();
 IntentResult handleCancelPassIntent(const Intent &intent, void *);

@@ -471,6 +471,24 @@ class AtlasWireParserTest {
         assertEquals(2, state.winnerPlayers.size)
         assertEquals(state.winnerPlayer, state.winnerPlayers.first())
     }
+    @Test fun `atlas planechase with physical planes parses and rejects invalid shapes`() {
+        val body = Fixtures.text("planechase.response.json")
+        val parsed = AtlasWireParser.parseState(body)
+        assertTrue(parsed.settings.planechase)
+        val planes = parsed.planechase!!
+        assertEquals(2, planes.planeswalks)
+        assertEquals(2, planes.chaos)
+        assertEquals("planeswalk", planes.lastRoll!!.face)
+        assertTrue(planes.lastRoll.fromEffect)
+        assertEquals(null, AtlasWireParser.parseState(JSONObject(body).put("planechase", JSONObject.NULL).toString()).planechase)
+        for ((key, value) in listOf("source" to "digital", "counters" to 1000, "chaos" to -1)) {
+            val bad = JSONObject(body).apply { getJSONObject("planechase").put(key, value) }
+            assertTrue(runCatching { AtlasWireParser.parseState(bad.toString()) }.isFailure)
+        }
+        val badFace = JSONObject(body).apply { getJSONObject("planechase").getJSONObject("lastRoll").put("face", "sideways") }
+        assertTrue(runCatching { AtlasWireParser.parseState(badFace.toString()) }.isFailure)
+    }
+
     @Test fun `bag state preserves masks and sealed flag and rejects invalid shapes`() {
         val body = Fixtures.text("bag-of-doom.response.json")
         val parsed = AtlasWireParser.parseState(body)

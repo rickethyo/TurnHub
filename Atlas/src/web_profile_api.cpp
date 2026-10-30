@@ -2,6 +2,7 @@
 // name/PIN edits, the per-profile policy and statistics.
 
 #include "account_access.h"
+#include <string.h>
 
 #include <vector>
 #include "atlas_app.h"
@@ -349,7 +350,7 @@ void handleProfileSync(WebServer &server) {
     }
     applied = "atlas";
   }
-  if (originChanged && applied != "phone" && !TurnHubProfiles::saveSyncForProfile(id, sync)) {
+  if (originChanged && strcmp(applied, "phone") != 0 && !TurnHubProfiles::saveSyncForProfile(id, sync)) {
     sendError(server, 503, "Atlas couldn't save the profile creation time"); return;
   }
   uint32_t rgb = 0;

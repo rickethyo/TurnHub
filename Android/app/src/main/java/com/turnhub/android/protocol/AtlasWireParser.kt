@@ -89,6 +89,7 @@ object AtlasWireParser {
                 turnOrderReversed = root.optionalBoolean("turnOrderReversed"),
                 settings = parseSettings(settings, profileKey),
                 doomBag = if (root.isAbsentOrNull("doomBag")) null else parseDoomBag(root.obj("doomBag")),
+                planechase = if (root.isAbsentOrNull("planechase")) null else parsePlanechase(root.obj("planechase")),
                 sampledAtMs = root.uint32("sampledAtMs"),
                 gameElapsedMs = root.uint32("gameElapsedMs"),
                 turnElapsedMs = root.uint32("turnElapsedMs"),
@@ -212,6 +213,7 @@ object AtlasWireParser {
                     turnTimerMs = root.uint32("turnTimerMs"),
                     twoHeadedGiant = root.optionalBoolean("twoHeadedGiant"),
                     houseRules = root.optionalBoolean("houseRules"),
+                    planechase = root.optionalBoolean("planechase"),
                     autoEliminateAtZeroLife = if (root.has("autoEliminateAtZeroLife")) root.boolean("autoEliminateAtZeroLife") else false,
                     autoEliminateAtPoisonLimit = root.optionalBoolean("autoEliminateAtPoisonLimit"),
                     autoEliminateAtCommanderDamage = root.optionalBoolean("autoEliminateAtCommanderDamage"),
@@ -287,6 +289,7 @@ object AtlasWireParser {
         turnTimerMs = settings.uint32("turnTimerMs"),
         twoHeadedGiant = settings.optionalBoolean("twoHeadedGiant"),
         houseRules = settings.optionalBoolean("houseRules"),
+        planechase = settings.optionalBoolean("planechase"),
         autoEliminateAtZeroLife = if (settings.has("autoEliminateAtZeroLife")) settings.boolean("autoEliminateAtZeroLife") else false,
         autoEliminateAtPoisonLimit = settings.optionalBoolean("autoEliminateAtPoisonLimit"),
         autoEliminateAtCommanderDamage = settings.optionalBoolean("autoEliminateAtCommanderDamage"),
@@ -322,6 +325,22 @@ object AtlasWireParser {
         winConfirmationPlayer = pending.optionalInt("winConfirmationPlayer"),
         eliminationTargetPlayer = pending.optionalInt("eliminationTargetPlayer"),
     )
+
+    private fun parsePlanechase(j: JSONObject): AtlasPlanechase = AtlasPlanechase(
+        planeswalks = j.int("planeswalks").also { if (it < 0) malformed("Invalid planeswalks") },
+        chaos = j.int("chaos").also { if (it < 0) malformed("Invalid chaos") },
+        counters = j.int("counters").also { if (it !in 0..999) malformed("Invalid plane counters") },
+        rollCost = j.int("rollCost").also { if (it < 0) malformed("Invalid planar die cost") },
+        lastRoll = if (j.isAbsentOrNull("lastRoll")) null else j.obj("lastRoll").let { r ->
+            AtlasPlanechase.Roll(
+                number = r.int("number").also { if (it < 1) malformed("Invalid roll number") },
+                player = r.int("player").also { if (it !in 1..16) malformed("Invalid roll player") },
+                face = r.string("face").also { if (it !in listOf("blank", "chaos", "planeswalk")) malformed("Unknown planar face '$it'") },
+                cost = r.int("cost").also { if (it < 0) malformed("Invalid roll cost") },
+                fromEffect = r.boolean("fromEffect"),
+            )
+        },
+    ).also { if (j.string("source") != "physical") malformed("Unknown planar deck source") }
 
     private fun parseDoomBag(j: JSONObject): DoomBag = DoomBag(
         drawn = j.int("drawn").also { if (it !in 0..65535) malformed("Invalid bag eliminations") },

@@ -99,6 +99,25 @@ class GameEngine {
   // yet said how many nonlands they milled.
   bool radDue(uint8_t playerNumber) const;
   bool setEliminationSettings(const GameSettings &settings);
+  // Planechase with the players' own plane cards: the shared core counts
+  // planeswalks, chaos, the planar die's mana cost and the face-up plane's
+  // counters. Faces: 0 blank, 1 chaos, 2 planeswalk.
+  struct PlanarView {
+    bool enabled = false;
+    int32_t planeswalks = 0, chaos = 0, counters = 0, rollCost = 0;
+    int32_t lastRoll = 0;  // This match's roll number; 0 before the first.
+    uint8_t lastPlayer = 0, lastFace = 0, lastCost = 0;
+    bool lastFromEffect = false;
+    bool operator==(const PlanarView &o) const {
+      return enabled == o.enabled && planeswalks == o.planeswalks && chaos == o.chaos && counters == o.counters &&
+          rollCost == o.rollCost && lastRoll == o.lastRoll && lastPlayer == o.lastPlayer && lastFace == o.lastFace &&
+          lastCost == o.lastCost && lastFromEffect == o.lastFromEffect;
+    }
+  };
+  PlanarView planar() const;
+  // The active team rolls (face, fromEffect) and planeswalks or has chaos
+  // ensue by a card's say-so; any living player corrects counters (value = delta).
+  bool planarAction(uint8_t playerNumber, PlanarCommand command, int32_t value, bool fromEffect);
   void setAutoEliminateAtZeroLife(bool enabled) { settings_.autoEliminateAtZeroLife = core_.autoEliminateAtZeroLife = enabled; }
   bool resolveEliminationRules(uint32_t nowMs);
   // The seats (bit per index) the last resolveEliminationRules() reported out.

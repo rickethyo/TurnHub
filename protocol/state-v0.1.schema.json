@@ -432,6 +432,10 @@
         "askEliminationSource": {
           "type": "boolean",
           "description": "App-started games pause automatic removals until an explicit source is recorded, before completion/statistics. Bag of Doom always enables this."
+        },
+        "planechase": {
+          "description": "Planechase with the players' own plane cards (Magic formats; lobby: the next match). Absent from older Atlas firmware; treat as false.",
+          "type": "boolean"
         }
       }
     },
@@ -690,6 +694,85 @@
         }
       },
       "description": "Bag of Doom only, after match start. Player masks use bit (playerNumber - 1); 0 in player fields means none. A sealed draw must retry the same reserved selection, which is never exposed here. Each completed check increments cycle and refills immunity."
+    },
+    "planechase": {
+      "description": "Planechase in this match, with the players' own plane cards: Atlas counts the planar die's cost, chaos and planeswalks. Null when off or between matches.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "planeswalks",
+        "chaos",
+        "counters",
+        "rollCost",
+        "lastRoll"
+      ],
+      "properties": {
+        "source": {
+          "const": "physical"
+        },
+        "planeswalks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "chaos": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "counters": {
+          "description": "Counters on the face-up plane.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 999
+        },
+        "rollCost": {
+          "description": "Mana the active player's next planar die roll costs this turn.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "lastRoll": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "number",
+            "player",
+            "face",
+            "cost",
+            "fromEffect"
+          ],
+          "properties": {
+            "number": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "player": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16
+            },
+            "face": {
+              "enum": [
+                "blank",
+                "chaos",
+                "planeswalk"
+              ]
+            },
+            "cost": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fromEffect": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -154,6 +154,10 @@ bool GameEngine::start(
   lobby.autoEliminateAtPoisonLimit = settings.autoEliminateAtPoisonLimit;
   lobby.autoEliminateAtCommanderDamage = settings.autoEliminateAtCommanderDamage;
   lobby.askEliminationSource = settings.askEliminationSource;
+  if (settings.planechase && magicRules(settings.profile)) {
+    lobby.planechase.set("enabled", true);
+    lobby.planechase.set("source", "physical");
+  }
   for (uint8_t i = 0; i < playerCount; ++i) {
     turnhub::Player seat;
     seat.name = "Player " + std::to_string(i + 1);
@@ -545,6 +549,52 @@ bool GameEngine::undoCommanderHit(uint8_t recipient) {
   if (!changeCommanderDamage(recipient, hit.source, hit.commander, -hit.amount)) return false;
   lastHits_[indexForPlayerNumber(recipient)] = CommanderHit{};
   return true;
+}
+
+GameEngine::PlanarView GameEngine::planar() const {
+  PlanarView view;
+  const turnhub::Json &p = core_.planechase;
+  if (playerCount_ == 0 || !p.get("enabled").asBool()) return view;
+  view.enabled = true;
+  view.planeswalks = static_cast<int32_t>(p.get("planeswalks").asInt());
+  view.chaos = static_cast<int32_t>(p.get("chaos").asInt());
+  view.counters = static_cast<int32_t>(p.get("counters").get("physical").asInt());
+  if (core_.active) view.rollCost = static_cast<int32_t>(p.get("rolls").get(std::to_string(*core_.active)).asInt());
+  const turnhub::Json &roll = p.get("lastRoll");
+  if (roll.isObject()) {
+    view.lastRoll = static_cast<int32_t>(roll.get("number").asInt());
+    view.lastPlayer = static_cast<uint8_t>(roll.get("player").asInt() + 1);
+    const std::string face = roll.get("face").asString();
+    view.lastFace = face == "chaos" ? 1 : face == "planeswalk" ? 2 : 0;
+    view.lastCost = static_cast<uint8_t>(roll.get("cost").asInt() > 255 ? 255 : roll.get("cost").asInt());
+    view.lastFromEffect = roll.get("fromEffect").asBool();
+  }
+  return view;
+}
+
+bool GameEngine::planarAction(uint8_t playerNumber, PlanarCommand command, int32_t value, bool fromEffect) {
+  const int index = indexForPlayerNumber(playerNumber);
+  if (index < 0 || hasWinClaim()) return false;
+  turnhub::Json action = turnhub::Json::object();
+  action.set("index", index);
+  switch (command) {
+    case PlanarCommand::Roll:
+      if (value < 0 || value > 2) return false;
+      action.set("do", "rollPlanarDie");
+      action.set("face", value == 1 ? "chaos" : value == 2 ? "planeswalk" : "blank");
+      action.set("fromEffect", fromEffect);
+      break;
+    case PlanarCommand::Planeswalk: action.set("do", "planeswalk"); break;
+    case PlanarCommand::Chaos: action.set("do", "chaosEnsues"); break;
+    case PlanarCommand::Counter:
+      if (value != -1 && value != 1) return false;
+      action.set("do", "changePlaneCounter");
+      action.set("card", "physical");
+      action.set("delta", value);
+      break;
+    default: return false;
+  }
+  return commit(core_.planarAction(action));
 }
 
 bool GameEngine::claimMonarch(uint8_t playerNumber) {

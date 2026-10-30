@@ -363,7 +363,10 @@ void gameSettingsRecords() {
   settings.houseRules=true; settings.startingLife=27;
   assert(writeGameSettings(store,settings)==Status::Ok && FakeNvs::blobs["gamecfg"][10]==7);
   assert(readGameSettings(store,settings)==Status::Ok && settings.startingLife==27 && settings.houseRules);
-  FakeNvs::blobs["gamecfg"][10]=8; assert(readGameSettings(store,settings)==Status::Corrupt);
+  settings.planechase=true;
+  assert(writeGameSettings(store,settings)==Status::Ok && FakeNvs::blobs["gamecfg"][10]==15);
+  assert(readGameSettings(store,settings)==Status::Ok && settings.planechase);
+  FakeNvs::blobs["gamecfg"][10]=16; assert(readGameSettings(store,settings)==Status::Corrupt);
   // Independent schema 2 image: Generic, 40 life, 90-second timer.
   FakeNvs::blobs["gamecfg"]={2,0,40,0,0,0,0x90,0x5f,0x01,0};
   assert(readGameSettings(store,settings)==Status::Ok && settings.turnTimerMs==90000);

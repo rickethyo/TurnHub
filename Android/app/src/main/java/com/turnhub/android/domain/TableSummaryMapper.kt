@@ -55,6 +55,7 @@ object TableSummaryMapper {
             state = snapshot.state,
             settings = snapshot.settings,
             doomBag = snapshot.doomBag,
+            atlasPlanechase = snapshot.planechase,
             host = snapshot.hostModuleId?.let(::ControllerHandle),
             starterPlayerNumber = snapshot.starterPlayer,
             activePlayerNumber = snapshot.activePlayer,

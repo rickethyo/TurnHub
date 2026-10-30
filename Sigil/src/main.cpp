@@ -551,10 +551,10 @@ bool applyPendingSeatNames() {
 
   bool changed = false;
   if ((mask & 0x01u) != 0) {
-    changed |= sigilDisplay.setSeatName(1, localNames[0]);
+    changed |= sigilDisplay.setSeatName(0, localNames[0]);
   }
   if ((mask & 0x02u) != 0) {
-    changed |= sigilDisplay.setSeatName(2, localNames[1]);
+    changed |= sigilDisplay.setSeatName(1, localNames[1]);
   }
 
   return changed;

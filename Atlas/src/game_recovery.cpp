@@ -66,7 +66,7 @@ size_t encodeCheckpoint(const GameCheckpoint &s, uint8_t *bytes, size_t capacity
   w.byte(s.monarch);
   w.byte(s.initiative);
   w.byte((s.settings.autoEliminateAtPoisonLimit ? 1 : 0) | (s.settings.autoEliminateAtCommanderDamage ? 2 : 0) |
-      (s.settings.houseRules ? 4 : 0));
+      (s.settings.houseRules ? 4 : 0) | (s.settings.planechase ? 8 : 0));
   w.byte(static_cast<uint8_t>(s.winners)); w.byte(static_cast<uint8_t>(s.winners >> 8));
   w.word(static_cast<uint32_t>(s.settings.poisonLimit));
   w.word(static_cast<uint32_t>(s.settings.startingLife));
@@ -114,9 +114,10 @@ TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameC
   s.paused=r.flag(); s.over=r.flag(); readProfileByte(r.byte(), s.settings);
   s.monarch = r.byte();
   s.initiative = r.byte();
-  const uint8_t flags = r.byte(); if (flags > 7) return Status::Corrupt;
+  const uint8_t flags = r.byte(); if (flags > 15) return Status::Corrupt;
   s.settings.autoEliminateAtPoisonLimit = flags & 1; s.settings.autoEliminateAtCommanderDamage = flags & 2;
   s.settings.houseRules = flags & 4;
+  s.settings.planechase = flags & 8;
   s.winners = r.byte(); s.winners = static_cast<uint16_t>(s.winners | (r.byte() << 8));
   s.settings.poisonLimit = static_cast<int32_t>(r.word());
   s.settings.startingLife=static_cast<int32_t>(r.word());

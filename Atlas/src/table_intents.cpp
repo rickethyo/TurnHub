@@ -1494,7 +1494,8 @@ IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
         "Only a seated player can change settings in the lobby or during play");
   }
   const uint32_t profile = intent.payload.flags & ~(TurnHub::GAME_FLAG_TWO_HEADED_GIANT | TurnHub::GAME_FLAG_MANUAL_ELIMINATION |
-      TurnHub::GAME_FLAG_MANUAL_POISON | TurnHub::GAME_FLAG_MANUAL_COMMANDER | TurnHub::GAME_FLAG_HOUSE_RULES);
+      TurnHub::GAME_FLAG_MANUAL_POISON | TurnHub::GAME_FLAG_MANUAL_COMMANDER | TurnHub::GAME_FLAG_HOUSE_RULES |
+      TurnHub::GAME_FLAG_PLANECHASE);
   if (profile >= static_cast<uint32_t>(TurnHub::GameProfile::Count)) {
     return IntentResult::reject(IntentStatus::Rejected, "Unknown game profile");
   }
@@ -1506,6 +1507,10 @@ IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   settings.autoEliminateAtZeroLife = !(intent.payload.flags & TurnHub::GAME_FLAG_MANUAL_ELIMINATION);
   settings.twoHeadedGiant = (intent.payload.flags & TurnHub::GAME_FLAG_TWO_HEADED_GIANT) != 0;
   settings.houseRules = (intent.payload.flags & TurnHub::GAME_FLAG_HOUSE_RULES) != 0;
+  settings.planechase = (intent.payload.flags & TurnHub::GAME_FLAG_PLANECHASE) != 0;
+  if (settings.planechase && !TurnHub::magicRules(settings.profile)) {
+    return IntentResult::reject(IntentStatus::Rejected, "Planechase needs a Magic or Commander profile");
+  }
   if (settings.twoHeadedGiant && settings.profile == TurnHub::GameProfile::StarCommander) {
     return IntentResult::reject(IntentStatus::Rejected, "Two-Headed Giant isn't available in Star Commander");
   }
@@ -1525,7 +1530,7 @@ IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
     const auto &current = table().game.settings();
     if (settings.profile != current.profile || settings.startingLife != current.startingLife ||
         settings.turnTimerMs != current.turnTimerMs || settings.twoHeadedGiant != current.twoHeadedGiant ||
-        settings.houseRules != current.houseRules)
+        settings.houseRules != current.houseRules || settings.planechase != current.planechase)
       return IntentResult::reject(IntentStatus::Conflict, "Only elimination settings can change during play");
     if (!TurnHub::followsOfficialRules(settings))
       return IntentResult::reject(IntentStatus::Conflict, "This game follows the official rules: the poison limit is fixed");

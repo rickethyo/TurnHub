@@ -41,6 +41,9 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
   changed |= update(settings_.turnTimerMs, settings.turnTimerMs);
   changed |= update(settings_.twoHeadedGiant, settings.twoHeadedGiant);
   changed |= update(settings_.houseRules, settings.houseRules);
+  changed |= update(settings_.planechase, settings.planechase);
+  const GameEngine::PlanarView planar = inGame_ ? game.planar() : GameEngine::PlanarView{};
+  if (!(planar_ == planar)) { planar_ = planar; changed = true; }
   changed |= update(settings_.autoEliminateAtZeroLife, settings.autoEliminateAtZeroLife);
   // hostModuleId stays null: there is no table host (2026-09-25); the field
   // remains for client-contract compatibility.
@@ -189,6 +192,26 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   if (!magicRules(settings_.profile)) out += "null";
   else out += dayNight_ == DayNight::Day ? "\"DAY\"" : dayNight_ == DayNight::Night ? "\"NIGHT\"" : "\"NEITHER\"";
   out += ",\"turnOrderReversed\":"; out += reversed_ ? "true" : "false";
+  // Planechase with the players' own plane cards; null when it is off.
+  out += ",\"planechase\":";
+  if (!planar_.enabled) out += "null";
+  else {
+    out += "{\"source\":\"physical\",\"planeswalks\":"; out += String(planar_.planeswalks);
+    out += ",\"chaos\":"; out += String(planar_.chaos);
+    out += ",\"counters\":"; out += String(planar_.counters);
+    out += ",\"rollCost\":"; out += String(planar_.rollCost);
+    out += ",\"lastRoll\":";
+    if (!planar_.lastRoll) out += "null";
+    else {
+      static const char *const FACES[] = {"blank", "chaos", "planeswalk"};
+      out += "{\"number\":"; out += String(planar_.lastRoll);
+      out += ",\"player\":"; out += String(planar_.lastPlayer);
+      out += ",\"face\":\""; out += FACES[planar_.lastFace < 3 ? planar_.lastFace : 0];
+      out += "\",\"cost\":"; out += String(planar_.lastCost);
+      out += ",\"fromEffect\":"; out += planar_.lastFromEffect ? "true" : "false"; out += '}';
+    }
+    out += '}';
+  }
   out += ",\"settings\":{\"profile\":\""; out += gameProfileKey(settings_.profile);
   out += "\",\"startingLife\":"; out += String(settings_.startingLife);
   out += ",\"turnTimerMs\":"; out += String(settings_.turnTimerMs);
@@ -199,6 +222,7 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   out += ",\"twoHeadedGiant\":"; out += settings_.twoHeadedGiant ? "true" : "false";
   out += ",\"askEliminationSource\":"; out += settings_.askEliminationSource ? "true" : "false";
   out += ",\"houseRules\":"; out += settings_.houseRules ? "true" : "false";
+  out += ",\"planechase\":"; out += settings_.planechase ? "true" : "false";
   out += "},\"sampledAtMs\":"; out += String(nowMs);
   out += ",\"gameElapsedMs\":"; out += String(game.gameElapsedMs(nowMs));
   out += ",\"turnElapsedMs\":"; out += String(game.currentTurnElapsedMs(nowMs));

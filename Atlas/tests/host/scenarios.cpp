@@ -5247,6 +5247,66 @@ static void batteryStability() {
     for (int j=0;j<8;++j) assert(!pulses.addSample(3850)); }
 }
 
+// Planechase with the players' own plane cards (owner, 2026-10-30): set up
+// from a phone or the Atlas screen, the core counting the die and planeswalks.
+static void planechaseOnAtlas() {
+  using namespace TurnHub;
+  enterEmptyLobby(); fixtureRadio=false;
+  // Two existing phone players: the profile store is nearly full by now.
+  String tokens[2];
+  {
+    char ids[TurnHubProfiles::MAX_LOGIN_PROFILES][TurnHubProfiles::PROFILE_ID_LENGTH + 1];
+    const size_t count = TurnHubProfiles::listProfileIds(ids, TurnHubProfiles::MAX_LOGIN_PROFILES);
+    uint8_t found = 0;
+    for (size_t i = 0; i < count && found < 2; ++i) {
+      if (request("/api/session/login","",{{"profileId",ids[i]},{"pin","1234"}})!=200) continue;
+      const String token=responseField("token");
+      if (request("/api/session/join",token)==200) tokens[found++]=token;
+    }
+    assert(found==2);
+  }
+  const String a=tokens[0], b=tokens[1];
+  auto has = [](const char *text) { return server.body.find(text)!=std::string::npos; };
+  assert(request("/api/game/settings",a,{{"gameProfile","yugioh"},{"planechase","1"}})==409);
+  assert(request("/api/game/settings",a,{{"gameProfile","mtg_commander"},{"planechase","2"}})==400);
+  assert(request("/api/game/settings",a,{{"gameProfile","mtg_commander"},{"planechase","1"}})==200 && table().nextGameSettings.planechase);
+  assert(request("/api/game/settings",a,{},HTTP_GET)==200 && has("\"planechase\":true"));
+  assert(request("/api/v1/state",a,{},HTTP_GET)==200 && has("\"planechase\":null") && has("\"houseRules\":false,\"planechase\":true"));
+  auto planar = [&](const String &token, std::map<std::string,String> args) { return request("/api/control/planar",token,args); };
+  assert(planar(a,{{"action","roll"},{"face","chaos"}})==409);  // Lobby: no game yet.
+  assert(request("/api/control/start",a)==200); testNow+=3000; updateCountdown(testNow);
+  const uint8_t active=table().game.activePlayerNumber();
+  const String &mine=active==1?a:b, &other=active==1?b:a;
+  assert(planar(mine,{{"action","roll"},{"face","sideways"}})==400 && planar(mine,{{"action","fly"}})==400);
+  assert(planar(other,{{"action","roll"},{"face","blank"}})==409);  // Not their turn.
+  assert(planar(mine,{{"action","roll"},{"face","blank"}})==200 && table().game.planar().rollCost==1);
+  assert(planar(mine,{{"action","roll"},{"face","chaos"}})==200 && table().game.planar().chaos==1 && table().game.planar().lastCost==1);
+  assert(planar(mine,{{"action","roll"},{"face","planeswalk"},{"fromEffect","1"}})==200);
+  assert(table().game.planar().planeswalks==1 && table().game.planar().rollCost==2 && table().game.planar().lastFromEffect);
+  assert(planar(other,{{"action","counter"},{"delta","1"}})==200 && planar(other,{{"action","counter"},{"delta","5"}})==400);
+  assert(table().game.planar().counters==1);
+  assert(planar(mine,{{"action","planeswalk"}})==200 && table().game.planar().planeswalks==2 && table().game.planar().counters==0);
+  assert(planar(mine,{{"action","chaos"}})==200 && table().game.planar().chaos==2);
+  assert(request("/api/v1/state",a,{},HTTP_GET)==200 && has("\"planechase\":{\"source\":\"physical\",\"planeswalks\":2,\"chaos\":2"));
+  saveClientFixture("planechase", server.body);
+  // The setting can't change mid-game, and a new turn's first roll is free again.
+  assert(request("/api/game/settings",a,{{"planechase","0"}})==409);
+  assert(request("/api/control/pass",mine)==200); testNow+=PASS_GRACE_MS+1; updatePendingPass(testNow);
+  assert(table().game.activePlayerNumber()!=active && table().game.planar().rollCost==0);
+  // The Atlas screen's New game row toggles it for the next game.
+  enterEmptyLobby();
+  table().nextGameSettings=GameSettings{}; table().nextGameSettings.profile=GameProfile::Commander;
+  tapButton(TouchAction::OpenNewGame);
+  assert(String(screenButton(currentScreen(),TouchAction::GamePlanechase)->label)=="Planechase: off");
+  tapButton(TouchAction::GamePlanechase); assert(table().nextGameSettings.planechase);
+  assert(String(screenButton(currentScreen(),TouchAction::GamePlanechase)->label)=="Planechase: on");
+  tapButton(TouchAction::GameType); tapButton(TouchAction::GameType);  // Magic, then Yu-Gi-Oh!: no Planechase.
+  assert(table().nextGameSettings.profile==GameProfile::Yugioh && !table().nextGameSettings.planechase &&
+      !screenButton(currentScreen(),TouchAction::GamePlanechase));
+  tapButton(TouchAction::CloseScreen);
+  enterEmptyLobby();
+}
+
 static void magicCountersAndRules() {
   using namespace TurnHub;
   enterEmptyLobby(); fixtureRadio=false;
@@ -6341,6 +6401,7 @@ int main() {
   attachNamedProfileToGuest(); std::cout<<"PASS named guest attachment, browser merge and ownership protection\n";
   profilePolicyFlow(); std::cout<<"PASS profile choices, physical authorization, companion privacy, expiry and claim revalidation\n";
   magicCountersAndRules(); std::cout<<"PASS Magic counters, live loss rules, per-commander casts, status, recovery and shared poison\n";
+  planechaseOnAtlas(); std::cout<<"PASS Planechase with physical planes: settings, Atlas screen row, die cost, chaos, planeswalks, counters and state\n";
   magicTableCounters(); std::cout<<"PASS Magic table counters: treasure, rad trigger, day/night, reversed turns, everyone's counters, recovery\n";
   magicMonarch(); std::cout<<"PASS Magic monarch: transfer, permissions, pause, recovery, exit, reset and teams\n";
   zeroLifeAndExitReasons(); std::cout<<"PASS zero-life policy, immediate toggle, separate exits, recovery, lethal requests, Commander and teams\n";

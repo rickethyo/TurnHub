@@ -162,6 +162,11 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
   g.startingLife = s.settings.startingLife;
   g.twoHeadedGiant = s.settings.twoHeadedGiant;
   g.houseRules = s.settings.houseRules;
+  // Planechase resumes on; its die and plane counts are not in the record.
+  if (s.settings.planechase && magicRules(s.settings.profile)) {
+    g.planechase.set("enabled", true);
+    g.planechase.set("source", "physical");
+  }
   g.turnTimerMs = s.settings.turnTimerMs;
   g.poisonLimit = s.settings.poisonLimit;
   g.autoEliminateAtZeroLife = s.settings.autoEliminateAtZeroLife;

@@ -255,6 +255,7 @@ const lv_image_dsc_t *actionIcon(TouchAction a) {
     case TouchAction::GameLife: return &th_icon_plus_24;
     case TouchAction::GameTimer: return &th_icon_timer_24;
     case TouchAction::GameHouseRules: return &th_icon_sliders_24;
+    case TouchAction::GamePlanechase: return &th_icon_cards_24;
     case TouchAction::ConfirmYes: return &th_icon_check_24;
     case TouchAction::ConfirmNo: return &th_icon_close_24;
     case TouchAction::OpenSeat: case TouchAction::NewPlayer: return &th_icon_plus_24;

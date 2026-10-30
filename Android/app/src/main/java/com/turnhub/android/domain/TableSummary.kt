@@ -30,6 +30,8 @@ data class TableSummary(
     val state: TableState,
     val settings: TableSettings,
     val doomBag: com.turnhub.android.protocol.DoomBag? = null,
+    /** Atlas's Planechase with the players' own plane cards; null when off (the device game keeps its own). */
+    val atlasPlanechase: com.turnhub.android.protocol.AtlasPlanechase? = null,
     val host: ControllerHandle?,
     val starterPlayerNumber: Int?,
     val activePlayerNumber: Int?,

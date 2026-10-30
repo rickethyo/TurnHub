@@ -84,6 +84,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.turnhub.android.data.OfflineChange
+import com.turnhub.android.data.PLANAR_PREFIX
 import com.turnhub.android.data.TableControls
 import com.turnhub.android.data.TabletSeat
 import com.turnhub.android.data.TabletState
@@ -256,6 +257,12 @@ internal fun TabletTable(
     var soloKey by rememberSaveable(summary.bootId) { mutableStateOf<String?>(null) }
     val starLayout = rememberStarLayout()
     var menuOpen by remember { mutableStateOf(false) }
+    // Atlas's Planechase with the players' own planes: the app rolls the die and Atlas counts.
+    val atlasPlanes = summary.atlasPlanechase.takeIf { !standalone }
+    var atlasRolling by remember { mutableStateOf(false) }
+    val planarRoll = onPlanarRoll ?: if (atlasPlanes != null && summary.state == TableState.RUNNING && !readOnly && !offline) {
+        { atlasRolling = true }
+    } else null
     var bagPrompt by rememberBagPromptState(summary)
     val bag = summary.doomBag
     val attribution = summary.players.firstOrNull { it.eliminationPending }
@@ -434,7 +441,7 @@ internal fun TabletTable(
                         unit = unit,
                         summary = summary,
                         life = life,
-                        onPlanarRoll = onPlanarRoll,
+                        onPlanarRoll = planarRoll,
                         onOpenMenu = {
                             haptics.tick()
                             playerMenu = unit.key
@@ -617,6 +624,11 @@ internal fun TabletTable(
         }
         val anySeat = summary.anySeat()
         val activeSeat = summary.players.firstOrNull { it.playerNumber == summary.activePlayerNumber }?.seat() ?: anySeat
+        if (atlasRolling) PlanarRollDialog(reduceMotion, onRoll = {
+            val face = com.turnhub.android.standalone.PlanarFace.roll(kotlin.random.Random.Default)
+            send(activeSeat, "$PLANAR_PREFIX" + "roll:${face.wireValue}")
+            face
+        }, onFinish = { atlasRolling = false })
         when (summary.state) {
             TableState.STARTING -> Overlay("Starting…", "The game begins in a moment.") {
                 ToneButton("Cancel", { send(anySeat, "cancel-start") }, Modifier.fillMaxWidth())
@@ -720,6 +732,34 @@ internal fun TabletTable(
                             ToneButton(if (reversed) "↻ Back to clockwise" else "↺ Reverse turn order", {
                                 send(anySeat, if (reversed) "turn-order-clockwise" else "turn-order-reversed")
                             }, Modifier.fillMaxWidth(), tone = Tone.ACCENT, enabled = !isOffline && anySeat != null)
+                        }
+                    }
+                    atlasPlanes?.let { planes ->
+                        DisclosureCard("Planechase · ${planes.planeswalks} planeswalk${if (planes.planeswalks == 1) "" else "s"}") {
+                            val last = planes.lastRoll?.let { roll ->
+                                val who = summary.players.firstOrNull { it.playerNumber == roll.player }?.label ?: "Player ${roll.player}"
+                                " Last roll: $who, ${roll.face}${if (roll.fromEffect) " (a card's roll)" else ""}."
+                            }.orEmpty()
+                            Text("Chaos ${planes.chaos} times. The next roll this turn costs ${planes.rollCost} mana.$last",
+                                color = p.text, style = MaterialTheme.typography.bodyMedium)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                ToneButton("Planeswalk", { send(activeSeat, "${PLANAR_PREFIX}planeswalk") }, Modifier.weight(1f),
+                                    enabled = !isOffline && activeSeat != null)
+                                ToneButton("Chaos ensues", { send(activeSeat, "${PLANAR_PREFIX}chaos") }, Modifier.weight(1f),
+                                    enabled = !isOffline && activeSeat != null)
+                            }
+                            Text("A card's own roll is free:", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                            ToneButton("Roll for a card", {
+                                val face = com.turnhub.android.standalone.PlanarFace.roll(kotlin.random.Random.Default)
+                                send(activeSeat, "${PLANAR_PREFIX}effect:${face.wireValue}")
+                            }, Modifier.fillMaxWidth(), enabled = !isOffline && activeSeat != null)
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Counters on the plane: ${planes.counters}", color = p.text,
+                                    style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                                ToneButton("−1", { send(anySeat, "${PLANAR_PREFIX}counter:-1") }, enabled = !isOffline && anySeat != null && planes.counters > 0)
+                                ToneButton("+1", { send(anySeat, "${PLANAR_PREFIX}counter:1") }, tone = Tone.ACCENT, enabled = !isOffline && anySeat != null)
+                            }
                         }
                     }
                     // A card that gives every player a counter: one tap instead of one per panel.

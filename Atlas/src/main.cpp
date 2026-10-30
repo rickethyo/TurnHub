@@ -339,6 +339,7 @@ bool configureIntentHandlers() {
       {IntentType::ResetGame, handleResetIntent},
       {IntentType::BackToSetup, handleBackToSetupIntent},
       {IntentType::CountShortGame, handleCountShortGameIntent},
+      {IntentType::PlanarAction, handlePlanarIntent},
       {IntentType::BeginElimination, handleEliminationIntent},
       {IntentType::CycleElimination, handleEliminationIntent},
       {IntentType::CancelElimination, handleEliminationIntent},

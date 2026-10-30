@@ -227,6 +227,11 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   text and TalkBack acceptance ([Shared devices](SHARED_DEVICES.md)). Hosting
   is a candidate upgrade; billing/entitlements/pricing remain separate work.
 
+- **Atlas Planechase, next slices (owner, 2026-10-30):** physical-plane
+  Planechase is on Atlas (setup on the Atlas screen and in the app, die and
+  counts from the app's table). Next: the planar die on Sigils and the Atlas
+  touchscreen table, and a digital deck the app deals to Atlas.
+
 - **Atlas named guests and sign-in-free match ending (owner, 2026-10-30):**
   the app's lobby keeps reusable guest names (basic result, outcome and
   duration only; `guest: true` match records) beside full profiles. Atlas's

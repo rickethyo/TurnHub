@@ -110,7 +110,7 @@ enum class TouchAction : uint8_t {
   ConfirmYes, ConfirmNo,
   // Lobby: Start opens New game, the app's game setup (ConfigureGame from
   // the table): each row steps its setting, then Start game.
-  OpenNewGame, GameType, GameMode, GameLife, GameTimer, GameHouseRules,
+  OpenNewGame, GameType, GameMode, GameLife, GameTimer, GameHouseRules, GamePlanechase,
   // Mana Tap (mana_tap.h) from Home: open it, its Start/Pause/Resume/Play
   // again button, and Quit. Presentation only: no table state changes.
   OpenManaTap, ManaAction, ManaQuit

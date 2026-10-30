@@ -99,6 +99,10 @@ constexpr uint8_t PROFILE_BYTE_ASK_ELIMINATION = 0x20;
 constexpr uint32_t GAME_FLAG_MANUAL_POISON = 0x400;
 constexpr uint32_t GAME_FLAG_MANUAL_COMMANDER = 0x800;
 constexpr uint32_t GAME_FLAG_HOUSE_RULES = 0x1000;
+// Planechase with the players' own plane cards (Magic formats only).
+constexpr uint32_t GAME_FLAG_PLANECHASE = 0x2000;
+// PlanarAction payload.flags.
+enum class PlanarCommand : uint8_t { None, Roll, Planeswalk, Chaos, Counter };
 constexpr int32_t COMMANDER_DAMAGE_LIMIT = 21;
 // Per-player Magic counters, then three table-wide actions that ride the same
 // ChangeCounter Intent from any living player (2026-10-28, app parity):
@@ -149,6 +153,8 @@ struct GameSettings {
   // limit and player count unless the table turns house rules on.
   bool houseRules = false;
   bool askEliminationSource = false;
+  // Planechase with the players' own plane cards; Atlas tracks the planar die.
+  bool planechase = false;
 };
 // Two-Headed Giant: Magic and Commander only (never Star Commander).
 inline bool teamsAllowed(GameProfile profile) {
@@ -202,11 +208,13 @@ inline bool validGameSettings(const GameSettings &settings) {
   return settings.profile < GameProfile::Count &&
       settings.startingLife >= 0 && settings.startingLife <= LIFE_LIMIT &&
       validTurnTimerMs(settings.turnTimerMs) && settings.poisonLimit >= 1 && settings.poisonLimit <= LIFE_LIMIT &&
-      (!settings.twoHeadedGiant || teamsAllowed(settings.profile));
+      (!settings.twoHeadedGiant || teamsAllowed(settings.profile)) &&
+      (!settings.planechase || magicRules(settings.profile));
 }
 inline bool sameGameSettings(const GameSettings &a, const GameSettings &b) {
   return a.profile == b.profile && a.startingLife == b.startingLife && a.turnTimerMs == b.turnTimerMs &&
       a.twoHeadedGiant == b.twoHeadedGiant && a.houseRules == b.houseRules && a.askEliminationSource == b.askEliminationSource &&
+      a.planechase == b.planechase &&
       a.autoEliminateAtZeroLife == b.autoEliminateAtZeroLife &&
       a.autoEliminateAtPoisonLimit == b.autoEliminateAtPoisonLimit &&
       a.autoEliminateAtCommanderDamage == b.autoEliminateAtCommanderDamage && a.poisonLimit == b.poisonLimit;

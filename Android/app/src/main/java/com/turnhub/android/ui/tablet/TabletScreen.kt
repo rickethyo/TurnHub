@@ -401,6 +401,12 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
             TextButton(onClick = { confirmLeave = true }) { Text("Leave tablet mode", color = p.bad) }
         },
         embedded = embedded,
+        extraSettings = {
+            if (summary.settings.profile.magicRules) SetupSwitch("Planechase",
+                "Play with your own plane cards. Atlas tracks the planar die, chaos and planeswalks.",
+                summary.settings.planechase, enabled && seat != null && !tablet.busy,
+            ) { on -> seat?.let { actions.run { saveSettings(it, null, null, null, planechase = on) } } }
+        },
         feedback = {
             access()
             if (enabled) tablet.message?.let { Feedback(it.message, it.isError) }

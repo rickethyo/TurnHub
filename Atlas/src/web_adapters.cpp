@@ -150,7 +150,8 @@ bool configureGame(uint8_t controller, uint8_t slot,
       (settings.autoEliminateAtZeroLife ? 0 : TurnHub::GAME_FLAG_MANUAL_ELIMINATION) |
       (settings.autoEliminateAtPoisonLimit ? 0 : TurnHub::GAME_FLAG_MANUAL_POISON) |
       (settings.autoEliminateAtCommanderDamage ? 0 : TurnHub::GAME_FLAG_MANUAL_COMMANDER) |
-      (settings.houseRules ? TurnHub::GAME_FLAG_HOUSE_RULES : 0);
+      (settings.houseRules ? TurnHub::GAME_FLAG_HOUSE_RULES : 0) |
+      (settings.planechase ? TurnHub::GAME_FLAG_PLANECHASE : 0);
   payload.poisonLimit = settings.poisonLimit;
   payload.value = settings.startingLife;
   payload.durationMs = settings.turnTimerMs;

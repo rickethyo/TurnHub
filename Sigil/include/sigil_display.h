@@ -70,6 +70,7 @@ class SigilDisplay {
   // A firmware update (FIRMWARE_UPDATES.md): what is happening in words, and the
   // percent downloaded (or -1). Replaces every other screen, with no menu.
   virtual void showUpdate(const char *status, int8_t percent) = 0;
+  // slot 0 is seat A, 1 seat B; answers whether the name changed.
   virtual bool setSeatName(uint8_t slot, const char *name) = 0;
   virtual void showPlayerControls(const TurnHubProtocol::GameDisplayPacket &, uint8_t) {}
   virtual void showGame(const TurnHubProtocol::GameDisplayPacket &snapshot) = 0;

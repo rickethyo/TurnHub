@@ -115,6 +115,8 @@ data class TableSettings(
     val poisonLimit: Int = if (twoHeadedGiant) 15 else 10,
     /** House rules unlock an official mode's life, limits and player count (the standalone game and Atlas alike). */
     val houseRules: Boolean = false,
+    /** Planechase with the players' own plane cards (Magic formats on Atlas). Older firmware omits it (false). */
+    val planechase: Boolean = false,
 ) {
     val turnTimerEnabled: Boolean get() = turnTimerMs > 0
 }

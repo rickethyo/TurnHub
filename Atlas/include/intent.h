@@ -139,6 +139,10 @@ enum class IntentType : uint8_t {
   // A seated player, at game over: count a match that ended within
   // SHORT_GAME_MS in the players' statistics after all.
   CountShortGame,
+  // Planechase (physical plane cards): the actor's seat; payload.flags is a
+  // PlanarCommand, value the die face (0 blank, 1 chaos, 2 planeswalk) or the
+  // counter delta, counterSlot 1 when a card made the roll (free).
+  PlanarAction,
 
   Count,
 };
@@ -309,6 +313,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::ChooseTable: return "CHOOSE_TABLE";
     case IntentType::BackToSetup: return "BACK_TO_SETUP";
     case IntentType::CountShortGame: return "COUNT_SHORT_GAME";
+    case IntentType::PlanarAction: return "PLANAR_ACTION";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

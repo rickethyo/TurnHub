@@ -726,6 +726,29 @@ Only `sealed` is projected. Resume/claim-win is refused while a check is due.
 A resolved check remains paused until the usual resume action. No radio payload
 changes. Each venue game retains its independent bag and freshness guards.
 
+### Planechase with physical planes (2026-10-30)
+
+`settings.planechase` (`POST /api/game/settings` or `/api/tablet/settings`
+field `planechase=0|1`, lobby only, Magic formats) plays the next match with
+the players' own plane cards. Atlas runs the shared core's Planechase rules
+with `source: "physical"`: it counts the planar die's mana cost per turn
+(the first roll each turn is free), chaos and planeswalks, and the face-up
+plane's counters, and projects them as the state's `planechase` object (null
+when off). The client rolls the die and sends the face; Atlas has no plane
+list, so a digital deck stays in the app's device game.
+
+`POST /api/control/planar` (signed-in participant) and `/api/tablet/planar`
+(Tablet access, acting `moduleId`/`slot`) take `action`:
+
+| `action` | Extra form fields | Who |
+| --- | --- | --- |
+| `roll` | `face` (`blank`, `chaos`, `planeswalk`), optional `fromEffect=1` (a card's free roll) | The active player or teammate |
+| `planeswalk`, `chaos` | None (a card says so) | The active player or teammate |
+| `counter` | `delta` (`1` or `-1`) | Any living player |
+
+Malformed fields answer 400, refusals (not running, not their turn, Planechase
+off) 409. Interrupted-match recovery keeps Planechase on; the counts restart.
+
 Standalone imports accept optional `bagDrawnN=0|1` for each zero-based player.
 True requires this format, an `outOrder`, no concession and no `eliminatedByN`.
 It records the exit reason without awarding an opponent an elimination.

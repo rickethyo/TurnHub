@@ -273,6 +273,7 @@ const Route ROUTES[] = {
   {"/api/control/nudge", HTTP_POST, controlRoute<WebControl::Nudge>},
   {"/api/control/elimination", HTTP_POST, counterRoute<TurnHub::IntentType::ResolveElimination>},
   {"/api/control/doom", HTTP_POST, counterRoute<TurnHub::IntentType::DoomBag>},
+  {"/api/control/planar", HTTP_POST, counterRoute<TurnHub::IntentType::PlanarAction>},
   // Tablet mode: one shared table screen acting for any seated player.
   {"/api/standalone/import", HTTP_POST, handleStandaloneImport},
   {"/api/tablet/enable", HTTP_POST, handleTabletEnable},
@@ -283,6 +284,7 @@ const Route ROUTES[] = {
   {"/api/tablet/life", HTTP_POST, handleTabletLife},
   {"/api/tablet/elimination", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::ResolveElimination>},
   {"/api/tablet/doom", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::DoomBag>},
+  {"/api/tablet/planar", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::PlanarAction>},
   {"/api/tablet/settings", HTTP_POST, handleTabletSettings},
   {"/api/tablet/life/respond", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::RespondLifeChange>},
   {"/api/tablet/commander", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::ChangeCounter>},

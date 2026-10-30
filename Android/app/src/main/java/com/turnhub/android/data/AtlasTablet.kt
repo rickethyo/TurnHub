@@ -50,6 +50,9 @@ data class OfflineChange(
     }
 }
 
+/** Tablet control actions for Atlas's Planechase ([AtlasTablet.control]). */
+const val PLANAR_PREFIX = "planar:"
+
 /** A saved profile Atlas wants a PIN for before the tablet may seat it. */
 data class TabletPinPrompt(val profileId: String, val name: String)
 
@@ -202,9 +205,11 @@ class AtlasTablet(
         twoHeadedGiant: Boolean?,
         turnTimerMs: Long? = null,
         houseRules: Boolean? = null,
+        planechase: Boolean? = null,
     ) {
         val fields = buildList {
             addAll(seat.fields)
+            planechase?.let { add("planechase" to if (it) "1" else "0") }
             turnTimerMs?.let { add("turnTimerMs" to "$it") }
             houseRules?.let { add("houseRules" to if (it) "1" else "0") }
             gameProfile?.let { add("gameProfile" to it) }
@@ -235,6 +240,20 @@ class AtlasTablet(
     }
 
     override suspend fun control(seat: TabletSeat, action: String): Boolean {
+        // Planechase with the players' own planes: "planar:roll:<face>", "planar:effect:<face>",
+        // "planar:planeswalk", "planar:chaos" or "planar:counter:<±1>".
+        if (action.startsWith(PLANAR_PREFIX)) {
+            val parts = action.removePrefix(PLANAR_PREFIX).split(':')
+            val fields = when (parts.firstOrNull()) {
+                "roll", "effect" -> listOf("action" to "roll", "face" to parts.getOrElse(1) { "" },
+                    "fromEffect" to if (parts[0] == "effect") "1" else "0")
+                "counter" -> listOf("action" to "counter", "delta" to parts.getOrElse(1) { "" })
+                else -> listOf("action" to parts.firstOrNull().orEmpty())
+            }
+            val response = post("/api/tablet/planar", seat.fields + fields) ?: return false
+            if (response.ok) succeed() else fail(response)
+            return response.ok
+        }
         // Table-wide Magic actions travel as counters on Atlas (protocol/http-v1.md).
         tableCounterFields(action)?.let { fields ->
             val response = post("/api/tablet/counter", seat.fields + fields) ?: return false

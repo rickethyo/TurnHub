@@ -330,6 +330,25 @@ IntentResult handleClaimMonarchIntent(const Intent &intent, void *) {
   return IntentResult::accept("You are the monarch");
 }
 
+// Planechase with the players' own plane cards: the core enforces whose turn
+// it is, the die's cost and the counters' bounds.
+IntentResult handlePlanarIntent(const Intent &intent, void *) {
+  const PlayerSeat *seat = seatForIntentActor(intent);
+  if (!seat) return rejectMissingSeat();
+  if (!gameInProgress() || !table().game.planar().enabled)
+    return IntentResult::reject(IntentStatus::InvalidState, "Planechase is not on in this game");
+  const auto command = static_cast<TurnHub::PlanarCommand>(intent.payload.flags);
+  if (!table().game.planarAction(seat->playerNumber, command, intent.payload.value, intent.payload.counterSlot == 1))
+    return IntentResult::reject(IntentStatus::Conflict, command == TurnHub::PlanarCommand::Counter
+        ? "Only a living player can change the plane's counters"
+        : "Only the player whose turn it is can roll or planeswalk");
+  logIntent("PLANAR", intent.actor.origin, seat->playerNumber);
+  leds.invalidateAll();
+  if (command != TurnHub::PlanarCommand::Roll) return IntentResult::accept("Planechase updated");
+  const auto view = table().game.planar();
+  return IntentResult::accept(view.lastFace == 2 ? "Planeswalk!" : view.lastFace == 1 ? "Chaos ensues!" : "Blank: nothing happens");
+}
+
 // --- Concession -----------------------------------------------------------------
 
 // Unlike Eliminate, a concession restores running play if the match continues.

@@ -217,6 +217,7 @@ void handleGameSettings(WebServer &server) {
       ",\"poisonLimit\":" + String(settings.poisonLimit) +
       ",\"twoHeadedGiant\":" + jsonBool(settings.twoHeadedGiant) +
       ",\"houseRules\":" + jsonBool(settings.houseRules) +
+      ",\"planechase\":" + jsonBool(settings.planechase) +
       ",\"teamLife\":{\"mtg\":" + String(TurnHub::TEAM_LIFE_MAGIC) +
       ",\"mtg_commander\":" + String(TurnHub::TEAM_LIFE_COMMANDER) + "}" +
       ",\"turnTimer\":{\"presetsMs\":[" + presets + "],\"minMs\":" + String(TurnHub::TURN_TIMER_MIN_MS) +
@@ -262,6 +263,17 @@ bool parseGameSettings(WebServer &server, TurnHub::GameSettings &settings) {
       return false;
     }
     settings.houseRules = value == "1";
+  }
+  if (server.hasArg("planechase")) {
+    const String value = server.arg("planechase");
+    if (value != "0" && value != "1") {
+      sendError(server, 400, "planechase must be 0 or 1");
+      return false;
+    }
+    settings.planechase = value == "1";
+  } else if (!TurnHub::magicRules(settings.profile)) {
+    // Switching to a profile without Planechase turns it off.
+    settings.planechase = false;
   }
   if (server.hasArg("autoEliminateAtZeroLife")) {
     const String value = server.arg("autoEliminateAtZeroLife");
@@ -422,6 +434,25 @@ bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::I
       payload.counterSource = static_cast<uint8_t>(player); return true;
     }
     return false;
+  }
+  if (type == TurnHub::IntentType::PlanarAction) {
+    using TurnHub::PlanarCommand;
+    const String action = server.arg("action");
+    if (action == "planeswalk") { payload.flags = static_cast<uint32_t>(PlanarCommand::Planeswalk); return true; }
+    if (action == "chaos") { payload.flags = static_cast<uint32_t>(PlanarCommand::Chaos); return true; }
+    if (action == "counter") {
+      payload.flags = static_cast<uint32_t>(PlanarCommand::Counter);
+      const String delta = server.arg("delta");
+      payload.value = delta == "1" ? 1 : delta == "-1" ? -1 : 0;
+      return payload.value != 0;
+    }
+    if (action != "roll") return false;
+    payload.flags = static_cast<uint32_t>(PlanarCommand::Roll);
+    const String face = server.arg("face"), effect = server.arg("fromEffect");
+    payload.value = face == "blank" ? 0 : face == "chaos" ? 1 : face == "planeswalk" ? 2 : -1;
+    if (effect.length() && effect != "0" && effect != "1") return false;
+    payload.counterSlot = effect == "1" ? 1 : 0;
+    return payload.value >= 0;
   }
   if (type == TurnHub::IntentType::RespondLifeChange) return parseLifeResponse(server, payload);
   int32_t number = 0;
