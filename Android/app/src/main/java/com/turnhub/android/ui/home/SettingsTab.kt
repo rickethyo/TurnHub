@@ -423,7 +423,7 @@ private fun HomeWifiCard(admin: AdminState, actions: AdminActions) {
         }
         Eyebrow("Table channel (advanced)")
         Text(
-            if (home?.channel != null && home.channel != net?.savedChannel) {
+            if (home?.channel != null && home.channel != net.savedChannel) {
                 "Your home network is on channel ${home.channel}. Choose it so Atlas can stay connected instead of " +
                     "checking in."
             } else {
