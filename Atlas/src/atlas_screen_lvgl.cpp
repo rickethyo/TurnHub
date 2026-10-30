@@ -707,6 +707,59 @@ void drawManaTap(lv_obj_t *root, const AtlasScreen &s) {
   moveManaTap(s);
 }
 
+// Home, like the app's home card: the table's state in a pill, a headline
+// and a line, the players' tokens in seat order (the turn ringed), then
+// three tiles counting players and Sigils and naming the game.
+void drawHome(lv_obj_t *root, const AtlasScreen &s) {
+  constexpr int16_t cardH = 152;
+  const bool playing = strcmp(s.badge, "PLAYING") == 0;
+  const bool paused = strcmp(s.badge, "PAUSED") == 0;
+  const bool over = strcmp(s.badge, "GAME OVER") == 0;
+  lv_obj_t *status = box(root, 8, SCREEN_BODY_Y, W - 16, cardH);
+  card(status, pal().surface1, playing ? pal().turn : pal().separator);
+  if (playing) lv_obj_set_style_border_width(status, 2, 0);
+  lift(status);
+  const uint32_t pillFill = playing ? pal().turn : paused ? pal().warning : over ? pal().good : pal().accentSoft;
+  const uint32_t pillInk = playing ? pal().onTurn : paused || over ? pal().bg : pal().accent;
+  lv_obj_set_pos(pill(status, s.badge, pillFill, pillInk), 14, 14);
+  const int16_t inner = W - 16 - 28;
+  if (s.lineCount > 0) text(status, s.lines[0], &th_bold_28, pal().text, 14, 42, inner);
+  if (s.lineCount > 1) text(status, s.lines[1], &th_semi_16, pal().textSecondary, 14, 78, inner);
+  // Tokens in seat order; past eight, a count of the rest.
+  constexpr int16_t side = 32, step = 34;
+  const uint8_t shown = s.playerCount > 8 ? 7 : s.playerCount;
+  for (uint8_t i = 0; i < shown; ++i) {
+    const ScreenPlayer &p = s.players[i];
+    seatToken(status, p, 14 + i * step, cardH - side - 12, side, p.flags & (CHIP_ACTIVE | CHIP_WINNER));
+    if (p.flags & CHIP_OUT) lv_obj_set_style_opa(lv_obj_get_child(status, -1), LV_OPA_40, 0);
+  }
+  if (shown < s.playerCount) {
+    char more[6];
+    snprintf(more, sizeof(more), "+%u", static_cast<unsigned>(s.playerCount - shown));
+    text(status, more, &th_semi_16, pal().textSecondary, 14 + shown * step, cardH - side - 12 + 6, 40);
+  }
+  // The tiles.
+  char players[6], sigils[6];
+  snprintf(players, sizeof(players), "%u", static_cast<unsigned>(s.playerCount));
+  snprintf(sigils, sizeof(sigils), "%u", static_cast<unsigned>(s.sigilsOnline));
+  const struct { const lv_image_dsc_t *glyph; uint32_t tint; const char *value; const char *caption; } tiles[] = {
+      {&th_icon_users_24, pal().info, players, s.playerCount == 1 ? "PLAYER" : "PLAYERS"},
+      {&th_icon_sigil_24, pal().accent, sigils, "SIGILS ONLINE"},
+      {&th_icon_cards_24, pal().good, s.lineCount > 2 ? s.lines[2] : "", s.lineCount > 3 ? s.lines[3] : ""}};
+  constexpr int16_t gap = 8, tileH = 86;
+  const int16_t tileW = (W - 16 - 2 * gap) / 3, tileY = SCREEN_BODY_Y + cardH + 10;
+  for (uint8_t i = 0; i < 3; ++i) {
+    lv_obj_t *tile = box(root, 8 + i * (tileW + gap), tileY, tileW, tileH);
+    card(tile, pal().surface2, pal().separator, 14);
+    lift(tile);
+    lv_obj_t *chip = box(tile, 10, 10, 30, 30);
+    card(chip, tiles[i].tint, tiles[i].tint, 9);
+    icon(chip, tiles[i].glyph, 3, 3, pal().bg);
+    text(tile, tiles[i].value, &th_semi_20, pal().text, 10, 44, tileW - 20);
+    text(tile, tiles[i].caption, &th_eyebrow_13, pal().textTertiary, 10, 66, tileW - 20);
+  }
+}
+
 void drawBody(lv_obj_t *root, const AtlasScreen &s) {
   if (s.showPlayerControls) {
     uint8_t ids[TurnHubUi::PLAYER_CONTROL_COUNT];
@@ -755,6 +808,10 @@ void drawBody(lv_obj_t *root, const AtlasScreen &s) {
   }
   if (s.kind == ScreenKind::Overview) {
     drawStandings(root, s);
+    return;
+  }
+  if (s.kind == ScreenKind::Home) {
+    drawHome(root, s);
     return;
   }
   for (uint8_t i = 0; i < s.playerCount; ++i) {

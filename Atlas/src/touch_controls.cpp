@@ -588,7 +588,7 @@ bool chipAction(TouchAction action) {
 void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
   screen.buttonCount = 0;
   switch (activeScreen(nowMs)) {
-    // Home is the table's status and info; the tab bar is the way on, and
+    // Home is the table at a glance; the tab bar is the way on, and
     // Mana Tap is there for between turns or games.
     case ScreenKind::Home: {
       static char play[32];
@@ -1735,40 +1735,57 @@ void formatMenu(AtlasScreen &screen) {
 void formatDevice(AtlasScreen &screen) {
   snprintf(screen.badge, sizeof(screen.badge), "DEVICE");
   snprintf(screen.title, sizeof(screen.title), "Atlas device");
-  snprintf(screen.detail, sizeof(screen.detail), "Unpair and Factory reset ask first");
+  snprintf(screen.detail, sizeof(screen.detail), "TurnHub Atlas v%s", TurnHubFirmware::VERSION);
 }
 
-// Home: the table at a glance and this Atlas's info. The tabs lead on.
+// Home: the table at a glance, like the app's home card. The status card
+// says what the table is doing in a headline and a line (lines 0-1) over the
+// players' tokens; three tiles count players and Sigils and name the game
+// (lines 2-3). Nothing here ticks: the turn clock lives on the Game tab.
+// Battery, SD and updates are in the header, and the network on QR codes.
 void formatHome(AtlasScreen &screen, uint32_t nowMs) {
-  const uint8_t players = table().hubState == HubState::Lobby ? table().lobby.playerCount() : table().game.playerCount();
-  snprintf(screen.badge, sizeof(screen.badge), "ATLAS");
+  formatStatus(screen, nowMs);
+  // Status lines and clocks are the Game tab's; Home shows no countdowns.
+  char headline[sizeof(screen.title)], line[sizeof(screen.detail)];
+  snprintf(headline, sizeof(headline), "%s", screen.title);
+  snprintf(line, sizeof(line), "%s", screen.detail);
+  screen.clock[0] = '\0';
+  screen.timerPermille = -1;
+  screen.timerWarning = false;
+  for (uint8_t i = 0; i < screen.playerCount; ++i) screen.players[i].turnTime[0] = '\0';
+  const bool lobby = table().hubState == HubState::Lobby;
+  const TurnHub::GameSettings &settings = lobby ? table().nextGameSettings : table().game.settings();
   snprintf(screen.title, sizeof(screen.title), "TurnHub");
-  snprintf(screen.detail, sizeof(screen.detail), "%s, %u %s", stateName(table().hubState),
-      static_cast<unsigned>(players), players == 1 ? "player" : "players");
-  char uptime[12];
-  formatClock(uptime, sizeof(uptime), nowMs);
-  snprintf(screen.lines[0], sizeof(screen.lines[0]), "Wi-Fi: %s", AtlasConfig::WIFI_SSID);
-  snprintf(screen.lines[1], sizeof(screen.lines[1]), "Portal: 192.168.4.1");
-  snprintf(screen.lines[2], sizeof(screen.lines[2]), "Sigils online: %u", static_cast<unsigned>(screen.sigilsOnline));
-  if (screen.batteryPercent >= 0) {
-    // ", charging" when it fits the line (not beside NOT INSERTED; the header's bolt shows it).
-    const int n = snprintf(screen.lines[3], sizeof(screen.lines[3]), "SD card: %s, battery %d%%%s",
-        screen.sdMissing ? "NOT INSERTED" : "ready", static_cast<int>(screen.batteryPercent),
-        screen.batteryCharging ? ", charging" : "");
-    if (n >= static_cast<int>(sizeof(screen.lines[3]))) {
-      snprintf(screen.lines[3], sizeof(screen.lines[3]), "SD card: %s, battery %d%%",
-          screen.sdMissing ? "NOT INSERTED" : "ready", static_cast<int>(screen.batteryPercent));
-    }
-  } else {
-    snprintf(screen.lines[3], sizeof(screen.lines[3]), "SD card: %s", screen.sdMissing ? "NOT INSERTED" : "ready");
+  snprintf(screen.detail, sizeof(screen.detail), "Your table, Game 1");
+  switch (table().hubState) {
+    case HubState::Lobby:
+      if (screen.playerCount == 0) {
+        snprintf(screen.lines[0], sizeof(screen.lines[0]), "Ready for players");
+        snprintf(screen.lines[1], sizeof(screen.lines[1]), "Join from the app or a Sigil");
+      } else {
+        snprintf(screen.lines[0], sizeof(screen.lines[0]), "%u %s at the table", static_cast<unsigned>(screen.playerCount),
+            screen.playerCount == 1 ? "player" : "players");
+        snprintf(screen.lines[1], sizeof(screen.lines[1]), "%s", screen.playerCount < 2 ? "Start needs two players"
+            : "Start a game from the Game tab");
+      }
+      break;
+    case HubState::Running:
+      snprintf(screen.lines[0], sizeof(screen.lines[0]), "%s", headline);
+      if (screen.round) snprintf(screen.lines[1], sizeof(screen.lines[1]), "Round %u", static_cast<unsigned>(screen.round));
+      else snprintf(screen.lines[1], sizeof(screen.lines[1]), "Match in progress");
+      break;
+    case HubState::GameOver:
+      snprintf(screen.lines[0], sizeof(screen.lines[0]), "%s", line);
+      snprintf(screen.lines[1], sizeof(screen.lines[1]), "Rematch or Reset on the Game tab");
+      break;
+    default:  // Starting and Paused say it in their own words.
+      snprintf(screen.lines[0], sizeof(screen.lines[0]), "%s", headline);
+      snprintf(screen.lines[1], sizeof(screen.lines[1]), "%s", line);
+      break;
   }
-  const TurnHub::UpdateKind update = firmwareUpdateKind();
-  if (update != TurnHub::UpdateKind::None) {
-    formatUpdateLine(screen.lines[4], sizeof(screen.lines[4]), update);
-  } else {
-    snprintf(screen.lines[4], sizeof(screen.lines[4]), "Atlas v%s, up %s", TurnHubFirmware::VERSION, uptime);
-  }
-  screen.lineCount = 5;
+  snprintf(screen.lines[2], sizeof(screen.lines[2]), "%s", gameName(settings));
+  snprintf(screen.lines[3], sizeof(screen.lines[3]), "%ld life", static_cast<long>(settings.startingLife));
+  screen.lineCount = 4;
 }
 
 void formatManaTap(AtlasScreen &screen) {

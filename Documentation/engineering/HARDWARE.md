@@ -57,9 +57,13 @@ headless Sigil (2026-10-28) and the board-less classic `atlas` build
 
 **Touchscreen navigation:** both Atlas S3 and the touchscreen Sigil open on
 Home, with persistent **Home / Game / Table / Settings** destinations, and each
-destination has one path (owner, 2026-10-30): the tab bar. Home is status only
-(on Atlas also the table info: Wi-Fi, portal, Sigils, SD card, battery,
-version), plus the **Play Mana Tap** button (below). Pairing codes and update progress temporarily take priority over
+destination has one path (owner, 2026-10-30): the tab bar. Home is status only,
+plus the **Play Mana Tap** button (below). On Atlas it is the app's home card
+(owner, 2026-10-30: the info list looked like a development device): the
+table's state, a headline (whose turn, the winner or who has joined), the
+players' tokens, and tiles for players, Sigils online and the game. It shows
+no clocks; battery, SD card and updates stay in the header, the network on QR
+codes and the firmware version under Device. Pairing codes and update progress temporarily take priority over
 navigation. Atlas Game retains its host controls (lobby: Add player, Start,
 Clear; in play: Pass, Pause, Actions); Actions lists master pass and End match.
 Start opens **New game**, the app's game options as a list (game, mode,
