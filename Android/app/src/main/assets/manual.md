@@ -349,7 +349,7 @@ If Atlas stops answering, the app keeps the last known table under an **Offline:
 
 ## Shared Tablet Mode
 
-One tablet or phone in the middle of the table can act for everyone at an Atlas game. Sign in, open **Game** and tap **Open tablet mode**. The device switches to the Shared tablet account; your own phone can stay signed in. If the table code is on, tap **Show a code on Atlas** and type the six digits from the Atlas screen; an account with the Tablet access role skips this.
+Any signed-in phone or tablet can control the shared Atlas game from Game or Table. Add profiles in the lobby and use the same game controls when play starts, including Pass. No tablet permission, enable step or table code is needed for gameplay. Your personal profile stays signed in.
 
 Seat players with **Add**: type a name to create an Atlas account with no PIN, or pick a saved player, who types their PIN unless they allowed Sigil and tablet use without one. Seating, First?, Clear all and the panels work as in section 4 and 5. Players seated by the tablet can also use their own Sigil or phone.
 
@@ -371,7 +371,7 @@ Once a player in a finished local game is linked to an account on that Atlas, th
 
 ## Roles on an Atlas
 
-Accounts on an Atlas can be given roles by an Admin: **Admin** (administration), **Game Master** (fixes unusual game states at the table), **Developer** (diagnostics) and **Tablet access** (tablet mode without a code). Roles need a PIN or password. A Game Master's pass is recorded as a master pass, not as the player's own. When a Game Master resets a player's connections or removes them from a game, only that player can see it, on their own statistics.
+An Admin can assign Admin, Game Master and Developer roles. Enter your profile PIN for private statistics or privileged administration. A profile can be chosen and used for gameplay without its PIN. Atlas continues validating every game action.
 
 Some features need a newer Atlas than the current prototype: Star Commander, official rules and House rules, and creating an account on Atlas from a local player. The Hardware Manual lists them.
 
@@ -449,7 +449,7 @@ Connect and sign in, then open History. Games whose players are all linked to ac
 
 ## Tablet Mode Asks for a Code Every Time
 
-The table code is on. An Admin can turn it off, or give the account the Tablet access role.
+Profile PINs protect private statistics and administrative access. They are not required for adding profiles, joining a game or operating gameplay controls.
 
 # 14. Prototype Limitations
 

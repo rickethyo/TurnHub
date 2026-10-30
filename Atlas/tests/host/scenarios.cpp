@@ -508,7 +508,7 @@ static void virtualProfileFlow() {
   assert(TurnHubProfiles::hasPinForProfile("FEED0001"));
   assert(request("/api/session/logout",responseField("token"))==200);
   ProfileFixture::profiles.erase("FEED0001");
-  for(const char *bad:{"","123","pass1","seven77","tab\there!",
+  for(const char *bad:{"123","pass1","seven77","tab\there!",
       "this password is far too long to be accepted by atlas at all, honestly"})
     assert(request("/api/profiles/register","",{{"name","Bad secret"},{"pin",bad}})==400);
   assert(request("/api/profiles/register","",{{"name","Password user"},{"pin","correct horse battery"}})==200);
@@ -661,12 +661,11 @@ static void profilePolicyFlow() {
   assert(request("/api/session/policy",owner,{{"allowPhysicalWithoutPin","0"},{"hideStatsWithoutAuthentication","1"}})==200);
   assert(TurnHubWebApi::physicalUseAllowed(id) && TurnHubWebApi::physicalStatsVisible(id));
   assert(request("/api/session/logout",owner)==200);
-  assert(!TurnHubWebApi::physicalUseAllowed(id) && !TurnHubWebApi::physicalStatsVisible(id));
-  assert(!dispatchModuleIntent(IntentType::Join,0).accepted());
-  assert(table().lobby.playerCount()==0);
-  owner=loginPhone(id);
+  assert(TurnHubWebApi::physicalUseAllowed(id) && !TurnHubWebApi::physicalStatsVisible(id));
   assert(dispatchModuleIntent(IntentType::Join,0).accepted());
-  assert(request("/api/session/request","",{{"module","0"},{"slot","1"}})==403);
+  assert(table().lobby.playerCount()==1);
+  owner=loginPhone(id);
+  assert(request("/api/session/request","",{{"module","0"},{"slot","1"}})==202);
   assert(request("/api/session/profile",owner,{{"clearPin","1"}})==409);
   const String companion=loginPhone(id);
   assert(request("/api/session/logout",owner)==200);
@@ -678,7 +677,7 @@ static void profilePolicyFlow() {
   for (const char *physical : {"0","1"}) for (const char *hidden : {"0","1"}) {
     assert(request("/api/session/policy",owner,{{"allowPhysicalWithoutPin",physical},{"hideStatsWithoutAuthentication",hidden}})==200);
     assert(request("/api/session/logout",owner)==200);
-    assert(TurnHubWebApi::physicalUseAllowed(id)==(physical[0]=='1'));
+    assert(TurnHubWebApi::physicalUseAllowed(id));
     assert(TurnHubWebApi::physicalStatsVisible(id)==(hidden[0]=='0'));
     owner=loginPhone(id);
   }
@@ -695,7 +694,7 @@ static void profilePolicyFlow() {
   owner=loginPhone(id);
   assert(request("/api/session/stats",owner,{},HTTP_GET)==200);
   ProfileFixture::profiles[id].policyReadable=false;
-  assert(!TurnHubWebApi::physicalUseAllowed(id) && !TurnHubWebApi::physicalStatsVisible(id));
+  assert(TurnHubWebApi::physicalUseAllowed(id) && !TurnHubWebApi::physicalStatsVisible(id));
   assert(request("/api/session/policy",owner,{{"allowPhysicalWithoutPin","1"},{"hideStatsWithoutAuthentication","0"}})==503);
   ProfileFixture::profiles[id].policyReadable=true;
   testNow+=8UL*60*60*1000+1;
@@ -834,17 +833,19 @@ static void accountPermissionsAndModeration(){
   assert(request("/api/accounts/setup","",{},HTTP_GET)==200&&server.body.find("true")!=std::string::npos);
   assert(request("/api/accounts/setup",admin)==403); // Physical confirmation needed.
   verifyAtTable(admin);assert(request("/api/accounts/setup",admin)==200);resetPresence();
+  assert(request("/api/session/login","",{{"profileId",adminId}})==200);
+  const String adminPlay = responseField("token");
+  assert(request("/api/session/me",adminPlay,{},HTTP_GET)==200 && server.body.find("\"permissions\":0")!=std::string::npos);
+  assert(request("/api/network",adminPlay,{},HTTP_GET)==403);
+  assert(request("/api/session/stats",adminPlay,{},HTTP_GET)==403);
+  assert(request("/api/session/logout",adminPlay)==200);
+
   assert(request("/api/accounts/setup",gm)==409);
   assert(request("/api/accounts/permissions",player,{{"profileId",playerId},{"permissions","31"}})==403);
   assert(request("/api/accounts/permissions",admin,{{"profileId",adminId},{"permissions","0"}})==409);
   assert(request("/api/accounts/permissions",admin,{{"profileId",gmId},{"permissions","26"}})==200);
   assert(request("/api/accounts/permissions",admin,{{"profileId",devId},{"permissions","4"}})==200);
-  // Tablet access stands alone (no Game Master needed); nothing above it exists.
-  assert(request("/api/accounts/permissions",admin,{{"profileId",devId},{"permissions","36"}})==200 &&
-      has(devId,TabletAccess));
-  assert(request("/api/accounts/permissions",admin,{{"profileId",devId},{"permissions","64"}})==400);
-  assert(request("/api/accounts/permissions",admin,{{"profileId",devId},{"permissions","4"}})==200 &&
-      !has(devId,TabletAccess));
+  assert(request("/api/accounts/permissions",admin,{{"profileId",devId},{"permissions","32"}})==400);
   assert(request("/api/device/name",player,{{"module","0"},{"name","No"}})==403);
   assert(request("/api/network",gm,{},HTTP_GET)==403);
   assert(request("/api/network",dev,{},HTTP_GET)==403);
@@ -926,9 +927,8 @@ static void accountPermissionsAndModeration(){
   for (auto &session : TurnHubWebApi::internal::sessions) {
     if (session.used && reconnected == session.token) session.pinVerified = false;  // As after a Sigil-press claim.
   }
-  assert(request("/api/session/stats",reconnected,{},HTTP_GET)==200&&
-      server.body.find("\"visible\":false")!=std::string::npos&&server.body.find("connectionResets")==std::string::npos);
-  assert(request("/api/session/stats/export",reconnected,{},HTTP_GET)==200&&server.body.find("esets")==std::string::npos);
+  assert(request("/api/session/stats",reconnected,{},HTTP_GET)==403);
+  assert(request("/api/session/stats/export",reconnected,{},HTTP_GET)==403);
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","pass"}})==200);
   assert(table().game.activePlayerNumber()==2&&!table().pendingPass.active);
   assert(request("/api/accounts/permissions",admin,{{"profileId",gmId},{"permissions","2"}})==200);
@@ -1611,12 +1611,13 @@ static void profilePicker() {
   key(1, PickerKeyCode::Select);
   page = profilePickerPage(1);
   assert(page.page == 1 && page.itemCount == 2 && !strcmp(page.items[0].name, "Carol"));
-  assert(!strcmp(page.items[1].name, "Dan") && (page.items[1].flags & PICKER_ITEM_LOCKED));
+  assert(!strcmp(page.items[1].name, "Dan") && !(page.items[1].flags & PICKER_ITEM_LOCKED));
   key(1, PickerKeyCode::Right);
   page = profilePickerPage(1);
-  assert(page.mode == PickerMode::List && page.notice == PickerNotice::NeedsPhone && !table().lobby.isJoined(1));
+  assert(page.mode == PickerMode::Confirm && !table().lobby.isJoined(1));
+  key(1, PickerKeyCode::Left);
   // The handler enforces the same policy, whatever the page said.
-  Intent sneaky; sneaky.type = IntentType::PickProfile; sneaky.actor.origin = IntentOrigin::PhysicalSigil;
+  Intent sneaky; sneaky.type = IntentType::PickProfile; sneaky.actor.origin = IntentOrigin::Browser;
   sneaky.actor.controllerId = 1; sneaky.actor.slot = 1; strcpy(sneaky.payload.profileId, "0000000D");
   assert(intents.dispatch(sneaky).status == IntentStatus::Unauthorized && !table().lobby.isJoined(1));
 
@@ -3290,16 +3291,8 @@ static void touchSeatsPlayers() {
   assert(tapSeatRow("Zed Touch") && table().lobby.playerCount()==1 && tableForProfile(open)==0);
   assert(currentScreen().kind==ScreenKind::Seat && !tapSeatRow("Zed Touch"));
 
-  // A PIN-protected profile: the keypad, a wrong PIN refused, then its own.
-  assert(tapSeatRow("Pia Touch (PIN)") && currentScreen().kind==ScreenKind::Pin && keysFit(currentScreen()));
-  for (uint8_t d : {9,9,9,9}) tapKey(TouchAction::PinKey,d);
-  assert(String(currentScreen().detail)=="* * * *");
-  tapButton(TouchAction::PinDone);
-  assert(table().lobby.playerCount()==1 && String(currentScreen().notice)=="That PIN was not accepted");
-  for (uint8_t d : {1,2,3,5}) tapKey(TouchAction::PinKey,d);
-  tapButton(TouchAction::PinBack); tapKey(TouchAction::PinKey,4);
-  tapButton(TouchAction::PinDone);
-  assert(table().lobby.playerCount()==2 && tableForProfile(lockedId)==0 && currentScreen().kind==ScreenKind::Seat);
+  // Saved PINs protect stats/admin, not seating on Atlas.
+  assert(tapSeatRow("Pia Touch") && table().lobby.playerCount()==2 && tableForProfile(lockedId)==0);
 
   // New player: words start with capitals; the profile has no PIN.
   tapButton(TouchAction::NewPlayer);
@@ -3754,17 +3747,21 @@ static void tabletMode() {
   ProfileFixture::profiles[lockedId].policy.allowPhysicalWithoutPin=false;
   assert(request("/api/session/logout",locked)==200);
 
-  // Off until a presence code from the Atlas screen; a player may ask for one
-  // only for tablet mode, and it grants no Admin action.
-  assert(request("/api/tablet/seat",tablet,{{"name","Ava"}})==403);
-  assert(server.body.find("tabletRequired")!=std::string::npos);
+  // Personal sessions act directly, without presence/role activation.
+  assert(request("/api/session/login","",{{"profileId",ownerId}})==200);
+  const String playToken = responseField("token");
+  assert(request("/api/session/stats",playToken,{},HTTP_GET)==403);
+  assert(request("/api/network",playToken,{},HTTP_GET)==403);
+  assert(request("/api/tablet/seat",playToken,{{"name","No PIN needed"}})==200);
+  const String playProfile = responseField("profileId");
+  assert(request("/api/tablet/unseat",playToken,{{"profileId",playProfile}})==200);
+  assert(request("/api/session/logout",playToken)==200);
+  ProfileFixture::profiles.erase(playProfile.c_str());
+  assert(request("/api/tablet/seat","",{{"name","Ava"}})==401);
+  assert(request("/api/tablet/seat",tablet,{{"name","  "}})==400);
+  assert(request("/api/session/me",tablet,{},HTTP_GET)==200);
+  assert(server.body.find(ownerId)!=std::string::npos);
   assert(request("/api/tablet/enable","")==401);
-  assert(request("/api/tablet/enable",tablet)==403 && server.body.find("presenceRequired")!=std::string::npos);
-  assert(request("/api/presence/request",tablet)==403);
-  assert(request("/api/presence/request",tablet,{{"purpose","tablet"}})==200);
-  const PresenceRequest *shown=pendingPresenceCode(testNow); assert(shown!=nullptr);
-  char digits[8]; snprintf(digits,sizeof(digits),"%06lu",static_cast<unsigned long>(shown->code));
-  assert(request("/api/presence/confirm",tablet,{{"code",digits}})==200);
   assert(request("/api/table/reset",tablet)==403);
   const String personalToken = tablet;
   assert(request("/api/tablet/enable",tablet)==200);
@@ -3774,27 +3771,6 @@ static void tabletMode() {
   assert(request("/api/session/personalization",tablet,{},HTTP_GET)==403);
   assert(request("/api/session/me",tablet,{},HTTP_GET)==200 && server.body.find("\"tablet\":true")!=std::string::npos);
   assert(server.body.find("\"participating\":false")!=std::string::npos);
-
-  // The Tablet access role skips the code, e.g. for a tablet account that
-  // never joins the table; without the role the code is needed again.
-  {
-    String roleId; String roleTablet=registerPhone("Table tablet",roleId);
-    TurnHubAccounts::Account account; account.permissions=TurnHubAccounts::TabletAccess;
-    assert(TurnHubAccounts::save(roleId,account));
-    assert(request("/api/tablet/enable",roleTablet)==200);
-    roleTablet = responseField("token");
-    assert(request("/api/session/me",roleTablet,{},HTTP_GET)==200 && server.body.find("\"tablet\":true")!=std::string::npos);
-    assert(server.body.find("\"participating\":false")!=std::string::npos);
-    assert(request("/api/table/reset",roleTablet)==403);
-    assert(request("/api/tablet/disable",roleTablet)==200);
-    account.permissions=0; assert(TurnHubAccounts::save(roleId,account));
-    assert(request("/api/session/me",roleTablet,{},HTTP_GET)==401);
-    assert(request("/api/session/login","",{{"profileId",roleId},{"pin","1234"}})==200);
-    roleTablet = responseField("token");
-    assert(request("/api/tablet/enable",roleTablet)==403 && server.body.find("presenceRequired")!=std::string::npos);
-    assert(request("/api/session/logout",roleTablet)==200);
-    ProfileFixture::profiles.erase(roleId.c_str()); TurnHubAccounts::accounts.erase(roleId.c_str());
-  }
 
   // New names become PIN-less profiles at the table; names stay unique.
   assert(request("/api/tablet/seat",tablet,{{"name","  "}})==400);
@@ -3806,10 +3782,7 @@ static void tabletMode() {
   const String benId=responseField("profileId");
   // An existing profile: its own PIN unless it allows use without one.
   assert(request("/api/tablet/seat",tablet,{{"profileId","FFFFFFFF"}})==404);
-  assert(request("/api/tablet/seat",tablet,{{"profileId",lockedId}})==403);
-  assert(server.body.find("pinRequired")!=std::string::npos && table().lobby.playerCount()==2);
-  assert(request("/api/tablet/seat",tablet,{{"profileId",lockedId},{"pin","9999"}})==401);
-  assert(request("/api/tablet/seat",tablet,{{"profileId",lockedId},{"pin","1234"}})==200 && table().lobby.playerCount()==3);
+  assert(request("/api/tablet/seat",tablet,{{"profileId",lockedId}})==200 && table().lobby.playerCount()==3);
   assert(request("/api/tablet/unseat",tablet,{{"profileId",lockedId}})==200 && table().lobby.playerCount()==2);
   assert(request("/api/tablet/seat",tablet,{{"profileId",ownerId}})==200 && table().lobby.playerCount()==3);
   assert(request("/api/tablet/unseat",tablet,{{"profileId",ownerId}})==200 && table().lobby.playerCount()==2);
@@ -6201,7 +6174,7 @@ static void doomCommanderHttp() {
   assert(request("/api/control/doom",token(1),bad)==400);
   bad=fields();bad["action"]="eligibility";bad["player"]="2";bad["inBag"]="2";
   assert(request("/api/control/doom",token(1),bad)==400);
-  assert(request("/api/tablet/doom",token(1),fields())==403);
+  assert(request("/api/tablet/doom","",fields())==401);
   // Failed reservation save reveals no name and leaves the table paused.
   setError=ESP_ERR_NVS_INVALID_HANDLE;
   assert(request("/api/control/doom",token(1),fields())==409);
@@ -6541,7 +6514,7 @@ int main() {
   matchHistory(); std::cout<<"PASS match history: whole records kept once with Atlas profile IDs, CSV rows, torn lines, history route\n";
   touchPlayerCounters(); std::cout<<"PASS Atlas player counters: shared projection, touch requests, pagination and Done\n";
   touchSeatsPlayers(); std::cout<<"PASS touchscreen Add player: saved profiles, PIN keypad, New player keyboard, unique names\n";
-  tabletMode(); std::cout<<"PASS tablet mode: presence code, Tablet access role, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
+  tabletMode(); std::cout<<"PASS tablet mode: authenticated direct controls, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
   tableCodeOptional(); std::cout<<"PASS table code optional: off by default (Admin still required), on needs codes, off again needs one" << std::endl;
   pairConfirmIntent(); std::cout<<"PASS pairing v2 code check: Atlas screen or portal Admin, lobby only, waiting Sigil only, confirm stores, reject and store failure store nothing" << std::endl;

@@ -47,9 +47,7 @@ with the same name are linked too; give them different names.
   browsing state only). The page lists Guest, then saved profiles, three to
   a page. E-ink: each name has a fixed key (Up/Right/Down), the click shows
   more names, Left goes back. OLED: the same page as a scrolling list. Words
-  mark special rows: "no profile" (Guest), "phone sign-in" (the owner turned
-  off physical use without a PIN and has no signed-in phone), "at table:
-  attach" (already playing from a phone; choosing it attaches this Sigil to
+  mark special rows: "no profile" (Guest), "at table: attach" (already playing from a phone; choosing it attaches this Sigil to
   that participant). Archived or moderated profiles and profiles on another
   Sigil are not listed. Names that would look the same on a Sigil (the
   same name, or the same first 12 characters) are numbered in profile ID
@@ -59,24 +57,18 @@ with the same name are linked too; give them different names.
   `POST /api/session/request` with `module` and `slot`, then poll
   `GET /api/session/poll?id=` while the player chooses **Link phone** on that
   Sigil within 30 s. Signed out, approval signs the phone in to the seat's
-  profile, and only for a profile without a PIN (a Sigil press proves
-  possession, not the secret). Signed in, it attaches that Sigil seat to the
+  profile for gameplay (a Sigil press proves possession, not its PIN; private
+  statistics and administration remain locked). Signed in, it attaches that Sigil seat to the
   signed-in profile. The app signs in from its profile list. In a lobby its Paired Sigils list
   can also request attachment of an empty seat A, with the same physical
   confirmation and server validation.
-- **First phone sign-in of a PIN-less profile** (owner request 2026-10-07):
-  `POST /api/session/login` for a profile with no secret saves the given PIN
-  or password as its secret and signs in (log `ATLAS|PROFILE|PIN_SET_AT_SIGN_IN`).
-  The app asks for it twice; from then on it is checked as usual. Anyone at
-  the table can already seat a PIN-less profile from a Sigil, the tablet or the
-  S3 Atlas screen,
-  so claiming it from a phone grants nothing new.
+- **Phone profile selection:** an empty PIN creates a gameplay-only session.
+  Entering a valid PIN creates a PIN-verified session for private stats and
+  administration. A profile with no saved PIN can choose one for those uses.
 - **S3 Atlas screen, Add player** (*Experimental*, 2026-10-28): the lobby's
   Add player lists saved profiles not at either table, four to a page
-  (More pages on). A profile that allows physical use without a PIN sits at
-  a tap; any other shows "(PIN)" and asks for it on a keypad, checked and
-  rate limited as the tablet's `POST /api/tablet/seat` checks it
-  (`checkTablePin`). New player types a name on an on-screen keyboard and
+  (More pages on). Choosing any available profile seats it immediately; no
+  PIN is needed. New player types a name on the on-screen keyboard and
   creates a profile with no PIN (a name already in use is refused). Each
   seat is a `JoinProfile` Intent from `AtlasHardware`, on a browser
   controller as the tablet's. Clear lobby moved under Menu.
@@ -116,19 +108,10 @@ reset when games change; queued offline changes include the venue game, boot
 and participant identity. Native raw table actions include `expectedGame`; Atlas
 rejects a stale selected-game context before dispatching the semantic action.
 
-- **Turning it on.** A signed-in account activates tablet mode from Game.
-  With the table-code setting off it activates directly; when on, prove table
-  presence with `purpose=tablet` and the Atlas code, unless the account has
-  Tablet access. Successful `POST /api/tablet/enable` revokes this device's
-  personal token and returns a fresh RAM-only shared-tablet credential. Its
-  profile ID is empty, its name is Shared tablet, and it has no personal or
-  Admin permissions. It cannot join as a player, edit profiles, upload artwork,
-  inspect private preferences/statistics or administer Atlas. The route allowlist
-  permits game/state/seats/profile-list/artwork reads, tablet actions, game
-  selection and logout. Existing player seats and other phones stay independent.
-  Closing or leaving tablet mode revokes the grant and leaves the app signed
-  out, including local exit while disconnected. Remote sessions expire after
-  eight idle hours or restart. No personal login is restored on exit.
+- **Shared controls.** Signed-in profiles use Game and Table controls directly.
+  No tablet role, presence code or enable step is needed. Selecting a shared
+  view does not replace the personal session. PIN verification is reserved for
+  private statistics and privileged administration, not seating or gameplay.
 - **Seating.** In the lobby the tablet adds players: a new name creates a
   profile with no PIN (names are unique, ignoring case); an existing profile
   follows its owner's PIN choice below, else the tablet asks for its PIN
@@ -154,11 +137,11 @@ rejects a stale selected-game context before dispatching the semantic action.
 
 Each profile owner chooses, in the portal or app (`POST /api/session/policy`):
 
-- **Allow Sigil and tablet use without a PIN** (`allowPhysicalWithoutPin`).
-  Off means a Sigil or a table tablet can seat that profile only while the
-  same profile has a live phone session, or (tablet only) after its PIN is
-  typed on the tablet. Turning it off needs a saved secret. Existing participation continues if the policy
-  changes or the session expires.
+Gameplay profile selection never requires a PIN. The legacy physical-use
+policy field remains readable for older clients but no longer blocks play.
+PIN-free profile sessions cannot read private statistics, mint private-history
+link keys or use privileged account permissions. PIN-verified sessions may do so.
+
 - **Hide stats without authentication.** Controls visibility only; statistics
   always accumulate. Atlas enforces it before serializing anything.
 
@@ -173,7 +156,6 @@ sign-in list.
 | Admin | Account permissions, device names, network settings, firmware and portal updates, pairing confirmation and forget, factory reset, Return table to lobby, speaker volume from the portal (anyone at Atlas may set it on its screen, Settings > Device) |
 | Game Master | Force pass (logged as a master pass), nudge mute; optional sub-permissions **reset connections** and **remove from game** |
 | Developer | Developer page, diagnostics and the RAM log download (`GET /api/diagnostics/log`) |
-| Tablet access | Turns on tablet mode without a table presence code (bit 32; needs no other role) |
 
 A normal account has none. Permissions combine freely and are checked on
 Atlas for every protected request. Privileged accounts can't remove their

@@ -1827,3 +1827,11 @@ Validation: Atlas and Sigil host suites pass (new `homeWifiCheckIns`, route
 checks, `channel_search_scenarios`). Firmware builds and hardware checks are
 recorded in the PR.
 
+
+## Connected game controls without tablet permission — 2026-10-30, Codex
+
+Owner explicitly removes tablet permission/enable flow. Baseline d9ab2bbb; Game and Table use existing shared controls throughout the match; signed-in personal sessions can submit existing seat-scoped Intents without replacement by a shared-tablet session. Remove permission role and UI gate; retain profile PIN verification and normal authentication. Tests/docs updating.
+
+Owner expands PIN policy: gameplay profile selection, joining and shared actions are PIN-free; optional PIN login marks a verified session for private stats/admin only. Existing pinVerified flag now gates stats, permissions, linked history and credential changes. Unverified profile login and PIN-less registration retain ordinary gameplay identity. Physical profile picker ignores old PIN-play preference. Retired role bit ignored when decoding saved accounts, rejected on new grants.
+
+Validation: Android JVM suite (including new PIN-free sign-in/vault regression), preview APK and release bundle pass. All four Atlas host suites pass, including admin-profile gameplay sessions with zero permissions, rejected private stats, immediate seating without PIN, physical profile pickers and existing game controls. Firmware 0.7.22-dev builds and USB upload hash verifies. Docs links, manual export consistency, adapter audit (32), client contract (18 actual/14 fixtures/two records) and whitespace pass. No Android devices connected for installation. App Manual DOCX text/XML updated and asset exported; visual DOCX rendering unavailable (no LibreOffice). Physical gameplay acceptance remains open.

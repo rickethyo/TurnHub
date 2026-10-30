@@ -116,7 +116,7 @@ fun TabletScreen(
         BackHandler(onBack = onClose)
     } else if (summary?.state == TableState.RUNNING) KeepScreenOn()
     tablet.pinPrompt?.let { prompt -> PinDialog(prompt.name, onSubmit = { pin -> scopedActions.run { seatSaved(prompt.profileId, prompt.name, pin) } }, onDismiss = scopedActions.onDismissPin) }
-    val granted = signedIn && session?.tablet == true
+    val granted = signedIn
     AmbientBackground(reduceMotion, modifier.fillMaxSize(), quiet = true) {
     Column(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.safeDrawingPadding())) {
         if (embedded && !setupOnly && summary != null) TableNavigation(summary.state, onFullScreen = onFullScreen)
@@ -129,7 +129,7 @@ fun TabletScreen(
                     summary == null -> Gate(tablet, scopedActions, onClose) {
                         Text("Connect to Atlas first, then open tablet mode again.", color = p.muted)
                     }
-                    granted && session.game != summary.game -> Gate(tablet, scopedActions, onClose) {
+                    granted && session?.game != summary.game -> Gate(tablet, scopedActions, onClose) {
                         Text("Refreshing the selected game…", color = p.muted)
                     }
                     summary.state == TableState.LOBBY -> Lobby(summary, tablet, scopedActions, onClose, onEditBackground, canEditBackground,
@@ -166,7 +166,7 @@ private fun TableAccess(signedIn: Boolean, session: SessionInfo?, tablet: Tablet
     modifier: Modifier = Modifier) {
     BrassCard(modifier.fillMaxWidth()) {
         Eyebrow("Table controls")
-        GateSteps(signedIn, session?.has(AccountPermission.TABLET_ACCESS) == true, tablet, actions)
+        GateSteps(signedIn, tablet, actions)
         tablet.message?.let { Feedback(it.message, it.isError) }
     }
 }
@@ -279,37 +279,11 @@ private fun Gate(tablet: TabletState, actions: TabletActions, onClose: () -> Uni
 }
 
 @Composable
-private fun GateSteps(signedIn: Boolean, tabletAccess: Boolean, tablet: TabletState, actions: TabletActions) {
-    val p = palette
+private fun GateSteps(signedIn: Boolean, tablet: TabletState, actions: TabletActions) {
     if (!signedIn) {
-        Text("Sign in to control this table. You can follow the game here while signed out.", color = p.muted)
+        Text("Sign in to control this table.", color = palette.muted)
         AccentButton("Sign in or pick a profile", actions.onSignIn, Modifier.fillMaxWidth())
-        return
     }
-    if (tabletAccess) {
-        Text("This account has tablet access, so no code is needed.", color = p.muted)
-        AccentButton("Enable table controls", { actions.run { enable() } }, Modifier.fillMaxWidth(), enabled = !tablet.busy)
-        return
-    }
-    if (!tablet.codePrompt) {
-        Text("If an Admin turned the table code on, Atlas shows a code on its screen to prove this device is at the table.", color = p.muted)
-        AccentButton("Enable table controls", { actions.run { requestCode() } }, Modifier.fillMaxWidth(), enabled = !tablet.busy)
-        return
-    }
-    var code by rememberSaveable { mutableStateOf("") }
-    Text("Enter the six digits the Atlas screen shows now.", color = p.muted)
-    OutlinedTextField(
-        value = code,
-        onValueChange = { code = it.filter(Char::isDigit).take(6) },
-        label = { Text("Code from Atlas") },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { if (code.length == 6) actions.run { confirmCode(code) } }),
-        modifier = Modifier.fillMaxWidth(),
-    )
-    AccentButton("Enable table controls", { actions.run { confirmCode(code) } }, Modifier.fillMaxWidth(),
-        enabled = code.length == 6 && !tablet.busy)
-    TextButton(onClick = actions.onDismissCode) { Text("Cancel", color = p.muted) }
 }
 
 @Composable
