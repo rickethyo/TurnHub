@@ -124,7 +124,8 @@ described in `CLAUDE.md`.
   ring takes data from IO27 (the 4-pin SPI connector's CS; the case has no
   microSD, so the shared SPI pins are free) and 5V/GND from the UART header.
   TX (IO1) was rejected because it is the USB serial line and carries boot
-  output. `Sigil/include/led_ring.h` draws it (spinner while unpaired, pairing
+  output. The RMT peripheral times the data (a bit-banged first driver
+  scrambled colours). `Sigil/include/led_ring.h` draws it (spinner while unpaired, pairing
   or Atlas is lost; seat colour on this Sigil's turn; amber attention pulse;
   winner chase) at about a fifth of full drive (`TURNHUB_RING_BRIGHTNESS`, 48/255)
   and caps it at 200 mA; `TURNHUB_RING_LEDS` sets the count

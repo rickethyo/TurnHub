@@ -1,41 +1,57 @@
 // WS2812 LED ring driver for the E32R28T (led_ring.h holds what it shows).
-// Bit-banged against the CPU cycle counter, so it needs no library or RMT
-// channel; a 12-LED frame holds interrupts on this core for about 0.4 ms.
+// The RMT peripheral shapes every bit in hardware, so Wi-Fi interrupts and
+// flash cache stalls cannot stretch one (a bit-banged first try showed random
+// colours on the bench, 2026-10-30). The whole frame fits in RMT memory and is
+// sent in one go, without refill interrupts.
 #include <Arduino.h>
-#include <soc/gpio_struct.h>
 
 #include "led_ring.h"
 #include "sigil_board.h"
 
 namespace TurnHubSigil {
 
+namespace {
+constexpr size_t RING_BITS = static_cast<size_t>(TurnHubSigilBoard::LED_RING_COUNT) * 24;
+static_assert(RING_BITS + 1 <= 512, "The ring frame must fit in RMT memory (21 LEDs at most)");
+rmt_obj_t *ringRmt = nullptr;
+rmt_data_t ringData[RING_BITS + 1];
+}  // namespace
+
 void ringBegin() {
-  pinMode(TurnHubSigilBoard::LED_RING_PIN, OUTPUT);
-  digitalWrite(TurnHubSigilBoard::LED_RING_PIN, LOW);
+  const auto blocks = static_cast<rmt_reserve_memsize_t>((RING_BITS + 1 + 63) / 64);
+  ringRmt = rmtInit(TurnHubSigilBoard::LED_RING_PIN, RMT_TX_MODE, blocks);
+  if (ringRmt == nullptr) {
+    Serial.println("SIGIL|RING|RMT|ERROR");
+    return;
+  }
+  rmtSetTick(ringRmt, 100);  // 0.1 us ticks.
+  Serial.printf("SIGIL|RING|READY|GPIO|%u|LEDS|%u\n", TurnHubSigilBoard::LED_RING_PIN,
+      TurnHubSigilBoard::LED_RING_COUNT);
 }
 
 void ringShow(const RingPixel *frame, uint8_t count) {
-  static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
-  const uint32_t mask = 1u << TurnHubSigilBoard::LED_RING_PIN;
-  const uint32_t mhz = getCpuFrequencyMhz();
-  const uint32_t t0h = mhz * 400 / 1000, t1h = mhz * 800 / 1000, period = mhz * 1250 / 1000;
-  portENTER_CRITICAL(&mux);
-  uint32_t start = ESP.getCycleCount();
+  if (ringRmt == nullptr) return;
+  if (count > TurnHubSigilBoard::LED_RING_COUNT) count = TurnHubSigilBoard::LED_RING_COUNT;
+  size_t n = 0;
   for (uint8_t i = 0; i < count; ++i) {
     const uint8_t bytes[3] = {frame[i].g, frame[i].r, frame[i].b};  // GRB on the wire.
     for (uint8_t byte : bytes) {
       for (uint8_t bit = 0x80; bit; bit >>= 1) {
-        while (ESP.getCycleCount() - start < period) {}
-        start = ESP.getCycleCount();
-        GPIO.out_w1ts = mask;
-        const uint32_t high = (byte & bit) ? t1h : t0h;
-        while (ESP.getCycleCount() - start < high) {}
-        GPIO.out_w1tc = mask;
+        const bool one = byte & bit;
+        ringData[n].level0 = 1;
+        ringData[n].duration0 = one ? 8 : 4;  // T1H 0.8 us, T0H 0.4 us.
+        ringData[n].level1 = 0;
+        ringData[n].duration1 = one ? 4 : 8;
+        ++n;
       }
     }
   }
-  portEXIT_CRITICAL(&mux);
-  // The 50 us reset gap passes before the next frame (sent every 20 ms).
+  // Holds the line low past the 50 us latch (the last item's low half).
+  ringData[n].level0 = 0;
+  ringData[n].duration0 = 600;
+  ringData[n].level1 = 0;
+  ringData[n].duration1 = 0;
+  rmtWriteBlocking(ringRmt, ringData, n + 1);
 }
 
 }  // namespace TurnHubSigil
