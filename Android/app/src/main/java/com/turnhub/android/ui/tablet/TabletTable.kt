@@ -64,6 +64,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -108,6 +109,7 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.activity.compose.BackHandler
@@ -214,7 +216,7 @@ internal fun TabletTable(
     offline: Boolean = false,
     /** The standalone game (no Atlas): the menu has no tablet grant to hand back. */
     standalone: Boolean = false,
-    /** Shares the finished game with a picture of the table; null hides the button. */
+    /** Optional full-record caption override; otherwise share the host's finished snapshot. */
     onShareResult: ((android.graphics.Bitmap) -> Unit)? = null,
     /** Shares the finished game's record as CSV, one row per player; null hides the button. */
     onShareCsv: (() -> Unit)? = null,
@@ -222,11 +224,14 @@ internal fun TabletTable(
     shortGameUnsaved: Boolean = summary.shortGameUncounted,
     onCountGame: () -> Unit = { summary.anySeat()?.let { seat -> controls { control(seat, "count-game") } } },
     onPlanarRoll: (() -> Unit)? = null,
+    /** Observe the actual game without exposing controls before authorization. */
+    readOnly: Boolean = false,
 ) {
     val p = palette
     val haptics = rememberHaptics()
     val isOffline by rememberUpdatedState(offline)
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val current by rememberUpdatedState(summary)
     // Life taps gather per panel and go to Atlas once after a short pause.
     val unsent = remember { mutableStateMapOf<String, Int>() }
@@ -255,8 +260,22 @@ internal fun TabletTable(
     val bag = summary.doomBag
     val attribution = summary.players.firstOrNull { it.eliminationPending }
     var sourceOpen by rememberSaveable(summary.bootId, summary.game, attribution?.playerNumber) { mutableStateOf(true) }
-    val showBag = bag != null && bagPrompt.shouldShow(bag)
+    val showBag = !readOnly && bag != null && bagPrompt.shouldShow(bag)
     fun dismissBag() { bagPrompt = bagPrompt.dismiss(bag) }
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    LaunchedEffect(readOnly) {
+        if (readOnly) {
+            focus.clearFocus(force = true)
+            playerMenu = null
+            menuOpen = false
+            manualRemoval = null
+            passToTurn = null
+            gathering.values.forEach { it.cancel() }
+            gathering.clear()
+            unsent.clear()
+            sent.clear()
+        }
+    }
     BackHandler(enabled = passToTurn != null || playerMenu != null || menuOpen || showBag) {
         if (passToTurn != null) passToTurn = null
         else if (playerMenu != null || menuOpen) {
@@ -279,6 +298,7 @@ internal fun TabletTable(
         pendingStart = null
     }
     fun send(seat: TabletSeat?, action: String) {
+        if (readOnly) return
         seat ?: return
         if (standalone && action == "pass" && current.settings.profile.cooperative) {
             if (isOffline) controls { refuseOffline() }
@@ -339,6 +359,7 @@ internal fun TabletTable(
     }
 
     fun bump(unit: TableUnit, delta: Int) {
+        if (readOnly) return
         unsent[unit.key] = (unsent[unit.key] ?: 0) + delta
         haptics.tick()
         gathering[unit.key]?.cancel()
@@ -349,7 +370,7 @@ internal fun TabletTable(
     }
 
     val allUnits = tableUnits(summary)
-    val soloOffered = standalone && !summary.settings.profile.cooperative
+    val soloOffered = !summary.settings.profile.cooperative
     // In one player's view a win claim's current confirmer joins it, so they can answer here.
     val units = soloKey?.takeIf { soloOffered }?.let { key ->
         allUnits.filter { u -> u.key == key || u.members.any { it.playerNumber == summary.pending.winConfirmationPlayer } }
@@ -359,7 +380,18 @@ internal fun TabletTable(
     // Official modes keep their limits unless house rules are on (Atlas enforces the same).
     val limitsLocked = !summary.settings.houseRules &&
         com.turnhub.android.standalone.officialRules(summary.settings.profile, summary.settings.twoHeadedGiant) != null
-    BoxWithConstraints(Modifier.fillMaxSize().background(p.bg)) {
+    val observation = if (readOnly) Modifier
+        .onPreviewKeyEvent { true }
+        .clearAndSetSemantics {
+            contentDescription = "${summary.state.name.lowercase()}. " +
+                summary.players.joinToString(". ") { "${it.label}${it.life?.let { life -> ", life $life" } ?: ""}" }
+        }
+        .pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+            }
+        } else Modifier
+    BoxWithConstraints(Modifier.fillMaxSize().then(observation)) {
         val landscape = maxWidth >= maxHeight || units.size <= 2
         val star = starLayout.on && summary.settings.profile.starCommander && units.size == StarCommander.PLAYERS
         // A cooperative table reads as one upright list, top to bottom, under a slim menu bar.
@@ -563,7 +595,7 @@ internal fun TabletTable(
 
         val manualVictim = summary.players.firstOrNull { it.playerNumber == manualRemoval && !it.eliminated }
         val sourceVictim = if (attribution != null) attribution.takeIf { sourceOpen } else manualVictim
-        if (sourceVictim != null) EliminationSourceDialog(summary, sourceVictim, attribution != null,
+        if (!readOnly && sourceVictim != null) EliminationSourceDialog(summary, sourceVictim, attribution != null,
             enabled = !isOffline && !tablet.busy, onConfirm = { source ->
                 val token = com.turnhub.android.protocol.GameActionToken(summary.bootId, summary.revision, bag?.cycle ?: 0, summary.game)
                 if (attribution != null) {
@@ -629,11 +661,14 @@ internal fun TabletTable(
                         Text("This game lasted under a minute, so it isn't in history or stats.", color = p.muted)
                         ToneButton("Count this game", onCountGame, Modifier.fillMaxWidth())
                     }
-                    if (onShareResult != null) {
-                        ToneButton("Share result", {
-                            scope.launch { onShareResult(tableShot.toImageBitmap().asAndroidBitmap()) }
-                        }, Modifier.fillMaxWidth())
-                    }
+                    ToneButton("Share result", {
+                        scope.launch {
+                            val picture = tableShot.toImageBitmap().asAndroidBitmap()
+                            if (onShareResult != null) onShareResult(picture)
+                            else com.turnhub.android.ui.components.shareGameResult(context, picture,
+                                summary.resultShareSummary(), p.bg.toArgb(), p.text.toArgb(), p.muted.toArgb())
+                        }
+                    }, Modifier.fillMaxWidth())
                     if (onShareCsv != null) ToneButton("Export CSV", onShareCsv, Modifier.fillMaxWidth())
                     OverlayButtons {
                         ToneButton("New players", { send(anySeat, "reset") }, Modifier.weight(1f))

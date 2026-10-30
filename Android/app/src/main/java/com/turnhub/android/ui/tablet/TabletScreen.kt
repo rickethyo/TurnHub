@@ -98,6 +98,10 @@ fun TabletScreen(
     onEditBackground: ((TablePlayer) -> Unit)? = null,
     canEditBackground: (TablePlayer) -> Boolean = { false },
     onBackToSetup: () -> Unit = onClose,
+    /** Embedded Game/Table entry points keep the app's navigation and insets. */
+    embedded: Boolean = false,
+    onFullScreen: () -> Unit = {},
+    setupOnly: Boolean = false,
 ) {
     var previousState by remember { mutableStateOf(summary?.state) }
     androidx.compose.runtime.LaunchedEffect(summary?.state) {
@@ -106,29 +110,42 @@ fun TabletScreen(
     }
     val scopedActions = actions.copy(run = { block -> actions.run { inGame(summary?.game ?: 1, block) } })
     val p = palette
-    KeepScreenOn()
-    BackHandler(onBack = onClose)
+    if (!embedded) {
+        KeepScreenOn()
+        BackHandler(onBack = onClose)
+    } else if (summary?.state == TableState.RUNNING) KeepScreenOn()
     tablet.pinPrompt?.let { prompt -> PinDialog(prompt.name, onSubmit = { pin -> scopedActions.run { seatSaved(prompt.profileId, prompt.name, pin) } }, onDismiss = scopedActions.onDismissPin) }
     val granted = signedIn && session?.tablet == true
     AmbientBackground(reduceMotion, modifier.fillMaxSize(), quiet = true) {
-    Column(Modifier.fillMaxSize()) {
-        if (summary != null) com.turnhub.android.ui.home.GameSelector(summary, onFollowGame, enabled = !offline && !switching && !tablet.busy)
+    Column(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.safeDrawingPadding())) {
+        if (embedded && !setupOnly && summary != null) TableNavigation(summary.state, onFullScreen = onFullScreen)
+        if (summary != null && summary.games.size > 1) Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+            com.turnhub.android.ui.home.GameSelector(summary, onFollowGame, enabled = !offline && !switching && !tablet.busy)
+        }
         androidx.compose.runtime.key(summary?.atlasId, summary?.bootId, summary?.game) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when {
                     summary == null -> Gate(tablet, scopedActions, onClose) {
                         Text("Connect to Atlas first, then open tablet mode again.", color = p.muted)
                     }
-                    !granted -> Gate(tablet, scopedActions, onClose) {
-                        GateSteps(signedIn, session?.has(AccountPermission.TABLET_ACCESS) == true, tablet, scopedActions)
-                    }
-                    session.game != summary.game -> Gate(tablet, scopedActions, onClose) {
+                    granted && session.game != summary.game -> Gate(tablet, scopedActions, onClose) {
                         Text("Refreshing the selected game…", color = p.muted)
                     }
-                    summary.state == TableState.LOBBY -> Lobby(summary, tablet, scopedActions, onClose, onEditBackground, canEditBackground)
+                    summary.state == TableState.LOBBY -> Lobby(summary, tablet, scopedActions, onClose, onEditBackground, canEditBackground,
+                        enabled = granted && !offline && !switching, embedded = embedded,
+                        access = {
+                            if (!granted) TableAccess(signedIn, session, tablet, scopedActions, Modifier.padding(16.dp))
+                        })
                     else -> {
-                        Immersive()
-                        TabletTable(summary, tablet, { block -> scopedActions.run { this.block() } }, scopedActions.onDismissMessage, reduceMotion, onClose, offline)
+                        if (!embedded) Immersive()
+                        Column(Modifier.fillMaxSize()) {
+                            if (!granted) TableAccess(signedIn, session, tablet, scopedActions)
+                            Box(Modifier.weight(1f).fillMaxWidth()) {
+                                TabletTable(summary, tablet, { block -> if (granted && !switching) scopedActions.run { this.block() } },
+                                    scopedActions.onDismissMessage, reduceMotion, onClose, offline,
+                                    readOnly = !granted || switching)
+                            }
+                        }
                     }
                 }
                 if (offline && summary != null) {
@@ -139,6 +156,17 @@ fun TabletScreen(
             }
         }
     }
+    }
+}
+
+/** Authority credentials live beside the shared game, never in place of it. */
+@Composable
+private fun TableAccess(signedIn: Boolean, session: SessionInfo?, tablet: TabletState, actions: TabletActions,
+    modifier: Modifier = Modifier) {
+    BrassCard(modifier.fillMaxWidth()) {
+        Eyebrow("Table controls")
+        GateSteps(signedIn, session?.has(AccountPermission.TABLET_ACCESS) == true, tablet, actions)
+        tablet.message?.let { Feedback(it.message, it.isError) }
     }
 }
 
@@ -253,18 +281,18 @@ private fun Gate(tablet: TabletState, actions: TabletActions, onClose: () -> Uni
 private fun GateSteps(signedIn: Boolean, tabletAccess: Boolean, tablet: TabletState, actions: TabletActions) {
     val p = palette
     if (!signedIn) {
-        Text("Sign in first. Any account can turn on tablet mode.", color = p.muted)
-        AccentButton("Sign in", actions.onSignIn, Modifier.fillMaxWidth())
+        Text("Sign in to control this table. You can follow the game here while signed out.", color = p.muted)
+        AccentButton("Sign in or pick a profile", actions.onSignIn, Modifier.fillMaxWidth())
         return
     }
     if (tabletAccess) {
         Text("This account has tablet access, so no code is needed.", color = p.muted)
-        AccentButton("Use this device as the tablet", { actions.run { enable() } }, Modifier.fillMaxWidth(), enabled = !tablet.busy)
+        AccentButton("Enable table controls", { actions.run { enable() } }, Modifier.fillMaxWidth(), enabled = !tablet.busy)
         return
     }
     if (!tablet.codePrompt) {
         Text("If an Admin turned the table code on, Atlas shows a code on its screen to prove this device is at the table.", color = p.muted)
-        AccentButton("Use this device as the tablet", { actions.run { requestCode() } }, Modifier.fillMaxWidth(), enabled = !tablet.busy)
+        AccentButton("Enable table controls", { actions.run { requestCode() } }, Modifier.fillMaxWidth(), enabled = !tablet.busy)
         return
     }
     var code by rememberSaveable { mutableStateOf("") }
@@ -278,7 +306,7 @@ private fun GateSteps(signedIn: Boolean, tabletAccess: Boolean, tablet: TabletSt
         keyboardActions = KeyboardActions(onDone = { if (code.length == 6) actions.run { confirmCode(code) } }),
         modifier = Modifier.fillMaxWidth(),
     )
-    AccentButton("Use this device as the tablet", { actions.run { confirmCode(code) } }, Modifier.fillMaxWidth(),
+    AccentButton("Enable table controls", { actions.run { confirmCode(code) } }, Modifier.fillMaxWidth(),
         enabled = code.length == 6 && !tablet.busy)
     TextButton(onClick = actions.onDismissCode) { Text("Cancel", color = p.muted) }
 }
@@ -298,9 +326,10 @@ internal fun TablePlayer.seat(): TabletSeat = TabletSeat(controller.id, slot)
 
 @Composable
 private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletActions, onClose: () -> Unit,
-    onEditBackground: ((TablePlayer) -> Unit)?, canEditBackground: (TablePlayer) -> Boolean) {
+    onEditBackground: ((TablePlayer) -> Unit)?, canEditBackground: (TablePlayer) -> Boolean,
+    enabled: Boolean, embedded: Boolean, access: @Composable () -> Unit) {
     val p = palette
-    LaunchedEffect(summary.players.size) { actions.run { loadSavedProfiles() } }
+    LaunchedEffect(summary.players.size, enabled) { if (enabled) actions.run { loadSavedProfiles() } }
     var confirmLeave by remember { mutableStateOf(false) }
     if (confirmLeave) {
         AlertDialog(
@@ -361,8 +390,9 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
             canEditBackground = canEditBackground,
         ),
         savedPlayers = tablet.savedProfiles.filter { it.profileId !in seated }.map { LobbySavedPlayer(it.profileId, it.name) },
-        enabled = !tablet.busy,
-        settingsEnabled = seat != null && !tablet.busy,
+        enabled = enabled && !tablet.busy,
+        settingsEnabled = enabled && seat != null && !tablet.busy,
+        settingsHint = if (enabled) "Add a player to choose the game." else "Enable table controls to change the game.",
         canAdd = true,
         identityHint = "A new name gets an account without a PIN. Sigils can join too.",
         savedTitle = "Saved players",
@@ -370,7 +400,11 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
             TextButton(onClick = onClose) { Text("Back", color = p.muted) }
             TextButton(onClick = { confirmLeave = true }) { Text("Leave tablet mode", color = p.bad) }
         },
-        feedback = { tablet.message?.let { Feedback(it.message, it.isError) } },
+        embedded = embedded,
+        feedback = {
+            access()
+            if (enabled) tablet.message?.let { Feedback(it.message, it.isError) }
+        },
     )
 }
 

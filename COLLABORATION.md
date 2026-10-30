@@ -34,6 +34,26 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-10-30, Codex: owner reiterates one game, many controllers after screenshots
+show the Atlas overview and full-screen access gate diverging from device play.
+Active scope on `codex/master`, baseline `b8c93fe7`: route Atlas Game setup
+through the shared lobby, retain the shell for its Table tab, share table
+navigation framing and put access requirements alongside the game. Preserve
+Atlas authorization and canonical state. Continuing #178 as the owner's app
+presentation follow-up. Owner then authorizes easy parity gaps: enable the
+shared table's single-player focus for Atlas and provide result-image sharing
+from its finished snapshot (no fabricated record/CSV). Game selection is
+neutral, and saved-player headings match. Closing full-screen returns to the
+embedded table without revoking its credential; leaving table control remains
+an explicit action. Both embedded running tables keep the display awake.
+The literal one-game/many-controllers
+presentation rule is now explicit in Invariant 12. Validation: Android debug
+assembly and all 542 JVM tests pass; docs links and whitespace checks pass.
+Includes draw/shared-victory/unfinished-result caption tests. Physical layout,
+TalkBack/keyboard access-loss behavior and Android share-sheet acceptance
+remain to check; no install or release. Full engine/feature convergence remains
+in TABLE_AUTHORITY and the existing staged parity work.
+
 2026-10-30, Codex: owner clarifies gear/pulse belongs in the app background,
 not inside the support photo; supplied device screenshots show the previous
 background was too faint. New slice on clean synchronized `c192eb29` after

@@ -17,6 +17,15 @@ Android's two table entry points share `TableLobby`, `TableLobbyActions`,
 adapters supply the same presentation model and action vocabulary. Authentication,
 Sigil management, profile selection and storage remain authority-specific.
 Local backgrounds are player-owned presentation, independent of match state.
+The Android Game tab opens the shared lobby for either authority. The Atlas
+Table tab stays embedded in the shell, like the device table; full-screen is
+an explicit action. Atlas sign-in/table-control access is inline with the
+actual lobby or live table. Before access is granted the live snapshot is
+read-only, including touch, keyboard and accessibility actions. A shared table
+can focus one player's panel regardless of authority.
+Finished tables offer the same result-image sharing action. A connected
+caption uses the reported winners, life and turns; it does not fabricate a
+local match record or export missing record fields as CSV.
 
 The rules have one C++ implementation and the app's Kotlin reference. Slice 1
 below has started (owner, 2026-10-29: "one game path"): [`core/`](../../core/README.md)

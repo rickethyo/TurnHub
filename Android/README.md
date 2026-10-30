@@ -245,7 +245,13 @@ merged back live. The rules above apply in full whenever Atlas is present.
   to that Atlas/profile. Images are decorative and dimmed behind controls.
 - `TableLobby` and `TableLobbyActions` share setup rendering/input behavior;
   `TabletTable` and `TableControls` share live rendering/controls. Authority
-  adapters own validation and persistence. Complete common-engine hosting,
+  adapters own validation and persistence. The Game tab opens this lobby for
+  both device and Atlas games. Both Table tabs retain app navigation, with an
+  explicit Full screen action. Atlas access requirements appear inline; a
+  signed-out viewer sees the real table read-only. The table menu can focus
+  one player's panel for either authority, and finished games offer Share
+  result with a table image. Atlas captions use its finished snapshot;
+  CSV export still requires the complete local record. Complete common-engine hosting,
   automatic phone takeover and reconnect reconciliation remain a
   [design](../Documentation/engineering/TABLE_AUTHORITY.md).
 - **History** is available in both modes. It shows results and detailed statistics derived

@@ -203,26 +203,12 @@ fun EmbeddedTable(
     val sound = remember(shown.game) { shown.game.toSummary(0, 0) }
     com.turnhub.android.ui.components.GameSoundEffect(sound, available = shown.game.state != TableState.LOBBY)
     Column(modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    when (game.state) {
-                        TableState.LOBBY -> "Practice table"
-                        TableState.GAME_OVER -> "Last game"
-                        TableState.PAUSED -> "Paused"
-                        else -> "Live game"
-                    },
-                    color = p.text, style = MaterialTheme.typography.titleSmall,
-                )
-                if (lobby) Text("Try anything. Nothing here is saved.", color = p.muted, style = MaterialTheme.typography.bodySmall)
+        TableNavigation(game.state, onFullScreen, practice = lobby, action = if (!lobby) null else {
+            {
+                if (game.canStart) AccentButton("Start game", startCountdown, Modifier.width(IntrinsicSize.Max))
+                else ToneButton("Set up players", onSetUp)
             }
-            when {
-                !lobby -> ToneButton("Full screen", onFullScreen)
-                game.canStart -> AccentButton("Start game", startCountdown, Modifier.width(IntrinsicSize.Max))
-                else -> ToneButton("Set up players", onSetUp)
-            }
-        }
+        })
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (shown.game.state == TableState.RUNNING) KeepScreenOn()
             if (practice != null) LocalTable(shown, practice, reduceMotion, onSetUp)
@@ -327,7 +313,7 @@ fun StandaloneLobby(
         settingsEnabled = true,
         canAdd = game.players.size < StandaloneGame.MAX_PLAYERS,
         identityHint = "Choose a saved player to keep their results together. Matching names can have different account IDs.",
-        savedTitle = "Saved on this device",
+        savedTitle = "Saved players",
         introduction = "One screen. Many rivals. Your table.",
         embedded = embedded,
         phoneHosted = true,

@@ -209,6 +209,15 @@ fun HomeScreen(
     val source = gameSource(atlasTable = summary != null, seatedAtAtlas = me != null,
         deviceGameUnderway = deviceUnderway, chosen = chosenSource)
     val atlasGame = source == GameSource.ATLAS
+    var previousAtlasState by androidx.compose.runtime.remember(summary?.atlasId, summary?.bootId, summary?.game) {
+        mutableStateOf(summary?.state)
+    }
+    androidx.compose.runtime.LaunchedEffect(summary?.state) {
+        if (atlasGame && tab == HomeTab.GAME && info?.tablet == true &&
+            previousAtlasState in listOf(TableState.LOBBY, TableState.STARTING) &&
+            summary?.state == TableState.RUNNING) tab = HomeTab.TABLE
+        previousAtlasState = summary?.state
+    }
     val deviceSummary = androidx.compose.runtime.remember(localState.game, localState.library.players) {
         localState.game.toSummary(System.currentTimeMillis(), com.turnhub.android.domain.TableClock.nowMs(),
             localState.library.players.associate { it.localId to it.personalization })
@@ -243,7 +252,7 @@ fun HomeScreen(
     // Tablet mode: this device becomes the table's shared screen until closed.
     com.turnhub.android.ui.components.GameSoundEffect(summary, available = !uiState.isOffline)
     var showTablet by rememberSaveable { mutableStateOf(false) }
-    if (showTablet || (tab == HomeTab.TABLE && atlasGame && !setup.visible)) {
+    if (showTablet) {
         com.turnhub.android.ui.tablet.TabletScreen(
             summary = summary,
             session = info,
@@ -256,8 +265,7 @@ fun HomeScreen(
             switching = uiState.player?.busy == true,
             onClose = {
                 showTablet = false
-                tab = HomeTab.GAME
-                if (info?.tablet == true) tabletActions.run { disable() }
+                tab = HomeTab.TABLE
             },
             onBackToSetup = { showTablet = false; tab = HomeTab.GAME },
             modifier = modifier,
@@ -393,8 +401,26 @@ fun HomeScreen(
                 },
                 label = "tab",
             ) { shown ->
-                pageState.SaveableStateProvider(if (shown == HomeTab.MORE) "MORE:${morePage.name}" else shown.name) {
+                pageState.SaveableStateProvider(when (shown) {
+                    HomeTab.MORE -> "MORE:${morePage.name}"
+                    HomeTab.GAME, HomeTab.TABLE -> "${shown.name}:${source.name}"
+                    else -> shown.name
+                }) {
                     when {
+                        !setup.visible && atlasGame && (shown == HomeTab.TABLE ||
+                            (shown == HomeTab.GAME && summary?.state == TableState.LOBBY)) ->
+                            com.turnhub.android.ui.tablet.TabletScreen(
+                                summary = summary, session = info, signedIn = uiState.player?.signedIn == true,
+                                tablet = tablet, actions = tabletActions, reduceMotion = reduceMotion,
+                                onClose = { tab = HomeTab.GAME }, onBackToSetup = { tab = HomeTab.GAME },
+                                offline = uiState.isOffline, switching = uiState.player?.busy == true,
+                                onFollowGame = onFollowGame, embedded = true,
+                                setupOnly = shown == HomeTab.GAME, onFullScreen = { showTablet = true },
+                                onEditBackground = if (localTable == null) null else { player ->
+                                    editingBackgroundId = summary?.let { localState.library.linkedPlayer(it.atlasId, player.profileId)?.localId }
+                                },
+                                canEditBackground = { player -> summary?.let { localState.library.linkedPlayer(it.atlasId, player.profileId) } != null },
+                            )
                         !setup.visible && shown == HomeTab.TABLE -> localTableContent({ tab = HomeTab.GAME }, { tab = HomeTab.PLANES })
                         !setup.visible && shown == HomeTab.HISTORY -> localHistoryContent()
                         !setup.visible && shown == HomeTab.PLANES -> localPlanesContent()
