@@ -2091,6 +2091,20 @@ static void turnTimerEngine() {
   assert(engine.turnTimerPhase(start + 29999) == TurnTimerPhase::Normal);
   assert(engine.gameElapsedMs(start + 29999) == 29999);
 
+  // A denied/withdrawn win claim resumes on the same millis() clock. Use
+  // both an ordinary nonzero start and a start crossing the 32-bit wrap.
+  for (uint32_t began : {123456u, UINT32_MAX - 2000u}) {
+    assert(engine.start(seats,2,seats[0],began,settings));
+    assert(engine.beginWinClaim(1,true,began + 1000));
+    assert(engine.gameElapsedMs(began + 2000) == 1000);
+    assert(engine.denyWinClaim(2,began + 2000));
+    assert(!engine.paused() && engine.gameElapsedMs(began + 2500) == 1500);
+    assert(engine.turnRemainingMs(began + 2500) == 58500);
+    assert(engine.beginWinClaim(1,true,began + 3000));
+    assert(engine.cancelWinClaim(1,began + 4000));
+    assert(engine.gameElapsedMs(began + 4500) == 2500);
+  }
+
   for (uint32_t bad : {1000u, 14000u, 15500u, TURN_TIMER_MAX_MS + 1000}) {
     settings.turnTimerMs = bad;
     assert(!validTurnTimerMs(bad) && !engine.start(seats,2,seats[0],1,settings));
@@ -4812,6 +4826,20 @@ static void matchHistory() {
   assert(request("/api/session/join",ana)==200 && request("/api/session/join",ben)==200);
   assert(request("/api/control/start",ana)==200); testNow+=3000; updateCountdown(testNow);
   assert(table().hubState==HubState::Running);
+  // Power loss preserves the record ID and names, including guest labels:
+  // otherwise every boot's first restored game used "atlas-restored-2"
+  // and the history silently deduplicated unrelated games.
+  const std::string matchId = table().game.core().gameId;
+  TurnHub::GameCheckpoint saved, decoded;
+  table().game.checkpoint(saved,testNow);
+  uint8_t bytes[TurnHub::GAME_CHECKPOINT_CAPACITY];
+  const size_t size = TurnHub::encodeCheckpoint(saved,bytes,sizeof(bytes));
+  assert(size && TurnHub::decodeCheckpoint(bytes,size,decoded)==TurnHubStorage::Status::Ok);
+  assert(table().game.restoreCheckpoint(decoded,testNow+1000));
+  assert(table().game.core().gameId==matchId && table().game.core().players[0].name=="Ana History" &&
+      table().game.core().players[1].name=="Ben History");
+  assert(table().game.resume(testNow+1000));
+  testNow+=1000;
   testNow+=TurnHub::SHORT_GAME_MS+1000;
   assert(request("/api/control/concede",ben)==200 && table().hubState==HubState::GameOver);
   assert(request("/api/profiles/history",ben,{{"profileId",benId}},HTTP_GET)==200);

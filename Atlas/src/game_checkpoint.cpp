@@ -5,6 +5,8 @@
 
 namespace TurnHub {
 void clearCheckpoint(GameCheckpoint &out) {
+  memset(out.gameId, 0, sizeof(out.gameId));
+  memset(out.names, 0, sizeof(out.names));
   out.settings = GameSettings{};
   out.doom = DoomBag{};
   out.monarch = out.initiative = 0;
@@ -29,6 +31,7 @@ void clearCheckpoint(GameCheckpoint &out) {
 }
 
 bool validCheckpoint(const GameCheckpoint &s) {
+  if (!memchr(s.gameId, 0, sizeof(s.gameId)) || (s.count && !s.gameId[0])) return false;
   if (!validGameSettings(s.settings) || s.count > MAX_PLAYERS) return false;
   if (s.initiative && (s.initiative > s.count || s.eliminated[s.initiative-1] || !magicRules(s.settings.profile))) return false;
   if (s.monarch && (s.monarch > s.count || s.eliminated[s.monarch-1] || !magicRules(s.settings.profile))) return false;
@@ -57,6 +60,7 @@ bool validCheckpoint(const GameCheckpoint &s) {
   uint8_t living = 0;
   bool pendingAttribution = false;
   for (uint8_t i = 0; i < s.count; ++i) {
+    if (!memchr(s.names[i], 0, sizeof(s.names[i])) || !s.names[i][0]) return false;
     const auto &p = s.players[i];
     if (p.playerNumber != i + 1 || p.controllerId >= MAX_CONTROLLERS ||
         (p.slot != 1 && p.slot != 2) ||
@@ -107,6 +111,7 @@ bool validCheckpoint(const GameCheckpoint &s) {
 void GameEngine::checkpoint(GameCheckpoint &out, uint32_t nowMs) const {
   clearCheckpoint(out);
   if (!hasPlayers()) return;
+  snprintf(out.gameId, sizeof(out.gameId), "%s", core_.gameId.c_str());
   out.settings = settings_;
   out.doom = doom_;
   out.count = playerCount_;
@@ -121,6 +126,7 @@ void GameEngine::checkpoint(GameCheckpoint &out, uint32_t nowMs) const {
   out.nextRequestId = nextLifeRequestId_;
   for (uint8_t i = 0; i < playerCount_; ++i) {
     const turnhub::Player &p = core_.players[i];
+    snprintf(out.names[i], sizeof(out.names[i]), "%s", p.name.c_str());
     out.players[i] = players_[i]; out.stats[i] = stats_[i];
     out.conceded[i] = p.conceded;
     out.selfEliminated[i] = p.selfEliminated; out.eliminationPending[i] = p.eliminationPending;
@@ -151,7 +157,7 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
     case GameProfile::DoomCommander: g.profile = turnhub::Profile::MtgBagOfDoom; break;
     default: g.profile = turnhub::Profile::Generic; break;
   }
-  g.gameId = "atlas-restored-" + std::to_string(matchGeneration_);
+  g.gameId = s.gameId;
   g.state = s.over ? turnhub::TableState::GameOver : turnhub::TableState::Paused;
   g.startingLife = s.settings.startingLife;
   g.twoHeadedGiant = s.settings.twoHeadedGiant;
@@ -184,7 +190,7 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
   for (uint8_t i = 0; i < s.count; ++i) {
     players_[i] = s.players[i];
     turnhub::Player p;
-    p.name = "Player " + std::to_string(i + 1);
+    p.name = s.names[i];
     p.profileId = s.players[i].profileId;
     p.life = s.life[i];
     p.eliminated = s.eliminated[i]; p.conceded = s.conceded[i];

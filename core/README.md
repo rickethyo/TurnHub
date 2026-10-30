@@ -1,7 +1,8 @@
 # turnhub-core
 
 One set of game rules for every TurnHub device. *Experimental* (2026-10-29):
-built and tested on the host only; Atlas and the app don't link it yet. The
+Atlas runs its games on this core through `GameEngine`; the app still runs
+the Kotlin reference until the NDK integration. Host scenarios check both. The
 plan and its phases are in [Shared table authority](../Documentation/engineering/TABLE_AUTHORITY.md)
 and [Staged changes](../Documentation/engineering/STAGED_CHANGES.md).
 
