@@ -4,6 +4,7 @@
 // adapter never mutates canonical table state directly; audit_adapters.py
 // enforces that.
 #include "atlas_app.h"
+#include "player_controls_model.h"
 #include "sigil_update_service.h"
 #include "controller_profiles.h"
 #include "profile_picker.h"
@@ -312,6 +313,16 @@ void handleLifeResponse(uint8_t sigilId, int32_t value) {
   logRejected("LIFE|RESPONSE", sigilId, intents.dispatch(intent));
 }
 
+void handlePlayerControl(uint8_t sigilId, int32_t value) {
+  TableScope scope(tableForController(sigilId));
+  uint8_t player, control, revision; int8_t change;
+  if (!TurnHubProtocol::decodePlayerControl(value,player,control,change,revision) ||
+      revision != sigilMenuRevision(sigilId)) return;
+  const auto *seat=table().game.playerByNumber(player);
+  if (!seat || seat->controllerId!=sigilId || !(playerControlsFor(player).allowed & (1u<<control))) return;
+  logRejected("PLAYER_CONTROL",sigilId,intents.dispatch(playerControlIntent(*seat,IntentOrigin::PhysicalSigil,control,change)));
+}
+
 void processSigilEvents() {
   if (table().hubState != HubState::Lobby) {
     sigilBus.closePairing();
@@ -336,6 +347,7 @@ void processSigilEvents() {
     if (connectionBlocked(event.sigilId)) continue;
     switch (event.type) {
 
+      case PacketType::PlayerControl: handlePlayerControl(event.sigilId,event.value); break;
       case PacketType::SelectAction: handleSelectAction(event.sigilId, event.value); break;
       case PacketType::CommanderKey: handleCommanderKey(event.sigilId,event.value,millis()); break;
       case PacketType::PickerKey: handlePickerKey(event.sigilId, event.value, millis()); break;

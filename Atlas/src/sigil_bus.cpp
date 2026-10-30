@@ -360,6 +360,7 @@ void SigilBus::handleReceive(
 
     case PacketType::SelectAction:
     case PacketType::PickerKey:
+    case PacketType::PlayerControl:
     case PacketType::CommanderKey:
     case PacketType::LifeAdjust:
     case PacketType::LifeResponse:

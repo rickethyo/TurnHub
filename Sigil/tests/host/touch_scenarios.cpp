@@ -10,6 +10,17 @@
 using namespace TurnHubSigil;
 
 int main() {
+  {
+    using namespace TurnHubProtocol;
+    uint8_t player,id,revision; int8_t value;
+    assert(decodePlayerControl(encodePlayerControl(16,10,1,7),player,id,value,revision));
+    assert(player==16 && id==10 && value==1 && revision==7);
+    assert(!decodePlayerControl(encodePlayerControl(0,0,1,0),player,id,value,revision));
+    assert(!decodePlayerControl(encodePlayerControl(1,11,1,0),player,id,value,revision));
+    assert(!decodePlayerControl(encodePlayerControl(1,0,0,0),player,id,value,revision));
+    assert(!decodePlayerControl(encodePlayerControl(1,7,-1,0),player,id,value,revision));
+    assert(!decodePlayerControl(0x4000|encodePlayerControl(1,0,1,0),player,id,value,revision));
+  }
   // Raw readings at the four inset crosses on the first board (2026-10-28):
   // raw Y rises along screen x, raw X falls down screen y.
   const uint16_t rawX[TOUCH_CAL_POINTS] = {3500, 3500, 380, 380};

@@ -342,6 +342,7 @@ void processSigilEvents();
 void handleSelectAction(uint8_t sigilId, int32_t value);
 // Life from a Sigil: a batched LifeAdjust, and a LifeResponse to a request.
 void handleLifeAdjust(uint8_t sigilId, int32_t value);
+void handlePlayerControl(uint8_t sigilId, int32_t value);
 void handleLifeResponse(uint8_t sigilId, int32_t value);
 
 // --- sigil_accessibility.cpp -------------------------------------------------

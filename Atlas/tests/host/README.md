@@ -129,7 +129,7 @@ Sigil reconnect handshake that clears transient bindings. On hardware, attach a
 named profile more than five seconds after boot and verify its name and player count
 remain stable, then sign into the same profile from a second browser.
 
-Sigil receive coverage copies both the 7-byte control packet and the 110-byte
+Sigil receive coverage copies both the 7-byte control packet and the 156-byte
 game display through the production receive buffer, rejecting incorrect sizes.
 The physical companion scenario checks game-end seat clearing, saved statistics,
 rematch restoration and guest behavior after reset.

@@ -353,11 +353,15 @@ void drawHeader(lv_obj_t *root, const AtlasScreen &s) {
   char right[64];
   headerRight(s, right, sizeof(right));
   const int16_t battery = drawBattery(bar, s);
-  live.header = text(bar, right, &th_semi_16, s.sdMissing ? pal().warning : pal().textSecondary, 110, 7, W - 124 - battery,
+  live.header = text(bar, right, &th_eyebrow_13, s.sdMissing ? pal().warning : pal().textSecondary, 110, 7, W - 124 - battery,
        LV_TEXT_ALIGN_RIGHT);
 }
 
 void headerRight(const AtlasScreen &s, char *right, size_t size) {
+  if (s.round) {
+    snprintf(right,size,"R%u %s%s",s.round,s.gameClock,s.sdMissing ? " !SD" : "");
+    return;
+  }
   size_t n = 0;
   right[0] = 0;
   if (s.round > 0) n += snprintf(right + n, size - n, "Round %u  ", static_cast<unsigned>(s.round));
@@ -625,6 +629,27 @@ void drawStandings(lv_obj_t *root, const AtlasScreen &s) {
 }
 
 void drawBody(lv_obj_t *root, const AtlasScreen &s) {
+  if (s.showPlayerControls) {
+    uint8_t ids[TurnHubUi::PLAYER_CONTROL_COUNT];
+    const uint8_t count=TurnHubUi::playerControlRows(s.controls,ids);
+    if (!count) text(root,"No player counters available",&th_semi_16,pal().textSecondary,16,140,W-32);
+    for (uint8_t j=0;j<3 && s.controlsPage*3+j<count;++j) {
+      const uint8_t id=ids[s.controlsPage*3+j]; const int32_t value=s.controls.values[id];
+      const int16_t y=SCREEN_BODY_Y+j*78;
+      auto *row=box(root,8,y,W-16,72); card(row,pal().surface1,pal().separator,12);
+      text(row,TurnHubUi::playerControlLabel(id),&th_semi_16,pal().textSecondary,8,2,W-32);
+      char number[32];
+      if (TurnHubUi::playerControlToggle(id)) snprintf(number,sizeof(number),"%s",value ? "On" : "Off");
+      else snprintf(number,sizeof(number),"%ld",static_cast<long>(value));
+      const bool casts=id==5 || id==6;
+      text(row,number,&th_semi_20,pal().text,64,casts ? 25 : 33,W-144,LV_TEXT_ALIGN_CENTER);
+      if (casts) {
+        char tax[24]; snprintf(tax,sizeof(tax),"Next tax +%ld",static_cast<long>(value*2));
+        text(row,tax,&th_eyebrow_13,pal().textSecondary,64,52,W-144,LV_TEXT_ALIGN_CENTER);
+      }
+    }
+    return;
+  }
   if (codeLayout(s)) {
     // Code on top, the QR code centred under it, then its caption and lines.
     int16_t y = SCREEN_BODY_Y;
@@ -859,7 +884,7 @@ void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
   // The largest type that fits on one line; two lines of the small one
   // otherwise. An icon leads the label when there is room for both.
   const lv_image_dsc_t *glyph = key ? nullptr : actionIcon(b.action);
-  int16_t room = b.w - 16;
+  int16_t room = b.w - 10;
   const lv_font_t *font = textWidth(label, &th_semi_20) <= room ? &th_semi_20 : &th_semi_16;
   if (glyph && textWidth(label, font) + 30 > room) font = &th_semi_16;
   if (glyph && textWidth(label, font) + 30 > room) glyph = nullptr;

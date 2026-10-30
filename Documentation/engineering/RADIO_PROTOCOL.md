@@ -21,7 +21,7 @@ contract is `protocol/http-v1.md`.
   the Secure Link envelope (AES-128-CCM, +15 bytes). Only `PairRequest2` and
   `PairAccept2` are cleartext.
 - **Packed structs.** Host tests check the sizes: the 7-byte control
-  `Packet` and the 110-byte `GameDisplay`. The GCC runner's
+  `Packet` and the 156-byte `GameDisplay`. The GCC runner's
   `-mno-ms-bitfields` keeps the layout.
 - **Self-healing.** A Sigil sends Hello every 2 s. Atlas answers each Hello by
   resending the light, menu, screen, life request, seat colors and other
@@ -57,7 +57,9 @@ retired packets and are free again.
 |---|---|---|---|
 | `Hello` / `Ack` | 1 / 2 | S→A / A→S | Keep-alive with firmware version and capabilities (`encodeHelloInfo`) |
 | `DisplayProfileRequest`, `DisplayState`, `DisplayNameChunk` | 9, 30, 31 | both | Lobby, pairing, pause and game-over screens and seat names |
-| `GameDisplay` | 32 | A→S | Running-game screen: focused and secondary player (name, life), up to three Commander damage sources and a `+N` overflow. One complete 110-byte datagram, so loss never mixes fields from two updates |
+| `GameDisplay` | 32 | A→S | Active/paused/finished game screen: focused and secondary player (name, life), up to three Commander damage sources and a `+N` overflow, plus focused-player counter/status values and allowed controls. One complete 156-byte datagram, so loss never mixes fields from two updates |
+| `PlayerControl` | 53 | S→A | Own-player counter/status request, shared control ID, explicit delta/value and current menu revision. Atlas resolves the controller’s table, checks seat ownership and availability, then dispatches the existing Intent |
+| `TableDisplay` | 52 | Aâ†’S | Atomic paged public roster, 164 bytes; shared game/revision identifies its pages |
 | `Unpair` | 12 | A→S | Atlas forgot this Sigil; honored only from its saved Atlas |
 | `SelectAction` | 13 | S→A | The chosen menu action and menu revision. Bits 11-15 carry the receiving player for Commander actions |
 | `MenuState2` | 34 | A→S | Mask of the 29 actions this Sigil may use now, plus a 3-bit revision. Atlas drops a choice from an old revision |

@@ -21,7 +21,7 @@ struct ReceivedPacket {
       "Picker page must fit the receive buffer");
   static_assert(sizeof(TurnHubProtocol::CommanderFlowPacket) <= sizeof(TurnHubProtocol::SigilUpdateOfferPacket),
       "Commander page must fit the receive buffer");
-  static_assert(sizeof(TurnHubProtocol::GameDisplayPacket) <= sizeof(TurnHubProtocol::SigilUpdateOfferPacket),
+  static_assert(sizeof(TurnHubProtocol::GameDisplayPacket) <= sizeof(TurnHubProtocol::TableDisplayPacket),
       "Game display must fit the receive buffer");
   static_assert(MAX_BYTES <= TurnHubSecureLink::ESPNOW_MAX_BYTES, "Receive buffer past one frame");
 

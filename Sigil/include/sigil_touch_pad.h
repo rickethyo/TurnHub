@@ -7,6 +7,8 @@ namespace TurnHubSigil {
 constexpr int16_t SIGIL_SCREEN_W = 240, SIGIL_SCREEN_H = 320;
 constexpr int16_t NAV_Y = 272, NAV_H = 48;
 constexpr uint8_t TOUCH_NONE = 0xFF, TOUCH_NAV = 0x80, TOUCH_PREV = 0x90, TOUCH_NEXT = 0x91;
+constexpr uint8_t TOUCH_CONTROLS_BACK=0x92, TOUCH_CONTROLS_PREV=0x93, TOUCH_CONTROLS_NEXT=0x94;
+constexpr uint8_t TOUCH_CONTROL=0xA0; // Two targets per shared control: minus/off, plus/on.
 struct PadRect {
   int16_t x, y, w, h;
   bool contains(int16_t px, int16_t py, int16_t slop = 0) const {

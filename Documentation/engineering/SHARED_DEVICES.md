@@ -33,8 +33,12 @@ Settings navigation. Sigil Game adopts the personal Share Play layout, while
 Atlas Game exposes host controls. Both Table destinations are read-only.
 Physical Sigils remain paired with Atlas over their encrypted radio session;
 they do not join the Android LAN host or run a local game. The radio now carries
-a paged public table roster; it does not yet carry Share Play's full counters,
-artwork or Planechase presentation. The remaining convergence work belongs in
+a paged public table roster and the focused player's counters/status. More
+opens player actions and **Counters**, a **Counters & status** panel: poison, energy, experience,
+treasure, rad, city’s blessing, monarch, initiative and, in Commander, casts,
+next tax and partner commanders. Three rows fit per page; values change only
+after Atlas accepts a request. Device settings use the Settings tab. Artwork
+and Planechase presentation remain open. The remaining convergence work belongs in
 [Staged Changes](STAGED_CHANGES.md), without a second game authority.
 
 ## Authority and feature gate

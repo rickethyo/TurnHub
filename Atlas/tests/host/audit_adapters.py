@@ -16,7 +16,7 @@ ADAPTERS = {
     "sigil_input.cpp": ["passFromMenu",
                         "processSigilEvents", "respondToWinClaim", "dispatchPauseOrResume",
                         "connectionBlocked", "handleSelectAction",
-                        "handleLifeAdjust", "handleLifeResponse"],
+                        "handleLifeAdjust", "handleLifeResponse", "handlePlayerControl"],
     "web_adapters.cpp": ["handleWebControl", "handleProfileControl", "configureGame",
                          "changeLife", "changeCounter", "moderateAccount", "manageDevices",
                          "dispatchBrowserSeatIntent"],

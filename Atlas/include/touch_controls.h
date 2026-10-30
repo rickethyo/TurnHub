@@ -11,6 +11,7 @@
 // (status, Menu, info, QR codes, Table).
 
 #include <Arduino.h>
+#include "player_controls.h"
 #include <string.h>
 
 #include "update_notice.h"
@@ -53,6 +54,7 @@ enum class TouchAction : uint8_t {
   ClearLobby,
   // In a game: the Table screen and its master pass (a stuck turn).
   OpenTable, MasterPass,
+  OpenPlayerControls, PlayerControlsBack, PlayerControlsPrev, PlayerControlsNext, ControlMinus, ControlPlus,
   // Presence code screen: cancel the code a phone asked for.
   CancelCode,
   // Screens that change no table state.
@@ -195,6 +197,9 @@ struct AtlasScreen {
   ScreenPlayer players[MAX_SCREEN_PLAYERS];
   uint8_t playerCount = 0;
   bool showLife = false;
+  bool showPlayerControls = false;
+  uint8_t controlsPage = 0;
+  TurnHubUi::PlayerControls controls{};
 
   // Turn clock: timerPermille is the countdown left (0-1000), or -1 with no
   // countdown; clock is "1:23" (left, or elapsed with no countdown).
@@ -257,7 +262,8 @@ inline bool sameTimer(const AtlasScreen &a, const AtlasScreen &b) {
 
 // times: compare the players' turn times too (otherwise only whether each has one).
 inline bool sameBody(const AtlasScreen &a, const AtlasScreen &b, bool times = true) {
-  if (a.kind != b.kind || a.playerCount != b.playerCount || a.showLife != b.showLife ||
+  if (a.showPlayerControls != b.showPlayerControls || a.controlsPage != b.controlsPage ||
+      memcmp(&a.controls,&b.controls,sizeof(a.controls)) || a.kind != b.kind || a.playerCount != b.playerCount || a.showLife != b.showLife ||
       a.lineCount != b.lineCount || !sameScreenText(a.qr, b.qr) || !sameScreenText(a.qrCaption, b.qrCaption) ||
       !sameScreenText(a.code, b.code)) {
     return false;

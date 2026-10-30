@@ -1,4 +1,5 @@
 #include "led_renderer.h"
+#include "player_controls_model.h"
 
 #include <cstring>
 #include "profile_store.h"
@@ -342,12 +343,14 @@ void LedRenderer::syncDisplay(
       flags);
 
   Cache &cache = cache_[sigilId];
-  if (mode == TurnHubProtocol::DisplayMode::Running) {
+  if (mode == TurnHubProtocol::DisplayMode::Running || mode == TurnHubProtocol::DisplayMode::Paused ||
+      mode == TurnHubProtocol::DisplayMode::GameOver) {
     TurnHubProtocol::GameDisplayPacket snapshot{};
     snapshot.version = TurnHubProtocol::VERSION;
     snapshot.type = TurnHubProtocol::PacketType::GameDisplay;
     snapshot.sigilId = sigilId;
     snapshot.state = payload;
+    snapshot.controls = TurnHubAtlas::playerControlsFor(game,state,primary,eliminationTargetPlayer!=0);
     snapshot.commander = commanderRules(game.settings().profile);
     auto name = [&](uint8_t player, char *out) {
       const auto *seat = game.playerByNumber(player);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "player_controls.h"
 
 namespace TurnHubProtocol {
 
@@ -72,7 +73,7 @@ constexpr uint16_t HOLD_STEP_MS = 250;
 // newer Atlas firmware can identify older Sigil packets.
 enum class PacketType : uint8_t {
   Hello = 1,
-  TableDisplay = 51,  // Atlas -> Sigil: read-only roster pages, never commands.
+  TableDisplay = 52,  // Atlas -> Sigil: read-only roster pages, never commands.
   Ack = 2,
   // Unused numbers (3-8, 10-11, 14, 20-22, 26-27) belonged to retired packets:
   // the three-button gestures, keyless pairing, the per-channel light stream,
@@ -149,6 +150,7 @@ enum class PacketType : uint8_t {
   GameDisplay = 32,
   CommanderFlow = 50,
   CommanderKey = 51,
+  PlayerControl = 53, // Sigil -> Atlas, own-player counter/status request.
 };
 
 enum class DisplayMode : uint8_t {
@@ -284,8 +286,9 @@ struct __attribute__((packed)) GameDisplayPacket {
   DisplayParticipant primary;
   DisplayParticipant secondary;
   DisplayCommanderSource sources[DISPLAY_COMMANDER_SOURCES];
+  TurnHubUi::PlayerControls controls;
 };
-static_assert(sizeof(GameDisplayPacket) == 110, "Game display wire layout changed");
+static_assert(sizeof(GameDisplayPacket) == 156, "Game display wire layout changed");
 
 constexpr uint8_t TABLE_PAGE_ROWS = 8;
 constexpr uint8_t TABLE_MAX_PLAYERS = 16;
@@ -322,10 +325,26 @@ inline bool validTableDisplay(const TableDisplayPacket &p) {
   }
   return true;
 }
+// Compact own-player request: player bits 0..4, control 5..8, value+1 9..10,
+// menu revision 11..13. Reserved bits must remain clear.
+inline int32_t encodePlayerControl(uint8_t player, uint8_t control, int8_t value, uint8_t revision) {
+  return player | (control << 5) | ((static_cast<uint32_t>(value + 1) & 3u) << 9) | ((revision & 7) << 11);
+}
+inline bool decodePlayerControl(int32_t raw, uint8_t &player, uint8_t &control, int8_t &value, uint8_t &revision) {
+  const uint32_t v=static_cast<uint32_t>(raw);
+  player=v&31; control=(v>>5)&15; value=static_cast<int8_t>((v>>9)&3)-1; revision=(v>>11)&7;
+  return !(v>>14) && player>=1 && player<=16 && control<TurnHubUi::PLAYER_CONTROL_COUNT && value<=1 &&
+      (TurnHubUi::playerControlToggle(control) ? value>=0 : value!=0);
+}
 inline bool validGameDisplay(const GameDisplayPacket &p) {
+  if (p.controls.allowed >> TurnHubUi::PLAYER_CONTROL_COUNT) return false;
+  for (uint8_t i=0;i<TurnHubUi::PLAYER_CONTROL_COUNT;++i)
+    if (p.controls.values[i]<0 || p.controls.values[i]>1000000 ||
+        (TurnHubUi::playerControlToggle(i) && p.controls.values[i]>1)) return false;
   if (p.version != VERSION || p.type != PacketType::GameDisplay ||
       p.sigilId >= MAX_SIGILS || p.commander > 1 ||
-      (static_cast<uint32_t>(p.state) & DISPLAY_MODE_MASK) != static_cast<uint8_t>(DisplayMode::Running) ||
+      (static_cast<uint32_t>(p.state) & DISPLAY_MODE_MASK) < static_cast<uint8_t>(DisplayMode::Running) ||
+      (static_cast<uint32_t>(p.state) & DISPLAY_MODE_MASK) > static_cast<uint8_t>(DisplayMode::GameOver) ||
       p.primary.life < -1000000 || p.primary.life > 1000000 ||
       p.secondary.life < -1000000 || p.secondary.life > 1000000 ||
       (!p.commander && (p.sourceCount || p.omittedSources)) ||

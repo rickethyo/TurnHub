@@ -39,10 +39,11 @@ constexpr uint8_t MENU_LOCAL_THEME = MENU_MAX_ITEMS + 7;
 constexpr uint8_t MENU_LOCAL_INVERT = MENU_MAX_ITEMS + 8;
 // Touch Sigil only (TURNHUB_BOARD_E32R28T): the on-screen touch calibration.
 constexpr uint8_t MENU_LOCAL_CALIBRATE = MENU_MAX_ITEMS + 9;
+constexpr uint8_t MENU_LOCAL_COUNTERS = MENU_MAX_ITEMS + 10;
 static_assert(MENU_LOCAL_CALIBRATE < TurnHubProtocol::SIGIL_ACTION_NONE, "menu ids must stay below MENU_NONE");
 constexpr uint32_t MENU_UNPAIR_HOLD_MS = 3000;
 constexpr uint32_t MENU_FACTORY_RESET_HOLD_MS = 5000;
-// The most Menu rows: every Atlas action but AdjustLife, then Device and Back.
+// The most Menu rows: every Atlas action but AdjustLife, then local controls.
 constexpr uint8_t MENU_LIST_MAX = MENU_MAX_ITEMS - 1 + 2;
 // True for actions chosen by holding a key (shown "(hold)" in the legend).
 bool menuActionNeedsHold(uint8_t action);
@@ -84,6 +85,7 @@ class SigilMenu {
   SigilMenu() = default;
 
   void applyMenuState2(int32_t value, uint32_t nowMs);
+  void setPlayerControlsAvailable(bool available);
   void clear();  // Unpaired: no menu until Atlas sends one.
   void cancelInput() { holding_ = false; pending_ = MenuChoice(); closeMenu(); }
   // Atlas lost: drop Atlas's menu; Up still opens Menu, on the Device entries.
@@ -119,7 +121,7 @@ class SigilMenu {
   // The action on a key with Menu closed (Up is always Menu).
   static uint8_t bareAction(uint32_t actions, Key key);
   // Menu's entries for these actions: every offered action not on a bare key,
-  // in a fixed order, then Device. With none, the Device entries themselves.
+  // in a fixed order, then Counters & status during play. Offline recovery opens the Device entries.
   // device: the Device entries (Unpair, Factory reset). No Back row.
   static uint8_t menuEntries(uint32_t actions, uint8_t out[MENU_LIST_MAX], bool device = false);
 
@@ -144,6 +146,7 @@ class SigilMenu {
   void openMenu();
   void closeMenu() { menuOpen_ = false; deviceOpen_ = false; deviceDirect_ = false; page_ = 0; }
   void back();
+  bool playerControlsAvailable_ = false;
   bool active_ = false;
   bool offline_ = false;
   uint32_t actions_ = 0;
