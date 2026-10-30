@@ -8,6 +8,7 @@
 // with it is guarded by displayProfileMux.
 
 #include <Arduino.h>
+#include <atomic>
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
@@ -314,8 +315,10 @@ void publishLifeOverlay();
 TurnHubSigil::Key touchKey = TurnHubSigil::Key::Count;
 uint32_t lastTouchSampleMs = 0;
 TurnHubUi::Page selectedPage = TurnHubUi::Page::Home;
-bool navigationChanged = true;
+std::atomic<bool> navigationChanged{true};
 uint8_t tablePage = 0;
+std::atomic<bool> playerControlsOpen{false};
+std::atomic<uint8_t> playerControlsPage{0};
 TurnHubSigil::TableSnapshot tableSnapshot;
 void notifyDisplayTask();
 uint8_t shownPlayer();
@@ -337,9 +340,10 @@ void updateTouch(uint32_t nowMs) {
   const uint16_t request = static_cast<uint16_t>(lifeRequest.target << 8) | lifeRequest.tag;
   if (selectedPage == TurnHubUi::Page::Game && gameDisplayValid && !pickerActive && !commanderActive &&
       TurnHubSigil::sigilTouchLifeRequest() != request) touchKey = TurnHubSigil::Key::Count;
-  if (target != previous && target >= TurnHubSigil::TOUCH_NAV) {
+  if (target != previous && target != TurnHubSigil::TOUCH_NONE && target >= TurnHubSigil::TOUCH_NAV) {
     if (target < TurnHubSigil::TOUCH_NAV + TurnHubUi::PAGE_COUNT) {
       const auto page = static_cast<TurnHubUi::Page>(target - TurnHubSigil::TOUCH_NAV);
+      playerControlsOpen = false;
       sigilMenu.cancelInput();
       lifeAdjuster.release(nowMs);
       for (bool &routed : lifeKeyRouted) routed = false;
@@ -347,6 +351,19 @@ void updateTouch(uint32_t nowMs) {
       portENTER_CRITICAL(&displayProfileMux);
       selectedPage = page; navigationChanged = true;
       portEXIT_CRITICAL(&displayProfileMux);
+    } else if (target >= TurnHubSigil::TOUCH_CONTROL && target < TurnHubSigil::TOUCH_CONTROL+2*TurnHubUi::PLAYER_CONTROL_COUNT) {
+      if (playerControlsOpen && gameDisplayValid && !lifeRequest.target && !atlasLink.lost() &&
+          TurnHubSigil::sigilTouchPlayer()==shownPlayer() && TurnHubSigil::sigilTouchMenuRevision()==sigilMenu.revision()) {
+        const uint8_t control=(target-TurnHubSigil::TOUCH_CONTROL)/2;
+        const bool plus=(target-TurnHubSigil::TOUCH_CONTROL)%2;
+        sendPacket(PacketType::PlayerControl,TurnHubProtocol::encodePlayerControl(shownPlayer(),control,
+            TurnHubUi::playerControlToggle(control) ? (plus ? 1 : 0) : (plus ? 1 : -1),sigilMenu.revision()));
+      }
+    } else if (target == TurnHubSigil::TOUCH_CONTROLS_BACK) {
+      playerControlsOpen=false;
+    } else if (target == TurnHubSigil::TOUCH_CONTROLS_PREV || target == TurnHubSigil::TOUCH_CONTROLS_NEXT) {
+      if (target == TurnHubSigil::TOUCH_CONTROLS_PREV && playerControlsPage) --playerControlsPage;
+      if (target == TurnHubSigil::TOUCH_CONTROLS_NEXT && playerControlsPage<3) ++playerControlsPage;
     } else if (target == TurnHubSigil::TOUCH_PREV || target == TurnHubSigil::TOUCH_NEXT) {
       portENTER_CRITICAL(&displayProfileMux);
       if (target == TurnHubSigil::TOUCH_PREV && tablePage) --tablePage;
@@ -354,6 +371,7 @@ void updateTouch(uint32_t nowMs) {
       navigationChanged = true;
       portEXIT_CRITICAL(&displayProfileMux);
     }
+    navigationChanged = true;
     publishMenuView();
     displayNeedsRefresh = true; notifyDisplayTask();
   }
@@ -596,8 +614,7 @@ void updateDisplay() {
   static bool renderedGameValid = false;
   portENTER_CRITICAL(&displayProfileMux);
   const auto page = selectedPage;
-  const bool changedNavigation = navigationChanged;
-  navigationChanged = false;
+  const bool changedNavigation = navigationChanged.exchange(false);
   portEXIT_CRITICAL(&displayProfileMux);
   if (changedNavigation) { renderedGameValid = false; displayNeedsRefresh = true; }
   static bool pickerShown = false;
@@ -786,8 +803,10 @@ void updateDisplay() {
     applyPendingSeatNames();
     // Clear before drawing; packets arriving while the panel is busy wake us again.
     displayNeedsRefresh = false;
-    if (menuChanged || !renderedGameValid || memcmp(&renderedGame, &currentGame, sizeof(currentGame))) {
-      sigilDisplay.showGame(currentGame);
+    if (changedNavigation || menuChanged || !renderedGameValid || memcmp(&renderedGame, &currentGame, sizeof(currentGame))) {
+      if (playerControlsOpen && currentGame.controls.allowed && !lifeOverlay.request.target)
+        sigilDisplay.showPlayerControls(currentGame,playerControlsPage);
+      else { playerControlsOpen=false; sigilDisplay.showGame(currentGame); }
       renderedGame = currentGame;
       renderedGameValid = true;
     }
@@ -1061,6 +1080,7 @@ void applyAtlasLinkChange(TurnHubSigil::LinkChange change) {
     // dropped rather than applied late. Only the device menu stays, so a
     // Sigil whose Atlas is gone can still be unpaired or reset.
     sigilMenu.setOffline();
+    playerControlsOpen=false;
     lifeAdjuster.cancel();
     commanderActive = false; commanderChanged = true;
     lifeRequest = TurnHubProtocol::LifeRequestFields{};
@@ -1187,9 +1207,10 @@ void handleAtlasPacket(
     TurnHubProtocol::GameDisplayPacket snapshot{};
     memcpy(&snapshot, incomingData, sizeof(snapshot));
     if (!atlasKnown || memcmp(mac, atlasMac, 6) || snapshot.sigilId != sigilId ||
-        !TurnHubProtocol::validGameDisplay(snapshot) ||
-        TurnHubProtocol::displayMode(snapshot.state) != DisplayMode::Running) return;
+        !TurnHubProtocol::validGameDisplay(snapshot)) return;
     noteAtlasHeard();
+    sigilMenu.setPlayerControlsAvailable(snapshot.controls.allowed!=0);
+    publishMenuView();
     portENTER_CRITICAL(&displayProfileMux);
     const bool changed = !gameDisplayValid || memcmp(&snapshot, &pendingGameDisplay, sizeof(snapshot));
     pendingGameDisplay = snapshot;
@@ -1274,6 +1295,7 @@ void handleAtlasPacket(
         if (!busy) { screenTestPending = true; screenTestBusy = true; }
         portEXIT_CRITICAL(&displayProfileMux);
         if (busy) break;
+        playerControlsOpen = false;
         sigilMenu.cancelInput();
         lifeAdjuster.cancel();
         for (bool &routed : lifeKeyRouted) routed = false;
@@ -1641,7 +1663,10 @@ void updateMenuKeys() {
   commanderRepeatKey = 255;
   updateLife(nowMs);
   const TurnHubSigil::MenuChoice choice = sigilMenu.update(nowMs);
-  if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_THEME) {
+  if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_COUNTERS) {
+    playerControlsOpen=true; playerControlsPage=0;
+    navigationChanged=true; displayNeedsRefresh=true; notifyDisplayTask();
+  } else if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_THEME) {
     cycleDisplayTheme();
   } else if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_INVERT) {
     toggleDisplayInversion();

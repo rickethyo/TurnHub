@@ -123,7 +123,7 @@ int main() {
     d.showGame(game("Ricky", 22, false, 7)); save("game-request" + suffix);
     d.setLifeOverlay(LifeOverlay());
     MenuView open = menu({{Key::Select, A(SigilAction::Pause)}, {Key::Up, A(SigilAction::ClaimWin)},
-        {Key::Right, A(SigilAction::BeginElimination)}, {Key::Down, MENU_LOCAL_DEVICE}, {Key::Left, MENU_LOCAL_BACK}});
+        {Key::Right, A(SigilAction::BeginElimination)}, {Key::Down, MENU_LOCAL_COUNTERS}, {Key::Left, MENU_LOCAL_BACK}});
     open.deviceMenu = true;
     d.setMenuView(open);
     d.showGame(game("Ricky", 22, false, 7)); save("menu" + suffix);
@@ -133,12 +133,23 @@ int main() {
     open.compass[static_cast<uint8_t>(Key::Down)] = MENU_LOCAL_MORE;
     d.setMenuView(open);
     d.showGame(game("Ricky", 22, false, 7)); save("menu-paged" + suffix);
-    open.compass[static_cast<uint8_t>(Key::Down)] = MENU_LOCAL_DEVICE;
+    open.compass[static_cast<uint8_t>(Key::Down)] = MENU_LOCAL_COUNTERS;
     open.pageCount = 0;
     open.holdAction = A(SigilAction::ClaimWin);
     open.holdPercent = 50;
     d.setMenuView(open);
     d.showGame(game("Ricky", 22, false, 7)); save("action-hold" + suffix);
+    auto controls=game("Ricky",42,true,2);
+    controls.commander=1; controls.controls.allowed=(1u<<TurnHubUi::PLAYER_CONTROL_COUNT)-1;
+    controls.controls.values[0]=3; controls.controls.values[5]=2;
+    d.setMenuView(MenuView());
+    for(uint8_t page=0;page<4;++page) { d.showPlayerControls(controls,page);save("counters-"+std::to_string(page)+suffix); }
+    d.setSeatName(0,"Guest");d.setSeatName(1,"Alexandria");
+    d.setMenuView(menu({{Key::Up,MENU_LOCAL_DEVICE_MENU},{Key::Select,A(SigilAction::Rematch)}}));
+    d.showState(2,DisplayMode::GameOver,1,2,2,DISPLAY_FLAG_WINNER);save("shared-game-over"+suffix);
+    d.setMenuView(menu({{Key::Up,MENU_LOCAL_DEVICE_MENU},{Key::Left,A(SigilAction::DenyWin)},
+        {Key::Down,A(SigilAction::SwitchSeat)},{Key::Select,A(SigilAction::ConfirmWin)}}));
+    d.showState(2,DisplayMode::Paused,1,0,2,DISPLAY_FLAG_ATTENTION);save("confirm-win"+suffix);
     d.setMenuView(MenuView());
     ProfilePickerPacket p{};
     p.sigilId = 2; p.mode = PickerMode::List; p.page = 0; p.pageCount = 2; p.itemCount = 3;

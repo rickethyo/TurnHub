@@ -291,7 +291,7 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   touchscreens, with a read-only Atlas roster. Validate navigation, held/dragged
   touches, modal prompts, shared seats, offline/reconnect, full rosters and themes
   on both boards. Remaining convergence: common player presentation contracts,
-  counters, artwork, Planechase and transport-independent actions, following the
+  artwork, Planechase, remaining table-wide counter tools and transport-independent actions, following the
   existing shared-authority plan. Each live game keeps one host; direct
   phone-hosted Sigils and live authority transfer are separate work.
 

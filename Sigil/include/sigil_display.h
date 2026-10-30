@@ -70,6 +70,7 @@ class SigilDisplay {
   // percent downloaded (or -1). Replaces every other screen, with no menu.
   virtual void showUpdate(const char *status, int8_t percent) = 0;
   virtual bool setSeatName(uint8_t slot, const char *name) = 0;
+  virtual void showPlayerControls(const TurnHubProtocol::GameDisplayPacket &, uint8_t) {}
   virtual void showGame(const TurnHubProtocol::GameDisplayPacket &snapshot) = 0;
   virtual void showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
       uint8_t primaryPlayer, uint8_t secondaryPlayer, uint8_t turnNumber,

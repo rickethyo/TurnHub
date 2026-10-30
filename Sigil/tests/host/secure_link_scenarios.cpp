@@ -39,7 +39,7 @@ void pairBoth(TestCrypto &crypto, PairingResult &atlas, PairingResult &sigil,
 
 void layoutsAreStable() {
   assert(sizeof(TurnHubProtocol::Packet) + SECURE_OVERHEAD == 22);
-  assert(sizeof(TurnHubProtocol::GameDisplayPacket) + SECURE_OVERHEAD == 125);
+  assert(sizeof(TurnHubProtocol::GameDisplayPacket) + SECURE_OVERHEAD == 171);
   assert(SECURE_OVERHEAD == 15 && MAX_INNER_BYTES == 235);
   // Every sealed page Atlas sends must get past the radio callback's size filter.
   using TurnHubSigil::ReceivedPacket;
@@ -175,7 +175,7 @@ void sealedFramesRoundTripAndRejectTampering() {
   strcpy(display.primary.name, "Ricky");
   const size_t big = atlas.seal(crypto, 2, reinterpret_cast<const uint8_t *>(&display),
       sizeof(display), frame, sizeof(frame));
-  assert(big == 125);
+  assert(big == sizeof(display)+SECURE_OVERHEAD);
   assert(sigil.open(crypto, 2, frame, big, inner, sizeof(inner)) == sizeof(display));
   assert(memcmp(inner, &display, sizeof(display)) == 0);
   uint8_t tooBig[MAX_INNER_BYTES + 1] = {};

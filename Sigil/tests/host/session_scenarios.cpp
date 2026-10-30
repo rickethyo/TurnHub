@@ -52,7 +52,7 @@ void handshakeThenSealedTrafficBothWays() {
   display.type = PacketType::GameDisplay;
   display.sigilId = 2;
   n = atlas.seal(crypto, 2, &display, sizeof(display), frame, sizeof(frame));
-  assert(n == 125);
+  assert(n == sizeof(display)+SECURE_OVERHEAD);
   assert(sigil.open(crypto, frame, n, inner, sizeof(inner)) == sizeof(display));
 }
 

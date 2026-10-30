@@ -64,6 +64,7 @@ const char *sigilActionLabel(SigilAction action) {
     case MENU_LOCAL_BACK: return "Back";
     case MENU_LOCAL_UNPAIR: return "Unpair";
     case MENU_LOCAL_DEVICE: return "Device";
+    case MENU_LOCAL_COUNTERS: return "Counters";
     case MENU_LOCAL_MORE: return "More";
     case MENU_LOCAL_THEME: return "Theme";
     case MENU_LOCAL_INVERT: return "Invert";
@@ -136,17 +137,24 @@ uint8_t SigilMenu::menuEntries(uint32_t actions, uint8_t out[MENU_LIST_MAX], boo
       for (Key key : {Key::Select, Key::Left, Key::Right, Key::Down}) bare = bare || bareAction(actions, key) == action;
       if (!bare) out[count++] = action;
     }
-    if (count) {
-      out[count++] = MENU_LOCAL_DEVICE;
-      return count;
-    }
+    if (actions & TurnHubProtocol::sigilActionBit(SigilAction::AdjustLife)) out[count++] = MENU_LOCAL_COUNTERS;
+    if (count) return count;
   }
+  if (!device && actions) return count;
   for (uint8_t local : DEVICE_ENTRIES) out[count++] = local;
   return count;
 }
 
+void SigilMenu::setPlayerControlsAvailable(bool available) {
+  if (playerControlsAvailable_==available) return;
+  playerControlsAvailable_=available; holding_=false; page_=0;
+}
 uint8_t SigilMenu::levelEntries(uint8_t out[MENU_LIST_MAX]) const {
-  return menuEntries(offline_ ? 0 : actions_, out, deviceOpen_);
+  const uint8_t count=menuEntries(offline_ ? 0 : actions_, out, deviceOpen_);
+  uint8_t n=0;
+  for(uint8_t i=0;i<count;++i)
+    if (out[i]!=MENU_LOCAL_COUNTERS || playerControlsAvailable_) out[n++]=out[i];
+  return n;
 }
 
 // Every page but the last shows three entries and More on Down.
@@ -234,7 +242,7 @@ void SigilMenu::emit(uint8_t action) {
 void SigilMenu::openMenu() {
   menuOpen_ = true;
   page_ = 0;
-  uint8_t entries[MENU_LIST_MAX];
+  uint8_t entries[MENU_LIST_MAX] = {MENU_NONE};
   // Nothing but Device on offer: open straight onto it.
   menuEntries(offline_ ? 0 : actions_, entries);
   deviceDirect_ = entries[0] == MENU_LOCAL_UNPAIR;
@@ -267,7 +275,7 @@ void SigilMenu::choose(uint8_t action, Key key, uint32_t nowMs) {
     return;
   }
   if (action == MENU_LOCAL_THEME || action == MENU_LOCAL_INVERT) { emit(action); return; }
-  if (action == MENU_LOCAL_CALIBRATE) {
+  if (action == MENU_LOCAL_CALIBRATE || action == MENU_LOCAL_COUNTERS) {
     emit(action);
     closeMenu();
     return;

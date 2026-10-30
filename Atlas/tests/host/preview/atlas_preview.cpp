@@ -100,6 +100,24 @@ void renderShell(AtlasScreen &s,const ScreenStyle &style,bool keepBanner=false) 
 }
 
 void renderAll(const ScreenStyle &style, const std::string &suffix) {
+  for(uint8_t page=0;page<4;++page) {
+    auto s=base("PLAYER","Alexandria","Counters & status"); s.kind=ScreenKind::Player;
+    s.showPlayerControls=true; s.controlsPage=page; s.controls.allowed=(1u<<TurnHubUi::PLAYER_CONTROL_COUNT)-1;
+    s.controls.values[5]=2;
+    uint8_t ids[TurnHubUi::PLAYER_CONTROL_COUNT];const uint8_t n=TurnHubUi::playerControlRows(s.controls,ids);
+    for(uint8_t j=0;j<3 && page*3+j<n;++j) {
+      const uint8_t id=ids[page*3+j];const bool toggle=TurnHubUi::playerControlToggle(id);
+      for(uint8_t plus=0;plus<2;++plus) {
+        if(!plus && id==8) continue;
+        auto &b=s.buttons[s.buttonCount++];b.action=plus ? TouchAction::ControlPlus : TouchAction::ControlMinus;
+        b.arg=id;b.label=toggle ? (plus ? "On" : "Off") : (plus ? "+" : "-");
+        b.x=plus ? 252 : 16;b.y=SCREEN_BODY_Y+j*78+24;b.w=52;b.h=44;
+      }
+    }
+    row(s,BUTTON_ROW_Y,{{TouchAction::PlayerControlsPrev,"Prev"},{TouchAction::PlayerControlsBack,"Done"},{TouchAction::PlayerControlsNext,"Next"}});
+    renderShell(s,style); save("player-counters-"+std::to_string(page)+suffix);
+  }
+
   {
     auto s=base("ATLAS","TurnHub","Your table controller");s.kind=ScreenKind::Home;
     const TouchAction targets[]={TouchAction::OpenGame,TouchAction::OpenOverview,TouchAction::OpenSettings};
@@ -189,13 +207,13 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     row(s, BUTTON_ROW_Y, {{TouchAction::CloseScreen, "Cancel"}});
     renderShell(s, style); save("pin" + suffix);
   }
-  for (int n : {3, 4, 6, 8}) {
+  for (int n : {2, 3, 4, 6, 8}) {
     AtlasScreen s = base("PLAYING", "Sam's turn", "Hold Pass on your Sigil to pass");
     s.batteryCharging = true;
     s.round = 3; snprintf(s.gameClock, sizeof(s.gameClock), "42:10"); snprintf(s.clock, sizeof(s.clock), "1:23");
     s.timerPermille = 600;
     players(s, n, true);
-    row(s, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Hold to pass"}, {TouchAction::Pause, "Pause"}, {TouchAction::OpenTable, "Table"}}, {4, 2, 2});
+    row(s, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Hold to pass"}, {TouchAction::Pause, "Pause"}, {TouchAction::OpenTable, "Actions"}}, {3, 2, 3});
     s.buttons[0].holdMs = TOUCH_PASS_HOLD_MS;
     renderShell(s, style); save("game-" + std::to_string(n) + suffix);
     if (n != 4) continue;

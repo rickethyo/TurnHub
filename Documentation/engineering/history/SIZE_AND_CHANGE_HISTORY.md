@@ -1105,3 +1105,14 @@ Two-Headed Giant starter's team leads with its first player. Finished Atlas
 games go to the match history (`games.jsonl`/`games.csv`). No radio, checkpoint
 layout, NVS or new dependency change. `pio run -e atlas-s3` (cloud): RAM 35.9%,
 flash 27.3%. Hardware acceptance pending.
+
+## 2026-10-29: Atlas 0.7.20 and Sigil 0.9.20 player controls
+
+Baseline `f7ab1919`. Fix touchscreen clipping and move device settings off the
+Sigil’s in-game More list. Both firmware clients expose the app’s player counters
+and statuses through existing Atlas Intents. GameDisplay grows to 156 bytes;
+TableDisplay is type 52 (distinct from CommanderKey 51), PlayerControl is 53.
+All prototype boards need the paired USB update. No new dependency or persistence
+layout. Verified local release builds: Atlas RAM 119,232 bytes / flash 1,796,517;
+Sigil RAM 53,872 / flash 1,203,693. USB image verification and reconnect pass;
+physical interaction acceptance remains open.

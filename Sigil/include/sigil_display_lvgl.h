@@ -30,6 +30,7 @@ class LvglSigilDisplay : public SigilDisplay {
   void showPairingCode(uint16_t code) override;
   void showUpdate(const char *status, int8_t percent) override;
   bool setSeatName(uint8_t slot, const char *name) override;
+  void showPlayerControls(const TurnHubProtocol::GameDisplayPacket &, uint8_t page) override;
   void showGame(const TurnHubProtocol::GameDisplayPacket &snapshot) override;
   void showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode, uint8_t primaryPlayer,
       uint8_t secondaryPlayer, uint8_t turnNumber, uint8_t flags) override;
@@ -68,7 +69,7 @@ class LvglSigilDisplay : public SigilDisplay {
   char seatName_[2][TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
   lv_obj_t *keys_[KEY_COUNT] = {};
   Key pressed_ = Key::Count;
-  enum class Layout : uint8_t { Actions, Game, Menu, Picker, Commander, Hidden };
+  enum class Layout : uint8_t { Actions, State, Game, Menu, Picker, Commander, Hidden };
   Layout layout_ = Layout::Actions;
   TouchMap touchMap_;
   TurnHubUi::Page page_ = TurnHubUi::Page::Game;

@@ -98,7 +98,7 @@ int main() {
     assert(SigilMenu::bareAction(lobby, Key::Up) == MENU_LOCAL_DEVICE_MENU);
     uint8_t e[MENU_LIST_MAX];
     uint8_t n = SigilMenu::menuEntries(lobby, e);
-    assert(n == 3 && e[0] == id(A::RandomStarter) && e[1] == id(A::Leave) && e[2] == MENU_LOCAL_DEVICE);
+    assert(n == 2 && e[0] == id(A::RandomStarter) && e[1] == id(A::Leave));
     // A Commander game, own turn, shared Sigil: same keys as any game.
     const uint32_t cmd = bits({A::Pass, A::ClaimWin, A::Pause, A::AdjustLife, A::CommanderDamage,
         A::UndoCommanderHit, A::AddPartner, A::SwitchSeat});
@@ -107,13 +107,13 @@ int main() {
     assert(SigilMenu::bareAction(cmd, Key::Left) == MENU_NONE && SigilMenu::bareAction(cmd, Key::Right) == MENU_NONE);
     n = SigilMenu::menuEntries(cmd, e);
     const uint8_t want[] = {id(A::CommanderDamage), id(A::UndoCommanderHit), id(A::Pause), id(A::ClaimWin),
-        id(A::AddPartner), MENU_LOCAL_DEVICE};
+        id(A::AddPartner), MENU_LOCAL_COUNTERS};
     assert(n == sizeof(want) && std::memcmp(e, want, n) == 0);
     // Paused: Resume on the click; I'm out in Menu.
     const uint32_t paused = bits({A::Resume, A::BeginElimination, A::AdjustLife});
     assert(SigilMenu::bareAction(paused, Key::Select) == id(A::Resume));
     n = SigilMenu::menuEntries(paused, e);
-    assert(n == 2 && e[0] == id(A::BeginElimination) && e[1] == MENU_LOCAL_DEVICE);
+    assert(n == 2 && e[0] == id(A::BeginElimination) && e[1] == MENU_LOCAL_COUNTERS);
     // Decisions keep their answers on bare keys.
     const uint32_t out = bits({A::Eliminate, A::NextTarget, A::CancelElimination});
     assert(SigilMenu::bareAction(out, Key::Select) == id(A::Eliminate) &&
@@ -135,6 +135,17 @@ int main() {
     }
   }
 
+  {
+    SigilMenu m;
+    m.applyMenuState2(menu({A::Pass,A::AdjustLife},A::Pass,1),0);
+    m.keyDown(Key::Up,0);
+    assert(m.keyAction(Key::Select)==MENU_NONE); // Generic game: no dead counter entry.
+    m.setPlayerControlsAvailable(true);
+    assert(m.keyAction(Key::Select)==MENU_LOCAL_COUNTERS);
+    m.setPlayerControlsAvailable(false);
+    assert(m.keyAction(Key::Select)==MENU_NONE);
+  }
+
   // No menu yet: inactive, keys ignored.
   {
     SigilMenu idle;
@@ -147,6 +158,7 @@ int main() {
   // follow), Left back a page or out. Choosing an entry closes Menu.
   {
     SigilMenu cmd;
+    cmd.setPlayerControlsAvailable(true);
     cmd.applyMenuState2(menu({A::Pass, A::ClaimWin, A::Pause, A::AdjustLife, A::CommanderDamage,
         A::UndoCommanderHit, A::AddPartner}, A::Pass, 3), 0);
     assert(cmd.lifeOffered() && cmd.keyAction(Key::Up) == MENU_LOCAL_DEVICE_MENU);
@@ -159,15 +171,12 @@ int main() {
         cmd.keyAction(Key::Left) == MENU_LOCAL_BACK);
     cmd.keyDown(Key::Down, 20); cmd.keyUp(Key::Down, 30);
     assert(cmd.view().page == 1 && cmd.keyAction(Key::Select) == id(A::ClaimWin) &&
-        cmd.keyAction(Key::Up) == id(A::AddPartner) && cmd.keyAction(Key::Right) == MENU_LOCAL_DEVICE &&
+        cmd.keyAction(Key::Up) == id(A::AddPartner) && cmd.keyAction(Key::Right) == MENU_LOCAL_COUNTERS &&
         cmd.keyAction(Key::Down) == MENU_NONE);
-    // Device, then Back to the page that opened it, Back to page 1, Back out.
-    cmd.keyDown(Key::Right, 40); cmd.keyUp(Key::Right, 50);
-    assert(cmd.view().recovery && cmd.keyAction(Key::Select) == MENU_LOCAL_UNPAIR &&
-        cmd.keyAction(Key::Up) == MENU_LOCAL_FACTORY_RESET && cmd.keyAction(Key::Right) == MENU_LOCAL_THEME);
-    cmd.keyDown(Key::Left, 60); assert(!cmd.view().recovery && cmd.view().page == 1);
-    cmd.keyDown(Key::Left, 70); assert(cmd.view().page == 0);
-    cmd.keyDown(Key::Left, 80); assert(!cmd.deviceMenuOpen());
+    // Counter page is local; device settings never appear in the game menu.
+    cmd.keyDown(Key::Right,40); cmd.keyUp(Key::Right,50);
+    const auto counters=cmd.update(50);
+    assert(counters.ready && static_cast<uint8_t>(counters.action)==MENU_LOCAL_COUNTERS && !cmd.deviceMenuOpen());
     // Choose Cmd damage: sent once, Menu closes.
     cmd.keyDown(Key::Up, 100); cmd.keyDown(Key::Select, 110);
     MenuChoice c = cmd.update(120);
@@ -197,7 +206,7 @@ int main() {
   {
     SigilMenu dev;
     dev.applyMenuState2(menu({A::Join}, A::Join, 1), 0);
-    dev.keyDown(Key::Up, 0);
+    dev.openDeviceMenu(0);
     assert(dev.view().recovery && dev.keyAction(Key::Select) == MENU_LOCAL_UNPAIR);
     assert(dev.keyAction(Key::Up) == MENU_LOCAL_FACTORY_RESET);
     assert(dev.keyAction(Key::Right) == MENU_LOCAL_THEME);
@@ -217,15 +226,15 @@ int main() {
     const auto calibrate = dev.update(8);
     assert(calibrate.ready && static_cast<uint8_t>(calibrate.action) == MENU_LOCAL_CALIBRATE && !dev.deviceMenuOpen());
     dev.keyUp(Key::Up, 9);
-    dev.keyDown(Key::Up, 100); dev.keyDown(Key::Up, 110);
+    dev.openDeviceMenu(100); dev.keyDown(Key::Up, 110);
     assert(!dev.update(110 + MENU_FACTORY_RESET_HOLD_MS - 1).ready);
     MenuChoice c = dev.update(110 + MENU_FACTORY_RESET_HOLD_MS);
     assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_FACTORY_RESET && !dev.deviceMenuOpen());
-    dev.keyDown(Key::Up, 20000); dev.keyDown(Key::Select, 20010);
+    dev.openDeviceMenu(20000); dev.keyDown(Key::Select, 20010);
     c = dev.update(20010 + MENU_UNPAIR_HOLD_MS);
     assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_UNPAIR);
     // Back from the Device entries opened directly closes Menu.
-    dev.keyDown(Key::Up, 30000); dev.keyDown(Key::Left, 30010);
+    dev.openDeviceMenu(30000); dev.keyDown(Key::Left, 30010);
     assert(!dev.deviceMenuOpen());
     // A game starting closes Menu.
     dev.applyMenuState2(menu({A::Leave, A::RandomStarter}, A::Join, 2), 31000);

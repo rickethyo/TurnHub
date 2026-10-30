@@ -1291,6 +1291,32 @@ static void lifeApprovalsAndCommander() {
   enterEmptyLobby();
 }
 
+static void physicalPlayerControls() {
+  using namespace TurnHub; using namespace TurnHubProtocol;
+  freshLobby(3,true); table().nextGameSettings.profile=GameProfile::Commander;
+  table().nextGameSettings.startingLife=40; startFromHost(); syncSigilMenus(testNow);
+  auto change=[&](uint8_t sigil,uint8_t player,uint8_t control,int8_t value,uint8_t revision=255) {
+    handlePlayerControl(sigil,encodePlayerControl(player,control,value,revision==255 ? sigilMenuRevision(sigil) : revision));
+  };
+  change(0,1,0,1); assert(table().game.countersForPlayer(1)->poison==1);
+  change(1,1,0,1); assert(table().game.countersForPlayer(1)->poison==1); // Other controller.
+  change(0,1,0,1,(sigilMenuRevision(0)+1)&7); assert(table().game.countersForPlayer(1)->poison==1);
+  change(0,2,1,1); assert(table().game.countersForPlayer(2)->energy==1); // Own shared seat.
+  change(0,1,5,1); assert(table().game.countersForPlayer(1)->commanderCasts[0]==1);
+  change(0,1,6,1); assert(table().game.countersForPlayer(1)->commanderCasts[1]==0); // No partner.
+  change(0,1,10,1); assert(table().game.hasPartner(1));
+  change(0,1,6,1); change(0,1,10,0); assert(table().game.hasPartner(1)); // Cannot drop recorded partner.
+  change(0,1,7,1); change(0,1,8,1); change(0,1,9,1);
+  assert(table().game.countersForPlayer(1)->cityBlessing && table().game.monarchPlayerNumber()==1 && table().game.initiativePlayerNumber()==1);
+  const auto *seat=table().game.playerByNumber(1);
+  assert(dispatchSeatIntent(IntentType::Pause,IntentOrigin::PhysicalSigil,*seat).accepted());
+  syncSigilMenus(testNow); change(0,1,2,1); assert(table().game.countersForPlayer(1)->experience==1);
+  change(0,1,2,-1); change(0,1,2,-1); assert(table().game.countersForPlayer(1)->experience==0);
+  assert(dispatchSeatIntent(IntentType::ClaimWin,IntentOrigin::PhysicalSigil,*seat).accepted());
+  change(0,1,1,1); assert(table().game.countersForPlayer(1)->energy==0); // Decision blocks edits.
+  enterEmptyLobby(); change(0,1,0,1); assert(!table().game.hasPlayers());
+}
+
 static void commanderFlow() {
   using namespace TurnHub;
   using namespace TurnHubProtocol;
@@ -1417,6 +1443,9 @@ static void physicalGameDisplay() {
   auto render = [&]() { renderer.render(HubState::Running,table,engine,0,0,0,100); };
   render();
   auto first = sentGameDisplays[0];
+  assert(first.controls.allowed & 1);
+  assert(engine.changePlayerCounter(1,CounterKind::Energy,3));
+  render(); assert(sentGameDisplays[0].controls.values[1]==3);
   assert(first.primary.life == 40 && first.secondary.life == 40 && first.commander);
   assert(!first.sourceCount && !strcmp(first.primary.name,"Ricky"));
   unsigned count = gameDisplaySends;
@@ -2699,7 +2728,7 @@ static void touchControls() {
     int16_t cx,cy,cw,ch; screenChipCell(1,table().game.playerCount(),cx,cy,cw,ch);
     touchAt(cx+cw/2,cy+10); testNow+=30; touchAt(cx+cw/2,cy+10); touchRelease();
     s=currentScreen();
-    assert(s.kind==ScreenKind::Player && String(s.badge)=="PLAYER" && s.buttonCount==10 &&
+    assert(s.kind==ScreenKind::Player && String(s.badge)=="PLAYER" && s.buttonCount==11 &&
         String(screenButton(s,TouchAction::LifeMinus5)->label)=="-5" && screenButton(s,TouchAction::CloseScreen) &&
         !screenButton(s,TouchAction::Concede)->hold());
     for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None) assert(b.w>=44 && b.h>=44);
@@ -3080,6 +3109,21 @@ static void tapKey(TouchAction action,uint8_t arg) {
   const int16_t x=b->x+b->w/2, y=b->y+b->h/2;
   touchAt(x,y); testNow+=30; touchAt(x,y); touchRelease();
 }
+static void touchPlayerCounters() {
+  freshLobby(2); table().nextGameSettings.profile=TurnHub::GameProfile::Commander;
+  table().nextGameSettings.startingLife=40; startFromHost(); resetTouchControls();
+  int16_t x,y,w,h; screenChipCell(0,2,x,y,w,h);
+  touchAt(x+w/2,y+10); touchRelease(); tapButton(TouchAction::OpenPlayerControls);
+  auto s=currentScreen(); assert(s.showPlayerControls && s.controls.allowed);
+  for(uint8_t i=0;i<s.buttonCount;++i) assert(s.buttons[i].w>=44 && s.buttons[i].h>=44);
+  tapKey(TouchAction::ControlPlus,0); assert(table().game.countersForPlayer(1)->poison==1);
+  tapKey(TouchAction::ControlMinus,0); assert(table().game.countersForPlayer(1)->poison==0);
+  tapButton(TouchAction::PlayerControlsNext); assert(currentScreen().controlsPage==1);
+  tapKey(TouchAction::ControlPlus,5); assert(table().game.countersForPlayer(1)->commanderCasts[0]==1);
+  tapButton(TouchAction::PlayerControlsBack); assert(!currentScreen().showPlayerControls);
+  enterEmptyLobby(); resetTouchControls();
+}
+
 // The Add player row whose label starts with `name`, paging with More.
 static bool tapSeatRow(const char *name) {
   for (uint8_t page=0;page<20;++page) {
@@ -6106,6 +6150,7 @@ int main() {
   tenPlayerImportCredit(); std::cout<<"PASS ten-player imports, high winner bit, elimination credit and retry deduplication\n";
   standaloneImport(); std::cout<<"PASS standalone import: exact Atlas/profile scope, no name fallback, invalid mapping, guests, per-player receipts, duplicates, storage failure, draw\n";
   matchHistory(); std::cout<<"PASS match history: whole records kept once with Atlas profile IDs, CSV rows, torn lines, history route\n";
+  touchPlayerCounters(); std::cout<<"PASS Atlas player counters: shared projection, touch requests, pagination and Done\n";
   touchSeatsPlayers(); std::cout<<"PASS touchscreen Add player: saved profiles, PIN keypad, New player keyboard, unique names\n";
   tabletMode(); std::cout<<"PASS tablet mode: presence code, Tablet access role, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
@@ -6122,6 +6167,7 @@ int main() {
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   helloCapabilityLayout(); std::cout<<"PASS Hello capability layout and firmware version fields\n";
   firstRunSetup(); std::cout<<"PASS first-run setup: boot stage, Welcome and Skip, account, table code, private Wi-Fi password, finish, all set, Pair a Sigil\n";
+  physicalPlayerControls(); std::cout<<"PASS physical counters/status: ownership, revision, shared seats, partners, bounds and decisions\n";
   commanderFlow(); std::cout<<"PASS Sigil Commander flow: ownership, source/partner, atomic hits, undo, stale/duplicate keys, cancellation and limits\n";
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";
   turnTimerEngine(); std::cout<<"PASS turn timer phases, no automatic pass, pause freeze, rollover, validation and recovery\n";

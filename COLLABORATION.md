@@ -1605,3 +1605,32 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
 - Validation: documentation links, generated manual consistency and whitespace
   checks pass. No unresolved paths remain. Application code merged unchanged;
   this resolution only reconciles the collaboration records.
+
+### Touchscreen clipping and player More / Codex / 2026-10-29
+
+- Owner requests clipping fixes and a lightweight app-style player More including
+  counters/status. Codex owns codex/master, baseline f7ab1919; no open PRs.
+- Atlas owns counters, monarch, initiative and partner state. Both touchscreens
+  project the same presentation IDs into existing ChangeCounter, ClaimMonarch and
+  SetPartner Intents, validated by the existing handlers; existing checkpoint
+  persistence is unchanged. Sigil uses an extended atomic GameDisplay and a sealed
+  own-seat request with menu revision. No third-party dependency. Labeled, paged
+  rows preserve readable touch targets. Android already exposes these controls.
+- Device settings leave the in-game More list and remain on the Settings tab;
+  offline recovery is retained. Layout fixes cover shared seats, decision prompts,
+  the Atlas header and action widths. Roster type 52 removes the old collision
+  with CommanderKey 51; the player request uses 53. Both boards must be flashed.
+- Both firmware builds, all Atlas and Sigil host suites, adapter audit, client
+  contract, docs/manual consistency and whitespace checks pass. Actual LVGL
+  previews cover shared seats, win prompts and every counter page in themes.
+  The old bundled GCC lacks C++17 optional; validation used portable GCC 16
+  outside the repository. The existing MSVC path also failed on baseline GNU
+  attributes/popcount. No repository toolchain or dependency was changed.
+- Hardware Manual and generated app manual updated. DOCX export/XML parse pass;
+  visual DOCX rendering remains unavailable because LibreOffice is absent.
+- USB uploads pass with verified image hashes: Atlas 0.7.20-dev and Sigil
+  0.9.20-dev. Atlas responds to identify; Sigil boots, reports secure-session
+  ready, syncs both seat profiles and receives the empty roster. On-board tap
+  and multiplayer acceptance remain open; host previews are not that check.
+- Concurrent app About/Support edits are preserved and excluded from this
+  firmware commit; only this slice’s collaboration/backlog hunks are staged.

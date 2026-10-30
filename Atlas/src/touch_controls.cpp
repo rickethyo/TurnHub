@@ -6,6 +6,7 @@
 
 #include "avatars.h"
 #include "touch_controls.h"
+#include "player_controls_model.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -56,6 +57,8 @@ TouchAction qrChoice = TouchAction::QrPortal;
 // its confirmation. pressedSeat is the chip under the finger.
 PlayerSeat shownSeat;
 bool concedeArmed = false;
+bool playerControlsOpen = false;
+uint8_t playerControlsPage = 0;
 PlayerSeat pressedSeat;
 // Skip for now on the setup Welcome screen: hidden until the next start-up,
 // or until Setup under Menu. Presentation only; the stage stays Atlas's.
@@ -312,6 +315,25 @@ void layoutPlayer(AtlasScreen &screen) {
     }
     return;
   }
+  if (playerControlsOpen) {
+    PlayerSeat seat; if (!currentShownSeat(seat)) return;
+    screen.showPlayerControls=true; screen.controls=playerControlsFor(seat.playerNumber);
+    uint8_t ids[TurnHubUi::PLAYER_CONTROL_COUNT];
+    const uint8_t count=TurnHubUi::playerControlRows(screen.controls,ids), pages=(count+2)/3;
+    if (playerControlsPage>=pages) playerControlsPage=pages ? pages-1 : 0;
+    screen.controlsPage=playerControlsPage;
+    for (uint8_t j=0;j<3 && playerControlsPage*3+j<count;++j) {
+      const uint8_t id=ids[playerControlsPage*3+j]; const bool toggle=TurnHubUi::playerControlToggle(id);
+      const int16_t y=SCREEN_BODY_Y+j*78+24;
+      if (!toggle || id!=8) addKey(screen,TouchAction::ControlMinus,toggle ? "Off" : "-",16,y,52,44,id);
+      addKey(screen,TouchAction::ControlPlus,toggle ? "On" : "+",252,y,52,44,id);
+    }
+    ButtonSpec row[3]; uint8_t n=0;
+    if (playerControlsPage) row[n++]={TouchAction::PlayerControlsPrev,"Prev",0,1};
+    row[n++]={TouchAction::PlayerControlsBack,"Done",0,1};
+    if (playerControlsPage+1<pages) row[n++]={TouchAction::PlayerControlsNext,"Next",0,1};
+    addRow(screen,BUTTON_ROW_Y,row,n); return;
+  }
   if (concedeArmed) {
     const ButtonSpec lower[] = {{TouchAction::ConfirmConcede, "Concede", 0, 3},
         {TouchAction::CancelConcede, "Cancel", 0, 2}};
@@ -325,8 +347,9 @@ void layoutPlayer(AtlasScreen &screen) {
       {TouchAction::LifePlus1, hundreds ? "+100" : "+1", 0, 1},
       {TouchAction::LifePlus5, hundreds ? "+1000" : "+5", 0, 1}};
   addRow(screen, BUTTON_UPPER_ROW_Y, upper, 4);
-  const ButtonSpec lower[] = {{TouchAction::Concede, "Concede", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
-  addRow(screen, BUTTON_ROW_Y, lower, 2);
+  const ButtonSpec lower[] = {{TouchAction::OpenPlayerControls,"More",0,1},
+      {TouchAction::Concede, "Concede", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
+  addRow(screen, BUTTON_ROW_Y, lower, 3);
 }
 
 // Add player: a page of saved profiles, then New player, More and Back.
@@ -520,8 +543,8 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     // Players pass from their own seats; the master pass and End match sit
     // on the Table screen, out of the way during play.
     case HubState::Running: {
-      const ButtonSpec row[] = {{TouchAction::PassTurn, "Hold to pass", TOUCH_PASS_HOLD_MS, 4},
-          {TouchAction::Pause, "Pause", 0, 2}, {TouchAction::OpenTable, "Actions", 0, 2}};
+      const ButtonSpec row[] = {{TouchAction::PassTurn, "Hold to pass", TOUCH_PASS_HOLD_MS, 3},
+          {TouchAction::Pause, "Pause", 0, 2}, {TouchAction::OpenTable, "Actions", 0, 3}};
       addRow(screen, BUTTON_ROW_Y, row, 3);
       break;
     }
@@ -591,6 +614,12 @@ const char *actionName(TouchAction action) {
     case TouchAction::OpenHome: return "OPEN_HOME";
     case TouchAction::OpenGame: return "OPEN_GAME";
     case TouchAction::OpenOverview: return "OPEN_OVERVIEW";
+    case TouchAction::OpenPlayerControls: return "OPEN_PLAYER_CONTROLS";
+    case TouchAction::PlayerControlsBack: return "PLAYER_CONTROLS_BACK";
+    case TouchAction::PlayerControlsPrev: return "PLAYER_CONTROLS_PREV";
+    case TouchAction::PlayerControlsNext: return "PLAYER_CONTROLS_NEXT";
+    case TouchAction::ControlMinus: return "CONTROL_MINUS";
+    case TouchAction::ControlPlus: return "CONTROL_PLUS";
     case TouchAction::OpenSettings: return "OPEN_SETTINGS";
     case TouchAction::OverviewNext: return "OVERVIEW_NEXT";
     case TouchAction::Pair: return "PAIR";
@@ -744,6 +773,10 @@ void typeNameKey(uint8_t index) {
 // available, and everything else for the status screen.
 bool navigate(TouchAction action) {
   switch (action) {
+    case TouchAction::OpenPlayerControls: playerControlsOpen=true; playerControlsPage=0; return true;
+    case TouchAction::PlayerControlsBack: playerControlsOpen=false; return true;
+    case TouchAction::PlayerControlsPrev: if (playerControlsPage) --playerControlsPage; return true;
+    case TouchAction::PlayerControlsNext: if (playerControlsPage<3) ++playerControlsPage; return true;
     case TouchAction::OpenHome: openScreen = ScreenKind::Home; return true;
     case TouchAction::OpenGame: openScreen = ScreenKind::Status; return true;
     case TouchAction::OpenOverview: openScreen = ScreenKind::Overview; return true;
@@ -778,6 +811,7 @@ bool navigate(TouchAction action) {
     case TouchAction::OpenPlayer:
       openScreen = ScreenKind::Player;
       shownSeat = pressedSeat;
+      playerControlsOpen=false;
       concedeArmed = false;
       return true;
     // Concede asks again; only ConfirmConcede sends the Intent.
@@ -887,6 +921,15 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
     }
     // Hold to pass: the active player's own pass, as the app's shared table
     // and their Sigil send it (Atlas keeps the usual grace period).
+    case TouchAction::ControlMinus:
+    case TouchAction::ControlPlus: {
+      PlayerSeat seat;
+      if (!currentShownSeat(seat) || pressedArg>=TurnHubUi::PLAYER_CONTROL_COUNT ||
+          !(playerControlsFor(seat.playerNumber).allowed & (1u<<pressedArg))) return;
+      const int8_t value=action==TouchAction::ControlPlus ? 1 : TurnHubUi::playerControlToggle(pressedArg) ? 0 : -1;
+      result=intents.dispatch(playerControlIntent(seat,IntentOrigin::AtlasHardware,pressedArg,value));
+      break;
+    }
     case TouchAction::PassTurn: {
       const PlayerSeat *active = table().game.activePlayer();
       result = active == nullptr ? IntentResult::reject(IntentStatus::InvalidState, "There is no active player")
@@ -1568,6 +1611,8 @@ void formatPlayer(AtlasScreen &screen, uint32_t nowMs) {
         static_cast<unsigned>(seat.playerNumber), static_cast<unsigned>(table().lobby.playerCount()),
         table().lobby.hasSecondary(seat.controllerId) ?
             (table().lobby.secondaryFirst(seat.controllerId) ? "; B left, before A" : "; B right, after A") : "");
+  } else if (playerControlsOpen) {
+    snprintf(screen.detail,sizeof(screen.detail),"Counters & status / page %u",playerControlsPage+1);
   } else if (concedeArmed) {
     snprintf(screen.detail, sizeof(screen.detail), "Concede for %s? Their game ends.", name);
   } else {
@@ -1738,6 +1783,7 @@ void resetTouchControls(bool startAtHome) {
   qrChoice = TouchAction::QrPortal;
   shownSeat = pressedSeat = PlayerSeat();
   concedeArmed = false;
+  playerControlsOpen=false; playerControlsPage=0;
   setupSkipped = false;
   for (auto &cache : names) cache = NameCache();
 }

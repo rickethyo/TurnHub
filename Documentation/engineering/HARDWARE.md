@@ -64,7 +64,10 @@ stays available during play, with destructive Atlas device actions hidden then.
 
 **Sigil controls:** Game follows the personal Share Play panel: a large life
 total with direct minus/plus buttons, a primary action and More for the other
-Atlas-offered actions. Pending life changes preview the total. Profiles are
+Atlas-offered actions and Counters & status. This paged player panel includes
+  Magic counters/status, Commander casts with next tax and partners; Atlas
+  validates every change. Device settings live on the Settings tab. Pending
+  life changes preview the total. Profiles are
 full-width touch rows; menu actions are touch tiles. Only visible controls have
 hit regions. A drag, changed action, changed player or changed request cancels
 a contact until release. Atlas validates every request. Hold on-screen Pair for
