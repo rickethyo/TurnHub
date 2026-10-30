@@ -1664,3 +1664,11 @@ Validation: Android preview build, all four Atlas Windows GCC host suites, adapt
 2026-10-30, Codex: owner requests Sounds section with small test button. App Settings now groups audio controls under Sounds; device test plays existing Pass cue at selected volume and respects sound/foreground/mute settings. Developer-authorized Atlas test uses existing hardware-test endpoint; permissions unchanged. Validation pending.
 
 Sounds validation: preview assembleDebug and whitespace checks pass; audible device/Atlas acceptance pending.
+
+## Play audit and simulator cleanup — 2026-10-30, Codex
+
+Owner requests Play parity and semi-retired simulator. Baseline 44d7abbd on origin/master; tonight's About/Support/Sounds/navigation is release code. DMD retains existing owner licensing debug gate. Move active board fonts/icons to shared/display; retain simulator for targeted checks. CSV fixture LF checkout fixes Windows exact-byte test failures.
+
+Play audit outcome: GitHub master CI run 541 (41005865957), commit 44d7abbd, Android release tests/build and Publish to Play internal testing all completed successfully. This confirms upload to internal testing, not public production promotion. Locally all 538 Android tests, bundleRelease and lintRelease pass after CSV LF checkout correction. Three shared asset digest checks and docs links pass. Firmware asset-path builds running; cleanup stays separate from uploaded app.
+
+Cleanup validation complete: Atlas atlas-s3 and Sigil firmware builds pass using shared/display paths. No hardware reflash needed for this asset-only relocation. Simulator UI build intentionally deferred under semi-retired status.

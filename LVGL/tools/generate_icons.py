@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rasterize design/icons/*.svg into LVGL A8 masks (assets/th_icons.c).
+"""Rasterize design/icons/*.svg into LVGL A8 masks (shared/display/th_icons.c).
 
 The masks are tinted at runtime with image recolor, so one mask serves every
 theme. Rasterization uses a headless Chromium browser (Microsoft Edge or
@@ -19,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = sorted((ROOT / 'design/icons').glob('*.svg'))
-OUT_C = ROOT / 'LVGL/assets/th_icons.c'
+OUT_C = ROOT / 'shared/display/th_icons.c'
 OUT_H = ROOT / 'LVGL/include/icons.hpp'
 SIZES = (24, 40)
 # Device screens are viewed from further away than the portal; slightly
@@ -30,7 +30,7 @@ STROKE = '2.1'
 def digest():
     h = hashlib.sha256(f'sizes={SIZES};stroke={STROKE}\0'.encode())
     for p in SOURCES:
-        h.update(p.name.encode() + b'\0' + p.read_bytes())
+        h.update(p.name.encode() + b'\0' + p.read_bytes().replace(b'\r\n', b'\n'))
     return h.hexdigest()
 
 
