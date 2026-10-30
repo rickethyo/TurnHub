@@ -2,14 +2,30 @@
 
 #include "game_engine.h"
 #include "game_recovery.h"
+#include "match_archive.h"
 #include "profile_statistics.h"
 #include "profile_store.h"
 #include "turnhub_types.h"
 #include "serial_log.h"
+#include "web_api_internal.h"
 
 using TurnHub::serialLog;
 
 namespace {
+
+// The finished game joins the match history (games.jsonl/games.csv on the
+// card) as the same record the app keeps. Its start time is the wall clock a
+// phone gave Atlas, when one has.
+void keepRecord(const TurnHub::GameEngine &game) {
+  turnhub::Json record = turnhub::gameRecord(game.core());
+  if (!record.isObject()) return;
+  const uint64_t now = TurnHubWebApi::internal::wallClockNow();
+  const int64_t duration = record.get("durationMs").asInt();
+  if (now > static_cast<uint64_t>(duration)) record.set("startedAtMs", static_cast<int64_t>(now) - duration);
+  const auto status = TurnHubHistory::keep(record);
+  serialLog.print("ATLAS|HISTORY|");
+  serialLog.println(TurnHubHistory::keepStatusName(status));
+}
 
 String resolveProfileId(const TurnHub::PlayerSeat &seat) {
   // Participation captures its profile at game start. Controller discovery,
@@ -30,6 +46,7 @@ uint8_t TurnHubProfileStats::countShortGame(const TurnHub::GameEngine &game) {
   if (!heldShortGame(game)) return 0;
   // The finished checkpoint was committed when the match ended.
   const uint8_t updated = TurnHubProfileStats::recordCompletedGame(game, resolveProfileId);
+  keepRecord(game);
   serialLog.print("ATLAS|PROFILE_STATS|SHORT_GAME_COUNTED|");
   serialLog.println(updated);
   return updated;
@@ -52,6 +69,7 @@ void TurnHubProfileStats::persistCompletedGame(const TurnHub::GameEngine &game) 
   }
   const uint8_t updated =
       TurnHubProfileStats::recordCompletedGame(game, resolveProfileId);
+  keepRecord(game);
   serialLog.print("ATLAS|PROFILE_STATS|GAME_RECORDED|");
   serialLog.println(updated);
 }

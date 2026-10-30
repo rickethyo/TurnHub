@@ -256,27 +256,28 @@ static void winDecisions() {
   freshLobby(3,true); startFromHost();
   assert(!web(1,1,WebControl::ClaimWin));
   assert(web(0,1,WebControl::ClaimWin));
-  assert(table().game.nextWinConfirmationPlayerNumber()==3);
-  assert(!web(0,2,WebControl::ConfirmWin));
+  // The other players confirm in turn order after the claimant (the app's rule).
+  assert(table().game.nextWinConfirmationPlayerNumber()==2);
+  assert(!web(2,1,WebControl::ConfirmWin));
   assert(!web(2,1,WebControl::DenyWin));
+  assert(web(0,2,WebControl::ConfirmWin)); assert(table().game.nextWinConfirmationPlayerNumber()==3);
   choose(1,SigilAction::ConfirmWin); assert(table().game.nextWinConfirmationPlayerNumber()==4);
   assert(web(2,1,WebControl::ConfirmWin));
-  assert(table().game.nextWinConfirmationPlayerNumber()==2);
-  choose(0,SigilAction::ConfirmWin);
   assert(table().game.gameOver()&&table().game.winnerPlayerNumber()==1&&completedGames==1);
   assert(!web(0,2,WebControl::ConfirmWin)); assert(completedGames==1);
   // Any seated Sigil may call the rematch (no table host).
   assert(dispatchModuleIntent(IntentType::Rematch,1).accepted());
   assert(table().hubState==HubState::Lobby&&table().lobby.playerCount()==4&&!table().game.hasPlayers());
   startFromHost(); assert(web(0,1,WebControl::ClaimWin));
-  choose(1,SigilAction::DenyWin); assert(table().hubState==HubState::Running&&!table().game.hasWinClaim());
+  // Player 2 (Sigil 0's seat B) answers first.
+  assert(web(0,2,WebControl::DenyWin)); assert(table().hubState==HubState::Running&&!table().game.hasWinClaim());
   assert(web(1,1,WebControl::PauseResume));
   assert(web(0,1,WebControl::ClaimWin));
-  assert(web(1,1,WebControl::DenyWin)); assert(table().hubState==HubState::Paused);
+  assert(web(0,2,WebControl::DenyWin)); assert(table().hubState==HubState::Paused);
   assert(web(1,1,WebControl::PauseResume));
   // A claim chosen during play resumes play when denied.
   choose(0,SigilAction::ClaimWin); assert(table().game.hasWinClaim());
-  assert(web(1,1,WebControl::DenyWin)); assert(table().hubState==HubState::Running);
+  assert(web(0,2,WebControl::DenyWin)); assert(table().hubState==HubState::Running);
 }
 static void eliminationAndConcession() {
   freshLobby(3,true); startFromHost();
@@ -748,7 +749,7 @@ static void gameProfilesAndLife() {
   assert(request("/api/game/settings",first,{{"houseRules","2"}})==400);
   assert(request("/api/game/settings",first,{{"houseRules","0"}})==200 && !table().nextGameSettings.houseRules);
   assert(request("/api/game/settings",first,magic)==200);
-  for (const char *invalid : {"", "-1", "1.5", "20abc", "1000001", "999999999999999"})
+  for (const char *invalid : {"", "-1", "1.5", "20abc", "100000", "999999999999999"})
     assert(request("/api/game/settings",first,{{"gameProfile","mtg"},{"startingLife",invalid}})==400);
   assert(request("/api/game/settings",first,{{"gameProfile","unknown"},{"startingLife","20"}})==400);
   ProfileFixture::gameSettingsWritable=false;
@@ -766,7 +767,7 @@ static void gameProfilesAndLife() {
   assert(request("/api/game/settings",first,magic)==200); // Unchanged setup is legal.
   assert(request("/api/game/settings",first,{{"autoEliminateAtZeroLife","0"}})==200);
   assert(request("/api/control/life","",{{"delta","-1"}})==401);
-  for (const char *invalid : {"", "0", "-", "1.5", "1abc", "1000001", "9999999999999"})
+  for (const char *invalid : {"", "0", "-", "1.5", "1abc", "100000", "9999999999999"})
     assert(request("/api/control/life",first,{{"delta",invalid}})==400);
   assert(request("/api/control/life",first,{{"delta","-21"},{"player","2"},{"profileId",secondId}})==200);
   assert(table().game.lifeTotal(1)==-1 && table().game.lifeTotal(2)==20 && !table().game.isEliminated(1));
@@ -776,12 +777,13 @@ static void gameProfilesAndLife() {
   assert(server.body.find("\"life\":5")!=std::string::npos);
   assert(request("/api/seats","",{},HTTP_GET)==200);
   assert(server.body.find("\"life\":5")!=std::string::npos && server.body.find("\"life\":20")!=std::string::npos);
-  assert(request("/api/control/life",first,{{"delta","999995"}})==200);
-  assert(request("/api/control/life",first,{{"delta","1"}})==409 && table().game.lifeTotal(1)==1000000);
-  assert(!table().game.changeLife(1,INT32_MAX) && table().game.lifeTotal(1)==1000000);
-  assert(request("/api/control/life",first,{{"delta","-1000000"}})==200);
-  assert(request("/api/control/life",first,{{"delta","-1000000"}})==200);
-  assert(request("/api/control/life",first,{{"delta","-1"}})==409 && table().game.lifeTotal(1)==-1000000);
+  // Life stays within the app's +/-99,999.
+  assert(request("/api/control/life",first,{{"delta","99994"}})==200);
+  assert(request("/api/control/life",first,{{"delta","1"}})==409 && table().game.lifeTotal(1)==99999);
+  assert(!table().game.changeLife(1,INT32_MAX) && table().game.lifeTotal(1)==99999);
+  assert(request("/api/control/life",first,{{"delta","-99999"}})==200);
+  assert(request("/api/control/life",first,{{"delta","-99999"}})==200);
+  assert(request("/api/control/life",first,{{"delta","-1"}})==409 && table().game.lifeTotal(1)==-99999);
   assert(request("/api/control/pause",first)==200);
   assert(request("/api/control/life",second,{{"delta","-5"}})==200 && table().game.lifeTotal(2)==15);
   assert(request("/api/control/win",first)==200);
@@ -1230,10 +1232,10 @@ static void lifeApprovalsAndCommander() {
   assert(table().game.lifeTotal(2)==35&&table().hubState==HubState::Paused);
   // Automatic application must revalidate after intervening changes.
   assert(propose(1)==200);
-  assert(request("/api/control/life",second,{{"delta","999965"}})==200);
+  assert(request("/api/control/life",second,{{"delta","99964"}})==200);
   testNow+=15000;dispatchSystemIntent(IntentType::ExpireLifeChanges);
-  assert(table().game.lifeTotal(2)==1000000&&table().game.lifeChangeFor(2)->state==LifeChangeState::Failed);
-  assert(request("/api/control/life",second,{{"delta","-999960"}})==200);
+  assert(table().game.lifeTotal(2)==99999&&table().game.lifeChangeFor(2)->state==LifeChangeState::Failed);
+  assert(request("/api/control/life",second,{{"delta","-99959"}})==200);
   assert(propose(-1)==200);
   const uint32_t beforeRollover=testNow;
   table().game.cancelLifeChanges();
@@ -1255,16 +1257,16 @@ static void lifeApprovalsAndCommander() {
   assert(table().game.lifeTotal(1)==40); // Forged target ignored: received damage belongs to caller.
   assert(damage(second,1,1,-2)==200&&table().game.commanderDamage(2,1,1)==19&&table().game.lifeTotal(2)==12);
   assert(damage(second,1,1,-20)==409&&table().game.commanderDamage(2,1,1)==19&&table().game.lifeTotal(2)==12);
-  assert(request("/api/control/life",second,{{"delta","999988"}})==200);
-  assert(damage(second,1,1,-1)==409&&table().game.lifeTotal(2)==1000000&&table().game.commanderDamage(2,1,1)==19);
-  assert(request("/api/control/life",second,{{"delta","-999988"}})==200);
+  assert(request("/api/control/life",second,{{"delta","99987"}})==200);
+  assert(damage(second,1,1,-1)==409&&table().game.lifeTotal(2)==99999&&table().game.commanderDamage(2,1,1)==19);
+  assert(request("/api/control/life",second,{{"delta","-99987"}})==200);
   assert(damage(second,16,1,2)==409);
   assert(damage(second,1,3,2)==400);
   assert(damage(second,1,1,0)==400);
   assert(!table().game.changeCommanderDamage(2,1,1,INT32_MIN));
-  assert(request("/api/control/life",second,{{"delta","-1000000"}})==200);
-  assert(damage(second,1,1,13)==409&&table().game.lifeTotal(2)==-999988&&table().game.commanderDamage(2,1,1)==19);
-  assert(request("/api/control/life",second,{{"delta","1000000"}})==200);
+  assert(request("/api/control/life",second,{{"delta","-99999"}})==200);
+  assert(damage(second,1,1,13)==409&&table().game.lifeTotal(2)==-99987&&table().game.commanderDamage(2,1,1)==19);
+  assert(request("/api/control/life",second,{{"delta","99999"}})==200);
   assert(request("/api/game/counters",second,{},HTTP_GET)==200);
   assert(server.body.find("\"commanders\":[19,3]")!=std::string::npos);
   assert(propose(-1)==200);
@@ -1365,7 +1367,7 @@ static void commanderFlow() {
   forbidden.payload.counterSource=3; forbidden.payload.counterSlot=1; forbidden.payload.value=5;
   assert(intents.dispatch(forbidden).status==IntentStatus::Unauthorized);
   // Bounds failures are atomic; nothing changes and no Undo receipt is created.
-  assert(table().game.changeLife(2,-999036));
+  assert(table().game.changeLife(2,-99036));
   const int32_t before=table().game.lifeTotal(2), damage=table().game.commanderDamage(2,3,1);
   assert(!table().game.recordCommanderHit(2,3,1,9999) && table().game.lifeTotal(2)==before &&
       table().game.commanderDamage(2,3,1)==damage && !table().game.lastCommanderHit(2));
@@ -1439,6 +1441,8 @@ static void physicalGameDisplay() {
   decoded.sourceCount = 4; assert(!validGameDisplay(decoded));
   decoded = snapshot; decoded.primary.name[12] = 'x'; assert(!validGameDisplay(decoded));
   decoded = snapshot; decoded.sources[0].damage[0] = -1; assert(!validGameDisplay(decoded));
+  // Negative life shows as is (the automatic zero-life rule is off here).
+  engine.setAutoEliminateAtZeroLife(false);
   assert(engine.changeLife(1,-100)); render(); assert(sentGameDisplays[0].primary.life < 0);
   assert(engine.passTurn(0,200)); render();
   assert(displayPrimaryPlayer(sentGameDisplays[0].state) == 2);
@@ -2498,7 +2502,7 @@ static void nativeClientBoundary() {
   for (uint8_t i = 1; i <= MAX_PLAYERS; ++i)
     for (uint8_t j = 1; j <= MAX_PLAYERS; ++j)
       for (uint8_t c = 1; c <= 2; ++c)
-        assert(fullGame.changeCommanderDamage(i, j, c, 1));
+        assert(i == j ? !fullGame.changeCommanderDamage(i, j, c, 1) : fullGame.changeCommanderDamage(i, j, c, 1));
   full.observe(HubState::Running, fullLobby, fullGame, table().nextGameSettings, {});
   const auto fullRevision = full.revision();
   full.observe(HubState::Running, fullLobby, fullGame, table().nextGameSettings, {});
@@ -4403,7 +4407,7 @@ static void twoHeadedGiantEngine() {
   assert(engine.beginWinClaim(1,true,4000) && engine.nextWinConfirmationPlayerNumber()==3);
   bool finished = false;
   assert(!engine.confirmWinClaim(2,4000,finished));
-  assert(engine.denyWinClaim(4,4100) && engine.running() && !engine.paused());
+  assert(!engine.denyWinClaim(4,4100) && engine.denyWinClaim(3,4100) && engine.running() && !engine.paused());
   // The checkpoint keeps the mode; teammates must agree.
   GameCheckpoint saved; engine.checkpoint(saved,5000);
   uint8_t bytes[GAME_CHECKPOINT_CAPACITY];
@@ -4423,7 +4427,8 @@ static void twoHeadedGiantEngine() {
   // leaves play going. Official Two-Headed Giant is two teams of two.
   assert(!engine.start(seats,6,seats[1],1000,settings));
   settings.houseRules = true;
-  assert(engine.start(seats,6,seats[1],1000,settings) && engine.activePlayerNumber()==2);
+  // The chosen starter's team goes first, its first player holding the turn (the app's rule).
+  assert(engine.start(seats,6,seats[1],1000,settings) && engine.activePlayerNumber()==1);
   assert(engine.passTurn(0,2000) && engine.activePlayerNumber()==3);
   assert(engine.pause(2500) && engine.eliminatePlayer(3,2500,finished) && !finished);
   assert(engine.isEliminated(4) && engine.activePlayerNumber()==5 && engine.resume(2600));
@@ -4432,6 +4437,7 @@ static void twoHeadedGiantEngine() {
   // Commander: per-player damage comes off the team's life.
   settings.profile = GameProfile::Commander;
   settings.startingLife = TEAM_LIFE_COMMANDER;
+  settings.autoEliminateAtCommanderDamage = false;
   assert(engine.start(seats,4,seats[0],1000,settings));
   assert(engine.changeCommanderDamage(3,1,1,21));
   assert(engine.lifeTotal(3)==39 && engine.lifeTotal(4)==39);
@@ -4802,6 +4808,16 @@ static void matchHistory() {
   assert(request("/api/profiles/history","",{{"profileId",anaId},{"linkKey",key},{"skip","1"}},HTTP_GET)==200);
   assert(server.body.find("1a2b3c4d-3333")!=std::string::npos && server.body.find("\"more\":false")!=std::string::npos);
   assert(request("/api/profiles/history",ben,{{"profileId",benId}},HTTP_GET)==200 && server.body.find("\"records\":[]")!=std::string::npos);
+  // A game played on Atlas itself joins the same history, as the core's record.
+  assert(request("/api/session/join",ana)==200 && request("/api/session/join",ben)==200);
+  assert(request("/api/control/start",ana)==200); testNow+=3000; updateCountdown(testNow);
+  assert(table().hubState==HubState::Running);
+  testNow+=TurnHub::SHORT_GAME_MS+1000;
+  assert(request("/api/control/concede",ben)==200 && table().hubState==HubState::GameOver);
+  assert(request("/api/profiles/history",ben,{{"profileId",benId}},HTTP_GET)==200);
+  assert(server.body.find("\"recordId\":\"atlas-")!=std::string::npos && server.body.find("Ana History")!=std::string::npos);
+  assert(archive.files[TurnHubHistory::CSV_FILE].find("Ben History")!=std::string::npos);
+  enterEmptyLobby();
   TurnHubHistory::useFiles(nullptr);
   assert(request("/api/profiles/history",ana,{{"profileId",anaId}},HTTP_GET)==503);
   assert(request("/api/session/logout",ana)==200 && request("/api/session/logout",ben)==200);
@@ -5374,7 +5390,10 @@ static void starCommanderEngine() {
   // (enemies 3, 4) and 2 (enemies 4, 5) share the victory; it is no draw.
   assert(engine.start(seats,5,seats[0],3000,star));
   assert(engine.pause(3000) && engine.eliminatePlayer(4,3000,finished) && !finished && engine.resume(3000));
+  // Rules apply as each change lands; holding them shows a batch landing together.
+  engine.setAutoEliminateAtZeroLife(false);
   assert(engine.changeLife(3,-40) && engine.changeLife(5,-40));
+  engine.setAutoEliminateAtZeroLife(true);
   before = completedGames;
   assert(engine.resolveEliminationRules(3100) && engine.gameOver() && completedGames==before+1);
   assert(engine.isWinner(1) && engine.isWinner(2) && !engine.isWinner(3) && !engine.isWinner(4) && !engine.isWinner(5));
@@ -5417,7 +5436,10 @@ static void starCommanderEngine() {
   assert(!engine.gameOver() && engine.running() && !engine.paused() && engine.livingPlayerCount()==2);
   assert(!engine.starVictoryPending(1) && !engine.isWinner(1));
   // A batch leaving nobody, and so no winner, is a draw.
-  assert(engine.changeLife(2,-40) && engine.changeLife(5,-40) && engine.resolveEliminationRules(5200));
+  engine.setAutoEliminateAtZeroLife(false);
+  assert(engine.changeLife(2,-40) && engine.changeLife(5,-40));
+  engine.setAutoEliminateAtZeroLife(true);
+  assert(engine.resolveEliminationRules(5200));
   assert(engine.gameOver() && engine.endedInDraw() && engine.winnerMask()==0 && !engine.isWinner(1));
 
   // Poison and Commander damage feed the same victory policy.
@@ -5796,7 +5818,10 @@ static void doomCommanderEngine() {
   assert(game.creditDoomElimination(6,3,2) && !game.creditDoomElimination(6,2,3));
   assert(game.doomBag().boundary==2 && !(game.doomBag().atRisk & doomBit(3)));
   assert(game.eliminatePlayer(7,now,finished,true));
-  assert(game.livingPlayerCount()==4 && !game.doomActive() && !game.doomBag().atRisk && !game.doomBag().boundary);
+  // The bag stays in play until its last two survivors (the app's DoomRules).
+  assert(game.livingPlayerCount()==4 && game.doomActive() && game.doomBag().atRisk);
+  assert(game.eliminatePlayer(5,now,finished,true) && game.eliminatePlayer(3,now,finished,true));
+  assert(game.livingPlayerCount()==2 && !game.doomActive() && !game.doomBag().atRisk && !game.doomBag().boundary);
   game.checkpoint(saved,now); assert(validCheckpoint(saved));
   game.reset(); assert(sameDoomBag(game.doomBag(),DoomBag{}));
 }
@@ -5919,7 +5944,7 @@ static void explicitEliminationAttribution() {
   assert(g.start(seats,6,seats[0],1000,settings) && g.changeLife(2,-40) && g.resolveEliminationRules(2000));
   assert(g.resolveElimination(2,0,true,2100) && g.doomBag().cycle==1 && !g.creditDoomElimination(2,3,1));
   assert(g.resume(2200) && g.changeLife(4,-40) && g.resolveEliminationRules(2300));
-  assert(g.resolveElimination(4,3,false,2400) && g.livingPlayerCount()==4 && !g.doomActive() && g.eliminationsBy(3)==1);
+  assert(g.resolveElimination(4,3,false,2400) && g.livingPlayerCount()==4 && g.doomActive() && g.eliminationsBy(3)==1);
   // Explicit manual Self is recorded before the normal completion path.
   settings.profile=GameProfile::Commander;assert(g.start(seats,2,seats[0],1000,settings) && g.pause(2000));
   assert(g.eliminatePlayer(2,2000,finished,false,0,true) && finished && g.selfEliminated(2));

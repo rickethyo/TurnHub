@@ -268,15 +268,11 @@ String clientSnapshot(const String &atlasId, const char *bootId) {
 void finalizeGameRules(const Intent &intent) {
   if (intent.type == IntentType::ExpireLifeChanges && !table().clientState.expirationDue(millis())) return;
   if (table().eliminationTargetPlayer) return;
-  bool wasOut[MAX_PLAYERS]{};
-  for (uint8_t i=0;i<table().game.playerCount();++i)
-    wasOut[i] = table().game.isEliminated(table().game.playerAt(i)->playerNumber);
   if (!table().game.resolveEliminationRules(millis())) return;
   clearPendingPass("AUTO_ELIMINATION");
-  for (uint8_t i=0;i<table().game.playerCount();++i) {
-    const auto *seat = table().game.playerAt(i);
-    if (!wasOut[i] && table().game.isEliminated(seat->playerNumber)) audio.playerEliminated(seat->controllerId);
-  }
+  const uint16_t out = table().game.lastAutoEliminations();
+  for (uint8_t i=0;i<table().game.playerCount();++i)
+    if (out & (1u << i)) audio.playerEliminated(table().game.playerAt(i)->controllerId);
   leds.invalidateAll();
   if (table().game.gameOver()) finishGameState();
   else if (table().game.paused()) table().hubState = HubState::Paused;

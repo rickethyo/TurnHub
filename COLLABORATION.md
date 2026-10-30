@@ -1483,3 +1483,22 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
   runners now build C++17 and link the core (MSVC and firmware already did);
   Codex, `run-gcc.ps1`/`run.cmd` changed blind, please confirm on Windows.
   Linux host suites, adapter audit and contract check pass.
+
+### Atlas plays on the shared core (round 1) / Claude / 2026-10-30
+
+- Owner chose (2026-10-29) to move Atlas onto `core/` rather than adapt the old
+  engine. `GameEngine` now wraps `turnhub::Game`; Atlas-only features stay in
+  the layer (life-change approvals, Commander hit receipts and partners, the
+  win claim's pause/resume, 2HG teammate Commander refusal, Sigil elimination
+  attribution). Checkpoints convert to and from the core. Atlas 0.7.19-dev.
+- Core: `applySeatAction` (the Play together door, port of `applyLanAction`),
+  `seat-actions.json` scenario; Kotlin `CoreScenarioTest` replays it.
+- Behaviour now matches the app: win confirmers in seat order after the
+  claimant, 2HG only the next confirmer, 2HG starter team leads, Bag of Doom to
+  two survivors, `LIFE_LIMIT` 99,999, immediate automatic eliminations,
+  Commander self-damage refused. Docs, manuals and `http-v1.md` updated.
+- Finished Atlas games call `TurnHubHistory::keep(gameRecord(...))` after the
+  stats completion. Host scenarios updated to the new rules.
+- Linux host suites, adapter audit, contract check, core scenarios and
+  `pio run -e atlas-s3` pass. Codex: `run-gcc.ps1`/`run.cmd` unchanged this
+  round. Hardware acceptance next.

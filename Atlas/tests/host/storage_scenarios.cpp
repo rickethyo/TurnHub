@@ -343,7 +343,7 @@ void gameSettingsRecords() {
   // Schema 1 predates the turn timer and reads as OFF.
   assert(settings.profile==GameProfile::Yugioh && settings.startingLife==8000 &&
       settings.turnTimerMs==TURN_TIMER_OFF);
-  for (uint8_t profile=0;profile<static_cast<uint8_t>(GameProfile::Count);++profile) for(int32_t life : {0,27,1000000})
+  for (uint8_t profile=0;profile<static_cast<uint8_t>(GameProfile::Count);++profile) for(int32_t life : {0,27,99999})
       for(uint32_t timer : {TURN_TIMER_OFF,TURN_TIMER_MIN_MS,120000u,TURN_TIMER_MAX_MS}) {
     settings.profile=static_cast<GameProfile>(profile);settings.startingLife=life;settings.turnTimerMs=timer;
     settings.autoEliminateAtPoisonLimit = profile & 1; settings.autoEliminateAtCommanderDamage = profile & 2; settings.poisonLimit = 17;

@@ -551,11 +551,11 @@ normal `module`, `slot` and game scope. Both converge on ChangeCounter.
 
 | counter | Value fields | Meaning |
 | --- | --- | --- |
-| `poison`, `energy`, `experience` | `delta` (nonzero, ±1,000,000) | Add/correct a nonnegative bounded total. Poison is shared by 2HG teammates. |
+| `poison`, `energy`, `experience` | `delta` (nonzero, ±99,999) | Add/correct a nonnegative bounded total. Poison is shared by 2HG teammates. |
 | `commander-casts` | `delta`, `commander` (1 or 2) | Command-zone casts in Commander. Next tax = 2 × casts. |
 | `city-blessing` | `value` (0 or 1) | Declare blessing or clear an erroneous entry; independent per player. |
 | `initiative` | `value` (0 or 1) | Claim/transfer, or release one’s own initiative. |
-| `treasure`, `rad` | `delta` (nonzero, ±1,000,000) | Per-player totals, as for energy. |
+| `treasure`, `rad` | `delta` (nonzero, ±99,999) | Per-player totals, as for energy. |
 | `rad-resolve` | `delta` (0 to the player’s rad) | Answers the player’s own rad trigger (state `radDue`, set as their turn begins, CR 727): they milled their rad count and `delta` were nonlands, so they lose that much life and rad. 0 just clears it. |
 | `day-night` | `value` (0 neither, 1 day, 2 night) | Table-wide (state `dayNight`); any living player sets it. Neither only corrects a mistake. |
 | `turn-order` | `value` (1 reversed, 0 clockwise) | Table-wide (state `turnOrderReversed`); reversed turns go counterclockwise, still team by team in Two-Headed Giant. |
@@ -600,7 +600,7 @@ finished match can no longer be counted, so it is never counted twice.
 
 `POST /api/game/settings` and `/api/tablet/settings` additionally accept
 `autoEliminateAtPoisonLimit`, `autoEliminateAtCommanderDamage` (0 or 1) and
-`poisonLimit` (1..1,000,000), in the lobby and during running/paused play.
+`poisonLimit` (1..99,999), in the lobby and during running/paused play.
 Zero-life, poison and Commander rules are independent. All default on for
 new matches; poison defaults 10, or 15 for 2HG. A team-mode change selects
 the standard poison limit unless a limit is explicitly supplied. Enabling

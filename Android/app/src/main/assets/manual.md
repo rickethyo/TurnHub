@@ -97,7 +97,7 @@ Bag of Doom: five or more Commander players, with a bag that eliminates a random
 
 - **Yu-Gi-Oh!:** 8000 life, two players.
 
-Official modes (Magic, Commander, Two-Headed Giant, Emperor and Yu-Gi-Oh!) keep their official starting life, poison limit and player count. Turn on **House rules** in setup to change them; any whole number from 0 to 1,000,000 is allowed. Two-Headed Giant Commander, Commander Emperor, Star Commander and Generic are custom modes. **? Rules**, in setup and in the table menu, summarizes the mode and links to its official rules.
+Official modes (Magic, Commander, Two-Headed Giant, Emperor and Yu-Gi-Oh!) keep their official starting life, poison limit and player count. Turn on **House rules** in setup to change them; any whole number from 0 to 99,999 is allowed. Two-Headed Giant Commander, Commander Emperor, Star Commander and Generic are custom modes. **? Rules**, in setup and in the table menu, summarizes the mode and links to its official rules.
 
 ## Death May Die
 
@@ -668,7 +668,7 @@ Nobody new joins a game once it has started, but a player using a phone or the t
 
 4. Choose **Start game** on a Sigil or in the app, or tap **Start** on the Atlas screen. A 3-second countdown begins, which any seated player, or **Cancel start** on Atlas, can cancel.
 
-Games and their starting life on this Atlas: Generic 40, Magic 20, Commander 40 and Yu-Gi-Oh! 8000, or any whole number from 0 to 1,000,000.
+Games and their starting life on this Atlas: Generic 40, Magic 20, Commander 40 and Yu-Gi-Oh! 8000, or any whole number from 0 to 99,999.
 
 **Two-Headed Giant** (Magic and Commander) makes teams of two: players 1 and 2, then 3 and 4, and so on. It needs an even number of players, at least 4. Teammates share one life total (30 for Magic, 60 for Commander, which you can change), take their turn together, and win or go out together. Commander damage still counts per player and comes off the team's life. The starting team skips its first draw; the Atlas screen reminds you.
 

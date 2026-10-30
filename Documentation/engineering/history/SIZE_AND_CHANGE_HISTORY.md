@@ -1094,3 +1094,14 @@ Baseline `1ec000a`. `/api/profiles/register` with `profileId` and an empty
 "Bring players to this table"); the Android app gates it on 0.7.18. No storage
 layout, radio, checkpoint or dependency change. Flash/RAM not measured in this
 cloud session; the CI Atlas compile reports them.
+
+## 2026-10-30: Atlas 0.7.19 plays on the shared rules core
+
+Baseline `06cc704`. `GameEngine` becomes a layer over `turnhub::Game`
+(`core/`, linked as a PlatformIO library; the Atlas build moves to gnu++17).
+Rules now follow the app: win confirmations in seat order after the claimant,
+the Bag of Doom runs to two survivors, life and counters stop at 99,999, the
+Two-Headed Giant starter's team leads with its first player. Finished Atlas
+games go to the match history (`games.jsonl`/`games.csv`). No radio, checkpoint
+layout, NVS or new dependency change. `pio run -e atlas-s3` (cloud): RAM 35.9%,
+flash 27.3%. Hardware acceptance pending.

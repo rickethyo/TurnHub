@@ -220,7 +220,7 @@ loss condition; Commander damage totals alone do not trigger elimination.
   (`ui/tablet/GuidedSetup.kt`, using the lobby's `TableLobbyActions`). It fills
   the screen edge to edge and shows each investigator's whole portrait; table
   tiles crop art toward the top so faces show.
-- Custom starting life 0 to 1,000,000 (custom modes or house rules). Any
+- Custom starting life 0 to 99,999 (custom modes or house rules). Any
   seated player may change the next game's settings in the lobby
   (`ConfigureGame`); a running match keeps what it captured at start, and a
   rematch starts fresh.
@@ -337,6 +337,8 @@ option for the Magic and Commander profiles (`GameSettings::twoHeadedGiant`,
   team's pending pass, and the pass goes to the next team. A team turn counts
   for both teammates' turn statistics. Both teammates' Sigils show the turn
   and hear its cues.
+- **Starting team.** The chosen starter's team goes first, with the team's
+  first player holding the turn (the app's rule, on Atlas since 2026-10-30).
 - **One life total.** Starting life is the team's total: 30 for Magic (fixed,
   with exactly four players, unless house rules are on) and 60 for Commander
   (editable). Either
@@ -392,7 +394,8 @@ GameEngine on Atlas and StandaloneGame on a phone-hosted table.
   including a kill during the initial grace period. Concession, Self and Unknown
   removal just remove the name. The bag panel can credit an earlier automatic
   removal once, before the game ends, using the same statistics attribution.
-- With four or fewer survivors, bag checks stop and Commander continues.
+- At two survivors, bag checks stop and Commander continues (the app's rule;
+  Atlas stopped at four until it moved onto the shared core, 2026-10-30).
   Rematches reset the bag. Alternate win claims wait until the pending check is
   resolved; the table can still explicitly end without a winner.
 - Full-screen modal windows on the shared tablet and personal-phone Game view
@@ -590,8 +593,9 @@ and caching, with no new dependency; browsing can download uncached preview art.
   round; an eliminated seat never leads over a living one.
 - **Pause** stops the turn clock. **End match** (Atlas Table screen, hold 5 s)
   ends a running or paused match as a draw.
-- **Win claims** need the other living players to confirm, in Atlas's player
-  order; a denial resumes play. **Concede** and Game Master removal eliminate
+- **Win claims** need the other living players to confirm, one at a time in
+  seat order starting after the claimant (in Two-Headed Giant, only the next
+  team's first living player answers); a denial resumes play. **Concede** and Game Master removal eliminate
   through the same flow.
   In a phone-hosted game the same rule covers a claim from a guest's device or
   the host's single-player view (`StandaloneGame.requestWin`, owner,
@@ -642,9 +646,10 @@ and caching, with no new dependency; browsing can download uncached preview art.
   up can nudge the active player. Their Sigil plays the Nudge cue (if its
   sound is on) and their phone shows "<name> nudged you" and vibrates. One
   nudge per player every 30 s; a Game Master can mute an account's nudges.
-- Life is bounded to ±1,000,000 and changes are accepted while running or
+- Life is bounded to ±99,999 (`turnhub::Game::MAX_LIFE`) and changes are accepted while running or
   paused, except during a table decision or after elimination. Zero or less
-  eliminates when `autoEliminateAtZeroLife` is enabled (default true). Life changes never write flash (only the checkpoint).
+  eliminates immediately, inside the same change, when `autoEliminateAtZeroLife`
+  is enabled (default true). Life changes never write flash (only the checkpoint).
 - HTTP: `POST /api/control/life` (own life), `/life/request`,
   `/life/respond`, `GET /api/game/counters`.
 
@@ -653,7 +658,7 @@ and caching, with no new dependency; browsing can download uncached preview art.
 - The **receiver** records damage taken from a source player's commander.
   Each source has commander 1 and, with partners, commander 2. Positive
   damage lowers life and negative corrects it; both totals change together.
-  Counters are 0 to 1,000,000 and reset each match. 21 damage does not
+  Counters are 0 to 99,999 and reset each match. 21 damage does not
   eliminate automatically.
 - **Partner commanders** (2026-10-06) are off for every player by default.
   A player turns them on for their own shown seat from the Sigil Menu
@@ -758,7 +763,7 @@ the equivalent singleton for its separate local game. No radio change.
 
 Magic/Commander native player controls and table drawers now expose poison,
 energy and experience, initiative, city’s blessing, and (Commander) command-zone
-casts. Counters range from 0 to 1,000,000; negative corrections cannot cross zero.
+casts. Counters range from 0 to 99,999; negative corrections cannot cross zero.
 Counters and city’s blessing remain associated with their individual owner.
 Initiative has one living holder per game, independent of monarch; claiming it
 transfers it, and the holder may release it to correct an entry. A leaving
