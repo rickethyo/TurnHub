@@ -188,9 +188,9 @@ history. The launcher does not require an image conversion package.
 | `src/sdl_input.cpp` | Keyboard adapter; queues events, LVGL calls stay on main thread |
 | `src/main.cpp` | SDL display/pointer bootstrap, event loop, CLI, integration self-tests, capture |
 | `src/assets.cpp` | Existing TurnHub 64px alpha presets via replaceable asset provider |
-| `assets/th_*.c` | Generated Inter/Cinzel glyphs, tabular digit advances, checked source/output digests |
-| `assets/th_{eyebrow,semi,bold,num}_*.c` | Semibold/bold Inter at the app's weights; `tools/generate_display_fonts.py` (headless browser canvas from the checked-in variable font; `--check` is stdlib) |
-| `assets/th_icons.c` | `design/icons` rasterized to 24/40 px A8 masks, tinted per theme at runtime; `tools/generate_icons.py` (headless Edge/Chrome; `--check` is stdlib) |
+| `../shared/display/th_*.c` | Generated Inter/Cinzel glyphs, tabular digit advances, checked source/output digests |
+| `../shared/display/th_{eyebrow,semi,bold,num}_*.c` | Semibold/bold Inter at the app's weights; `tools/generate_display_fonts.py` (headless browser canvas from the checked-in variable font; `--check` is stdlib) |
+| `../shared/display/th_icons.c` | `design/icons` rasterized to 24/40 px A8 masks, tinted per theme at runtime; `tools/generate_icons.py` (headless Edge/Chrome; `--check` is stdlib) |
 | `lv_conf.h` | Desktop LVGL configuration only; software rendering and development assertions |
 
 `Ui` consumes `SnapshotSource` and emits `ActionSink::request`. The fixture object

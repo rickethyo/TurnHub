@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rasterize design/icons/*.svg into LVGL A8 masks (assets/th_icons.c).
+"""Rasterize design/icons/*.svg into LVGL A8 masks (shared/display/th_icons.c).
 
 The masks are tinted at runtime with image recolor, so one mask serves every
 theme. Rasterization uses a headless Chromium browser (Microsoft Edge or
