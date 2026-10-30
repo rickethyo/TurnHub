@@ -34,6 +34,16 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-10-30, Codex: owner requests creative motion polish inspired by Play
+Together's outward pulse, continuing PR #177 on clean `b2de2dc2`. Scope: share
+the decorative signal renderer with support artwork, respect reduced motion
+without running clocks, and keep the full join code on one line using measured
+text autosizing. Preserve game state, link destinations and payment behavior.
+Atlas presentation counterpart stays in the staged parity slice. Android
+`:app:assembleDebug`, documentation link checks and `git diff --check` pass.
+Animation timing, reduced-motion switching and narrow/large-text code layout
+still need visual device acceptance; no device installation performed.
+
 2026-10-30, Codex: support-page artwork follow-up on `codex/master`, clean
 synchronized baseline `4bfe966c`; #176 merged and no open PRs. Owner wants a
 warmer visual introduction. Reuse the owner-requested generated tabletop

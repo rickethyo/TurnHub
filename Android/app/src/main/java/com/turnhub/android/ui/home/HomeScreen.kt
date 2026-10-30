@@ -431,7 +431,7 @@ fun HomeScreen(
                                         if (canPeople) PeopleCard(info, admin, uiState.avatars, adminActions)
                                     }
                                 }
-                                HomeTab.MORE -> MoreTab(morePage, { morePage = it }, atlas = {
+                                HomeTab.MORE -> MoreTab(morePage, { morePage = it }, reduceMotion = reduceMotion, atlas = {
                                     com.turnhub.android.ui.components.DisclosureCard("Atlas connection") {
                                         com.turnhub.android.ui.tablet.SetupSwitch("Discover Atlas", null, atlasEnabled, true, onAtlasEnabled)
                                         if (atlasEnabled) ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
