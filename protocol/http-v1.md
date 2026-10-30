@@ -8,7 +8,8 @@ BLE, events and the generic JSON Intent envelope remain unimplemented.
 ## Joining Atlas's network
 
 Standalone Atlas serves this API at `http://192.168.4.1` on its own WPA2
-access point, SSID `TurnHub-Atlas` (channel 6, no internet). A new or
+access point, SSID `TurnHub-Atlas` (the table channel, 6 unless the owner
+chose another; no internet through it). A new or
 factory-reset Atlas, with no owner-set password stored, uses the shipped
 pre-setup passphrase `TurnHub-Setup` (`AtlasConfig::WIFI_DEFAULT_PASSWORD`).
 It is public by design so a client can join before setup; setup must replace
@@ -78,7 +79,9 @@ period; it does not mean the next turn has started. State confirms the later com
 
 ## Update notice
 
-Atlas has no internet. A client that can read the public release feed
+Atlas's hotspot has no internet. An Admin may let Atlas check the feed itself
+over a home network (off by default; `/api/network/home`, see
+`Documentation/engineering/HOME_WIFI.md`). A client that can read the public release feed
 (`turnhub-firmware.json`) may report the newest versions with
 `POST /api/updates/latest`, form fields `atlas` and `sigil`
 (`major.minor.patch`, optional `-suffix`; at least one). No sign-in. Atlas keeps

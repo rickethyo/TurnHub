@@ -8,5 +8,6 @@ struct WiFiStub {
   const char *softAPIP() { return "192.168.4.1"; }
   const char *macAddress() { return "test"; }
   int softAPgetStationNum() { return 0; }
+  int channel() { return 6; }
 };
 extern WiFiStub WiFi;

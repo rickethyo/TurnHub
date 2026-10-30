@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <Arduino.h>
 
+#include "protocol.h"
+
 namespace AtlasConfig {
 
 // Arduino-ESP32 2.0.17's loopTask runs setup, gameplay and synchronous HTTP.
@@ -78,7 +80,7 @@ constexpr uint32_t BATTERY_EMPTY_CONFIRM_MS = 30UL * 1000UL;
 constexpr uint32_t BATTERY_EMERGENCY_CONFIRM_MS = 5UL * 1000UL;
 
 constexpr char WIFI_SSID[] = "TurnHub-Atlas";
-constexpr uint8_t WIFI_CHANNEL = 6;
+constexpr uint8_t WIFI_CHANNEL = TurnHubProtocol::DEFAULT_TABLE_CHANNEL;
 // Shipped pre-setup WPA2 passphrase, used only while no owner-set password is
 // stored, so the Android app can join a new or factory-reset Atlas without
 // asking. It is public by design; setup must replace it. Must match
@@ -92,6 +94,14 @@ constexpr char WIFI_PREF_KEY[] = "ap-pass";
 // WPA2-PSK passphrase length limits.
 constexpr size_t WIFI_PASSWORD_MIN_LENGTH = 8;
 constexpr size_t WIFI_PASSWORD_MAX_LENGTH = 63;
+// Optional home Wi-Fi (home_wifi.h), off by default, in the same namespace:
+// on/off ("1"/"0"), network name and password. Factory reset erases them.
+constexpr char HOME_WIFI_PREF_ON[] = "home-on";
+constexpr char HOME_WIFI_PREF_SSID[] = "home-ssid";
+constexpr char HOME_WIFI_PREF_PASS[] = "home-pass";
+// The owner's table channel (protocol.h), as "1".."11"; absent means
+// WIFI_CHANNEL.
+constexpr char TABLE_CHANNEL_PREF_KEY[] = "chan";
 
 constexpr uint16_t HTTP_PORT = 80;
 

@@ -1701,3 +1701,23 @@ future S3 screen. The logic moved to `shared/include/mana_tap.h` (namespace
 `ScreenKind::ManaTap` in `touch_controls.cpp` (presentation only, pauses on a
 pass), orbs moved in place by `updateAtlasScreenMana` at ~30 fps, one table
 record in NVS. New `manaTapOnAtlas` host scenario; previews rendered.
+
+## Home Wi-Fi and the table channel — 2026-10-30, Claude
+
+Owner asked for an opt-in (off by default) way for Atlas to join home Wi-Fi to
+check for updates, then for the complete package: a table channel setting so
+Atlas can stay on the home network. Reference: `HOME_WIFI.md`.
+
+- Atlas: `home_wifi.h` (pure: feed parse, check-in schedule) and firmware-only
+  `home_wifi_link.cpp` (join between games, fetch the feed in a task, leave or
+  stay). The hotspot stays up. `/api/network` reports it; new
+  `/api/network/home`, `/home/check`, `/channel`. Settings row **Home Wi-Fi**.
+- Table channel: `protocol.h` `DEFAULT_TABLE_CHANNEL`/1-11, NVS `atlas-net/chan`.
+- Sigil: `channel_search.h` steps 1-11 when Atlas is lost or pairing gets no
+  answer; saves the channel. Peers use channel 0.
+- App and portal: a Home Wi-Fi card with the advanced channel picker.
+
+Validation: Atlas and Sigil host suites pass (new `homeWifiCheckIns`, route
+checks, `channel_search_scenarios`). Firmware builds and hardware checks are
+recorded in the PR.
+

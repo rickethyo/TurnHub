@@ -18,6 +18,7 @@
 #include "atlas_display.h"
 #include "controller_profiles.h"
 #include "firmware_version.h"
+#include "home_wifi.h"
 #include "optional_preferences.h"
 #include "profile_store.h"
 #include "sd_card.h"
@@ -290,11 +291,12 @@ ScreenKind activeScreen(uint32_t nowMs) {
 }
 
 // The Settings tab: one list. Setup (until it is done) and Pair a Sigil in
-// the lobby, then QR codes, Theme and Device.
+// the lobby, then QR codes, Theme, Home Wi-Fi and Device.
 void layoutMenu(AtlasScreen &screen) {
   static char theme[32];
   snprintf(theme, sizeof(theme), "Theme: %s", TurnHubTheme::palette(atlasDisplayTheme()).label);
-  ButtonSpec rows[5];
+  const bool homeOn = homeWifiEnabled();
+  ButtonSpec rows[6];
   uint8_t n = 0;
   if (table().hubState == HubState::Lobby && setupStage != TurnHub::SetupStage::Complete) {
     rows[n++] = {TouchAction::OpenSetup, "Setup", 0, 1};
@@ -302,8 +304,12 @@ void layoutMenu(AtlasScreen &screen) {
   if (table().hubState == HubState::Lobby) rows[n++] = {TouchAction::Pair, "Pair a Sigil", 0, 1};
   rows[n++] = {TouchAction::OpenQr, "QR codes", 0, 1};
   rows[n++] = {TouchAction::OpenThemes, theme, 0, 1};
+  rows[n++] = {TouchAction::HomeWifi, homeOn ? "Home Wi-Fi: on" : "Home Wi-Fi: off", 0, 1};
   rows[n++] = {TouchAction::OpenDevice, "Device", 0, 1};
   addList(screen, rows, n, LIST_BOTTOM_TABS);
+  for (uint8_t i = 0; i < screen.buttonCount; ++i) {
+    if (screen.buttons[i].action == TouchAction::HomeWifi) screen.buttons[i].selected = homeOn;
+  }
 }
 
 // Settings > Device: USB drive, Sleep (between games; a touch wakes Atlas),
@@ -806,6 +812,7 @@ const char *actionName(TouchAction action) {
     case TouchAction::OpenThemes: return "OPEN_THEMES";
     case TouchAction::InvertDisplay: return "INVERT_DISPLAY";
     case TouchAction::UsbDrive: return "USB_DRIVE";
+    case TouchAction::HomeWifi: return "HOME_WIFI";
     case TouchAction::ThemeGraphite: return "THEME_GRAPHITE";
     case TouchAction::ThemeDaylight: return "THEME_DAYLIGHT";
     case TouchAction::ThemeBrass: return "THEME_BRASS";
@@ -933,6 +940,16 @@ bool navigate(TouchAction action) {
       else showNotice(millis(), share ? "Sharing SD card over USB" : "SD card back on Atlas");
       serialLog.print("ATLAS|TOUCH|USB_DRIVE|");
       serialLog.println(share ? "ON" : "OFF");
+      return true;
+    }
+    case TouchAction::HomeWifi: {
+      // The network name and password are typed in the portal or the app.
+      const bool on = !homeWifiEnabled();
+      if (on && !homeWifiConfigured()) showNotice(millis(), "Add your home network in the app first");
+      else if (!setHomeWifiEnabled(on)) showNotice(millis(), "Home Wi-Fi could not be saved");
+      else showNotice(millis(), on ? "Home Wi-Fi on: checks between games" : "Home Wi-Fi off");
+      serialLog.print("ATLAS|TOUCH|HOME_WIFI|");
+      serialLog.println(on ? "ON" : "OFF");
       return true;
     }
     case TouchAction::InvertDisplay:

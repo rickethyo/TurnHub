@@ -1,3 +1,5 @@
+#include <cstring>
+#include <string>
 #include <Arduino.h>
 #include <WiFi.h>
 
@@ -98,3 +100,31 @@ void fixtureConnectOta(TurnHub::SigilRecord &r) {
 void TurnHubAtlas::beginAtlasStatusLed() {}
 void TurnHubAtlas::logAtlasBoard() {}
 void TurnHubAtlas::setAtlasStatusLed(bool, bool, bool) {}
+
+// Home Wi-Fi's radio work is firmware-only (home_wifi_link.cpp); the
+// setting and its outcomes are kept here so screens and routes can be tested.
+#include "home_wifi.h"
+bool fixtureHomeWifiOn = false;
+std::string fixtureHomeSsid;
+unsigned fixtureHomeChecks = 0;
+bool TurnHubAtlas::homeWifiEnabled() { return fixtureHomeWifiOn; }
+bool TurnHubAtlas::homeWifiConfigured() { return !fixtureHomeSsid.empty(); }
+bool TurnHubAtlas::homeWifiConnected() { return false; }
+uint8_t TurnHubAtlas::homeWifiNetworkChannel() { return 0; }
+bool TurnHubAtlas::setHomeWifiEnabled(bool on) {
+  if (on && fixtureHomeSsid.empty()) return false;
+  fixtureHomeWifiOn = on;
+  if (on) ++fixtureHomeChecks;
+  return true;
+}
+bool TurnHubAtlas::storeHomeWifiNetwork(const char *ssid, const char *) {
+  if (ssid == nullptr || ssid[0] == '\0' || strlen(ssid) > TurnHub::HOME_WIFI_SSID_MAX_LENGTH) return false;
+  fixtureHomeSsid = ssid;
+  return true;
+}
+bool TurnHubAtlas::forgetHomeWifiNetwork() { fixtureHomeSsid.clear(); fixtureHomeWifiOn = false; return true; }
+const char *TurnHubAtlas::homeWifiSsid() { return fixtureHomeSsid.c_str(); }
+void TurnHubAtlas::requestHomeWifiCheck() { ++fixtureHomeChecks; }
+TurnHub::HomeWifiResult TurnHubAtlas::homeWifiResult() { return TurnHub::HomeWifiResult::None; }
+int32_t TurnHubAtlas::homeWifiLastCheckAgeMs(uint32_t) { return -1; }
+void TurnHubAtlas::serviceHomeWifi(uint32_t) {}

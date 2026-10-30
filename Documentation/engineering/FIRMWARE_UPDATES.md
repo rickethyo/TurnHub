@@ -158,6 +158,9 @@ factory needs one USB flash before its first OTA.
   most daily (every minute in debug builds) while connected, verifies each
   download's size and hash, and reports the newest versions to Atlas with
   `POST /api/updates/latest` (public, information only).
+- With home Wi-Fi on ([Home Wi-Fi](HOME_WIFI.md), off by default), Atlas
+  reads the same feed itself between games and reports it to itself the same
+  way.
 - Atlas (`update_notice.h`, RAM only) counts devices running something older.
   It blinks its on-board LED blue, shows "Update available" (or "... for
   Atlas") on its screen, sends `UpdateNotice` so each Sigil says it too, and

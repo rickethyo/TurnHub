@@ -1,8 +1,9 @@
 #pragma once
 
-// "An update is available" (2026-10-01). Atlas has no internet, so the
-// Android app reads the release feed on the phone's own network and reports
-// the newest versions here (POST /api/updates/latest). Atlas compares them
+// "An update is available" (2026-10-01). Atlas's hotspot has no internet, so
+// the Android app reads the release feed on the phone's own network and
+// reports the newest versions here (POST /api/updates/latest); with home
+// Wi-Fi on (home_wifi.h) Atlas also reads it itself. Atlas compares them
 // with its own firmware and every paired Sigil's, and its on-board LED blinks
 // blue (the pairing rhythm; red stays for pairing) while any is newer. The
 // Atlas screen says so in words. Information only: RAM, no Intent, and no

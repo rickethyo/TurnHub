@@ -14,6 +14,7 @@
 #include "pairing_settings.h"
 #include "setup_stage.h"
 #include "speaker_settings.h"
+#include "home_wifi.h"
 #include "wifi_password_store.h"
 #include "serial_log.h"
 #include "web_api_internal.h"
@@ -433,7 +434,29 @@ void handleNetworkInfo(WebServer &server) {
   response += String(WiFi.softAPgetStationNum());
   response += ",\"verifiedAtTable\":";
   response += jsonBool(physicalPresence(server));
-  response += '}';
+  // The table channel in use now (a saved change applies after a restart).
+  response += ",\"channel\":";
+  response += String(WiFi.channel());
+  response += ",\"savedChannel\":";
+  response += String(TurnHub::readTableChannel());
+  // The optional home network (home_wifi.h). Never its password.
+  const int32_t age = TurnHubAtlas::homeWifiLastCheckAgeMs(millis());
+  response += ",\"home\":{\"enabled\":";
+  response += jsonBool(TurnHubAtlas::homeWifiEnabled());
+  response += ",\"configured\":";
+  response += jsonBool(TurnHubAtlas::homeWifiConfigured());
+  response += ",\"ssid\":\"";
+  response += jsonEscape(String(TurnHubAtlas::homeWifiSsid()));
+  response += "\",\"result\":\"";
+  response += TurnHub::homeWifiResultName(TurnHubAtlas::homeWifiResult());
+  response += "\",\"lastCheckAgeMs\":";
+  response += age < 0 ? String("null") : String(age);
+  response += ",\"connected\":";
+  response += jsonBool(TurnHubAtlas::homeWifiConnected());
+  response += ",\"channel\":";
+  const uint8_t homeChannel = TurnHubAtlas::homeWifiNetworkChannel();
+  response += homeChannel ? String(homeChannel) : String("null");
+  response += "}}";
   sendJson(server, 200, response);
 }
 
@@ -493,6 +516,74 @@ void handleNetworkPassword(WebServer &server) {
   sendJson(server, 200,
       "{\"ok\":true,\"changed\":true,\"restarting\":true,\"message\":\"Password saved. Atlas is restarting.\"}");
   restartSoon();
+}
+
+// Home Wi-Fi (home_wifi.h): forget=1 forgets the network; otherwise ssid (and
+// password, kept when blank for the same network) saves it, and enabled=0/1
+// turns the check-ins off or on. Admin, verified at the table, like the AP
+// password: the network name and password are the owner's.
+void handleHomeNetwork(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  if (!requirePhysicalPresence(server)) return;
+  if (server.arg("forget") == "1") {
+    if (!TurnHubAtlas::forgetHomeWifiNetwork()) { sendError(server, 500, "Could not forget the home network"); return; }
+    sendOkMessage(server, "Home network forgotten. Home Wi-Fi is off.");
+    return;
+  }
+  if (server.hasArg("ssid") &&
+      !TurnHubAtlas::storeHomeWifiNetwork(server.arg("ssid").c_str(), server.arg("password").c_str())) {
+    sendError(server, 400, "Enter a network name of 1 to 32 characters and a password of 8 to 63 (or none for an open network)");
+    return;
+  }
+  if (server.hasArg("enabled")) {
+    const String on = server.arg("enabled");
+    if (on != "0" && on != "1") { sendError(server, 400, "Choose home Wi-Fi on or off"); return; }
+    if (!TurnHubAtlas::setHomeWifiEnabled(on == "1")) {
+      sendError(server, on == "1" && !TurnHubAtlas::homeWifiConfigured() ? 409 : 500,
+          on == "1" && !TurnHubAtlas::homeWifiConfigured() ? "Save a home network first" : "Could not save home Wi-Fi");
+      return;
+    }
+  }
+  sendOkMessage(server, TurnHubAtlas::homeWifiEnabled()
+      ? "Saved. Atlas checks in between games."
+      : "Saved. Home Wi-Fi is off.");
+}
+
+// The table channel (protocol.h): 1-11, used from the restart this starts.
+// Sigils search for it; phones rejoin the hotspot by themselves.
+void handleTableChannel(WebServer &server) {
+  if (TurnHubAtlas::sigilUpdatesBusy()) { sendError(server, 409, "Wait for the firmware update to finish"); return; }
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  if (!requirePhysicalPresence(server)) return;
+  const long channel = server.arg("channel").toInt();
+  if (channel < TurnHubProtocol::MIN_TABLE_CHANNEL || channel > TurnHubProtocol::MAX_TABLE_CHANNEL) {
+    sendError(server, 400, "Choose a channel from 1 to 11");
+    return;
+  }
+  if (channel == TurnHub::readTableChannel()) {
+    sendJson(server, 200, "{\"ok\":true,\"changed\":false,\"message\":\"Atlas already uses that channel\"}");
+    return;
+  }
+  TurnHub::OptionalPreferences prefs;
+  bool saved = false;
+  if (prefs.begin(AtlasConfig::WIFI_PREF_NAMESPACE, false)) {
+    saved = channel == AtlasConfig::WIFI_CHANNEL ? prefs.remove(AtlasConfig::TABLE_CHANNEL_PREF_KEY)
+                                                 : prefs.putString(AtlasConfig::TABLE_CHANNEL_PREF_KEY, String(channel)) > 0;
+    prefs.end();
+  }
+  if (!saved) { sendError(server, 500, "Could not save the channel"); return; }
+  serialLog.printf("ATLAS|WIFI_AP|CHANNEL_STORE|%ld\n", channel);
+  sendJson(server, 200,
+      "{\"ok\":true,\"changed\":true,\"restarting\":true,\"message\":\"Channel saved. Atlas is restarting; Sigils find it by themselves.\"}");
+  restartSoon();
+}
+
+// Check now: the next idle moment (no match, no update) starts a check-in.
+void handleHomeNetworkCheck(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  if (!TurnHubAtlas::homeWifiEnabled()) { sendError(server, 409, "Turn home Wi-Fi on first"); return; }
+  TurnHubAtlas::requestHomeWifiCheck();
+  sendOkMessage(server, "Atlas checks for updates between games, starting now if no match is running.");
 }
 
 // --- First-run setup (FIRST_RUN_SETUP.md) --------------------------------------------------

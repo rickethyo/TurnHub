@@ -8,7 +8,8 @@ contract is `protocol/http-v1.md`.
 
 ## Basics
 
-- **Transport:** ESP-NOW on Wi-Fi channel 6, at most eight Sigils per Atlas.
+- **Transport:** ESP-NOW on the table channel (6 unless the owner picks 1-11;
+  Sigils search for it, [Home Wi-Fi](HOME_WIFI.md)), at most eight Sigils per Atlas.
   ESP-NOW is the prototype transport; the production transport is still an
   open decision.
 - **Protocol `VERSION` 3** (2026-09-30). Every board runs the same version;

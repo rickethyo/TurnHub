@@ -38,6 +38,7 @@ TURNHUB_FIRMWARE_DESCRIPTOR(sigilFirmwareDescriptor, SIGIL_PRODUCT, TurnHubSigil
 
 #include "sigil_menu.h"
 #include "life_adjust.h"
+#include "channel_search.h"
 #include "led_ring.h"
 #include "sigil_board.h"
 #include "sigil_touch.h"
@@ -51,7 +52,10 @@ using TurnHubProtocol::PacketType;
 using TurnHubSigil::SigilDisplay;
 
 constexpr uint8_t UNASSIGNED_SIGIL_ID = 0xFF;
-constexpr uint8_t WIFI_CHANNEL = 6;
+// Atlas's table channel (protocol.h): saved when Atlas is found on it, and
+// searched for when Atlas is lost (channel_search.h).
+TurnHubSigil::ChannelSearch channelSearch;
+uint8_t savedChannel = 0;
 
 using TurnHubSigilBoard::BUZZER_PIN;
 constexpr uint8_t PAIR_BUTTON = TurnHubSigilBoard::PAIR_BUTTON_PIN;
@@ -221,7 +225,8 @@ bool ensurePeer(const uint8_t *mac) {
 
   esp_now_peer_info_t peer{};
   memcpy(peer.peer_addr, mac, 6);
-  peer.channel = WIFI_CHANNEL;
+  // 0: whatever channel the radio is on, which follows the search.
+  peer.channel = 0;
   peer.encrypt = false;
 
   const esp_err_t result = esp_now_add_peer(&peer);
@@ -234,6 +239,31 @@ bool ensurePeer(const uint8_t *mac) {
   }
 
   return true;
+}
+
+// Moves the radio (and so ESP-NOW) to a table channel.
+esp_err_t tuneChannel(uint8_t channel) {
+  esp_wifi_set_promiscuous(true);
+  const esp_err_t result = esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+  esp_wifi_set_promiscuous(false);
+  return result;
+}
+
+// Atlas answered on the current channel: start there next time, and let a
+// firmware update join Atlas's hotspot there.
+void rememberChannel() {
+  const uint8_t channel = channelSearch.channel();
+#if TURNHUB_OTA
+  updater.setChannel(channel);
+#endif
+  if (channel == savedChannel) return;
+  Preferences prefs;
+  if (prefs.begin("radio", false)) {
+    prefs.putUChar("channel", channel);
+    prefs.end();
+  }
+  savedChannel = channel;
+  Serial.printf("SIGIL|CHANNEL|%u\n", static_cast<unsigned>(channel));
 }
 
 void rememberAtlas(const uint8_t *mac) {
@@ -1291,6 +1321,7 @@ void applyAtlasLinkChange(TurnHubSigil::LinkChange change) {
 
 void noteAtlasHeard() {
   lastAtlasFrameMs = millis();
+  rememberChannel();
   applyAtlasLinkChange(atlasLink.heard(millis()));
 }
 
@@ -1574,6 +1605,7 @@ void handleEspNowReceive(
     }
     // The window has done its job; the code check keeps the pairing light on.
     pairingActive = false;
+    rememberChannel();
     pairingCodeValue = pairingV2.code();
     pairingCodeShown = true;
     Serial.printf("SIGIL|PAIR|V2|CODE_SHOWN|%u\n", static_cast<unsigned>(accept.sigilId));
@@ -1927,6 +1959,20 @@ void updatePairing() {
   }
 }
 
+// Lost Atlas, or pairing with no answer yet: try the next table channel
+// every CHANNEL_DWELL_MS and probe it at once (channel_search.h).
+void searchForAtlas(uint32_t nowMs) {
+  const bool searching = espNowReady && (pairingActive || (atlasKnown && linkSession.hasKey() && atlasLink.lost()));
+  if (!channelSearch.step(nowMs, searching)) return;
+  if (tuneChannel(channelSearch.channel()) != ESP_OK) return;
+  if (pairingActive) {
+    sendBroadcastRaw(&pairRequest2, sizeof(pairRequest2));
+    lastPairRequestMs = nowMs;
+  } else {
+    sendHello();
+  }
+}
+
 // One button, three gestures (three_part_button.h): a quick press opens the
 // pairing window when released, holding to UNPAIR_HOLD_MS (3 s) erases the
 // saved pairing, holding to FACTORY_RESET_HOLD_MS (10 s) erases everything.
@@ -1988,10 +2034,15 @@ bool startEspNow() {
   WiFi.disconnect();
   delay(100);
 
-  esp_wifi_set_promiscuous(true);
-  const esp_err_t channelResult =
-      esp_wifi_set_channel(WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE);
-  esp_wifi_set_promiscuous(false);
+  {
+    Preferences prefs;
+    if (prefs.begin("radio", true)) {
+      savedChannel = prefs.getUChar("channel", 0);
+      prefs.end();
+    }
+  }
+  channelSearch.begin(savedChannel);
+  const esp_err_t channelResult = tuneChannel(channelSearch.channel());
 
   if (channelResult != ESP_OK) {
     Serial.print("SIGIL|WIFI_CHANNEL|ERROR|");
@@ -2087,7 +2138,7 @@ void setup() {
   updater.begin(SIGIL_PRODUCT,
       TurnHubFirmwarePackage::Version{TurnHubSigilFirmware::MAJOR, TurnHubSigilFirmware::MINOR,
           TurnHubSigilFirmware::PATCH},
-      WIFI_CHANNEL, TurnHubSigil::UpdaterHooks{sendUpdateStatus, showUpdateProgress, endUpdateScreen});
+      channelSearch.channel(), TurnHubSigil::UpdaterHooks{sendUpdateStatus, showUpdateProgress, endUpdateScreen});
 #endif
 
   if (espNowReady) {
@@ -2137,6 +2188,7 @@ void loop() {
   updatePairButton();
   updatePairing();
   applyAtlasLinkChange(atlasLink.update(millis()));
+  searchForAtlas(millis());
 
   updateManaTap(millis());
   updateBuzzer();

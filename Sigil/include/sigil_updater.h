@@ -42,6 +42,8 @@ class SigilUpdater {
   // BOOT_CONFIRM_MS, it restarts and the bootloader rolls back.
   void confirmBoot(bool sessionReady, uint32_t nowMs);
   bool awaitingBootConfirm() const { return confirmPending_; }
+  // Atlas's table channel, once found (channel_search.h).
+  void setChannel(uint8_t channel) { channel_ = channel; }
 
   static constexpr uint32_t BOOT_CONFIRM_MS = 60000;
 

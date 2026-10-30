@@ -26,6 +26,24 @@ data class NetworkInfo(
     val passwordIsDefault: Boolean,
     val passwordLength: Int,
     val stations: Int,
+    /** The table channel in use, and the one saved for the next start-up (protocol.h). */
+    val channel: Int = 6,
+    val savedChannel: Int = 6,
+    val home: HomeWifiInfo = HomeWifiInfo(),
+)
+
+/**
+ * `/api/network` `home`: Atlas's optional home Wi-Fi (Atlas/include/home_wifi.h).
+ * [channel] is the home network's channel when Atlas last joined it; never the password.
+ */
+data class HomeWifiInfo(
+    val enabled: Boolean = false,
+    val configured: Boolean = false,
+    val ssid: String = "",
+    val result: String = "none",
+    val lastCheckAgeMs: Long? = null,
+    val connected: Boolean = false,
+    val channel: Int? = null,
 )
 
 /** One paired Sigil from `/api/devices`. */
@@ -157,19 +175,7 @@ class AtlasAdminConsole(
         }
         if (admin) {
             refreshUploadApproval()
-            get("/api/network")?.let { d ->
-                _state.update {
-                    it.copy(
-                        network = NetworkInfo(
-                            d.optString("ssid"),
-                            d.optString("security"),
-                            d.optBoolean("passwordIsDefault"),
-                            d.optInt("passwordLength"),
-                            d.optInt("stations"),
-                        ),
-                    )
-                }
-            }
+            refreshNetwork()
             refreshDevices()
             get("/api/pairing")?.let { d ->
                 _state.update {
@@ -212,6 +218,25 @@ class AtlasAdminConsole(
         post("/api/avatar/review", listOf("profileId" to profileId, "revision" to revision,
             "action" to if (approve) "approve" else "reject"),
             success = if (approve) "Player image approved." else "Player image rejected.", then = { refresh(admin = true, gameMaster = true) })
+    }
+
+    suspend fun refreshNetwork() {
+        get("/api/network")?.let { d ->
+            _state.update {
+                it.copy(
+                    network = NetworkInfo(
+                        d.optString("ssid"),
+                        d.optString("security"),
+                        d.optBoolean("passwordIsDefault"),
+                        d.optInt("passwordLength"),
+                        d.optInt("stations"),
+                        d.optInt("channel", 6),
+                        d.optInt("savedChannel", d.optInt("channel", 6)),
+                        parseHomeWifi(d.optJSONObject("home")),
+                    ),
+                )
+            }
+        }
     }
 
     suspend fun refreshDevices() {
@@ -337,6 +362,37 @@ class AtlasAdminConsole(
         success = "Password saved. Atlas is restarting; the app rejoins with the new password.",
     ) { restarts.wifiPasswordChanged(password) }
 
+    /** Saves the home network; a blank [password] keeps the saved one for the same network. */
+    suspend fun saveHomeNetwork(ssid: String, password: String) = protectedPost(
+        "/api/network/home",
+        listOf("ssid" to ssid, "password" to password),
+        success = "Home network saved.",
+    ) { refreshNetwork() }
+
+    suspend fun setHomeWifiEnabled(on: Boolean) = protectedPost(
+        "/api/network/home",
+        listOf("enabled" to if (on) "1" else "0"),
+        success = if (on) "Home Wi-Fi on. Atlas checks in between games." else "Home Wi-Fi off.",
+    ) { refreshNetwork() }
+
+    suspend fun forgetHomeNetwork() = protectedPost(
+        "/api/network/home",
+        listOf("forget" to "1"),
+        success = "Home network forgotten.",
+    ) { refreshNetwork() }
+
+    suspend fun checkHomeWifi() = post(
+        "/api/network/home/check",
+        success = "Atlas checks for updates now, unless a match is running.",
+    ) { refreshNetwork() }
+
+    /** Atlas restarts on [channel]; the app and the Sigils find it again by themselves. */
+    suspend fun saveTableChannel(channel: Int) = protectedPost(
+        "/api/network/channel",
+        listOf("channel" to channel.toString()),
+        success = "Channel saved. Atlas is restarting.",
+    )
+
     suspend fun renameDevice(id: Int, name: String) =
         protectedPost("/api/device/name", listOf("module" to id.toString(), "name" to name),
             success = if (name.isEmpty()) "Custom name cleared." else "Sigil renamed.")
@@ -412,6 +468,16 @@ class AtlasAdminConsole(
 
     /** A POST Atlas may gate on table presence: on 403 presenceRequired, show a code and retry once verified. */
     /** [then] runs only after Atlas accepts (for example, rejoining after a restart). */
+    private fun parseHomeWifi(d: JSONObject?) = if (d == null) HomeWifiInfo() else HomeWifiInfo(
+        enabled = d.optBoolean("enabled"),
+        configured = d.optBoolean("configured"),
+        ssid = d.optString("ssid"),
+        result = d.optString("result", "none"),
+        lastCheckAgeMs = if (d.isNull("lastCheckAgeMs")) null else d.optLong("lastCheckAgeMs"),
+        connected = d.optBoolean("connected"),
+        channel = if (d.isNull("channel")) null else d.optInt("channel"),
+    )
+
     private fun parsePresence(d: JSONObject) = PresenceInfo(
         d.optBoolean("verified"),
         d.optLong("remainingMs"),

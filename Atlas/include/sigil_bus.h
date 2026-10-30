@@ -50,6 +50,8 @@ struct SigilRecord {
 class SigilBus {
  public:
   explicit SigilBus(uint8_t wifiChannel);
+  // The owner's table channel (protocol.h), read at start-up before begin().
+  void setWifiChannel(uint8_t channel) { wifiChannel_ = channel; }
 
   bool begin();
   // Opens Atlas's pairing window for windowMs (see pairing_settings.h).

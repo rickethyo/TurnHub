@@ -51,6 +51,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.data.AdminState
 import com.turnhub.android.data.AtlasAdminConsole
+import com.turnhub.android.data.HomeWifiInfo
 import com.turnhub.android.data.DeviceInfo
 import com.turnhub.android.protocol.SessionInfo
 import com.turnhub.android.ui.components.AccentButton
@@ -91,6 +92,7 @@ fun SettingsTab(info: SessionInfo, admin: AdminState, actions: AdminActions, onS
         PresenceCard(admin, actions)
         UploadApprovalCard(admin, actions)
         WifiCard(admin, actions)
+        HomeWifiCard(admin, actions)
         SigilsCard(admin, actions)
         TableAndAtlasCard(admin, actions)
         BrassCard {
@@ -319,6 +321,146 @@ private fun WifiCard(admin: AdminState, actions: AdminActions) {
         ToneButton("Save & restart Atlas", { confirm = true }, Modifier.fillMaxWidth(), tone = Tone.WARN,
             enabled = password.length in 8..63 && !admin.busy)
     }
+}
+
+/**
+ * Atlas's optional home Wi-Fi (Atlas/include/home_wifi.h): off by default.
+ * Atlas joins the home network between games to check for updates, and stays
+ * on it when the home network shares the table channel. Atlas's own network
+ * stays up for phones and Sigils either way.
+ */
+@Composable
+private fun HomeWifiCard(admin: AdminState, actions: AdminActions) {
+    val p = palette
+    val net = admin.network
+    val home = net?.home
+    var ssid by remember(home?.ssid) { mutableStateOf(home?.ssid ?: "") }
+    var password by remember { mutableStateOf("") }
+    var show by remember { mutableStateOf(false) }
+    var channel by remember(net?.savedChannel) { mutableStateOf(net?.savedChannel ?: 6) }
+    var confirmChannel by remember { mutableStateOf(false) }
+    var confirmForget by remember { mutableStateOf(false) }
+    if (confirmChannel) {
+        ConfirmDialog(
+            title = "Move Atlas to channel $channel?",
+            text = "Atlas restarts on the new channel. This app rejoins its network, and Sigils search for it by " +
+                "themselves, which takes a few seconds.",
+            confirm = "Save & restart",
+            onConfirm = { confirmChannel = false; val c = channel; actions.run { saveTableChannel(c) } },
+            onDismiss = { confirmChannel = false },
+        )
+    }
+    if (confirmForget) {
+        ConfirmDialog(
+            title = "Forget the home network?",
+            text = "Atlas forgets its name and password and turns home Wi-Fi off.",
+            confirm = "Forget",
+            onConfirm = { confirmForget = false; ssid = ""; actions.run { forgetHomeNetwork() } },
+            onDismiss = { confirmForget = false },
+        )
+    }
+    val enabled = home?.enabled == true
+    BrassCard {
+        Eyebrow("Home Wi-Fi")
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = enabled,
+                    enabled = !admin.busy && (home?.configured == true || enabled),
+                    role = Role.Switch,
+                    onValueChange = { on -> actions.run { setHomeWifiEnabled(on) } },
+                ),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Use home Wi-Fi", color = p.text)
+                Text(
+                    "Off by default. Atlas joins your home network between games, never during one, to check for " +
+                        "updates itself. Its own network stays on for phones and Sigils.",
+                    color = p.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Switch(checked = enabled, onCheckedChange = null, enabled = !admin.busy && (home?.configured == true || enabled))
+        }
+        StatusRow(
+            "Home network",
+            when {
+                home == null -> "—"
+                !home.configured -> "None saved"
+                home.connected -> "${home.ssid} · connected"
+                home.channel != null -> "${home.ssid} · channel ${home.channel}"
+                else -> home.ssid
+            },
+        )
+        StatusRow("Last check", homeResultText(home))
+        OutlinedTextField(
+            value = ssid,
+            onValueChange = { ssid = it.take(32) },
+            label = { Text("Network name") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it.take(63) },
+            label = { Text(if (home?.configured == true) "Password (blank keeps the saved one)" else "Password") },
+            singleLine = true,
+            visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            AccentButton("Save network", {
+                val name = ssid.trim()
+                val pw = password
+                password = ""
+                actions.run { saveHomeNetwork(name, pw) }
+            }, enabled = ssid.isNotBlank() && (password.isEmpty() || password.length in 8..63) && !admin.busy)
+            ToneButton(if (show) "Hide" else "Show", { show = !show })
+            ToneButton("Check now", { actions.run { checkHomeWifi() } }, enabled = enabled && !admin.busy)
+            ToneButton("Forget", { confirmForget = true }, tone = Tone.WARN, enabled = home?.configured == true && !admin.busy)
+        }
+        Eyebrow("Table channel (advanced)")
+        Text(
+            if (home?.channel != null && home.channel != net?.savedChannel) {
+                "Your home network is on channel ${home.channel}. Choose it so Atlas can stay connected instead of " +
+                    "checking in."
+            } else {
+                "Atlas, its network and the Sigils share one radio channel. When your home network uses the same " +
+                    "channel, Atlas stays connected to it. Sigils find Atlas on any channel by themselves."
+            },
+            color = p.muted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ToneButton("−", { if (channel > 1) channel-- }, enabled = channel > 1)
+            Text(
+                buildString {
+                    append("Channel $channel")
+                    if (channel == 6) append(" (default)")
+                    if (home?.channel == channel) append(" · your home network")
+                },
+                color = p.text,
+                modifier = Modifier.weight(1f),
+            )
+            ToneButton("+", { if (channel < 11) channel++ }, enabled = channel < 11)
+        }
+        ToneButton("Save & restart Atlas", { confirmChannel = true }, Modifier.fillMaxWidth(), tone = Tone.WARN,
+            enabled = net != null && channel != net.savedChannel && !admin.busy)
+    }
+}
+
+private fun homeResultText(home: HomeWifiInfo?): String {
+    if (home == null) return "—"
+    val result = when (home.result) {
+        "checking" -> "Checking…"
+        "checked" -> "Checked"
+        "noNetwork" -> "Could not join the network"
+        "feedFailed" -> "Joined, but the update check failed"
+        else -> "Not yet"
+    }
+    return home.lastCheckAgeMs?.let { "$result · ${it / 60_000} min ago" } ?: result
 }
 
 private fun generatePassword(): String {

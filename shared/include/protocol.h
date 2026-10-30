@@ -39,6 +39,19 @@ constexpr uint32_t PASS_GRACE_MS = 3000;
 // this allows for three missed exchanges.
 constexpr uint32_t LINK_TIMEOUT_MS = 7000;
 
+// The table channel (2026-10-30): one radio carries Atlas's hotspot, ESP-NOW
+// and, optionally, a home network, so all share a channel. Atlas uses the
+// owner's choice (default 6, channels 1-11, which every region allows) and a
+// Sigil that loses Atlas searches 1-11 for it (channel_search.h), dwelling
+// long enough on each for Atlas to answer a SecureHello or pair request.
+constexpr uint8_t DEFAULT_TABLE_CHANNEL = 6;
+constexpr uint8_t MIN_TABLE_CHANNEL = 1;
+constexpr uint8_t MAX_TABLE_CHANNEL = 11;
+constexpr uint32_t CHANNEL_DWELL_MS = 300;
+inline bool validTableChannel(uint8_t channel) {
+  return channel >= MIN_TABLE_CHANNEL && channel <= MAX_TABLE_CHANNEL;
+}
+
 // --- Hello capability byte ---------------------------------------------------
 // Every Sigil has the same baseline, which Atlas assumes and nothing
 // announces: a screen that shows the player's profile and the game, the

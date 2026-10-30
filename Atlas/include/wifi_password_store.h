@@ -27,4 +27,18 @@ inline bool validWifiPassword(const String &password) {
       password.length() <= AtlasConfig::WIFI_PASSWORD_MAX_LENGTH;
 }
 
+// The table channel (protocol.h): the owner's choice, or the default.
+// Used from the next start-up.
+inline uint8_t readTableChannel() {
+  OptionalPreferences prefs;
+  long channel = AtlasConfig::WIFI_CHANNEL;
+  if (prefs.begin(AtlasConfig::WIFI_PREF_NAMESPACE, true)) {
+    const String stored = prefs.getString(AtlasConfig::TABLE_CHANNEL_PREF_KEY, "");
+    if (stored.length() > 0) channel = stored.toInt();
+    prefs.end();
+  }
+  return channel >= 0 && channel <= 255 && TurnHubProtocol::validTableChannel(static_cast<uint8_t>(channel))
+      ? static_cast<uint8_t>(channel) : AtlasConfig::WIFI_CHANNEL;
+}
+
 }  // namespace TurnHub

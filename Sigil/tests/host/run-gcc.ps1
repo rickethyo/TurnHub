@@ -37,6 +37,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Ring test compilation failed.' }
     & ..\..\.pio\host-tests\ring_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Ring scenarios failed.' }
+    & $Compiler -std=c++14 -Wall -Wextra -Werror -mno-ms-bitfields -static -Istubs -I../../include -I../../../shared/include channel_search_scenarios.cpp -o ../../.pio/host-tests/channel_search_scenarios.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Channel search test compilation failed.' }
+    & ..\..\.pio\host-tests\channel_search_scenarios.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Channel search scenarios failed.' }
     & $Compiler -std=c++14 -Wall -Wextra -Werror -mno-ms-bitfields -static -Istubs -I../../include -I../../../shared/include mana_tap_scenarios.cpp -o ../../.pio/host-tests/mana_tap_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Mana Tap test compilation failed.' }
     & ..\..\.pio\host-tests\mana_tap_scenarios.exe

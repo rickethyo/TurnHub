@@ -205,6 +205,9 @@ const Route ROUTES[] = {
   {"/api/device/pair-confirm", HTTP_POST, handlePairConfirm},
   {"/api/network", HTTP_GET, handleNetworkInfo},
   {"/api/network/password", HTTP_POST, handleNetworkPassword},
+  {"/api/network/home", HTTP_POST, handleHomeNetwork},
+  {"/api/network/home/check", HTTP_POST, handleHomeNetworkCheck},
+  {"/api/network/channel", HTTP_POST, handleTableChannel},
   // First-run setup, shared by the Android app and the portal.
   {"/api/setup", HTTP_GET, handleSetupStatus},
   {"/api/setup/finish", HTTP_POST, handleSetupFinish},
