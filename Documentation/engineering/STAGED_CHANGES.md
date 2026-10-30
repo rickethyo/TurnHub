@@ -210,8 +210,8 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   About, Settings and Store as separate pages. Next parity slice: provide the
   same About/project information from Atlas's Info/Settings surfaces, sized
   for its display, while keeping physical game controls accessible. Owner's
-  biography and motivation, donation destination and store offerings are still
-  pending; the store has no checkout or purchase links. Validate Back,
+  store offerings are still pending; the store has no checkout or purchase
+  links. About and support destinations are tracked below. Validate Back,
   recreation, large text and TalkBack on a device.
 
 - **Shared Death May Die devices:** physical two-/multi-device Wi-Fi, Android
@@ -427,4 +427,11 @@ delete the line. A host or compile result never checks off a hardware line.
 
 ## About and donation parity
 
-Android More includes the owner-approved About introduction and Support TurnHub page with PayPal link and supplied QR code. Next slice: expose the same introduction and donation destination in the Atlas portal.
+Android More includes the owner-approved About introduction and Support TurnHub page with PayPal link and supplied QR code, plus Cash App at `https://cash.app/$TurnHub`. Contributions are optional and do not unlock features or purchase products. Next slice: expose the same introduction and both support destinations in the Atlas portal.
+
+Shopify support page (owner, store admin): Shopify product orders must use its
+checkout, so contributions get their own Online Store page instead of a product.
+Create Pages > "Support TurnHub" with the app's support copy, a PayPal link
+(the app's `TURNHUB_DONATION_URL`) and a Cash App link (`https://cash.app/$TurnHub`),
+state that support is optional and buys nothing, and add it to the footer menu.
+Then tap Cash App on a device to confirm it opens the $TurnHub profile.

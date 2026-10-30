@@ -34,6 +34,14 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-10-30, Codex: owner requests Cash App alongside PayPal in Android's Support
+TurnHub page and a separate Shopify support page. Active scope: MoreTab support
+copy/link, Android README and the existing Atlas parity entry. No billing,
+entitlements or game state changes. Claude finished it after Codex ran out of
+usage; #172 and #173 had merged, so it is a PR of its own:
+`compileDebugKotlin` passes; device check and the Shopify page (owner's store
+account) remain, see [Staged Changes](Documentation/engineering/STAGED_CHANGES.md#about-and-donation-parity).
+
 Documentation staging (2026-10-19, Codex, `codex/master`, clean merged baseline
 `b5a4e3b`; no open PRs): owner-approved permanent tester prestige and conditional
 recovery are recorded in [Staged Changes](Documentation/engineering/STAGED_CHANGES.md#permanent-tester-prestige).

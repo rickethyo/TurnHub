@@ -26,7 +26,7 @@ extern const lv_image_dsc_t th_icon_home_24, th_icon_timer_24, th_icon_table_24,
     th_icon_download_24, th_icon_pass_24, th_icon_moon_24, th_icon_sun_24, th_icon_palette_24,
     th_icon_contrast_24, th_icon_close_24, th_icon_info_24, th_icon_hub_24, th_icon_flag_24, th_icon_pause_24,
     th_icon_play_24, th_icon_more_24, th_icon_plus_24, th_icon_refresh_24, th_icon_lock_24, th_icon_check_24,
-    th_icon_users_24, th_icon_minus_24, th_icon_dice_24;
+    th_icon_users_24, th_icon_minus_24, th_icon_dice_24, th_icon_cards_24;
 }
 
 namespace TurnHubAtlas {
