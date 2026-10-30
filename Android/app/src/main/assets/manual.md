@@ -385,6 +385,8 @@ To open the portal, join the Atlas's Wi-Fi and go to http://192.168.4.1/portal, 
 
 - **Wi-Fi:** the table's own password, 8 to 63 characters. Saving restarts Atlas.
 
+- **Home Wi-Fi: optional and off by default. Save your home network's name and password, then turn on Use home Wi-Fi; Atlas checks for updates on it between games, and Check now asks for a check at once. Table channel (advanced) moves Atlas, its network and the Sigils to another channel, 1 to 11; choose your home network's channel so Atlas can stay connected to it. Saving the channel restarts Atlas.**
+
 - **Table code:** when on, actions that change the table need a code from the Atlas screen.
 
 - **Sigils and devices:** pairing decisions, the pairing window, names, Forget, Forget all Sigils and factory reset.
@@ -553,6 +555,8 @@ Turn on each Sigil. It shows the TurnHub logo, then either its Sigil number (it 
 # 3. Joining Atlas from a Phone
 
 Atlas creates its own Wi-Fi network, **TurnHub-Atlas**. Its password is **TurnHub-Setup** until an administrator changes it. The TurnHub app joins it by itself (App Manual, section 10).
+
+Home Wi-Fi (optional, off by default): an administrator can save a home network in the app or portal and turn on Settings > Home Wi-Fi. Atlas then joins it between games, never during one, to check for updates itself. TurnHub-Atlas stays on the whole time, so phones still join it for games. Atlas, its network and the Sigils share one radio channel (6 unless changed). Under Table channel (advanced) you can match your home network's channel, so Atlas stays connected to it instead of checking in; Atlas restarts, and the Sigils find it on the new channel by themselves within a few seconds.
 
 ## QR Codes on the Atlas Screen
 

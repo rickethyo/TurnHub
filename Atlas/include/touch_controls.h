@@ -90,6 +90,9 @@ enum class TouchAction : uint8_t {
   // ...and USB drive (a tap) lends the microSD card to a computer on USB-C,
   // or takes it back (sd_card.h).
   UsbDrive,
+  // Settings > Home Wi-Fi: a tap turns the optional home network check-ins
+  // on or off (home_wifi.h); the network itself is set in the portal or app.
+  HomeWifi,
   OpenThemes, ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast, InvertDisplay,
   // In a game, like the app's table: the lower halves of a player's tile take
   // a life off or add one (ChangeLife for that player), its name band opens

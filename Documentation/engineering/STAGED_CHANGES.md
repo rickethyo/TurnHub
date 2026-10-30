@@ -206,6 +206,13 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 
 ### Accounts, portal and app
 
+- **Home Wi-Fi follow-ups** (owner, 2026-10-30; [Home Wi-Fi](HOME_WIFI.md)):
+  check-ins, the table channel and Sigil channel search are in. Next: sync
+  profiles and statistics over the home network (needs a sync service and its
+  feature gate); check the feed's TLS certificate (a CA bundle in the Atlas
+  image); acceptance on hardware: a check-in from the lobby, staying connected
+  with a matching router channel, and Sigils re-finding Atlas after a channel
+  change (and while pairing).
 - **More and About** (owner, 2026-10-30): Android's rightmost tab opens
   About, Settings and Store as separate pages. Next parity slice: provide the
   same About/project information from Atlas's Info/Settings surfaces, sized

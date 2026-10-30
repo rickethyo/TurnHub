@@ -26,6 +26,7 @@ Cross-agent discussion and project-wide handoffs live in [`COLLABORATION.md`](..
 | [Shared devices](SHARED_DEVICES.md) | Phone-hosted Death May Die, same-network guest displays and investigator controls |
 | [First-run Setup](FIRST_RUN_SETUP.md) | Guided setup of a new Atlas from the app or portal |
 | [Firmware Updates](FIRMWARE_UPDATES.md) | `.thfw` packages, signing, releases, Sigil OTA, update notices |
+| [Home Wi-Fi](HOME_WIFI.md) | Optional home network check-ins, the table channel, Sigils finding Atlas on any channel |
 | [Web Portal](WEB_PORTAL.md) | The embedded admin portal, themes, layout and test contract |
 | [Diagnostics](DIAGNOSTICS.md) | Serial, RAM and SD logs, tracing, and the multi-phone stability work |
 | [Battery estimation and protection](BATTERY_GAUGE.md) | Atlas voltage/SoC/display separation, NVS/RTC history, source inference, independent safety and calibration |

@@ -31,6 +31,7 @@
 #include "speaker_settings.h"
 #include "table_code_setting.h"
 #include "upload_approval.h"
+#include "home_wifi.h"
 #include "wifi_password_store.h"
 
 #if defined(ARDUINO_ARCH_ESP32)
@@ -474,7 +475,11 @@ void startNetworking() {
 
   constexpr bool HIDDEN_SSID = false;
   constexpr int MAX_STATIONS = 8;
-  if (!WiFi.softAP(AtlasConfig::WIFI_SSID, wifiPassword.c_str(), AtlasConfig::WIFI_CHANNEL,
+  // The owner may move the table off channel 6 to match a home network
+  // (home_wifi.h); Sigils search for it (channel_search.h).
+  const uint8_t channel = TurnHub::readTableChannel();
+  sigilBus.setWifiChannel(channel);
+  if (!WiFi.softAP(AtlasConfig::WIFI_SSID, wifiPassword.c_str(), channel,
           HIDDEN_SSID, MAX_STATIONS)) {
     serialLog.println("ATLAS|WIFI_AP|ERROR");
     return;
@@ -486,7 +491,8 @@ void startNetworking() {
   serialLog.print("ATLAS|WIFI_AP|READY|");
   serialLog.print(AtlasConfig::WIFI_SSID);
   serialLog.print("|");
-  serialLog.println(WiFi.softAPIP());
+  serialLog.print(WiFi.softAPIP());
+  serialLog.printf("|channel=%u\n", static_cast<unsigned>(channel));
   serialLog.println("ATLAS|WIFI_AP|SECURITY|WPA2-PSK");
   // The port keeps showing the password for the owner at the table; the
   // downloadable copy never contains it.
@@ -656,6 +662,7 @@ void refreshSdLuxuryStore() {
 void loop() {
   processSigilEvents();
   serviceSigilUpdates(millis());
+  serviceHomeWifi(millis());
   server.handleClient();
   refreshSdLuxuryStore();
 

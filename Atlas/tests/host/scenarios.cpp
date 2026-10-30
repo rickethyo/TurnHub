@@ -848,6 +848,27 @@ static void accountPermissionsAndModeration(){
   assert(request("/api/network",gm,{},HTTP_GET)==403);
   assert(request("/api/network",dev,{},HTTP_GET)==403);
   assert(request("/api/network",admin,{},HTTP_GET)==200);
+  // Home Wi-Fi (home_wifi.h): Admin only, verified at the table, never the
+  // password; on needs a saved network; the table channel stays 1-11.
+  assert(server.body.find("\"home\":{\"enabled\":false,\"configured\":false")!=std::string::npos);
+  assert(server.body.find("\"channel\":6")!=std::string::npos);
+  assert(request("/api/network/home",gm,{{"ssid","Home"}})==403);
+  assert(request("/api/network/home",admin,{{"enabled","1"}})==403);  // Not verified yet.
+  verifyAtTable(admin);
+  assert(request("/api/network/home",admin,{{"enabled","1"}})==409);  // No network saved.
+  assert(request("/api/network/home/check",admin)==409);
+  assert(request("/api/network/home",admin,{{"ssid",""}})==400);
+  assert(request("/api/network/home",admin,{{"ssid","Home Net"},{"password","hunter2hunter2"},{"enabled","1"}})==200);
+  assert(request("/api/network",admin,{},HTTP_GET)==200);
+  assert(server.body.find("\"ssid\":\"Home Net\"")!=std::string::npos &&
+      server.body.find("\"enabled\":true")!=std::string::npos && server.body.find("hunter2")==std::string::npos);
+  assert(request("/api/network/home/check",gm)==403&&request("/api/network/home/check",admin)==200);
+  assert(request("/api/network/home",admin,{{"forget","1"}})==200&&!TurnHubAtlas::homeWifiEnabled()&&
+      !TurnHubAtlas::homeWifiConfigured());
+  assert(request("/api/network/channel",gm,{{"channel","11"}})==403);
+  for(const char *bad:{"0","12","x"}) assert(request("/api/network/channel",admin,{{"channel",bad}})==400);
+  assert(request("/api/network/channel",admin,{{"channel","6"}})==200&&server.body.find("\"changed\":false")!=std::string::npos);
+  resetPresence();
   assert(request("/api/session/profile",admin,{{"clearPin","1"}})==403);
   assert(request("/api/accounts/moderate",admin,{{"profileId",playerId},{"action","reset"}})==403);
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","mute"}})==200);
@@ -6192,6 +6213,56 @@ static void manaTapOnAtlas() {
   resetTouchControls(); enterEmptyLobby();
 }
 
+// Home Wi-Fi's pure parts (home_wifi.h) and its Settings row: the release
+// feed the app reads, when a check-in is due, and the on/off toggle.
+static void homeWifiCheckIns() {
+  using namespace TurnHub;
+  LatestFirmware latest;
+  assert(parseReleaseFeed("{\"schema\": 1, \"release\": \"0.9.1\", \"packages\": ["
+      "{\"product\": \"atlas\", \"version\": \"0.7.20\", \"file\": \"a.thfw\"},"
+      "{\"product\":\"portal\",\"version\":\"9.9.9\"},"
+      "{\"version\":\"0.5.3-dev\",\"product\":\"sigil\"}]}", latest));
+  assert(latest.atlas.known && latest.atlas.minor == 7 && latest.atlas.patch == 20);
+  assert(latest.sigil.known && latest.sigil.patch == 3);
+  LatestFirmware untouched;
+  assert(!parseReleaseFeed("{\"schema\":2,\"packages\":[{\"product\":\"atlas\",\"version\":\"1.0.0\"}]}", untouched));
+  assert(!parseReleaseFeed("{\"schema\":1,\"packages\":[{\"product\":\"atlas\",\"version\":\"x\"}]}", untouched));
+  assert(!parseReleaseFeed("not json", untouched) && !parseReleaseFeed(nullptr, untouched) && !untouched.atlas.known);
+
+  HomeWifiSchedule schedule;
+  assert(!schedule.due(HOME_WIFI_FIRST_CHECK_MS, false, true, true));  // Off by default.
+  assert(!schedule.due(HOME_WIFI_FIRST_CHECK_MS, true, false, true));  // No network.
+  assert(!schedule.due(HOME_WIFI_FIRST_CHECK_MS - 1, true, true, true));
+  assert(!schedule.due(HOME_WIFI_FIRST_CHECK_MS, true, true, false));  // A match is running.
+  assert(schedule.due(HOME_WIFI_FIRST_CHECK_MS, true, true, true));
+  schedule.finished(500000, true);
+  assert(!schedule.due(500000 + HOME_WIFI_CHECK_INTERVAL_MS - 1, true, true, true));
+  assert(schedule.due(500000 + HOME_WIFI_CHECK_INTERVAL_MS, true, true, true));
+  schedule.finished(600000, false);  // A failed check-in retries sooner.
+  assert(schedule.due(600000 + HOME_WIFI_RETRY_MS, true, true, true));
+  schedule.finished(700000, true);
+  schedule.requestNow();  // Check now.
+  assert(schedule.due(700001, true, true, true) && !schedule.due(700001, true, true, false));
+
+  enterEmptyLobby();
+  TurnHubAtlas::forgetHomeWifiNetwork();
+  if (currentScreen().kind != ScreenKind::Menu) tapButton(TouchAction::OpenSettings);
+  auto s = currentScreen();
+  assert(s.kind == ScreenKind::Menu && String(screenButton(s, TouchAction::HomeWifi)->label) == "Home Wi-Fi: off");
+  tapButton(TouchAction::HomeWifi);  // No network saved: it stays off and says where to add one.
+  s = currentScreen();
+  assert(!TurnHubAtlas::homeWifiEnabled() && std::string(s.notice).find("home network") != std::string::npos);
+  assert(TurnHubAtlas::storeHomeWifiNetwork("Home", "password123"));
+  tapButton(TouchAction::HomeWifi);
+  s = currentScreen();
+  assert(TurnHubAtlas::homeWifiEnabled() && screenButton(s, TouchAction::HomeWifi)->selected &&
+      String(screenButton(s, TouchAction::HomeWifi)->label) == "Home Wi-Fi: on");
+  for (uint8_t b = 0; b < s.buttonCount; ++b) assert(s.buttons[b].h >= 44);
+  tapButton(TouchAction::HomeWifi);
+  assert(!TurnHubAtlas::homeWifiEnabled());
+  TurnHubAtlas::forgetHomeWifiNetwork();
+}
+
 static void deviceNavigation() {
   freshLobby(3); pairingActive=false; resetTouchControls(true);
   assert(currentScreen().kind==ScreenKind::Home);
@@ -6232,6 +6303,7 @@ int main() {
   sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
   deviceNavigation(); std::cout<<"PASS device navigation, read-only table, live settings and Atlas roster projection\n";
+  homeWifiCheckIns(); std::cout<<"PASS home Wi-Fi: release feed, check-in schedule, Settings toggle\n";
   manaTapOnAtlas(); std::cout<<"PASS Mana Tap on Atlas: touch play, pause on leaving or a pass, record, no table state\n";
   observeClientState(); intents.setObserver(observeIntent);
   GameEngine::setGameCompletedCallback(completed);
