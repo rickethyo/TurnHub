@@ -37,6 +37,7 @@ TURNHUB_FIRMWARE_DESCRIPTOR(sigilFirmwareDescriptor, SIGIL_PRODUCT, TurnHubSigil
 
 #include "sigil_menu.h"
 #include "life_adjust.h"
+#include "led_ring.h"
 #include "sigil_board.h"
 #include "sigil_touch.h"
 #include "sigil_touch_pad.h"
@@ -897,6 +898,24 @@ void playBuzzerPayload(int32_t value) {
   Serial.print(frequencyHz);
   Serial.print("|");
   Serial.println(durationMs);
+}
+
+// Redraws the LED ring (led_ring.h) every 20 ms from the state on screen.
+void updateRing() {
+  static uint32_t lastMs = 0;
+  const uint32_t now = millis();
+  if (now - lastMs < 20) return;
+  lastMs = now;
+  TurnHubSigil::RingInput in;
+  in.paired = atlasKnown;
+  in.atlasLost = atlasLink.lost();
+  in.pairing = pairingActive;
+  portENTER_CRITICAL(&displayProfileMux);
+  in.state = gameDisplayValid ? static_cast<int32_t>(pendingGameDisplay.state) : static_cast<int32_t>(displayPayload);
+  portEXIT_CRITICAL(&displayProfileMux);
+  TurnHubSigil::RingPixel frame[TurnHubSigil::RING_MAX_LEDS];
+  TurnHubSigil::renderRing(in, now, frame, TurnHubSigilBoard::LED_RING_COUNT);
+  TurnHubSigil::ringShow(frame, TurnHubSigilBoard::LED_RING_COUNT);
 }
 
 void updateBuzzer() {
@@ -1820,6 +1839,7 @@ void setup() {
   ledcSetup(BUZZER_CHANNEL, 2000, 8);
   ledcAttachPin(BUZZER_PIN, BUZZER_CHANNEL);
   stopBuzzer();
+  TurnHubSigil::ringBegin();
 
   Serial.println();
   Serial.println("SIGIL|BOOT|UNASSIGNED|TOUCHSCREEN");
@@ -1912,6 +1932,7 @@ void loop() {
   applyAtlasLinkChange(atlasLink.update(millis()));
 
   updateBuzzer();
+  updateRing();
   updateDisplayProfileSync();
 
   if (displayTaskHandle == nullptr) {

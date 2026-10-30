@@ -21,5 +21,12 @@ constexpr uint8_t TOUCH_MOSI_PIN = 32;
 constexpr uint8_t TOUCH_MISO_PIN = 39;
 constexpr uint8_t TOUCH_CS_PIN = 33;
 constexpr uint8_t TOUCH_IRQ_PIN = 36;
+// Optional WS2812 LED ring (led_ring.h): data on IO27, the SPI connector's CS
+// (free: the case has no microSD); 5V and GND from the UART header.
+#ifndef TURNHUB_RING_LEDS
+#define TURNHUB_RING_LEDS 12
+#endif
+constexpr uint8_t LED_RING_PIN = 27;
+constexpr uint8_t LED_RING_COUNT = TURNHUB_RING_LEDS;
 
 }  // namespace TurnHubSigilBoard
