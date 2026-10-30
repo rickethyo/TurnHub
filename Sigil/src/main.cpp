@@ -322,17 +322,17 @@ uint8_t shownPlayer();
 
 // Mana Tap (mana_tap.h), opened from Home: loop() runs the game and hands the
 // display task a copy (pendingMana*, guarded by displayProfileMux).
-TurnHubSigil::ManaTap manaTap;
+TurnHub::ManaTap manaTap;
 bool manaOpen = false;
 bool manaTurnPaused = false;  // It paused itself for this Sigil's turn.
-TurnHubSigil::ManaTap pendingMana;
+TurnHub::ManaTap pendingMana;
 bool pendingManaOpen = false, pendingManaTurnPaused = false;
 bool manaChanged = false, manaRebuild = false;
 uint16_t manaHomeBest = 0;  // The record Home's button shows.
 void openManaTap(uint32_t nowMs);
 void closeManaTap();
 void manaAction(uint32_t nowMs);
-void manaFeedback(TurnHubSigil::ManaEvent event);
+void manaFeedback(TurnHub::ManaEvent event);
 void publishMana(bool rebuild);
 
 void updateTouch(uint32_t nowMs) {
@@ -358,7 +358,7 @@ void updateTouch(uint32_t nowMs) {
     if (manaOpen && TurnHubSigil::sigilTouchPoint(x, y)) {
       const auto event = manaTap.tap(x, y);
       manaFeedback(event);
-      if (event != TurnHubSigil::ManaEvent::None) publishMana(false);
+      if (event != TurnHub::ManaEvent::None) publishMana(false);
     }
   } else if (target != previous && target != TurnHubSigil::TOUCH_NONE && target >= TurnHubSigil::TOUCH_NAV) {
     if (target == TurnHubSigil::TOUCH_MANA_OPEN) {
@@ -713,7 +713,7 @@ void updateDisplay() {
     return;
   }
   if (page == TurnHubUi::Page::Home) {
-    TurnHubSigil::ManaTap mana;
+    TurnHub::ManaTap mana;
     char player[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
     portENTER_CRITICAL(&displayProfileMux);
     const bool open = pendingManaOpen, turnPaused = pendingManaTurnPaused;
@@ -1024,7 +1024,7 @@ void openManaTap(uint32_t nowMs) {
   (void)nowMs;
   manaPlayerName(manaName, sizeof(manaName));
   const uint8_t seat = shownPlayer();
-  manaTap.open(seat ? seat : 1, loadManaBest(manaName), static_cast<uint32_t>(random(1, 0x7FFFFFFF)));
+  manaTap.open(TurnHub::MANA_SIGIL_FIELD, seat ? seat : 1, loadManaBest(manaName), static_cast<uint32_t>(random(1, 0x7FFFFFFF)));
   manaOpen = true;
   manaTurnPaused = false;
   publishMana(true);
@@ -1041,8 +1041,8 @@ void closeManaTap() {
 // Start, Pause, Resume or Play again: whichever the screen offers.
 void manaAction(uint32_t nowMs) {
   switch (manaTap.phase()) {
-    case TurnHubSigil::ManaPhase::Playing: manaTap.pause(); keepManaBest(); break;
-    case TurnHubSigil::ManaPhase::Paused: manaTap.resume(nowMs); break;
+    case TurnHub::ManaPhase::Playing: manaTap.pause(); keepManaBest(); break;
+    case TurnHub::ManaPhase::Paused: manaTap.resume(nowMs); break;
     default: manaTap.start(nowMs); break;
   }
   manaTurnPaused = false;
@@ -1051,9 +1051,9 @@ void manaAction(uint32_t nowMs) {
 
 // A hit flashes the ring in the seat's colour with a short tick; a miss
 // flashes red with a low tone. The screen shows both (score, lives) too.
-void manaFeedback(TurnHubSigil::ManaEvent event) {
-  if (event == TurnHubSigil::ManaEvent::None) return;
-  const bool hit = event == TurnHubSigil::ManaEvent::Hit;
+void manaFeedback(TurnHub::ManaEvent event) {
+  if (event == TurnHub::ManaEvent::None) return;
+  const bool hit = event == TurnHub::ManaEvent::Hit;
   manaFlash = hit ? TurnHubSigil::ringSeatColor(manaTap.seat(), 220) : TurnHubSigil::RingPixel{255, 0, 0};
   manaFlashUntilMs = millis() + 160;
   playBuzzerPayload(hit ? TurnHubProtocol::encodeTone(1320, 25) : TurnHubProtocol::encodeTone(220, 120));
@@ -1084,7 +1084,7 @@ void updateManaTap(uint32_t nowMs) {
     if (page == TurnHubUi::Page::Home) { displayNeedsRefresh = true; notifyDisplayTask(); }
     return;
   }
-  if (manaTap.phase() == TurnHubSigil::ManaPhase::Playing && (turnStarted || page != TurnHubUi::Page::Home)) {
+  if (manaTap.phase() == TurnHub::ManaPhase::Playing && (turnStarted || page != TurnHubUi::Page::Home)) {
     manaTap.pause();
     keepManaBest();
     manaTurnPaused = turnStarted;
@@ -1103,7 +1103,7 @@ void updateManaTap(uint32_t nowMs) {
   manaFeedback(event);
   const bool ended = before != manaTap.phase();
   if (ended) keepManaBest();
-  if (ended || (manaTap.phase() == TurnHubSigil::ManaPhase::Playing && nowMs - lastFrameMs >= 33)) {
+  if (ended || (manaTap.phase() == TurnHub::ManaPhase::Playing && nowMs - lastFrameMs >= 33)) {
     lastFrameMs = nowMs;
     publishMana(ended);
   }

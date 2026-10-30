@@ -1,24 +1,30 @@
 #pragma once
 
-// Mana Tap, the Sigil's mini game for between turns or games (Home > Play
-// Mana Tap). Orbs float up the field; tap the ones in your seat colour, which
+// Mana Tap, a mini game for between turns or games (Home > Play Mana Tap on
+// a Sigil and on the Atlas touchscreen). Orbs float up the field; tap the ones in your seat colour, which
 // also carry your initial and a ring so colour is never the only sign
 // (ACCESSIBILITY.md), and leave the rest. A wrong tap or a missed orb of
 // yours costs one of three lives, and every ten points the orbs come faster.
-// Device-local fun only: nothing reaches Atlas, and the game pauses itself
-// when this Sigil's turn starts. Pure logic, host-tested; main.cpp feeds it
-// time and taps, and the display draws a copy of it.
+// Device-local fun only: it changes no table state, and each device pauses
+// it when a turn needs the player. Pure logic, shared by Sigil and Atlas and
+// host-tested; the device feeds it time and taps, and its display draws a
+// copy of it.
 
 #include <stdint.h>
 
-namespace TurnHubSigil {
+namespace TurnHub {
 
 constexpr uint8_t MANA_ORBS = 6;
 constexpr uint8_t MANA_LIVES = 3;
-// The field: below the header and score row, above the tab bar.
-constexpr int16_t MANA_FIELD_TOP = 76, MANA_FIELD_BOTTOM = 272;
-constexpr int16_t MANA_ORB_R = 18;
 constexpr int16_t MANA_TAP_SLOP = 8;  // A tap this far outside an orb still counts.
+
+// Where the orbs fly, in screen pixels: between the score row and the tab
+// bar, the screen's width, and each orb's radius. Speeds scale with height.
+struct ManaField {
+  int16_t top, bottom, width, radius;
+};
+constexpr ManaField MANA_SIGIL_FIELD = {76, 272, 240, 18};
+constexpr ManaField MANA_ATLAS_FIELD = {148, 424, 320, 24};
 
 enum class ManaPhase : uint8_t { Ready, Playing, Paused, Over };
 enum class ManaEvent : uint8_t { None, Hit, Miss };
@@ -35,8 +41,9 @@ struct ManaOrb {
 class ManaTap {
  public:
   // seat: the player's seat number (its colour); best: their saved record.
-  void open(uint8_t seat, uint16_t best, uint32_t seed) {
+  void open(const ManaField &field, uint8_t seat, uint16_t best, uint32_t seed) {
     *this = ManaTap();
+    field_ = field;
     seat_ = seat;
     best_ = best;
     rng_ = seed ? seed : 0x2545F491u;
@@ -69,12 +76,14 @@ class ManaTap {
     uint32_t dt = nowMs - lastMs_;
     lastMs_ = nowMs;
     if (dt > 100) dt = 100;  // A stalled loop never teleports orbs.
-    const int32_t step = static_cast<int32_t>(speed() * 256 * dt / 1000);
+    // speed() is px/s on the Sigil's 196 px field; taller fields scale up.
+    const int32_t step = static_cast<int32_t>(static_cast<int64_t>(speed()) * 256 * dt *
+        (field_.bottom - field_.top) / (1000 * 196));
     ManaEvent event = ManaEvent::None;
     for (auto &o : orbs_) {
       if (!o.live) continue;
       o.y8 -= step;
-      if (o.y() + MANA_ORB_R < MANA_FIELD_TOP) {
+      if (o.y() + field_.radius < field_.top) {
         o.live = false;
         if (o.target) { loseLife(); event = ManaEvent::Miss; }
       }
@@ -89,7 +98,7 @@ class ManaTap {
   // A tap at screen point x, y while playing.
   ManaEvent tap(int16_t x, int16_t y) {
     if (phase_ != ManaPhase::Playing) return ManaEvent::None;
-    const int32_t reach = MANA_ORB_R + MANA_TAP_SLOP;
+    const int32_t reach = field_.radius + MANA_TAP_SLOP;
     for (auto &o : orbs_) {
       if (!o.live) continue;
       const int32_t dx = x - o.x, dy = y - o.y();
@@ -109,6 +118,7 @@ class ManaTap {
   bool newBest() const { return newBest_; }
   uint8_t lives() const { return lives_; }
   uint8_t seat() const { return seat_; }
+  const ManaField &field() const { return field_; }
   uint8_t level() const { return static_cast<uint8_t>(score_ / 10 < 20 ? score_ / 10 : 20); }
   const ManaOrb &orb(uint8_t i) const { return orbs_[i]; }
   // Rise speed in px/s and the gap between orbs, both quickening per level.
@@ -144,9 +154,9 @@ class ManaTap {
       o.live = true;
       o.target = random() % 100 < 55;
       o.seat = o.target ? seat_ : decoySeat();
-      const int16_t span = 240 - 2 * (MANA_ORB_R + 6);
-      o.x = static_cast<int16_t>(MANA_ORB_R + 6 + random() % span);
-      o.y8 = static_cast<int32_t>(MANA_FIELD_BOTTOM + MANA_ORB_R) << 8;
+      const int16_t edge = field_.radius + 6;
+      o.x = static_cast<int16_t>(edge + random() % (field_.width - 2 * edge));
+      o.y8 = static_cast<int32_t>(field_.bottom + field_.radius) << 8;
       return;
     }
   }
@@ -156,6 +166,7 @@ class ManaTap {
     if (!lives_) phase_ = ManaPhase::Over;
   }
 
+  ManaField field_ = MANA_SIGIL_FIELD;
   ManaOrb orbs_[MANA_ORBS];
   ManaPhase phase_ = ManaPhase::Ready;
   uint16_t score_ = 0, best_ = 0;
@@ -166,4 +177,4 @@ class ManaTap {
   uint32_t lastMs_ = 0, nextSpawnMs_ = 0;
 };
 
-}  // namespace TurnHubSigil
+}  // namespace TurnHub

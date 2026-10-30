@@ -12,6 +12,7 @@
 
 using namespace TurnHubSigil;
 using namespace TurnHubProtocol;
+using namespace TurnHub;
 
 namespace {
 
@@ -86,8 +87,8 @@ int main() {
     d.setManaBest(24);
     d.showHome(2,true,"Alexandria",static_cast<uint8_t>(DisplayMode::Running)); save("home-mana-best"+suffix);
     {
-      ManaTap mana;
-      mana.open(3, 24, 7);
+      TurnHub::ManaTap mana;
+      mana.open(TurnHub::MANA_SIGIL_FIELD, 3, 24, 7);
       d.showManaTap(2, mana, "Alexandria", false, true); save("mana-ready"+suffix);
       uint32_t ms = 0;
       mana.start(ms);

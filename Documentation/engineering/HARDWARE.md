@@ -59,7 +59,7 @@ headless Sigil (2026-10-28) and the board-less classic `atlas` build
 Home, with persistent **Home / Game / Table / Settings** destinations, and each
 destination has one path (owner, 2026-10-30): the tab bar. Home is status only
 (on Atlas also the table info: Wi-Fi, portal, Sigils, SD card, battery,
-version), plus the Sigil's **Play Mana Tap** button (below). Pairing codes and update progress temporarily take priority over
+version), plus the **Play Mana Tap** button (below). Pairing codes and update progress temporarily take priority over
 navigation. Atlas Game retains its host controls (lobby: Add player, Start,
 Clear; in play: Pass, Pause, Actions); Actions lists master pass and End match.
 Start opens **New game**, the app's game options as a list (game, mode,
@@ -71,17 +71,25 @@ lists of their own; it stays available during play, with destructive Atlas
 device actions hidden then. Hazardous actions on either screen ask first in a
 confirm popup; nothing acts on a hold.
 
-**Mana Tap (Sigil):** a small device-local game for between turns or games
-(owner, 2026-10-30), opened from Home (`Sigil/include/mana_tap.h`, host-tested
-by `mana_tap_scenarios.cpp`). Orbs rise through the field; tapping the player's
-own (their seat colour, initial and a ring, so colour is never the only sign)
-scores, while a wrong tap or one of theirs escaping costs one of three lives,
-and every ten points speeds it up. Hits flash the ring in the seat colour with
-a tick, misses flash red with a low tone. It pauses itself when Home is left
-and when this Sigil's turn starts, then shows the Game tab; Resume carries on.
-Each player's best score is kept in the Sigil's NVS (`manatap`, keyed by a
-hash of the name shown on Home) and shown on the Home button. Nothing reaches
-Atlas. *Needs verification* on hardware.
+**Mana Tap:** a small device-local game for between turns or games
+(owner, 2026-10-30) on the Sigil and the S3 Atlas, opened from Home's **Play
+Mana Tap** button. One shared logic header (`shared/include/mana_tap.h`,
+host-tested by Sigil's `mana_tap_scenarios.cpp` and Atlas's `manaTapOnAtlas`
+scenario) runs on both; each device gives it its field size. Orbs rise
+through the field; tapping the player's own (a seat colour, an initial and a
+ring, so colour is never the only sign) scores, while a wrong tap or one of
+theirs escaping costs one of three lives, and every ten points speeds it up.
+It pauses itself when its screen is left; Home's button carries on the run.
+- *Sigil:* the player's seat colour and initial. Hits flash the ring in the
+  seat colour with a tick, misses flash red with a low tone. It pauses when
+  this Sigil's turn starts and shows the Game tab. Each player's best is kept
+  in the Sigil's NVS (`manatap`, keyed by a hash of the name on Home).
+- *Atlas:* orbs marked A; it pauses when a turn passes in the table's match
+  and shows the Game tab. One table record in NVS (`manatap`/`best`). The
+  screen moves the orbs in place about 30 times a second
+  (`updateAtlasScreenMana`). No sound yet.
+Neither changes table state or sends anything over the radio. *Needs
+verification* on hardware.
 
 **Sigil controls:** Game follows the personal Share Play panel: a large life
 total with direct minus/plus buttons, a primary action and More for the other

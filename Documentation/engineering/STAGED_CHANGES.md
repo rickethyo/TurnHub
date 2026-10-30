@@ -357,8 +357,9 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 - **Mana Tap champion on Atlas** (Planned, owner idea 2026-10-30): Atlas could
   show a "Mana Tap champ" line between games. Needs the Sigils to report best
   scores over the radio (a `protocol.h` change, so Atlas and Sigils reflash
-  together) and an Atlas owner for the table-wide record; the app's
-  counterpart would be the same game in tablet mode.
+  together) and an Atlas owner for the table-wide record. The app's
+  counterpart (parity, Invariant 12) is the same game from `mana_tap.h`'s
+  rules in the app, and Atlas cues for hits and misses on its speaker.
 
 ## Parked: storage batch
 

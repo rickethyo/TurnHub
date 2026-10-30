@@ -1684,6 +1684,12 @@ objects each frame. It pauses on leaving Home and on this Sigil's turn
 "champ" line is staged (needs a radio protocol change). Details in HARDWARE.md.
 
 Validation: `mana_tap_scenarios` and the other Sigil host suites pass; preview
-renders checked. No local firmware build (PlatformIO download limit in the
-cloud container): CI's `pio run -e sigil` is the compile gate. Hardware
-acceptance pending.
+renders checked; CI `pio run -e sigil` passed and it was flashed to the
+E32R28T Sigil (boots, pairs). Hardware play acceptance pending.
+
+Follow-up the same day: owner asked for the Atlas version, to see it on the
+future S3 screen. The logic moved to `shared/include/mana_tap.h` (namespace
+`TurnHub`, field size per device). Atlas: Home's Play Mana Tap button,
+`ScreenKind::ManaTap` in `touch_controls.cpp` (presentation only, pauses on a
+pass), orbs moved in place by `updateAtlasScreenMana` at ~30 fps, one table
+record in NVS. New `manaTapOnAtlas` host scenario; previews rendered.

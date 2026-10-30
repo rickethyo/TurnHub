@@ -82,7 +82,7 @@ class SigilDisplay {
   // Mana Tap (mana_tap.h), opened from Home. rebuild redraws the whole
   // screen; otherwise only the orbs, score and lives move. turnPaused: it
   // paused itself because this Sigil's turn started.
-  virtual void showManaTap(uint8_t sigilId, const ManaTap &game, const char *name, bool turnPaused,
+  virtual void showManaTap(uint8_t sigilId, const TurnHub::ManaTap &game, const char *name, bool turnPaused,
       bool rebuild) {
     (void)sigilId; (void)game; (void)name; (void)turnPaused; (void)rebuild;
   }

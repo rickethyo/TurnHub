@@ -5,7 +5,8 @@
 
 #include "mana_tap.h"
 
-using namespace TurnHubSigil;
+using namespace TurnHub;
+constexpr ManaField F = MANA_SIGIL_FIELD;
 
 namespace {
 // The first live orb of the wanted kind, or -1.
@@ -18,7 +19,7 @@ int find(const ManaTap &g, bool target) {
 int await(ManaTap &g, uint32_t &now, bool target) {
   for (int n = 0; n < 2000; ++n) {
     const int i = find(g, target);
-    if (i >= 0 && g.orb(i).y() < MANA_FIELD_BOTTOM - MANA_ORB_R) return i;
+    if (i >= 0 && g.orb(i).y() < F.bottom - F.radius) return i;
     now += 20;
     g.update(now);
   }
@@ -28,7 +29,7 @@ int await(ManaTap &g, uint32_t &now, bool target) {
 
 int main() {
   ManaTap g;
-  g.open(3, 7, 12345);
+  g.open(F, 3, 7, 12345);
   assert(g.phase() == ManaPhase::Ready && g.best() == 7 && g.lives() == MANA_LIVES);
   assert(g.tap(100, 100) == ManaEvent::None);  // Nothing to tap before Start.
   uint32_t now = 1000;
@@ -43,14 +44,14 @@ int main() {
     if (!o.live) continue;
     if (o.target) assert(o.seat == 3);
     else assert(o.seat != 3 && o.seat != 1 && o.seat != 8 && o.seat >= 1 && o.seat <= 8);
-    assert(o.x >= MANA_ORB_R && o.x <= 240 - MANA_ORB_R);
+    assert(o.x >= F.radius && o.x <= F.width - F.radius);
   }
 
   // Tapping one of yours scores; blank space does nothing.
   assert(g.tap(0, 0) == ManaEvent::None);
   const uint8_t lives = g.lives();
   i = await(g, now, true);
-  assert(g.tap(g.orb(i).x + MANA_ORB_R, g.orb(i).y()) == ManaEvent::Hit);
+  assert(g.tap(g.orb(i).x + F.radius, g.orb(i).y()) == ManaEvent::Hit);
   assert(g.score() == 1 && g.lives() == lives && !g.orb(i).live);
 
   // A decoy costs a life.
@@ -83,7 +84,7 @@ int main() {
   assert(g.best() == 7 && !g.newBest());
 
   // Scoring past the record raises it, and each ten points quickens the pace.
-  g.open(1, 2, 99);
+  g.open(F, 1, 2, 99);
   g.start(now);
   const uint16_t slow = g.speed(), gap = g.spawnGapMs();
   while (g.score() < 10) {

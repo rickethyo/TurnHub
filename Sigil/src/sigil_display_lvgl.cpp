@@ -29,6 +29,8 @@ extern const lv_image_dsc_t th_icon_home_24, th_icon_timer_24, th_icon_table_24,
 }
 
 namespace TurnHubSigil {
+using TurnHub::ManaField; using TurnHub::ManaOrb; using TurnHub::ManaPhase; using TurnHub::ManaTap;
+using TurnHub::MANA_LIVES; using TurnHub::MANA_ORBS;
 namespace {
 
 constexpr int16_t W = SIGIL_SCREEN_W;
@@ -951,7 +953,8 @@ void LvglSigilDisplay::showManaTap(uint8_t sigilId, const ManaTap &game, const c
     lv_obj_set_style_border_color(manaLife_[i],rgb(pal().critical),0);
     lv_obj_set_style_bg_color(manaLife_[i],rgb(pal().critical),0);
   }
-  auto *field=box(s,0,MANA_FIELD_TOP,W,MANA_FIELD_BOTTOM-MANA_FIELD_TOP);
+  const ManaField &f=game.field();
+  auto *field=box(s,0,f.top,W,f.bottom-f.top);
   lv_obj_set_style_bg_opa(field,LV_OPA_COVER,0);
   lv_obj_set_style_bg_color(field,rgb(pal().light ? pal().surface1 : pal().surface2),0);
   lv_obj_set_style_border_side(field,LV_BORDER_SIDE_TOP,0);
@@ -960,7 +963,7 @@ void LvglSigilDisplay::showManaTap(uint8_t sigilId, const ManaTap &game, const c
   // Your orbs are your seat's token (colour, initial and a ring), so the
   // colour is never the only sign of which to tap.
   for (uint8_t i=0;i<MANA_ORBS;++i) {
-    manaOrb_[i]=box(field,0,0,2*MANA_ORB_R,2*MANA_ORB_R);
+    manaOrb_[i]=box(field,0,0,2*f.radius,2*f.radius);
     lv_obj_set_style_radius(manaOrb_[i],LV_RADIUS_CIRCLE,0);
     lv_obj_set_style_bg_opa(manaOrb_[i],LV_OPA_COVER,0);
     lv_obj_set_style_border_color(manaOrb_[i],rgb(pal().text),0);
@@ -974,7 +977,7 @@ void LvglSigilDisplay::showManaTap(uint8_t sigilId, const ManaTap &game, const c
   }
   moveManaOrbs(game);
   if (playing) {
-    touchMap_.add({0,MANA_FIELD_TOP,W,MANA_FIELD_BOTTOM-MANA_FIELD_TOP},TOUCH_MANA_FIELD,TOUCH_MANA_FIELD);
+    touchMap_.add({0,f.top,W,static_cast<int16_t>(f.bottom-f.top)},TOUCH_MANA_FIELD,TOUCH_MANA_FIELD);
   } else {
     auto *c=box(s,20,92,200,170);
     card(c,pal().surface1,pal().separatorStrong,18);
@@ -1013,7 +1016,8 @@ void LvglSigilDisplay::moveManaOrbs(const ManaTap &game) {
     const ManaOrb &o=game.orb(i);
     if (!o.live) { lv_obj_add_flag(manaOrb_[i],LV_OBJ_FLAG_HIDDEN); continue; }
     lv_obj_remove_flag(manaOrb_[i],LV_OBJ_FLAG_HIDDEN);
-    lv_obj_set_pos(manaOrb_[i],o.x-MANA_ORB_R,o.y()-MANA_ORB_R-MANA_FIELD_TOP);
+    const ManaField &f=game.field();
+    lv_obj_set_pos(manaOrb_[i],o.x-f.radius,o.y()-f.radius-f.top);
     lv_obj_set_style_bg_color(manaOrb_[i],rgb(seatColor(o.seat)),0);
     lv_obj_set_style_border_width(manaOrb_[i],o.target ? 3 : 0,0);
     if (o.target) lv_obj_remove_flag(manaInitial_[i],LV_OBJ_FLAG_HIDDEN);

@@ -38,6 +38,7 @@ constexpr int16_t H = ATLAS_SCREEN_HEIGHT;
 constexpr uint32_t SPLASH_MS = 1500;
 constexpr uint32_t TOUCH_POLL_MS = 15;
 constexpr uint32_t SCREEN_POLL_MS = 100;
+constexpr uint32_t MANA_FRAME_MS = 33;
 constexpr uint8_t BACKLIGHT_ON = 255;
 // Partial render buffers in internal DMA-capable RAM.
 constexpr uint32_t BUFFER_LINES = 40;
@@ -257,13 +258,17 @@ void serviceAtlasDisplay(uint32_t nowMs) {
     if (!splashUp) updateTouchControls(nowMs, touched, x, y);
   }
   if (splashUp && nowMs - startedAtMs >= SPLASH_MS) splashUp = false;
-  if (!splashUp && nowMs - lastScreenPollMs >= SCREEN_POLL_MS) {
+  // Mana Tap's orbs move at about 30 frames a second while it plays.
+  const bool manaPlaying = shownValid && shown.kind == ScreenKind::ManaTap &&
+      shown.mana.phase() == TurnHub::ManaPhase::Playing;
+  if (!splashUp && nowMs - lastScreenPollMs >= (manaPlaying ? MANA_FRAME_MS : SCREEN_POLL_MS)) {
     lastScreenPollMs = nowMs;
     AtlasScreen screen;
     buildAtlasScreen(nowMs, screen);
     if (!shownValid || !sameScreen(screen, shown)) {
-      // A ticking clock updates its labels in place; anything else rebuilds.
-      if (!shownValid || !sameScreenButTimes(screen, shown) || !updateAtlasScreenTimes(screen))
+      // A ticking clock and Mana Tap's orbs update in place; anything else rebuilds.
+      if (!shownValid || !sameScreenButTimes(screen, shown) || !updateAtlasScreenTimes(screen) ||
+          !updateAtlasScreenMana(screen))
         renderAtlasScreen(screen, {theme, inverted});
       shown = screen;
       shownValid = true;

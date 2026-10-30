@@ -100,7 +100,7 @@ void players(AtlasScreen &s, int count, bool game) {
 void renderShell(AtlasScreen &s,const ScreenStyle &style,bool keepBanner=false) {
   if(s.kind!=ScreenKind::Code && s.kind!=ScreenKind::PairCode && s.kind!=ScreenKind::Name && s.kind!=ScreenKind::Pin && s.kind!=ScreenKind::Setup && s.kind!=ScreenKind::Confirm) {
     const TouchAction actions[]={TouchAction::OpenHome,TouchAction::OpenGame,TouchAction::OpenOverview,TouchAction::OpenSettings};
-    const uint8_t selected=s.kind==ScreenKind::Home?0:s.kind==ScreenKind::Overview?2:
+    const uint8_t selected=s.kind==ScreenKind::Home||s.kind==ScreenKind::ManaTap?0:s.kind==ScreenKind::Overview?2:
         s.kind==ScreenKind::Menu||s.kind==ScreenKind::Device||s.kind==ScreenKind::Themes?3:1;
     for(uint8_t i=0;i<4;++i) { auto &b=s.buttons[s.buttonCount++];b.action=actions[i];b.label=TurnHubUi::pageTitle(static_cast<TurnHubUi::Page>(i));b.x=i*80;b.y=432;b.w=80;b.h=48;b.selected=i==selected; }
   }
@@ -132,7 +132,30 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     auto s=base("ATLAS","TurnHub","RUNNING, 4 players");s.kind=ScreenKind::Home;
     const char *lines[]={"Wi-Fi: TurnHub-Atlas","Portal: 192.168.4.1","Sigils online: 2","SD card: ready, battery 72%","Atlas v0.7.20, up 1:02:13"};
     for(auto line:lines) snprintf(s.lines[s.lineCount++],sizeof(s.lines[0]),"%s",line);
+    row(s,BUTTON_ROW_Y,{{TouchAction::OpenManaTap,"Play Mana Tap (best 24)"}});
     renderShell(s,style);save("home"+suffix);
+  }
+  {
+    // Mana Tap: ready, mid-run (Pause beside the title), and paused by a pass.
+    TurnHub::ManaTap mana; mana.open(TurnHub::MANA_ATLAS_FIELD,1,24,7);
+    auto ready=base("PLAY","Mana Tap","Tap orbs marked A, let the rest float");ready.kind=ScreenKind::ManaTap;ready.mana=mana;
+    row(ready,BUTTON_ROW_Y,{{TouchAction::ManaAction,"Start"},{TouchAction::ManaQuit,"Quit"}},{3,2});
+    renderShell(ready,style);save("mana-ready"+suffix);
+    uint32_t ms=0; mana.start(ms);
+    for(int n=0;n<240;++n) {
+      ms+=20; mana.update(ms);
+      for(uint8_t i=0;i<TurnHub::MANA_ORBS && n%37==0 && n<150;++i)
+        if(mana.orb(i).live && mana.orb(i).target) mana.tap(mana.orb(i).x,mana.orb(i).y());
+    }
+    auto play=base("PLAY","Mana Tap","Tap the orbs marked A");play.kind=ScreenKind::ManaTap;play.mana=mana;
+    auto &pause=play.buttons[play.buttonCount++];pause.action=TouchAction::ManaAction;pause.label="Pause";
+    pause.x=WIDTH-8-112;pause.y=SCREEN_HERO_Y+8;pause.w=112;pause.h=52;
+    renderShell(play,style);save("mana-playing"+suffix);
+    mana.pause();
+    auto paused=base("PLAY","Mana Tap","Paused: the turn passed");paused.kind=ScreenKind::ManaTap;paused.mana=mana;
+    paused.manaTurnPaused=true;
+    row(paused,BUTTON_ROW_Y,{{TouchAction::ManaAction,"Resume"},{TouchAction::ManaQuit,"Quit"}},{3,2});
+    renderShell(paused,style);save("mana-paused"+suffix);
   }
   {
     auto s=base("PLAYING","Table","Read only / players 1-8");s.kind=ScreenKind::Overview;players(s,4,true);
