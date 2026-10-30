@@ -125,5 +125,7 @@ inline void renderRing(const RingInput &in, uint32_t nowMs, RingPixel *frame, ui
 // The board driver (sigil_ring_e32r28t.cpp).
 void ringBegin();
 void ringShow(const RingPixel *frame, uint8_t count);
+// Serial bench commands: "ring test", "ring rgb", "ring rgbw" (RAM only).
+bool ringHandleCommand(const char *line);
 
 }  // namespace TurnHubSigil

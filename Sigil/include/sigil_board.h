@@ -26,6 +26,9 @@ constexpr uint8_t TOUCH_IRQ_PIN = 36;
 #ifndef TURNHUB_RING_LEDS
 #define TURNHUB_RING_LEDS 12
 #endif
+#ifndef TURNHUB_RING_RGBW
+#define TURNHUB_RING_RGBW 1  // SK6812 RGBW (four bytes per LED), the bench ring; 0 for WS2812.
+#endif
 constexpr uint8_t LED_RING_PIN = 27;
 constexpr uint8_t LED_RING_COUNT = TURNHUB_RING_LEDS;
 

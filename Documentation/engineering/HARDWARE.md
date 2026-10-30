@@ -129,6 +129,8 @@ described in `CLAUDE.md`.
   or Atlas is lost; seat colour on this Sigil's turn; amber attention pulse;
   winner chase) at about a fifth of full drive (`TURNHUB_RING_BRIGHTNESS`, 48/255)
   and caps it at 200 mA; `TURNHUB_RING_LEDS` sets the count
-  (default 12). It repeats the screen, so nothing depends on it. 3.3 V data
+  (default 12) and `TURNHUB_RING_RGBW` the LED type (default 1, SK6812 RGBW,
+  the bench ring; serial `ring test` shows red, green, blue, white on LEDs
+  1-4). IO35 can't drive it (input only). It repeats the screen, so nothing depends on it. 3.3 V data
   into a 5 V ring is *Needs verification*; a diode in the ring's 5V lead
   raises the margin if it flickers.

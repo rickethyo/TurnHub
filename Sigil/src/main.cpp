@@ -1900,6 +1900,7 @@ void readSerialCommands() {
       line[length] = '\0';
       if (length && strcmp(line, "touch cal") == 0) {
         TurnHubSigil::sigilTouchStartCalibration();
+      } else if (length && TurnHubSigil::ringHandleCommand(line)) {
       } else if (length && !sigilDisplay.handleCommand(line)) {
         Serial.print("SIGIL|SERIAL|UNKNOWN|");
         Serial.println(line);
