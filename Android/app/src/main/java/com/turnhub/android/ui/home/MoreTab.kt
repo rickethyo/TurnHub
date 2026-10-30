@@ -1,6 +1,7 @@
 package com.turnhub.android.ui.home
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,7 +19,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import com.turnhub.android.R
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -29,12 +32,13 @@ import com.turnhub.android.ui.theme.DesignTokens
 import com.turnhub.android.ui.theme.palette
 
 internal enum class MorePage(val title: String) {
-    HOME("More"), ABOUT("About TurnHub"), SETTINGS("Settings"), STORE("Store"),
+    HOME("More"), ABOUT("About TurnHub"), SETTINGS("Settings"), STORE("Store"), DONATE("Support TurnHub"),
 }
 
 /** Secondary destinations share the app shell, with one page visible at a time. */
 @Composable
 internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit, settings: @Composable ColumnScope.() -> Unit) {
+    val uriHandler = LocalUriHandler.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         if (page != MorePage.HOME) {
             TextButton(onClick = { onPage(MorePage.HOME) }) {
@@ -52,6 +56,8 @@ internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit, settings: @Comp
                     HorizontalDivider(color = palette.line)
                     MoreEntry("Settings", "Appearance, sound and connections", DesignTokens.Icons.sliders) { onPage(MorePage.SETTINGS) }
                     HorizontalDivider(color = palette.line)
+                    MoreEntry("Support TurnHub", "Help support development", DesignTokens.Icons.info) { onPage(MorePage.DONATE) }
+                    HorizontalDivider(color = palette.line)
                     MoreEntry("Store", "Not open yet", DesignTokens.Icons.hub) { onPage(MorePage.STORE) }
                 }
                 AppVersionLabel()
@@ -59,11 +65,25 @@ internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit, settings: @Comp
             MorePage.ABOUT -> {
                 BrassCard {
                     Text("More time around the table", color = palette.text, style = MaterialTheme.typography.titleMedium)
-                    Text("TurnHub brings turns, timers, life totals and game records together on your phone or tablet, " +
-                        "with Atlas and Sigils for a connected table.", color = palette.muted)
-                    Text("Less bookkeeping between turns. More room for the people and games at your table.", color = palette.muted)
+                    Text("TurnHub started with a simple idea: spend less time managing the game and more time enjoying it. " +
+                        "I’m Ricky Buchanan, and I’m building TurnHub to bring turn timers, life totals, player profiles, " +
+                        "and game statistics together in one place.", color = palette.muted)
+                    Text("Designed for the tabletop and built to work locally, TurnHub keeps you connected to your game " +
+                        "without requiring a cloud service, subscription, or internet connection.", color = palette.muted)
+                    TextButton(onClick = { onPage(MorePage.DONATE) }) { Text("Support TurnHub") }
                 }
                 AppVersionLabel()
+            }
+            MorePage.DONATE -> BrassCard {
+                Text("Help TurnHub grow", color = palette.text, style = MaterialTheme.typography.titleMedium)
+                Text("I’m Ricky, creator of TurnHub. Your support enables me to build the tools that keep tabletop gaming " +
+                    "focused on the game.", color = palette.muted)
+                Text("If you’d like to support TurnHub’s development, you can donate through PayPal. Thank you for your support.",
+                    color = palette.muted)
+                TextButton(onClick = { uriHandler.openUri(TURNHUB_DONATION_URL) }) { Text("Donate with PayPal") }
+                Image(painterResource(R.drawable.turnhub_donation_qr),
+                    contentDescription = "Scan with another device to donate to TurnHub through PayPal",
+                    modifier = Modifier.size(256.dp).align(Alignment.CenterHorizontally))
             }
             MorePage.SETTINGS -> settings()
             MorePage.STORE -> BrassCard {
@@ -87,3 +107,6 @@ private fun MoreEntry(title: String, description: String, @DrawableRes icon: Int
             tint = palette.muted, modifier = Modifier.size(20.dp))
     }
 }
+
+private const val TURNHUB_DONATION_URL = "https://www.paypal.com/donate/?business=JQQY4P6XE2ANL&no_recurring=0" +
+    "&item_name=I%27m+Ricky%2C+creator+of+TurnHub.+Your+support+enables+me+to+build+the+tools+that+keep+tabletop+gaming+focused+on+the+game.&currency_code=USD"

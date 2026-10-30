@@ -1634,3 +1634,9 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
   and multiplayer acceptance remain open; host previews are not that check.
 - Concurrent app About/Support edits are preserved and excluded from this
   firmware commit; only this slice’s collaboration/backlog hunks are staged.
+
+## About and donations — 2026-10-29, Codex
+
+Owner-authorized Android About copy and PayPal support page, baseline `f7ab1919` on `codex/master`. Scope: MoreTab and supplied QR asset only; preserve existing hardware/manual work. Fetched origin; no incoming master commits. GitHub CLI lacks authentication, so open PR inspection unavailable. Atlas parity tracked in staged changes. Validation pending Android build.
+
+Validation: Android assembleDebug passed; git diff --check passed. Device layout, PayPal launch and QR scanning remain for physical acceptance. Changes remain local alongside the pre-existing work.

@@ -411,3 +411,7 @@ delete the line. A host or compile result never checks off a hardware line.
 - First reproducible `ATLAS-REV-A` / `SIGIL-REV-A` with BOMs; enclosure
   mounting and docking after power and connectors settle; a
   design-for-assembly review with the PCBA maker.
+
+## About and donation parity
+
+Android More includes the owner-approved About introduction and Support TurnHub page with PayPal link and supplied QR code. Next slice: expose the same introduction and donation destination in the Atlas portal.
