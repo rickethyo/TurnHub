@@ -1,15 +1,12 @@
 package com.turnhub.android.ui.home
 
 import androidx.annotation.DrawableRes
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,12 +20,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
-import com.turnhub.android.R
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.ui.components.AppVersionLabel
+import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.theme.DesignTokens
 import com.turnhub.android.ui.theme.palette
@@ -86,17 +83,10 @@ internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit, atlas: @Composa
                     color = palette.muted)
                 Text("Support is optional and does not unlock app features or purchase hardware or merchandise.",
                     color = palette.muted)
-                TextButton(onClick = { uriHandler.openUri(TURNHUB_CASH_APP_URL) }) {
-                    Text("Support with Cash App — \$TurnHub")
-                }
-                Image(painterResource(R.drawable.paypal_donate),
-                    contentDescription = "Donate with PayPal",
-                    modifier = Modifier.width(200.dp).height(56.dp).clickable(role = Role.Button) {
-                        uriHandler.openUri(TURNHUB_DONATION_URL)
-                    }.padding(vertical = 8.dp))
-                Image(painterResource(R.drawable.turnhub_donation_qr),
-                    contentDescription = "Scan with another device to donate to TurnHub through PayPal",
-                    modifier = Modifier.size(256.dp).align(Alignment.CenterHorizontally))
+                AccentButton("Support with Cash App", { uriHandler.openUri(TURNHUB_CASH_APP_URL) },
+                    Modifier.fillMaxWidth())
+                AccentButton("Support with PayPal", { uriHandler.openUri(TURNHUB_DONATION_URL) },
+                    Modifier.fillMaxWidth())
             }
             MorePage.ATLAS -> atlas()
             MorePage.SETTINGS -> settings()
