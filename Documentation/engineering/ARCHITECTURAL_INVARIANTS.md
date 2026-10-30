@@ -188,6 +188,11 @@ Anything built for the app is built for Atlas, and anything built for Atlas is
 built for the app, so TurnHub never again splits into two ecosystems.
 Accounts, statistics, game rules, records, settings and their behavior work
 the same whether a game is played on a phone, a tablet or an Atlas.
+The product model is **one game, many controllers**: host/transport selection
+must not select a different game layout or interaction flow. Shared presentation
+consumes the same state/action vocabulary; adapters handle credentials,
+requests and persistence. Player and shared-table roles may expose different
+permissions, consistently across authorities.
 
 - A feature lands on both sides in the same PR, or the PR records the
   counterpart in `STAGED_CHANGES.md` as the next slice. Neither side ships a

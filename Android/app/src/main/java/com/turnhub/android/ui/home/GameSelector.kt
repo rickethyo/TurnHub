@@ -8,7 +8,7 @@ import com.turnhub.android.domain.TableSummary
 fun GameSelector(summary: TableSummary, onSelect: (Int) -> Unit, enabled: Boolean = true) {
     if (summary.games.size < 2) return
     ChoiceDropdown(
-        label = "Game on this Atlas",
+        label = "Game",
         options = summary.games.map { it.game to "Game ${it.game} · ${it.state.name.lowercase().replace('_', ' ')} · ${it.players} players" },
         selected = summary.game, onSelect = onSelect, enabled = enabled,
     )

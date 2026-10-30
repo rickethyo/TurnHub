@@ -39,10 +39,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -369,10 +371,17 @@ fun GearMark(size: Dp, modifier: Modifier = Modifier, spinning: Boolean = false,
     }
 }
 
-internal fun DrawScope.drawGear(brush: Brush) {
+internal fun DrawScope.drawGear(brush: Brush, cutout: Boolean = false) {
     val c = center
     val hole = size.minDimension * .15f
-    drawPath(gearPath(), brush)
+    val path = gearPath()
+    if (cutout) {
+        path.fillType = PathFillType.EvenOdd
+        path.addOval(Rect(c.x - hole, c.y - hole, c.x + hole, c.y + hole))
+        drawPath(path, brush)
+        return
+    }
+    drawPath(path, brush)
     drawCircle(Color.Black.copy(alpha = .0f), hole, c)
     drawCircle(brush, hole, c, style = Stroke(width = size.minDimension * .04f))
     drawCircle(Color(0x66000000), hole * .92f, c)

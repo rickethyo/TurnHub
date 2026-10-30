@@ -100,6 +100,7 @@ internal fun TableLobby(
     phoneHosted: Boolean = false,
     startReady: Boolean = true,
     startHint: String? = null,
+    settingsHint: String = "Add a player to choose the game.",
 ) {
     val p = palette
     val players = summary.players.sortedBy { it.playerNumber }
@@ -284,7 +285,7 @@ internal fun TableLobby(
             // The game folds to one tile once chosen; the mode stays one tap away.
             BrassCard {
                 Eyebrow("Game")
-                if (!settingsEnabled) Text("Add a player to choose the game.", color = p.muted)
+                if (!settingsEnabled) Text(settingsHint, color = p.muted)
                 FoldingGamePicker(settings.profile, settingsEnabled, phoneHosted) { picked ->
                     // Emperor keeps its seating when the table swaps Magic and Commander decks.
                     val profile = emperorFormat(settings.profile, picked)

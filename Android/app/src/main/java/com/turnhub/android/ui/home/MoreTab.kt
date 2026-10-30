@@ -40,7 +40,6 @@ import com.turnhub.android.R
 import com.turnhub.android.ui.components.AppVersionLabel
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.BrassCard
-import com.turnhub.android.ui.components.SignalBeacon
 import com.turnhub.android.ui.theme.DesignTokens
 import com.turnhub.android.ui.theme.palette
 
@@ -50,7 +49,7 @@ internal enum class MorePage(val title: String) {
 
 /** Secondary destinations share the app shell, with one page visible at a time. */
 @Composable
-internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit, reduceMotion: Boolean = false,
+internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit,
     atlas: @Composable ColumnScope.() -> Unit, settings: @Composable ColumnScope.() -> Unit) {
     val uriHandler = LocalUriHandler.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -91,7 +90,7 @@ internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit, reduceMotion: B
                 AppVersionLabel()
             }
             MorePage.DONATE -> BrassCard {
-                SupportArtwork(reduceMotion)
+                SupportArtwork()
                 Text("Hardware concept", color = palette.muted, style = MaterialTheme.typography.labelSmall)
                 Text("Help TurnHub grow", color = palette.text, style = MaterialTheme.typography.titleMedium)
                 Text("I'm Ricky, creator of TurnHub. Your support enables me to build the tools that keep tabletop gaming " +
@@ -114,9 +113,9 @@ internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit, reduceMotion: B
     }
 }
 
-/** Warm project artwork with the same quiet, outward signal as Play Together. */
+/** Static project artwork; ambient motion belongs to the shared page background. */
 @Composable
-private fun SupportArtwork(reduceMotion: Boolean) {
+private fun SupportArtwork() {
     val p = palette
     val shape = RoundedCornerShape(18.dp)
     Box(Modifier.fillMaxWidth().height(216.dp).clip(shape).border(1.dp, p.accent.copy(alpha = .5f), shape)) {
@@ -125,7 +124,6 @@ private fun SupportArtwork(reduceMotion: Boolean) {
             contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(
             0f to Color.Black.copy(alpha = .12f), .4f to Color.Transparent, 1f to Color.Black.copy(alpha = .88f))))
-        SignalBeacon(p.accent, reduceMotion, Modifier.matchParentSize(), sheen = false, brandMark = true)
         Column(Modifier.align(Alignment.BottomStart).padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("BUILT AROUND YOUR TABLE", color = Color(0xFFF7DD8A),
                 style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.4.sp), fontWeight = FontWeight.Bold)
