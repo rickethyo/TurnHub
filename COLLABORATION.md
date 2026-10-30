@@ -34,6 +34,14 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-10-30, Codex: owner requests TurnHub gears incorporated into the support
+motion. Continuing #177 on clean `58187a7b`: use the existing gear geometry and
+accent brush at the support beacon's center, with slow reverse rotation and
+subtle breathing; remove the separate corner mark. Play Together keeps its
+state-colored dot. Reduced motion freezes gear and rings without clocks.
+Validation: Android `:app:assembleDebug`, docs links and whitespace checks pass;
+visual device acceptance remains.
+
 2026-10-30, Codex: owner requests creative motion polish inspired by Play
 Together's outward pulse, continuing PR #177 on clean `b2de2dc2`. Scope: share
 the decorative signal renderer with support artwork, respect reduced motion

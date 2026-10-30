@@ -58,7 +58,7 @@ profiles available and adds Table and Me sections when connected. History keeps
 local results and Atlas import controls. More opens About TurnHub, Settings
 and Store as separate pages; the store is not open yet. Support TurnHub offers
 optional PayPal and Cash App contributions beneath a labeled tabletop hardware
-concept image with a gentle outward gold pulse (static with reduced motion),
+concept image with a slowly turning gold gear and outward pulse (static with reduced motion),
 through matching full-width buttons,
 separate from app features and purchases. Settings contains
 appearance, reduced motion, sound and Atlas connection; authorized administration and developer

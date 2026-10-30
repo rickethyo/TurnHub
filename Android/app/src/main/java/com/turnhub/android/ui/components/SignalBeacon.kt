@@ -15,7 +15,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.ui.theme.palette
@@ -28,8 +30,11 @@ internal fun SignalBeacon(
     modifier: Modifier = Modifier,
     paused: Boolean = false,
     sheen: Boolean = true,
+    brandMark: Boolean = false,
 ) {
-    val dark = palette.dark
+    val p = palette
+    val dark = p.dark
+    val gearBrush = p.accentBrush
     val still = reduceMotion || paused
     val transition = if (!still) rememberInfiniteTransition(label = "signal") else null
     val wave = transition?.animateFloat(0f, 1f,
@@ -52,7 +57,15 @@ internal fun SignalBeacon(
                 style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 10f))))
         }
         drawCircle(Brush.radialGradient(listOf(glow.copy(alpha = breath.value), Color.Transparent), c, r * .22f), r * .22f, c)
-        drawCircle(glow, r * .06f, c)
+        if (brandMark) {
+            val edge = r * .52f
+            inset(c.x - edge / 2, c.y - edge / 2,
+                size.width - c.x - edge / 2, size.height - c.y - edge / 2) {
+                rotate(-turn.value) {
+                    scale(.94f + .06f * breath.value) { drawGear(gearBrush) }
+                }
+            }
+        } else drawCircle(glow, r * .06f, c)
         if (sheen) drawRect(Brush.verticalGradient(0f to Color.White.copy(alpha = if (dark) .06f else .25f), .45f to Color.Transparent))
     }
 }

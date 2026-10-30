@@ -368,7 +368,7 @@ fun GearMark(size: Dp, modifier: Modifier = Modifier, spinning: Boolean = false,
     }
 }
 
-private fun DrawScope.drawGear(brush: Brush) {
+internal fun DrawScope.drawGear(brush: Brush) {
     val c = center
     val outer = size.minDimension * .47f
     val body = size.minDimension * .38f

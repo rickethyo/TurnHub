@@ -25,7 +25,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -41,7 +40,6 @@ import com.turnhub.android.R
 import com.turnhub.android.ui.components.AppVersionLabel
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.BrassCard
-import com.turnhub.android.ui.components.GearMark
 import com.turnhub.android.ui.components.SignalBeacon
 import com.turnhub.android.ui.theme.DesignTokens
 import com.turnhub.android.ui.theme.palette
@@ -127,9 +125,8 @@ private fun SupportArtwork(reduceMotion: Boolean) {
             contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(
             0f to Color.Black.copy(alpha = .12f), .4f to Color.Transparent, 1f to Color.Black.copy(alpha = .88f))))
-        SignalBeacon(p.accent, reduceMotion, Modifier.matchParentSize().alpha(.65f), sheen = false)
+        SignalBeacon(p.accent, reduceMotion, Modifier.matchParentSize(), sheen = false, brandMark = true)
         Column(Modifier.align(Alignment.BottomStart).padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            GearMark(28.dp)
             Text("BUILT AROUND YOUR TABLE", color = Color(0xFFF7DD8A),
                 style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.4.sp), fontWeight = FontWeight.Bold)
         }
