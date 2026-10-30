@@ -128,7 +128,10 @@ recorded and the stats API reports `"detailed": false`.
 Atlas saves a compact, versioned checkpoint (`th_game_v1/checkpoint`) after
 each accepted Intent that changes recoverable state, not on timer ticks. It
 holds players and seats (including A/B order on a shared Sigil), turn,
-life, Commander damage, settings and the turn timer.
+life, Commander damage, settings, the turn timer, the match record ID and
+player names. Recovery preserves the identity and labels used by history and
+CSV export. Checkpoint schema 10 requires a prototype reset for older saved
+matches; unsupported records are preserved and never overwritten.
 
 - At boot a valid unfinished record restores the match **paused**, so
   power-off time is never charged to a player. Discard is the 5 s End match
@@ -224,7 +227,7 @@ backup is normal on a first write and must not emit a filesystem error. Cleanup
 failure after publication still leaves the new committed record readable.
 
 
-Match recovery is checkpoint schema 8. Elimination attribution: each player adds one byte for
+Match recovery is checkpoint schema 10. Elimination attribution: each player adds one byte for
 the credited opponent's player number (zero means unknown). Attribution is
 validated with the saved player list and restored paused. Detailed profile stats
 schema 4 is 88 bytes; core NVS stats schema 3 is 28 bytes, including lifetime and
@@ -235,7 +238,7 @@ reset; unreadable records are preserved rather than migrated or overwritten.
 Bag of Doom adds a 22-byte header: two 16-bit masks (at-risk and drawn, each stored as a 32-bit word),
 boundary, warmup, pending flag, pending turn owner, sealed selection and last
 drawn player (one byte each), then cycle and last-check (32-bit each). The
-maximum checkpoint is 3,062 bytes (66-byte header, per-player 59 bytes plus
+maximum checkpoint is 3,770 bytes (118-byte header, per-player 100 bytes plus
 8 per opponent, CRC-32). Validation requires living membership, a valid
 boundary, a paused pending check, and uncredited/non-conceding drawn players.
 A selection must be in the pending bag. Outside this variant the bag is empty.

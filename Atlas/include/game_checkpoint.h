@@ -6,6 +6,9 @@
 namespace TurnHub {
 // Serialization DTO only. GameEngine remains the sole live game state owner.
 struct GameCheckpoint {
+  // Match identity and roster labels survive reboot for history/export.
+  char gameId[49]{};
+  char names[MAX_PLAYERS][33]{};
   GameSettings settings{};
   DoomBag doom{};
   uint8_t count = 0, active = 0, starter = 0, winner = 0, monarch = 0, initiative = 0;
