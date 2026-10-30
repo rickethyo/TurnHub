@@ -1502,3 +1502,13 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
 - Linux host suites, adapter audit, contract check, core scenarios and
   `pio run -e atlas-s3` pass. Codex: `run-gcc.ps1`/`run.cmd` unchanged this
   round. Hardware acceptance next.
+
+### Cases turned round: USB-C at the back / Claude / 2026-10-29
+
+- Owner: USB-C should leave from the back of the table on both cases, the
+  Sigil wedge a little steeper, its light larger, round and still at the front.
+- Sigil case: 8° wedge, thick end at USB-C; the light bar ends in a round 6 mm
+  lens in the front wall (cavity 1 mm deeper). New STLs and previews.
+- Atlas case geometry is unchanged; its firmware now draws upside down to
+  match (`LCD_ROTATION = 2`, owner asked). The Sigil keeps its rotation
+  (owner: it reads right as it is).

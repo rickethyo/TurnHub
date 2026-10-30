@@ -4,16 +4,19 @@
 LCDWIKI E32R28T board (the old Gen 1 Atlas board, now standing in for a
 Sigil), in the same style as the
 [Atlas S3 case](../../../Atlas/enclosure/s3_phone_case/README.md). It measures
-**63.8 × 91.4 mm**: 16.4 mm thick when flat, or a 5° wedge from 16.4 mm at the
-bottom to 24.4 mm at the top, which tips the screen toward the player.
+**63.8 × 91.4 mm**: 17.4 mm thick when flat, or an 8° wedge from 17.4 mm at the
+front to 30.2 mm at the back (the USB-C end), which tips the screen toward the
+player.
 Source: [`sigil_e32r28t_case.scad`](sigil_e32r28t_case.scad).
 
-![Tilted case, front](preview_front_tilt5.png)
+![Tilted case, front, with the light lens](preview_front_tilt8.png)
+
+![Tilted case, back, with USB-C](preview_back_tilt8.png)
 
 | Part | File | Print |
 |---|---|---|
 | Tub, flat | [`sigil_e32r28t_tub_flat.stl`](sigil_e32r28t_tub_flat.stl) | Back face down, no supports |
-| Tub, 5° wedge | [`sigil_e32r28t_tub_tilt5.stl`](sigil_e32r28t_tub_tilt5.stl) | Already rotated so the wedge lies flat |
+| Tub, 8° wedge | [`sigil_e32r28t_tub_tilt8.stl`](sigil_e32r28t_tub_tilt8.stl) | Already rotated so the wedge lies flat |
 | Bezel (fits both) | [`sigil_e32r28t_bezel.stl`](sigil_e32r28t_bezel.stl) | Front face down (already flipped) |
 | Light bar (fits both) | [`sigil_e32r28t_light_bar.stl`](sigil_e32r28t_light_bar.stl) | Clear PETG or PLA, on its side (already rotated), 100% infill |
 
@@ -25,21 +28,26 @@ through the standoffs and the board's holes, self-tapping into the bezel
 
 ## Layout
 
-USB-C is at the bottom and the screen is portrait. If the picture runs the
-wrong way round, change the display rotation in firmware, not the case.
+The screen is portrait and USB-C faces away from the player, so the cable
+leaves from the back of the table. The firmware keeps the panel's own
+rotation (the owner checked it reads right, 2026-10-29). If the picture runs
+the wrong way round, change `setRotation` in
+`Sigil/src/sigil_board_e32r28t.cpp`, not the case.
 
 - **Display:** a 46 × 60.6 mm window over the touch area. The lip sits 0.4 mm
   above the resistive touch film so it can never press a phantom touch.
 - **Status light:** the board's only RGB LED faces the back, so a clear light
-  bar carries it to a glowing slot under the USB-C port. The bar lies on the
-  tub floor between two low rails; a post rises to 1 mm below the LED and a
-  45° face under it turns the light toward the slot. The back cavity is 2 mm
-  deeper than the board needs to make room for it. The LED position (about
+  bar carries it to a round 6 mm lens flush in the front wall, facing the
+  player. The 6 × 2.6 mm bar lies on the tub floor between two low rails; a
+  post rises to 1 mm below the LED and a 45° face under it turns the light
+  toward the front. Past the board's end the bar swells into the lens. The
+  back cavity is 3.5 mm deeper than the board needs to make room for it. Fit
+  the lens into its hole first, then lay the bar between the rails. The LED position (about
   mid-width, 41.5 mm from the USB end) comes from a photo
   (*Needs verification*); move `led_c` if the post misses it.
-- **microSD:** a slot on the left side with a fingertip recess and a guide
-  shelf; the card sits about 6 mm in.
-- **RESET / BOOT:** paper-clip holes in the back near the bottom.
+- **microSD:** no slot (removed 2026-10-29: behind the plug gutter the card
+  sat 7.5 mm in and could not be swapped). The Sigil doesn't need a card.
+- **RESET / BOOT:** paper-clip holes in the back near the USB-C end.
 - **Edge connectors (speaker, SPI, UART, battery):** a 4.5 mm gutter down each
   side leaves room for the plugs.
 - **Angle:** set `tilt` (degrees) and re-export the tub; the bezel stays the same.
@@ -53,7 +61,7 @@ checked with calipers on the board.
 
 ```
 openscad -D 'part="tub"'             -o sigil_e32r28t_tub_flat.stl  sigil_e32r28t_case.scad
-openscad -D 'part="tub"' -D tilt=5   -o sigil_e32r28t_tub_tilt5.stl sigil_e32r28t_case.scad
+openscad -D 'part="tub"' -D tilt=8   -o sigil_e32r28t_tub_tilt8.stl sigil_e32r28t_case.scad
 openscad -D 'part="bezel"'           -o sigil_e32r28t_bezel.stl     sigil_e32r28t_case.scad
 openscad -D 'part="pipe"'            -o sigil_e32r28t_light_bar.stl sigil_e32r28t_case.scad
 ```
