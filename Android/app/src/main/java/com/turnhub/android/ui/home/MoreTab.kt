@@ -82,8 +82,13 @@ internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit, atlas: @Composa
                 Text("Help TurnHub grow", color = palette.text, style = MaterialTheme.typography.titleMedium)
                 Text("I'm Ricky, creator of TurnHub. Your support enables me to build the tools that keep tabletop gaming " +
                     "focused on the game.", color = palette.muted)
-                Text("If you'd like to support TurnHub's development, you can donate through PayPal. Thank you for your support.",
+                Text("If you'd like to support TurnHub's development, you can contribute through PayPal or Cash App. Thank you for your support.",
                     color = palette.muted)
+                Text("Support is optional and does not unlock app features or purchase hardware or merchandise.",
+                    color = palette.muted)
+                TextButton(onClick = { uriHandler.openUri(TURNHUB_CASH_APP_URL) }) {
+                    Text("Support with Cash App — \$TurnHub")
+                }
                 Image(painterResource(R.drawable.paypal_donate),
                     contentDescription = "Donate with PayPal",
                     modifier = Modifier.width(200.dp).height(56.dp).clickable(role = Role.Button) {
@@ -119,3 +124,5 @@ private fun MoreEntry(title: String, description: String, @DrawableRes icon: Int
 
 private const val TURNHUB_DONATION_URL = "https://www.paypal.com/donate/?business=JQQY4P6XE2ANL&no_recurring=0" +
     "&item_name=I%27m+Ricky%2C+creator+of+TurnHub.+Your+support+enables+me+to+build+the+tools+that+keep+tabletop+gaming+focused+on+the+game.&currency_code=USD"
+
+private const val TURNHUB_CASH_APP_URL = "https://cash.app/\$TurnHub"

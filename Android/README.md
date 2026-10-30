@@ -56,7 +56,8 @@ up. A device game shows its local setup, then the same stage/life overview
 and game settings as connected play, without the per-seat Atlas controls. Players keeps local
 profiles available and adds Table and Me sections when connected. History keeps
 local results and Atlas import controls. More opens About TurnHub, Settings
-and Store as separate pages; the store is not open yet. Settings contains
+and Store as separate pages; the store is not open yet. Support TurnHub offers
+optional PayPal and Cash App contributions, separate from app features and purchases. Settings contains
 appearance, reduced motion, sound and Atlas connection; authorized administration and developer
 controls appear there when available. Navigation and scroll positions survive
 visits to the full-screen table and statistics.
