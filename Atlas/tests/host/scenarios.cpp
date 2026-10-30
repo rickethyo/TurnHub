@@ -2999,6 +2999,15 @@ static void atlasScreens() {
   assert(currentScreen().batteryPercent==64 && currentScreen().batteryCharging);
   openMenuScreen(); tapButton(TouchAction::OpenDevice);
   assert(startsWith(currentScreen().detail,"TurnHub Atlas v"));
+  // The speaker's volume is set at Atlas itself too, without an Admin sign-in.
+  {
+    const uint8_t before=audio.speakerVolume();
+    tapButton(TouchAction::SpeakerVolume);
+    assert(audio.speakerVolume()==(before+1)%4);
+    assert(String(screenButton(currentScreen(),TouchAction::SpeakerVolume)->label)==
+        String("Volume: ")+TurnHub::speakerVolumeName(audio.speakerVolume()));
+    while (audio.speakerVolume()!=before) tapButton(TouchAction::SpeakerVolume);
+  }
   fixtureBattery=TurnHub::BatteryReading();
   openMenuScreen(); tapButton(TouchAction::OpenQr); s=currentScreen();
   assert(s.kind==ScreenKind::Qr && String(s.qr)=="http://192.168.4.1/portal" &&

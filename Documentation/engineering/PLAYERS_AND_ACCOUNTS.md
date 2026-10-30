@@ -157,7 +157,7 @@ sign-in list.
 
 | Permission | Allows |
 |---|---|
-| Admin | Account permissions, device names, network settings, firmware and portal updates, pairing confirmation and forget, factory reset, Return table to lobby, speaker volume |
+| Admin | Account permissions, device names, network settings, firmware and portal updates, pairing confirmation and forget, factory reset, Return table to lobby, speaker volume from the portal (anyone at Atlas may set it on its screen, Settings > Device) |
 | Game Master | Force pass (logged as a master pass), nudge mute; optional sub-permissions **reset connections** and **remove from game** |
 | Developer | Developer page, diagnostics and the RAM log download (`GET /api/diagnostics/log`) |
 | Tablet access | Turns on tablet mode without a table presence code (bit 32; needs no other role) |

@@ -257,6 +257,7 @@ const lv_image_dsc_t *actionIcon(TouchAction a) {
     case TouchAction::GameHouseRules: return &th_icon_sliders_24;
     case TouchAction::GamePlanechase: case TouchAction::OpenPlanes: case TouchAction::SeatCommander: return &th_icon_cards_24;
     case TouchAction::PlanarRoll: return &th_icon_dice_24;
+    case TouchAction::SpeakerVolume: return &th_icon_sliders_24;
     case TouchAction::PlanarWalk: case TouchAction::PlanarResolve: return &th_icon_chevron_right_24;
     case TouchAction::ConfirmYes: return &th_icon_check_24;
     case TouchAction::ConfirmNo: return &th_icon_close_24;

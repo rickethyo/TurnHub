@@ -17,6 +17,7 @@
 #include "atlas_battery.h"
 #include "atlas_display.h"
 #include "controller_profiles.h"
+#include "speaker_settings.h"
 #include "firmware_version.h"
 #include "home_wifi.h"
 #include "optional_preferences.h"
@@ -319,8 +320,11 @@ void layoutMenu(AtlasScreen &screen) {
 // stand in for the BOOT button's held gestures.
 void layoutDevice(AtlasScreen &screen) {
   const bool usbWanted = sdCardUsbShareWanted();
-  ButtonSpec rows[4];
+  static char volume[32];
+  snprintf(volume, sizeof(volume), "Volume: %s", TurnHub::speakerVolumeName(audio.speakerVolume()));
+  ButtonSpec rows[5];
   uint8_t n = 0;
+  rows[n++] = {TouchAction::SpeakerVolume, volume, 0, 1};
   rows[n++] = {TouchAction::UsbDrive, usbWanted ? "USB drive: on" : "USB drive: off", 0, 1};
   if (!matchInProgress()) rows[n++] = {TouchAction::SleepAtlas, "Sleep", 0, 1};
   if (table().hubState == HubState::Lobby) rows[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", ASK, 1};
@@ -855,6 +859,7 @@ const char *actionName(TouchAction action) {
     case TouchAction::OpenThemes: return "OPEN_THEMES";
     case TouchAction::InvertDisplay: return "INVERT_DISPLAY";
     case TouchAction::UsbDrive: return "USB_DRIVE";
+    case TouchAction::SpeakerVolume: return "SPEAKER_VOLUME";
     case TouchAction::HomeWifi: return "HOME_WIFI";
     case TouchAction::ThemeGraphite: return "THEME_GRAPHITE";
     case TouchAction::ThemeDaylight: return "THEME_DAYLIGHT";
@@ -1366,6 +1371,14 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       intent.actor.controllerId = seat.controllerId;
       intent.actor.slot = seat.slot;
       intent.payload.value = next;
+      result = intents.dispatch(intent);
+      break;
+    }
+    case TouchAction::SpeakerVolume: {
+      Intent intent;
+      intent.type = IntentType::ConfigureSpeaker;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
+      intent.payload.value = (audio.speakerVolume() + 1) % 4;
       result = intents.dispatch(intent);
       break;
     }

@@ -118,7 +118,9 @@ enum class TouchAction : uint8_t {
   // a card's planeswalk, and resolving a phenomenon (the active player's).
   OpenPlanes, PlanarRoll, PlanarWalk, PlanarResolve,
   // Lobby, a player's screen: step through their profile's saved commanders.
-  SeatCommander
+  SeatCommander,
+  // Settings > Device: step the speaker volume (off, low, medium, high).
+  SpeakerVolume
 };
 
 // Home: the table's status and info (version, Wi-Fi, SD card, battery).

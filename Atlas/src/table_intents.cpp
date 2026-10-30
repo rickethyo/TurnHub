@@ -1168,7 +1168,8 @@ IntentResult handleConfigurePairingIntent(const Intent &intent, void *) {
 // Payload: value = Atlas speaker volume, 0 (off) to 3 (high). Sigil sound is
 // unaffected; it follows each seated player's accessibility preference.
 IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *) {
-  if (!adminIntent(intent)) {
+  // At Atlas itself the volume is a knob anyone at the table may turn; remotely it is Admin's.
+  if (intent.actor.origin != IntentOrigin::AtlasHardware && !adminIntent(intent)) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
   }
   if (!TurnHub::validSpeakerVolume(intent.payload.value)) {
