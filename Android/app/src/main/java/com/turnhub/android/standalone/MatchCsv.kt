@@ -30,18 +30,18 @@ object MatchCsv {
         val starter = if (r.isNull("starter")) -1 else r.getInt("starter")
         for (i in 0 until players.length()) {
             val p = players.getJSONObject(i)
-            val c = p.getJSONObject("counters")
-            val casts = c.getJSONArray("commanderCasts")
-            val turns = p.getLong("turnsCompleted")
+            val c = p.optJSONObject("counters") ?: JSONObject()
+            val casts = c.optJSONArray("commanderCasts")
+            val turns = p.optLong("turnsCompleted")
             val cells = listOf(
                 common, "${i + 1}", field(p.getString("name")), field(if (p.isNull("profileId")) "" else p.getString("profileId")),
                 (starter == i).toString(), (i in winnerSet).toString(), winnerSet.isEmpty().toString(),
                 number(p, "outOrder"), p.optBoolean("conceded").toString(),
                 if (p.isNull("eliminatedBy")) "" else "${p.getInt("eliminatedBy") + 1}",
-                p.optBoolean("selfEliminated").toString(), number(p, "finalLife"), "$turns", number(p, "turnMs"),
+                p.optBoolean("selfEliminated").toString(), number(p, "finalLife"), if (p.optBoolean("guest")) "" else "$turns", number(p, "turnMs"),
                 if (turns > 0) "${p.getLong("turnMs") / turns}" else "", number(p, "fastestTurnMs"), number(p, "longestTurnMs"),
                 number(p, "commanderDamageReceived"), number(c, "poison"), number(c, "energy"), number(c, "experience"),
-                "${casts.getLong(0)}", "${casts.getLong(1)}", c.optBoolean("cityBlessing").toString(),
+                casts?.getLong(0)?.toString().orEmpty(), casts?.getLong(1)?.toString().orEmpty(), c.optBoolean("cityBlessing").toString(),
                 number(p, "demerits"), number(p, "extensionsUsed"), p.optBoolean("bagDrawn").toString(),
             )
             append(cells.joinToString(",")).append('\n')

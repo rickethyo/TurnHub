@@ -34,6 +34,32 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-10-30, Codex: owner authorizes closing game/controller parity gaps through
+the shared engine, excluding takeover, then reassessing. Baseline `a7edbee3`,
+`codex/master`; fetched origin, clean tree, #178 remains open. Active scope:
+Android native core linkage and cross-runtime tests, then missing shared
+gameplay/contracts and controller surfaces. No authority transfer, release or
+installation. Existing local-only Death May Die licensing gate remains.
+Owner clarifies account-free (not display-less) Atlas play: named guests may
+reuse saved names without full profiles or verbose retained statistics; retain
+basic match participation/result/duration. Full profiles, with or without PINs,
+carry identity, history, statistics and original age across devices/Atlas.
+Admin credentials remain required for administration; owner/admin match-ending
+authority must coexist with sign-in-free physical Atlas play. Implement and
+test these alongside engine parity; takeover remains excluded.
+
+2026-10-30, Claude: finished and validated Codex's uncommitted parity slice on
+`codex/master` (baseline `a7edbee3`). Added `allOf`/`anyOf`/`not`/`if` support
+to `check_client_contract.py` for the guest-record schema, removed dead
+host-build branches in `build.gradle.kts`, and updated the core, authority,
+staged-changes and `http-v1.md` docs (`/api/time`, `createdAtMs`). Validation:
+Atlas host suites (w64devkit GCC 16) pass; core scenario runner 11/11; adapter
+audit and client contract pass; Android JVM tests 546/546 on the native bridge
+and again on the Kotlin oracle; `NativeCoreDeviceTest` 3/3 on an API 37
+emulator; `assembleDebug`, `lintDebug` and `pio run -e atlas-s3` build. Not
+hardware-accepted. Atlas named guests and sign-in-free match ending remain
+staged (`STAGED_CHANGES.md`).
+
 2026-10-30, Codex: owner reiterates one game, many controllers after screenshots
 show the Atlas overview and full-screen access gate diverging from device play.
 Active scope on `codex/master`, baseline `b8c93fe7`: route Atlas Game setup

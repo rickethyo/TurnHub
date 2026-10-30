@@ -16,6 +16,10 @@ android {
     // compatibility check refused to build against 36 -- this isn't a stylistic
     // bump, the build fails without it.
     compileSdk = 37
+    ndkVersion = "29.0.14206865"
+    externalNativeBuild {
+        ndkBuild { path = file("src/main/cpp/Android.mk") }
+    }
 
     defaultConfig {
         applicationId = "com.turnhub.android"
@@ -27,6 +31,8 @@ android {
         versionName = "0.1.0"
         manifestPlaceholders["appLabel"] = "@string/app_name"
         manifestPlaceholders["appIcon"] = "@mipmap/ic_launcher"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunnerArguments["class"] = "com.turnhub.android.standalone.NativeCoreDeviceTest"
     }
 
     // Play upload key for release bundles, read from the environment so the
@@ -82,6 +88,36 @@ android {
         // BuildConfig.DEBUG keeps Death May Die out of release (Play) builds.
         buildConfig = true
     }
+    sourceSets.getByName("androidTest").assets.srcDir(rootProject.file("../core/scenarios"))
+}
+
+// Run JVM behavior tests through the very same JNI bridge on the build host.
+val hostWindows = System.getProperty("os.name").startsWith("Windows")
+val hostCoreLibrary = layout.buildDirectory.file("native-host/" + System.mapLibraryName("turnhub_game"))
+val hostGameCore = tasks.register<Exec>("buildHostGameCore") {
+    val core = rootProject.file("../core")
+    val bridge = file("src/main/cpp/game_jni.cpp")
+    val hostScript = file("src/main/cpp/build-host.cmd")
+    val output = hostCoreLibrary.get().asFile
+    inputs.files(fileTree(core.resolve("src")), fileTree(core.resolve("include")), bridge, hostScript)
+    outputs.file(hostCoreLibrary)
+    doFirst { output.parentFile.mkdirs() }
+    val jdk = file(System.getProperty("java.home"))
+    if (hostWindows) commandLine("cmd", "/c", hostScript.absolutePath, output.parentFile.absolutePath)
+    else commandLine(listOf(providers.environmentVariable("CXX").orNull ?: "g++", "-std=c++17", "-shared",
+        "-Wall", "-Wextra", "-Werror", "-fPIC", "-static-libgcc", "-static-libstdc++",
+        "-I${jdk.resolve("include")}", "-I${jdk.resolve("include/linux")}",
+        "-I${core.resolve("include")}", bridge.absolutePath,
+        core.resolve("src/turnhub_core.cpp").absolutePath, core.resolve("src/turnhub_json.cpp").absolutePath,
+        "-o", hostCoreLibrary.get().asFile.absolutePath))
+}
+tasks.withType<Test>().configureEach {
+    dependsOn(hostGameCore)
+    inputs.file(hostCoreLibrary)
+    inputs.dir(rootProject.file("../core/scenarios"))
+    systemProperty("turnhub.core.library", hostCoreLibrary.get().asFile.absolutePath)
+    systemProperty("turnhub.core.reference", providers.gradleProperty("turnhub.referenceRules").orNull == "true")
+    jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
 
 dependencies {
@@ -106,4 +142,6 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.org.json)
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
 }

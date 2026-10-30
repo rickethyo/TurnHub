@@ -1,8 +1,10 @@
 # turnhub-core
 
 One set of game rules for every TurnHub device. *Experimental* (2026-10-29):
-Atlas runs its games on this core through `GameEngine`; the app still runs
-the Kotlin reference until the NDK integration. Host scenarios check both. The
+Atlas runs its games on this core through `GameEngine`, and the app runs it
+through the NDK (`Android/app/src/main/cpp/game_jni.cpp`, `NativeGameCore`)
+for every mode but the local-only Death May Die. The Kotlin rules stay as the
+test oracle (`-Pturnhub.referenceRules=true`). Host scenarios check both. The
 plan and its phases are in [Shared table authority](../Documentation/engineering/TABLE_AUTHORITY.md)
 and [Staged changes](../Documentation/engineering/STAGED_CHANGES.md).
 

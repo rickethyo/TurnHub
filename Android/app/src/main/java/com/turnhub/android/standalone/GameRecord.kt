@@ -52,6 +52,7 @@ data class GameRecord(
         val extensionsUsed: Int = 0,
         /** Death May Die: the investigator this player played. */
         val investigator: String? = null,
+        val guest: Boolean = false,
     )
 
     /** Whether player [index] won: any winner, or (Two-Headed Giant) the winner's teammate. */
@@ -90,6 +91,13 @@ data class GameRecord(
                     p.investigator?.let { put("investigator", it) }
                     put("profileId", p.profileId ?: JSONObject.NULL)
                     put("localId", p.localId ?: JSONObject.NULL)
+                    if (p.guest) {
+                        put("guest", true)
+                        put("outOrder", p.outOrder ?: JSONObject.NULL); put("conceded", p.conceded)
+                        put("eliminatedBy", p.eliminatedBy ?: JSONObject.NULL); put("selfEliminated", p.selfEliminated)
+                        put("bagDrawn", p.bagDrawn)
+                        return@apply
+                    }
                     put("finalLife", p.finalLife)
                     put("turnsCompleted", p.turnsCompleted)
                     put("demerits", p.demerits)
@@ -176,8 +184,9 @@ data class GameRecord(
                         extensionsUsed = p.optInt("extensionsUsed"),
                         localId = p.optStringOrNull("localId"),
                         profileId = p.optStringOrNull("profileId"),
-                        finalLife = p.getInt("finalLife"),
-                        turnsCompleted = p.getInt("turnsCompleted"),
+                        finalLife = if (p.optBoolean("guest")) 0 else p.getInt("finalLife"),
+                        turnsCompleted = if (p.optBoolean("guest")) 0 else p.getInt("turnsCompleted"),
+                        guest = p.optBoolean("guest"),
                         turnMs = p.optLong("turnMs"),
                         fastestTurnMs = p.optLong("fastestTurnMs"),
                         longestTurnMs = p.optLong("longestTurnMs"),
@@ -203,6 +212,7 @@ data class GameRecord(
                 require(record.winners.firstOrNull() == record.winner)
                 require(record.starter == null || record.starter in record.players.indices)
                 record.players.forEachIndexed { i, p ->
+                    require(!p.guest || (p.localId == null && p.profileId == null))
                     require(!p.selfEliminated || (p.outOrder != null && !p.conceded && p.eliminatedBy == null && !p.bagDrawn))
                     require(!p.bagDrawn || (record.profile.bagOfDoom && p.outOrder != null && !p.conceded && p.eliminatedBy == null))
                     require(p.eliminatedBy == null || (p.outOrder != null && !p.conceded &&

@@ -3,6 +3,7 @@
 #include <fstream>
 #include <Arduino.h>
 #include "profile_fixture.h"
+#include "wall_clock.h"
 #include "profile_statistics.h"
 #include "standalone_import.h"
 #include "match_archive.h"
@@ -6292,7 +6293,22 @@ static void deviceNavigation() {
   enterEmptyLobby();resetTouchControls();
 }
 
+static void utcBookkeepingClock() {
+  TurnHubClock::WallClock clock;
+  constexpr uint64_t utc = 1700000000000ULL;
+  assert(clock.now(100) == 0);
+  assert(!clock.observe(0, 100));
+  assert(clock.observe(utc, 0xFFFFFFF0UL));
+  assert(clock.now(0x20) == utc + 48);
+  assert(clock.observe(utc + 1000, 0x20, TurnHubClock::Source::Internet));
+  assert(!clock.observe(utc - 100000, 0x30));
+  assert(clock.now(0x40) == utc + 1032);
+  assert(clock.observe(utc + 21601000, 0x20 + 21600000UL));
+  assert(clock.source() == TurnHubClock::Source::Phone);
+}
+
 int main() {
+  utcBookkeepingClock();
   // Most scenarios inspect the interactive Game destination explicitly.
   resetTouchControls();
   // These scenarios exercise the presence code; tableCodeOptional() covers

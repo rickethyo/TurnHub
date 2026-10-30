@@ -349,6 +349,7 @@ class HomeViewModel(
                 // Never edited here still beats an Atlas copy that was never edited (0),
                 // so a fresh upload's look reaches Atlas.
                 add("activity" to "${maxOf(player.lastActivityMs, 1L)}")
+                add("createdAtMs" to "${player.createdAtMs}")
                 add("name" to player.name); add("color" to (look.color ?: "none"))
                 // An uploaded image stays on the phone; the avatar only syncs a preset.
                 if (look.image == null) add("avatar" to "${presets.firstOrNull { it.key == look.avatar }?.id ?: 0}")
@@ -358,6 +359,7 @@ class HomeViewModel(
             if (response.code == 401) { table.dropLinkKey(player.localId, summary.atlasId); continue }
             if (!response.ok) continue
             val atlas = runCatching { org.json.JSONObject(response.body) }.getOrNull() ?: continue
+            table.keepProfileCreationTime(player.localId, atlas.optLong("createdAtMs"))
             totals[player.localId] = atlas.optInt("gamesPlayed") to atlas.optInt("gamesWon")
             if (atlas.optString("applied") == "atlas") {
                 val avatarId = atlas.optInt("avatar")

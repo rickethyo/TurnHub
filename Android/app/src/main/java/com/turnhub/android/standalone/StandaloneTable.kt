@@ -189,6 +189,13 @@ class StandaloneTable(
 
     enum class CopyResult { ADDED, ALREADY_HERE, NOT_SAVED }
 
+    fun accountCopy(localId: String): JSONObject {
+        val state = _state.value
+        val player = requireNotNull(state.library.players.firstOrNull { it.localId == localId })
+        require(accountUnlocked(localId)) { "Unlock the profile before sharing it" }
+        return AccountCopy.toJson(player, state.library.history)
+    }
+
     /**
      * Adds an account copied from another of the owner's devices ([AccountCopy]) under a new
      * local ID and the same profile ID; [admin] makes it this device's Admin when there is none.
@@ -197,12 +204,35 @@ class StandaloneTable(
     fun addCopiedAccount(copy: org.json.JSONObject, admin: Boolean): CopyResult {
         val before = _state.value
         val player = runCatching { AccountCopy.fromJson(copy, newId()) }.getOrNull() ?: return CopyResult.NOT_SAVED
-        if (before.library.players.any { it.profileId == player.profileId }) return CopyResult.ALREADY_HERE
+        val existing = before.library.players.firstOrNull { it.profileId == player.profileId }
+        if (existing != null && existing.credential != player.credential && !accountUnlocked(existing.localId)) return CopyResult.NOT_SAVED
+        val target = existing ?: player
+        val records = runCatching { AccountCopy.history(copy, target) }.getOrNull() ?: return CopyResult.NOT_SAVED
+        var library = before.library
+        for (record in records) {
+            val old = library.history.firstOrNull { it.recordId == record.recordId }
+            if (old == null) library = library.withRecord(record)
+            else {
+                // A copy can add this identity's binding, never replace the shared match outcome.
+                val sameMatch = old.copy(players = old.players.map { it.copy(localId = null, profileId = null) }).toJson().toString() ==
+                    record.copy(players = record.players.map { it.copy(localId = null, profileId = null) }).toJson().toString()
+                if (!sameMatch) return CopyResult.NOT_SAVED
+                library = library.copy(history = library.history.map { r -> if (r.recordId != old.recordId) r else
+                    r.copy(players = r.players.mapIndexed { index, seat ->
+                        if (record.players[index].localId == target.localId) seat.copy(localId = target.localId) else seat }) })
+            }
+        }
+        if (existing != null) {
+            val originalDate = listOf(existing.createdAtMs, player.createdAtMs).filter { it > 0 }.minOrNull() ?: 0
+            library = library.copy(players = library.players.map { if (it.localId == existing.localId) it.copy(createdAtMs = originalDate) else it })
+            if (library == before.library) return CopyResult.ALREADY_HERE
+            return if (publish(before.copy(library = library))) CopyResult.ADDED else CopyResult.NOT_SAVED
+        }
         // Another local account may already hold one of its Atlas links; this device keeps that one.
         val links = player.links.filterNot { l -> before.library.players.any { p -> p.links.any { it.atlasId == l.atlasId && it.profileId == l.profileId } } }
         val added = player.copy(links = links)
         val makeAdmin = admin && added.credential != null && before.library.deviceAdmin == null
-        val saved = publish(before.copy(library = before.library.copy(players = before.library.players + added,
+        val saved = publish(before.copy(library = library.copy(players = before.library.players + added,
             deviceAdmin = if (makeAdmin) added.localId else before.library.deviceAdmin)))
         if (!saved) return CopyResult.NOT_SAVED
         unlockedAccounts += added.localId
@@ -217,13 +247,22 @@ class StandaloneTable(
 
     // --- the lobby ------------------------------------------------------------------
 
+    fun addGuest(name: String) {
+        val clean = name.trim().take(StandaloneGame.MAX_NAME)
+        val before = _state.value
+        val game = before.game.addPlayer(clean, guest = true)
+        if (game === before.game) return
+        publish(before.copy(game = game, library = before.library.copy(
+            guestNames = (before.library.guestNames + clean).distinct())))
+    }
+
     /** Typing a name creates an identity; selecting a saved player reuses it. */
     fun addPlayer(name: String) {
         val clean = name.trim().take(StandaloneGame.MAX_NAME)
         val before = _state.value
         if (clean.isEmpty() || before.game.state != TableState.LOBBY ||
             before.game.players.size >= StandaloneGame.MAX_PLAYERS) return
-        var player = SavedLocalPlayer(newId(), clean)
+        var player = SavedLocalPlayer(newId(), clean, createdAtMs = wallClock())
         while (before.library.players.any { it.profileId == player.profileId } || !LocalProfileIds.valid(player.profileId)) {
             player = player.copy(profileId = LocalProfileIds.create())
         }
@@ -238,7 +277,7 @@ class StandaloneTable(
         val clean = name.trim().take(StandaloneGame.MAX_NAME)
         if (clean.isBlank()) return false
         val before = _state.value
-        var player = SavedLocalPlayer(newId(), clean)
+        var player = SavedLocalPlayer(newId(), clean, createdAtMs = wallClock())
         player = player.copy(credential = credential)
         while (before.library.players.any { it.profileId == player.profileId } || !LocalProfileIds.valid(player.profileId)) {
             player = player.copy(profileId = LocalProfileIds.create())
@@ -354,6 +393,16 @@ class StandaloneTable(
         val before = _state.value
         return publish(before.copy(library = before.library.copy(players = before.library.players.map {
             if (it.localId != localId) it else it.copy(links = it.links.map { l -> if (l.atlasId == atlasId) l.copy(linkKey = null) else l })
+        })))
+    }
+
+    fun keepProfileCreationTime(localId: String, originalDate: Long): Boolean {
+        if (originalDate <= 0) return false
+        val before = _state.value
+        val player = before.library.players.firstOrNull { it.localId == localId } ?: return false
+        if (player.createdAtMs > 0 && player.createdAtMs <= originalDate) return false
+        return publish(before.copy(library = before.library.copy(players = before.library.players.map {
+            if (it.localId == localId) it.copy(createdAtMs = originalDate) else it
         })))
     }
 
@@ -974,6 +1023,7 @@ class StandaloneTable(
                         put("name", p.name)
                         put("profileId", p.profileId ?: JSONObject.NULL)
                         put("localId", p.localId ?: JSONObject.NULL)
+                        put("guest", p.guest)
                         put("life", p.life)
                         put("eliminated", p.eliminated)
                         put("conceded", p.conceded)
@@ -1080,6 +1130,7 @@ class StandaloneTable(
                         name = p.getString("name"),
                         localId = p.optStringOrNull("localId"),
                         profileId = p.optStringOrNull("profileId"),
+                        guest = p.optBoolean("guest"),
                         life = p.getInt("life"),
                         eliminated = p.getBoolean("eliminated"),
                         conceded = p.optBoolean("conceded"),

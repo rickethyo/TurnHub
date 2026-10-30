@@ -1044,20 +1044,23 @@ void handleAccountMerge(WebServer &server) {
   }
   TurnHubProfiles::ProfileStats from{}, stats{};
   TurnHubProfiles::ModerationStats fromModeration{}, moderation{};
-  TurnHubProfiles::ProfileSync sync;
+  TurnHubProfiles::ProfileSync sync, survivorSync;
   if (!TurnHubProfiles::loadStatsForProfile(id, from) || !TurnHubProfiles::loadStatsForProfile(into, stats) ||
       !TurnHubProfiles::loadModerationStatsForProfile(id, fromModeration) ||
       !TurnHubProfiles::loadModerationStatsForProfile(into, moderation) ||
-      !TurnHubProfiles::loadSyncForProfile(id, sync)) {
+      !TurnHubProfiles::loadSyncForProfile(id, sync) || !TurnHubProfiles::loadSyncForProfile(into, survivorSync)) {
     sendError(server, 503, "Statistics could not be read; nothing was merged");
     return;
   }
   TurnHubProfileStats::mergeStats(stats, from);
+  if (sync.createdAtMs && (!survivorSync.createdAtMs || sync.createdAtMs < survivorSync.createdAtMs))
+    survivorSync.createdAtMs = sync.createdAtMs;
   moderation.connectionResets += fromModeration.connectionResets;
   moderation.gameRemovals += fromModeration.gameRemovals;
   // The survivor's totals first: a cut before the archive below leaves both
   // accounts live with the merged totals counted on each (said in the manual).
   if (!TurnHubProfiles::saveStatsForProfile(into, stats) ||
+      !TurnHubProfiles::saveSyncForProfile(into, survivorSync) ||
       !TurnHubProfiles::saveModerationStatsForProfile(into, moderation)) {
     sendError(server, 503, "Could not save the merged statistics");
     return;

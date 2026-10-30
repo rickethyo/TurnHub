@@ -34,7 +34,7 @@ formats, Two-Headed Giant, Star Commander, Emperor, Bag of Doom, Yu-Gi-Oh!,
 Pokémon prizes and Lorcana lore). Since 2026-10-30 (Atlas 0.7.19) Atlas plays on
 it: `GameEngine` is a layer over `turnhub::Game` that keeps only Atlas-only
 table features (life-change approvals, Commander hit receipts, the win claim's
-pause, Sigil elimination attribution). The app does not link it yet (NDK next). Shared JSON scenarios in
+pause, Sigil elimination attribution). Since 2026-10-30 the app links it too, through the NDK (JNI over UTF-8 JSON, the caller supplying every random draw), for every mode but the local-only Death May Die; the Kotlin rules remain the scenario oracle. Shared JSON scenarios in
 `core/scenarios/` run against both the core and the Kotlin rules in CI. Connected play still uses Atlas as its sole
 authority. Disconnection queues life and Commander-damage edits; other game
 actions wait. Local matches stay separate from connected matches. Sharing UI

@@ -12,6 +12,7 @@
 #include "login_limiter.h"
 #include "serial_log.h"
 #include "web_api_internal.h"
+#include "wall_clock.h"
 
 using TurnHub::serialLog;
 
@@ -354,9 +355,6 @@ String profilePinHash(const String &profileId, const String &pin) {
 }
 
 namespace {
-bool wallClockKnown = false;
-uint64_t wallClockAtMillis = 0;
-uint32_t wallClockMillis = 0;
 
 String linkKeyHash(const String &profileId, const String &key) {
   String material = "TurnHubLink:";
@@ -390,13 +388,11 @@ bool linkKeyValid(const String &profileId, const String &key) {
 }
 
 void observeWallClock(uint64_t epochMs) {
-  wallClockKnown = true;
-  wallClockAtMillis = epochMs;
-  wallClockMillis = millis();
+  TurnHubClock::clock.observe(epochMs, millis());
 }
 
 uint64_t wallClockNow() {
-  return wallClockKnown ? wallClockAtMillis + static_cast<uint32_t>(millis() - wallClockMillis) : 0;
+  return TurnHubClock::clock.now(millis());
 }
 
 void noteProfileChange(const String &profileId) {

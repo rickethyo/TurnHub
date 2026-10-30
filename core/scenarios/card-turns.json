@@ -1,0 +1,287 @@
+{
+  "name": "Card turn actions, conditions and host-drawn checkup coins",
+  "steps": [
+    {
+      "action": {
+        "do": "setFormat",
+        "profile": "POKEMON",
+        "life": null
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "A"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "B"
+      }
+    },
+    {
+      "action": {
+        "do": "chooseStarter",
+        "index": 0
+      }
+    },
+    {
+      "action": {
+        "do": "start",
+        "gameId": "pokemon-turns",
+        "nowMs": 1000
+      }
+    },
+    {
+      "action": {
+        "do": "changeCounter",
+        "index": 1,
+        "kind": "turn-action:ENERGY",
+        "value": 1,
+        "nowMs": 1100
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "changeCounter",
+        "index": 0,
+        "kind": "turn-action:ENERGY",
+        "value": 1,
+        "nowMs": 1100
+      },
+      "expect": {
+        "players.0.turn.actions": [
+          "ENERGY"
+        ]
+      }
+    },
+    {
+      "action": {
+        "do": "changeCounter",
+        "index": 0,
+        "kind": "turn-action:ENERGY",
+        "value": 1,
+        "nowMs": 1100
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "changeCounter",
+        "index": 0,
+        "kind": "pokemon-condition:BURNED",
+        "value": 1,
+        "nowMs": 1100
+      }
+    },
+    {
+      "action": {
+        "do": "changeCounter",
+        "index": 0,
+        "kind": "pokemon-condition:POISONED",
+        "value": 1,
+        "nowMs": 1100
+      }
+    },
+    {
+      "action": {
+        "do": "changeCounter",
+        "index": 0,
+        "kind": "pokemon-condition:ASLEEP",
+        "value": 1,
+        "nowMs": 1100
+      }
+    },
+    {
+      "action": {
+        "do": "changeCounter",
+        "index": 0,
+        "kind": "pokemon-condition:CONFUSED",
+        "value": 1,
+        "nowMs": 1100
+      }
+    },
+    {
+      "action": {
+        "do": "changeCounter",
+        "index": 0,
+        "kind": "pokemon-condition:PARALYZED",
+        "value": 1,
+        "nowMs": 1100
+      }
+    },
+    {
+      "action": {
+        "do": "pass",
+        "index": 0,
+        "nowMs": 2000
+      },
+      "expect": {
+        "active": 1,
+        "players.0.turn.actions": [],
+        "players.0.turn.conditions": [
+          "POISONED"
+        ],
+        "pokemonCheckup": [
+          "A: Poisoned. Put 1 damage counter on the Active Pokémon.",
+          "A: Burned. Put 2 damage counters on the Active Pokémon. Coin: heads, it's no longer Burned.",
+          "A: no longer Paralyzed."
+        ]
+      },
+      "random": [
+        1
+      ]
+    },
+    {
+      "action": {
+        "do": "dismissCheckup"
+      },
+      "expect": {
+        "pokemonCheckup": []
+      }
+    },
+    {
+      "action": {
+        "do": "dismissCheckup"
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "changeCounter",
+        "index": 0,
+        "kind": "pokemon-condition:ASLEEP",
+        "value": 1,
+        "nowMs": 2100
+      }
+    },
+    {
+      "action": {
+        "do": "changeCounter",
+        "index": 1,
+        "kind": "pokemon-condition:BURNED",
+        "value": 1,
+        "nowMs": 2100
+      }
+    },
+    {
+      "action": {
+        "do": "pass",
+        "index": 1,
+        "nowMs": 3000
+      },
+      "expect": {
+        "active": 0,
+        "players.0.turn.conditions": [
+          "ASLEEP",
+          "POISONED"
+        ],
+        "players.1.turn.conditions": [
+          "BURNED"
+        ]
+      },
+      "random": [
+        0,
+        0
+      ]
+    },
+    {
+      "action": {
+        "do": "pass",
+        "index": 0,
+        "nowMs": 4000
+      },
+      "expect": {
+        "players.0.turn.conditions": [
+          "POISONED"
+        ],
+        "players.1.turn.conditions": []
+      },
+      "random": [
+        1,
+        1
+      ]
+    },
+    {
+      "action": {
+        "do": "endWithoutWinner",
+        "nowMs": 5000
+      }
+    },
+    {
+      "action": {
+        "do": "rematch",
+        "gameId": "again",
+        "nowMs": 6000
+      },
+      "expect": {
+        "pokemonCheckup": [],
+        "players.0.turn.conditions": []
+      },
+      "random": [
+        0
+      ]
+    },
+    {
+      "action": {
+        "do": "reset"
+      }
+    },
+    {
+      "action": {
+        "do": "setFormat",
+        "profile": "LORCANA",
+        "life": null
+      }
+    },
+    {
+      "action": {
+        "do": "chooseStarter",
+        "index": 0
+      }
+    },
+    {
+      "action": {
+        "do": "start",
+        "gameId": "lore",
+        "nowMs": 7000
+      }
+    },
+    {
+      "action": {
+        "do": "changeCounter",
+        "index": 0,
+        "kind": "turn-action:INK",
+        "value": 1,
+        "nowMs": 7000
+      },
+      "expect": {
+        "players.0.turn.actions": [
+          "INK"
+        ]
+      }
+    },
+    {
+      "action": {
+        "do": "changeCounter",
+        "index": 0,
+        "kind": "turn-action:ENERGY",
+        "value": 1,
+        "nowMs": 7000
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "pass",
+        "index": 0,
+        "nowMs": 8000
+      },
+      "expect": {
+        "players.0.turn.actions": []
+      }
+    }
+  ]
+}

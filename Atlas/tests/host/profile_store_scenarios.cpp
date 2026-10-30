@@ -217,6 +217,20 @@ static void artworkProfiles() {
   setLuxuryStore(nullptr);
 }
 
+static void originalProfileTime() {
+  using namespace TurnHubProfiles;
+  const String id = createProfileWithName("Visiting player");
+  assert(id.length());
+  ProfileSync sync;
+  assert(loadSyncForProfile(id, sync) && sync.createdAtMs == 0);
+  sync.createdAtMs = 1700000000000ULL;
+  sync.activityMs = 1710000000000ULL;
+  assert(saveSyncForProfile(id, sync));
+  ProfileSync restored;
+  assert(loadSyncForProfile(id, restored));
+  assert(restored.createdAtMs == sync.createdAtMs && restored.activityMs == sync.activityMs);
+}
+
 int main() {
   assert(begin());
   guestLookups();
@@ -225,5 +239,6 @@ int main() {
   accessibilityPreferences();
   statisticsSplit();
   artworkProfiles();
+  originalProfileTime();
   std::cout << "PASS: real profile store guest lookups, reconnects, saved bindings, legacy placeholder filtering, accessibility preferences and the NVS/SD statistics split\n";
 }

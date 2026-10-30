@@ -1,6 +1,7 @@
 #include "avatars.h"
 #include "avatar_artwork.h"
 #include "profile_store.h"
+#include "wall_clock.h"
 #include "account_access.h"
 
 #include "optional_preferences.h"
@@ -158,7 +159,12 @@ String createProfileWithCredentials(const String &name, const String &pin, PinHa
     const String nameKey = profileKey('n', id), pinKey = profileKey('p', id);
     // Publish the profile marker last. Partial setup is never a login identity.
     if (preferences.putString(nameKey.c_str(), name) > 0 &&
-        preferences.putString(pinKey.c_str(), hash) > 0 && ensureMarker(id)) return id;
+        preferences.putString(pinKey.c_str(), hash) > 0 && ensureMarker(id)) {
+      ProfileSync origin;
+      origin.createdAtMs = TurnHubClock::clock.now(millis());
+      if (origin.createdAtMs) saveSyncForProfile(id, origin);
+      return id;
+    }
     preferences.remove(nameKey.c_str());
     preferences.remove(pinKey.c_str());
     return String();
@@ -177,7 +183,12 @@ String createProfileWithName(const String &name, const String &requestedId) {
     if (profileExists(id)) continue;
     const String nameKey = profileKey('n', id);
     // Publish the profile marker last, as createProfileWithCredentials does.
-    if (preferences.putString(nameKey.c_str(), name) > 0 && ensureMarker(id)) return id;
+    if (preferences.putString(nameKey.c_str(), name) > 0 && ensureMarker(id)) {
+      ProfileSync origin;
+      origin.createdAtMs = TurnHubClock::clock.now(millis());
+      if (origin.createdAtMs) saveSyncForProfile(id, origin);
+      return id;
+    }
     preferences.remove(nameKey.c_str());
     return String();
   }
@@ -254,12 +265,14 @@ bool savePolicyForProfile(const String &profileId, const ProfilePolicy &policy) 
       TurnHubStorage::Status::Ok;
 }
 
-// "t<profileId>": schema 1, flags (bit 0 changed without a clock), next key
+// "t<profileId>": schema 2, flags (bit 0 changed without a clock), next key
 // slot, activity (8 bytes little-endian), the link key hashes, then the
-// profile it was merged into (8 characters, or zeros).
-constexpr uint8_t SYNC_SCHEMA = 1;
+// profile it was merged into (8 characters, or zeros), original UTC creation
+// time (8 bytes). Schema 1 reads with an unknown creation time.
+constexpr uint8_t SYNC_SCHEMA = 2;
 constexpr size_t SYNC_KEYS_END = 11 + MAX_LINK_KEYS * LINK_KEY_HASH_LENGTH;
-constexpr size_t SYNC_SIZE = SYNC_KEYS_END + PROFILE_ID_LENGTH;
+constexpr size_t SYNC_V1_SIZE = SYNC_KEYS_END + PROFILE_ID_LENGTH;
+constexpr size_t SYNC_SIZE = SYNC_V1_SIZE + 8;
 
 bool loadSyncForProfile(const String &profileId, ProfileSync &sync) {
   sync = ProfileSync{};
@@ -269,13 +282,14 @@ bool loadSyncForProfile(const String &profileId, ProfileSync &sync) {
   size_t size = 0;
   const auto status = statsStorage.read(profileKey('t', profileId).c_str(), data, sizeof(data), size);
   if (status == TurnHubStorage::Status::NotFound) return true;
-  if (status != TurnHubStorage::Status::Ok || size != SYNC_SIZE || data[0] != SYNC_SCHEMA ||
+  if (status != TurnHubStorage::Status::Ok || !((size == SYNC_V1_SIZE && data[0] == 1) || (size == SYNC_SIZE && data[0] == SYNC_SCHEMA)) ||
       data[2] >= MAX_LINK_KEYS) return false;
   sync.changedWithoutClock = (data[1] & 1) != 0;
   sync.nextKey = data[2];
   for (uint8_t b = 0; b < 8; ++b) sync.activityMs |= static_cast<uint64_t>(data[3 + b]) << (8 * b);
   for (uint8_t k = 0; k < MAX_LINK_KEYS; ++k) memcpy(sync.keyHashes[k], data + 11 + k * LINK_KEY_HASH_LENGTH, LINK_KEY_HASH_LENGTH);
   memcpy(sync.mergedInto, data + SYNC_KEYS_END, PROFILE_ID_LENGTH);
+  if (size == SYNC_SIZE) for (uint8_t b = 0; b < 8; ++b) sync.createdAtMs |= static_cast<uint64_t>(data[SYNC_V1_SIZE + b]) << (8 * b);
   return true;
 }
 
@@ -289,6 +303,7 @@ bool saveSyncForProfile(const String &profileId, const ProfileSync &sync) {
   for (uint8_t b = 0; b < 8; ++b) data[3 + b] = static_cast<uint8_t>(sync.activityMs >> (8 * b));
   for (uint8_t k = 0; k < MAX_LINK_KEYS; ++k) memcpy(data + 11 + k * LINK_KEY_HASH_LENGTH, sync.keyHashes[k], LINK_KEY_HASH_LENGTH);
   memcpy(data + SYNC_KEYS_END, sync.mergedInto, PROFILE_ID_LENGTH);
+  for (uint8_t b = 0; b < 8; ++b) data[SYNC_V1_SIZE + b] = static_cast<uint8_t>(sync.createdAtMs >> (8 * b));
   return statsStorage.write(profileKey('t', profileId).c_str(), data, sizeof(data)) == TurnHubStorage::Status::Ok;
 }
 

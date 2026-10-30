@@ -92,22 +92,7 @@
         "required": [
           "name",
           "profileId",
-          "localId",
-          "finalLife",
-          "turnsCompleted",
-          "demerits",
-          "extensionsUsed",
-          "turnMs",
-          "fastestTurnMs",
-          "longestTurnMs",
-          "outOrder",
-          "conceded",
-          "eliminatedBy",
-          "bagDrawn",
-          "selfEliminated",
-          "commanderDamageReceived",
-          "counters",
-          "commanderBySource"
+          "localId"
         ],
         "properties": {
           "name": {
@@ -227,8 +212,122 @@
           "commanderBySource": {
             "type": "object",
             "description": "Commander damage received, keyed by the source player's index: one total per commander."
+          },
+          "guest": {
+            "const": true,
+            "description": "Named guest: basic result only, with no durable profile or detailed statistics."
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "guest"
+              ],
+              "properties": {
+                "guest": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "name",
+                "profileId",
+                "localId",
+                "outOrder",
+                "conceded",
+                "eliminatedBy",
+                "bagDrawn",
+                "selfEliminated"
+              ],
+              "properties": {
+                "profileId": {
+                  "type": "null"
+                },
+                "localId": {
+                  "type": "null"
+                }
+              },
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "finalLife"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "turnsCompleted"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "demerits"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "extensionsUsed"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "turnMs"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "fastestTurnMs"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "longestTurnMs"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "commanderDamageReceived"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "counters"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "commanderBySource"
+                    ]
+                  }
+                ]
+              }
+            },
+            "else": {
+              "required": [
+                "name",
+                "profileId",
+                "localId",
+                "finalLife",
+                "turnsCompleted",
+                "demerits",
+                "extensionsUsed",
+                "turnMs",
+                "fastestTurnMs",
+                "longestTurnMs",
+                "outOrder",
+                "conceded",
+                "eliminatedBy",
+                "bagDrawn",
+                "selfEliminated",
+                "commanderDamageReceived",
+                "counters",
+                "commanderBySource"
+              ]
+            }
+          }
+        ]
       }
     }
   }

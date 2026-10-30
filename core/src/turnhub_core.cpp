@@ -70,7 +70,11 @@ std::optional<std::vector<int>> emperorWinners(const std::vector<bool> &out) {
 namespace doom {
 constexpr int LAST_SURVIVORS = 2;
 uint32_t bit(int player) { return player >= 1 && player <= 16 ? 1u << (player - 1) : 0; }
-bool on(uint32_t living) { return __builtin_popcount(living) > LAST_SURVIVORS; }
+bool on(uint32_t living) {
+  int count = 0;
+  while (living) { living &= living - 1; ++count; }
+  return count > LAST_SURVIVORS;
+}
 int previous(int player, uint32_t living, int count) {
   for (int k = 1; k <= count; ++k) {
     const int p = (player - 1 - k + count) % count + 1;
@@ -141,7 +145,7 @@ std::string trimTake(const std::string &s, size_t n) {
 Player freshPlayer(const Player &p, int life) {
   Player n;
   n.name = p.name; n.profileId = p.profileId; n.localId = p.localId; n.life = life;
-  n.commander = p.commander; n.commanderArt = p.commanderArt; n.cardOnly = p.cardOnly;
+  n.commander = p.commander; n.commanderArt = p.commanderArt; n.cardOnly = p.cardOnly; n.guest = p.guest;
   return n;
 }
 
@@ -159,7 +163,7 @@ bool Player::operator==(const Player &o) const {
       turnsCompleted == o.turnsCompleted && turnMs == o.turnMs && fastestTurnMs == o.fastestTurnMs &&
       longestTurnMs == o.longestTurnMs && commanderDamage == o.commanderDamage && demerits == o.demerits &&
       extensionsEarned == o.extensionsEarned && extensionsUsed == o.extensionsUsed && commander == o.commander &&
-      commanderArt == o.commanderArt && cardOnly == o.cardOnly;
+      commanderArt == o.commanderArt && cardOnly == o.cardOnly && guest == o.guest && turnActions == o.turnActions && conditions == o.conditions;
 }
 
 bool TimerRules::operator==(const TimerRules &o) const {
@@ -246,7 +250,8 @@ std::optional<int> Game::winConfirmer() const {
 
 // --- the lobby -------------------------------------------------------------
 
-Game Game::addPlayer(const std::string &rawName, const std::string &profileId, const std::string &localId) const {
+Game Game::addPlayer(const std::string &rawName, const std::string &profileId, const std::string &localId, bool guest) const {
+  if (guest && (!profileId.empty() || !localId.empty())) return *this;
   const std::string name = trimTake(rawName, MAX_NAME);
   if (state != TableState::Lobby || name.empty() || static_cast<int>(players.size()) >= MAX_PLAYERS) return *this;
   for (const auto &p : players) {
@@ -255,7 +260,7 @@ Game Game::addPlayer(const std::string &rawName, const std::string &profileId, c
   }
   Game g = *this;
   Player p;
-  p.name = name; p.profileId = profileId; p.localId = localId;
+  p.name = name; p.profileId = profileId; p.localId = localId; p.guest = guest;
   g.players.push_back(p);
   return g.bump();
 }
@@ -307,6 +312,7 @@ Game Game::setFormat(Profile p, std::optional<int> life) const {
   const bool teams = twoHeadedGiant && ProfileRules::magic(p) && !ProfileRules::ownSeating(p);
   Game g = *this;
   g.profile = p;
+  if (!ProfileRules::magic(p)) g.planechase.set("enabled", false);
   g.twoHeadedGiant = teams;
   g.poisonLimit = teams ? TEAM_POISON : (twoHeadedGiant == teams ? poisonLimit : SOLO_POISON);
   g.startingLife = clampInt(life ? *life : defaultLife(p, teams), 1, MAX_LIFE);
@@ -354,7 +360,42 @@ Game Game::setTimerRules(const TimerRules &rules) const {
   return g.bump();
 }
 
-Game Game::start(int64_t nowMs, const std::string &id, Random &random) const {
+Game Game::setCommander(int index, const std::string &name, const std::string &art, bool cardOnly) const {
+  if (index < 0 || index >= static_cast<int>(players.size())) return *this;
+  const auto clean = trimTake(name, 80);
+  auto hex = [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); };
+  bool valid = false, magicCard = true;
+  if (art.size() == 36) {
+    valid = true;
+    for (size_t i = 0; i < art.size(); ++i)
+      if ((i == 8 || i == 13 || i == 18 || i == 23) ? art[i] != '-' : !hex(art[i])) valid = false;
+  }
+  if (art.rfind("pokemon:", 0) == 0) {
+    const auto id = art.substr(8);
+    valid = !id.empty() && id.size() <= 40 && std::isalnum(static_cast<unsigned char>(id[0]));
+    for (char c : id) if (!std::isalnum(static_cast<unsigned char>(c)) && c != '.' && c != '-') valid = false;
+    magicCard = false;
+  } else if (art.rfind("lorcana:", 0) == 0) {
+    const auto id = art.substr(8);
+    valid = id.size() == 36 && id.rfind("crd_", 0) == 0;
+    for (size_t i = 4; i < id.size(); ++i) if (!hex(id[i])) valid = false;
+    magicCard = false;
+  } else if (art.rfind("yugioh:", 0) == 0) {
+    const auto id = art.substr(7);
+    valid = !id.empty() && id.size() <= 10;
+    for (char c : id) if (c < '0' || c > '9') valid = false;
+    magicCard = false;
+  }
+  const auto printing = valid && !clean.empty() ? art : "";
+  // Invalid printing IDs are discarded; without one, the card source is Magic.
+  const bool only = !clean.empty() && (cardOnly || (!printing.empty() && !magicCard));
+  Game g = *this;
+  auto &p = g.players[index];
+  p.commander = clean; p.commanderArt = printing; p.cardOnly = only;
+  return p == players[index] ? *this : g.bump();
+}
+
+Game Game::start(int64_t nowMs, const std::string &id, Random &random, const Json &planarDeck) const {
   if (state != TableState::Lobby && state != TableState::GameOver) return *this;
   if (!canStart()) return *this;
   const int n = static_cast<int>(players.size());
@@ -371,6 +412,7 @@ Game Game::start(int64_t nowMs, const std::string &id, Random &random) const {
   g.state = TableState::Running;
   const bool upward = profile == Profile::Lorcana || profile == Profile::DeathMayDie;
   for (auto &p : g.players) p = freshPlayer(p, upward ? 0 : startingLife);
+  g.planechase = planechase.get("enabled").asBool() && magic() ? dealtPlanechase(planechase, planarDeck) : clearedPlanechase(planechase);
   g.doomBag = profile == Profile::MtgBagOfDoom ? doom::start(first + 1, (1u << n) - 1, n) : DoomBag();
   g.active = first;
   g.starter = first;
@@ -387,6 +429,7 @@ Game Game::start(int64_t nowMs, const std::string &id, Random &random) const {
   g.turnExtensionMs = 0;
   g.timeoutHandled = false;
   g.radDue.clear();
+  g.pokemonCheckup.clear();
   g.winClaim.reset();
   g.winConfirmed.clear();
   return g.bump();
@@ -406,6 +449,7 @@ Game Game::reset() const {
   g.timerRules = timerRules;
   g.twoHeadedGiant = twoHeadedGiant;
   g.houseRules = houseRules;
+  g.planechase = clearedPlanechase(planechase);
   for (const auto &p : players) g.players.push_back(freshPlayer(p, 0));
   g.revision = revision + 1;
   return g;
@@ -417,7 +461,7 @@ Game Game::backToSetup(int64_t nowMs) const {
 
 // --- the table -------------------------------------------------------------
 
-Game Game::applyTurnTimeout(int64_t nowMs) const {
+Game Game::applyTurnTimeout(int64_t nowMs, Random *random) const {
   if (!active || state != TableState::Running || turnTimerMs <= 0 || timeoutHandled ||
       gameElapsedMs(nowMs) - turnStartedAtElapsedMs < turnTimerMs + turnExtensionMs) return *this;
   const auto team = mates(*active);
@@ -428,7 +472,7 @@ Game Game::applyTurnTimeout(int64_t nowMs) const {
   for (size_t i = 0; i < g.players.size(); ++i)
     if (demerit && contains(team, static_cast<int>(i)) && !g.players[i].eliminated) ++g.players[i].demerits;
   g = g.bump();
-  return autoPass ? g.advanceTurn(nowMs, false) : g;
+  return autoPass ? g.advanceTurn(nowMs, false, random) : g;
 }
 
 Game Game::extendTurn(int index, int64_t nowMs) const {
@@ -444,17 +488,17 @@ Game Game::extendTurn(int index, int64_t nowMs) const {
   return g.bump();
 }
 
-Game Game::pass(int index, int64_t nowMs) const {
+Game Game::pass(int index, int64_t nowMs, Random *random) const {
   if (!active) return *this;
   const int holder = *active;
   if (state != TableState::Running || !contains(mates(holder), index)) return *this;
-  const Game settled = applyTurnTimeout(nowMs);
+  const Game settled = applyTurnTimeout(nowMs, random);
   // A timeout may already have passed this turn; don't also pass the next one.
   if (settled.active != active || settled.players[holder].turnsCompleted != players[holder].turnsCompleted) return settled;
-  return settled.advanceTurn(nowMs, true);
+  return settled.advanceTurn(nowMs, true, random);
 }
 
-Game Game::advanceTurn(int64_t nowMs, bool reward) const {
+Game Game::advanceTurn(int64_t nowMs, bool reward, Random *random) const {
   if (!active) return *this;
   const int holder = *active;
   const auto team = mates(holder);
@@ -467,6 +511,33 @@ Game Game::advanceTurn(int64_t nowMs, bool reward) const {
       h.turnsCompleted >= 3 && took < turnTimerMs * timerRules.earnBeforePercent / 100 &&
       h.extensionsEarned < timerRules.maxEarnedPerGame;
   Game g = *this;
+  g.pokemonCheckup.clear();
+  if (profile == Profile::Pokemon || profile == Profile::Lorcana) {
+    for (size_t i = 0; i < g.players.size(); ++i) {
+      auto &p = g.players[i];
+      p.turnActions.clear();
+      if (profile != Profile::Pokemon || p.eliminated) continue;
+      if (p.conditions.count("POISONED")) g.pokemonCheckup.push_back(p.name + ": Poisoned. Put 1 damage counter on the Active Pokémon.");
+      if (p.conditions.count("BURNED")) {
+        if (!random) return *this;  // The host must supply every random outcome.
+        const bool heads = random->nextBoolean();
+        g.pokemonCheckup.push_back(p.name + ": Burned. Put 2 damage counters on the Active Pokémon. " +
+            (heads ? "Coin: heads, it's no longer Burned." : "Coin: tails, it's still Burned."));
+        if (heads) p.conditions.erase("BURNED");
+      }
+      if (p.conditions.count("ASLEEP")) {
+        if (!random) return *this;
+        const bool heads = random->nextBoolean();
+        g.pokemonCheckup.push_back(p.name + ": Asleep. " +
+            (heads ? "Coin: heads, it wakes up." : "Coin: tails, it stays Asleep."));
+        if (heads) p.conditions.erase("ASLEEP");
+      }
+      if (p.conditions.count("PARALYZED") && static_cast<int>(i) == holder) {
+        g.pokemonCheckup.push_back(p.name + ": no longer Paralyzed.");
+        p.conditions.erase("PARALYZED");
+      }
+    }
+  }
   for (size_t i = 0; i < g.players.size(); ++i) {
     Player &p = g.players[i];
     if (!contains(team, static_cast<int>(i)) || p.eliminated) continue;
@@ -477,6 +548,7 @@ Game Game::advanceTurn(int64_t nowMs, bool reward) const {
     if (earn) p.extensionsEarned += 1;
   }
   g.active = next;
+  g.planechase.set("rolls", Json::object());
   g.turnStartedAtElapsedMs = now;
   g.turnExtensionMs = 0;
   g.timeoutHandled = false;
@@ -484,6 +556,13 @@ Game Game::advanceTurn(int64_t nowMs, bool reward) const {
   if (magic())
     for (int i : mates(*next)) if (players[i].counters.rad > 0 && !players[i].eliminated) g.radDue.push_back(i);
   return g.bump().doomPassed(holder + 1, nowMs);
+}
+
+Game Game::dismissCheckup() const {
+  if (pokemonCheckup.empty()) return *this;
+  Game g = *this;
+  g.pokemonCheckup.clear();
+  return g.bump();
 }
 
 Game Game::togglePause(int64_t nowMs) const {
@@ -588,8 +667,30 @@ Game Game::claimMonarch(int index) const {
 
 Game Game::changeCounter(int index, const std::string &kind, int value, int commander, int64_t nowMs) const {
   if (index < 0 || index >= static_cast<int>(players.size())) return *this;
-  // Pokémon and Lorcana turn markers and Death May Die's dashboard arrive with their ports.
-  if (profile == Profile::Pokemon || profile == Profile::Lorcana || profile == Profile::DeathMayDie) return *this;
+  if (profile == Profile::Pokemon || profile == Profile::Lorcana) {
+    if (!playing() || players[index].eliminated || value < 0 || value > 1) return *this;
+    Game g = *this;
+    const std::string actionPrefix = "turn-action:", conditionPrefix = "pokemon-condition:";
+    std::set<std::string> *target = nullptr;
+    std::string key;
+    if (kind.rfind(actionPrefix, 0) == 0 && active == index) {
+      key = kind.substr(actionPrefix.size());
+      const bool allowed = profile == Profile::Lorcana ? key == "INK" :
+          (key == "ENERGY" || key == "SUPPORTER" || key == "STADIUM" || key == "RETREAT");
+      if (!allowed) return *this;
+      target = &g.players[index].turnActions;
+    } else if (profile == Profile::Pokemon && kind.rfind(conditionPrefix, 0) == 0) {
+      key = kind.substr(conditionPrefix.size());
+      if (key != "ASLEEP" && key != "BURNED" && key != "CONFUSED" && key != "PARALYZED" && key != "POISONED") return *this;
+      target = &g.players[index].conditions;
+      if (value == 1 && (key == "ASLEEP" || key == "CONFUSED" || key == "PARALYZED")) {
+        target->erase("ASLEEP"); target->erase("CONFUSED"); target->erase("PARALYZED");
+      }
+    } else return *this;
+    if (value == 1) target->insert(key); else target->erase(key);
+    return g.players[index] == players[index] ? *this : g.bump();
+  }
+  if (profile == Profile::DeathMayDie) return *this;
   const Player &player = players[index];
   if (!playing() || player.eliminated || !magic()) return *this;
   if (kind == "rad-resolve") return resolveRad(index, value, nowMs);
@@ -698,6 +799,7 @@ Game Game::eliminate(int index, int64_t nowMs, bool conceded, std::optional<int>
     if (!next) return g;
     g.active = next;
     g.turnStartedAtElapsedMs = g.gameElapsedMs(nowMs);
+    g.planechase.set("rolls", Json::object());
     g.turnExtensionMs = 0;
     g.timeoutHandled = false;
   }
@@ -735,6 +837,7 @@ Game Game::resolveEliminationRules(int64_t nowMs) const {
   if (active && contains(targets, *active)) {
     g.active = g.nextAfter(mates(*active));
     g.turnStartedAtElapsedMs = g.gameElapsedMs(nowMs);
+    g.planechase.set("rolls", Json::object());
     g.turnExtensionMs = 0;
     g.timeoutHandled = false;
   }
@@ -807,17 +910,17 @@ Game Game::claimWin(int index, int64_t nowMs) const {
 
 Game Game::endWithoutWinner(int64_t nowMs) const { return playing() ? finish({}, nowMs) : *this; }
 
-Game Game::rematch(int64_t nowMs, const std::string &id, Random &random) const {
+Game Game::rematch(int64_t nowMs, const std::string &id, Random &random, const Json &planarDeck) const {
   if (state != TableState::GameOver) return *this;
-  return start(nowMs, id, random);
+  return start(nowMs, id, random, planarDeck);
 }
 
-Game Game::seanModeRematch(int64_t nowMs, const std::string &id, Random &random) const {
+Game Game::seanModeRematch(int64_t nowMs, const std::string &id, Random &random, const Json &planarDeck) const {
   if (state != TableState::GameOver || profile != Profile::MtgStarCommander || players.size() != STAR_PLAYERS) return *this;
   Game g = *this;
   for (int i = 0; i < STAR_PLAYERS; ++i) g.players[i] = players[SEAN_MODE_ORDER[i]];
   g.starter.reset();
-  return g.start(nowMs, id, random);
+  return g.start(nowMs, id, random, planarDeck);
 }
 
 Game Game::finish(const std::vector<int> &won, int64_t nowMs) const {
@@ -1000,6 +1103,135 @@ bool profileFromName(const std::string &name, Profile &out) {
 const char *stateName(TableState s) { return STATE_NAMES[static_cast<int>(s)]; }
 const char *phaseName(TimerPhase p) { return PHASE_NAMES[static_cast<int>(p)]; }
 
+
+// --- Planechase -------------------------------------------------------------
+Json defaultPlanechase() {
+  Json p = Json::object(), selection = Json::object();
+  selection.set("name", "All planes"); selection.set("cardIds", Json());
+  p.set("selection", selection); p.set("enabled", false); p.set("source", "digital"); p.set("phenomena", true);
+  p.set("deck", Json::array()); p.set("faceUp", Json::array());
+  p.set("counters", Json::object()); p.set("rolls", Json::object()); p.set("lastRoll", Json());
+  p.set("planeswalks", 0); p.set("chaos", 0);
+  return p;
+}
+Json clearedPlanechase(const Json &state) {
+  Json p = defaultPlanechase();
+  for (const char *key : {"selection", "enabled", "source", "phenomena"})
+    if (state.has(key)) p.set(key, state.get(key));
+  return p;
+}
+Json dealtPlanechase(const Json &state, const Json &cards) {
+  Json p = clearedPlanechase(state);
+  if (p.get("source").asString() == "physical") return p;
+  std::vector<Json> deck;
+  std::set<std::string> ids;
+  bool plane = false;
+  for (size_t i = 0; i < cards.size(); ++i) {
+    const auto &card = cards[i];
+    if (ids.insert(card.get("id").asString()).second) {
+      deck.push_back(card);
+      plane = plane || !card.get("phenomenon").asBool();
+    }
+  }
+  if (plane) while (deck.front().get("phenomenon").asBool()) std::rotate(deck.begin(), deck.begin() + 1, deck.end());
+  Json down = Json::array(), up = Json::array();
+  for (size_t i = 0; i < deck.size(); ++i) {
+    if (plane && i == 0) up.push(deck[i]); else down.push(deck[i]);
+  }
+  p.set("deck", down); p.set("faceUp", up);
+  return p;
+}
+namespace {
+Json planarWalk(Json p) {
+  Json down = Json::array(), up = Json::array();
+  std::vector<Json> pile;
+  for (const char *key : {"deck", "faceUp"})
+    for (size_t i = 0; i < p.get(key).size(); ++i) pile.push_back(p.get(key)[i]);
+  for (size_t i = 0; i < pile.size(); ++i) { if (i == 0) up.push(pile[i]); else down.push(pile[i]); }
+  p.set("deck", down); p.set("faceUp", up); p.set("counters", Json::object());
+  p.set("planeswalks", p.get("planeswalks").asInt() + 1);
+  return p;
+}
+bool pendingPhenomenon(const Json &p) {
+  for (size_t i = 0; i < p.get("faceUp").size(); ++i) if (p.get("faceUp")[i].get("phenomenon").asBool()) return true;
+  return false;
+}
+}
+Game Game::planarAction(const Json &a) const {
+  const auto &d = a.get("do").asString();
+  Json p = planechase;
+  if (d == "setPlanechase" || d == "setPlanarSource" || d == "setPlanarSelection" || d == "setPlanarPhenomena") {
+    if (state != TableState::Lobby) return *this;
+    if (d == "setPlanechase") {
+      if (a.get("on").asBool() && !magic()) return *this;
+      p.set("enabled", a.get("on").asBool());
+    } else if (d == "setPlanarSource") {
+      const auto &source = a.get("source").asString();
+      if (source != "physical" && source != "digital") return *this;
+      p.set("source", source);
+    } else if (d == "setPlanarPhenomena") p.set("phenomena", a.get("on").asBool());
+    else {
+      const auto &choice = a.get("selection");
+      const auto &name = choice.get("name").asString();
+      if (trimTake(name, 64).empty() || name.size() > 64 || !choice.has("cardIds")) return *this;
+      const auto &ids = choice.get("cardIds");
+      if (!ids.isNull()) {
+        if (!ids.isArray() || ids.size() == 0 || ids.size() > 2000) return *this;
+        for (size_t i = 0; i < ids.size(); ++i)
+          if (trimTake(ids[i].asString(), 128).empty() || ids[i].asString().size() > 128) return *this;
+      }
+      p.set("selection", choice);
+    }
+  } else if (d == "dealPlanarDeck") {
+    if (!playing() || !p.get("enabled").asBool() || p.get("source").asString() != "digital" ||
+        p.get("deck").size() || p.get("faceUp").size()) return *this;
+    auto dealt = dealtPlanechase(p, a.get("deck"));
+    if (dealt.get("faceUp").size() == 0) return *this;
+    for (const char *key : {"rolls", "lastRoll", "planeswalks", "chaos"}) dealt.set(key, p.get(key));
+    p = dealt;
+  } else {
+    const int index = static_cast<int>(a.get("index").asInt());
+    if (!playing() || !p.get("enabled").asBool() || index < 0 || index >= static_cast<int>(players.size()) || players[index].eliminated) return *this;
+    if (d == "changePlaneCounter") {
+      const auto &card = a.get("card").asString();
+      const bool physical = p.get("source").asString() == "physical" || (p.get("deck").size() == 0 && p.get("faceUp").size() == 0);
+      bool known = physical && card == "physical";
+      for (size_t i = 0; i < p.get("faceUp").size(); ++i) known = known || (!physical && p.get("faceUp")[i].get("id").asString() == card);
+      if (!known) return *this;
+      const int next = clampInt(p.get("counters").get(card).asInt() + a.get("delta").asInt(), 0, 999);
+      Json counters = Json::object();
+      for (const auto &entry : p.get("counters").members()) if (entry.first != card) counters.set(entry.first, entry.second);
+      if (next) counters.set(card, next);
+      p.set("counters", counters);
+    } else {
+      if (state != TableState::Running || !active || !contains(mates(*active), index)) return *this;
+      const bool pending = pendingPhenomenon(p);
+      if (d == "resolvePhenomenon") { if (!pending) return *this; p = planarWalk(p); }
+      else if (d == "planeswalk") p = planarWalk(p);
+      else if (d == "chaosEnsues") { if (pending) return *this; p.set("chaos", p.get("chaos").asInt() + 1); }
+      else if (d == "planarTopToBottom") {
+        const auto deck = p.get("deck");
+        if (deck.size() < 2) return *this;
+        Json next = Json::array(); for (size_t i = 1; i < deck.size(); ++i) next.push(deck[i]); next.push(deck[0]); p.set("deck", next);
+      } else if (d == "rollPlanarDie") {
+        if (pending) return *this;
+        const auto &face = a.get("face").asString();
+        if (face != "blank" && face != "chaos" && face != "planeswalk") return *this;
+        const auto key = std::to_string(index);
+        const int64_t cost = p.get("rolls").get(key).asInt();
+        const bool effect = a.get("fromEffect").asBool();
+        auto rolls = p.get("rolls"); if (!effect) rolls.set(key, cost + 1); p.set("rolls", rolls);
+        Json roll = Json::object(); roll.set("player", index); roll.set("face", face); roll.set("cost", effect ? 0 : cost);
+        roll.set("fromEffect", effect); roll.set("number", p.get("lastRoll").get("number").asInt() + 1); p.set("lastRoll", roll);
+        if (face == "chaos") p.set("chaos", p.get("chaos").asInt() + 1);
+        if (face == "planeswalk") p = planarWalk(p);
+      } else return *this;
+    }
+  }
+  if (p == planechase) return *this;
+  Game g = *this; g.planechase = p; return g.bump();
+}
+
 // --- JSON --------------------------------------------------------------------
 
 namespace {
@@ -1057,12 +1289,20 @@ Json playerJson(const Player &p) {
   j.set("commander", optString(p.commander));
   j.set("commanderArt", optString(p.commanderArt));
   j.set("cardOnly", p.cardOnly);
+  j.set("guest", p.guest);
+  Json turn = Json::object(), actions = Json::array(), conditions = Json::array();
+  for (const auto &v : p.turnActions) actions.push(v);
+  for (const auto &v : p.conditions) conditions.push(v);
+  turn.set("actions", actions); turn.set("conditions", conditions);
+  j.set("turn", turn);
   return j;
 }
 
 Player playerFromJson(const Json &j) {
   Player p;
   p.name = j.get("name").asString();
+  for (size_t i = 0; i < j.get("turn").get("actions").size(); ++i) p.turnActions.insert(j.get("turn").get("actions")[i].asString());
+  for (size_t i = 0; i < j.get("turn").get("conditions").size(); ++i) p.conditions.insert(j.get("turn").get("conditions")[i].asString());
   p.profileId = j.get("profileId").asString();
   p.localId = j.get("localId").asString();
   p.life = static_cast<int>(j.get("life").asInt());
@@ -1092,6 +1332,7 @@ Player playerFromJson(const Json &j) {
   p.commander = j.get("commander").asString();
   p.commanderArt = j.get("commanderArt").asString();
   p.cardOnly = j.get("cardOnly").asBool();
+  p.guest = j.get("guest").asBool();
   return p;
 }
 
@@ -1180,6 +1421,10 @@ Json toJson(const Game &g) {
   j.set("turnStartedAtElapsedMs", g.turnStartedAtElapsedMs);
   j.set("doomBag", doomJson(g.doomBag));
   j.set("radDue", ints(g.radDue));
+  Json checkup = Json::array();
+  for (const auto &line : g.pokemonCheckup) checkup.push(line);
+  j.set("pokemonCheckup", checkup);
+  j.set("planechase", g.planechase);
   j.set("revision", g.revision);
   return j;
 }
@@ -1205,6 +1450,12 @@ Json gameRecord(const Game &g) {
     j.set("name", p.name);
     j.set("profileId", optString(p.profileId));
     j.set("localId", optString(p.localId));
+    if (p.guest) {
+      j.set("guest", true); j.set("outOrder", opt(p.outOrder)); j.set("conceded", p.conceded);
+      j.set("eliminatedBy", opt(p.eliminatedBy)); j.set("selfEliminated", p.selfEliminated);
+      j.set("bagDrawn", (g.doomBag.drawn & doom::bit(static_cast<int>(i) + 1)) != 0);
+      players.push(j); continue;
+    }
     j.set("finalLife", p.life);
     j.set("turnsCompleted", p.turnsCompleted);
     j.set("demerits", p.demerits);
@@ -1312,7 +1563,7 @@ std::string recordCsvRows(const Json &r) {
         csvBool(r.get("starter").asInt(-1) == static_cast<int64_t>(i)) + "," + csvBool(won) + "," + csvBool(draw) + "," +
         csvNumber(p.get("outOrder")) + "," + csvBool(p.get("conceded").asBool()) + "," +
         (by.isNumber() ? std::to_string(by.asInt() + 1) : std::string()) + "," +
-        csvBool(p.get("selfEliminated").asBool()) + "," + csvNumber(p.get("finalLife")) + "," + std::to_string(turns) + "," +
+        csvBool(p.get("selfEliminated").asBool()) + "," + csvNumber(p.get("finalLife")) + "," + (p.get("guest").asBool() ? std::string() : std::to_string(turns)) + "," +
         csvNumber(p.get("turnMs")) + "," + (turns > 0 ? std::to_string(p.get("turnMs").asInt() / turns) : std::string()) + "," +
         csvNumber(p.get("fastestTurnMs")) + "," + csvNumber(p.get("longestTurnMs")) + "," +
         csvNumber(p.get("commanderDamageReceived")) + "," + csvNumber(counters.get("poison")) + "," +
@@ -1361,11 +1612,13 @@ Game gameFromJson(const Json &j) {
   g.turnStartedAtElapsedMs = j.get("turnStartedAtElapsedMs").asInt();
   g.doomBag = doomFromJson(j.get("doomBag"));
   g.radDue = readInts(j.get("radDue"));
+  for (size_t i = 0; i < j.get("pokemonCheckup").size(); ++i) g.pokemonCheckup.push_back(j.get("pokemonCheckup")[i].asString());
+  if (j.get("planechase").isObject()) g.planechase = j.get("planechase");
   g.revision = j.get("revision").asInt();
   return g;
 }
 
-Game applySeatAction(const Game &game, const SeatAction &a, int64_t now) {
+Game applySeatAction(const Game &game, const SeatAction &a, int64_t now, Random *random) {
   const int n = static_cast<int>(game.players.size());
   // Planechase and Death May Die seats arrive with their ports.
   if (a.kind.rfind("planar-", 0) == 0 || game.profile == Profile::DeathMayDie) return game;
@@ -1382,7 +1635,7 @@ Game applySeatAction(const Game &game, const SeatAction &a, int64_t now) {
   if (k == "commander" && a.slot >= 1 && a.slot <= 2 && a.source >= 1 && a.source <= n && (a.value == -1 || a.value == 1))
     return game.commanderDamage(index, a.source - 1, a.slot, a.value, now);
   if (simple) {
-    if (k == "pass") return game.pass(index, now);
+    if (k == "pass") return game.pass(index, now, random);
     if (k == "extend-turn") return game.extendTurn(index, now);
     // A claim waits on the other players, as a Sigil's does.
     if (k == "win") return game.requestWin(index, now);
@@ -1400,7 +1653,9 @@ Game applySeatAction(const Game &game, const SeatAction &a, int64_t now) {
   static const char *const counters[] = {"poison", "energy", "experience", "treasure", "rad", "commander-casts", "city-blessing", "initiative"};
   if (a.source == 0 && a.slot >= 0 && a.slot <= 2 && a.value >= -1 && a.value <= 1)
     for (const char *c : counters) if (k == c) return game.changeCounter(index, k, a.value, std::max(a.slot, 1), now);
-  // Turn actions and Pokémon Special Conditions arrive with their port.
+  if (a.source == 0 && a.slot == 0 && a.value >= 0 && a.value <= 1 &&
+      (k.rfind("turn-action:", 0) == 0 || k.rfind("pokemon-condition:", 0) == 0))
+    return game.changeCounter(index, k, a.value, 1, now);
   return game;
 }
 
@@ -1408,7 +1663,7 @@ Game applyAction(const Game &g, const Json &a, Random &random) {
   const std::string &d = a.get("do").asString();
   const int64_t now = a.get("nowMs").asInt();
   const auto i = [&](const char *key) { return static_cast<int>(a.get(key).asInt()); };
-  if (d == "addPlayer") return g.addPlayer(a.get("name").asString(), a.get("profileId").asString(), a.get("localId").asString());
+  if (d == "addPlayer") return g.addPlayer(a.get("name").asString(), a.get("profileId").asString(), a.get("localId").asString(), a.get("guest").asBool());
   if (d == "removePlayer") return g.removePlayer(i("index"));
   if (d == "clearPlayers") return g.clearPlayers();
   if (d == "movePlayer") return g.movePlayer(i("index"), i("by"));
@@ -1424,12 +1679,14 @@ Game applyAction(const Game &g, const Json &a, Random &random) {
   if (d == "setStartingLife") return g.setStartingLife(i("life"));
   if (d == "setTurnTimer") return g.setTurnTimer(a.get("ms").asInt());
   if (d == "setTimerRules") return g.setTimerRules(timerRulesFromJson(a, TimerRules()));
-  if (d == "start") return g.start(now, a.get("gameId").asString(), random);
+  if (d == "start") return g.start(now, a.get("gameId").asString(), random, a.get("planarDeck"));
   if (d == "reset") return g.reset();
   if (d == "backToSetup") return g.backToSetup(now);
-  if (d == "applyTurnTimeout") return g.applyTurnTimeout(now);
+  if (d == "applyTurnTimeout") return g.applyTurnTimeout(now, &random);
   if (d == "extendTurn") return g.extendTurn(i("index"), now);
-  if (d == "pass") return g.pass(i("index"), now);
+  if (d == "pass") return g.pass(i("index"), now, &random);
+  if (d == "dismissCheckup") return g.dismissCheckup();
+  if (d == "setCommander") return g.setCommander(i("index"), a.get("name").asString(), a.get("art").asString(), a.get("cardOnly").asBool());
   if (d == "togglePause") return g.togglePause(now);
   if (d == "changeLife") return g.changeLife(i("index"), i("delta"), now);
   if (d == "commanderDamage") return g.commanderDamage(i("index"), i("source"), i("commander"), i("delta"), now);
@@ -1450,11 +1707,14 @@ Game applyAction(const Game &g, const Json &a, Random &random) {
   if (d == "answerWinClaim") return g.answerWinClaim(i("index"), a.get("accept").asBool(), now);
   if (d == "claimWin") return g.claimWin(i("index"), now);
   if (d == "endWithoutWinner") return g.endWithoutWinner(now);
-  if (d == "rematch") return g.rematch(now, a.get("gameId").asString(), random);
-  if (d == "seanModeRematch") return g.seanModeRematch(now, a.get("gameId").asString(), random);
+  if (d == "rematch") return g.rematch(now, a.get("gameId").asString(), random, a.get("planarDeck"));
+  if (d == "seanModeRematch") return g.seanModeRematch(now, a.get("gameId").asString(), random, a.get("planarDeck"));
   if (d == "doomEligibility") return g.doomEligibility(i("player"), a.get("inBag").asBool(), a.get("cycle").asInt());
   if (d == "doomCredit") return g.doomCredit(i("victim"), i("source"), a.get("cycle").asInt());
   if (d == "drawDoom") return g.drawDoom(a.get("cycle").asInt(), now, random);
+  if (d == "setPlanechase" || d == "setPlanarSource" || d == "setPlanarSelection" || d == "setPlanarPhenomena" ||
+      d == "rollPlanarDie" || d == "planeswalk" || d == "resolvePhenomenon" || d == "chaosEnsues" ||
+      d == "planarTopToBottom" || d == "dealPlanarDeck" || d == "changePlaneCounter") return g.planarAction(a);
   if (d == "seat") {
     SeatAction seat;
     seat.match = a.get("match").asString();
@@ -1464,7 +1724,7 @@ Game applyAction(const Game &g, const Json &a, Random &random) {
     seat.value = i("value");
     seat.slot = i("slot");
     seat.source = i("source");
-    return applySeatAction(g, seat, now);
+    return applySeatAction(g, seat, now, &random);
   }
   return g;
 }

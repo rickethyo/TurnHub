@@ -55,7 +55,7 @@ private fun rememberLocalNetworkAccess(onDenied: () -> Unit): (() -> Unit) -> Un
  * code is spent. The caller has unlocked the account.
  */
 @Composable
-fun ShareAccountDialog(player: SavedLocalPlayer, onClose: () -> Unit) {
+fun ShareAccountDialog(player: SavedLocalPlayer, table: StandaloneTable, onClose: () -> Unit) {
     val p = palette
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -66,7 +66,7 @@ fun ShareAccountDialog(player: SavedLocalPlayer, onClose: () -> Unit) {
     LaunchedEffect(player.localId) {
         withNetwork {
             scope.launch {
-                val account = AccountCopy.toJson(player)
+                val account = table.accountCopy(player.localId)
                 val opened = runCatching { withContext(Dispatchers.IO) {
                     AccountCopyHost.open(context, account) {
                         scope.launch { invitation = null; message = "${player.name} was copied to the other device." }

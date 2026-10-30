@@ -51,6 +51,7 @@ class Random {
  public:
   virtual ~Random() = default;
   virtual int nextInt(int bound) = 0;
+  virtual bool nextBoolean() { return nextInt(2) != 0; }
 };
 
 struct Counters {
@@ -80,6 +81,8 @@ struct Player {
   int demerits = 0, extensionsEarned = 0, extensionsUsed = 0;
   std::string commander, commanderArt;
   bool cardOnly = false;
+  bool guest = false;
+  std::set<std::string> turnActions, conditions;
   bool operator==(const Player &o) const;
 };
 
@@ -108,6 +111,10 @@ struct TurnTimer {
   TimerPhase phase = TimerPhase::Normal;
   std::optional<int64_t> remainingMs;
 };
+
+Json defaultPlanechase();
+Json clearedPlanechase(const Json &state);
+Json dealtPlanechase(const Json &state, const Json &cards);
 
 class Game {
  public:
@@ -146,6 +153,8 @@ class Game {
   int64_t turnStartedAtElapsedMs = 0;
   DoomBag doomBag;
   std::vector<int> radDue;
+  std::vector<std::string> pokemonCheckup;
+  Json planechase = defaultPlanechase();
   int64_t revision = 0;
 
   bool operator==(const Game &o) const;
@@ -161,7 +170,7 @@ class Game {
   static int defaultLife(Profile p, bool twoHeadedGiant);
 
   // --- the lobby -----------------------------------------------------------
-  Game addPlayer(const std::string &name, const std::string &profileId = "", const std::string &localId = "") const;
+  Game addPlayer(const std::string &name, const std::string &profileId = "", const std::string &localId = "", bool guest = false) const;
   Game removePlayer(int index) const;
   Game clearPlayers() const;
   Game movePlayer(int index, int by) const { return swapPlayers(index, index + by); }
@@ -173,14 +182,16 @@ class Game {
   Game setStartingLife(int life) const;
   Game setTurnTimer(int64_t ms) const;
   Game setTimerRules(const TimerRules &rules) const;
-  Game start(int64_t nowMs, const std::string &id, Random &random) const;
+  Game setCommander(int index, const std::string &name, const std::string &art = "", bool cardOnly = false) const;
+  Game start(int64_t nowMs, const std::string &id, Random &random, const Json &planarDeck = Json()) const;
   Game reset() const;
   Game backToSetup(int64_t nowMs) const;
 
   // --- the table -----------------------------------------------------------
-  Game applyTurnTimeout(int64_t nowMs) const;
+  Game applyTurnTimeout(int64_t nowMs, Random *random = nullptr) const;
   Game extendTurn(int index, int64_t nowMs) const;
-  Game pass(int index, int64_t nowMs) const;
+  Game pass(int index, int64_t nowMs, Random *random = nullptr) const;
+  Game dismissCheckup() const;
   Game togglePause(int64_t nowMs) const;
   Game changeLife(int index, int delta, int64_t nowMs) const;
   Game commanderDamage(int index, int source, int commander, int delta, int64_t nowMs) const;
@@ -201,8 +212,9 @@ class Game {
   Game answerWinClaim(int index, bool accept, int64_t nowMs) const;
   Game claimWin(int index, int64_t nowMs) const;
   Game endWithoutWinner(int64_t nowMs) const;
-  Game rematch(int64_t nowMs, const std::string &id, Random &random) const;
-  Game seanModeRematch(int64_t nowMs, const std::string &id, Random &random) const;
+  Game rematch(int64_t nowMs, const std::string &id, Random &random, const Json &planarDeck = Json()) const;
+  Game seanModeRematch(int64_t nowMs, const std::string &id, Random &random, const Json &planarDeck = Json()) const;
+  Game planarAction(const Json &command) const;
 
   // --- Bag of Doom ---------------------------------------------------------
   Game doomEligibility(int player, bool inBag, int64_t cycle) const;
@@ -214,7 +226,7 @@ class Game {
   bool magic() const { return ProfileRules::magic(profile); }
   Game bump() const { Game g = *this; ++g.revision; return g; }
   Game officialValues() const;
-  Game advanceTurn(int64_t nowMs, bool reward) const;
+  Game advanceTurn(int64_t nowMs, bool reward, Random *random = nullptr) const;
   Game resolveRad(int index, int nonlands, int64_t nowMs) const;
   Game passStatuses(const std::vector<int> &leaving) const;
   Game finish(const std::vector<int> &winners, int64_t nowMs) const;
@@ -255,7 +267,7 @@ struct SeatAction {
   std::string kind;
   int value = 0, slot = 0, source = 0;
 };
-Game applySeatAction(const Game &game, const SeatAction &action, int64_t nowMs);
+Game applySeatAction(const Game &game, const SeatAction &action, int64_t nowMs, Random *random = nullptr);
 
 const char *profileName(Profile p);
 bool profileFromName(const std::string &name, Profile &out);

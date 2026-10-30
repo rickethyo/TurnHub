@@ -13,11 +13,30 @@ TYPES = {"object": dict, "array": list, "string": str, "integer": int,
          "boolean": bool, "null": type(None)}
 KEYWORDS = {"$schema", "$id", "title", "description", "type", "const", "enum",
             "required", "properties", "additionalProperties", "items", "minimum",
-            "maximum", "minLength", "maxLength", "minItems", "maxItems", "pattern"}
+            "maximum", "minLength", "maxLength", "minItems", "maxItems", "pattern",
+            "allOf", "anyOf", "not", "if", "then", "else"}
+
+
+def matches(value, schema):
+    try:
+        check(value, schema)
+        return True
+    except AssertionError:
+        return False
 
 
 def check(value, schema):
     assert not set(schema) - KEYWORDS, set(schema) - KEYWORDS
+    for part in schema.get("allOf", []):
+        check(value, part)
+    if "anyOf" in schema:
+        assert any(matches(value, part) for part in schema["anyOf"])
+    if "not" in schema:
+        assert not matches(value, schema["not"])
+    if "if" in schema:
+        branch = schema.get("then" if matches(value, schema["if"]) else "else")
+        if branch is not None:
+            check(value, branch)
     if "type" in schema:
         kinds = schema["type"]
         if isinstance(kinds, str):

@@ -160,9 +160,10 @@ String profilePinHash(const String &profileId, const String &pin);
 // profile without signing in; Atlas keeps only its hash. Empty on failure.
 String issueLinkKey(const String &profileId);
 bool linkKeyValid(const String &profileId, const String &key);
-// Atlas has no real-time clock: a phone's sync tells it the time.
+// UTC bookkeeping: phone connection/profile sync or NTP on home Wi-Fi.
 void observeWallClock(uint64_t epochMs);
-uint64_t wallClockNow();  // 0 until a phone has told it the time since boot
+void handleClockSync(WebServer &server);
+uint64_t wallClockNow();  // 0 until a clock source is available this boot
 // Stamps a change to a profile's synced settings (name, color, avatar,
 // reduced motion) so the next sync knows which side is newer.
 void noteProfileChange(const String &profileId);

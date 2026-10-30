@@ -13,6 +13,8 @@ data class SavedLocalPlayer(
     val credential: LocalCredential? = null,
     /** When the synced settings (name, color, avatar, reduced motion) last changed; 0 never. */
     val lastActivityMs: Long = 0,
+    /** Original UTC creation time; 0 means unknown, never the date of a later import. */
+    val createdAtMs: Long = 0,
 )
 
 enum class DeliveryStatus { NEEDS_LINKING, PENDING, IMPORTED, REJECTED }
@@ -49,6 +51,8 @@ data class LocalStats(
 )
 
 data class LocalLibrary(
+    /** Reusable labels only: no account, identity, credentials or lifetime statistics. */
+    val guestNames: List<String> = emptyList(),
     val players: List<SavedLocalPlayer> = emptyList(),
     val history: List<GameRecord> = emptyList(),
     val deliveries: List<MatchDelivery> = emptyList(),
@@ -190,12 +194,14 @@ data class LocalLibrary(
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("schema", SCHEMA)
+        put("guestNames", JSONArray(guestNames))
         put("players", JSONArray().apply {
             players.forEach { p -> put(JSONObject().put("localId", p.localId).put("name", p.name)
                 .put("profileId", p.profileId).put("personalization", p.personalization.toJson())
                 .put("links", JSONArray().apply { p.links.forEach { put(JSONObject()
                     .put("atlasId", it.atlasId).put("profileId", it.profileId).put("linkKey", it.linkKey ?: JSONObject.NULL)) } })
                 .put("lastActivityMs", p.lastActivityMs)
+                .put("createdAtMs", p.createdAtMs)
                 .put("credential", p.credential?.let { JSONObject().put("salt", it.salt).put("hash", it.hash) } ?: JSONObject.NULL)) }
         })
         put("investigatorReferences", JSONObject().apply { investigatorReferences.forEach { (id, card) -> put(id, card.toJson()) } })
@@ -226,6 +232,11 @@ data class LocalLibrary(
             val references = json.optJSONObject("investigatorReferences")
             val enemies = json.optJSONArray("enemies") ?: JSONArray()
             return LocalLibrary(
+                guestNames = json.optJSONArray("guestNames")?.let { names ->
+                    (0 until names.length()).map { names.getString(it) }.also { list ->
+                        require(list.all { it.isNotBlank() && it.length <= StandaloneGame.MAX_NAME })
+                    }.distinct()
+                }.orEmpty(),
                 enemies = (0 until enemies.length()).mapNotNull { enemies.optJSONObject(it)?.let { e -> StandaloneTable.enemyCardFromJson(e) } }
                     .distinctBy { it.name.lowercase(java.util.Locale.ROOT) }.take(MAX_ENEMY_CARDS),
                 investigatorReferences = references?.keys()?.asSequence()?.mapNotNull { id ->
@@ -242,7 +253,7 @@ data class LocalLibrary(
                         (0 until links.length()).map { i -> links.getJSONObject(i).let { l ->
                             AtlasProfileLink(l.getString("atlasId"), l.getString("profileId"), l.optStringOrNull("linkKey")) } },
                         it.optJSONObject("credential")?.let { c -> LocalCredential(c.getString("salt"), c.getString("hash")) },
-                        it.optLong("lastActivityMs", 0))
+                        it.optLong("lastActivityMs", 0), it.optLong("createdAtMs", 0).coerceAtLeast(0))
                 } },
                 history = (0 until history.length()).map { i ->
                     requireNotNull(GameRecord.fromJson(history.getJSONObject(i))) { "Invalid match" }

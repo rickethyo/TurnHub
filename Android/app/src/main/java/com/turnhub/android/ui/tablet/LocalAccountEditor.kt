@@ -131,7 +131,7 @@ fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destina
     DeviceAdminControls(player, table)
     var sharing by remember(player.localId) { mutableStateOf(false) }
     ToneButton("Use on another device", { sharing = true }, Modifier.fillMaxWidth())
-    if (sharing) ShareAccountDialog(player) { sharing = false }
+    if (sharing) ShareAccountDialog(player, table) { sharing = false }
     DeleteLocalAccount(player, table)
 }
 

@@ -36,6 +36,7 @@ class CoreScenarioTest {
             return draws[used++].also { if (it !in 0 until until) overrun = true }
         }
         override fun nextInt(from: Int, until: Int): Int = from + nextInt(until - from)
+        override fun nextBoolean(): Boolean = nextInt(2) != 0
     }
 
     @Test
@@ -46,7 +47,14 @@ class CoreScenarioTest {
         assertTrue(failures.joinToString("\n"), failures.isEmpty())
     }
 
-    private fun replay(scenario: JSONObject): List<String> {
+    @Test fun everyScenarioMatchesTheNativeBridge() {
+        org.junit.Assume.assumeFalse(java.lang.Boolean.getBoolean("turnhub.core.reference"))
+        val failures = scenarios.listFiles { f -> f.name.endsWith(".json") }!!.sortedBy { it.name }
+            .flatMap { replay(JSONObject(it.readText()), native = true) }
+        assertTrue(failures.joinToString("\n"), failures.isEmpty())
+    }
+
+    private fun replay(scenario: JSONObject, native: Boolean = false): List<String> {
         val name = scenario.getString("name")
         val failures = mutableListOf<String>()
         var game = StandaloneGame()
@@ -57,7 +65,14 @@ class CoreScenarioTest {
             val draws = step.optJSONArray("random")?.let { a -> (0 until a.length()).map { a.getInt(it) } } ?: emptyList()
             val random = ScriptedRandom(draws)
             val before = game
-            game = apply(game, action, random)
+            game = if (!native) GameRuleRuntime.reference { apply(game, action, random) } else {
+                val command = JSONObject(action.toString())
+                if (command.getString("do") == "seat") {
+                    command.put("match", command.optString("match").ifEmpty { game.gameId })
+                    command.put("revision", game.revision - if (command.optBoolean("stale")) 1 else 0)
+                }
+                NativeGameCore.apply(game, command, random)
+            }
             val state = coreJson(game)
             val where = "$name step ${s + 1} (${action.getString("do")})"
             if (random.overrun || random.used != draws.size) failures += "$where: used ${random.used} of ${draws.size} random draws"
@@ -72,7 +87,7 @@ class CoreScenarioTest {
             }
             // The whole match record once the game is over (null before): the app and Atlas keep the same fields.
             if (step.has("record")) {
-                val record: Any = game.record()?.toJson() ?: JSONObject.NULL
+                val record: Any = (if (native) NativeGameCore.record(game) else GameRuleRuntime.reference { game.record() })?.toJson() ?: JSONObject.NULL
                 if (!same(record, step.get("record"))) failures += "$where: record = $record, expected ${step.get("record")}"
             }
             step.optJSONObject("timer")?.let { timer ->
@@ -91,6 +106,9 @@ class CoreScenarioTest {
         val now = a.optLong("nowMs")
         fun i(key: String) = a.getInt(key)
         fun optInt(key: String): Int? = if (a.isNull(key)) null else a.getInt(key)
+        fun cards(key: String): List<PlanarCard> = a.optJSONArray(key)?.let { list ->
+            (0 until list.length()).map { list.getJSONObject(it).let { c -> PlanarCard(c.getString("id"), c.optBoolean("phenomenon")) } }
+        }.orEmpty()
         return when (a.getString("do")) {
             "addPlayer" -> g.addPlayer(a.getString("name"), a.optString("profileId").ifEmpty { null }, a.optString("localId").ifEmpty { null })
             "removePlayer" -> g.removePlayer(i("index"))
@@ -107,12 +125,14 @@ class CoreScenarioTest {
                 LocalTimerRules(TimeoutAction.valueOf(a.getString("timeout")), a.getBoolean("earnExtensions"),
                     a.getInt("earnBeforePercent"), a.getInt("maxEarnedPerGame"))
             }.getOrNull()?.let(g::setTimerRules) ?: g
-            "start" -> g.start(now, a.getString("gameId"), random)
+            "start" -> g.start(now, a.getString("gameId"), random, cards("planarDeck"))
             "reset" -> g.reset()
             "backToSetup" -> g.backToSetup(now)
             "applyTurnTimeout" -> g.applyTurnTimeout(now)
             "extendTurn" -> g.extendTurn(i("index"), now)
             "pass" -> g.pass(i("index"), now, random)
+            "dismissCheckup" -> g.dismissCheckup()
+            "setCommander" -> g.setCommander(i("index"), a.optString("name").ifEmpty { null }, a.optString("art").ifEmpty { null }, a.optBoolean("cardOnly"))
             "togglePause" -> g.togglePause(now)
             "changeLife" -> g.changeLife(i("index"), i("delta"), now)
             "commanderDamage" -> g.commanderDamage(i("index"), i("source"), i("commander"), i("delta"), now)
@@ -129,8 +149,19 @@ class CoreScenarioTest {
             "answerWinClaim" -> g.answerWinClaim(i("index"), a.getBoolean("accept"), now)
             "claimWin" -> g.claimWin(i("index"), now)
             "endWithoutWinner" -> g.endWithoutWinner(now)
-            "rematch" -> g.rematch(now, a.getString("gameId"), random)
-            "seanModeRematch" -> g.seanModeRematch(now, a.getString("gameId"), random)
+            "rematch" -> g.rematch(now, a.getString("gameId"), random, cards("planarDeck"))
+            "seanModeRematch" -> g.seanModeRematch(now, a.getString("gameId"), random, cards("planarDeck"))
+            "setPlanechase" -> g.setPlanechase(a.getBoolean("on"))
+            "setPlanarSource" -> g.setPlanarSource(PlanarDeckSource.fromWire(a.getString("source"))!!)
+            "setPlanarSelection" -> g.setPlanarSelection(PlanarSelection.fromJson(a.getJSONObject("selection")))
+            "setPlanarPhenomena" -> g.setPlanarPhenomena(a.getBoolean("on"))
+            "rollPlanarDie" -> g.rollPlanarDie(i("index"), PlanarFace.fromWire(a.getString("face"))!!, a.optBoolean("fromEffect"))
+            "planeswalk" -> g.planeswalk(i("index"))
+            "resolvePhenomenon" -> g.resolvePhenomenon(i("index"))
+            "chaosEnsues" -> g.chaosEnsues(i("index"))
+            "planarTopToBottom" -> g.planarTopToBottom(i("index"))
+            "dealPlanarDeck" -> g.dealPlanarDeck(cards("deck"))
+            "changePlaneCounter" -> g.changePlaneCounter(i("index"), a.getString("card"), i("delta"))
             "doomEligibility" -> g.doomEligibility(i("player"), a.getBoolean("inBag"), a.getLong("cycle"))
             "doomCredit" -> g.doomCredit(i("victim"), i("source"), a.getLong("cycle"))
             "drawDoom" -> g.drawDoom(a.getLong("cycle"), now, random)
@@ -202,6 +233,8 @@ class CoreScenarioTest {
                 put("commander", p.commander ?: JSONObject.NULL)
                 put("commanderArt", p.commanderArt ?: JSONObject.NULL)
                 put("cardOnly", p.cardOnly)
+                put("turn", JSONObject().put("actions", JSONArray(p.turn.turnActions.map { it.name }.sorted()))
+                    .put("conditions", JSONArray(p.turn.conditions.map { it.name }.sorted())))
             }
         }))
         put("active", g.active ?: JSONObject.NULL)
@@ -223,6 +256,8 @@ class CoreScenarioTest {
             .put("cycle", b.cycle).put("pending", b.pending).put("pendingTurn", b.pendingTurn).put("selected", b.selected)
             .put("sealed", b.sealed).put("lastDraw", b.lastDraw).put("lastCheck", b.lastCheck))
         put("radDue", JSONArray(g.radDue))
+        put("pokemonCheckup", JSONArray(g.pokemonCheckup))
+        put("planechase", g.planechase.toJson())
         put("revision", g.revision)
     }
 

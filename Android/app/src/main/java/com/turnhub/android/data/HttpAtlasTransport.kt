@@ -327,6 +327,10 @@ class HttpAtlasTransport(
         null
     }
 
+    override suspend fun syncWallClock(epochMs: Long) {
+        raw("POST", "/api/time", "", listOf("utcMs" to "$epochMs"))
+    }
+
     override suspend fun raw(
         method: String,
         path: String,

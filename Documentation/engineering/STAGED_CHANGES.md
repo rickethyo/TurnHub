@@ -227,13 +227,19 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   text and TalkBack acceptance ([Shared devices](SHARED_DEVICES.md)). Hosting
   is a candidate upgrade; billing/entitlements/pricing remain separate work.
 
+- **Atlas named guests and sign-in-free match ending (owner, 2026-10-30):**
+  the app's lobby keeps reusable guest names (basic result, outcome and
+  duration only; `guest: true` match records) beside full profiles. Atlas's
+  counterpart is next: reusable guest names without profiles or detailed
+  statistics, and owner/Admin match-ending authority that coexists with
+  sign-in-free physical play (Admin credentials still guard administration).
+
 - **Common engine and full phone takeover:** the portable engine is started
   in [`core/`](../../core/README.md) (2026-10-29) and Atlas plays on it
   (2026-10-30, `GameEngine` is now a layer over it; hardware acceptance open).
-  Next, Sigils and the Atlas screen render the core's state, the app links it
-  through the NDK, the remaining
-  modes (Death May Die, Planechase, Pokémon/Lorcana turn markers) are ported
-  one per PR, then the old engines and Invariant 1's wording go. Then implement
+  Next, Sigils and the Atlas screen render the core's state, Death May Die (local-only, licensing gate) is ported (the app links the core
+  through the NDK since 2026-10-30, with Planechase and Pokémon/Lorcana turn
+  markers ported), then the old engines and Invariant 1's wording go. Then implement
   the validated handoff, fenced phone authority, reconnect reconciliation and
   durable completion receipts in [Shared table authority](TABLE_AUTHORITY.md).
   Unified lobby/table presentation is implemented; full offline hosting of an

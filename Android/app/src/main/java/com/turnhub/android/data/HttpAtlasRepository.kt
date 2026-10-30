@@ -224,6 +224,9 @@ class HttpAtlasRepository(
             val contextKey = transport.contextKey
             val info = call { transport.getInfo() }
             AtlasCompatibility.requireCompatible(info)
+            try { call { transport.syncWallClock(System.currentTimeMillis()) } }
+            catch (e: CancellationException) { throw e }
+            catch (_: AtlasException) { /* Bookkeeping time is optional on older Atlas firmware. */ }
             val snapshot: StateSnapshot = call { transport.getState() }
             AtlasCompatibility.requireCompatible(snapshot)
             if (snapshot.atlasId == info.atlasId && snapshot.bootId == info.bootId) {

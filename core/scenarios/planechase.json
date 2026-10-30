@@ -1,0 +1,235 @@
+{
+  "name": "Shared digital and physical Planechase rules",
+  "steps": [
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "A"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "B"
+      }
+    },
+    {
+      "action": {
+        "do": "setPlanechase",
+        "on": true
+      }
+    },
+    {
+      "action": {
+        "do": "chooseStarter",
+        "index": 0
+      }
+    },
+    {
+      "action": {
+        "do": "start",
+        "gameId": "planes",
+        "nowMs": 1000,
+        "planarDeck": [
+          {
+            "id": "p1",
+            "phenomenon": false
+          },
+          {
+            "id": "event",
+            "phenomenon": true
+          },
+          {
+            "id": "p2",
+            "phenomenon": false
+          }
+        ]
+      },
+      "expect": {
+        "planechase.faceUp.0.id": "p1",
+        "planechase.deck.0.id": "event"
+      }
+    },
+    {
+      "action": {
+        "do": "rollPlanarDie",
+        "index": 1,
+        "face": "chaos"
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "rollPlanarDie",
+        "index": 0,
+        "face": "blank"
+      },
+      "expect": {
+        "planechase.lastRoll.cost": 0,
+        "planechase.rolls.0": 1
+      }
+    },
+    {
+      "action": {
+        "do": "rollPlanarDie",
+        "index": 0,
+        "face": "chaos",
+        "fromEffect": true
+      },
+      "expect": {
+        "planechase.lastRoll.cost": 0,
+        "planechase.rolls.0": 1,
+        "planechase.chaos": 1
+      }
+    },
+    {
+      "action": {
+        "do": "changePlaneCounter",
+        "index": 1,
+        "card": "p1",
+        "delta": 2
+      },
+      "expect": {
+        "planechase.counters.p1": 2
+      }
+    },
+    {
+      "action": {
+        "do": "rollPlanarDie",
+        "index": 0,
+        "face": "planeswalk"
+      },
+      "expect": {
+        "planechase.faceUp.0.id": "event",
+        "planechase.counters": {},
+        "planechase.lastRoll.cost": 1
+      }
+    },
+    {
+      "action": {
+        "do": "rollPlanarDie",
+        "index": 0,
+        "face": "blank"
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "chaosEnsues",
+        "index": 0
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "resolvePhenomenon",
+        "index": 0
+      },
+      "expect": {
+        "planechase.faceUp.0.id": "p2",
+        "planechase.planeswalks": 2
+      }
+    },
+    {
+      "action": {
+        "do": "pass",
+        "index": 0,
+        "nowMs": 2000
+      },
+      "expect": {
+        "active": 1,
+        "planechase.rolls": {}
+      }
+    },
+    {
+      "action": {
+        "do": "togglePause",
+        "nowMs": 2100
+      }
+    },
+    {
+      "action": {
+        "do": "planeswalk",
+        "index": 1
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "changePlaneCounter",
+        "index": 0,
+        "card": "p2",
+        "delta": 10000
+      },
+      "expect": {
+        "planechase.counters.p2": 999
+      }
+    },
+    {
+      "action": {
+        "do": "changePlaneCounter",
+        "index": 0,
+        "card": "missing",
+        "delta": 1
+      },
+      "unchanged": true
+    },
+    {
+      "action": {
+        "do": "endWithoutWinner",
+        "nowMs": 2200
+      }
+    },
+    {
+      "action": {
+        "do": "reset"
+      },
+      "expect": {
+        "planechase.enabled": true,
+        "planechase.deck": [],
+        "planechase.counters": {}
+      }
+    },
+    {
+      "action": {
+        "do": "setPlanarSource",
+        "source": "physical"
+      }
+    },
+    {
+      "action": {
+        "do": "chooseStarter",
+        "index": 0
+      }
+    },
+    {
+      "action": {
+        "do": "start",
+        "gameId": "physical",
+        "nowMs": 3000
+      }
+    },
+    {
+      "action": {
+        "do": "rollPlanarDie",
+        "index": 0,
+        "face": "planeswalk"
+      },
+      "expect": {
+        "planechase.planeswalks": 1,
+        "planechase.faceUp": []
+      }
+    },
+    {
+      "action": {
+        "do": "changePlaneCounter",
+        "index": 1,
+        "card": "physical",
+        "delta": 3
+      },
+      "expect": {
+        "planechase.counters.physical": 3
+      }
+    }
+  ]
+}

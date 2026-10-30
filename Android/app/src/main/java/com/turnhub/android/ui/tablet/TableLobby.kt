@@ -36,7 +36,7 @@ import com.turnhub.android.ui.components.DisclosureCard
 import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.theme.palette
 
-internal data class LobbySavedPlayer(val id: String, val name: String, val displayId: String = id)
+internal data class LobbySavedPlayer(val id: String, val name: String, val displayId: String = id, val guest: Boolean = false)
 
 /** The two authorities supply actions; all setup layout and input behavior lives here. */
 internal data class TableLobbyActions(
@@ -147,7 +147,7 @@ internal fun TableLobby(
                             SuggestionChip(onClick = { actions.select(player) }, label = {
                                 Column {
                                     Text(player.name.ifBlank { "Unnamed" })
-                                    Text("ID ${player.displayId}", style = MaterialTheme.typography.bodySmall)
+                                    Text(if (player.guest) "Guest name" else "ID ${player.displayId}", style = MaterialTheme.typography.bodySmall)
                                 }
                             },
                                 enabled = enabled && canAdd)

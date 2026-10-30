@@ -1,0 +1,64 @@
+{
+  "name": "Tile card identity and printing validation",
+  "steps": [
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "A"
+      }
+    },
+    {
+      "action": {
+        "do": "addPlayer",
+        "name": "B"
+      }
+    },
+    {
+      "action": {
+        "do": "setCommander",
+        "index": 0,
+        "name": "  Atraxa  ",
+        "art": "11223344-1122-3344-5566-112233445566"
+      },
+      "expect": {
+        "players.0.commander": "Atraxa",
+        "players.0.cardOnly": false
+      }
+    },
+    {
+      "action": {
+        "do": "setCommander",
+        "index": 1,
+        "name": "Pikachu",
+        "art": "pokemon:base1-58"
+      },
+      "expect": {
+        "players.1.cardOnly": true
+      }
+    },
+    {
+      "action": {
+        "do": "setCommander",
+        "index": 1,
+        "name": "Pikachu",
+        "art": "pokemon:../x"
+      },
+      "expect": {
+        "players.1.commanderArt": null,
+        "players.1.cardOnly": false
+      }
+    },
+    {
+      "action": {
+        "do": "setCommander",
+        "index": 0,
+        "name": null,
+        "art": null
+      },
+      "expect": {
+        "players.0.commander": null,
+        "players.0.commanderArt": null
+      }
+    }
+  ]
+}

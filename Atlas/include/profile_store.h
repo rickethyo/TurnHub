@@ -98,6 +98,7 @@ constexpr uint8_t MAX_LINK_KEYS = 2;
 constexpr size_t LINK_KEY_HASH_LENGTH = 32;
 struct ProfileSync {
   uint64_t activityMs = 0;
+  uint64_t createdAtMs = 0;  // Original UTC creation time; 0 unknown, preserved across imports.
   bool changedWithoutClock = false;
   uint8_t nextKey = 0;
   char keyHashes[MAX_LINK_KEYS][LINK_KEY_HASH_LENGTH + 1] = {};

@@ -168,6 +168,7 @@ struct Route {
 const Route ROUTES[] = {
   // Client contract (protocol/http-v1.md).
   {"/api/v1/info", HTTP_GET, handleInfo},
+  {"/api/time", HTTP_POST, handleClockSync},
   {"/api/v1/state", HTTP_GET, handleState},
 
   // Pages served outside the portal.

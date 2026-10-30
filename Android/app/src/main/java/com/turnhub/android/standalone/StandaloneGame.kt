@@ -66,6 +66,8 @@ data class LocalPlayer(
     /** Death May Die: stress tokens, from 0 (wounds are [life]). */
     val stress: Int = 0,
     val dashboard: com.turnhub.android.domain.InvestigatorDashboard = com.turnhub.android.domain.InvestigatorDashboard(),
+    /** A named guest keeps basic match history, without a durable player identity. */
+    val guest: Boolean = false,
 )
 
 /**
@@ -159,6 +161,16 @@ data class StandaloneGame(
 ) {
     fun gameElapsedMs(nowMs: Long): Long = elapsedMs + (runningSinceMs?.let { (nowMs - it).coerceAtLeast(0) } ?: 0)
 
+    private fun core(action: String, vararg fields: Pair<String, Any?>, random: Random = Random.Default): StandaloneGame {
+        val command = org.json.JSONObject().put("do", action)
+        fields.forEach { (key, value) -> command.put(key, value ?: org.json.JSONObject.NULL) }
+        return NativeGameCore.apply(this, command, random)
+    }
+
+    private fun planarCards(cards: List<PlanarCard>) = org.json.JSONArray().apply {
+        cards.forEach { put(org.json.JSONObject().put("id", it.id).put("phenomenon", it.phenomenon)) }
+    }
+
     private fun bump(): StandaloneGame = copy(revision = revision + 1)
 
     private val playing: Boolean get() = state == TableState.RUNNING || state == TableState.PAUSED
@@ -209,15 +221,17 @@ data class StandaloneGame(
 
     // --- the lobby ------------------------------------------------------------------
 
-    fun addPlayer(name: String, profileId: String? = null, localId: String? = null): StandaloneGame {
+    fun addPlayer(name: String, profileId: String? = null, localId: String? = null, guest: Boolean = false): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("addPlayer", "name" to name, "profileId" to profileId, "localId" to localId, "guest" to guest)
         val trimmed = name.trim().take(MAX_NAME)
         if (state != TableState.LOBBY || trimmed.isEmpty() || players.size >= MAX_PLAYERS) return this
         if (profileId != null && players.any { it.profileId == profileId }) return this
         if (localId != null && players.any { it.localId == localId }) return this
-        return copy(players = players + LocalPlayer(trimmed, profileId, localId = localId)).bump()
+        return copy(players = players + LocalPlayer(trimmed, profileId, localId = localId, guest = guest)).bump()
     }
 
     fun removePlayer(index: Int): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("removePlayer", "index" to index)
         if (state != TableState.LOBBY || index !in players.indices) return this
         val chosen = starter?.let { if (it == index) null else if (it > index) it - 1 else it }
         return copy(players = players.filterIndexed { i, _ -> i != index }, starter = chosen).bump()
@@ -225,15 +239,20 @@ data class StandaloneGame(
 
     /** Clears the selected roster while retaining the lobby's game settings. */
     fun clearPlayers(): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("clearPlayers")
         if (state != TableState.LOBBY || players.isEmpty()) return this
         return copy(players = emptyList(), starter = null).bump()
     }
 
     /** Moves a player one place earlier ([by] = -1) or later (+1) in turn order. */
-    fun movePlayer(index: Int, by: Int): StandaloneGame = swapPlayers(index, index + by)
+    fun movePlayer(index: Int, by: Int): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("movePlayer", "index" to index, "by" to by)
+        return swapPlayers(index, index + by)
+    }
 
     /** Trades two players' seats (and so their places in turn order); lobby only. */
     fun swapPlayers(a: Int, b: Int): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("swapPlayers", "a" to a, "b" to b)
         if (state != TableState.LOBBY || a !in players.indices || b !in players.indices || a == b) return this
         val list = players.toMutableList()
         list[a] = players[b]
@@ -249,11 +268,13 @@ data class StandaloneGame(
      * their team goes first.
      */
     fun chooseStarter(index: Int?): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("chooseStarter", "index" to index)
         if (state != TableState.LOBBY || (index != null && index !in players.indices)) return this
         return copy(starter = if (index == starter) null else index).bump()
     }
 
     fun setFormat(profile: GameProfile, startingLife: Int? = null): StandaloneGame {
+        if (GameRuleRuntime.shared(this) && !profile.deathMayDie) return core("setFormat", "profile" to profile.name, "life" to startingLife)
         if (state != TableState.LOBBY) return this
         // Star Commander, Bag of Doom and Emperor seat their own way: choosing one turns Two-Headed Giant off.
         val teams = twoHeadedGiant && profile.magicRules && !profile.ownSeating
@@ -273,12 +294,14 @@ data class StandaloneGame(
 
     /** House rules unlock an official mode's life and limits; turning them off restores the official values. */
     fun setHouseRules(on: Boolean): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("setHouseRules", "on" to on)
         if (state != TableState.LOBBY || on == houseRules) return this
         return copy(houseRules = on).officialValues().bump()
     }
 
     /** The game mode: Two-Headed Giant (Magic and Commander, not Star Commander) or standard; lobby only. */
     fun setTwoHeadedGiant(on: Boolean): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("setTwoHeadedGiant", "on" to on)
         if (state != TableState.LOBBY || on == twoHeadedGiant || (on && (!magic || profile.ownSeating))) return this
         return copy(
             twoHeadedGiant = on,
@@ -288,21 +311,26 @@ data class StandaloneGame(
     }
 
     fun setStartingLife(life: Int): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("setStartingLife", "life" to life)
         if (state != TableState.LOBBY || life !in 1..MAX_LIFE || locked != null) return this
         return copy(startingLife = life).bump()
     }
 
     /** Off (0) or 15 s to 60 min in whole seconds, Atlas's range; set in the lobby only. */
     fun setTurnTimer(ms: Long): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("setTurnTimer", "ms" to ms)
         if (state != TableState.LOBBY || (ms != 0L && (ms !in TURN_TIMER_RANGE_MS || ms % 1000 != 0L))) return this
         return copy(turnTimerMs = ms).bump()
     }
 
-    fun setTimerRules(rules: LocalTimerRules): StandaloneGame =
-        if (state != TableState.LOBBY || timerRules == rules) this else copy(timerRules = rules).bump()
+    fun setTimerRules(rules: LocalTimerRules): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("setTimerRules", "timeout" to rules.timeout.name, "earnExtensions" to rules.earnExtensions, "earnBeforePercent" to rules.earnBeforePercent, "maxEarnedPerGame" to rules.maxEarnedPerGame)
+        return if (state != TableState.LOBBY || timerRules == rules) this else copy(timerRules = rules).bump()
+    }
 
     /** Settle only the current expired turn; returning to the app never skips a chain of turns. */
     fun applyTurnTimeout(nowMs: Long): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("applyTurnTimeout", "nowMs" to nowMs)
         val holder = active ?: return this
         if (state != TableState.RUNNING || turnTimerMs <= 0 || timeoutHandled ||
             gameElapsedMs(nowMs) - turnStartedAtElapsedMs < turnTimerMs + turnExtensionMs) return this
@@ -315,6 +343,7 @@ data class StandaloneGame(
 
     /** One banked extension per turn, used before expiry; teammates share the bank. */
     fun extendTurn(index: Int, nowMs: Long): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("extendTurn", "index" to index, "nowMs" to nowMs)
         val holder = active ?: return this
         val team = mates(holder)
         val player = players[holder]
@@ -344,6 +373,7 @@ data class StandaloneGame(
 
     /** Starts a match with a random first player; needs two players. */
     fun start(nowMs: Long, gameId: String, random: Random = Random.Default, planarDeck: List<PlanarCard> = emptyList()): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("start", "nowMs" to nowMs, "gameId" to gameId, "planarDeck" to planarCards(planarDeck), random = random)
         if (state != TableState.LOBBY && state != TableState.GAME_OVER) return this
         if (deathMayDie && state == TableState.GAME_OVER) return rematch(nowMs, gameId, random, planarDeck)
         if (!canStart) return this
@@ -363,7 +393,7 @@ data class StandaloneGame(
             state = TableState.RUNNING,
             // Lorcana counts lore up from 0 to [startingLife]; Death May Die counts wounds up from 0.
             players = players.map { LocalPlayer(it.name, it.profileId, life = if (lorcana || deathMayDie) 0 else startingLife, localId = it.localId,
-                commander = it.commander, commanderArt = it.commanderArt, cardOnly = it.cardOnly, investigator = it.investigator,
+                commander = it.commander, commanderArt = it.commanderArt, cardOnly = it.cardOnly, guest = it.guest, investigator = it.investigator,
                 dashboard = it.dashboard.fresh()) },
             doomBag = if (profile.bagOfDoom) DoomRules.start(first + 1, (1 shl players.size) - 1, players.size) else com.turnhub.android.protocol.DoomBag(),
             active = first,
@@ -395,6 +425,7 @@ data class StandaloneGame(
 
     /** Back to the lobby with the same players, to change who plays. */
     fun reset(): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("reset")
         if (state == TableState.LOBBY) return this
         return StandaloneGame(
             profile = profile,
@@ -413,7 +444,7 @@ data class StandaloneGame(
             planechase = planechase.cleared(),
             elder = elder.fresh(),
             players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt,
-                cardOnly = it.cardOnly, investigator = it.investigator, dashboard = it.dashboard.fresh()) },
+                cardOnly = it.cardOnly, guest = it.guest, investigator = it.investigator, dashboard = it.dashboard.fresh()) },
             revision = revision + 1,
         )
     }
@@ -422,13 +453,16 @@ data class StandaloneGame(
      * Undoes a start: within [UNDO_START_MS] of game time, back to the lobby with the
      * same players and settings. Nothing is recorded, as the game never finished.
      */
-    fun backToSetup(nowMs: Long): StandaloneGame =
-        if (!playing || gameElapsedMs(nowMs) > UNDO_START_MS) this else reset()
+    fun backToSetup(nowMs: Long): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("backToSetup", "nowMs" to nowMs)
+        return if (!playing || gameElapsedMs(nowMs) > UNDO_START_MS) this else reset()
+    }
 
     // --- the table ------------------------------------------------------------------
 
     /** [random] flips Pokémon Checkup's coins. */
     fun pass(index: Int, nowMs: Long, random: Random = Random.Default): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("pass", "index" to index, "nowMs" to nowMs, random = random)
         val holder = active ?: return this
         // Either teammate may pass the team's turn; it goes to the next team.
         val team = mates(holder)
@@ -526,13 +560,17 @@ data class StandaloneGame(
     }
 
     /** Pauses a running game, or resumes a paused one. */
-    fun togglePause(nowMs: Long): StandaloneGame = if (doomBag.pending || players.any { it.eliminationPending }) this else when (state) {
+    fun togglePause(nowMs: Long): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("togglePause", "nowMs" to nowMs)
+        return if (doomBag.pending || players.any { it.eliminationPending }) this else when (state) {
         TableState.RUNNING -> copy(state = TableState.PAUSED, elapsedMs = gameElapsedMs(nowMs), runningSinceMs = null).bump()
         TableState.PAUSED -> copy(state = TableState.RUNNING, runningSinceMs = nowMs).bump()
         else -> this
     }
+    }
 
     fun changeLife(index: Int, delta: Int, nowMs: Long = startedAtMs): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("changeLife", "index" to index, "delta" to delta, "nowMs" to nowMs)
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated || delta == 0) return this
         // Pokémon counts Prize cards left: taking the last one wins.
@@ -564,6 +602,7 @@ data class StandaloneGame(
      * Commander allies can't deal each other Commander damage.
      */
     fun commanderDamage(index: Int, source: Int, commander: Int, delta: Int, nowMs: Long = startedAtMs): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("commanderDamage", "index" to index, "source" to source, "commander" to commander, "delta" to delta, "nowMs" to nowMs)
         val player = players.getOrNull(index) ?: return this
         if (!profile.commanderRules || !playing || player.eliminated || source == index || source !in players.indices || commander !in 1..2) return this
         if (star && StarCommander.allied(index, source)) return this
@@ -586,20 +625,26 @@ data class StandaloneGame(
      * Magic: it becomes day or night (CR 726). The table sets it by hand, as the
      * phone can't see spells cast; [DayNight.NEITHER] only corrects a mistaken tap.
      */
-    fun setDayNight(next: DayNight): StandaloneGame =
-        if (!playing || !magic || next == dayNight) this else copy(dayNight = next).bump()
+    fun setDayNight(next: DayNight): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("setDayNight", "value" to next.name)
+        return if (!playing || !magic || next == dayNight) this else copy(dayNight = next).bump()
+    }
 
     /** A card reverses turn order, or a later one (or a correction) sets it back. Not in cooperative games, which choose who goes next. */
-    fun setTurnOrderReversed(on: Boolean): StandaloneGame =
-        if (!playing || profile.cooperative || on == turnOrderReversed) this else copy(turnOrderReversed = on).bump()
+    fun setTurnOrderReversed(on: Boolean): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("setTurnOrderReversed", "on" to on)
+        return if (!playing || profile.cooperative || on == turnOrderReversed) this else copy(turnOrderReversed = on).bump()
+    }
 
     fun claimMonarch(index: Int): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("claimMonarch", "index" to index)
         if (!playing || index !in players.indices || players[index].eliminated ||
             !magic || monarch == index) return this
         return copy(monarch = index).bump()
     }
 
     fun changeCounter(index: Int, kind: String, value: Int, commander: Int = 1, nowMs: Long = startedAtMs): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("changeCounter", "index" to index, "kind" to kind, "value" to value, "commander" to commander, "nowMs" to nowMs)
         val player = players.getOrNull(index) ?: return this
         if (pokemon || lorcana) return markTurn(index, kind, value)
         if (deathMayDie) return when (kind) {
@@ -674,6 +719,7 @@ data class StandaloneGame(
      * Each player still goes through [changeCounter], so its bounds and elimination rules hold.
      */
     fun changeCounterForEveryone(kind: String, delta: Int, nowMs: Long = startedAtMs): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("changeCounterForEveryone", "kind" to kind, "delta" to delta, "nowMs" to nowMs)
         if (kind !in EVERYONE_COUNTERS || delta !in listOf(-1, 1)) return this
         var next = this
         val counted = mutableSetOf<Int>()
@@ -700,6 +746,7 @@ data class StandaloneGame(
     }
 
     fun setEliminationRule(field: String, value: Int, nowMs: Long): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("setEliminationRule", "field" to field, "value" to value, "nowMs" to nowMs)
         if (state == TableState.GAME_OVER || (field != "poisonLimit" && value !in 0..1)) return this
         val next = when (field) {
             "autoEliminateAtZeroLife" -> copy(autoEliminateAtZeroLife = value == 1)
@@ -711,9 +758,13 @@ data class StandaloneGame(
         return next.bump().resolveEliminationRules(nowMs)
     }
 
-    fun concede(index: Int, nowMs: Long): StandaloneGame = eliminate(index, nowMs, conceded = true)
+    fun concede(index: Int, nowMs: Long): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("concede", "index" to index, "nowMs" to nowMs)
+        return eliminate(index, nowMs, conceded = true)
+    }
 
     fun eliminate(index: Int, nowMs: Long, conceded: Boolean = false, eliminatedBy: Int? = null, self: Boolean = false): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("eliminate", "index" to index, "nowMs" to nowMs, "conceded" to conceded, "by" to eliminatedBy, "self" to self)
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated || (self && (conceded || eliminatedBy != null))) return this
         if (eliminatedBy != null && (conceded || eliminatedBy !in players.indices || eliminatedBy in mates(index))) return this
@@ -733,6 +784,7 @@ data class StandaloneGame(
     }
 
     fun setAutoEliminateAtZeroLife(enabled: Boolean, nowMs: Long): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("setEliminationRule", "field" to "autoEliminateAtZeroLife", "value" to if (enabled) 1 else 0, "nowMs" to nowMs)
         if (state == TableState.GAME_OVER) return this
         return copy(autoEliminateAtZeroLife = enabled).bump().resolveEliminationRules(nowMs)
     }
@@ -761,6 +813,7 @@ data class StandaloneGame(
 
     /** Explicit attribution, independent of the active turn. Self and unknown never credit an opponent. */
     fun resolveElimination(victim: Int, source: Int?, self: Boolean, nowMs: Long): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("resolveElimination", "victim" to victim, "source" to source, "self" to self, "nowMs" to nowMs)
         val i = victim - 1
         val player = players.getOrNull(i) ?: return this
         if (!playing || !player.eliminationPending || (self && source != null) ||
@@ -798,6 +851,7 @@ data class StandaloneGame(
      * left to ask, win at once; otherwise the others confirm one at a time ([answerWinClaim]).
      */
     fun requestWin(index: Int, nowMs: Long): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("requestWin", "index" to index, "nowMs" to nowMs)
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated || openWinClaim != null || doomBag.pending || players.any { it.eliminationPending }) return this
         if (profile.cooperative) return claimWin(index, nowMs)
@@ -807,6 +861,7 @@ data class StandaloneGame(
 
     /** The current confirmer's answer: a denial withdraws the claim; the last confirmation wins it. */
     fun answerWinClaim(index: Int, accept: Boolean, nowMs: Long): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("answerWinClaim", "index" to index, "accept" to accept, "nowMs" to nowMs)
         val claimant = openWinClaim ?: return this
         if (index != winConfirmer) return this
         if (!accept) return copy(winClaim = null, winConfirmed = emptySet()).bump()
@@ -819,6 +874,7 @@ data class StandaloneGame(
      * In a cooperative game every player wins together, the fallen too.
      */
     fun claimWin(index: Int, nowMs: Long): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("claimWin", "index" to index, "nowMs" to nowMs)
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated || doomBag.pending || players.any { it.eliminationPending }) return this
         return finish(when {
@@ -830,10 +886,14 @@ data class StandaloneGame(
     }
 
     /** The table ends the game with no winner (it still counts as played). */
-    fun endWithoutWinner(nowMs: Long): StandaloneGame = if (!playing) this else finish(emptyList(), nowMs)
+    fun endWithoutWinner(nowMs: Long): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("endWithoutWinner", "nowMs" to nowMs)
+        return if (!playing) this else finish(emptyList(), nowMs)
+    }
 
     /** The same players play again; Death May Die returns to setup for fresh card assignments. */
     fun rematch(nowMs: Long, gameId: String, random: Random = Random.Default, planarDeck: List<PlanarCard> = emptyList()): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("rematch", "nowMs" to nowMs, "gameId" to gameId, "planarDeck" to planarCards(planarDeck), random = random)
         if (state != TableState.GAME_OVER) return this
         if (deathMayDie) return reset().let { setup ->
             setup.copy(players = setup.players.map { it.copy(dashboard = it.dashboard.fresh(clearCards = true)) })
@@ -848,6 +908,7 @@ data class StandaloneGame(
      * it become the new neighbours.
      */
     fun seanModeRematch(nowMs: Long, gameId: String, random: Random = Random.Default, planarDeck: List<PlanarCard> = emptyList()): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("seanModeRematch", "nowMs" to nowMs, "gameId" to gameId, "planarDeck" to planarCards(planarDeck), random = random)
         if (state != TableState.GAME_OVER || !star || players.size != StarCommander.PLAYERS) return this
         val reseated = SEAN_MODE_ORDER.map { players[it] }
         return copy(players = reseated, starter = null).start(nowMs, gameId, random, planarDeck)
@@ -924,7 +985,10 @@ data class StandaloneGame(
     }
 
     /** The table has read the last Pokémon Checkup. */
-    fun dismissCheckup(): StandaloneGame = if (pokemonCheckup.isEmpty()) this else copy(pokemonCheckup = emptyList()).bump()
+    fun dismissCheckup(): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("dismissCheckup")
+        return if (pokemonCheckup.isEmpty()) this else copy(pokemonCheckup = emptyList()).bump()
+    }
 
     /**
      * Pokémon Checkup between turns, in the rulebook's order: Poisoned and Burned
@@ -963,23 +1027,27 @@ data class StandaloneGame(
 
     /** Turns Planechase on or off for the next game (Magic formats; lobby only). */
     fun setPlanechase(on: Boolean): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("setPlanechase", "on" to on)
         if (state != TableState.LOBBY || on == planechase.enabled || (on && !magic)) return this
         return copy(planechase = planechase.copy(enabled = on)).bump()
     }
 
     /** A digital deck TurnHub shuffles, or the players' own cards; lobby only. */
     fun setPlanarSource(source: PlanarDeckSource): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("setPlanarSource", "source" to source.wireValue)
         if (state != TableState.LOBBY || source == planechase.source) return this
         return copy(planechase = planechase.copy(source = source)).bump()
     }
 
     fun setPlanarSelection(selection: PlanarSelection): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("setPlanarSelection", "selection" to selection.toJson())
         if (state != TableState.LOBBY || !selection.valid() || selection == planechase.selection) return this
         return copy(planechase = planechase.copy(selection = selection)).bump()
     }
 
     /** Whether phenomena join the digital deck; lobby only. */
     fun setPlanarPhenomena(on: Boolean): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("setPlanarPhenomena", "on" to on)
         if (state != TableState.LOBBY || on == planechase.phenomena) return this
         return copy(planechase = planechase.copy(phenomena = on)).bump()
     }
@@ -998,24 +1066,32 @@ data class StandaloneGame(
      * are for the table to keep. A pending phenomenon is resolved first.
      */
     fun rollPlanarDie(index: Int, face: PlanarFace, fromEffect: Boolean = false): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("rollPlanarDie", "index" to index, "face" to face.wireValue, "fromEffect" to fromEffect)
         if (!planarTurn(index) || planechase.phenomenonPending) return this
         return copy(planechase = planechase.roll(index, face, fromEffect)).bump()
     }
 
     /** The planar controller planeswalks because a card says so. */
-    fun planeswalk(index: Int): StandaloneGame =
-        if (!planarTurn(index)) this else copy(planechase = planechase.planeswalk()).bump()
+    fun planeswalk(index: Int): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("planeswalk", "index" to index)
+        return if (!planarTurn(index)) this else copy(planechase = planechase.planeswalk()).bump()
+    }
 
     /** The table has resolved the face-up phenomenon: planeswalk away from it (CR 704.6f). */
-    fun resolvePhenomenon(index: Int): StandaloneGame =
-        if (!planarTurn(index) || !planechase.phenomenonPending) this else copy(planechase = planechase.planeswalk()).bump()
+    fun resolvePhenomenon(index: Int): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("resolvePhenomenon", "index" to index)
+        return if (!planarTurn(index) || !planechase.phenomenonPending) this else copy(planechase = planechase.planeswalk()).bump()
+    }
 
     /** A card says chaos ensues. */
-    fun chaosEnsues(index: Int): StandaloneGame =
-        if (!planarTurn(index) || planechase.phenomenonPending) this else copy(planechase = planechase.chaosEnsues()).bump()
+    fun chaosEnsues(index: Int): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("chaosEnsues", "index" to index)
+        return if (!planarTurn(index) || planechase.phenomenonPending) this else copy(planechase = planechase.chaosEnsues()).bump()
+    }
 
     /** A card puts the top of the planar deck on the bottom. */
     fun planarTopToBottom(index: Int): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("planarTopToBottom", "index" to index)
         if (!planarTurn(index)) return this
         val next = planechase.topToBottom()
         return if (next === planechase) this else copy(planechase = next).bump()
@@ -1023,6 +1099,7 @@ data class StandaloneGame(
 
     /** Deals TurnHub's deck into a digital game that started before the planes were downloaded. */
     fun dealPlanarDeck(deck: List<PlanarCard>): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("dealPlanarDeck", "deck" to planarCards(deck))
         if (!playing || !planechase.enabled) return this
         val next = planechase.dealtLate(deck)
         return if (next === planechase) this else copy(planechase = next).bump()
@@ -1030,6 +1107,7 @@ data class StandaloneGame(
 
     /** Counters on a face-up plane, corrected by any living player, paused or not. */
     fun changePlaneCounter(index: Int, card: String, delta: Int): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("changePlaneCounter", "index" to index, "card" to card, "delta" to delta)
         if (!playing || !planechase.enabled || players.getOrNull(index)?.eliminated != false) return this
         val next = planechase.changeCounter(card, delta)
         return if (next === planechase) this else copy(planechase = next).bump()
@@ -1040,6 +1118,7 @@ data class StandaloneGame(
      * art it shows; with [cardOnly], the card is only their tile's art and is never named as a commander.
      */
     fun setCommander(index: Int, name: String?, art: String? = null, cardOnly: Boolean = false): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("setCommander", "index" to index, "name" to name, "art" to art, "cardOnly" to cardOnly)
         if (index !in players.indices) return this
         val clean = name?.trim()?.take(MAX_COMMANDER)?.takeIf { it.isNotEmpty() }
         val printing = art?.takeIf { clean != null && com.turnhub.android.data.TileCardGame.valid(it) }
@@ -1198,6 +1277,7 @@ data class StandaloneGame(
 
     /** The finished match as Atlas will import it; null until it ends. */
     fun record(): GameRecord? {
+        if (GameRuleRuntime.shared(this)) return NativeGameCore.record(this)
         if (state != TableState.GAME_OVER || gameId.isEmpty()) return null
         return GameRecord(
             recordId = gameId,
@@ -1214,6 +1294,7 @@ data class StandaloneGame(
             players = players.mapIndexed { i, p ->
                 GameRecord.Player(
                     name = p.name,
+                    guest = p.guest,
                     investigator = p.investigator.takeIf { deathMayDie },
                     localId = p.localId,
                     profileId = p.profileId,
@@ -1257,6 +1338,7 @@ data class StandaloneGame(
         if (!profile.bagOfDoom) this else copy(doomBag = DoomRules.leave(doomBag, doomLiving(), players.size, credited))
 
     fun doomEligibility(player: Int, inBag: Boolean, cycle: Long): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("doomEligibility", "player" to player, "inBag" to inBag, "cycle" to cycle)
         if (!playing || !profile.bagOfDoom || cycle != doomBag.cycle || doomBag.selected != 0 ||
             !DoomRules.on(doomLiving()) || doomLiving() and DoomRules.bit(player) == 0) return this
         val mask = if (inBag) doomBag.atRisk or DoomRules.bit(player) else doomBag.atRisk and DoomRules.bit(player).inv()
@@ -1265,6 +1347,7 @@ data class StandaloneGame(
 
     /** Allows a natural/automatic removal to receive explicit credit before the match ends. */
     fun doomCredit(victim: Int, source: Int, cycle: Long): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("doomCredit", "victim" to victim, "source" to source, "cycle" to cycle)
         val target = players.getOrNull(victim - 1) ?: return this
         if (!playing || !profile.bagOfDoom || cycle != doomBag.cycle || doomBag.selected != 0 ||
             !target.eliminated || target.conceded || target.selfEliminated || target.eliminationPending || target.eliminatedBy != null ||
@@ -1274,6 +1357,7 @@ data class StandaloneGame(
 
     /** The store commits this complete outcome before StandaloneTable publishes it. */
     fun drawDoom(cycle: Long, nowMs: Long, random: Random = Random.Default): StandaloneGame {
+        if (GameRuleRuntime.shared(this)) return core("drawDoom", "cycle" to cycle, "nowMs" to nowMs, random = random)
         if (state != TableState.PAUSED || !profile.bagOfDoom || !doomBag.pending || cycle != doomBag.cycle || players.any { it.eliminationPending }) return this
         val candidates = players.indices.filter { !players[it].eliminated && doomBag.contains(it + 1) }
         val victim = if (doomBag.selected != 0) doomBag.selected else if (candidates.isEmpty()) 0 else candidates[random.nextInt(candidates.size)] + 1

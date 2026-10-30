@@ -279,8 +279,8 @@ fun StandaloneLobby(
     TableLobby(
         summary = summary,
         actions = TableLobbyActions(
-            add = table::addPlayer,
-            select = { table.selectPlayer(it.id) },
+            add = table::addGuest,
+            select = { if (it.guest) table.addGuest(it.name) else table.selectPlayer(it.id) },
             remove = { table.removePlayer(it.playerNumber - 1) },
             canRemove = { true },
             clear = table::clearPlayers,
@@ -308,11 +308,12 @@ fun StandaloneLobby(
             background = { editingLocalId = game.players.getOrNull(it.playerNumber - 1)?.localId },
             canEditBackground = { player -> game.players.getOrNull(player.playerNumber - 1)?.localId in state.library.players.map { it.localId } },
         ),
-        savedPlayers = state.library.players.filter { it.localId !in seated }.map { LobbySavedPlayer(it.localId, it.name, it.profileId) },
+        savedPlayers = state.library.players.filter { it.localId !in seated }.map { LobbySavedPlayer(it.localId, it.name, it.profileId) } +
+            state.library.guestNames.map { LobbySavedPlayer("guest:$it", it, guest = true) },
         enabled = true,
         settingsEnabled = true,
         canAdd = game.players.size < StandaloneGame.MAX_PLAYERS,
-        identityHint = "Choose a saved player to keep their results together. Matching names can have different account IDs.",
+        identityHint = "Guest names keep basic match results. Choose a saved profile for detailed statistics.",
         savedTitle = "Saved players",
         introduction = "One screen. Many rivals. Your table.",
         embedded = embedded,

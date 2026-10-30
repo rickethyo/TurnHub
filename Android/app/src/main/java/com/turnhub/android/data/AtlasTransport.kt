@@ -33,6 +33,8 @@ interface AtlasTransport : AvatarImageTransport {
 
     /** `GET /api/v1/info`. */
     suspend fun getInfo(): AtlasInfo
+    /** Best-effort bookkeeping time; never the game timer or an authorization deadline. */
+    suspend fun syncWallClock(epochMs: Long) {}
 
     /** `GET /api/v1/state`. */
     suspend fun getState(): StateSnapshot

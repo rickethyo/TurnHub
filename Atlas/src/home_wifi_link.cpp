@@ -11,6 +11,9 @@
 #include "serial_log.h"
 #include "sigil_update_service.h"
 #include "wifi_password_store.h"
+#include "wall_clock.h"
+#include <sys/time.h>
+#include <esp_sntp.h>
 
 #include <Arduino.h>
 #include <HTTPClient.h>
@@ -193,6 +196,19 @@ bool forgetHomeWifiNetwork() {
 void requestHomeWifiCheck() { schedule.requestNow(); }
 
 void serviceHomeWifi(uint32_t nowMs) {
+  static uint32_t lastClockCheck = 0;
+  if (WiFi.status() == WL_CONNECTED && nowMs - lastClockCheck >= 1000) {
+    lastClockCheck = nowMs;
+    if (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED) {
+      timeval utc{};
+      gettimeofday(&utc, nullptr);
+      if (utc.tv_sec >= 1577836800LL)
+        TurnHubClock::clock.observe(static_cast<uint64_t>(utc.tv_sec) * 1000 + utc.tv_usec / 1000,
+            nowMs, TurnHubClock::Source::Internet);
+    }
+  }
+  TurnHubClock::clock.now(nowMs);
+
   load();
   switch (phase) {
     case Phase::Idle:
@@ -209,6 +225,7 @@ void serviceHomeWifi(uint32_t nowMs) {
       return;
     case Phase::Joining:
       if (WiFi.status() == WL_CONNECTED) {
+        configTime(0, 0, "time.google.com", "pool.ntp.org");
         networkChannel = static_cast<uint8_t>(WiFi.channel());
         serialLog.printf("ATLAS|HOME_WIFI|JOINED|channel=%u|table=%u\n",
             static_cast<unsigned>(networkChannel), static_cast<unsigned>(tableChannel));

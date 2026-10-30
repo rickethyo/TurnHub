@@ -646,8 +646,8 @@ A phone keeps each linked profile in sync without signing in, using a link key:
   for the session's own profile. A PIN-less upload's answer carries one too.
   Atlas keeps hashes of the newest two keys per profile; a third retires the oldest.
 - `POST /api/profiles/sync`: `profileId`, `linkKey` (401 if not current),
-  `now` (the phone's wall-clock ms; Atlas has no clock of its own and takes the
-  time from it), `activity` (when the phone's copy last changed), `name`,
+  `now` (the phone's wall-clock ms; Atlas takes the time from it unless NTP on
+  home Wi-Fi synced recently), `activity` (when the phone's copy last changed), `name`,
   optional `color` (`#rrggbb` or `none`), `avatar` (0 or a preset id) and
   `reduceMotion` (`0`/`1`). The newer copy wins as a whole: if the phone's
   `activity` is later, Atlas takes its settings; otherwise Atlas's stand. A
@@ -656,6 +656,13 @@ A phone keeps each linked profile in sync without signing in, using a link key:
   Answers `applied` (`phone`, `atlas` or `same`), Atlas's resulting `activity`,
   `name`, `color`, `avatar`, `reduceMotion`, `hasPin`, and the core
   `gamesPlayed`/`gamesWon`. PINs are not synced (each side keeps its own).
+  Optional `createdAtMs` is the profile's original UTC creation time (0
+  unknown); the earliest known time wins on both sides and survives merges and
+  account copies, and the answer carries Atlas's `createdAtMs`.
+- `POST /api/time`: `utcMs` (UTC ms, 2020 to 2100). The app sends it on
+  connect so Atlas can date bookkeeping (profile creation, activity); it is
+  never a game timer or an authorization deadline. NTP on home Wi-Fi takes
+  precedence for six hours after a sync. Answers `{"ok":true}`, or 400.
 
 To merge future imports into an existing account, Android authenticates through
 `/api/session/login`, verifies `/api/session/me`, then saves a scoped link and

@@ -252,6 +252,17 @@ bool parseColor(const String &value, bool &set, uint32_t &rgb) {
 // the profile's synced settings and when they last changed. The newer side
 // wins as a whole; statistics never sync this way (they travel as matches).
 // Answers Atlas's copy after the sync, plus its core totals.
+// LAN bookkeeping time is independent of sessions, presence and game clocks.
+void handleClockSync(WebServer &server) {
+  uint64_t utc = 0;
+  if (!parseMs(server.arg("utcMs"), utc) || utc < 1577836800000ULL || utc > 4102444800000ULL) {
+    sendError(server, 400, "utcMs must be UTC milliseconds between 2020 and 2100");
+    return;
+  }
+  observeWallClock(utc);
+  sendJson(server, 200, "{\"ok\":true}");
+}
+
 void handleProfileSync(WebServer &server) {
   const String id = server.arg("profileId");
   if (!profileStoreReady || !TurnHubProfiles::profileExists(id) || !linkKeyValid(id, server.arg("linkKey"))) {
@@ -271,6 +282,14 @@ void handleProfileSync(WebServer &server) {
     sendError(server, 503, "Profile sync record could not be read");
     return;
   }
+  uint64_t originalDate = 0;
+  if (server.hasArg("createdAtMs") && (!parseMs(server.arg("createdAtMs"), originalDate) ||
+      (originalDate && (originalDate < 1577836800000ULL || originalDate > now + 86400000ULL)))) {
+    sendError(server, 400, "createdAtMs must be the original UTC creation time, or zero when unknown");
+    return;
+  }
+  const bool originChanged = originalDate && (!sync.createdAtMs || originalDate < sync.createdAtMs);
+  if (originChanged) sync.createdAtMs = originalDate;
   // Merged into another profile: this phone follows it there with a new key.
   if (sync.mergedInto[0] != 0) {
     const String into = TurnHubProfiles::mergedProfileFor(id);
@@ -330,6 +349,9 @@ void handleProfileSync(WebServer &server) {
     }
     applied = "atlas";
   }
+  if (originChanged && applied != "phone" && !TurnHubProfiles::saveSyncForProfile(id, sync)) {
+    sendError(server, 503, "Atlas couldn't save the profile creation time"); return;
+  }
   uint32_t rgb = 0;
   const bool hasColor = TurnHubProfiles::jewelColorForProfile(id, rgb);
   char color[8] = "none";
@@ -344,6 +366,8 @@ void handleProfileSync(WebServer &server) {
   char activityText[24];
   snprintf(activityText, sizeof(activityText), "%llu", static_cast<unsigned long long>(sync.activityMs));
   body += activityText;
+  snprintf(activityText, sizeof(activityText), "%llu", static_cast<unsigned long long>(sync.createdAtMs));
+  body += ",\"createdAtMs\":"; body += activityText;
   body += ",\"name\":\""; body += jsonEscape(TurnHubProfiles::nameForProfile(id));
   body += "\",\"color\":\""; body += color;
   body += "\",\"avatar\":"; body += String(TurnHubProfiles::avatarForProfile(id));
