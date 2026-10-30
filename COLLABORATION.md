@@ -34,6 +34,17 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-10-30, Codex: active support-page presentation follow-up on `codex/master`,
+clean synchronized baseline `12e838af`; no open PRs. Owner requests removal of
+the persistent QR code and matching PayPal/Cash App buttons. Scope: Android
+MoreTab presentation and existing support documentation; preserve both URLs,
+optional contribution copy and Atlas parity backlog. Validation pending.
+
+Validation: Android `:app:assembleDebug`, documentation link checks and
+`git diff --check` pass. Both providers use the existing full-width
+`AccentButton`; the image button and persistent QR are removed from the page.
+Device layout/TalkBack and external-link launch acceptance remain physical.
+
 2026-10-30, Codex: owner requests Cash App alongside PayPal in Android's Support
 TurnHub page and a separate Shopify support page. Active scope: MoreTab support
 copy/link, Android README and the existing Atlas parity entry. No billing,

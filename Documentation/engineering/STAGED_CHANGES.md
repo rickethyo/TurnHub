@@ -434,7 +434,7 @@ delete the line. A host or compile result never checks off a hardware line.
 
 ## About and donation parity
 
-Android More includes the owner-approved About introduction and Support TurnHub page with PayPal link and supplied QR code, plus Cash App at `https://cash.app/$TurnHub`. Contributions are optional and do not unlock features or purchase products. Next slice: expose the same introduction and both support destinations in the Atlas portal.
+Android More includes the owner-approved About introduction and Support TurnHub page with matching full-width PayPal and Cash App buttons (`https://cash.app/$TurnHub`), without a persistent QR code. Contributions are optional and do not unlock features or purchase products. Next slice: expose the same introduction and both support destinations in the Atlas portal.
 
 Shopify support page (owner, store admin): Shopify product orders must use its
 checkout, so contributions get their own Online Store page instead of a product.
