@@ -4,11 +4,9 @@
 
 #include "audio_controller.h"
 
-// Atlas's on-board speaker: the amplifier (enable active low) fed by a small
-// chime synthesizer on the built-in DAC (IO26, streamed by I2S0) that runs in
-// its own task. Presentation only: AudioController decides
-// which cues it plays, and every cue has a visual equivalent. Firmware-only;
-// host tests use the stubs in test_globals.cpp.
+// ES3C40P ES8311 codec over I2S, FM8002E amplifier; synthesized cues
+// run in a background task. AudioController owns cue selection and volume.
+// Firmware-only; host tests use test_globals.cpp stubs.
 
 namespace TurnHubAtlas {
 

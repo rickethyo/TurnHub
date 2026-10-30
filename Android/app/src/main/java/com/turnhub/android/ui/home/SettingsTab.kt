@@ -25,6 +25,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import kotlin.math.roundToInt
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -523,12 +525,10 @@ private fun TableAndAtlasCard(admin: AdminState, actions: AdminActions) {
             )
         }
         volumeDraft?.let { volume ->
-            ChoiceDropdown(
-                label = "Atlas speaker volume",
-                options = SPEAKER_LEVELS,
-                selected = volume,
-                onSelect = { v -> volumeDraft = v },
-            )
+            Text("Atlas speaker volume: ${SPEAKER_LEVELS.first { it.first == volume }.second}", color = p.text)
+            Slider(value = volume.toFloat(), onValueChange = { volumeDraft = it.roundToInt() },
+                valueRange = 0f..3f, steps = 2, enabled = !admin.busy,
+                modifier = Modifier.fillMaxWidth())
             Text(
                 "Atlas's speaker plays table-wide cues (countdown, turn changes, timer warnings, pause, wins) so players " +
                     "without a Sigil hear them too. Every cue also shows on screen.",

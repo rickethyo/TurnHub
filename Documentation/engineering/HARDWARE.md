@@ -45,7 +45,7 @@ headless Sigil (2026-10-28) and the board-less classic `atlas` build
   `atlas_battery_s3.cpp` reads the cell on GPIO 9 through the board's 1/2
   divider (`battery_gauge.h`, shown in the screen header), and
   `atlas_board_none.cpp` covers the parts without drivers yet (no status LED
-  or speaker). BOOT (GPIO 0) pairs, unpairs all and
+  only); `atlas_speaker_s3.cpp` drives the ES8311 speaker. BOOT (GPIO 0) pairs, unpairs all and
   factory resets (quick, 3 s, 10 s) and wakes from sleep; the microSD card is
   4-bit SDMMC. Pins are in `Atlas/include/config.h`.
 - **Sigil** (`pio run -e sigil`, `huge_app.csv`):
@@ -146,3 +146,17 @@ described in `CLAUDE.md`.
   1-4). IO35 can't drive it (input only). It repeats the screen, so nothing depends on it. 3.3 V data
   into a 5 V ring is *Needs verification*; a diode in the ring's 5V lead
   raises the margin if it flickers.
+
+### S3 Atlas audio
+
+The ES3C40P speaker uses ES8311 (I2C 0x18 on GPIO16/15, shared with
+FT6336U touch) and the FM8002E amplifier (GPIO1, active low).
+I2S playback uses MCLK GPIO4, BCLK GPIO5, LRCLK GPIO7 and data GPIO8;
+GPIO6 is the codec microphone output and is not used for playback.
+`atlas_speaker_s3.cpp` streams 16 kHz stereo 16-bit synthesized cues in a
+background task, with short attack/release ramps. Initialization or stream
+failure leaves the amplifier disabled. The app and portal volume sliders
+save Off/Low/Medium/High through the existing speaker-volume Intent.
+The microphone is not captured. Physical sound acceptance remains pending.
+
+Board reference: [LCDWiki ES3C40P schematic](https://www.lcdwiki.com/res/ES3C40P/4.0inch_ESP32-S3_Display_Schematic.pdf).

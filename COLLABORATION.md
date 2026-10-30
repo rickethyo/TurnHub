@@ -1640,3 +1640,23 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
 Owner-authorized Android About copy and PayPal support page, baseline `f7ab1919` on `codex/master`. Scope: MoreTab and supplied QR asset only; preserve existing hardware/manual work. Fetched origin; no incoming master commits. GitHub CLI lacks authentication, so open PR inspection unavailable. Atlas parity tracked in staged changes. Validation pending Android build.
 
 Validation: Android assembleDebug passed; git diff --check passed. Device layout, PayPal launch and QR scanning remain for physical acceptance. Changes remain local alongside the pre-existing work.
+
+## More navigation — 2026-10-30, Codex
+
+Owner requests Atlas as a top-level More destination and reports Support missing. Baseline `9bd4acc7`, clean `codex/master`, fetched origin with no incoming master commits. Support is present in current source; installed version unverified. Move existing Atlas connection, administration and developer controls from Settings to Atlas. Preserve Support entry and About shortcut. Validation pending.
+
+Validation: assembleDebug and git diff --check passed. Atlas now owns its connection, administration and developer controls; Settings retains app preferences. Device acceptance pending.
+
+2026-10-30 follow-up: owner requested actual PayPal button and flagged legacy Atlas screens. Added supplied PayPal-hosted Donate graphic as a native clickable image; normalized About/Support apostrophes. Preview build passes. Awaiting owner clarification on moving connected gameplay/players/table into More > Atlas.
+
+## Post-Claude follow-up — 2026-10-30, Codex
+
+Merged accepted ca54f804 into codex/master and restored this chat's GitHub Desktop stash without dropping it. Scope: readable PayPal button, Atlas navigation review, silent S3 speaker diagnosis. PayPal graphic now has explicit 200 x 56 dp bounds. Shared gameplay remains in main tabs; hardware settings remain in More > Atlas. S3 beginAtlasSpeaker is a no-output stub: implementing the board audio driver requires the manufacturer schematic/audio example (the referenced hardware/ESP32_S3_REFRESH.md is absent). Requested board reference from owner; do not guess pins or codec.
+
+Validation: preview assembleDebug and whitespace checks pass. Gameplay review: gameSource still chooses independent device/Atlas games; live host transfer is explicitly unsupported by SHARED_DEVICES.md. Switching controllers within an Atlas-owned game must remain distinct from host migration. No state-transfer claim or destructive gameplay removal made.
+
+## Speaker and shared controls implementation — 2026-10-30, Codex
+
+Owner authorized all follow-ups plus settings volume slider. Scope: S3 ES8311 tone output on shared LovyanGFX I2C, saved 0-3 volume slider in app and portal, mobile PayPal size, shared-game navigation cleanup. Board schematic: https://www.lcdwiki.com/res/ES3C40P/4.0inch_ESP32-S3_Display_Schematic.pdf; codec sequence based on Espressif esp-bsp es8311.c. Baseline includes ca54f804. Existing chat changes retained.
+
+Validation: Android preview build, all four Atlas Windows GCC host suites, adapter audit (32), client contract (16 responses/12 fixtures/two records), docs links, whitespace and portal Playwright smoke (with/cardless, including volume staging/save) pass. Atlas 0.7.21-dev USB upload hash verified; identify responds on rediscovered native USB. Both authorized Android preview devices updated. Speaker output and same-session controller switching still require physical acceptance; no live host migration implemented. Table opens existing connected controls directly, removing redundant launch card; alternate-game switch is offered only when another real game is underway.

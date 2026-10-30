@@ -1,5 +1,5 @@
 // The S3 Atlas's board parts that have no driver yet (atlas_board.h): no
-// speaker or status LED, and BOOT sleep. Its screen is atlas_display_s3.cpp
+// status LED, and BOOT sleep. Its screen is atlas_display_s3.cpp
 // and its battery atlas_battery_s3.cpp; this file shrinks as the other
 // drivers land. The
 // Gen 1 E32R28T drivers live on legacy/gen1. Firmware-only; host tests use
@@ -123,7 +123,5 @@ void releaseSleepWakePins() {
   if (wake == ESP_SLEEP_WAKEUP_EXT0 || wake == ESP_SLEEP_WAKEUP_TIMER) rtc_gpio_deinit(WAKE_BOOT_PIN);
 }
 
-TurnHub::ToneOutput *beginAtlasSpeaker() { return nullptr; }
-void serviceAtlasSpeaker(uint32_t) {}
 
 }  // namespace TurnHubAtlas

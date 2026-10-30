@@ -42,6 +42,14 @@ constexpr int8_t TOUCH_SCL_PIN = 15;
 constexpr int8_t TOUCH_RST_PIN = 18;
 constexpr int8_t TOUCH_INT_PIN = 17;
 
+// ES3C40P ES8311 (shared touch I2C); GPIO6 is microphone data, not playback.
+constexpr int8_t AUDIO_ENABLE_PIN = 1; // FM8002E active low.
+constexpr int8_t AUDIO_MCLK_PIN = 4;
+constexpr int8_t AUDIO_BCLK_PIN = 5;
+constexpr int8_t AUDIO_LRCLK_PIN = 7;
+constexpr int8_t AUDIO_DATA_OUT_PIN = 8;
+constexpr uint8_t AUDIO_CODEC_ADDRESS = 0x18;
+
 // Battery voltage on GPIO9 (ADC1, usable with Wi-Fi) through the board's
 // 100 kOhm / 100 kOhm divider from JP1 BAT+ (a 1S LiPo charged by the TP4054
 // at about 290 mA). The cell voltage is the pin voltage times NUMERATOR /

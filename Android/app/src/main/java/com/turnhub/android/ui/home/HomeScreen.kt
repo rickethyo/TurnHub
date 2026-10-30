@@ -243,7 +243,7 @@ fun HomeScreen(
     // Tablet mode: this device becomes the table's shared screen until closed.
     com.turnhub.android.ui.components.GameSoundEffect(summary, available = !uiState.isOffline)
     var showTablet by rememberSaveable { mutableStateOf(false) }
-    if (showTablet) {
+    if (showTablet || (tab == HomeTab.TABLE && atlasGame && !setup.visible)) {
         com.turnhub.android.ui.tablet.TabletScreen(
             summary = summary,
             session = info,
@@ -256,6 +256,7 @@ fun HomeScreen(
             switching = uiState.player?.busy == true,
             onClose = {
                 showTablet = false
+                tab = HomeTab.GAME
                 if (info?.tablet == true) tabletActions.run { disable() }
             },
             onBackToSetup = { showTablet = false; tab = HomeTab.GAME },
@@ -391,13 +392,7 @@ fun HomeScreen(
             ) { shown ->
                 pageState.SaveableStateProvider(if (shown == HomeTab.MORE) "MORE:${morePage.name}" else shown.name) {
                     when {
-                        !setup.visible && shown == HomeTab.TABLE -> if (summary != null && atlasGame) {
-                            com.turnhub.android.ui.tablet.TablePreview(summary, reduceMotion) {
-                                Text("Atlas table", color = p.text, style = MaterialTheme.typography.titleMedium)
-                                Text("Use this device as the table's shared screen.", color = p.muted)
-                                AccentButton("Use as table screen", { showTablet = true }, Modifier.fillMaxWidth())
-                            }
-                        } else localTableContent({ tab = HomeTab.GAME }, { tab = HomeTab.PLANES })
+                        !setup.visible && shown == HomeTab.TABLE -> localTableContent({ tab = HomeTab.GAME }, { tab = HomeTab.PLANES })
                         !setup.visible && shown == HomeTab.HISTORY -> localHistoryContent()
                         !setup.visible && shown == HomeTab.PLANES -> localPlanesContent()
                         !setup.visible && shown == HomeTab.ELDER -> localElderContent()
@@ -436,7 +431,16 @@ fun HomeScreen(
                                         if (canPeople) PeopleCard(info, admin, uiState.avatars, adminActions)
                                     }
                                 }
-                                HomeTab.MORE -> MoreTab(morePage, { morePage = it }) {
+                                HomeTab.MORE -> MoreTab(morePage, { morePage = it }, atlas = {
+                                    com.turnhub.android.ui.components.DisclosureCard("Atlas connection") {
+                                        com.turnhub.android.ui.tablet.SetupSwitch("Discover Atlas", null, atlasEnabled, true, onAtlasEnabled)
+                                        if (atlasEnabled) ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
+                                    }
+                                    if (canSettings && info != null) com.turnhub.android.ui.components.DisclosureCard("Table administration") {
+                                        SettingsTab(info, admin, adminActions, onShowPeople = { playersPage = "Table"; tab = HomeTab.PLAYERS })
+                                    }
+                                    if (canDev) com.turnhub.android.ui.components.DisclosureCard("Developer") { DevTab(admin, adminActions) }
+                                }) {
                                     AppearanceCard(theme, reduceMotion, accountActions)
                                     BrassCard {
                                         val (artOn, setArt) = com.turnhub.android.ui.tablet.rememberCommanderArtEnabled()
@@ -449,14 +453,6 @@ fun HomeScreen(
                                         val (qrOnly, setQrOnly) = com.turnhub.android.ui.tablet.rememberLanQrOnly()
                                         com.turnhub.android.ui.tablet.LanSecuritySwitch(qrOnly, !sharedGameHosting, setQrOnly)
                                     }
-                                    com.turnhub.android.ui.components.DisclosureCard("Atlas connection") {
-                                        com.turnhub.android.ui.tablet.SetupSwitch("Discover Atlas", null, atlasEnabled, true, onAtlasEnabled)
-                                        if (atlasEnabled) ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
-                                    }
-                                    if (canSettings && info != null) com.turnhub.android.ui.components.DisclosureCard("Table administration") {
-                                        SettingsTab(info, admin, adminActions, onShowPeople = { playersPage = "Table"; tab = HomeTab.PLAYERS })
-                                    }
-                                    if (canDev) com.turnhub.android.ui.components.DisclosureCard("Developer") { DevTab(admin, adminActions) }
                                     com.turnhub.android.ui.components.AppVersionLabel(Modifier.fillMaxWidth())
                                 }
                                 HomeTab.HISTORY, HomeTab.TABLE, HomeTab.PLANES, HomeTab.ELDER -> Unit
@@ -723,9 +719,9 @@ private fun GameSourceSwitch(source: GameSource, otherUnderway: Boolean, shownIn
     onChoose: (GameSource) -> Unit) {
     val p = palette
     val atlas = source == GameSource.ATLAS
-    val offer = otherUnderway || (shownInLobby && !(atlas && seatedAtAtlas))
+    val offer = otherUnderway
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(if (atlas) "Playing at the Atlas table" else "Playing on this device", color = p.muted,
+        Text(if (atlas) "Connected table game" else "Game on this device", color = p.muted,
             style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         if (offer) TextButton(onClick = { onChoose(if (atlas) GameSource.DEVICE else GameSource.ATLAS) }) {
             Text(when {

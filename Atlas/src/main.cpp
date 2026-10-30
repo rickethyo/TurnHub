@@ -623,6 +623,7 @@ void setup() {
   TurnHubWebApi::configureHardwareTests([](const String &test) {
     if (test == "screen") return startAtlasScreenTest();
     if (test == "buzzer") {
+      if (!hardwareTestSpeaker) return false;
       static uint32_t lastTestMs = 0;
       const uint32_t nowMs = millis();
       if (lastTestMs && nowMs - lastTestMs < 1000) return false;
