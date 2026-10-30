@@ -109,22 +109,26 @@ void GameEngine::checkpoint(GameCheckpoint &out, uint32_t nowMs) const {
   if (!hasPlayers()) return;
   out.settings = settings_;
   out.doom = doom_;
-  out.count = playerCount_; out.active = activeIndex_; out.starter = starterPlayer_;
-  out.monarch = monarchPlayer_;
-  out.initiative = initiativePlayer_;
-  out.dayNight = dayNight_; out.reversed = turnOrderReversed_; out.radDue = radDue_;
-  out.winner = winnerPlayer_; out.winners = winnerMask_; out.paused = paused_; out.over = gameOver_;
+  out.count = playerCount_;
+  out.active = static_cast<uint8_t>(core_.active ? *core_.active : 0);
+  out.starter = starterPlayerNumber();
+  out.monarch = monarchPlayerNumber();
+  out.initiative = initiativePlayerNumber();
+  out.dayNight = dayNight(); out.reversed = turnOrderReversed();
+  for (int index : core_.radDue) out.radDue |= static_cast<uint16_t>(1u << index);
+  out.winner = winnerPlayerNumber(); out.winners = winnerMask(); out.paused = paused(); out.over = gameOver();
   out.gameElapsed = gameElapsedMs(nowMs); out.turnElapsed = currentTurnElapsedMs(nowMs);
   out.nextRequestId = nextLifeRequestId_;
   for (uint8_t i = 0; i < playerCount_; ++i) {
+    const turnhub::Player &p = core_.players[i];
     out.players[i] = players_[i]; out.stats[i] = stats_[i];
-    out.conceded[i] = conceded_[i];
-    out.selfEliminated[i] = selfEliminated_[i]; out.eliminationPending[i] = eliminationPending_[i];
-    out.eliminatedBy[i] = eliminatedBy_[i];
+    out.conceded[i] = p.conceded;
+    out.selfEliminated[i] = p.selfEliminated; out.eliminationPending[i] = p.eliminationPending;
+    out.eliminatedBy[i] = numberOf(p.eliminatedBy);
     out.counters[i] = counters_[i];
-    out.eliminated[i] = eliminated_[i]; out.life[i] = life_[i];
+    out.eliminated[i] = p.eliminated; out.life[i] = p.life;
     for (uint8_t j = 0; j < playerCount_; ++j)
-      for (uint8_t c = 0; c < 2; ++c) out.damage[i][j][c] = commanderDamage_[i][j][c];
+      for (uint8_t c = 0; c < 2; ++c) out.damage[i][j][c] = commanderDamage(i + 1, j + 1, c + 1);
   }
 }
 
@@ -132,36 +136,78 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
   if (!validCheckpoint(s)) return false;
   reset();
   if (!s.count) return true;
-  doom_ = s.doom;
   settings_ = s.settings;
   if (settings_.profile == GameProfile::DoomCommander) settings_.askEliminationSource = true;
-  playerCount_ = s.count; activeIndex_ = s.active;
-  monarchPlayer_ = s.monarch;
-  initiativePlayer_ = s.initiative;
-  dayNight_ = s.dayNight; turnOrderReversed_ = s.reversed; radDue_ = s.radDue;
-  starterPlayer_ = s.starter; winnerPlayer_ = s.winner; winnerMask_ = s.winners;
-  running_ = true; gameOver_ = s.over; paused_ = !s.over;
+  playerCount_ = s.count;
   nextLifeRequestId_ = s.nextRequestId;
-  // Rebase durations into the new boot's millis domain, excluding downtime.
-  gameStartedAtMs_ = nowMs - s.gameElapsed;
-  turnStartedAtMs_ = nowMs - s.turnElapsed;
-  pauseStartedAtMs_ = paused_ ? nowMs : 0;
-  gameEndedAtMs_ = s.over ? nowMs : 0;
+  // Rebuild the core's game: restored matches are paused (or over), with
+  // durations rebased into this boot's clock, excluding downtime.
+  turnhub::Game g;
+  switch (s.settings.profile) {
+    case GameProfile::Magic: g.profile = turnhub::Profile::Mtg; break;
+    case GameProfile::Commander: g.profile = turnhub::Profile::MtgCommander; break;
+    case GameProfile::Yugioh: g.profile = turnhub::Profile::Yugioh; break;
+    case GameProfile::StarCommander: g.profile = turnhub::Profile::MtgStarCommander; break;
+    case GameProfile::DoomCommander: g.profile = turnhub::Profile::MtgBagOfDoom; break;
+    default: g.profile = turnhub::Profile::Generic; break;
+  }
+  g.gameId = "atlas-restored-" + std::to_string(matchGeneration_);
+  g.state = s.over ? turnhub::TableState::GameOver : turnhub::TableState::Paused;
+  g.startingLife = s.settings.startingLife;
+  g.twoHeadedGiant = s.settings.twoHeadedGiant;
+  g.houseRules = s.settings.houseRules;
+  g.turnTimerMs = s.settings.turnTimerMs;
+  g.poisonLimit = s.settings.poisonLimit;
+  g.autoEliminateAtZeroLife = s.settings.autoEliminateAtZeroLife;
+  g.autoEliminateAtPoisonLimit = s.settings.autoEliminateAtPoisonLimit;
+  g.autoEliminateAtCommanderDamage = s.settings.autoEliminateAtCommanderDamage;
+  g.askEliminationSource = settings_.askEliminationSource;
+  g.active = s.active;
+  g.starter = s.starter - 1;
+  if (s.monarch) g.monarch = s.monarch - 1;
+  if (s.initiative) g.initiative = s.initiative - 1;
+  g.dayNight = static_cast<turnhub::DayNight>(s.dayNight);
+  g.turnOrderReversed = s.reversed;
+  for (uint8_t i = 0; i < s.count; ++i) if (s.radDue & (1u << i)) g.radDue.push_back(i);
+  for (uint8_t i = 0; i < s.count; ++i) if (s.winners & (1u << i)) g.winners.push_back(i);
+  if (s.winner) g.winner = s.winner - 1;
+  anchor32_ = nowMs;
+  anchor64_ = int64_t(1) << 32;
+  g.startedAtMs = at(nowMs) - s.gameElapsed;
+  g.elapsedMs = s.gameElapsed;
+  g.turnStartedAtElapsedMs = static_cast<int64_t>(s.gameElapsed) - s.turnElapsed;
+  g.doomBag.atRisk = s.doom.atRisk; g.doomBag.drawn = s.doom.drawn;
+  g.doomBag.boundary = s.doom.boundary; g.doomBag.warmup = s.doom.warmup;
+  g.doomBag.pendingTurn = s.doom.pendingTurn; g.doomBag.selected = s.doom.selected;
+  g.doomBag.lastDraw = s.doom.lastDraw; g.doomBag.cycle = s.doom.cycle;
+  g.doomBag.lastCheck = s.doom.lastCheck; g.doomBag.pending = s.doom.pending;
   for (uint8_t i = 0; i < s.count; ++i) {
-    players_[i] = s.players[i]; stats_[i] = s.stats[i];
-    conceded_[i] = s.conceded[i];
-    selfEliminated_[i] = s.selfEliminated[i]; eliminationPending_[i] = s.eliminationPending[i];
-    eliminatedBy_[i] = s.eliminatedBy[i];
-    counters_[i] = s.counters[i];
-    if (counters_[i].commanderCasts[1]) partner_[i] = true;
-    eliminated_[i] = s.eliminated[i]; life_[i] = s.life[i];
+    players_[i] = s.players[i];
+    turnhub::Player p;
+    p.name = "Player " + std::to_string(i + 1);
+    p.profileId = s.players[i].profileId;
+    p.life = s.life[i];
+    p.eliminated = s.eliminated[i]; p.conceded = s.conceded[i];
+    p.selfEliminated = s.selfEliminated[i]; p.eliminationPending = s.eliminationPending[i];
+    if (s.eliminatedBy[i]) p.eliminatedBy = s.eliminatedBy[i] - 1;
+    const PlayerCounters &c = s.counters[i];
+    p.counters.poison = c.poison; p.counters.energy = c.energy; p.counters.experience = c.experience;
+    p.counters.commanderCasts = {{c.commanderCasts[0], c.commanderCasts[1]}};
+    p.counters.cityBlessing = c.cityBlessing; p.counters.treasure = c.treasure; p.counters.rad = c.rad;
+    p.turnsCompleted = static_cast<int>(s.stats[i].turnsCompleted);
+    p.turnMs = s.stats[i].totalTurnMs; p.fastestTurnMs = s.stats[i].fastestTurnMs; p.longestTurnMs = s.stats[i].longestTurnMs;
     for (uint8_t j = 0; j < s.count; ++j)
-      for (uint8_t c = 0; c < 2; ++c) commanderDamage_[i][j][c] = s.damage[i][j][c];
+      if (s.damage[i][j][0] || s.damage[i][j][1]) p.commanderDamage[j] = {{s.damage[i][j][0], s.damage[i][j][1]}};
+    if (c.commanderCasts[1]) partner_[i] = true;
+    g.players.push_back(p);
   }
   // Partners are not saved: recorded commander-2 damage brings them back.
   for (uint8_t i = 0; i < s.count; ++i)
     for (uint8_t j = 0; j < s.count; ++j)
       if (s.damage[j][i][1]) partner_[i] = true;
+  g.revision = core_.revision + 1;
+  core_ = g;
+  mirror();
   // Pending requests, claims and confirmations are deliberately canceled.
   // Restoration never invokes the game-completed statistics callback.
   return true;

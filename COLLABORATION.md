@@ -1483,3 +1483,63 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
   runners now build C++17 and link the core (MSVC and firmware already did);
   Codex, `run-gcc.ps1`/`run.cmd` changed blind, please confirm on Windows.
   Linux host suites, adapter audit and contract check pass.
+
+### Atlas plays on the shared core (round 1) / Claude / 2026-10-30
+
+- Owner chose (2026-10-29) to move Atlas onto `core/` rather than adapt the old
+  engine. `GameEngine` now wraps `turnhub::Game`; Atlas-only features stay in
+  the layer (life-change approvals, Commander hit receipts and partners, the
+  win claim's pause/resume, 2HG teammate Commander refusal, Sigil elimination
+  attribution). Checkpoints convert to and from the core. Atlas 0.7.19-dev.
+- Core: `applySeatAction` (the Play together door, port of `applyLanAction`),
+  `seat-actions.json` scenario; Kotlin `CoreScenarioTest` replays it.
+- Behaviour now matches the app: win confirmers in seat order after the
+  claimant, 2HG only the next confirmer, 2HG starter team leads, Bag of Doom to
+  two survivors, `LIFE_LIMIT` 99,999, immediate automatic eliminations,
+  Commander self-damage refused. Docs, manuals and `http-v1.md` updated.
+- Finished Atlas games call `TurnHubHistory::keep(gameRecord(...))` after the
+  stats completion. Host scenarios updated to the new rules.
+- Linux host suites, adapter audit, contract check, core scenarios and
+  `pio run -e atlas-s3` pass. Codex: `run-gcc.ps1`/`run.cmd` unchanged this
+  round. Hardware acceptance next.
+
+### Cases turned round: USB-C at the back / Claude / 2026-10-29
+
+- Owner: USB-C should leave from the back of the table on both cases, the
+  Sigil wedge a little steeper, its light larger, round and still at the front.
+- Sigil case: 8° wedge, thick end at USB-C; the light bar ends in a round 6 mm
+  lens in the front wall (cavity 1 mm deeper). New STLs and previews.
+- Atlas case geometry is unchanged; its firmware now draws upside down to
+  match (`LCD_ROTATION = 2`, owner asked). The Sigil keeps its rotation
+  (owner: it reads right as it is).
+
+### Atlas screen: smoother, and Table becomes a scoreboard / Claude / 2026-10-30
+
+- Owner: Atlas animations could be smoother; Game and Table were near duplicates.
+- Smoothness: the S3 flush now sends each buffer by SPI DMA while LVGL renders
+  the next (`atlas_display_s3.cpp`); clocks (header match time, turn ring,
+  turn times) update their labels in place (`sameScreenButTimes`,
+  `updateAtlasScreenTimes`) instead of rebuilding the screen every second;
+  the turn banner drops its wide blurred shadow, which re-rendered per frame.
+- Table (`ScreenKind::Overview`) is now a scoreboard: a round / match time /
+  turn strip, then one grouped list in turn order with life, a life bar
+  against the table's highest and time on turn. Game keeps the touch tiles.
+  Previews: `table-overview*`. Hardware Manual line added.
+- Host suites and adapter audit pass; hardware smoothness needs the owner's eye.
+### Sigil More screen: dead touches fixed, app-style menu / Claude / 2026-10-30
+
+- Owner: the buttons on the Sigil's More screen did nothing; make it look more
+  like the app's player menu.
+- Cause: over a game, `showGame` drew the open Menu before stamping the
+  player and life request on the touch map, so `updateTouch` saw player 0 and
+  dropped every press. Every frame now stamps them (`actor_`,
+  `lifeRequestKey_`); the preview harness fails if Menu over a game loses the
+  player.
+- Menu (and the Settings tab) now draws as the app's `PlayerMenu`: the
+  player's name over "Player controls" or "Page x of y", a Done/Back pill
+  where More was, one grouped list of rows with icon tiles (Claim win in good;
+  I'm out, Leave, Reset table, Unpair, Factory reset in critical), "Hold to
+  confirm" details, the hold progress inside its row and the player's hue as
+  a wash. The Theme and Invert rows show the current choice.
+- Sigil host suites, LVGL previews and `pio run -e sigil` pass. Hardware check
+  with the owner next.

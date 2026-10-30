@@ -255,7 +255,8 @@ inline bool sameTimer(const AtlasScreen &a, const AtlasScreen &b) {
   return a.timerPermille == b.timerPermille && a.timerWarning == b.timerWarning && sameScreenText(a.clock, b.clock);
 }
 
-inline bool sameBody(const AtlasScreen &a, const AtlasScreen &b) {
+// times: compare the players' turn times too (otherwise only whether each has one).
+inline bool sameBody(const AtlasScreen &a, const AtlasScreen &b, bool times = true) {
   if (a.kind != b.kind || a.playerCount != b.playerCount || a.showLife != b.showLife ||
       a.lineCount != b.lineCount || !sameScreenText(a.qr, b.qr) || !sameScreenText(a.qrCaption, b.qrCaption) ||
       !sameScreenText(a.code, b.code)) {
@@ -263,7 +264,9 @@ inline bool sameBody(const AtlasScreen &a, const AtlasScreen &b) {
   }
   for (uint8_t i = 0; i < a.lineCount; ++i) if (!sameScreenText(a.lines[i], b.lines[i])) return false;
   for (uint8_t i = 0; i < a.playerCount; ++i) {
-    if (!samePlayer(a.players[i], b.players[i]) || !samePlayerTime(a.players[i], b.players[i])) return false;
+    if (!samePlayer(a.players[i], b.players[i])) return false;
+    if (times ? !samePlayerTime(a.players[i], b.players[i])
+              : (a.players[i].turnTime[0] != 0) != (b.players[i].turnTime[0] != 0)) return false;
   }
   return true;
 }
@@ -287,6 +290,15 @@ inline bool sameButtons(const AtlasScreen &a, const AtlasScreen &b) {
 inline bool sameScreen(const AtlasScreen &a, const AtlasScreen &b) {
   return sameHeader(a, b) && sameGameClock(a, b) && sameHero(a, b) && sameTimer(a, b) && sameBody(a, b) &&
       sameButtons(a, b);
+}
+
+// Equal but for the ticking text (game clock, turn clock and its ring, turn
+// times): the display updates those labels in place instead of rebuilding the
+// screen, so a running clock never redraws the whole panel.
+inline bool sameScreenButTimes(const AtlasScreen &a, const AtlasScreen &b) {
+  return sameHeader(a, b) && sameHero(a, b) && sameButtons(a, b) && sameBody(a, b, false) &&
+      (a.gameClock[0] != 0) == (b.gameClock[0] != 0) && (a.clock[0] != 0) == (b.clock[0] != 0) &&
+      a.timerWarning == b.timerWarning && (a.timerPermille < 0) == (b.timerPermille < 0);
 }
 
 void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen);

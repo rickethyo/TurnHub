@@ -77,7 +77,7 @@ touchscreen and BOOT button: physical presence), `Simulator`, `System`
 | `Pass`, `CancelPass`, `CommitPass` | Sigil, phone; `CommitPass` System | PASS waits `PASS_GRACE_MS` (3 s, `protocol.h`) so it can be undone; the commit uses the original request time for turn statistics |
 | `MasterPass` | Touchscreen (Table screen, hold 2 s); a Game Master's portal pass logs the same way | Passes a stuck turn at once, no grace; refused while paused or with a claim or elimination open. Logged `ATLAS|GAME|MASTER_PASS` |
 | `Pause`, `Resume`, `TogglePause` | Sigil, phone, touchscreen | `Pause` flag `ARM_WIN_ON_PAUSE` arms a pause that may continue into a win claim |
-| `ClaimWin`, `ConfirmWin`, `DenyWin` | Sigil, phone | Claimant must be the active living seat; confirmations follow Atlas's player order, shared seats included. Flag `CLAIM_FROM_ARMED_PAUSE` completes an armed pause |
+| `ClaimWin`, `ConfirmWin`, `DenyWin` | Sigil, phone | Claimant must be the active living seat; confirmations go one at a time in seat order after the claimant (`turnhub::Game::winConfirmer`). Flag `CLAIM_FROM_ARMED_PAUSE` completes an armed pause |
 | `Concede`, `BeginElimination`, `CycleElimination`, `CancelElimination`, `Eliminate` | Sigil, phone | A surviving elimination stays paused; a concession restores prior running play |
 | `EndMatch` | Touchscreen (Table screen, hold 5 s) | Ends a running or paused match as a draw, statistics once |
 | `Join`, `Leave`, `JoinProfile`, `LeaveProfile`, `BindProfile`, `PickProfile` | Sigil, phone | Lobby only. Slot 1 = seat A (whole controller), slot 2 = seat B. A profile has at most one participant. See [Players and Accounts](PLAYERS_AND_ACCOUNTS.md) |

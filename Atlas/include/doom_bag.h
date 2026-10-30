@@ -37,7 +37,7 @@ inline bool validDoomBag(const DoomBag &bag, bool enabled, uint16_t living, uint
   if (count < 5 || !bag.cycle || bag.warmup > 4 || bag.lastCheck >= bag.cycle ||
       bag.lastDraw > count || (bag.atRisk & ~living) || (bag.drawn & ~all) || (bag.drawn & living)) return false;
   if (bag.lastDraw && !(bag.drawn & doomBit(bag.lastDraw))) return false;
-  if (doomCount(living) <= 4) return !bag.atRisk && !bag.boundary && !bag.warmup && !bag.pending && !bag.pendingTurn && !bag.selected;
+  if (doomCount(living) <= 2) return !bag.atRisk && !bag.boundary && !bag.warmup && !bag.pending && !bag.pendingTurn && !bag.selected;
   if (!(living & doomBit(bag.boundary))) return false;
   if (bag.pending && (!paused || bag.warmup || !bag.pendingTurn || bag.pendingTurn > count)) return false;
   if (!bag.pending && (bag.pendingTurn || bag.selected)) return false;

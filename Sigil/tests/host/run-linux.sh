@@ -32,3 +32,6 @@ mkdir -p "$build_dir"
 
 "$compiler" "${flags[@]}" "${includes[@]}" touch_scenarios.cpp -o "$build_dir/touch_scenarios"
 "$build_dir/touch_scenarios"
+
+"$compiler" "${flags[@]}" "${includes[@]}" ring_scenarios.cpp -o "$build_dir/ring_scenarios"
+"$build_dir/ring_scenarios"

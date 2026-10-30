@@ -60,7 +60,7 @@ constexpr uint32_t SHORT_GAME_MS = 60000;
 
 // Bound on starting life, life totals, life deltas and Commander damage.
 // Life totals may go negative down to -LIFE_LIMIT.
-constexpr int32_t LIFE_LIMIT = 1000000;
+constexpr int32_t LIFE_LIMIT = 99999;  // The app's MAX_LIFE (turnhub::Game::MAX_LIFE).
 
 // Turn timer. 0 means OFF: no countdown, only the gentle long-turn cue after
 // TURN_TIMER_LONG_TURN_MS. Any other value is a per-turn countdown in whole

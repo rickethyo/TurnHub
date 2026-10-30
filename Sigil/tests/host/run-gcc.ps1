@@ -33,6 +33,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Touch test compilation failed.' }
     & ..\..\.pio\host-tests\touch_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Touch scenarios failed.' }
+    & $Compiler -std=c++14 -Wall -Wextra -Werror -mno-ms-bitfields -static -Istubs -I../../include -I../../../shared/include ring_scenarios.cpp -o ../../.pio/host-tests/ring_scenarios.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Ring test compilation failed.' }
+    & ..\..\.pio\host-tests\ring_scenarios.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Ring scenarios failed.' }
 } finally {
     Pop-Location
     $env:PATH = $previousPath

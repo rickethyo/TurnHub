@@ -18,12 +18,14 @@ adapters supply the same presentation model and action vocabulary. Authenticatio
 Sigil management, profile selection and storage remain authority-specific.
 Local backgrounds are player-owned presentation, independent of match state.
 
-The rules currently have two implementations: Atlas's C++ `GameEngine` and
-Android's Kotlin `StandaloneGame`. Slice 1 below has started (owner,
-2026-10-29: "one game path"): [`core/`](../../core/README.md) is the portable
-C++17 port of `StandaloneGame` (*Experimental*: Magic formats, Two-Headed
-Giant, Star Commander, Emperor, Bag of Doom, Yu-Gi-Oh!, Pokémon prizes and
-Lorcana lore; not yet linked by Atlas or the app). Shared JSON scenarios in
+The rules have one C++ implementation and the app's Kotlin reference. Slice 1
+below has started (owner, 2026-10-29: "one game path"): [`core/`](../../core/README.md)
+is the portable C++17 port of Android's `StandaloneGame` (*Experimental*: Magic
+formats, Two-Headed Giant, Star Commander, Emperor, Bag of Doom, Yu-Gi-Oh!,
+Pokémon prizes and Lorcana lore). Since 2026-10-30 (Atlas 0.7.19) Atlas plays on
+it: `GameEngine` is a layer over `turnhub::Game` that keeps only Atlas-only
+table features (life-change approvals, Commander hit receipts, the win claim's
+pause, Sigil elimination attribution). The app does not link it yet (NDK next). Shared JSON scenarios in
 `core/scenarios/` run against both the core and the Kotlin rules in CI. Connected play still uses Atlas as its sole
 authority. Disconnection queues life and Commander-damage edits; other game
 actions wait. Local matches stay separate from connected matches. Sharing UI

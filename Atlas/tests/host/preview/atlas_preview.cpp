@@ -112,7 +112,13 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
   }
   {
     auto s=base("PLAYING","Table","Read only / players 1-8");s.kind=ScreenKind::Overview;players(s,4,true);
+    s.round=3;snprintf(s.gameClock,sizeof(s.gameClock),"42:10");
     renderShell(s,style);save("table-overview"+suffix);
+  }
+  {
+    auto s=base("PLAYING","Table","Read only / players 1-8");s.kind=ScreenKind::Overview;players(s,8,true);
+    s.round=5;snprintf(s.gameClock,sizeof(s.gameClock),"1:12:40");
+    renderShell(s,style);save("table-overview-8"+suffix);
   }
 
   {

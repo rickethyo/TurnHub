@@ -10,6 +10,7 @@
 #include "turnhub_types.h"
 #include "game_profile.h"
 #include "doom_bag.h"
+#include "turnhub_core.h"
 
 namespace TurnHub {
 
@@ -80,28 +81,33 @@ class GameEngine {
       uint32_t nowMs,
       const GameSettings &settings = GameSettings{});
 
+  // The seat's display name in the match record (profile or Sigil name).
+  void nameSeat(uint8_t playerNumber, const char *name);
   const GameSettings &settings() const { return settings_; }
-  uint8_t monarchPlayerNumber() const { return monarchPlayer_; }
+  uint8_t monarchPlayerNumber() const { return numberOf(core_.monarch); }
   bool claimMonarch(uint8_t playerNumber);
-  uint8_t initiativePlayerNumber() const { return initiativePlayer_; }
+  uint8_t initiativePlayerNumber() const { return numberOf(core_.initiative); }
   const PlayerCounters *countersForPlayer(uint8_t playerNumber) const;
   // Also the table-wide kinds (RadResolve, DayNight, TurnOrder, Everyone):
   // playerNumber is the living player asking (and, for RadResolve, answering).
   bool changePlayerCounter(uint8_t playerNumber, CounterKind kind, int32_t value, uint8_t commander = 1);
   // Magic: the table's day or night, and whether turns go counterclockwise.
   // Both reset with each new match.
-  DayNight dayNight() const { return dayNight_; }
-  bool turnOrderReversed() const { return turnOrderReversed_; }
+  DayNight dayNight() const { return static_cast<DayNight>(core_.dayNight); }
+  bool turnOrderReversed() const { return core_.turnOrderReversed; }
   // Magic: the player's rad counters triggered this turn and they haven't
   // yet said how many nonlands they milled.
   bool radDue(uint8_t playerNumber) const;
   bool setEliminationSettings(const GameSettings &settings);
-  void setAutoEliminateAtZeroLife(bool enabled) { settings_.autoEliminateAtZeroLife = enabled; }
+  void setAutoEliminateAtZeroLife(bool enabled) { settings_.autoEliminateAtZeroLife = core_.autoEliminateAtZeroLife = enabled; }
   bool resolveEliminationRules(uint32_t nowMs);
+  // The seats (bit per index) the last resolveEliminationRules() reported out.
+  uint16_t lastAutoEliminations() const { return lastAutoOut_; }
   bool hasConceded(uint8_t player) const;
   const DoomBag &doomBag() const { return doom_; }
   bool doomCommander() const { return settings_.profile == GameProfile::DoomCommander; }
-  bool doomActive() const { return doomCommander() && livingPlayerCount() > 4; }
+  // The bag is in play while more than its last two survivors remain (the app's DoomRules).
+  bool doomActive() const { return doomCommander() && livingPlayerCount() > 2; }
   bool setDoomEligibility(uint8_t player, bool inBag, uint32_t cycle);
   bool creditDoomElimination(uint8_t victim, uint8_t source, uint32_t cycle);
   bool prepareDoomDraw(uint32_t cycle, uint8_t pick);
@@ -135,7 +141,7 @@ class GameEngine {
   // recorded winner only, not the teammate); returns the count.
   uint8_t winnerPlayers(uint8_t *out, uint8_t capacity) const;
   // Bit (playerNumber - 1) per winner; 0 for a draw or an unfinished match.
-  uint16_t winnerMask() const { return winnerMask_; }
+  uint16_t winnerMask() const;
 
   // --- Star Commander (game_profile.h) ---
   // A five-player Star Commander match. Relationships come from the seat's
@@ -228,7 +234,7 @@ class GameEngine {
   // A finished match without a winner: endInDraw(), or an elimination batch
   // that leaves nobody (and, in Star Commander, no winner). A shared Star
   // Commander victory is never a draw.
-  bool endedInDraw() const { return gameOver_ && winnerPlayer_ == 0; }
+  bool endedInDraw() const { return gameOver() && core_.winners.empty(); }
   uint8_t winClaimPlayerNumber() const;
   uint8_t nextWinConfirmationPlayerNumber() const;
 
@@ -274,81 +280,53 @@ class GameEngine {
   // The Atlas header and every Sigil show this same number.
   uint16_t currentRound() const;
 
- private:
-  int indexForSeat(const PlayerSeat &seat) const;
-  int indexForPlayerNumber(uint8_t playerNumber) const;
-  int nextLivingIndex(uint8_t startIndex) const;
-  // The teammate's index, or -1 outside Two-Headed Giant.
-  int teammateIndex(int index) const;
-  // Living players, counting a team once.
-  uint8_t livingSideCount() const;
-  bool canChangeLife(uint8_t player, int32_t delta) const;
-  void settleLifeChange(LifeChangeRequest &request, LifeChangeState outcome);
-  bool changeLifeForTurn(uint8_t player, int32_t delta, uint8_t turnPlayer);
-  uint16_t doomLiving() const;
-  uint8_t doomTurnPlayer() const;
-  void doomLifeLoss(uint8_t target, int32_t delta, uint8_t owner);
-  void doomPassed(uint8_t player, uint32_t nowMs);
-  void doomLeft(uint8_t credited = 0);
+  // The match's own rules state, ported from the app (core/README.md). The
+  // rest is what only Atlas has: the seats' controllers, its settings form,
+  // life-change approvals, Commander hit receipts and partners.
+  const turnhub::Game &core() const { return core_; }
 
-  void clearWinClaim();
-  void finishGame(uint8_t winnerPlayer, uint32_t nowMs);
-  void finishGameWithWinners(uint16_t winners, uint32_t nowMs);
-  // Star Commander's victory policy after a complete elimination batch.
-  // Finishes the match (shared winners, or a draw) and returns true.
-  bool evaluateStarVictory(uint32_t nowMs);
-  static uint16_t winnerBit(uint8_t playerNumber) {
-    return static_cast<uint16_t>(1u << (playerNumber - 1));
-  }
+ private:
+  // Core player index for a player number (players are numbered in seat
+  // order from 1), or -1.
+  int indexForPlayerNumber(uint8_t playerNumber) const;
+  int indexForSeat(const PlayerSeat &seat) const;
+  uint8_t numberOf(const std::optional<int> &index) const { return index ? static_cast<uint8_t>(*index + 1) : 0; }
+  bool playing() const;
+  // A millis() reading on the core's 64-bit clock (anchored at the match's
+  // start; readings up to ~24 days either side are exact across the wrap).
+  int64_t at(uint32_t nowMs) const { return anchor64_ + static_cast<int32_t>(nowMs - anchor32_); }
+  bool canChangeLife(uint8_t player, int32_t delta) const;
+  void settleLifeChange(LifeChangeRequest &request, LifeChangeState outcome, uint32_t nowMs);
+  // Takes the core's next game: refreshes the mirrors below and calls the
+  // completion callback once if the match just finished. False when the core
+  // refused (same revision).
+  bool commit(const turnhub::Game &next);
+  // commit() for a change the automatic elimination rules may follow.
+  bool commitRules(const turnhub::Game &next);
+  // Takes a game whose claim just ended, resuming play when the claim paused it.
+  bool endWinClaim(const turnhub::Game &ended, uint32_t nowMs);
+  void mirror();
 
   static GameCompletedCallback gameCompletedCallback_;
-
+  turnhub::Game core_;
   PlayerSeat players_[MAX_PLAYERS];
   GameSettings settings_{};
-  DoomBag doom_{};
-  int32_t life_[MAX_PLAYERS] = {};
-  int32_t commanderDamage_[MAX_PLAYERS][MAX_PLAYERS][COMMANDERS_PER_PLAYER] = {};
+  uint8_t playerCount_ = 0;
   uint32_t matchGeneration_ = 0;
   CommanderHit lastHits_[MAX_PLAYERS] = {};
   bool partner_[MAX_PLAYERS] = {};
   LifeChangeRequest lifeChanges_[MAX_PLAYERS] = {};
   uint32_t nextLifeRequestId_ = 0; // Deliberately survives reset/rematch in this boot.
-  PlayerStats stats_[MAX_PLAYERS];
-  bool eliminated_[MAX_PLAYERS] = {};
-  bool conceded_[MAX_PLAYERS] = {};
-  bool selfEliminated_[MAX_PLAYERS]{};
-  bool eliminationPending_[MAX_PLAYERS]{};
-  uint8_t eliminatedBy_[MAX_PLAYERS] = {};
-  bool batchElimination_ = false;
-  uint8_t playerCount_ = 0;
-  uint8_t activeIndex_ = 0;
-  uint8_t starterPlayer_ = 0;
-  uint8_t monarchPlayer_ = 0, initiativePlayer_ = 0;
+  // Mirrors of the core for the accessors that return references.
+  DoomBag doom_{};
   PlayerCounters counters_[MAX_PLAYERS]{};
-  DayNight dayNight_ = DayNight::Neither;
-  bool turnOrderReversed_ = false;
-  uint16_t radDue_ = 0;  // Bit per player index.
-  bool changeTableCounter(uint8_t playerNumber, CounterKind kind, int32_t value, uint8_t commander);
-
-  bool running_ = false;
-  bool paused_ = false;
-  bool gameOver_ = false;
-
-  uint32_t gameStartedAtMs_ = 0;
-  uint32_t gameEndedAtMs_ = 0;
-  uint32_t turnStartedAtMs_ = 0;
-  uint32_t pauseStartedAtMs_ = 0;
-  uint32_t totalPausedMs_ = 0;
-
-  uint8_t winnerPlayer_ = 0;  // The first (lowest-numbered) winner.
-  uint16_t winnerMask_ = 0;
-
-  bool winClaimActive_ = false;
-  uint8_t winClaimPlayer_ = 0;
-  uint8_t winRequired_[MAX_PLAYERS] = {};
-  bool winConfirmed_[MAX_PLAYERS] = {};
-  uint8_t winRequiredCount_ = 0;
+  PlayerStats stats_[MAX_PLAYERS];
+  // Players (bit per seat index) the automatic rules took out since the last
+  // resolveEliminationRules(), and those it reported.
+  uint16_t autoOut_ = 0, lastAutoOut_ = 0;
   bool winRestoreRunning_ = false;
+  uint32_t anchor32_ = 0;
+  int64_t anchor64_ = int64_t(1) << 32;
 };
 
 }  // namespace TurnHub

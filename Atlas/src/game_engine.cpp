@@ -1,20 +1,54 @@
 #include "game_engine.h"
 
-#include <initializer_list>
+// Atlas's game runs on the shared rules core (core/README.md), the app's own
+// rules. This class keeps the interface the rest of Atlas reads (seats by
+// player number and controller) and the few things only Atlas has: its seats'
+// controllers, life-change approvals between players, Commander hit receipts
+// and partners. Every rule decision is the core's.
 
 namespace TurnHub {
 
 namespace {
-// Callers often sample millis() once per loop pass and then run handlers that
-// stamp state with a fresh, slightly later millis() (e.g. the countdown
-// starting a game, or a deferred pass committing). A clock read from before
-// the stamp is not a 49-day-old turn: treat it as zero elapsed instead of
-// letting the unsigned difference wrap. Genuine millis() rollover still works
-// because real spans stay far below 2^31 ms (~24.8 days).
-uint32_t elapsedBetween(uint32_t startMs, uint32_t endMs) {
-  const uint32_t elapsed = endMs - startMs;
-  return elapsed > 0x7FFFFFFFUL ? 0 : elapsed;
+
+// Core draws (a random first player, the Bag of Doom) from the hardware RNG.
+class AtlasRandom : public turnhub::Random {
+ public:
+  int nextInt(int bound) override { return bound > 0 ? static_cast<int>(esp_random() % static_cast<uint32_t>(bound)) : 0; }
+};
+
+turnhub::Profile coreProfile(GameProfile profile) {
+  switch (profile) {
+    case GameProfile::Magic: return turnhub::Profile::Mtg;
+    case GameProfile::Commander: return turnhub::Profile::MtgCommander;
+    case GameProfile::Yugioh: return turnhub::Profile::Yugioh;
+    case GameProfile::StarCommander: return turnhub::Profile::MtgStarCommander;
+    case GameProfile::DoomCommander: return turnhub::Profile::MtgBagOfDoom;
+    default: return turnhub::Profile::Generic;
+  }
 }
+
+const char *counterName(CounterKind kind) {
+  switch (kind) {
+    case CounterKind::Poison: return "poison";
+    case CounterKind::Energy: return "energy";
+    case CounterKind::Experience: return "experience";
+    case CounterKind::CommanderCast: return "commander-casts";
+    case CounterKind::CityBlessing: return "city-blessing";
+    case CounterKind::Initiative: return "initiative";
+    case CounterKind::Treasure: return "treasure";
+    case CounterKind::Rad: return "rad";
+    case CounterKind::RadResolve: return "rad-resolve";
+    default: return nullptr;
+  }
+}
+
+uint32_t clampMs(int64_t ms) { return ms <= 0 ? 0 : ms >= 0xFFFFFFFFLL ? 0xFFFFFFFFUL : static_cast<uint32_t>(ms); }
+
+bool contains(const std::vector<int> &list, int value) {
+  for (int item : list) if (item == value) return true;
+  return false;
+}
+
 }  // namespace
 
 GameEngine::GameCompletedCallback GameEngine::gameCompletedCallback_ = nullptr;
@@ -29,77 +63,260 @@ void GameEngine::setGameCompletedCallback(GameCompletedCallback callback) {
 
 void GameEngine::reset() {
   ++matchGeneration_;
-  for (auto &hit : lastHits_) hit = CommanderHit{};
+  core_ = turnhub::Game();
+  autoOut_ = lastAutoOut_ = 0;
+  winRestoreRunning_ = false;
   settings_ = GameSettings{};
-  batchElimination_ = false;
   playerCount_ = 0;
-  doom_ = DoomBag{};
-  activeIndex_ = 0;
-  starterPlayer_ = 0;
-  monarchPlayer_ = initiativePlayer_ = 0;
-  dayNight_ = DayNight::Neither;
-  turnOrderReversed_ = false;
-  radDue_ = 0;
-  running_ = false;
-  paused_ = false;
-  gameOver_ = false;
-  gameStartedAtMs_ = 0;
-  gameEndedAtMs_ = 0;
-  turnStartedAtMs_ = 0;
-  pauseStartedAtMs_ = 0;
-  totalPausedMs_ = 0;
-  winnerPlayer_ = 0;
-  winnerMask_ = 0;
-  clearWinClaim();
-
   for (uint8_t i = 0; i < MAX_PLAYERS; ++i) {
     players_[i] = PlayerSeat{};
-    stats_[i] = PlayerStats{};
-    eliminated_[i] = false;
-    conceded_[i] = false;
-    selfEliminated_[i] = eliminationPending_[i] = false;
-    eliminatedBy_[i] = 0;
-    counters_[i] = PlayerCounters{};
-    life_[i] = 0;
-    lifeChanges_[i] = LifeChangeRequest{};
+    lastHits_[i] = CommanderHit{};
     partner_[i] = false;
-    for (uint8_t source = 0; source < MAX_PLAYERS; ++source)
-      for (uint8_t commander = 0; commander < COMMANDERS_PER_PLAYER; ++commander)
-        commanderDamage_[i][source][commander] = 0;
+    lifeChanges_[i] = LifeChangeRequest{};
   }
+  mirror();
+}
+
+bool GameEngine::commitRules(const turnhub::Game &next) {
+  uint16_t out = 0;
+  for (uint8_t i = 0; i < playerCount_ && i < next.players.size(); ++i)
+    if (next.players[i].eliminated && !core_.players[i].eliminated) out |= static_cast<uint16_t>(1u << i);
+  if (!commit(next)) return false;
+  autoOut_ |= out;
+  return true;
+}
+
+bool GameEngine::commit(const turnhub::Game &next) {
+  if (next.revision == core_.revision) return false;
+  const bool finished = core_.state != turnhub::TableState::GameOver && next.state == turnhub::TableState::GameOver;
+  core_ = next;
+  mirror();
+  if (finished) {
+    cancelLifeChanges();
+    if (gameCompletedCallback_ != nullptr) gameCompletedCallback_(*this);
+  }
+  return true;
+}
+
+void GameEngine::mirror() {
+  const auto &b = core_.doomBag;
+  doom_.atRisk = static_cast<uint16_t>(b.atRisk);
+  doom_.drawn = static_cast<uint16_t>(b.drawn);
+  doom_.boundary = static_cast<uint8_t>(b.boundary);
+  doom_.warmup = static_cast<uint8_t>(b.warmup);
+  doom_.pendingTurn = static_cast<uint8_t>(b.pendingTurn);
+  doom_.selected = static_cast<uint8_t>(b.selected);
+  doom_.lastDraw = static_cast<uint8_t>(b.lastDraw);
+  doom_.cycle = static_cast<uint32_t>(b.cycle);
+  doom_.lastCheck = static_cast<uint32_t>(b.lastCheck);
+  doom_.pending = b.pending;
+  for (uint8_t i = 0; i < MAX_PLAYERS; ++i) {
+    counters_[i] = PlayerCounters{};
+    stats_[i] = PlayerStats{};
+    if (i >= core_.players.size()) continue;
+    const turnhub::Player &p = core_.players[i];
+    PlayerCounters &c = counters_[i];
+    c.poison = p.counters.poison; c.energy = p.counters.energy; c.experience = p.counters.experience;
+    c.commanderCasts[0] = p.counters.commanderCasts[0]; c.commanderCasts[1] = p.counters.commanderCasts[1];
+    c.cityBlessing = p.counters.cityBlessing; c.treasure = p.counters.treasure; c.rad = p.counters.rad;
+    stats_[i].turnsCompleted = static_cast<uint32_t>(p.turnsCompleted);
+    stats_[i].totalTurnMs = clampMs(p.turnMs);
+    stats_[i].fastestTurnMs = clampMs(p.fastestTurnMs);
+    stats_[i].longestTurnMs = clampMs(p.longestTurnMs);
+  }
+}
+
+bool GameEngine::start(
+    const PlayerSeat *players,
+    uint8_t playerCount,
+    const PlayerSeat &starter,
+    uint32_t nowMs, const GameSettings &settings) {
+  if (players == nullptr || playerCount < 2 || playerCount > MAX_PLAYERS || !validGameSettings(settings) ||
+      !validTeamTable(settings, playerCount) || !validStarTable(settings, playerCount) ||
+      !followsOfficialRules(settings) || !validOfficialTable(settings, playerCount)) {
+    return false;
+  }
+  int starterIndex = -1;
+  for (uint8_t i = 0; i < playerCount; ++i)
+    if (players[i].sameSeat(starter)) starterIndex = i;
+  if (starterIndex < 0) return false;
+
+  reset();
+  // Atlas validated the table's settings form; the lobby carries them over as is.
+  turnhub::Game lobby;
+  lobby.profile = coreProfile(settings.profile);
+  lobby.startingLife = settings.startingLife;
+  lobby.twoHeadedGiant = settings.twoHeadedGiant;
+  lobby.houseRules = settings.houseRules;
+  lobby.turnTimerMs = settings.turnTimerMs;
+  lobby.poisonLimit = settings.poisonLimit;
+  lobby.autoEliminateAtZeroLife = settings.autoEliminateAtZeroLife;
+  lobby.autoEliminateAtPoisonLimit = settings.autoEliminateAtPoisonLimit;
+  lobby.autoEliminateAtCommanderDamage = settings.autoEliminateAtCommanderDamage;
+  lobby.askEliminationSource = settings.askEliminationSource;
+  for (uint8_t i = 0; i < playerCount; ++i) {
+    turnhub::Player seat;
+    seat.name = "Player " + std::to_string(i + 1);
+    seat.profileId = players[i].profileId;
+    lobby.players.push_back(seat);
+  }
+  lobby.starter = starterIndex;
+  // A match ID unique across boots: one random nonce per boot, then a counter.
+  static uint32_t bootNonce = 0;
+  static uint32_t matches = 0;
+  if (!bootNonce) bootNonce = esp_random() | 1u;
+  char id[32];
+  snprintf(id, sizeof(id), "atlas-%08lx-%lu", static_cast<unsigned long>(bootNonce), static_cast<unsigned long>(++matches));
+  // The core counts 64-bit milliseconds from this match's start, so a turn
+  // may cross millis()'s 32-bit wrap.
+  anchor32_ = nowMs;
+  anchor64_ = int64_t(1) << 32;
+  AtlasRandom random;
+  const turnhub::Game started = lobby.start(at(nowMs), id, random);
+  if (started.state != turnhub::TableState::Running) return false;
+
+  settings_ = settings;
+  settings_.askEliminationSource = started.askEliminationSource;
+  playerCount_ = playerCount;
+  for (uint8_t i = 0; i < playerCount; ++i) players_[i] = players[i];
+  core_ = started;
+  mirror();
+  return true;
+}
+
+void GameEngine::nameSeat(uint8_t playerNumber, const char *name) {
+  const int index = indexForPlayerNumber(playerNumber);
+  if (index >= 0 && name && name[0]) core_.players[index].name = name;
+}
+
+// --- reading the game -------------------------------------------------------
+
+int GameEngine::indexForPlayerNumber(uint8_t playerNumber) const {
+  return playerNumber >= 1 && playerNumber <= playerCount_ ? playerNumber - 1 : -1;
+}
+
+int GameEngine::indexForSeat(const PlayerSeat &seat) const {
+  for (uint8_t i = 0; i < playerCount_; ++i)
+    if (players_[i].sameSeat(seat)) return i;
+  return -1;
+}
+
+bool GameEngine::playing() const {
+  return playerCount_ > 0 &&
+      (core_.state == turnhub::TableState::Running || core_.state == turnhub::TableState::Paused);
+}
+
+bool GameEngine::running() const { return playing(); }
+bool GameEngine::paused() const { return playerCount_ > 0 && core_.state == turnhub::TableState::Paused; }
+bool GameEngine::gameOver() const { return playerCount_ > 0 && core_.state == turnhub::TableState::GameOver; }
+bool GameEngine::hasPlayers() const { return playerCount_ > 0; }
+uint8_t GameEngine::playerCount() const { return playerCount_; }
+
+uint8_t GameEngine::livingPlayerCount() const {
+  uint8_t count = 0;
+  for (uint8_t i = 0; i < playerCount_; ++i) if (!core_.players[i].eliminated) ++count;
+  return count;
+}
+
+const PlayerSeat *GameEngine::playerAt(uint8_t index) const {
+  return index < playerCount_ ? &players_[index] : nullptr;
+}
+
+const PlayerSeat *GameEngine::playerByNumber(uint8_t playerNumber) const {
+  const int index = indexForPlayerNumber(playerNumber);
+  return index >= 0 ? &players_[index] : nullptr;
+}
+
+const PlayerSeat *GameEngine::activePlayer() const {
+  if (playerCount_ == 0) return nullptr;
+  const int index = core_.active ? *core_.active : 0;
+  return &players_[index < playerCount_ ? index : 0];
+}
+
+uint8_t GameEngine::activePlayerNumber() const {
+  const PlayerSeat *active = activePlayer();
+  return active != nullptr ? active->playerNumber : 0;
+}
+
+uint8_t GameEngine::activeController() const {
+  const PlayerSeat *active = activePlayer();
+  return active != nullptr ? active->controllerId : INVALID_ID;
+}
+
+uint8_t GameEngine::starterPlayerNumber() const { return playerCount_ ? numberOf(core_.starter) : 0; }
+uint8_t GameEngine::winnerPlayerNumber() const { return gameOver() ? numberOf(core_.winner) : 0; }
+
+uint16_t GameEngine::winnerMask() const {
+  uint16_t mask = 0;
+  if (!gameOver()) return 0;
+  for (int index : core_.winners) mask |= static_cast<uint16_t>(1u << index);
+  return mask;
+}
+
+uint8_t GameEngine::winnerPlayers(uint8_t *out, uint8_t capacity) const {
+  uint8_t count = 0;
+  const uint16_t mask = winnerMask();
+  for (uint8_t number = 1; number <= MAX_PLAYERS; ++number)
+    if ((mask & (1u << (number - 1))) && out && count < capacity) out[count++] = number;
+  return count;
+}
+
+bool GameEngine::isWinner(uint8_t playerNumber) const {
+  const int index = indexForPlayerNumber(playerNumber);
+  if (!gameOver() || index < 0 || core_.winners.empty()) return false;
+  // Two-Headed Giant names the team by its first player; the teammate shares it.
+  return contains(core_.winners, index) || sameTeam(winnerPlayerNumber(), playerNumber);
 }
 
 int32_t GameEngine::lifeTotal(uint8_t playerNumber) const {
   const int index = indexForPlayerNumber(playerNumber);
-  return index < 0 ? 0 : life_[index];
+  return index < 0 ? 0 : core_.players[index].life;
 }
 
-bool GameEngine::canChangeLife(uint8_t playerNumber, int32_t delta) const {
+bool GameEngine::isEliminated(uint8_t playerNumber) const {
   const int index = indexForPlayerNumber(playerNumber);
-  if (index < 0 || gameOver_ || (!running_ && !paused_) || winClaimActive_ || eliminated_[index] || doom_.selected) return false;
-  const int64_t total = static_cast<int64_t>(life_[index]) + delta;
-  return delta != 0 && delta >= -LIFE_LIMIT && delta <= LIFE_LIMIT &&
-      total >= -LIFE_LIMIT && total <= LIFE_LIMIT;
+  return index >= 0 && core_.players[index].eliminated;
 }
 
-bool GameEngine::changeLife(uint8_t playerNumber, int32_t delta) {
-  return changeLifeForTurn(playerNumber, delta, doomTurnPlayer());
+bool GameEngine::hasConceded(uint8_t player) const {
+  const int index = indexForPlayerNumber(player);
+  return index >= 0 && core_.players[index].conceded;
 }
 
-bool GameEngine::changeLifeForTurn(uint8_t playerNumber, int32_t delta, uint8_t owner) {
-  if (!canChangeLife(playerNumber, delta)) return false;
-  const int index = indexForPlayerNumber(playerNumber);
-  life_[index] += delta;
-  doomLifeLoss(playerNumber, delta, owner);
-  const int mate = teammateIndex(index);
-  if (mate >= 0) life_[mate] = life_[index];  // One shared team total.
-  return true;
+uint8_t GameEngine::eliminatedBy(uint8_t player) const {
+  const int index = indexForPlayerNumber(player);
+  return index >= 0 ? numberOf(core_.players[index].eliminatedBy) : 0;
 }
 
-int GameEngine::teammateIndex(int index) const {
-  if (!settings_.twoHeadedGiant || index < 0 || index >= playerCount_) return -1;
-  const int mate = index ^ 1;
-  return mate < playerCount_ ? mate : -1;
+bool GameEngine::selfEliminated(uint8_t player) const {
+  const int index = indexForPlayerNumber(player);
+  return index >= 0 && core_.players[index].selfEliminated;
+}
+
+bool GameEngine::eliminationPending(uint8_t player) const {
+  const int index = indexForPlayerNumber(player);
+  return index >= 0 && core_.players[index].eliminationPending;
+}
+
+bool GameEngine::hasPendingElimination() const {
+  for (uint8_t i = 0; i < playerCount_; ++i) if (core_.players[i].eliminationPending) return true;
+  return false;
+}
+
+uint8_t GameEngine::eliminationsBy(uint8_t player) const {
+  const int source = indexForPlayerNumber(player);
+  if (source < 0) return 0;
+  uint8_t count = 0;
+  for (uint8_t i = 0; i < playerCount_; ++i) {
+    const turnhub::Player &p = core_.players[i];
+    if (p.eliminated && !p.conceded && p.eliminatedBy == source) ++count;
+  }
+  return count;
+}
+
+bool GameEngine::validEliminationCredit(uint8_t victim, uint8_t source) const {
+  return indexForPlayerNumber(victim) >= 0 &&
+      (!source || (indexForPlayerNumber(source) >= 0 && !sameTeam(source, victim)));
 }
 
 uint8_t GameEngine::teamOf(uint8_t playerNumber) const {
@@ -108,8 +325,10 @@ uint8_t GameEngine::teamOf(uint8_t playerNumber) const {
 }
 
 uint8_t GameEngine::teammateOf(uint8_t playerNumber) const {
-  const int mate = teammateIndex(indexForPlayerNumber(playerNumber));
-  return mate >= 0 ? players_[mate].playerNumber : 0;
+  const int index = indexForPlayerNumber(playerNumber);
+  if (!settings_.twoHeadedGiant || index < 0) return 0;
+  const int mate = index ^ 1;
+  return mate < playerCount_ ? players_[mate].playerNumber : 0;
 }
 
 bool GameEngine::sameTeam(uint8_t a, uint8_t b) const {
@@ -118,20 +337,6 @@ bool GameEngine::sameTeam(uint8_t a, uint8_t b) const {
 
 bool GameEngine::hasTurn(uint8_t playerNumber) const {
   return playerCount_ > 0 && sameTeam(activePlayerNumber(), playerNumber);
-}
-
-bool GameEngine::isWinner(uint8_t playerNumber) const {
-  if (!gameOver_ || winnerPlayer_ == 0 || playerNumber == 0) return false;
-  // Star Commander can have several winners; Two-Headed Giant shares one with the teammate.
-  if (playerNumber <= MAX_PLAYERS && (winnerMask_ & winnerBit(playerNumber))) return true;
-  return sameTeam(winnerPlayer_, playerNumber);
-}
-
-uint8_t GameEngine::winnerPlayers(uint8_t *out, uint8_t capacity) const {
-  uint8_t count = 0;
-  for (uint8_t number = 1; number <= MAX_PLAYERS; ++number)
-    if ((winnerMask_ & winnerBit(number)) && out && count < capacity) out[count++] = number;
-  return count;
 }
 
 bool GameEngine::starCommander() const {
@@ -154,132 +359,152 @@ uint8_t GameEngine::starEnemiesEliminated(uint8_t playerNumber) const {
   return static_cast<uint8_t>((isEliminated(enemies[0]) ? 1 : 0) + (isEliminated(enemies[1]) ? 1 : 0));
 }
 
-// The Star Commander victory policy, evaluated once a whole elimination batch
-// has been applied: every living player whose two enemies are out wins
-// (shared), whoever eliminated them. No living player and no winner is a draw.
-bool GameEngine::evaluateStarVictory(uint32_t nowMs) {
-  if (!starCommander() || gameOver_) return false;
-  uint16_t winners = 0;
-  uint8_t living = 0;
-  for (uint8_t i = 0; i < playerCount_; ++i) {
-    if (eliminated_[i]) continue;
-    ++living;
-    if (starVictoryPending(players_[i].playerNumber)) winners |= winnerBit(players_[i].playerNumber);
-  }
-  if (winners) {
-    finishGameWithWinners(winners, nowMs);
-    return true;
-  }
-  if (living == 0) {
-    finishGame(0, nowMs);
-    return true;
-  }
-  return false;
+const PlayerCounters *GameEngine::countersForPlayer(uint8_t playerNumber) const {
+  const int index = indexForPlayerNumber(playerNumber);
+  return index >= 0 ? &counters_[index] : nullptr;
 }
 
-uint8_t GameEngine::livingSideCount() const {
-  uint8_t count = 0;
-  for (uint8_t i = 0; i < playerCount_; ++i) {
-    const int mate = teammateIndex(i);
-    // A team counts once: at its first living member.
-    if (!eliminated_[i] && !(mate >= 0 && mate < i && !eliminated_[mate])) ++count;
-  }
-  return count;
+const PlayerStats *GameEngine::statsForPlayer(uint8_t playerNumber) const {
+  const int index = indexForPlayerNumber(playerNumber);
+  return index >= 0 ? &stats_[index] : nullptr;
 }
 
-const LifeChangeRequest *GameEngine::lifeChangeFor(uint8_t target) const {
-  const int index = indexForPlayerNumber(target);
-  return index < 0 ? nullptr : &lifeChanges_[index];
-}
-
-bool GameEngine::requestLifeChange(uint8_t actor, uint8_t target, int32_t delta, uint32_t nowMs,
-    uint32_t windowMs) {
-  const int from = indexForPlayerNumber(actor), to = indexForPlayerNumber(target);
-  const int mate = teammateIndex(to);
-  // A teammate's life is the player's own: they change it directly.
-  if (from < 0 || to < 0 || sameTeam(actor, target) || eliminated_[from] ||
-      !canChangeLife(target, delta) || lifeChanges_[to].state == LifeChangeState::Pending ||
-      (mate >= 0 && lifeChanges_[mate].state == LifeChangeState::Pending) ||
-      nextLifeRequestId_ == UINT32_MAX) return false;
-  auto &request = lifeChanges_[to];
-  request = LifeChangeRequest{};
-  request.id = ++nextLifeRequestId_;
-  request.requestedAtMs = nowMs;
-  request.actor = actor;
-  request.target = target;
-  request.delta = delta;
-  request.state = LifeChangeState::Pending;
-  request.doomOwner = doomTurnPlayer();
-  request.doomCycle = doom_.cycle;
-  request.windowMs = windowMs;
-  return true;
-}
-
-void GameEngine::settleLifeChange(LifeChangeRequest &request, LifeChangeState outcome) {
-  if (outcome == LifeChangeState::Rejected) { request.state = outcome; return; }
-  const int from = indexForPlayerNumber(request.actor);
-  request.state = from >= 0 && !eliminated_[from] && changeLifeForTurn(request.target, request.delta, request.doomCycle == doom_.cycle ? request.doomOwner : 0)
-      ? outcome : LifeChangeState::Failed;
-}
-
-bool GameEngine::respondLifeChange(uint8_t recipient, uint32_t requestId, bool accept, uint32_t nowMs) {
-  const int index = indexForPlayerNumber(recipient);
-  if (index < 0) return false;
-  // Either teammate may answer a request aimed at their shared life.
-  const int mate = teammateIndex(index);
-  auto &request = mate >= 0 && lifeChanges_[mate].id == requestId && lifeChanges_[index].id != requestId
-      ? lifeChanges_[mate] : lifeChanges_[index];
-  if (!requestId || request.id != requestId || request.state != LifeChangeState::Pending) return false;
-  if (nowMs - request.requestedAtMs >= request.windowMs) {
-    settleLifeChange(request, LifeChangeState::Automatic);
-    return false;
-  }
-  settleLifeChange(request, accept ? LifeChangeState::Accepted : LifeChangeState::Rejected);
-  return request.state != LifeChangeState::Failed;
-}
-
-void GameEngine::expireLifeChanges(uint32_t nowMs) {
-  for (uint8_t i = 0; i < playerCount_; ++i) {
-    auto &request = lifeChanges_[i];
-    if (request.state == LifeChangeState::Pending && nowMs - request.requestedAtMs >= request.windowMs)
-      settleLifeChange(request, LifeChangeState::Automatic);
-  }
-}
-
-void GameEngine::cancelLifeChanges(uint8_t involvedPlayer) {
-  for (auto &request : lifeChanges_)
-    if (request.state == LifeChangeState::Pending &&
-        (!involvedPlayer || request.actor == involvedPlayer || request.target == involvedPlayer))
-      request.state = LifeChangeState::Cancelled;
+bool GameEngine::radDue(uint8_t playerNumber) const {
+  const int index = indexForPlayerNumber(playerNumber);
+  return index >= 0 && contains(core_.radDue, index);
 }
 
 int32_t GameEngine::commanderDamage(uint8_t recipient, uint8_t source, uint8_t commander) const {
   const int to = indexForPlayerNumber(recipient), from = indexForPlayerNumber(source);
   if (to < 0 || from < 0 || commander < 1 || commander > COMMANDERS_PER_PLAYER) return 0;
-  return commanderDamage_[to][from][commander - 1];
+  const auto &damage = core_.players[to].commanderDamage;
+  const auto found = damage.find(from);
+  return found == damage.end() ? 0 : found->second[commander - 1];
+}
+
+bool GameEngine::hasWinClaim() const { return playerCount_ > 0 && core_.openWinClaim().has_value(); }
+uint8_t GameEngine::winClaimPlayerNumber() const { return playerCount_ ? numberOf(core_.openWinClaim()) : 0; }
+uint8_t GameEngine::nextWinConfirmationPlayerNumber() const { return playerCount_ ? numberOf(core_.winConfirmer()) : 0; }
+
+bool GameEngine::controllerInGame(uint8_t controllerId) const {
+  for (uint8_t i = 0; i < playerCount_; ++i)
+    if (players_[i].controllerId == controllerId) return true;
+  return false;
+}
+
+bool GameEngine::replaceController(uint8_t oldController, uint8_t newController) {
+  if (oldController == newController || !controllerInGame(oldController) || controllerInGame(newController)) return false;
+  for (uint8_t i = 0; i < playerCount_; ++i)
+    if (players_[i].controllerId == oldController) players_[i].controllerId = newController;
+  return true;
+}
+
+bool GameEngine::controllerHasTurn(uint8_t controllerId) const {
+  return turnSeatForController(controllerId) != nullptr;
+}
+
+const PlayerSeat *GameEngine::turnSeatForController(uint8_t controllerId) const {
+  if (playerCount_ == 0 || !core_.active) return nullptr;
+  const int active = *core_.active;
+  for (int index : core_.mates(active))
+    if (!core_.players[index].eliminated && players_[index].controllerId == controllerId) return &players_[index];
+  return nullptr;
+}
+
+uint8_t GameEngine::playersForController(uint8_t controllerId, PlayerSeat *out, uint8_t capacity) const {
+  if (out == nullptr || capacity == 0) return 0;
+  uint8_t count = 0;
+  for (uint8_t i = 0; i < playerCount_ && count < capacity; ++i)
+    if (players_[i].controllerId == controllerId) out[count++] = players_[i];
+  return count;
+}
+
+uint8_t GameEngine::livingPlayersForController(uint8_t controllerId, PlayerSeat *out, uint8_t capacity) const {
+  if (out == nullptr || capacity == 0) return 0;
+  uint8_t count = 0;
+  for (uint8_t i = 0; i < playerCount_ && count < capacity; ++i)
+    if (players_[i].controllerId == controllerId && !core_.players[i].eliminated) out[count++] = players_[i];
+  return count;
+}
+
+uint32_t GameEngine::gameElapsedMs(uint32_t nowMs) const {
+  return hasPlayers() ? clampMs(core_.gameElapsedMs(at(nowMs))) : 0;
+}
+
+uint32_t GameEngine::currentTurnElapsedMs(uint32_t nowMs) const {
+  return hasPlayers() ? clampMs(core_.gameElapsedMs(at(nowMs)) - core_.turnStartedAtElapsedMs) : 0;
+}
+
+TurnTimerPhase GameEngine::turnTimerPhase(uint32_t nowMs) const {
+  if (!hasPlayers()) return TurnTimerPhase::Normal;
+  return static_cast<TurnTimerPhase>(core_.turnTimer(at(nowMs)).phase);
+}
+
+uint32_t GameEngine::turnRemainingMs(uint32_t nowMs) const {
+  if (!hasPlayers()) return 0;
+  const auto remaining = core_.turnTimer(at(nowMs)).remainingMs;
+  return remaining ? clampMs(*remaining) : 0;
+}
+
+uint16_t GameEngine::currentRound() const {
+  if (playerCount_ == 0) return 0;
+  uint32_t most = 0, active = 0;
+  const int activeIndex = core_.active ? *core_.active : -1;
+  for (uint8_t i = 0; i < playerCount_; ++i) {
+    if (core_.players[i].eliminated) continue;
+    const uint32_t done = stats_[i].turnsCompleted;
+    if (done > most) most = done;
+    if (i == activeIndex) active = done;
+  }
+  const uint32_t round = active == most ? most + 1 : most;
+  return static_cast<uint16_t>(round > 9999 ? 9999 : round);
+}
+
+// --- the table's actions ------------------------------------------------------
+
+bool GameEngine::passTurn(uint8_t controllerId, uint32_t nowMs) {
+  const PlayerSeat *seat = turnSeatForController(controllerId);
+  if (seat == nullptr) return false;
+  return commit(core_.pass(indexForSeat(*seat), at(nowMs)));
+}
+
+bool GameEngine::pause(uint32_t nowMs) {
+  return core_.state == turnhub::TableState::Running && commit(core_.togglePause(at(nowMs)));
+}
+
+bool GameEngine::resume(uint32_t nowMs) {
+  return core_.state == turnhub::TableState::Paused && commit(core_.togglePause(at(nowMs)));
+}
+
+bool GameEngine::endInDraw(uint32_t nowMs) {
+  return playing() && commit(core_.endWithoutWinner(at(nowMs)));
+}
+
+bool GameEngine::canChangeLife(uint8_t playerNumber, int32_t delta) const {
+  const int index = indexForPlayerNumber(playerNumber);
+  if (index < 0 || !playing() || hasWinClaim() || core_.players[index].eliminated || core_.doomBag.selected) return false;
+  const int64_t total = static_cast<int64_t>(core_.players[index].life) + delta;
+  return delta != 0 && delta >= -turnhub::Game::MAX_LIFE && delta <= turnhub::Game::MAX_LIFE &&
+      total >= -turnhub::Game::MAX_LIFE && total <= turnhub::Game::MAX_LIFE;
+}
+
+bool GameEngine::changeLife(uint8_t playerNumber, int32_t delta) {
+  const int index = indexForPlayerNumber(playerNumber);
+  return index >= 0 && canChangeLife(playerNumber, delta) && commitRules(core_.changeLife(index, delta, at(millis())));
 }
 
 bool GameEngine::changeCommanderDamage(uint8_t recipient, uint8_t source, uint8_t commander, int32_t delta) {
   const int to = indexForPlayerNumber(recipient), from = indexForPlayerNumber(source);
-  if (!commanderRules(settings_.profile) || to < 0 || from < 0 ||
-      // Star Commander: an ally is never a source of Commander damage.
-      starAllies(players_[to].playerNumber, players_[from].playerNumber) ||
-      // Two-Headed Giant: a teammate is never a source of Commander damage.
-      (twoHeadedGiant() && to != from && teammateIndex(to) == from) ||
-      commander < 1 || commander > COMMANDERS_PER_PLAYER || delta == 0 ||
-      delta < -LIFE_LIMIT || delta > LIFE_LIMIT) return false;
-  const int64_t total = static_cast<int64_t>(commanderDamage_[to][from][commander - 1]) + delta;
-  if (total < 0 || total > LIFE_LIMIT || !canChangeLife(recipient, -delta)) return false;
+  if (to < 0 || from < 0 || commander < 1 || commander > COMMANDERS_PER_PLAYER || hasWinClaim() || core_.doomBag.selected) return false;
+  // Two-Headed Giant: a teammate is never a source of Commander damage.
+  if (twoHeadedGiant() && recipient != source && sameTeam(recipient, source)) return false;
+  // Commander damage costs the same life, which stays within its bounds.
+  if (delta < -turnhub::Game::MAX_LIFE || delta > turnhub::Game::MAX_LIFE || !canChangeLife(recipient, -delta)) return false;
+  if (!commitRules(core_.commanderDamage(to, from, commander, delta, at(millis())))) return false;
   // A correction to the same cell invalidates the previous undo receipt.
-  if (lastHits_[to].source == source && lastHits_[to].commander == commander)
-    lastHits_[to] = CommanderHit{};
-  life_[to] -= delta;
-  doomLifeLoss(recipient, -delta, doomTurnPlayer());
-  const int mate = teammateIndex(to);
-  if (mate >= 0) life_[mate] = life_[to];  // Per-player damage, team life.
-  commanderDamage_[to][from][commander - 1] = static_cast<int32_t>(total);
+  if (lastHits_[to].source == source && lastHits_[to].commander == commander) lastHits_[to] = CommanderHit{};
   // Damage entered for a second commander (phone or app) means partners.
-  if (commander == 2 && total > 0) partner_[from] = true;
+  if (commander == 2 && commanderDamage(recipient, source, 2) > 0) partner_[from] = true;
   return true;
 }
 
@@ -294,7 +519,7 @@ bool GameEngine::setPartner(uint8_t player, bool on) {
   if (!on) {
     if (counters_[from].commanderCasts[1]) return false;
     for (uint8_t to = 0; to < playerCount_; ++to)
-      if (commanderDamage_[to][from][1]) return false;
+      if (commanderDamage(players_[to].playerNumber, player, 2)) return false;
   }
   partner_[from] = on;
   return true;
@@ -304,359 +529,57 @@ const GameEngine::CommanderHit *GameEngine::lastCommanderHit(uint8_t recipient) 
   const int to = indexForPlayerNumber(recipient);
   return to >= 0 && lastHits_[to].amount > 0 ? &lastHits_[to] : nullptr;
 }
+
 bool GameEngine::recordCommanderHit(uint8_t recipient, uint8_t source, uint8_t commander, int32_t amount) {
   if (amount < 1 || amount > 9999 || (commander == 2 && !hasPartner(source)) ||
-      !changeCommanderDamage(recipient,source,commander,amount)) return false;
+      !changeCommanderDamage(recipient, source, commander, amount)) return false;
   auto &hit = lastHits_[indexForPlayerNumber(recipient)];
   hit.source = source; hit.commander = commander; hit.amount = amount;
   return true;
 }
+
 bool GameEngine::undoCommanderHit(uint8_t recipient) {
   const CommanderHit *last = lastCommanderHit(recipient);
   if (!last) return false;
   const CommanderHit hit = *last;
-  if (!changeCommanderDamage(recipient,hit.source,hit.commander,-hit.amount)) return false;
+  if (!changeCommanderDamage(recipient, hit.source, hit.commander, -hit.amount)) return false;
   lastHits_[indexForPlayerNumber(recipient)] = CommanderHit{};
-  return true;
-}
-
-int GameEngine::indexForSeat(const PlayerSeat &seat) const {
-  for (uint8_t i = 0; i < playerCount_; ++i) {
-    if (players_[i].sameSeat(seat)) {
-      return static_cast<int>(i);
-    }
-  }
-  return -1;
-}
-
-int GameEngine::indexForPlayerNumber(uint8_t playerNumber) const {
-  for (uint8_t i = 0; i < playerCount_; ++i) {
-    if (players_[i].playerNumber == playerNumber) {
-      return static_cast<int>(i);
-    }
-  }
-  return -1;
-}
-
-int GameEngine::nextLivingIndex(uint8_t startIndex) const {
-  if (playerCount_ == 0) {
-    return -1;
-  }
-
-  const int mate = teammateIndex(startIndex);
-  for (uint8_t offset = 1; offset <= playerCount_; ++offset) {
-    // A reversed table goes counterclockwise (still team by team).
-    const uint8_t step = turnOrderReversed_ ? static_cast<uint8_t>(playerCount_ - offset) : offset;
-    const uint8_t index = static_cast<uint8_t>(
-        (startIndex + step) % playerCount_);
-    // Two-Headed Giant: the turn passes to the next team, not the teammate.
-    if (!eliminated_[index] && static_cast<int>(index) != mate) {
-      return static_cast<int>(index);
-    }
-  }
-
-  return -1;
-}
-
-bool GameEngine::start(
-    const PlayerSeat *players,
-    uint8_t playerCount,
-    const PlayerSeat &starter,
-    uint32_t nowMs, const GameSettings &settings) {
-  if (players == nullptr || playerCount < 2 || playerCount > MAX_PLAYERS || !validGameSettings(settings) ||
-      !validTeamTable(settings, playerCount) || !validStarTable(settings, playerCount) ||
-      !followsOfficialRules(settings) || !validOfficialTable(settings, playerCount)) {
-    return false;
-  }
-
-  reset();
-  settings_ = settings;
-  settings_.askEliminationSource = settings.askEliminationSource || settings.profile == GameProfile::DoomCommander;
-  playerCount_ = playerCount;
-
-  for (uint8_t i = 0; i < playerCount_; ++i) {
-    players_[i] = players[i];
-    life_[i] = settings_.startingLife;
-    eliminated_[i] = false;
-    conceded_[i] = false;
-    selfEliminated_[i] = eliminationPending_[i] = false;
-    eliminatedBy_[i] = 0;
-  }
-
-  const int starterIndex = indexForSeat(starter);
-  if (starterIndex < 0) {
-    reset();
-    return false;
-  }
-
-  activeIndex_ = static_cast<uint8_t>(starterIndex);
-  starterPlayer_ = players_[activeIndex_].playerNumber;
-  running_ = true;
-  paused_ = false;
-  gameOver_ = false;
-  if (doomCommander()) {
-    doom_.atRisk = doomLiving(); doom_.boundary = doomPrevious(starterPlayer_, doom_.atRisk, playerCount_);
-    doom_.warmup = 4; doom_.cycle = 1;
-  }
-  gameStartedAtMs_ = nowMs;
-  turnStartedAtMs_ = nowMs;
-  return true;
-}
-
-bool GameEngine::passTurn(
-    uint8_t controllerId,
-    uint32_t nowMs) {
-  if (!running_ || paused_ || gameOver_ || playerCount_ < 2 || winClaimActive_) {
-    return false;
-  }
-
-  const PlayerSeat *active = activePlayer();
-  if (active == nullptr || !controllerHasTurn(controllerId) || eliminated_[activeIndex_]) {
-    return false;
-  }
-
-  const int next = nextLivingIndex(activeIndex_);
-  if (next < 0) {
-    return false;
-  }
-
-  const uint32_t elapsed = elapsedBetween(turnStartedAtMs_, nowMs);
-  // A team turn counts for both teammates.
-  const int mate = teammateIndex(activeIndex_);
-  for (const int index : {static_cast<int>(activeIndex_), mate}) {
-    if (index < 0) continue;
-    PlayerStats &stats = stats_[index];
-    ++stats.turnsCompleted;
-    stats.totalTurnMs += elapsed;
-    if (stats.fastestTurnMs == 0 || elapsed < stats.fastestTurnMs) {
-      stats.fastestTurnMs = elapsed;
-    }
-    if (elapsed > stats.longestTurnMs) {
-      stats.longestTurnMs = elapsed;
-    }
-  }
-
-  const uint8_t passed = active->playerNumber;
-  activeIndex_ = static_cast<uint8_t>(next);
-  turnStartedAtMs_ = nowMs;
-  // CR 727: rad counters trigger as the turn begins, for each player of the
-  // turn (both teammates in Two-Headed Giant) who has any.
-  radDue_ = 0;
-  if (magicRules(settings_.profile)) {
-    const int nextMate = teammateIndex(activeIndex_);
-    for (const int index : {static_cast<int>(activeIndex_), nextMate}) {
-      if (index >= 0 && !eliminated_[index] && counters_[index].rad > 0) radDue_ |= static_cast<uint16_t>(1u << index);
-    }
-  }
-  doomPassed(passed, nowMs);
-  return true;
-}
-
-bool GameEngine::pause(uint32_t nowMs) {
-  if (!running_ || paused_ || gameOver_ || winClaimActive_) {
-    return false;
-  }
-
-  paused_ = true;
-  pauseStartedAtMs_ = nowMs;
-  return true;
-}
-
-bool GameEngine::resume(uint32_t nowMs) {
-  if (doom_.pending || hasPendingElimination()) return false;
-  if (!running_ || !paused_ || gameOver_ || winClaimActive_ || doom_.selected) {
-    return false;
-  }
-
-  const uint32_t pauseDuration = elapsedBetween(pauseStartedAtMs_, nowMs);
-  totalPausedMs_ += pauseDuration;
-  turnStartedAtMs_ += pauseDuration;
-  pauseStartedAtMs_ = 0;
-  paused_ = false;
-  return true;
-}
-
-bool GameEngine::eliminatePlayer(
-    uint8_t playerNumber,
-    uint32_t nowMs,
-    bool &gameFinished, bool conceded, uint8_t creditedPlayer, bool self, bool attributionKnown) {
-  gameFinished = false;
-  if (self && (conceded || creditedPlayer)) return false;
-
-  if (!running_ || !paused_ || gameOver_ || winClaimActive_ || doom_.selected) {
-    return false;
-  }
-
-  const int index = indexForPlayerNumber(playerNumber);
-  if ((conceded && creditedPlayer) || !validEliminationCredit(playerNumber, creditedPlayer)) return false;
-  if (index < 0 || eliminated_[index]) {
-    return false;
-  }
-
-  if (!batchElimination_ && livingSideCount() <= 1) {
-    return false;
-  }
-
-  const int mate = teammateIndex(index);
-  const bool wasActive = static_cast<uint8_t>(index) == activeIndex_ ||
-      (mate >= 0 && static_cast<uint8_t>(mate) == activeIndex_);
-  const bool passMonarch = sameTeam(monarchPlayer_, playerNumber);
-  const bool passInitiative = sameTeam(initiativePlayer_, playerNumber);
-  eliminated_[index] = true;
-  radDue_ &= static_cast<uint16_t>(~(1u << index));
-  if (mate >= 0) radDue_ &= static_cast<uint16_t>(~(1u << mate));
-  conceded_[index] = conceded;
-  eliminatedBy_[index] = creditedPlayer;
-  selfEliminated_[index] = self;
-  eliminationPending_[index] = settings_.askEliminationSource && !attributionKnown && !conceded && !self && !creditedPlayer;
-  cancelLifeChanges(playerNumber);
-  // Two-Headed Giant: the team leaves together.
-  if (mate >= 0 && !eliminated_[mate]) {
-    eliminated_[mate] = true;
-    conceded_[mate] = conceded;
-    eliminatedBy_[mate] = creditedPlayer;
-    selfEliminated_[mate] = self;
-    eliminationPending_[mate] = eliminationPending_[index];
-    cancelLifeChanges(players_[mate].playerNumber);
-  }
-
-  doomLeft(creditedPlayer);
-
-  if (wasActive) {
-    const int next = nextLivingIndex(activeIndex_);
-    if (next >= 0) {
-      activeIndex_ = static_cast<uint8_t>(next);
-    }
-
-    turnStartedAtMs_ = pauseStartedAtMs_ != 0 ? pauseStartedAtMs_ : nowMs;
-  }
-
-  // CR 724.4 / 725.4: the active player takes over a leaving holder's
-  // monarch or initiative; when the active player is leaving, the next in
-  // turn order (already active here). Nobody, when no one is left.
-  const uint8_t heir = eliminated_[activeIndex_] ? 0 : players_[activeIndex_].playerNumber;
-  if (passMonarch) monarchPlayer_ = heir;
-  if (passInitiative) initiativePlayer_ = heir;
-
-  if (!batchElimination_ && !hasPendingElimination() && starCommander()) {
-    // Star Commander never uses last-player-standing: its own policy decides.
-    gameFinished = evaluateStarVictory(nowMs);
-  } else if (!batchElimination_ && !hasPendingElimination() && livingSideCount() == 1) {
-    for (uint8_t i = 0; i < playerCount_; ++i) {
-      if (!eliminated_[i]) {
-        finishGame(players_[i].playerNumber, nowMs);
-        gameFinished = true;
-        break;
-      }
-    }
-  }
-
   return true;
 }
 
 bool GameEngine::claimMonarch(uint8_t playerNumber) {
   const int index = indexForPlayerNumber(playerNumber);
-  if (index < 0 || eliminated_[index] || gameOver_ || !running_ || winClaimActive_ ||
-      !magicRules(settings_.profile)) return false;
-  monarchPlayer_ = playerNumber;
-  return true;
-}
-
-const PlayerCounters *GameEngine::countersForPlayer(uint8_t playerNumber) const {
-  const int index = indexForPlayerNumber(playerNumber);
-  return index >= 0 ? &counters_[index] : nullptr;
-}
-
-bool GameEngine::radDue(uint8_t playerNumber) const {
-  const int index = indexForPlayerNumber(playerNumber);
-  return index >= 0 && (radDue_ & (1u << index)) != 0;
-}
-
-// The table-wide ChangeCounter kinds; playerNumber is a living player.
-bool GameEngine::changeTableCounter(uint8_t playerNumber, CounterKind kind, int32_t value, uint8_t commander) {
-  const int index = indexForPlayerNumber(playerNumber);
-  switch (kind) {
-    case CounterKind::RadResolve: {
-      // CR 727: the player milled their rad count and `value` were nonlands:
-      // they lose that much life and that many rad counters. 0 clears it.
-      int32_t &rad = counters_[index].rad;
-      if (!(radDue_ & (1u << index)) || value < 0 || value > rad) return false;
-      if (value > 0 && !canChangeLife(playerNumber, -value)) return false;
-      radDue_ &= static_cast<uint16_t>(~(1u << index));
-      if (value == 0) return true;
-      rad -= value;
-      return changeLife(playerNumber, -value);
-    }
-    case CounterKind::DayNight:
-      if (value < 0 || value >= static_cast<int32_t>(DayNight::Count) ||
-          static_cast<DayNight>(value) == dayNight_) return false;
-      dayNight_ = static_cast<DayNight>(value);
-      return true;
-    case CounterKind::TurnOrder:
-      if ((value != 0 && value != 1) || (value == 1) == turnOrderReversed_) return false;
-      turnOrderReversed_ = value == 1;
-      return true;
-    case CounterKind::Everyone: {
-      // One tap for a card that gives every player a counter: each living
-      // player (each team once for shared poison) through the normal rules.
-      const auto counter = static_cast<CounterKind>(commander);
-      if (commander >= static_cast<uint8_t>(CounterKind::Count) || !everyoneCounter(counter) ||
-          (value != 1 && value != -1)) return false;
-      bool changed = false;
-      bool counted[MAX_PLAYERS] = {};
-      for (uint8_t i = 0; i < playerCount_; ++i) {
-        if (eliminated_[i] || counted[i]) continue;
-        counted[i] = true;
-        const int mate = teammateIndex(i);
-        if (counter == CounterKind::Poison && mate >= 0) counted[mate] = true;
-        changed = changePlayerCounter(players_[i].playerNumber, counter, value) || changed;
-      }
-      return changed;
-    }
-    default:
-      return false;
-  }
+  // Nothing else changes while the table answers a win claim.
+  if (index < 0 || hasWinClaim()) return false;
+  // Claiming the crown you hold is a no-op that still succeeds, as before.
+  if (core_.monarch == index) return playing() && !core_.players[index].eliminated;
+  return commit(core_.claimMonarch(index));
 }
 
 bool GameEngine::changePlayerCounter(uint8_t playerNumber, CounterKind kind, int32_t value, uint8_t commander) {
   const int index = indexForPlayerNumber(playerNumber);
-  if (index < 0 || eliminated_[index] || !running_ || gameOver_ || winClaimActive_ || doom_.selected || !magicRules(settings_.profile)) return false;
-  if (kind >= CounterKind::RadResolve && kind < CounterKind::Count) return changeTableCounter(playerNumber, kind, value, commander);
-  auto &c = counters_[index];
-  if (kind == CounterKind::Initiative) {
-    if (value != 0 && value != 1) return false;
-    if (value) initiativePlayer_ = playerNumber;
-    else if (initiativePlayer_ == playerNumber) initiativePlayer_ = 0;
-    else return false;
-    return true;
-  }
-  if (kind == CounterKind::CityBlessing) {
-    if (value != 0 && value != 1) return false;
-    c.cityBlessing = value == 1;
-    return true;
-  }
-  int32_t *target = nullptr;
+  if (index < 0 || !playing() || hasWinClaim() || core_.players[index].eliminated || core_.doomBag.selected) return false;
+  const int64_t now = at(millis());
   switch (kind) {
-    case CounterKind::Poison: target = &c.poison; break;
-    case CounterKind::Energy: target = &c.energy; break;
-    case CounterKind::Experience: target = &c.experience; break;
-    case CounterKind::Treasure: target = &c.treasure; break;
-    case CounterKind::Rad: target = &c.rad; break;
-    case CounterKind::CommanderCast:
-      if (!commanderRules(settings_.profile) || commander < 1 || commander > 2) return false;
-      target = &c.commanderCasts[commander-1]; break;
-    default: return false;
+    case CounterKind::DayNight:
+      if (value < 0 || value >= static_cast<int32_t>(DayNight::Count)) return false;
+      return commit(core_.setDayNight(static_cast<turnhub::DayNight>(value)));
+    case CounterKind::TurnOrder:
+      if (value != 0 && value != 1) return false;
+      return commit(core_.setTurnOrderReversed(value == 1));
+    case CounterKind::Everyone: {
+      const auto counter = static_cast<CounterKind>(commander);
+      if (commander >= static_cast<uint8_t>(CounterKind::Count) || !everyoneCounter(counter)) return false;
+      return commitRules(core_.changeCounterForEveryone(counterName(counter), value, now));
+    }
+    default: {
+      const char *name = counterName(kind);
+      if (!name) return false;
+      if (!commitRules(core_.changeCounter(index, name, value, commander, now))) return false;
+      if (kind == CounterKind::CommanderCast && commander == 2 && counters_[index].commanderCasts[1]) partner_[index] = true;
+      return true;
+    }
   }
-  if (!value || value < -LIFE_LIMIT || value > LIFE_LIMIT) return false;
-  const int64_t next = int64_t(*target) + value;
-  if (next < 0 || next > LIFE_LIMIT) return false;
-  *target = static_cast<int32_t>(next);
-  if (kind == CounterKind::Poison) {
-    const int mate = teammateIndex(index);
-    if (mate >= 0) counters_[mate].poison = c.poison;
-  }
-  if (kind == CounterKind::CommanderCast && commander == 2 && *target) partner_[index] = true;
-  return true;
 }
 
 bool GameEngine::setEliminationSettings(const GameSettings &settings) {
@@ -666,612 +589,226 @@ bool GameEngine::setEliminationSettings(const GameSettings &settings) {
   const bool ask = settings_.askEliminationSource;
   settings_ = settings;
   settings_.askEliminationSource = ask;  // Live rule toggles do not change the match's attribution policy.
+  turnhub::Game next = core_;
+  next.autoEliminateAtZeroLife = settings.autoEliminateAtZeroLife;
+  next.autoEliminateAtPoisonLimit = settings.autoEliminateAtPoisonLimit;
+  next.autoEliminateAtCommanderDamage = settings.autoEliminateAtCommanderDamage;
+  next.poisonLimit = settings.poisonLimit;
+  ++next.revision;
+  commit(next);
   return true;
 }
 
-bool GameEngine::hasConceded(uint8_t player) const {
-  const int index = indexForPlayerNumber(player);
-  return index >= 0 && conceded_[index];
+bool GameEngine::resolveEliminationRules(uint32_t nowMs) {
+  // The core applies these rules inside each change; this reports (once) the
+  // players they took out since the last call, and settles a changed rule.
+  if (playing()) commitRules(core_.resolveEliminationRules(at(nowMs)));
+  lastAutoOut_ = autoOut_;
+  autoOut_ = 0;
+  return lastAutoOut_ != 0;
 }
 
-uint16_t GameEngine::doomLiving() const {
-  uint16_t mask = 0;
-  for (uint8_t i = 0; i < playerCount_; ++i) if (!eliminated_[i]) mask |= doomBit(players_[i].playerNumber);
-  return mask;
-}
-uint8_t GameEngine::doomTurnPlayer() const { return doom_.pending ? doom_.pendingTurn : activePlayerNumber(); }
-void GameEngine::doomLifeLoss(uint8_t target, int32_t delta, uint8_t owner) {
-  if (doomActive() && delta < 0 && owner != target && (doomLiving() & doomBit(owner)))
-    doom_.atRisk &= ~doomBit(owner);
-}
-void GameEngine::doomPassed(uint8_t player, uint32_t nowMs) {
-  if (!doomActive() || doom_.boundary != player) return;
-  if (doom_.warmup) --doom_.warmup;
-  if (!doom_.warmup) { doom_.pending = true; doom_.pendingTurn = player; pause(nowMs); }
-}
-void GameEngine::doomLeft(uint8_t credited) {
-  if (!doomCommander()) return;
-  const uint16_t living = doomLiving();
-  if (!doomActive()) {
-    doom_.atRisk = 0; doom_.boundary = doom_.warmup = doom_.pendingTurn = doom_.selected = 0; doom_.pending = false;
-    return;
+bool GameEngine::eliminatePlayer(
+    uint8_t playerNumber,
+    uint32_t nowMs,
+    bool &gameFinished, bool conceded, uint8_t creditedPlayer, bool self, bool attributionKnown) {
+  gameFinished = false;
+  const int index = indexForPlayerNumber(playerNumber);
+  if (index < 0 || (creditedPlayer && indexForPlayerNumber(creditedPlayer) < 0) || hasWinClaim() || core_.doomBag.selected) return false;
+  const std::optional<int> by = creditedPlayer ? std::optional<int>(creditedPlayer - 1) : std::nullopt;
+  turnhub::Game next = core_.eliminate(index, at(nowMs), conceded, by, self);
+  // A Sigil can't name who eliminated the player: in a match that asks, the
+  // removal waits paused for the app's answer, as the automatic rules do.
+  if (next.revision != core_.revision && core_.askEliminationSource && !attributionKnown && !conceded && !self &&
+      !creditedPlayer && next.state != turnhub::TableState::GameOver) {
+    for (int mate : next.mates(index)) next.players[mate].eliminationPending = true;
+    if (next.state == turnhub::TableState::Running) {
+      next.elapsedMs = next.gameElapsedMs(at(nowMs));
+      next.state = turnhub::TableState::Paused;
+      next.runningSinceMs.reset();
+    }
   }
-  if (credited) {
-    doom_.atRisk = living & ~doomBit(credited); doom_.boundary = doomPrevious(credited, living, playerCount_);
-    doom_.warmup = doom_.pendingTurn = doom_.selected = 0; doom_.pending = false; ++doom_.cycle;
-  } else {
-    doom_.atRisk &= living;
-    if (!(living & doomBit(doom_.boundary))) doom_.boundary = doomPrevious(doom_.boundary, living, playerCount_);
-  }
+  if (!commit(next)) return false;
+  cancelLifeChanges(playerNumber);
+  if (const uint8_t mate = teammateOf(playerNumber)) cancelLifeChanges(mate);
+  gameFinished = gameOver();
+  return true;
 }
+
+bool GameEngine::resolveElimination(uint8_t victim, uint8_t source, bool self, uint32_t nowMs) {
+  if (indexForPlayerNumber(victim) < 0 || (source && indexForPlayerNumber(source) < 0)) return false;
+  const std::optional<int> credited = source ? std::optional<int>(source - 1) : std::nullopt;
+  return commit(core_.resolveElimination(victim, credited, self, at(nowMs)));
+}
+
+bool GameEngine::beginWinClaim(uint8_t playerNumber, bool restoreRunning, uint32_t nowMs) {
+  const int index = indexForPlayerNumber(playerNumber);
+  if (index < 0) return false;
+  // Atlas pauses the table while the others answer, and a claim made during
+  // play resumes it when denied or withdrawn.
+  turnhub::Game claimed = core_.state == turnhub::TableState::Running ? core_.togglePause(at(nowMs)) : core_;
+  claimed = claimed.requestWin(index, at(nowMs));
+  if (!claimed.openWinClaim() && claimed.state != turnhub::TableState::GameOver) return false;
+  winRestoreRunning_ = restoreRunning;
+  cancelLifeChanges();
+  return commit(claimed);
+}
+
+bool GameEngine::confirmWinClaim(uint8_t playerNumber, uint32_t nowMs, bool &gameFinished) {
+  gameFinished = false;
+  const int index = indexForPlayerNumber(playerNumber);
+  if (index < 0 || !commit(core_.answerWinClaim(index, true, at(nowMs)))) return false;
+  gameFinished = gameOver();
+  return true;
+}
+
+bool GameEngine::endWinClaim(const turnhub::Game &ended, uint32_t nowMs) {
+  if (ended.revision == core_.revision) return false;
+  const bool resume = winRestoreRunning_ && ended.state == turnhub::TableState::Paused;
+  winRestoreRunning_ = false;
+  return commit(resume ? ended.togglePause(at(nowMs)) : ended);
+}
+
+bool GameEngine::denyWinClaim(uint8_t playerNumber, uint32_t nowMs) {
+  const int index = indexForPlayerNumber(playerNumber);
+  return index >= 0 && endWinClaim(core_.answerWinClaim(index, false, at(nowMs)), at(nowMs));
+}
+
+bool GameEngine::cancelWinClaim(uint8_t claimantPlayer, uint32_t nowMs) {
+  if (!hasWinClaim() || claimantPlayer != winClaimPlayerNumber()) return false;
+  // The claimant withdraws: as a denial, the claim simply ends.
+  turnhub::Game next = core_;
+  next.winClaim.reset();
+  next.winConfirmed.clear();
+  ++next.revision;
+  return endWinClaim(next, nowMs);
+}
+
+// --- Bag of Doom ---------------------------------------------------------------
+
+bool GameEngine::setDoomEligibility(uint8_t player, bool inBag, uint32_t cycle) {
+  return commit(core_.doomEligibility(player, inBag, cycle));
+}
+
+bool GameEngine::creditDoomElimination(uint8_t victim, uint8_t source, uint32_t cycle) {
+  return commit(core_.doomCredit(victim, source, cycle));
+}
+
+bool GameEngine::prepareDoomDraw(uint32_t cycle, uint8_t pick) {
+  const auto &bag = core_.doomBag;
+  if (!paused() || !doomActive() || !bag.pending || bag.cycle != cycle || hasPendingLifeChanges() || hasPendingElimination()) return false;
+  if (bag.selected) return true;  // Failed/uncertain saves never choose again.
+  // The candidates the core draws from: living players still in the bag, in seat order.
+  uint8_t remaining = pick;
+  bool any = false;
+  for (uint8_t i = 0; i < playerCount_; ++i) {
+    if (core_.players[i].eliminated || !bag.contains(i + 1)) continue;
+    any = true;
+    if (remaining-- == 0) {
+      turnhub::Game next = core_;
+      next.doomBag.selected = i + 1;
+      ++next.revision;
+      return commit(next);
+    }
+  }
+  return !any;
+}
+
+bool GameEngine::resolveDoomDraw(uint32_t nowMs) {
+  const auto &bag = core_.doomBag;
+  if (!doomActive() || !paused() || !bag.pending || hasPendingLifeChanges()) return false;
+  bool candidates = false;
+  for (uint8_t i = 0; i < playerCount_; ++i) candidates |= !core_.players[i].eliminated && bag.contains(i + 1);
+  if (candidates && !bag.selected) return false;
+  AtlasRandom random;
+  return commit(core_.drawDoom(bag.cycle, at(nowMs), random));
+}
+
+// --- life-change approvals (Atlas only) -------------------------------------------
+
+const LifeChangeRequest *GameEngine::lifeChangeFor(uint8_t target) const {
+  const int index = indexForPlayerNumber(target);
+  return index < 0 ? nullptr : &lifeChanges_[index];
+}
+
 bool GameEngine::hasPendingLifeChanges() const {
   for (uint8_t i = 0; i < playerCount_; ++i) if (lifeChanges_[i].state == LifeChangeState::Pending) return true;
   return false;
 }
-bool GameEngine::setDoomEligibility(uint8_t player, bool inBag, uint32_t cycle) {
-  if (!running_ || gameOver_ || winClaimActive_ || !doomActive() || doom_.selected ||
-      cycle != doom_.cycle || !(doomLiving() & doomBit(player))) return false;
-  if (inBag) doom_.atRisk |= doomBit(player); else doom_.atRisk &= ~doomBit(player);
+
+bool GameEngine::requestLifeChange(uint8_t actor, uint8_t target, int32_t delta, uint32_t nowMs, uint32_t windowMs) {
+  const int from = indexForPlayerNumber(actor), to = indexForPlayerNumber(target);
+  if (from < 0 || to < 0) return false;
+  const int mate = settings_.twoHeadedGiant && (to ^ 1) < playerCount_ ? to ^ 1 : -1;
+  // A teammate's life is the player's own: they change it directly.
+  if (sameTeam(actor, target) || core_.players[from].eliminated || !canChangeLife(target, delta) ||
+      lifeChanges_[to].state == LifeChangeState::Pending ||
+      (mate >= 0 && lifeChanges_[mate].state == LifeChangeState::Pending) ||
+      nextLifeRequestId_ == UINT32_MAX) return false;
+  auto &request = lifeChanges_[to];
+  request = LifeChangeRequest{};
+  request.id = ++nextLifeRequestId_;
+  request.requestedAtMs = nowMs;
+  request.actor = actor;
+  request.target = target;
+  request.delta = delta;
+  request.state = LifeChangeState::Pending;
+  request.doomOwner = core_.doomBag.pending ? static_cast<uint8_t>(core_.doomBag.pendingTurn) : activePlayerNumber();
+  request.doomCycle = static_cast<uint32_t>(core_.doomBag.cycle);
+  request.windowMs = windowMs;
   return true;
 }
-bool GameEngine::creditDoomElimination(uint8_t victim, uint8_t source, uint32_t cycle) {
-  const int i = indexForPlayerNumber(victim);
-  if (!running_ || gameOver_ || winClaimActive_ || !doomCommander() || doom_.selected || cycle != doom_.cycle ||
-      i < 0 || !eliminated_[i] || conceded_[i] || selfEliminated_[i] || eliminationPending_[i] || eliminatedBy_[i] || !source ||
-      !validEliminationCredit(victim, source) || (doom_.drawn & doomBit(victim))) return false;
-  eliminatedBy_[i] = source; doomLeft(source); return true;
-}
-bool GameEngine::selfEliminated(uint8_t player) const {
-  const int i = indexForPlayerNumber(player); return i >= 0 && selfEliminated_[i];
-}
-bool GameEngine::eliminationPending(uint8_t player) const {
-  const int i = indexForPlayerNumber(player); return i >= 0 && eliminationPending_[i];
-}
-bool GameEngine::hasPendingElimination() const {
-  for (uint8_t i = 0; i < playerCount_; ++i) if (eliminationPending_[i]) return true;
-  return false;
-}
-bool GameEngine::resolveElimination(uint8_t victim, uint8_t source, bool self, uint32_t nowMs) {
-  const int i = indexForPlayerNumber(victim);
-  if (!running_ || gameOver_ || !paused_ || winClaimActive_ || doom_.selected || i < 0 ||
-      !eliminationPending_[i] || (self && source) || !validEliminationCredit(victim, source)) return false;
-  eliminationPending_[i] = false; selfEliminated_[i] = self; eliminatedBy_[i] = source;
-  const int mate = teammateIndex(i);
-  if (mate >= 0) { eliminationPending_[mate] = false; selfEliminated_[mate] = self; eliminatedBy_[mate] = source; }
-  if (source) doomLeft(source);
-  if (hasPendingElimination()) return true;
-  if (starCommander()) evaluateStarVictory(nowMs);
-  else if (!livingSideCount()) finishGame(0, nowMs);
-  else if (livingSideCount() == 1) {
-    for (uint8_t j = 0; j < playerCount_; ++j) if (!eliminated_[j]) { finishGame(players_[j].playerNumber, nowMs); break; }
+
+void GameEngine::settleLifeChange(LifeChangeRequest &request, LifeChangeState outcome, uint32_t nowMs) {
+  if (outcome == LifeChangeState::Rejected) { request.state = outcome; return; }
+  const int from = indexForPlayerNumber(request.actor), to = indexForPlayerNumber(request.target);
+  const bool applied = from >= 0 && to >= 0 && !core_.players[from].eliminated && canChangeLife(request.target, request.delta);
+  // Mark it settled first: a change that ends the match cancels pending requests.
+  request.state = applied ? outcome : LifeChangeState::Failed;
+  if (!applied) return;
+  turnhub::Game next = core_.changeLife(to, request.delta, at(nowMs));
+  // Bag of Doom: a delayed approval's life loss belongs to the turn it was
+  // asked on, not the turn it was answered on (when nobody left meanwhile).
+  bool sameTable = next.state == core_.state;
+  for (uint8_t i = 0; i < playerCount_ && sameTable; ++i) sameTable = next.players[i].eliminated == core_.players[i].eliminated;
+  if (sameTable && doomActive() && request.delta < 0 && request.doomCycle == core_.doomBag.cycle) {
+    uint32_t atRisk = core_.doomBag.atRisk;
+    const uint8_t owner = request.doomOwner;
+    if (owner && owner != request.target && !isEliminated(owner)) atRisk &= ~(1u << (owner - 1));
+    next.doomBag.atRisk = atRisk;
   }
-  return true;
+  if (!commitRules(next)) request.state = LifeChangeState::Failed;
 }
 
-bool GameEngine::prepareDoomDraw(uint32_t cycle, uint8_t pick) {
-  if (!paused_ || gameOver_ || winClaimActive_ || !doomActive() || !doom_.pending ||
-      cycle != doom_.cycle || hasPendingLifeChanges() || hasPendingElimination()) return false;
-  if (doom_.selected) return true;  // Failed/uncertain saves never choose again.
-  if (!doom_.atRisk) return true;
-  if (pick >= doomCount(doom_.atRisk)) return false;
-  for (uint8_t p = 1; p <= playerCount_; ++p) if (doom_.atRisk & doomBit(p)) {
-    if (!pick--) { doom_.selected = p; return true; }
+bool GameEngine::respondLifeChange(uint8_t recipient, uint32_t requestId, bool accept, uint32_t nowMs) {
+  const int index = indexForPlayerNumber(recipient);
+  if (index < 0) return false;
+  // Either teammate may answer a request aimed at their shared life.
+  const int mate = settings_.twoHeadedGiant && (index ^ 1) < playerCount_ ? index ^ 1 : -1;
+  auto &request = mate >= 0 && lifeChanges_[mate].id == requestId && lifeChanges_[index].id != requestId
+      ? lifeChanges_[mate] : lifeChanges_[index];
+  if (!requestId || request.id != requestId || request.state != LifeChangeState::Pending) return false;
+  if (nowMs - request.requestedAtMs >= request.windowMs) {
+    settleLifeChange(request, LifeChangeState::Automatic, nowMs);
+    return false;
   }
-  return false;
-}
-bool GameEngine::resolveDoomDraw(uint32_t nowMs) {
-  if (!doomActive() || !paused_ || !doom_.pending || hasPendingLifeChanges() ||
-      (doom_.atRisk && !doom_.selected)) return false;
-  const uint8_t victim = doom_.selected;
-  const uint32_t check = doom_.cycle;
-  doom_.selected = 0;
-  if (victim) { bool finished = false; if (!eliminatePlayer(victim, nowMs, finished)) return false; }
-  doom_.drawn |= doomBit(victim);
-  doom_.lastDraw = victim; doom_.lastCheck = check; doom_.cycle = check + 1;
-  doom_.atRisk = doomActive() ? doomLiving() : 0;
-  doom_.warmup = doom_.pendingTurn = 0; doom_.pending = false;
-  return true;
+  settleLifeChange(request, accept ? LifeChangeState::Accepted : LifeChangeState::Rejected, nowMs);
+  return request.state != LifeChangeState::Failed;
 }
 
-bool GameEngine::validEliminationCredit(uint8_t victim, uint8_t source) const {
-  return indexForPlayerNumber(victim) >= 0 &&
-      (!source || (indexForPlayerNumber(source) >= 0 && !sameTeam(source, victim)));
-}
-
-uint8_t GameEngine::eliminatedBy(uint8_t player) const {
-  const int i = indexForPlayerNumber(player);
-  return i >= 0 ? eliminatedBy_[i] : 0;
-}
-
-uint8_t GameEngine::eliminationsBy(uint8_t player) const {
-  if (indexForPlayerNumber(player) < 0) return 0;
-  uint8_t count = 0;
-  for (uint8_t i = 0; i < playerCount_; ++i)
-    if (eliminated_[i] && !conceded_[i] && eliminatedBy_[i] == player) ++count;
-  return count;
-}
-
-bool GameEngine::resolveEliminationRules(uint32_t nowMs) {
-  if (!running_ || gameOver_ || winClaimActive_) return false;
-  bool changed = false;
-  const bool restoreRunning = !paused_;
+void GameEngine::expireLifeChanges(uint32_t nowMs) {
   for (uint8_t i = 0; i < playerCount_; ++i) {
-    if (eliminated_[i]) continue;
-    bool lethal = settings_.autoEliminateAtZeroLife && life_[i] <= 0;
-    if (magicRules(settings_.profile) && settings_.autoEliminateAtPoisonLimit && counters_[i].poison >= settings_.poisonLimit) lethal = true;
-    if (commanderRules(settings_.profile) && settings_.autoEliminateAtCommanderDamage)
-      for (uint8_t source = 0; source < playerCount_; ++source)
-        for (uint8_t c = 0; c < 2; ++c)
-          if (commanderDamage_[i][source][c] >= COMMANDER_DAMAGE_LIMIT) lethal = true;
-    if (!lethal) continue;
-    if (!changed && restoreRunning) pause(nowMs);
-    batchElimination_ = true;
-    bool finished = false;
-    const bool removed = eliminatePlayer(players_[i].playerNumber, nowMs, finished);
-    changed |= removed;
-    if (removed && settings_.askEliminationSource) {
-      eliminationPending_[i] = true;
-      const int mate = teammateIndex(i);
-      if (mate >= 0) eliminationPending_[mate] = true;
-    }
-  }
-  batchElimination_ = false;
-  if (!changed) return false;
-  // Attribution must be saved before completion/statistics, including the last removal.
-  if (hasPendingElimination()) return true;
-  // The whole batch is applied; only now is the outcome decided.
-  if (starCommander()) {
-    if (!evaluateStarVictory(nowMs) && restoreRunning) resume(nowMs);
-    return true;
-  }
-  const uint8_t sides = livingSideCount();
-  if (sides == 0) finishGame(0, nowMs);
-  else if (sides == 1) {
-    for (uint8_t i = 0; i < playerCount_; ++i)
-      if (!eliminated_[i]) { finishGame(players_[i].playerNumber, nowMs); break; }
-  } else if (restoreRunning) resume(nowMs);
-  return true;
-}
-
-void GameEngine::clearWinClaim() {
-  winClaimActive_ = false;
-  winClaimPlayer_ = 0;
-  winRequiredCount_ = 0;
-  winRestoreRunning_ = false;
-  for (uint8_t i = 0; i < MAX_PLAYERS; ++i) {
-    winRequired_[i] = 0;
-    winConfirmed_[i] = false;
+    auto &request = lifeChanges_[i];
+    if (request.state == LifeChangeState::Pending && nowMs - request.requestedAtMs >= request.windowMs)
+      settleLifeChange(request, LifeChangeState::Automatic, nowMs);
   }
 }
 
-bool GameEngine::endInDraw(uint32_t nowMs) {
-  if (!running_ || gameOver_ || playerCount_ == 0) {
-    return false;
-  }
-  finishGame(0, nowMs);
-  return true;
-}
-
-void GameEngine::finishGame(uint8_t winnerPlayer, uint32_t nowMs) {
-  finishGameWithWinners(winnerPlayer >= 1 && winnerPlayer <= MAX_PLAYERS ? winnerBit(winnerPlayer) : 0, nowMs);
-}
-
-void GameEngine::finishGameWithWinners(uint16_t winners, uint32_t nowMs) {
-  if (gameOver_) {
-    return;
-  }
-
-  winnerMask_ = winners;
-  winnerPlayer_ = 0;
-  for (uint8_t number = 1; number <= MAX_PLAYERS && !winnerPlayer_; ++number)
-    if (winners & winnerBit(number)) winnerPlayer_ = number;
-  gameEndedAtMs_ = nowMs;
-
-  if (paused_ && pauseStartedAtMs_ != 0) {
-    const uint32_t pauseDuration = elapsedBetween(pauseStartedAtMs_, nowMs);
-    totalPausedMs_ += pauseDuration;
-    turnStartedAtMs_ += pauseDuration;
-  }
-
-  pauseStartedAtMs_ = 0;
-  paused_ = false;
-  gameOver_ = true;
-  doom_.pending = false; doom_.selected = doom_.pendingTurn = 0;
-  for (uint8_t i = 0; i < playerCount_; ++i) eliminationPending_[i] = false;
-  cancelLifeChanges();
-  clearWinClaim();
-
-  if (gameCompletedCallback_ != nullptr) {
-    gameCompletedCallback_(*this);
-  }
-}
-
-bool GameEngine::beginWinClaim(
-    uint8_t playerNumber,
-    bool restoreRunning,
-    uint32_t nowMs) {
-  if (doom_.pending || hasPendingElimination()) return false;
-  if (!running_ || gameOver_ || winClaimActive_) {
-    return false;
-  }
-
-  const int claimantIndex = indexForPlayerNumber(playerNumber);
-  if (claimantIndex < 0 || eliminated_[claimantIndex]) {
-    return false;
-  }
-
-  if (!paused_ && !pause(nowMs)) {
-    return false;
-  }
-
-  clearWinClaim();
-  winClaimActive_ = true;
-  cancelLifeChanges();
-  winClaimPlayer_ = playerNumber;
-  winRestoreRunning_ = restoreRunning;
-
-  const uint8_t claimantModule = players_[claimantIndex].controllerId;
-
-  uint8_t moduleOrder[MAX_CONTROLLERS] = {};
-  uint8_t moduleCount = 0;
-  for (uint8_t i = 0; i < playerCount_; ++i) {
-    const uint8_t controllerId = players_[i].controllerId;
-    bool alreadyAdded = false;
-    for (uint8_t m = 0; m < moduleCount; ++m) {
-      if (moduleOrder[m] == controllerId) {
-        alreadyAdded = true;
-        break;
-      }
-    }
-    if (!alreadyAdded && moduleCount < MAX_CONTROLLERS) {
-      moduleOrder[moduleCount++] = controllerId;
-    }
-  }
-
-  int claimantModuleIndex = -1;
-  for (uint8_t i = 0; i < moduleCount; ++i) {
-    if (moduleOrder[i] == claimantModule) {
-      claimantModuleIndex = static_cast<int>(i);
-      break;
-    }
-  }
-
-  if (claimantModuleIndex < 0) {
-    clearWinClaim();
-    return false;
-  }
-
-  for (uint8_t moduleOffset = 1; moduleOffset <= moduleCount; ++moduleOffset) {
-    const uint8_t moduleIndex = static_cast<uint8_t>(
-        (claimantModuleIndex + moduleOffset) % moduleCount);
-    const uint8_t controllerId = moduleOrder[moduleIndex];
-
-    for (uint8_t i = 0; i < playerCount_; ++i) {
-      if (players_[i].controllerId != controllerId || eliminated_[i]) {
-        continue;
-      }
-      if (sameTeam(playerNumber, players_[i].playerNumber)) {
-        continue;
-      }
-      if (winRequiredCount_ < MAX_PLAYERS) {
-        winRequired_[winRequiredCount_++] = players_[i].playerNumber;
-      }
-    }
-  }
-
-  if (winRequiredCount_ == 0) {
-    finishGame(playerNumber, nowMs);
-  }
-
-  return true;
-}
-
-bool GameEngine::confirmWinClaim(
-    uint8_t playerNumber,
-    uint32_t nowMs,
-    bool &gameFinished) {
-  gameFinished = false;
-
-  if (!winClaimActive_ || gameOver_) {
-    return false;
-  }
-
-  int requiredIndex = -1;
-  for (uint8_t i = 0; i < winRequiredCount_; ++i) {
-    if (winRequired_[i] == playerNumber) {
-      requiredIndex = static_cast<int>(i);
-      break;
-    }
-  }
-
-  if (requiredIndex < 0 || winConfirmed_[requiredIndex] || isEliminated(playerNumber)) {
-    return false;
-  }
-
-  winConfirmed_[requiredIndex] = true;
-
-  for (uint8_t i = 0; i < winRequiredCount_; ++i) {
-    if (!winConfirmed_[i]) {
-      return true;
-    }
-  }
-
-  const uint8_t winner = winClaimPlayer_;
-  finishGame(winner, nowMs);
-  gameFinished = true;
-  return true;
-}
-
-bool GameEngine::denyWinClaim(uint8_t playerNumber, uint32_t nowMs) {
-  if (!winClaimActive_ || gameOver_) {
-    return false;
-  }
-
-  bool required = false;
-  for (uint8_t i = 0; i < winRequiredCount_; ++i) {
-    if (winRequired_[i] == playerNumber && !winConfirmed_[i]) {
-      required = true;
-      break;
-    }
-  }
-  if (!required || isEliminated(playerNumber)) {
-    return false;
-  }
-
-  const bool restoreRunning = winRestoreRunning_;
-  clearWinClaim();
-
-  if (restoreRunning) {
-    return resume(nowMs);
-  }
-
-  return true;
-}
-
-bool GameEngine::cancelWinClaim(uint8_t claimantPlayer, uint32_t nowMs) {
-  if (!winClaimActive_ || claimantPlayer != winClaimPlayer_ || gameOver_) {
-    return false;
-  }
-
-  const bool restoreRunning = winRestoreRunning_;
-  clearWinClaim();
-
-  if (restoreRunning) {
-    return resume(nowMs);
-  }
-
-  return true;
-}
-
-bool GameEngine::running() const {
-  return running_ && !gameOver_;
-}
-
-bool GameEngine::paused() const {
-  return paused_;
-}
-
-bool GameEngine::gameOver() const {
-  return gameOver_;
-}
-
-bool GameEngine::hasPlayers() const {
-  return playerCount_ > 0;
-}
-
-bool GameEngine::hasWinClaim() const {
-  return winClaimActive_;
-}
-
-uint8_t GameEngine::playerCount() const {
-  return playerCount_;
-}
-
-uint8_t GameEngine::livingPlayerCount() const {
-  uint8_t count = 0;
-  for (uint8_t i = 0; i < playerCount_; ++i) {
-    if (!eliminated_[i]) {
-      ++count;
-    }
-  }
-  return count;
-}
-
-const PlayerSeat *GameEngine::playerAt(uint8_t index) const {
-  return index < playerCount_ ? &players_[index] : nullptr;
-}
-
-const PlayerSeat *GameEngine::playerByNumber(uint8_t playerNumber) const {
-  const int index = indexForPlayerNumber(playerNumber);
-  return index >= 0 ? &players_[index] : nullptr;
-}
-
-const PlayerSeat *GameEngine::activePlayer() const {
-  return playerCount_ > 0 ? &players_[activeIndex_] : nullptr;
-}
-
-uint8_t GameEngine::activePlayerNumber() const {
-  const PlayerSeat *active = activePlayer();
-  return active != nullptr ? active->playerNumber : 0;
-}
-
-uint8_t GameEngine::activeController() const {
-  const PlayerSeat *active = activePlayer();
-  return active != nullptr ? active->controllerId : INVALID_ID;
-}
-
-uint8_t GameEngine::starterPlayerNumber() const {
-  return starterPlayer_;
-}
-
-uint8_t GameEngine::winnerPlayerNumber() const {
-  return winnerPlayer_;
-}
-
-uint8_t GameEngine::winClaimPlayerNumber() const {
-  return winClaimPlayer_;
-}
-
-uint8_t GameEngine::nextWinConfirmationPlayerNumber() const {
-  if (!winClaimActive_) {
-    return 0;
-  }
-
-  for (uint8_t i = 0; i < winRequiredCount_; ++i) {
-    if (!winConfirmed_[i]) {
-      return winRequired_[i];
-    }
-  }
-  return 0;
-}
-
-bool GameEngine::controllerInGame(uint8_t controllerId) const {
-  for (uint8_t i = 0; i < playerCount_; ++i) {
-    if (players_[i].controllerId == controllerId) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool GameEngine::replaceController(uint8_t oldController, uint8_t newController) {
-  if (oldController == newController || !controllerInGame(oldController) || controllerInGame(newController)) {
-    return false;
-  }
-  for (uint8_t i = 0; i < playerCount_; ++i) {
-    if (players_[i].controllerId == oldController) players_[i].controllerId = newController;
-  }
-  return true;
-}
-
-bool GameEngine::controllerHasTurn(uint8_t controllerId) const {
-  return turnSeatForController(controllerId) != nullptr;
-}
-
-const PlayerSeat *GameEngine::turnSeatForController(uint8_t controllerId) const {
-  if (playerCount_ == 0 || eliminated_[activeIndex_]) return nullptr;
-  if (players_[activeIndex_].controllerId == controllerId) return &players_[activeIndex_];
-  const int mate = teammateIndex(activeIndex_);
-  return mate >= 0 && !eliminated_[mate] && players_[mate].controllerId == controllerId
-      ? &players_[mate] : nullptr;
-}
-
-uint16_t GameEngine::currentRound() const {
-  if (playerCount_ == 0) return 0;
-  uint32_t most = 0;
-  uint32_t active = 0;
-  for (uint8_t i = 0; i < playerCount_; ++i) {
-    if (eliminated_[i]) continue;
-    const PlayerStats *stats = statsForPlayer(players_[i].playerNumber);
-    const uint32_t done = stats != nullptr ? stats->turnsCompleted : 0;
-    if (done > most) most = done;
-    if (i == activeIndex_) active = done;
-  }
-  const uint32_t round = active == most ? most + 1 : most;
-  return static_cast<uint16_t>(round > 9999 ? 9999 : round);
-}
-
-bool GameEngine::isEliminated(uint8_t playerNumber) const {
-  const int index = indexForPlayerNumber(playerNumber);
-  return index >= 0 ? eliminated_[index] : false;
-}
-
-uint8_t GameEngine::playersForController(
-    uint8_t controllerId,
-    PlayerSeat *out,
-    uint8_t capacity) const {
-  if (out == nullptr || capacity == 0) {
-    return 0;
-  }
-
-  uint8_t count = 0;
-  for (uint8_t i = 0; i < playerCount_ && count < capacity; ++i) {
-    if (players_[i].controllerId == controllerId) {
-      out[count++] = players_[i];
-    }
-  }
-  return count;
-}
-
-uint8_t GameEngine::livingPlayersForController(
-    uint8_t controllerId,
-    PlayerSeat *out,
-    uint8_t capacity) const {
-  if (out == nullptr || capacity == 0) {
-    return 0;
-  }
-
-  uint8_t count = 0;
-  for (uint8_t i = 0; i < playerCount_ && count < capacity; ++i) {
-    if (players_[i].controllerId == controllerId && !eliminated_[i]) {
-      out[count++] = players_[i];
-    }
-  }
-  return count;
-}
-
-
-uint32_t GameEngine::currentTurnElapsedMs(uint32_t nowMs) const {
-  if (!hasPlayers()) {
-    return 0;
-  }
-
-  uint32_t end = nowMs;
-  if (gameOver_) {
-    end = gameEndedAtMs_;
-  } else if (paused_) {
-    end = pauseStartedAtMs_;
-  }
-
-  return elapsedBetween(turnStartedAtMs_, end);
-}
-
-uint32_t GameEngine::gameElapsedMs(uint32_t nowMs) const {
-  if (!hasPlayers()) {
-    return 0;
-  }
-
-  const uint32_t end = gameOver_ ? gameEndedAtMs_ : nowMs;
-  uint32_t pausedTotal = totalPausedMs_;
-  if (!gameOver_ && paused_) {
-    pausedTotal += elapsedBetween(pauseStartedAtMs_, nowMs);
-  }
-
-  return elapsedBetween(gameStartedAtMs_ + pausedTotal, end);
-}
-
-TurnTimerPhase GameEngine::turnTimerPhase(uint32_t nowMs) const {
-  if (!hasPlayers() || gameOver_) {
-    return TurnTimerPhase::Normal;
-  }
-  const uint32_t elapsed = currentTurnElapsedMs(nowMs);
-  const uint32_t limit = settings_.turnTimerMs;
-
-  if (limit == TURN_TIMER_OFF) {
-    return elapsed >= TURN_TIMER_LONG_TURN_MS
-        ? TurnTimerPhase::LongTurn
-        : TurnTimerPhase::Normal;
-  }
-  if (elapsed >= limit) {
-    return TurnTimerPhase::Expired;
-  }
-  return limit - elapsed <= TURN_TIMER_WARNING_MS
-      ? TurnTimerPhase::Warning
-      : TurnTimerPhase::Normal;
-}
-
-uint32_t GameEngine::turnRemainingMs(uint32_t nowMs) const {
-  const uint32_t limit = settings_.turnTimerMs;
-  if (!hasPlayers() || limit == TURN_TIMER_OFF) {
-    return 0;
-  }
-  const uint32_t elapsed = currentTurnElapsedMs(nowMs);
-  return elapsed >= limit ? 0 : limit - elapsed;
-}
-
-const PlayerStats *GameEngine::statsForPlayer(uint8_t playerNumber) const {
-  const int index = indexForPlayerNumber(playerNumber);
-  return index >= 0 ? &stats_[index] : nullptr;
+void GameEngine::cancelLifeChanges(uint8_t involvedPlayer) {
+  for (auto &request : lifeChanges_)
+    if (request.state == LifeChangeState::Pending &&
+        (!involvedPlayer || request.actor == involvedPlayer || request.target == involvedPlayer))
+      request.state = LifeChangeState::Cancelled;
 }
 
 }  // namespace TurnHub

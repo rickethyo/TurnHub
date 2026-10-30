@@ -63,6 +63,7 @@ struct MenuView {
   bool recovery = false;        // The Device entries are shown.
   uint8_t page = 0;             // the Menu page shown (0 first).
   uint8_t pageCount = 0;        // Menu pages (0 when closed).
+  bool canGoBack = false;       // Left steps back a page or level rather than closing.
   uint8_t holdPercent = 0;  // Display-only deliberate-action progress.
   uint8_t pairPercent = 0;  // Display-only Pair touch progress.
   bool pairing = false;    // Searching for Atlas during the pairing window.

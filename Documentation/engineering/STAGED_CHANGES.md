@@ -214,8 +214,10 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   is a candidate upgrade; billing/entitlements/pricing remain separate work.
 
 - **Common engine and full phone takeover:** the portable engine is started
-  in [`core/`](../../core/README.md) (2026-10-29); next, Atlas runs it in place
-  of `GameEngine`/`Lobby`, the app links it through the NDK, the remaining
+  in [`core/`](../../core/README.md) (2026-10-29) and Atlas plays on it
+  (2026-10-30, `GameEngine` is now a layer over it; hardware acceptance open).
+  Next, Sigils and the Atlas screen render the core's state, the app links it
+  through the NDK, the remaining
   modes (Death May Die, Planechase, Pokémon/Lorcana turn markers) are ported
   one per PR, then the old engines and Invariant 1's wording go. Then implement
   the validated handoff, fenced phone authority, reconnect reconciliation and

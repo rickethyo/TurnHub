@@ -190,6 +190,10 @@ class Game {
   Game changeCounter(int index, const std::string &kind, int value, int commander, int64_t nowMs) const;
   Game changeCounterForEveryone(const std::string &kind, int delta, int64_t nowMs) const;
   Game setEliminationRule(const std::string &field, int value, int64_t nowMs) const;
+  // Applies the automatic elimination rules (life, poison, Commander damage)
+  // now. Every rule that changes them already does; a host calls this after
+  // changing a rule's field directly.
+  Game resolveEliminationRules(int64_t nowMs) const;
   Game concede(int index, int64_t nowMs) const { return eliminate(index, nowMs, true); }
   Game eliminate(int index, int64_t nowMs, bool conceded = false, std::optional<int> by = std::nullopt, bool self = false) const;
   Game resolveElimination(int victim, std::optional<int> source, bool self, int64_t nowMs) const;
@@ -211,7 +215,6 @@ class Game {
   Game bump() const { Game g = *this; ++g.revision; return g; }
   Game officialValues() const;
   Game advanceTurn(int64_t nowMs, bool reward) const;
-  Game resolveEliminationRules(int64_t nowMs) const;
   Game resolveRad(int index, int nonlands, int64_t nowMs) const;
   Game passStatuses(const std::vector<int> &leaving) const;
   Game finish(const std::vector<int> &winners, int64_t nowMs) const;

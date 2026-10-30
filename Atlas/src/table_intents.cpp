@@ -178,6 +178,9 @@ void startGame() {
     return;
   }
 
+  // The match record names each seat as the table shows it.
+  for (uint8_t i = 0; i < count; ++i)
+    table().game.nameSeat(players[i].playerNumber, displayNameForTableSeat(players[i], true).c_str());
   table().hubState = HubState::Running;
   table().shortGameCounted = false;
   resetCountdown();
