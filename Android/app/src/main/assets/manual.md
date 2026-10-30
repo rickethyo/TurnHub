@@ -486,7 +486,7 @@ Atlas is the central controller for the table. It has a 2.8-inch touchscreen, a 
 
 ## The Atlas Screen
 
-The top line shows what the table is doing (Lobby, Starting, Playing, Paused or Game Over) and how many Sigils are online; during and after a game it also shows the round and how long the match has run. Below it, Atlas shows whose turn it is, a turn clock, and a card for each player with their name, life total, their total time on their own turns and a label: TURN, OUT, WINNER, STARTS, or CONFIRM for the player a win claim is waiting on.
+The top line shows what the table is doing (Lobby, Starting, Playing, Paused or Game Over) and how many Sigils are online; during and after a game it also shows the round and how long the match has run. Below it, Atlas shows whose turn it is, a turn clock, and a card for each player with their name, life total, their total time on their own turns and a label: TURN, OUT, WINNER, STARTS, or CONFIRM for the player a win claim is waiting on. The Table tab is a read-only scoreboard: the round, the match time and whose turn it is, then a row per player with their life, a bar comparing it with the highest total, and their time on turn.
 
 The buttons along the bottom change with the game:
 

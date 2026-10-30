@@ -137,14 +137,19 @@ bool screenTestReleaseTouch = false;
 
 uint32_t tick() { return millis(); }
 
+// The SPI DMA sends one buffer while LVGL renders the next into the other:
+// the buffer is handed back at once, and LovyanGFX waits for the previous
+// transfer before it starts the next one, so a buffer is never overwritten
+// mid-send. The bus is released (waiting out the last transfer) after the
+// frame's final area.
 void flush(lv_display_t *disp, const lv_area_t *area, uint8_t *pixels) {
   const uint32_t w = lv_area_get_width(area), h = lv_area_get_height(area);
   // LVGL renders little-endian RGB565; the panel takes it big-endian.
   lv_draw_sw_rgb565_swap(pixels, w * h);
-  tft.startWrite();
+  if (tft.getStartCount() == 0) tft.startWrite();
   tft.setAddrWindow(area->x1, area->y1, w, h);
-  tft.writePixels(reinterpret_cast<uint16_t *>(pixels), w * h);
-  tft.endWrite();
+  tft.writePixelsDMA(reinterpret_cast<const uint16_t *>(pixels), w * h, false);
+  if (lv_display_flush_is_last(disp)) tft.endWrite();
   lv_display_flush_ready(disp);
 }
 
@@ -191,6 +196,7 @@ void beginAtlasDisplay() {
     serialLog.println("ATLAS|DISPLAY|INIT_FAILED");
     return;
   }
+  tft.initDMA();
   tft.setRotation(AtlasConfig::LCD_ROTATION);
   tft.setBrightness(BACKLIGHT_ON);
   lv_init();
@@ -256,7 +262,9 @@ void serviceAtlasDisplay(uint32_t nowMs) {
     AtlasScreen screen;
     buildAtlasScreen(nowMs, screen);
     if (!shownValid || !sameScreen(screen, shown)) {
-      renderAtlasScreen(screen, {theme, inverted});
+      // A ticking clock updates its labels in place; anything else rebuilds.
+      if (!shownValid || !sameScreenButTimes(screen, shown) || !updateAtlasScreenTimes(screen))
+        renderAtlasScreen(screen, {theme, inverted});
       shown = screen;
       shownValid = true;
     }

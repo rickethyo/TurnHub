@@ -16,6 +16,9 @@ struct ScreenStyle {
 };
 
 void renderAtlasScreen(const AtlasScreen &screen, const ScreenStyle &style);
+// Updates the ticking labels of the screen last rendered in place (see
+// sameScreenButTimes); false when it can't, and the caller renders afresh.
+bool updateAtlasScreenTimes(const AtlasScreen &screen);
 void renderAtlasSplash(const ScreenStyle &style, const char *firmware);
 
 }  // namespace TurnHubAtlas

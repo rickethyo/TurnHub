@@ -1512,3 +1512,17 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
 - Atlas case geometry is unchanged; its firmware now draws upside down to
   match (`LCD_ROTATION = 2`, owner asked). The Sigil keeps its rotation
   (owner: it reads right as it is).
+
+### Atlas screen: smoother, and Table becomes a scoreboard / Claude / 2026-10-30
+
+- Owner: Atlas animations could be smoother; Game and Table were near duplicates.
+- Smoothness: the S3 flush now sends each buffer by SPI DMA while LVGL renders
+  the next (`atlas_display_s3.cpp`); clocks (header match time, turn ring,
+  turn times) update their labels in place (`sameScreenButTimes`,
+  `updateAtlasScreenTimes`) instead of rebuilding the screen every second;
+  the turn banner drops its wide blurred shadow, which re-rendered per frame.
+- Table (`ScreenKind::Overview`) is now a scoreboard: a round / match time /
+  turn strip, then one grouped list in turn order with life, a life bar
+  against the table's highest and time on turn. Game keeps the touch tiles.
+  Previews: `table-overview*`. Hardware Manual line added.
+- Host suites and adapter audit pass; hardware smoothness needs the owner's eye.

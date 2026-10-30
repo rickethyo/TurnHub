@@ -39,6 +39,18 @@ ScreenStyle style = {TurnHubTheme::Id::Graphite, false};
 
 const TurnHubTheme::Palette &pal() { return TurnHubTheme::palette(style.theme); }
 
+// The ticking labels of the screen on the panel, updated in place by
+// updateAtlasScreenTimes so a running clock redraws a few glyphs, not the panel.
+struct LiveLabels {
+  lv_obj_t *header = nullptr;
+  lv_obj_t *clock = nullptr;
+  const lv_font_t *clockFont = nullptr;
+  lv_obj_t *arc = nullptr;
+  lv_obj_t *gameClock = nullptr;
+  lv_obj_t *turnTime[MAX_SCREEN_PLAYERS] = {};
+};
+LiveLabels live;
+
 lv_color_t rgb(uint32_t c) {
   if (style.inverted) c = 0xFFFFFF - (c & 0xFFFFFF);
   return lv_color_hex(c);
@@ -330,23 +342,35 @@ int16_t drawBattery(lv_obj_t *bar, const AtlasScreen &s) {
   return static_cast<int16_t>(bodyW + nubW + 6 + labelW + 12);
 }
 
+void headerRight(const AtlasScreen &s, char *right, size_t size);
+
 void drawHeader(lv_obj_t *root, const AtlasScreen &s) {
   lv_obj_t *bar = box(root, 0, 0, W, SCREEN_HEADER_H);
   lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_BOTTOM, 0);
   lv_obj_set_style_border_width(bar, 1, 0);
   lv_obj_set_style_border_color(bar, rgb(pal().separator), 0);
   text(bar, s.badge, &th_eyebrow_13, pal().accent, 14, 10, 110);
-  char right[64] = {};
-  size_t n = 0;
-  if (s.round > 0) n += snprintf(right + n, sizeof(right) - n, "Round %u  ", static_cast<unsigned>(s.round));
-  if (s.gameClock[0]) n += snprintf(right + n, sizeof(right) - n, "%s  ", s.gameClock);
-  if (s.sdOnUsb) n += snprintf(right + n, sizeof(right) - n, "USB DRIVE  ");
-  if (s.sdMissing) n += snprintf(right + n, sizeof(right) - n, "NO SD  ");
-  if (s.update != TurnHub::UpdateKind::None) n += snprintf(right + n, sizeof(right) - n, "Update  ");
-  snprintf(right + n, sizeof(right) - n, "Sigils %u", static_cast<unsigned>(s.sigilsOnline));
+  char right[64];
+  headerRight(s, right, sizeof(right));
   const int16_t battery = drawBattery(bar, s);
-  text(bar, right, &th_semi_16, s.sdMissing ? pal().warning : pal().textSecondary, 110, 7, W - 124 - battery,
+  live.header = text(bar, right, &th_semi_16, s.sdMissing ? pal().warning : pal().textSecondary, 110, 7, W - 124 - battery,
        LV_TEXT_ALIGN_RIGHT);
+}
+
+void headerRight(const AtlasScreen &s, char *right, size_t size) {
+  size_t n = 0;
+  right[0] = 0;
+  if (s.round > 0) n += snprintf(right + n, size - n, "Round %u  ", static_cast<unsigned>(s.round));
+  if (s.gameClock[0]) n += snprintf(right + n, size - n, "%s  ", s.gameClock);
+  if (s.sdOnUsb) n += snprintf(right + n, size - n, "USB DRIVE  ");
+  if (s.sdMissing) n += snprintf(right + n, size - n, "NO SD  ");
+  if (s.update != TurnHub::UpdateKind::None) n += snprintf(right + n, size - n, "Update  ");
+  snprintf(right + n, size - n, "Sigils %u", static_cast<unsigned>(s.sigilsOnline));
+}
+
+constexpr int16_t HERO_RING = 62;
+const lv_font_t *clockFont(const char *clock) {
+  return textWidth(clock, &th_semi_20) <= HERO_RING - 18 ? &th_semi_20 : &th_semi_16;
 }
 
 // The title and detail line, and in a game the app's turn ring at the right:
@@ -354,7 +378,7 @@ void drawHeader(lv_obj_t *root, const AtlasScreen &s) {
 // ring with no countdown).
 void drawHero(lv_obj_t *root, const AtlasScreen &s) {
   const bool clock = s.clock[0] != '\0';
-  constexpr int16_t ring = 62;
+  constexpr int16_t ring = HERO_RING;
   const int16_t x = 14;
   const int16_t w = W - x - (clock ? ring + 24 : 14);
   text(root, s.title, pal().ornament ? &th_cinzel_32 : &th_bold_28, pal().text, x, SCREEN_HERO_Y + 6, w);
@@ -365,7 +389,7 @@ void drawHero(lv_obj_t *root, const AtlasScreen &s) {
   text(root, line, &th_semi_16, notice ? pal().accent : pal().textSecondary, x, SCREEN_HERO_Y + 42, w);
   if (!clock) return;
   const uint32_t ink = s.timerWarning ? pal().warning : pal().turn;
-  lv_obj_t *arc = lv_arc_create(root);
+  lv_obj_t *arc = live.arc = lv_arc_create(root);
   lv_obj_remove_style_all(arc);
   lv_obj_remove_flag(arc, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_set_size(arc, ring, ring);
@@ -386,8 +410,8 @@ void drawHero(lv_obj_t *root, const AtlasScreen &s) {
   lv_obj_set_style_radius(halo, LV_RADIUS_CIRCLE, 0);
   lv_obj_set_style_bg_opa(halo, LV_OPA_COVER, 0);
   lv_obj_set_style_bg_color(halo, rgb(s.timerWarning ? pal().surface3 : pal().turnSoft), 0);
-  const lv_font_t *font = textWidth(s.clock, &th_semi_20) <= ring - 18 ? &th_semi_20 : &th_semi_16;
-  text(root, s.clock, font, s.timerWarning ? pal().warning : pal().text, W - 14 - ring,
+  const lv_font_t *font = live.clockFont = clockFont(s.clock);
+  live.clock = text(root, s.clock, font, s.timerWarning ? pal().warning : pal().text, W - 14 - ring,
        SCREEN_HERO_Y + 2 + (ring - lv_font_get_line_height(font)) / 2, ring, LV_TEXT_ALIGN_CENTER);
 }
 
@@ -395,7 +419,8 @@ void drawHero(lv_obj_t *root, const AtlasScreen &s) {
 // (it opens the player's screen), the life total in the middle with faint
 // - and + marking the halves that change it, and a status pill. The turn is
 // the one thing that glows.
-void drawChip(lv_obj_t *root, const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_t w, int16_t h, bool readOnly = false) {
+// Returns the turn-time label, if it drew one.
+lv_obj_t *drawChip(lv_obj_t *root, const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_t w, int16_t h) {
   const bool active = p.flags & CHIP_ACTIVE;
   const bool out = p.flags & CHIP_OUT;
   const bool winner = p.flags & CHIP_WINNER;
@@ -425,11 +450,11 @@ void drawChip(lv_obj_t *root, const ScreenPlayer &p, bool showLife, int16_t x, i
   lv_obj_t *name = text(tile, p.name, nameFont, ink, nameX, nameY, w - nameX - 8 - pillW);
   if (out) lv_obj_set_style_text_decor(name, LV_TEXT_DECOR_STRIKETHROUGH, 0);
   if (!showLife) {
-    if (!tag[0]) return;
+    if (!tag[0]) return nullptr;
     const bool waiting = p.flags & CHIP_WAITING;
     lv_obj_t *tagPill = pill(tile, tag, waiting ? pal().accent : pal().surface3, waiting ? pal().onAccent : pal().textSecondary);
     lv_obj_set_pos(tagPill, 10, h - 30);
-    return;
+    return nullptr;
   }
   // Life: centred in the area under the band, between - and +.
   const int16_t lowerY = CHIP_NAME_BAND_H, lowerH = h - CHIP_NAME_BAND_H;
@@ -440,12 +465,13 @@ void drawChip(lv_obj_t *root, const ScreenPlayer &p, bool showLife, int16_t x, i
   const int16_t lh = lv_font_get_line_height(font);
   const int16_t timeRoom = tall && p.turnTime[0] ? 20 : 0;
   text(tile, life, font, lifeInk, 0, lowerY + (lowerH - timeRoom - lh) / 2, w, LV_TEXT_ALIGN_CENTER);
-  if (!out && !readOnly) {
+  if (!out) {
     const int16_t signY = lowerY + (lowerH - timeRoom - lv_font_get_line_height(&th_bold_28)) / 2;
     text(tile, "-", &th_bold_28, pal().textTertiary, 12, signY, 24);
     text(tile, "+", &th_bold_28, pal().textTertiary, w - 30, signY, 24, LV_TEXT_ALIGN_RIGHT);
   }
-  if (timeRoom) text(tile, p.turnTime, &th_semi_16, pal().textSecondary, 0, h - 24, w, LV_TEXT_ALIGN_CENTER);
+  if (!timeRoom) return nullptr;
+  return text(tile, p.turnTime, &th_semi_16, pal().textSecondary, 0, h - 24, w, LV_TEXT_ALIGN_CENTER);
 }
 
 // Body lines in a column: each wraps to the width and pushes the next down.
@@ -482,6 +508,122 @@ void drawQr(lv_obj_t *root, const char *data, int16_t x, int16_t y, int16_t size
   lv_obj_center(qr);
 }
 
+// The Table page: a scoreboard, where the Game page has touchable tiles. A
+// strip of match facts (round, match time, whose turn), then one grouped list
+// with a row per player in turn order: seat, token, name, status and time on
+// turn, and the life total over a bar measured against the table's highest.
+// Read only: nothing here is a touch target.
+void drawStandings(lv_obj_t *root, const AtlasScreen &s) {
+  bool lowerRow = false;
+  for (uint8_t i = 0; i < s.buttonCount; ++i) lowerRow = lowerRow || !tabAction(s.buttons[i]);
+  const int16_t bottom = (lowerRow ? BUTTON_ROW_Y : H - 48) - 8;
+  int16_t y = SCREEN_BODY_Y;
+  const ScreenPlayer *lead = nullptr;
+  int32_t highest = 1;
+  for (uint8_t i = 0; i < s.playerCount; ++i) {
+    const ScreenPlayer &p = s.players[i];
+    if (!lead && (p.flags & (CHIP_WINNER | CHIP_ACTIVE | CHIP_STARTER))) lead = &p;
+    if (!(p.flags & CHIP_OUT) && p.life > highest) highest = p.life;
+  }
+  // The facts strip: three labelled values.
+  lv_obj_t *strip = box(root, 8, y, W - 16, 58);
+  card(strip, pal().surface1, pal().separator);
+  const int16_t colW = (W - 16) / 3;
+  char value[3][20];
+  const char *label[3];
+  if (s.showLife) {
+    label[0] = "ROUND"; label[1] = "MATCH";
+    label[2] = lead && (lead->flags & CHIP_WINNER) ? "WINNER" : "TURN";
+    snprintf(value[0], sizeof(value[0]), s.round ? "%u" : "-", static_cast<unsigned>(s.round));
+    snprintf(value[1], sizeof(value[1]), "%s", s.gameClock[0] ? s.gameClock : "-");
+  } else {
+    label[0] = "PLAYERS"; label[1] = "SIGILS"; label[2] = "STARTS";
+    snprintf(value[0], sizeof(value[0]), "%u", static_cast<unsigned>(s.playerCount));
+    snprintf(value[1], sizeof(value[1]), "%u", static_cast<unsigned>(s.sigilsOnline));
+  }
+  snprintf(value[2], sizeof(value[2]), "%s", lead ? lead->name : "-");
+  for (uint8_t c = 0; c < 3; ++c) {
+    if (c) {
+      lv_obj_t *rule = box(strip, c * colW, 12, 1, 34);
+      card(rule, pal().separator, pal().separator, 0);
+    }
+    text(strip, label[c], &th_eyebrow_13, pal().textTertiary, c * colW, 8, colW, LV_TEXT_ALIGN_CENTER);
+    lv_obj_t *v = text(strip, value[c], &th_semi_20, c == 2 && lead ? pal().turn : pal().text, c * colW + 4, 26,
+        colW - 8, LV_TEXT_ALIGN_CENTER);
+    if (c == 1 && s.showLife) live.gameClock = v;
+  }
+  y += 66;
+  if (s.playerCount == 0) return;
+  int16_t rowH = (bottom - y) / s.playerCount;
+  if (rowH > 62) rowH = 62;
+  const bool roomy = rowH >= 48;
+  lv_obj_t *group = box(root, 8, y, W - 16, rowH * s.playerCount);
+  card(group, pal().surface1, pal().separator);
+  lv_obj_set_style_clip_corner(group, true, 0);
+  const int16_t gw = W - 16, side = roomy ? 32 : 24, nameX = 30 + side + 10, lifeW = 92;
+  for (uint8_t i = 0; i < s.playerCount; ++i) {
+    const ScreenPlayer &p = s.players[i];
+    const bool active = p.flags & CHIP_ACTIVE, out = p.flags & CHIP_OUT, winner = p.flags & CHIP_WINNER;
+    const int16_t top = i * rowH;
+    if (active || winner) {
+      lv_obj_t *band = box(group, 0, top, gw, rowH);
+      lv_obj_set_style_bg_opa(band, LV_OPA_COVER, 0);
+      lv_obj_set_style_bg_color(band, rgb(pal().turnSoft), 0);
+      lv_obj_t *edge = box(group, 0, top, 4, rowH);
+      lv_obj_set_style_bg_opa(edge, LV_OPA_COVER, 0);
+      lv_obj_set_style_bg_color(edge, rgb(pal().turn), 0);
+    } else if (i) {
+      lv_obj_t *rule = box(group, nameX, top, gw - nameX, 1);
+      card(rule, pal().separator, pal().separator, 0);
+    }
+    char seat[4];
+    snprintf(seat, sizeof(seat), "%u", static_cast<unsigned>(p.number));
+    text(group, seat, &th_eyebrow_13, pal().textTertiary, 6, top + (rowH - 16) / 2, 20, LV_TEXT_ALIGN_CENTER);
+    seatToken(group, p, 30, top + (rowH - side) / 2, side, active || winner);
+    const lv_font_t *nameFont = roomy ? &th_semi_20 : &th_semi_16;
+    const char *tag = chipTag(p);
+    const int16_t textW = gw - nameX - lifeW - 8;
+    const int16_t nameY = roomy ? top + 6 : top + (rowH - lv_font_get_line_height(nameFont)) / 2;
+    lv_obj_t *name = text(group, p.name, nameFont, out ? pal().textTertiary : pal().text, nameX, nameY, textW);
+    if (out) lv_obj_set_style_text_decor(name, LV_TEXT_DECOR_STRIKETHROUGH, 0);
+    const int16_t lifeX = gw - lifeW - 12;
+    if (roomy) {
+      // Status in words, then the time on turn, under the name.
+      int16_t x = nameX;
+      if (tag[0]) {
+        text(group, tag, &th_eyebrow_13, active || winner || (p.flags & CHIP_WAITING) ? pal().turn : pal().textSecondary,
+            x, top + 32, textW);
+        x += textWidth(tag, &th_eyebrow_13) + 8;
+      }
+      if (p.turnTime[0]) live.turnTime[i] = text(group, p.turnTime, &th_eyebrow_13, pal().textSecondary, x, top + 32, nameX + textW - x);
+    } else if (p.turnTime[0]) {
+      live.turnTime[i] = text(group, p.turnTime, &th_eyebrow_13, pal().textSecondary, lifeX - 52, top + (rowH - 16) / 2, 48,
+          LV_TEXT_ALIGN_RIGHT);
+    }
+    if (!s.showLife) {
+      if (!roomy && tag[0]) text(group, tag, &th_eyebrow_13, pal().turn, lifeX, top + (rowH - 16) / 2, lifeW, LV_TEXT_ALIGN_RIGHT);
+      continue;
+    }
+    char life[12];
+    snprintf(life, sizeof(life), "%ld", static_cast<long>(p.life));
+    const lv_font_t *lifeFont = rowH >= 56 ? &th_num_40 : rowH >= 40 ? &th_bold_28 : &th_semi_20;
+    text(group, life, lifeFont, out ? pal().textTertiary : active ? pal().turn : pal().text, lifeX,
+        top + (rowH - lv_font_get_line_height(lifeFont)) / 2, lifeW, LV_TEXT_ALIGN_RIGHT);
+    if (roomy && !out) {
+      // Life against the table's highest: who's ahead at a glance.
+      const int16_t barW = textW, fill = p.life <= 0 ? 0 : static_cast<int16_t>(barW * (p.life < highest ? p.life : highest) / highest);
+      lv_obj_t *track = box(group, nameX, top + rowH - 9, barW, 4);
+      card(track, pal().fillStrong, pal().fillStrong, 2);
+      lv_obj_set_style_border_width(track, 0, 0);
+      if (fill > 0) {
+        lv_obj_t *bar = box(track, 0, 0, fill, 4);
+        card(bar, active ? pal().turn : seatColor(p.number), active ? pal().turn : seatColor(p.number), 2);
+        lv_obj_set_style_border_width(bar, 0, 0);
+      }
+    }
+  }
+}
+
 void drawBody(lv_obj_t *root, const AtlasScreen &s) {
   if (codeLayout(s)) {
     // Code on top, the QR code centred under it, then its caption and lines.
@@ -503,10 +645,14 @@ void drawBody(lv_obj_t *root, const AtlasScreen &s) {
     return;
   }
   if (s.kind == ScreenKind::Home || buttonsUseBody(s)) return;
+  if (s.kind == ScreenKind::Overview) {
+    drawStandings(root, s);
+    return;
+  }
   for (uint8_t i = 0; i < s.playerCount; ++i) {
     int16_t x, y, w, h;
     screenChipCell(i, s.playerCount, x, y, w, h);
-    drawChip(root, s.players[i], s.showLife, x, y, w, h, s.kind == ScreenKind::Overview);
+    live.turnTime[i] = drawChip(root, s.players[i], s.showLife, x, y, w, h);
   }
   if (s.playerCount > 0) return;
   const int16_t bodyH = BUTTON_ROW_Y - 8 - SCREEN_BODY_Y;
@@ -773,8 +919,11 @@ void showTurnBanner(const ScreenPlayer &p, uint16_t round) {
   lv_obj_t *banner = box(layer, W, (H - bh) / 2 - 20, bw, bh);
   card(banner, pal().turn, pal().turn, 20);
   sheen(banner, pal().turn);
-  lift(banner);
-  lv_obj_set_style_shadow_width(banner, 28, 0);
+  // No drop shadow: a wide blurred shadow re-renders on every frame of the
+  // slide and made it stutter on the panel. A hairline keeps it off the page.
+  lv_obj_set_style_border_width(banner, 2, 0);
+  lv_obj_set_style_border_color(banner, rgb(pal().onTurn), 0);
+  lv_obj_set_style_border_opa(banner, LV_OPA_30, 0);
   seatToken(banner, p, 16, (bh - 48) / 2, 48, false);
   lv_obj_set_style_border_width(lv_obj_get_child(banner, 0), 2, 0);
   lv_obj_set_style_border_color(lv_obj_get_child(banner, 0), rgb(pal().onTurn), 0);
@@ -789,7 +938,7 @@ void showTurnBanner(const ScreenPlayer &p, uint16_t round) {
   lv_anim_set_var(&in, banner);
   lv_anim_set_exec_cb(&in, slideX);
   lv_anim_set_values(&in, W, 12);
-  lv_anim_set_duration(&in, 320);
+  lv_anim_set_duration(&in, 360);
   lv_anim_set_path_cb(&in, lv_anim_path_ease_out);
   lv_anim_start(&in);
   lv_anim_t out;
@@ -797,8 +946,8 @@ void showTurnBanner(const ScreenPlayer &p, uint16_t round) {
   lv_anim_set_var(&out, banner);
   lv_anim_set_exec_cb(&out, slideX);
   lv_anim_set_values(&out, 12, -W);
-  lv_anim_set_delay(&out, 320 + 1100);
-  lv_anim_set_duration(&out, 280);
+  lv_anim_set_delay(&out, 360 + 1100);
+  lv_anim_set_duration(&out, 320);
   lv_anim_set_path_cb(&out, lv_anim_path_ease_in);
   lv_anim_set_completed_cb(&out, lv_obj_delete_anim_completed_cb);
   lv_anim_start(&out);
@@ -819,6 +968,7 @@ void noteTurn(const AtlasScreen &s) {
 
 void renderAtlasScreen(const AtlasScreen &s, const ScreenStyle &chosen) {
   style = chosen;
+  live = LiveLabels();
   lv_obj_t *root = lv_screen_active();
   lv_obj_clean(root);
   lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
@@ -839,8 +989,29 @@ void renderAtlasScreen(const AtlasScreen &s, const ScreenStyle &chosen) {
   noteTurn(s);
 }
 
+bool updateAtlasScreenTimes(const AtlasScreen &s) {
+  if (live.header) {
+    char right[64];
+    headerRight(s, right, sizeof(right));
+    lv_label_set_text(live.header, right);
+  }
+  if (live.gameClock) lv_label_set_text(live.gameClock, s.gameClock[0] ? s.gameClock : "-");
+  if (s.clock[0]) {
+    if (!live.clock || !live.arc || clockFont(s.clock) != live.clockFont) return false;
+    lv_label_set_text(live.clock, s.clock);
+    lv_arc_set_value(live.arc, s.timerPermille >= 0 ? s.timerPermille : 1000);
+  }
+  for (uint8_t i = 0; i < s.playerCount; ++i) {
+    if (!s.players[i].turnTime[0]) continue;
+    if (!live.turnTime[i]) return false;
+    lv_label_set_text(live.turnTime[i], s.players[i].turnTime);
+  }
+  return true;
+}
+
 void renderAtlasSplash(const ScreenStyle &chosen, const char *firmware) {
   style = chosen;
+  live = LiveLabels();
   lv_obj_t *root = lv_screen_active();
   lv_obj_clean(root);
   lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
