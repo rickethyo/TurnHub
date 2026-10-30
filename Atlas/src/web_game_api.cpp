@@ -7,6 +7,8 @@
 #include "firmware_version.h"
 #include "protocol.h"
 #include "web_api_internal.h"
+#include "card_cache.h"
+#include "controller_profiles.h"
 #include "avatars.h"
 
 namespace TurnHubWebApi {
@@ -218,6 +220,7 @@ void handleGameSettings(WebServer &server) {
       ",\"twoHeadedGiant\":" + jsonBool(settings.twoHeadedGiant) +
       ",\"houseRules\":" + jsonBool(settings.houseRules) +
       ",\"planechase\":" + jsonBool(settings.planechase) +
+      ",\"planarDeck\":\"" + (settings.planarDigital ? "digital" : "physical") + "\"" +
       ",\"teamLife\":{\"mtg\":" + String(TurnHub::TEAM_LIFE_MAGIC) +
       ",\"mtg_commander\":" + String(TurnHub::TEAM_LIFE_COMMANDER) + "}" +
       ",\"turnTimer\":{\"presetsMs\":[" + presets + "],\"minMs\":" + String(TurnHub::TURN_TIMER_MIN_MS) +
@@ -274,6 +277,14 @@ bool parseGameSettings(WebServer &server, TurnHub::GameSettings &settings) {
   } else if (!TurnHub::magicRules(settings.profile)) {
     // Switching to a profile without Planechase turns it off.
     settings.planechase = false;
+  }
+  if (server.hasArg("planarDeck")) {
+    const String deck = server.arg("planarDeck");
+    if (deck != "physical" && deck != "digital") {
+      sendError(server, 400, "planarDeck must be physical or digital");
+      return false;
+    }
+    settings.planarDigital = deck == "digital";
   }
   if (server.hasArg("autoEliminateAtZeroLife")) {
     const String value = server.arg("autoEliminateAtZeroLife");
@@ -440,6 +451,8 @@ bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::I
     const String action = server.arg("action");
     if (action == "planeswalk") { payload.flags = static_cast<uint32_t>(PlanarCommand::Planeswalk); return true; }
     if (action == "chaos") { payload.flags = static_cast<uint32_t>(PlanarCommand::Chaos); return true; }
+    if (action == "resolve") { payload.flags = static_cast<uint32_t>(PlanarCommand::Resolve); return true; }
+    if (action == "top-to-bottom") { payload.flags = static_cast<uint32_t>(PlanarCommand::TopToBottom); return true; }
     if (action == "counter") {
       payload.flags = static_cast<uint32_t>(PlanarCommand::Counter);
       const String delta = server.arg("delta");
@@ -504,6 +517,90 @@ bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::I
     payload.counterSlot = static_cast<uint8_t>(number);
   }
   return valid;
+}
+
+// GET: the catalog's version and size, so the app knows when to send it.
+// POST (any signed-in browser or tablet): version + planes, one line per card
+// "id<TAB>name<TAB>0|1". Kept in RAM and on the microSD card.
+void handlePlanesCatalogInfo(WebServer &server) {
+  sendJson(server, 200, String("{\"version\":\"") + jsonEscape(TurnHubCards::planesVersion()) +
+      "\",\"count\":" + String(TurnHubCards::planeCount()) + "}");
+}
+
+void handlePlanesCatalog(WebServer &server) {
+  if (!requireSession(server)) return;
+  bool saved = false;
+  if (!TurnHubCards::replacePlanes(server.arg("planes").c_str(), server.arg("version").c_str(), saved)) {
+    sendError(server, 400, "Send the planes as id, name and phenomenon lines with a version");
+    return;
+  }
+  sendJson(server, 200, String("{\"ok\":true,\"count\":") + String(TurnHubCards::planeCount()) +
+      ",\"saved\":" + jsonBool(saved) + "}");
+}
+
+// GET ?profileId= (a tablet, for a seated player) or the session's own profile.
+void handleSavedCommanders(WebServer &server) {
+  WebSession *session = requireSession(server);
+  if (!session) return;
+  const String profile = session->tableDevice && server.hasArg("profileId") ? server.arg("profileId") : String(session->profileId);
+  TurnHubCards::SavedCommanders saved;
+  if (!TurnHubProfiles::profileExists(profile) || !TurnHubCards::loadCommanders(profile, saved)) {
+    sendError(server, 409, "Saved commanders need this Atlas's microSD card");
+    return;
+  }
+  String body = "{\"profileId\":\"" + profile + "\",\"commanders\":[";
+  for (uint8_t i = 0; i < saved.count; ++i) {
+    if (i) body += ',';
+    body += "{\"slot\":"; body += String(i + 1);
+    body += ",\"name\":\""; body += jsonEscape(saved.slots[i].name);
+    body += "\",\"art\":"; body += saved.slots[i].art[0] ? "\"" + jsonEscape(saved.slots[i].art) + "\"" : String("null");
+    body += '}';
+  }
+  body += "]}";
+  sendJson(server, 200, body);
+}
+
+// slot (1-based saved commander, 0 for none), or name (+ art) to save it to
+// the seat's profile first. "forget" + slot removes a saved one.
+void chooseCommanderFor(WebServer &server, uint8_t controllerId, uint8_t slot) {
+  const String profile = TurnHubControllers::profileForSeat(controllerId, slot);
+  if (!profile.length()) { sendError(server, 409, "Guests have no saved commanders"); return; }
+  int32_t chosen = 0;
+  if (server.hasArg("forget")) {
+    if (!parseBoundedNumber(server.arg("forget"), 1, TurnHubCards::COMMANDER_SLOTS, chosen) ||
+        !TurnHubCards::forgetCommander(profile, static_cast<uint8_t>(chosen))) {
+      sendError(server, 409, "That saved commander isn't on this Atlas");
+      return;
+    }
+    sendOkMessage(server, "Saved commander removed");
+    return;
+  }
+  if (server.hasArg("name")) {
+    if (!TurnHubCards::validCommander(server.arg("name"), server.arg("art"))) {
+      sendError(server, 400, "Name a commander (up to 64 characters) and an optional printing ID");
+      return;
+    }
+    chosen = TurnHubCards::rememberCommander(profile, server.arg("name"), server.arg("art"));
+    if (!chosen) { sendError(server, 409, "Saving commanders needs this Atlas's microSD card"); return; }
+  } else if (!parseBoundedNumber(server.arg("slot"), 0, TurnHubCards::COMMANDER_SLOTS, chosen)) {
+    sendError(server, 400, "Choose a saved commander slot");
+    return;
+  }
+  TurnHub::IntentPayload payload;
+  payload.value = chosen;
+  String message = "That player is not at the table";
+  if (!counterControlHandler || !counterControlHandler(controllerId, slot, TurnHub::IntentType::SetCommander, payload, message)) {
+    sendError(server, 409, message);
+    return;
+  }
+  sendOkMessage(server, message);
+}
+
+void handleCommanderChoice(WebServer &server) {
+  WebSession *session = requireSession(server);
+  if (!session) return;
+  if (!resolveSessionParticipant(*session)) { sendError(server, 409, "Join the table first"); return; }
+  chooseCommanderFor(server, session->controllerId, session->slot);
 }
 
 void handleCounterControl(WebServer &server, TurnHub::IntentType type) {

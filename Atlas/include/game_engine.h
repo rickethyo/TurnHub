@@ -104,6 +104,10 @@ class GameEngine {
   // counters. Faces: 0 blank, 1 chaos, 2 planeswalk.
   struct PlanarView {
     bool enabled = false;
+    bool digital = false;           // Atlas's digital deck (else the players' own planes).
+    bool phenomenon = false;        // The face-up card is a phenomenon, to resolve first.
+    int32_t deckSize = 0;           // Digital: cards left face down.
+    char plane[37] = "";            // Digital: the face-up card's ID (card_cache.h names it).
     int32_t planeswalks = 0, chaos = 0, counters = 0, rollCost = 0;
     int32_t lastRoll = 0;  // This match's roll number; 0 before the first.
     uint8_t lastPlayer = 0, lastFace = 0, lastCost = 0;
@@ -111,10 +115,14 @@ class GameEngine {
     bool operator==(const PlanarView &o) const {
       return enabled == o.enabled && planeswalks == o.planeswalks && chaos == o.chaos && counters == o.counters &&
           rollCost == o.rollCost && lastRoll == o.lastRoll && lastPlayer == o.lastPlayer && lastFace == o.lastFace &&
-          lastCost == o.lastCost && lastFromEffect == o.lastFromEffect;
+          lastCost == o.lastCost && lastFromEffect == o.lastFromEffect && digital == o.digital &&
+          phenomenon == o.phenomenon && deckSize == o.deckSize && !strcmp(plane, o.plane);
     }
   };
   PlanarView planar() const;
+  // Commander formats: the seat's commander (and printing) for this match.
+  bool setSeatCommander(uint8_t playerNumber, const char *name, const char *art);
+  bool commanderFor(uint8_t playerNumber, String &name, String &art) const;
   // The active team rolls (face, fromEffect) and planeswalks or has chaos
   // ensue by a card's say-so; any living player corrects counters (value = delta).
   bool planarAction(uint8_t playerNumber, PlanarCommand command, int32_t value, bool fromEffect);

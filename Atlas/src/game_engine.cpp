@@ -1,5 +1,9 @@
 #include "game_engine.h"
 
+#include <string.h>
+
+#include "card_cache.h"
+
 // Atlas's game runs on the shared rules core (core/README.md), the app's own
 // rules. This class keeps the interface the rest of Atlas reads (seats by
 // player number and controller) and the few things only Atlas has: its seats'
@@ -154,9 +158,27 @@ bool GameEngine::start(
   lobby.autoEliminateAtPoisonLimit = settings.autoEliminateAtPoisonLimit;
   lobby.autoEliminateAtCommanderDamage = settings.autoEliminateAtCommanderDamage;
   lobby.askEliminationSource = settings.askEliminationSource;
+  turnhub::Json planarDeck = turnhub::Json::array();
   if (settings.planechase && magicRules(settings.profile)) {
     lobby.planechase.set("enabled", true);
-    lobby.planechase.set("source", "physical");
+    // Without a saved catalog the digital deck falls back to the players' own planes.
+    const uint16_t catalog = TurnHubCards::planeCount();
+    lobby.planechase.set("source", settings.planarDigital && catalog ? "digital" : "physical");
+    if (settings.planarDigital && catalog) {
+      uint16_t order[TurnHubCards::MAX_PLANES];
+      for (uint16_t i = 0; i < catalog; ++i) order[i] = i;
+      for (uint16_t i = catalog - 1; i > 0; --i) {
+        const uint16_t j = static_cast<uint16_t>(esp_random() % (i + 1u));
+        const uint16_t t = order[i]; order[i] = order[j]; order[j] = t;
+      }
+      for (uint16_t i = 0; i < catalog; ++i) {
+        const auto *card = TurnHubCards::plane(order[i]);
+        turnhub::Json entry = turnhub::Json::object();
+        entry.set("id", card->id);
+        entry.set("phenomenon", card->phenomenon);
+        planarDeck.push(entry);
+      }
+    }
   }
   for (uint8_t i = 0; i < playerCount; ++i) {
     turnhub::Player seat;
@@ -176,7 +198,7 @@ bool GameEngine::start(
   anchor32_ = nowMs;
   anchor64_ = int64_t(1) << 32;
   AtlasRandom random;
-  const turnhub::Game started = lobby.start(at(nowMs), id, random);
+  const turnhub::Game started = lobby.start(at(nowMs), id, random, planarDeck);
   if (started.state != turnhub::TableState::Running) return false;
 
   settings_ = settings;
@@ -551,14 +573,35 @@ bool GameEngine::undoCommanderHit(uint8_t recipient) {
   return true;
 }
 
+bool GameEngine::setSeatCommander(uint8_t playerNumber, const char *name, const char *art) {
+  const int index = indexForPlayerNumber(playerNumber);
+  if (index < 0 || !name) return false;
+  return commit(core_.setCommander(index, name, art ? art : ""));
+}
+
+bool GameEngine::commanderFor(uint8_t playerNumber, String &name, String &art) const {
+  const int index = indexForPlayerNumber(playerNumber);
+  if (index < 0 || core_.players[index].commander.empty()) return false;
+  name = core_.players[index].commander.c_str();
+  art = core_.players[index].commanderArt.c_str();
+  return true;
+}
+
 GameEngine::PlanarView GameEngine::planar() const {
   PlanarView view;
   const turnhub::Json &p = core_.planechase;
   if (playerCount_ == 0 || !p.get("enabled").asBool()) return view;
   view.enabled = true;
+  view.digital = p.get("source").asString() == "digital";
+  view.deckSize = static_cast<int32_t>(p.get("deck").size());
+  const turnhub::Json &up = p.get("faceUp");
+  if (view.digital && up.size()) {
+    snprintf(view.plane, sizeof(view.plane), "%s", up[0].get("id").asString().c_str());
+    for (size_t i = 0; i < up.size(); ++i) view.phenomenon = view.phenomenon || up[i].get("phenomenon").asBool();
+  }
   view.planeswalks = static_cast<int32_t>(p.get("planeswalks").asInt());
   view.chaos = static_cast<int32_t>(p.get("chaos").asInt());
-  view.counters = static_cast<int32_t>(p.get("counters").get("physical").asInt());
+  view.counters = static_cast<int32_t>(p.get("counters").get(view.digital ? view.plane : "physical").asInt());
   if (core_.active) view.rollCost = static_cast<int32_t>(p.get("rolls").get(std::to_string(*core_.active)).asInt());
   const turnhub::Json &roll = p.get("lastRoll");
   if (roll.isObject()) {
@@ -586,10 +629,12 @@ bool GameEngine::planarAction(uint8_t playerNumber, PlanarCommand command, int32
       break;
     case PlanarCommand::Planeswalk: action.set("do", "planeswalk"); break;
     case PlanarCommand::Chaos: action.set("do", "chaosEnsues"); break;
+    case PlanarCommand::Resolve: action.set("do", "resolvePhenomenon"); break;
+    case PlanarCommand::TopToBottom: action.set("do", "planarTopToBottom"); break;
     case PlanarCommand::Counter:
       if (value != -1 && value != 1) return false;
       action.set("do", "changePlaneCounter");
-      action.set("card", "physical");
+      action.set("card", planar().digital ? planar().plane : "physical");
       action.set("delta", value);
       break;
     default: return false;

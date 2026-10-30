@@ -274,6 +274,10 @@ const Route ROUTES[] = {
   {"/api/control/elimination", HTTP_POST, counterRoute<TurnHub::IntentType::ResolveElimination>},
   {"/api/control/doom", HTTP_POST, counterRoute<TurnHub::IntentType::DoomBag>},
   {"/api/control/planar", HTTP_POST, counterRoute<TurnHub::IntentType::PlanarAction>},
+  {"/api/control/commander-choice", HTTP_POST, handleCommanderChoice},
+  {"/api/planes", HTTP_GET, handlePlanesCatalogInfo},
+  {"/api/planes", HTTP_POST, handlePlanesCatalog},
+  {"/api/profiles/commanders", HTTP_GET, handleSavedCommanders},
   // Tablet mode: one shared table screen acting for any seated player.
   {"/api/standalone/import", HTTP_POST, handleStandaloneImport},
   {"/api/tablet/enable", HTTP_POST, handleTabletEnable},
@@ -285,6 +289,7 @@ const Route ROUTES[] = {
   {"/api/tablet/elimination", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::ResolveElimination>},
   {"/api/tablet/doom", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::DoomBag>},
   {"/api/tablet/planar", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::PlanarAction>},
+  {"/api/tablet/commander-choice", HTTP_POST, handleTabletCommanderChoice},
   {"/api/tablet/settings", HTTP_POST, handleTabletSettings},
   {"/api/tablet/life/respond", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::RespondLifeChange>},
   {"/api/tablet/commander", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::ChangeCounter>},

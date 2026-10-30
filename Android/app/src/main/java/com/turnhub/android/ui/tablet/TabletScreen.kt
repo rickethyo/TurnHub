@@ -45,6 +45,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -348,6 +349,19 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
     val players = summary.players.sortedBy { it.playerNumber }
     val seat = summary.anySeat()
     val seated = players.mapNotNull { it.profileId }.toSet()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // Atlas deals its digital planar deck from the planes this app downloaded: send them
+    // when Atlas's catalog differs (first connection, newer download).
+    LaunchedEffect(summary.atlasId, enabled, PlaneLibrary.cards) {
+        val planes = PlaneLibrary.known(context)?.values?.toList().orEmpty()
+        if (enabled && planes.isNotEmpty()) actions.run { syncPlanes(planes) }
+    }
+    // Each seated profile's saved commanders, quick to pick again (kept on Atlas's card).
+    var savedCommanders by remember { mutableStateOf(emptyMap<String, List<Pair<String, String?>>>()) }
+    LaunchedEffect(seated, summary.revision, enabled) {
+        if (!enabled || !summary.settings.profile.commanderRules) return@LaunchedEffect
+        seated.forEach { id -> actions.run { val list = savedCommanders(id); savedCommanders = savedCommanders + (id to list) } }
+    }
     TableLobby(
         summary = summary,
         actions = TableLobbyActions(
@@ -386,6 +400,8 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
                 }
             },
             houseRules = { on -> seat?.let { actions.run { saveSettings(it, null, null, null, houseRules = on) } } },
+            commander = { player, name, printing, _ -> actions.run { chooseCommander(player.seat(), name, printing) } },
+            savedCommanders = { player -> player.profileId?.let { savedCommanders[it] }.orEmpty() },
             background = onEditBackground,
             canEditBackground = canEditBackground,
         ),
@@ -406,6 +422,22 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
                 "Play with your own plane cards. Atlas tracks the planar die, chaos and planeswalks.",
                 summary.settings.planechase, enabled && seat != null && !tablet.busy,
             ) { on -> seat?.let { actions.run { saveSettings(it, null, null, null, planechase = on) } } }
+            if (summary.settings.profile.magicRules && summary.settings.planechase) {
+                val scope = androidx.compose.runtime.rememberCoroutineScope()
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(false to "Your own planes", true to "Digital deck").forEach { (digital, label) ->
+                        androidx.compose.material3.FilterChip(summary.settings.planarDigital == digital, {
+                            seat?.let { actions.run { saveSettings(it, null, null, null, planarDigital = digital) } }
+                            // The digital deck needs the planes on this device first; Atlas gets them next.
+                            if (digital && PlaneLibrary.pool(context).isEmpty()) scope.launch { PlaneLibrary.download(context) }
+                        }, label = { Text(label) }, enabled = enabled && seat != null && !tablet.busy)
+                    }
+                }
+                if (summary.settings.planarDigital) Text(
+                    if (PlaneLibrary.pool(context).isEmpty()) "Downloading the planes for Atlas…"
+                    else "Atlas shuffles the ${PlaneLibrary.pool(context).size} planes this app sent it.",
+                    color = p.muted, style = MaterialTheme.typography.bodySmall)
+            }
         },
         feedback = {
             access()

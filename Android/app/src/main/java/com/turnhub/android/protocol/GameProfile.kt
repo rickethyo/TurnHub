@@ -117,6 +117,8 @@ data class TableSettings(
     val houseRules: Boolean = false,
     /** Planechase with the players' own plane cards (Magic formats on Atlas). Older firmware omits it (false). */
     val planechase: Boolean = false,
+    /** Its deck: Atlas's digital deck (the plane catalog the app sent) instead of the players' own planes. */
+    val planarDigital: Boolean = false,
 ) {
     val turnTimerEnabled: Boolean get() = turnTimerMs > 0
 }

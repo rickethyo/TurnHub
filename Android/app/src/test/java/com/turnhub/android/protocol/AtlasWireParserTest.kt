@@ -481,10 +481,15 @@ class AtlasWireParserTest {
         assertEquals("planeswalk", planes.lastRoll!!.face)
         assertTrue(planes.lastRoll.fromEffect)
         assertEquals(null, AtlasWireParser.parseState(JSONObject(body).put("planechase", JSONObject.NULL).toString()).planechase)
-        for ((key, value) in listOf("source" to "digital", "counters" to 1000, "chaos" to -1)) {
+        for ((key, value) in listOf("source" to "magic", "counters" to 1000, "chaos" to -1)) {
             val bad = JSONObject(body).apply { getJSONObject("planechase").put(key, value) }
             assertTrue(runCatching { AtlasWireParser.parseState(bad.toString()) }.isFailure)
         }
+        val digital = AtlasWireParser.parseState(Fixtures.text("planechase-digital.response.json"))
+        assertTrue(digital.settings.planarDigital && digital.planechase!!.digital)
+        assertEquals(2, digital.planechase!!.deckSize)
+        assertEquals(36, digital.planechase!!.plane!!.id.length)
+        assertEquals("Atraxa, Praetors' Voice", digital.players.first { it.commander != null }.commander)
         val badFace = JSONObject(body).apply { getJSONObject("planechase").getJSONObject("lastRoll").put("face", "sideways") }
         assertTrue(runCatching { AtlasWireParser.parseState(badFace.toString()) }.isFailure)
     }

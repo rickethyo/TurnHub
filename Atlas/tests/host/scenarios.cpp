@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include "profile_fixture.h"
 #include "wall_clock.h"
+#include "card_cache.h"
 #include "profile_statistics.h"
 #include "standalone_import.h"
 #include "match_archive.h"
@@ -2460,6 +2461,7 @@ static void saveClientFixture(const char *name, const String &json) {
 static void nativeClientBoundary() {
   TurnHubWebApi::configureClientState(clientSnapshot, clientRevision);
   table().clientState.setNameLookup(displayNameForTableSeat);  // As setup() does.
+  for (auto &t : tables) t.clientState.setCommanderLookup(commanderForTableSeat);
   enterEmptyLobby(); testNow = 1000;
   table().nextGameSettings = TurnHub::GameSettings{};
   assert(request("/api/v1/info", "", {}, HTTP_GET) == 200);
@@ -5287,7 +5289,7 @@ static void planechaseOnAtlas() {
   assert(table().game.planar().counters==1);
   assert(planar(mine,{{"action","planeswalk"}})==200 && table().game.planar().planeswalks==2 && table().game.planar().counters==0);
   assert(planar(mine,{{"action","chaos"}})==200 && table().game.planar().chaos==2);
-  assert(request("/api/v1/state",a,{},HTTP_GET)==200 && has("\"planechase\":{\"source\":\"physical\",\"planeswalks\":2,\"chaos\":2"));
+  assert(request("/api/v1/state",a,{},HTTP_GET)==200 && has("\"planechase\":{\"source\":\"physical\",\"plane\":null,\"deckSize\":0,\"planeswalks\":2,\"chaos\":2"));
   saveClientFixture("planechase", server.body);
   // The setting can't change mid-game, and a new turn's first roll is free again.
   assert(request("/api/game/settings",a,{{"planechase","0"}})==409);
@@ -5304,6 +5306,102 @@ static void planechaseOnAtlas() {
   assert(table().nextGameSettings.profile==GameProfile::Yugioh && !table().nextGameSettings.planechase &&
       !screenButton(currentScreen(),TouchAction::GamePlanechase));
   tapButton(TouchAction::CloseScreen);
+  enterEmptyLobby();
+}
+
+// The card store (the microSD card's records) for card_cache.cpp's tests.
+struct MemoryCardStore : TurnHubStorage::BlobStore {
+  std::map<std::string, std::string> records;
+  TurnHubStorage::Status read(const char *key, void *data, size_t capacity, size_t &size) override {
+    auto found = records.find(key);
+    if (found == records.end()) return TurnHubStorage::Status::NotFound;
+    size = found->second.size();
+    if (!data && !capacity) return TurnHubStorage::Status::Ok;
+    if (size > capacity) return TurnHubStorage::Status::Corrupt;
+    memcpy(data, found->second.data(), size); return TurnHubStorage::Status::Ok;
+  }
+  TurnHubStorage::Status write(const char *key, const void *data, size_t size) override {
+    if (size > 1024) return TurnHubStorage::Status::InvalidArgument;
+    records[key] = std::string(static_cast<const char *>(data), size); return TurnHubStorage::Status::Ok;
+  }
+  TurnHubStorage::Status remove(const char *key) override {
+    return records.erase(key) ? TurnHubStorage::Status::Ok : TurnHubStorage::Status::NotFound;
+  }
+};
+
+// The app's planar catalog and saved commanders on Atlas (owner, 2026-10-30):
+// a digital Planechase deck dealt from the card, and commanders picked from
+// each profile's saved ones on the app, the tablet or the Atlas screen.
+static void cardCacheOnAtlas() {
+  using namespace TurnHub;
+  static MemoryCardStore card;
+  card.records.clear();
+  TurnHubCards::setStoreForTests(&card);
+  enterEmptyLobby(); fixtureRadio=false;
+  String tokens[2], ids[2];
+  {
+    char list[TurnHubProfiles::MAX_LOGIN_PROFILES][TurnHubProfiles::PROFILE_ID_LENGTH + 1];
+    const size_t count = TurnHubProfiles::listProfileIds(list, TurnHubProfiles::MAX_LOGIN_PROFILES);
+    uint8_t found = 0;
+    for (size_t i = 0; i < count && found < 2; ++i) {
+      if (request("/api/session/login","",{{"profileId",list[i]},{"pin","1234"}})!=200) continue;
+      const String token=responseField("token");
+      if (request("/api/session/join",token)==200) { ids[found]=list[i]; tokens[found++]=token; }
+    }
+    assert(found==2);
+  }
+  const String &a=tokens[0], &b=tokens[1];
+  auto has = [](const char *text) { return server.body.find(text)!=std::string::npos; };
+  // The catalog: two planes and a phenomenon, then a reload from the card.
+  const String planes = String("11111111-1111-1111-1111-111111111111\tAkoum\t0\n") +
+      "22222222-2222-2222-2222-222222222222\tBant\t0\n" + "33333333-3333-3333-3333-333333333333\tChaotic Aether\t1\n";
+  assert(request("/api/planes","",{},HTTP_GET)==200 && has("\"count\":0"));
+  assert(request("/api/planes","",{{"planes",planes},{"version","v1"}})==401);
+  assert(request("/api/planes",a,{{"planes","bad line"},{"version","v1"}})==400);
+  assert(request("/api/planes",a,{{"planes",planes},{"version","v1"}})==200 && has("\"saved\":true"));
+  TurnHubCards::setStoreForTests(&card);  // Forgets RAM, as a reboot does.
+  assert(TurnHubCards::planeCount()==0 && TurnHubCards::loadPlanes() && TurnHubCards::planeCount()==3);
+  assert(!strcmp(TurnHubCards::planesVersion(),"v1") && !strcmp(TurnHubCards::findPlane("22222222-2222-2222-2222-222222222222")->name,"Bant"));
+  // Saved commanders: name one from the app, then quick-pick it.
+  assert(request("/api/control/commander-choice",a,{{"name","Atraxa, Praetors' Voice"},{"art","d0d33d52-3d28-4635-b985-51e126289259"}})==200);
+  assert(request("/api/control/commander-choice",a,{{"name","Kenrith"}})==200);
+  assert(request("/api/profiles/commanders",a,{},HTTP_GET)==200 && has("{\"slot\":1,\"name\":\"Kenrith\",\"art\":null}") &&
+      has("{\"slot\":2,\"name\":\"Atraxa, Praetors' Voice\""));
+  assert(request("/api/control/commander-choice",a,{{"name",""}})==400 && request("/api/control/commander-choice",a,{{"slot","9"}})==400);
+  assert(request("/api/control/commander-choice",a,{{"slot","2"}})==200);
+  assert(request("/api/game/settings",a,{{"gameProfile","mtg_commander"},{"planechase","1"},{"planarDeck","digital"}})==200);
+  assert(request("/api/v1/state",a,{},HTTP_GET)==200 && has("\"commander\":{\"name\":\"Atraxa, Praetors' Voice\",\"art\":\"d0d33d52") &&
+      has("\"planarDeck\":\"digital\""));
+  assert(request("/api/control/start",a)==200); testNow+=3000; updateCountdown(testNow);
+  String name, art;
+  const uint8_t aNumber=table().game.playerAt(0)->profileId==ids[0] ? 1 : 2;
+  assert(table().game.commanderFor(aNumber,name,art) && name=="Atraxa, Praetors' Voice" && art.length()==36);
+  // Digital Planechase: a plane face up (never the phenomenon first), two cards below.
+  const auto planar=table().game.planar();
+  assert(planar.digital && planar.deckSize==2 && planar.plane[0] && !planar.phenomenon);
+  assert(request("/api/v1/state",a,{},HTTP_GET)==200 && has("\"source\":\"digital\",\"plane\":{\"id\":\""));
+  saveClientFixture("planechase-digital", server.body);
+  const uint8_t active=table().game.activePlayerNumber();
+  const String &mine=table().game.playerByNumber(active)->profileId==ids[0] ? a : b;
+  assert(request("/api/control/planar",mine,{{"action","top-to-bottom"}})==200);
+  assert(request("/api/control/planar",mine,{{"action","counter"},{"delta","1"}})==200 && table().game.planar().counters==1);
+  // Planeswalk until the phenomenon is face up: it must be resolved before rolling.
+  for (int i=0;i<3 && !table().game.planar().phenomenon;++i) assert(request("/api/control/planar",mine,{{"action","planeswalk"}})==200);
+  assert(table().game.planar().phenomenon && table().game.planar().counters==0);
+  assert(request("/api/control/planar",mine,{{"action","roll"},{"face","blank"}})==409);
+  // The Atlas screen's Planes page acts for the active player.
+  tapButton(TouchAction::OpenPlanes);
+  assert(currentScreen().kind==ScreenKind::Planes && String(currentScreen().title)=="Chaotic Aether");
+  tapButton(TouchAction::PlanarResolve);
+  assert(!table().game.planar().phenomenon && screenButton(currentScreen(),TouchAction::PlanarRoll));
+  tapButton(TouchAction::PlanarRoll);
+  assert(table().game.planar().lastRoll==1);
+  tapButton(TouchAction::CloseScreen);
+  // Starting without a catalog falls back to the players' own planes.
+  enterEmptyLobby();
+  TurnHubCards::setStoreForTests(nullptr);
+  TurnHubCards::SavedCommanders none;
+  assert(!TurnHubCards::loadCommanders(ids[0], none));
   enterEmptyLobby();
 }
 
@@ -6402,6 +6500,7 @@ int main() {
   profilePolicyFlow(); std::cout<<"PASS profile choices, physical authorization, companion privacy, expiry and claim revalidation\n";
   magicCountersAndRules(); std::cout<<"PASS Magic counters, live loss rules, per-commander casts, status, recovery and shared poison\n";
   planechaseOnAtlas(); std::cout<<"PASS Planechase with physical planes: settings, Atlas screen row, die cost, chaos, planeswalks, counters and state\n";
+  cardCacheOnAtlas(); std::cout<<"PASS Atlas card cache: planar catalog on the card, digital deck, phenomena, Planes screen, saved commanders\n";
   magicTableCounters(); std::cout<<"PASS Magic table counters: treasure, rad trigger, day/night, reversed turns, everyone's counters, recovery\n";
   magicMonarch(); std::cout<<"PASS Magic monarch: transfer, permissions, pause, recovery, exit, reset and teams\n";
   zeroLifeAndExitReasons(); std::cout<<"PASS zero-life policy, immediate toggle, separate exits, recovery, lethal requests, Commander and teams\n";

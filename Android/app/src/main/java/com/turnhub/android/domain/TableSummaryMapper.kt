@@ -43,6 +43,8 @@ object TableSummaryMapper {
                 life = player.life,
                 turnsCompleted = player.turnsCompleted,
                 commanderDamage = player.commanderDamage,
+                commander = player.commander,
+                commanderArt = player.commanderArt,
                 lifeRequest = player.lifeRequest,
                 avatar = seatAvatars[SeatKey(player.moduleId, player.slot)]?.let { avatarIcons[it] },
             )

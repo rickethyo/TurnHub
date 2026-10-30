@@ -28,9 +28,12 @@ class ClientState {
   // behind this hook, so the projection stays storage-free; it is asked only
   // when a seat's occupant changes or after refreshNames().
   using NameLookup = String (*)(const PlayerSeat &seat, bool inGame);
+  // The seat's chosen commander (name and printing ID); false for none.
+  using CommanderLookup = bool (*)(const PlayerSeat &seat, bool inGame, String &name, String &art);
   static constexpr size_t NAME_LENGTH = 32;
 
   void setNameLookup(NameLookup lookup) { nameLookup_ = lookup; namesStale_ = true; }
+  void setCommanderLookup(CommanderLookup lookup) { commanderLookup_ = lookup; }
   // Re-read every name at the next observe() (a profile may have been renamed).
   void refreshNames() { namesStale_ = true; }
   void observe(HubState state, const Lobby &lobby, const GameEngine &game,
@@ -55,9 +58,12 @@ class ClientState {
     int32_t damage[MAX_PLAYERS][COMMANDERS_PER_PLAYER] = {};
     LifeChangeRequest request{};
     char name[NAME_LENGTH + 1] = {};
+    char commander[65] = {};
+    char commanderArt[49] = {};
   };
   Player players_[MAX_PLAYERS]{};
   NameLookup nameLookup_ = nullptr;
+  CommanderLookup commanderLookup_ = nullptr;
   bool namesStale_ = true;
   HubState state_ = HubState::Lobby;
   GameSettings settings_{};

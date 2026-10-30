@@ -33,6 +33,7 @@
 
 #include "accessibility_prefs.h"
 #include "audio_controller.h"
+#include "card_cache.h"
 #include "client_state.h"
 #include "game_engine.h"
 #include "intent.h"
@@ -151,6 +152,13 @@ struct GameTable {
   // The finished match was short (SHORT_GAME_MS) and the table counted it, or
   // it was restored after a restart (never counted twice).
   bool shortGameCounted = false;
+  // Commanders chosen in the lobby, by profile, from each profile's saved
+  // ones (card_cache.h); the match takes them at its start.
+  struct SeatCommander {
+    char profileId[9] = {};
+    TurnHubCards::Commander card{};
+  };
+  SeatCommander commanders[MAX_PLAYERS];
 };
 
 constexpr uint8_t MAX_GAME_TABLES = 2;
@@ -223,6 +231,10 @@ bool firstLivingSeatForModule(uint8_t controllerId, PlayerSeat &seat);
 String profileIdForTableSeat(const PlayerSeat &seat, bool inGame);
 // That profile's name, or "" for a guest (clients show "Player N").
 String displayNameForTableSeat(const PlayerSeat &seat, bool inGame);
+bool commanderForTableSeat(const PlayerSeat &seat, bool inGame, String &name, String &art);
+// This table's chosen commander for a profile, or nullptr.
+const TurnHubCards::Commander *chosenCommander(const String &profileId);
+IntentResult handleSetCommanderIntent(const Intent &intent, void *);
 // The canonical seat named by an Intent actor, or nullptr if the actor's
 // controller/slot/player triple no longer agrees with the game.
 const PlayerSeat *seatForIntentActor(const Intent &intent);

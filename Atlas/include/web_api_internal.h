@@ -214,6 +214,13 @@ bool parseGameSettings(WebServer &server, TurnHub::GameSettings &settings);
 void handleChangeLife(WebServer &server);
 void handleCounters(WebServer &server);
 void handleCounterControl(WebServer &server, TurnHub::IntentType type);
+// Cards Atlas keeps (card_cache.h): the planar catalog and saved commanders.
+void handlePlanesCatalogInfo(WebServer &server);
+void handlePlanesCatalog(WebServer &server);
+void handleSavedCommanders(WebServer &server);
+void handleCommanderChoice(WebServer &server);
+void handleTabletCommanderChoice(WebServer &server);
+void chooseCommanderFor(WebServer &server, uint8_t controllerId, uint8_t slot);
 // Life or Commander request fields of a counter control; false when invalid.
 bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::IntentPayload &payload);
 bool freshGameActionRequest(WebServer &server);

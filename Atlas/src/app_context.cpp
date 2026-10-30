@@ -36,6 +36,22 @@ String displayNameForTableSeat(const PlayerSeat &seat, bool inGame) {
   return profileId.length() ? TurnHubProfiles::nameForProfile(profileId) : String();
 }
 
+const TurnHubCards::Commander *chosenCommander(const String &profileId) {
+  if (profileId.length() != TurnHubProfiles::PROFILE_ID_LENGTH) return nullptr;
+  for (const auto &entry : table().commanders)
+    if (profileId == entry.profileId && entry.card.name[0]) return &entry.card;
+  return nullptr;
+}
+
+bool commanderForTableSeat(const PlayerSeat &seat, bool inGame, String &name, String &art) {
+  if (inGame) return table().game.commanderFor(seat.playerNumber, name, art);
+  const auto *card = chosenCommander(profileIdForTableSeat(seat, false));
+  if (!card) return false;
+  name = card->name;
+  art = card->art;
+  return true;
+}
+
 // --- Venue tables --------------------------------------------------------------
 
 uint8_t sigilTable[MAX_PHYSICAL_SIGILS] = {};

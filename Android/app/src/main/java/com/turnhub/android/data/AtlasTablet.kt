@@ -206,9 +206,11 @@ class AtlasTablet(
         turnTimerMs: Long? = null,
         houseRules: Boolean? = null,
         planechase: Boolean? = null,
+        planarDigital: Boolean? = null,
     ) {
         val fields = buildList {
             addAll(seat.fields)
+            planarDigital?.let { add("planarDeck" to if (it) "digital" else "physical") }
             planechase?.let { add("planechase" to if (it) "1" else "0") }
             turnTimerMs?.let { add("turnTimerMs" to "$it") }
             houseRules?.let { add("houseRules" to if (it) "1" else "0") }
@@ -218,6 +220,40 @@ class AtlasTablet(
         }
         val response = post("/api/tablet/settings", fields) ?: return
         if (response.ok) succeed() else fail(response)
+    }
+
+    /** A seat's commander: saved to its profile on Atlas's card and chosen; null clears the choice. */
+    suspend fun chooseCommander(seat: TabletSeat, name: String?, printing: String?) {
+        val fields = seat.fields + if (name.isNullOrBlank()) listOf("slot" to "0")
+            else listOf("name" to name.trim().take(64)) + (printing?.let { listOf("art" to it) } ?: emptyList())
+        val response = post("/api/tablet/commander-choice", fields) ?: return
+        if (response.ok) succeed() else fail(response)
+    }
+
+    /** A profile's saved commanders on Atlas (name, printing); empty without a card or any saved. */
+    suspend fun savedCommanders(profileId: String): List<Pair<String, String?>> = try {
+        val response = session.raw("GET", "/api/profiles/commanders", listOf("profileId" to profileId))
+        if (response == null || !response.ok) emptyList() else org.json.JSONObject(response.body).getJSONArray("commanders").let { list ->
+            (0 until list.length()).map { i -> list.getJSONObject(i).let { it.getString("name") to it.optString("art").takeIf { a -> a.isNotEmpty() && a != "null" } } }
+        }
+    } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList() }
+
+    /**
+     * Sends the app's downloaded planes for Atlas's digital Planechase deck when Atlas's
+     * catalog differs (first connection, or after the app downloads newer planes).
+     */
+    suspend fun syncPlanes(cards: List<com.turnhub.android.data.PlaneInfo>) {
+        if (cards.isEmpty()) return
+        val version = "${cards.size}-" + Integer.toHexString(cards.map { it.id }.sorted().hashCode())
+        try {
+            val info = session.raw("GET", "/api/planes") ?: return
+            if (info.ok && org.json.JSONObject(info.body).optString("version") == version) return
+            val lines = cards.take(192).joinToString("\n") { card ->
+                val name = card.name.map { if (it.code in 32..126) it else '?' }.joinToString("").take(40)
+                "${card.id}\t$name\t${if (card.card.phenomenon) 1 else 0}"
+            }
+            session.raw("POST", "/api/planes", listOf("version" to version, "planes" to lines))
+        } catch (e: CancellationException) { throw e } catch (_: Exception) { /* Next connection tries again. */ }
     }
 
     // --- the table ----------------------------------------------------------------

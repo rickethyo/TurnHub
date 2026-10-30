@@ -214,6 +214,7 @@ object AtlasWireParser {
                     twoHeadedGiant = root.optionalBoolean("twoHeadedGiant"),
                     houseRules = root.optionalBoolean("houseRules"),
                     planechase = root.optionalBoolean("planechase"),
+                    planarDigital = root.optionalString("planarDeck") == "digital",
                     autoEliminateAtZeroLife = if (root.has("autoEliminateAtZeroLife")) root.boolean("autoEliminateAtZeroLife") else false,
                     autoEliminateAtPoisonLimit = root.optionalBoolean("autoEliminateAtPoisonLimit"),
                     autoEliminateAtCommanderDamage = root.optionalBoolean("autoEliminateAtCommanderDamage"),
@@ -290,6 +291,7 @@ object AtlasWireParser {
         twoHeadedGiant = settings.optionalBoolean("twoHeadedGiant"),
         houseRules = settings.optionalBoolean("houseRules"),
         planechase = settings.optionalBoolean("planechase"),
+        planarDigital = settings.optionalString("planarDeck") == "digital",
         autoEliminateAtZeroLife = if (settings.has("autoEliminateAtZeroLife")) settings.boolean("autoEliminateAtZeroLife") else false,
         autoEliminateAtPoisonLimit = settings.optionalBoolean("autoEliminateAtPoisonLimit"),
         autoEliminateAtCommanderDamage = settings.optionalBoolean("autoEliminateAtCommanderDamage"),
@@ -327,6 +329,12 @@ object AtlasWireParser {
     )
 
     private fun parsePlanechase(j: JSONObject): AtlasPlanechase = AtlasPlanechase(
+        digital = j.string("source") == "digital",
+        plane = if (j.isAbsentOrNull("plane")) null else j.obj("plane").let { c ->
+            AtlasPlanechase.Plane(c.string("id").also { if (it.length != 36) malformed("Invalid plane id") },
+                c.optionalString("name"), c.boolean("phenomenon"))
+        },
+        deckSize = if (j.has("deckSize")) j.int("deckSize").also { if (it < 0) malformed("Invalid deck size") } else 0,
         planeswalks = j.int("planeswalks").also { if (it < 0) malformed("Invalid planeswalks") },
         chaos = j.int("chaos").also { if (it < 0) malformed("Invalid chaos") },
         counters = j.int("counters").also { if (it !in 0..999) malformed("Invalid plane counters") },
@@ -340,7 +348,7 @@ object AtlasWireParser {
                 fromEffect = r.boolean("fromEffect"),
             )
         },
-    ).also { if (j.string("source") != "physical") malformed("Unknown planar deck source") }
+    ).also { if (j.string("source") !in listOf("physical", "digital")) malformed("Unknown planar deck source") }
 
     private fun parseDoomBag(j: JSONObject): DoomBag = DoomBag(
         drawn = j.int("drawn").also { if (it !in 0..65535) malformed("Invalid bag eliminations") },
@@ -355,6 +363,9 @@ object AtlasWireParser {
     )
 
     private fun parsePlayer(player: JSONObject) = Player(
+        commander = if (player.isAbsentOrNull("commander")) null else player.obj("commander").string("name")
+            .also { if (it.isEmpty() || it.length > 80) malformed("Invalid commander") },
+        commanderArt = if (player.isAbsentOrNull("commander")) null else player.obj("commander").optionalString("art"),
         playerNumber = player.int("playerNumber"),
         moduleId = player.int("moduleId"),
         slot = player.int("slot"),

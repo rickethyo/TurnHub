@@ -11,6 +11,9 @@ package com.turnhub.android.protocol
  * firmware does not send them in `/api/v1/state`, so both are normally null.
  */
 data class Player(
+    /** Commander formats: the chosen (lobby) or played commander and its printing; null for none. */
+    val commander: String? = null,
+    val commanderArt: String? = null,
     val playerNumber: Int,
     val moduleId: Int,
     /** 1 = the module's primary seat (A), 2 = its secondary seat (B). */

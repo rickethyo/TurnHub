@@ -165,7 +165,7 @@ bool buttonsUseBody(const AtlasScreen &s) {
   return s.kind == ScreenKind::Table || s.kind == ScreenKind::Menu || s.kind == ScreenKind::Player ||
       s.kind == ScreenKind::Device || s.kind == ScreenKind::Themes || s.kind == ScreenKind::Seat ||
       s.kind == ScreenKind::Name || s.kind == ScreenKind::Pin || s.kind == ScreenKind::Confirm ||
-      s.kind == ScreenKind::NewGame;
+      s.kind == ScreenKind::NewGame || s.kind == ScreenKind::Planes;
 }
 
 bool primaryAction(TouchAction a) {
@@ -255,7 +255,9 @@ const lv_image_dsc_t *actionIcon(TouchAction a) {
     case TouchAction::GameLife: return &th_icon_plus_24;
     case TouchAction::GameTimer: return &th_icon_timer_24;
     case TouchAction::GameHouseRules: return &th_icon_sliders_24;
-    case TouchAction::GamePlanechase: return &th_icon_cards_24;
+    case TouchAction::GamePlanechase: case TouchAction::OpenPlanes: case TouchAction::SeatCommander: return &th_icon_cards_24;
+    case TouchAction::PlanarRoll: return &th_icon_dice_24;
+    case TouchAction::PlanarWalk: case TouchAction::PlanarResolve: return &th_icon_chevron_right_24;
     case TouchAction::ConfirmYes: return &th_icon_check_24;
     case TouchAction::ConfirmNo: return &th_icon_close_24;
     case TouchAction::OpenSeat: case TouchAction::NewPlayer: return &th_icon_plus_24;

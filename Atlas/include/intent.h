@@ -143,6 +143,9 @@ enum class IntentType : uint8_t {
   // PlanarCommand, value the die face (0 blank, 1 chaos, 2 planeswalk) or the
   // counter delta, counterSlot 1 when a card made the roll (free).
   PlanarAction,
+  // Lobby: the actor's seat plays its profile's saved commander number
+  // payload.value (1-based, card_cache.h), or none (0).
+  SetCommander,
 
   Count,
 };
@@ -314,6 +317,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::BackToSetup: return "BACK_TO_SETUP";
     case IntentType::CountShortGame: return "COUNT_SHORT_GAME";
     case IntentType::PlanarAction: return "PLANAR_ACTION";
+    case IntentType::SetCommander: return "SET_COMMANDER";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

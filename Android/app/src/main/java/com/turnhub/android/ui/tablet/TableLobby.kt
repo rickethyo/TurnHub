@@ -67,6 +67,8 @@ internal data class TableLobbyActions(
      * unless `cardOnly` (optional); null hides it.
      */
     val commander: ((player: TablePlayer, name: String?, printing: String?, cardOnly: Boolean) -> Unit)? = null,
+    /** A player's saved commanders (name, printing) to pick again; Atlas keeps them per profile. */
+    val savedCommanders: (TablePlayer) -> List<Pair<String, String?>> = { emptyList() },
     /** Death May Die: names (or clears, null) a player's investigator; null hides it. */
     val investigator: ((player: TablePlayer, name: String?) -> Unit)? = null,
     val dealInvestigatorCards: ((TablePlayer, InvestigatorCardSlot) -> Unit)? = null,
@@ -182,7 +184,8 @@ internal fun TableLobby(
                 var namingCommander by rememberSaveable { mutableStateOf<Int?>(null) }
                 players.firstOrNull { it.playerNumber == namingCommander }?.let { player ->
                     actions.commander?.let { save -> CommanderPickerDialog(player, settings.profile.commanderRules, com.turnhub.android.data.TileCardGame.forProfile(settings.profile),
-                        { name, art, cardOnly -> save(player, name, art, cardOnly); namingCommander = null }) { namingCommander = null } }
+                        { name, art, cardOnly -> save(player, name, art, cardOnly); namingCommander = null },
+                        actions.savedCommanders(player)) { namingCommander = null } }
                 }
                 var choosingInvestigator by rememberSaveable { mutableStateOf<Int?>(null) }
                 players.firstOrNull { it.playerNumber == choosingInvestigator }?.let { player ->

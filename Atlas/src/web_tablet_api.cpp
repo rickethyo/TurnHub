@@ -261,6 +261,14 @@ void handleTabletCounter(WebServer &server, TurnHub::IntentType type) {
   sendOkMessage(server, message);
 }
 
+// POST /api/tablet/commander-choice: module, slot, then as /api/control/commander.
+void handleTabletCommanderChoice(WebServer &server) {
+  if (!requireTablet(server)) return;
+  uint8_t module = 0, slot = 1;
+  if (!tabletSeat(server, module, slot)) return;
+  chooseCommanderFor(server, module, slot);
+}
+
 }  // namespace internal
 
 bool profileNameTaken(const String &name) {

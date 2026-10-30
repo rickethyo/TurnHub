@@ -93,6 +93,7 @@ void enterEmptyLobby(const Intent *cause) {
   }
   table().hubState = HubState::Lobby;
   table().lobby.resetEmpty();
+  for (auto &chosen : table().commanders) chosen = GameTable::SeatCommander{};
   table().game.reset();
   for (uint8_t id = MAX_PHYSICAL_SIGILS; id < MAX_CONTROLLERS; ++id) {
     if (here[id]) TurnHubControllers::releaseBrowser(id);
@@ -178,9 +179,13 @@ void startGame() {
     return;
   }
 
-  // The match record names each seat as the table shows it.
-  for (uint8_t i = 0; i < count; ++i)
+  // The match record names each seat as the table shows it, with the
+  // commander its player chose in the lobby (Commander formats).
+  for (uint8_t i = 0; i < count; ++i) {
     table().game.nameSeat(players[i].playerNumber, displayNameForTableSeat(players[i], true).c_str());
+    const auto *card = TurnHub::commanderRules(table().nextGameSettings.profile) ? chosenCommander(String(players[i].profileId)) : nullptr;
+    if (card) table().game.setSeatCommander(players[i].playerNumber, card->name, card->art);
+  }
   table().hubState = HubState::Running;
   table().shortGameCounted = false;
   resetCountdown();
@@ -858,6 +863,37 @@ bool shortGameUncounted() {
       TurnHubProfileStats::heldShortGame(table().game);
 }
 
+// A seated player's commander, from their profile's saved ones (card_cache.h):
+// the app saves a searched card first; the Atlas screen and Sigils only pick.
+IntentResult handleSetCommanderIntent(const Intent &intent, void *) {
+  if (table().hubState != HubState::Lobby)
+    return IntentResult::reject(IntentStatus::InvalidState, "Choose commanders in the lobby");
+  PlayerSeat seat;
+  if (!seatForModuleSlot(intent.actor.controllerId, intent.actor.slot, seat))
+    return IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
+  const String profile = profileIdForTableSeat(seat, false);
+  if (!profile.length()) return IntentResult::reject(IntentStatus::Conflict, "Guests have no saved commanders");
+  TurnHubCards::SavedCommanders saved;
+  if (intent.payload.value < 0 || !TurnHubCards::loadCommanders(profile, saved) ||
+      intent.payload.value > saved.count)
+    return IntentResult::reject(IntentStatus::Rejected, "That saved commander isn't on this Atlas");
+  GameTable::SeatCommander *slot = nullptr;
+  for (auto &entry : table().commanders) if (profile == entry.profileId) slot = &entry;
+  if (!slot) for (auto &entry : table().commanders) if (!entry.profileId[0] || !entry.card.name[0]) { slot = &entry; break; }
+  if (!slot) return IntentResult::reject(IntentStatus::Conflict, "Too many commanders chosen");
+  if (intent.payload.value == 0) {
+    *slot = GameTable::SeatCommander{};
+    return IntentResult::accept("Commander cleared");
+  }
+  snprintf(slot->profileId, sizeof(slot->profileId), "%s", profile.c_str());
+  slot->card = saved.slots[intent.payload.value - 1];
+  serialLog.print("ATLAS|COMMANDER|");
+  serialLog.print(profile);
+  serialLog.print('|');
+  serialLog.println(slot->card.name);
+  return IntentResult::accept("Commander chosen");
+}
+
 IntentResult handleCountShortGameIntent(const Intent &intent, void *) {
   IntentResult rejection;
   if (!validTableActor(intent, rejection)) return rejection;
@@ -1495,7 +1531,7 @@ IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   }
   const uint32_t profile = intent.payload.flags & ~(TurnHub::GAME_FLAG_TWO_HEADED_GIANT | TurnHub::GAME_FLAG_MANUAL_ELIMINATION |
       TurnHub::GAME_FLAG_MANUAL_POISON | TurnHub::GAME_FLAG_MANUAL_COMMANDER | TurnHub::GAME_FLAG_HOUSE_RULES |
-      TurnHub::GAME_FLAG_PLANECHASE);
+      TurnHub::GAME_FLAG_PLANECHASE | TurnHub::GAME_FLAG_PLANAR_DIGITAL);
   if (profile >= static_cast<uint32_t>(TurnHub::GameProfile::Count)) {
     return IntentResult::reject(IntentStatus::Rejected, "Unknown game profile");
   }
@@ -1508,6 +1544,7 @@ IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   settings.twoHeadedGiant = (intent.payload.flags & TurnHub::GAME_FLAG_TWO_HEADED_GIANT) != 0;
   settings.houseRules = (intent.payload.flags & TurnHub::GAME_FLAG_HOUSE_RULES) != 0;
   settings.planechase = (intent.payload.flags & TurnHub::GAME_FLAG_PLANECHASE) != 0;
+  settings.planarDigital = (intent.payload.flags & TurnHub::GAME_FLAG_PLANAR_DIGITAL) != 0;
   if (settings.planechase && !TurnHub::magicRules(settings.profile)) {
     return IntentResult::reject(IntentStatus::Rejected, "Planechase needs a Magic or Commander profile");
   }
@@ -1530,7 +1567,8 @@ IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
     const auto &current = table().game.settings();
     if (settings.profile != current.profile || settings.startingLife != current.startingLife ||
         settings.turnTimerMs != current.turnTimerMs || settings.twoHeadedGiant != current.twoHeadedGiant ||
-        settings.houseRules != current.houseRules || settings.planechase != current.planechase)
+        settings.houseRules != current.houseRules || settings.planechase != current.planechase ||
+        settings.planarDigital != current.planarDigital)
       return IntentResult::reject(IntentStatus::Conflict, "Only elimination settings can change during play");
     if (!TurnHub::followsOfficialRules(settings))
       return IntentResult::reject(IntentStatus::Conflict, "This game follows the official rules: the poison limit is fixed");

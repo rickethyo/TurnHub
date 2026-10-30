@@ -227,10 +227,14 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   text and TalkBack acceptance ([Shared devices](SHARED_DEVICES.md)). Hosting
   is a candidate upgrade; billing/entitlements/pricing remain separate work.
 
-- **Atlas Planechase, next slices (owner, 2026-10-30):** physical-plane
-  Planechase is on Atlas (setup on the Atlas screen and in the app, die and
-  counts from the app's table). Next: the planar die on Sigils and the Atlas
-  touchscreen table, and a digital deck the app deals to Atlas.
+- **Atlas Planechase and saved commanders, next slices (owner, 2026-10-30):**
+  Atlas plays Planechase with physical planes or its digital deck (the plane
+  catalog the app sends, kept on the microSD card), with a Planes page on the
+  Atlas screen; profiles keep six saved commanders on the card, chosen from
+  the app, the tablet or the Atlas screen's player page. Next: Atlas
+  downloads the catalog itself over home Wi-Fi and refreshes it periodically;
+  the Sigil's profile picker offers saved commanders; recovery keeps the
+  digital deck's order (it restarts as physical planes today).
 
 - **Atlas named guests and sign-in-free match ending (owner, 2026-10-30):**
   the app's lobby keeps reusable guest names (basic result, outcome and

@@ -113,7 +113,12 @@ enum class TouchAction : uint8_t {
   OpenNewGame, GameType, GameMode, GameLife, GameTimer, GameHouseRules, GamePlanechase,
   // Mana Tap (mana_tap.h) from Home: open it, its Start/Pause/Resume/Play
   // again button, and Quit. Presentation only: no table state changes.
-  OpenManaTap, ManaAction, ManaQuit
+  OpenManaTap, ManaAction, ManaQuit,
+  // Planechase (when on): the Planes screen from the Game page, its die,
+  // a card's planeswalk, and resolving a phenomenon (the active player's).
+  OpenPlanes, PlanarRoll, PlanarWalk, PlanarResolve,
+  // Lobby, a player's screen: step through their profile's saved commanders.
+  SeatCommander
 };
 
 // Home: the table's status and info (version, Wi-Fi, SD card, battery).
@@ -129,7 +134,7 @@ enum class TouchAction : uint8_t {
 // Confirm: the popup asking before a hazardous action.
 // NewGame: the lobby's game setup before Start game.
 // ManaTap: the mini game, opened from Home.
-enum class ScreenKind : uint8_t { Home, Overview, Status, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Themes, Seat, Name, Pin, Confirm, NewGame, ManaTap };
+enum class ScreenKind : uint8_t { Home, Overview, Status, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Themes, Seat, Name, Pin, Confirm, NewGame, ManaTap, Planes };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;

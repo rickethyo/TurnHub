@@ -260,7 +260,8 @@ internal fun TabletTable(
     // Atlas's Planechase with the players' own planes: the app rolls the die and Atlas counts.
     val atlasPlanes = summary.atlasPlanechase.takeIf { !standalone }
     var atlasRolling by remember { mutableStateOf(false) }
-    val planarRoll = onPlanarRoll ?: if (atlasPlanes != null && summary.state == TableState.RUNNING && !readOnly && !offline) {
+    val planarRoll = onPlanarRoll ?: if (atlasPlanes != null && atlasPlanes.plane?.phenomenon != true &&
+        summary.state == TableState.RUNNING && !readOnly && !offline) {
         { atlasRolling = true }
     } else null
     var bagPrompt by rememberBagPromptState(summary)
@@ -736,6 +737,13 @@ internal fun TabletTable(
                     }
                     atlasPlanes?.let { planes ->
                         DisclosureCard("Planechase · ${planes.planeswalks} planeswalk${if (planes.planeswalks == 1) "" else "s"}") {
+                            planes.plane?.let { card ->
+                                Text((card.name ?: "A plane") + if (card.phenomenon) " (phenomenon)" else "", color = p.text,
+                                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                if (card.phenomenon) AccentButton("Resolve the phenomenon", { send(activeSeat, "${PLANAR_PREFIX}resolve") },
+                                    Modifier.fillMaxWidth(), enabled = !isOffline && activeSeat != null)
+                                Text("${planes.deckSize} cards in the planar deck.", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                            }
                             val last = planes.lastRoll?.let { roll ->
                                 val who = summary.players.firstOrNull { it.playerNumber == roll.player }?.label ?: "Player ${roll.player}"
                                 " Last roll: $who, ${roll.face}${if (roll.fromEffect) " (a card's roll)" else ""}."
@@ -748,6 +756,8 @@ internal fun TabletTable(
                                 ToneButton("Chaos ensues", { send(activeSeat, "${PLANAR_PREFIX}chaos") }, Modifier.weight(1f),
                                     enabled = !isOffline && activeSeat != null)
                             }
+                            if (planes.digital) ToneButton("Top card to the bottom", { send(activeSeat, "${PLANAR_PREFIX}top-to-bottom") },
+                                Modifier.fillMaxWidth(), enabled = !isOffline && activeSeat != null && planes.deckSize > 1)
                             Text("A card's own roll is free:", color = p.muted, style = MaterialTheme.typography.bodySmall)
                             ToneButton("Roll for a card", {
                                 val face = com.turnhub.android.standalone.PlanarFace.roll(kotlin.random.Random.Default)

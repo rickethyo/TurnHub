@@ -101,8 +101,10 @@ constexpr uint32_t GAME_FLAG_MANUAL_COMMANDER = 0x800;
 constexpr uint32_t GAME_FLAG_HOUSE_RULES = 0x1000;
 // Planechase with the players' own plane cards (Magic formats only).
 constexpr uint32_t GAME_FLAG_PLANECHASE = 0x2000;
+// Planechase's deck: the catalog the app sent Atlas (card_cache.h), shuffled.
+constexpr uint32_t GAME_FLAG_PLANAR_DIGITAL = 0x4000;
 // PlanarAction payload.flags.
-enum class PlanarCommand : uint8_t { None, Roll, Planeswalk, Chaos, Counter };
+enum class PlanarCommand : uint8_t { None, Roll, Planeswalk, Chaos, Counter, Resolve, TopToBottom };
 constexpr int32_t COMMANDER_DAMAGE_LIMIT = 21;
 // Per-player Magic counters, then three table-wide actions that ride the same
 // ChangeCounter Intent from any living player (2026-10-28, app parity):
@@ -155,6 +157,8 @@ struct GameSettings {
   bool askEliminationSource = false;
   // Planechase with the players' own plane cards; Atlas tracks the planar die.
   bool planechase = false;
+  // Its deck: Atlas's digital deck (the saved catalog) instead of the players' own planes.
+  bool planarDigital = false;
 };
 // Two-Headed Giant: Magic and Commander only (never Star Commander).
 inline bool teamsAllowed(GameProfile profile) {
@@ -214,7 +218,7 @@ inline bool validGameSettings(const GameSettings &settings) {
 inline bool sameGameSettings(const GameSettings &a, const GameSettings &b) {
   return a.profile == b.profile && a.startingLife == b.startingLife && a.turnTimerMs == b.turnTimerMs &&
       a.twoHeadedGiant == b.twoHeadedGiant && a.houseRules == b.houseRules && a.askEliminationSource == b.askEliminationSource &&
-      a.planechase == b.planechase &&
+      a.planechase == b.planechase && a.planarDigital == b.planarDigital &&
       a.autoEliminateAtZeroLife == b.autoEliminateAtZeroLife &&
       a.autoEliminateAtPoisonLimit == b.autoEliminateAtPoisonLimit &&
       a.autoEliminateAtCommanderDamage == b.autoEliminateAtCommanderDamage && a.poisonLimit == b.poisonLimit;

@@ -340,6 +340,7 @@ bool configureIntentHandlers() {
       {IntentType::BackToSetup, handleBackToSetupIntent},
       {IntentType::CountShortGame, handleCountShortGameIntent},
       {IntentType::PlanarAction, handlePlanarIntent},
+      {IntentType::SetCommander, handleSetCommanderIntent},
       {IntentType::BeginElimination, handleEliminationIntent},
       {IntentType::CycleElimination, handleEliminationIntent},
       {IntentType::CancelElimination, handleEliminationIntent},
@@ -584,6 +585,7 @@ void setup() {
   for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
     TableScope scope(t);
     table().clientState.setNameLookup(displayNameForTableSeat);
+    table().clientState.setCommanderLookup(commanderForTableSeat);
     observeClientState();
     restoreInterruptedMatch();
   }
@@ -658,6 +660,8 @@ void refreshSdLuxuryStore() {
   TurnHubStorage::BlobStore *store = sdBlobStore();
   TurnHubProfiles::setLuxuryStore(store);
   serialLog.println(store ? "ATLAS|SD|STATS|CARD" : "ATLAS|SD|STATS|CORE_ONLY");
+  // The planar catalog the app saved here, for digital Planechase decks.
+  if (store && TurnHubCards::loadPlanes()) serialLog.printf("ATLAS|PLANES|LOADED|%u\n", TurnHubCards::planeCount());
 }
 
 void loop() {

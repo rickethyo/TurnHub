@@ -275,6 +275,7 @@ ScreenKind baseScreen(uint32_t nowMs) {
   const bool lobbyOnly = openScreen == ScreenKind::Seat || openScreen == ScreenKind::Name ||
       openScreen == ScreenKind::Pin || openScreen == ScreenKind::NewGame;
   if (lobbyOnly && table().hubState != HubState::Lobby) openScreen = ScreenKind::Status;
+  if (openScreen == ScreenKind::Planes && (!matchInProgress() || !table().game.planar().enabled)) openScreen = ScreenKind::Status;
   if (pendingPresenceCode(nowMs) != nullptr) return ScreenKind::Code;
   if (waitingPairSlot() != INVALID_ID) return ScreenKind::PairCode;
   if (openScreen == ScreenKind::Status && setupScreenDue()) return ScreenKind::Setup;
@@ -426,10 +427,19 @@ void layoutNewGame(AtlasScreen &screen) {
 void layoutPlayer(AtlasScreen &screen) {
   // Lobby: turn order (item 11). Earlier and Later, then Back.
   if (table().hubState == HubState::Lobby) {
+    static char commander[48];
+    PlayerSeat shown;
+    const bool commanders = TurnHub::commanderRules(table().nextGameSettings.profile) && currentShownSeat(shown) &&
+        profileIdForTableSeat(shown, false).length();
+    if (commanders) {
+      const auto *card = chosenCommander(profileIdForTableSeat(shown, false));
+      snprintf(commander, sizeof(commander), "Commander: %s", card ? card->name : "none");
+    }
     const ButtonSpec upper[] = {{TouchAction::MoveEarlier, "Earlier", 0, 1},
         {TouchAction::MoveLater, "Later", 0, 1},
-        {TouchAction::RemoveSeat, "Remove", ASK, 1}};
-    addColumn(screen, upper, 3);
+        {TouchAction::RemoveSeat, "Remove", ASK, 1},
+        {TouchAction::SeatCommander, commander, 0, 1}};
+    addColumn(screen, upper, commanders ? 4 : 3);
     PlayerSeat seat;
     if (currentShownSeat(seat) && table().lobby.hasSecondary(seat.controllerId)) {
       const ButtonSpec lower[] = {{TouchAction::SeatBLeft, "B left", 0, 1},
@@ -631,6 +641,20 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     }
     case ScreenKind::Confirm: layoutConfirm(screen); return;
     case ScreenKind::NewGame: layoutNewGame(screen); return;
+    case ScreenKind::Planes: {
+      ButtonSpec rows[3];
+      uint8_t n = 0;
+      const auto planes = table().game.planar();
+      if (table().hubState == HubState::Running) {
+        if (planes.phenomenon) rows[n++] = {TouchAction::PlanarResolve, "Resolve phenomenon", 0, 1};
+        else rows[n++] = {TouchAction::PlanarRoll, "Roll the planar die", 0, 1};
+        rows[n++] = {TouchAction::PlanarWalk, "Planeswalk (a card says so)", 0, 1};
+      }
+      addList(screen, rows, n);
+      const ButtonSpec lower[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
+      addRow(screen, BUTTON_ROW_Y, lower, 1);
+      return;
+    }
     case ScreenKind::Overview: {
       const uint8_t count = table().hubState == HubState::Lobby ? table().lobby.playerCount() : table().game.playerCount();
       if (count > MAX_SCREEN_PLAYERS) {
@@ -705,6 +729,12 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     // Pass is a tap: it keeps its grace period, so the seat can still cancel.
     // The master pass and End match sit on the Actions screen.
     case HubState::Running: {
+      if (table().game.planar().enabled) {
+        const ButtonSpec row[] = {{TouchAction::PassTurn, "Pass", 0, 3}, {TouchAction::Pause, "Pause", 0, 2},
+            {TouchAction::OpenPlanes, "Planes", 0, 2}, {TouchAction::OpenTable, "Actions", 0, 2}};
+        addRow(screen, BUTTON_ROW_Y, row, 4);
+        break;
+      }
       const ButtonSpec row[] = {{TouchAction::PassTurn, "Pass", 0, 3},
           {TouchAction::Pause, "Pause", 0, 2}, {TouchAction::OpenTable, "Actions", 0, 3}};
       addRow(screen, BUTTON_ROW_Y, row, 3);
@@ -737,7 +767,7 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
   const TouchAction actions[] = {TouchAction::OpenHome, TouchAction::OpenGame,
       TouchAction::OpenOverview, TouchAction::OpenSettings};
   const uint8_t selected = kind == ScreenKind::Home || kind == ScreenKind::ManaTap ? 0 : kind == ScreenKind::Status || kind == ScreenKind::Player ||
-      kind == ScreenKind::Table || kind == ScreenKind::Seat || kind == ScreenKind::NewGame ? 1
+      kind == ScreenKind::Table || kind == ScreenKind::Seat || kind == ScreenKind::NewGame || kind == ScreenKind::Planes ? 1
       : kind == ScreenKind::Overview ? 2 : 3;
   for (uint8_t i=0; i<TurnHubUi::PAGE_COUNT; ++i) {
     addKey(screen,actions[i],TurnHubUi::pageTitle(static_cast<TurnHubUi::Page>(i)),i*80,432,80,48,0);
@@ -855,6 +885,11 @@ const char *actionName(TouchAction action) {
     case TouchAction::OpenManaTap: return "OPEN_MANA_TAP";
     case TouchAction::ManaAction: return "MANA_ACTION";
     case TouchAction::ManaQuit: return "MANA_QUIT";
+    case TouchAction::OpenPlanes: return "OPEN_PLANES";
+    case TouchAction::PlanarRoll: return "PLANAR_ROLL";
+    case TouchAction::PlanarWalk: return "PLANAR_WALK";
+    case TouchAction::PlanarResolve: return "PLANAR_RESOLVE";
+    case TouchAction::SeatCommander: return "SEAT_COMMANDER";
     case TouchAction::None: break;
   }
   return "NONE";
@@ -944,6 +979,7 @@ bool navigate(TouchAction action) {
     case TouchAction::OpenSettings: openScreen = ScreenKind::Menu; return true;
     case TouchAction::OverviewNext: overviewPage = overviewPage ? 0 : 1; return true;
     case TouchAction::OpenNewGame: openScreen = ScreenKind::NewGame; return true;
+    case TouchAction::OpenPlanes: openScreen = ScreenKind::Planes; return true;
     case TouchAction::ConfirmNo: confirmAction = TouchAction::None; return true;
     case TouchAction::OpenQr: openScreen = ScreenKind::Qr; return true;
     case TouchAction::OpenTable: openScreen = ScreenKind::Table; return true;
@@ -1292,6 +1328,47 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       break;
     }
     // Remove on a lobby Player screen (confirmed): that seat leaves the lobby.
+    // Planechase for the active player; the die is Atlas's own (one face in
+    // six planeswalks, one is chaos).
+    case TouchAction::PlanarRoll:
+    case TouchAction::PlanarWalk:
+    case TouchAction::PlanarResolve: {
+      Intent intent;
+      intent.type = IntentType::PlanarAction;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
+      intent.payload.flags = static_cast<uint32_t>(action == TouchAction::PlanarRoll ? TurnHub::PlanarCommand::Roll :
+          action == TouchAction::PlanarWalk ? TurnHub::PlanarCommand::Planeswalk : TurnHub::PlanarCommand::Resolve);
+      const uint32_t face = esp_random() % 6;
+      intent.payload.value = face == 0 ? 2 : face == 1 ? 1 : 0;
+      result = intents.dispatch(intent);
+      break;
+    }
+    // The next of the shown player's saved commanders, then none.
+    case TouchAction::SeatCommander: {
+      PlayerSeat seat;
+      if (!currentShownSeat(seat)) {
+        result = IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
+        break;
+      }
+      const String profile = profileIdForTableSeat(seat, false);
+      TurnHubCards::SavedCommanders saved;
+      if (!profile.length() || !TurnHubCards::loadCommanders(profile, saved) || !saved.count) {
+        result = IntentResult::reject(IntentStatus::Conflict, "Save commanders from the app first");
+        break;
+      }
+      const auto *current = chosenCommander(profile);
+      uint8_t next = 1;
+      for (uint8_t i = 0; current && i < saved.count; ++i)
+        if (!strcmp(saved.slots[i].name, current->name)) next = static_cast<uint8_t>(i + 2 > saved.count ? 0 : i + 2);
+      Intent intent;
+      intent.type = IntentType::SetCommander;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
+      intent.actor.controllerId = seat.controllerId;
+      intent.actor.slot = seat.slot;
+      intent.payload.value = next;
+      result = intents.dispatch(intent);
+      break;
+    }
     case TouchAction::RemoveSeat: {
       PlayerSeat seat;
       if (!currentShownSeat(seat)) {
@@ -1421,7 +1498,8 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
           (next.autoEliminateAtPoisonLimit ? 0 : TurnHub::GAME_FLAG_MANUAL_POISON) |
           (next.autoEliminateAtCommanderDamage ? 0 : TurnHub::GAME_FLAG_MANUAL_COMMANDER) |
           (next.houseRules ? TurnHub::GAME_FLAG_HOUSE_RULES : 0) |
-          (next.planechase && TurnHub::magicRules(next.profile) ? TurnHub::GAME_FLAG_PLANECHASE : 0);
+          (next.planechase && TurnHub::magicRules(next.profile) ? TurnHub::GAME_FLAG_PLANECHASE : 0) |
+          (next.planarDigital ? TurnHub::GAME_FLAG_PLANAR_DIGITAL : 0);
       intent.payload.value = next.startingLife;
       intent.payload.poisonLimit = next.poisonLimit;
       intent.payload.durationMs = next.turnTimerMs;
@@ -1824,6 +1902,17 @@ void formatHome(AtlasScreen &screen, uint32_t nowMs) {
   screen.lineCount = 4;
 }
 
+// Planechase: the face-up plane (Atlas's digital deck) or the players' own.
+void formatPlanes(AtlasScreen &screen) {
+  const auto planes = table().game.planar();
+  snprintf(screen.badge, sizeof(screen.badge), "PLANES");
+  const auto *card = planes.plane[0] ? TurnHubCards::findPlane(planes.plane) : nullptr;
+  snprintf(screen.title, sizeof(screen.title), "%s", card ? card->name : planes.digital ? "Planechase" : "Your own planes");
+  if (planes.phenomenon) snprintf(screen.detail, sizeof(screen.detail), "Phenomenon: resolve it, then planeswalk");
+  else snprintf(screen.detail, sizeof(screen.detail), "Walks %ld, chaos %ld. Next roll: %ld mana",
+      static_cast<long>(planes.planeswalks), static_cast<long>(planes.chaos), static_cast<long>(planes.rollCost));
+}
+
 void formatManaTap(AtlasScreen &screen) {
   const uint16_t best = manaTap.best();
   snprintf(screen.badge, sizeof(screen.badge), "PLAY");
@@ -2094,6 +2183,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
     case ScreenKind::ManaTap: formatManaTap(screen); break;
     case ScreenKind::Confirm: formatConfirm(screen, nowMs); break;
     case ScreenKind::NewGame: formatNewGame(screen); break;
+    case ScreenKind::Planes: formatPlanes(screen); break;
     case ScreenKind::Overview:
       formatStatus(screen,nowMs);
       snprintf(screen.title,sizeof(screen.title),"Table");

@@ -735,7 +735,29 @@ with `source: "physical"`: it counts the planar die's mana cost per turn
 (the first roll each turn is free), chaos and planeswalks, and the face-up
 plane's counters, and projects them as the state's `planechase` object (null
 when off). The client rolls the die and sends the face; Atlas has no plane
-list, so a digital deck stays in the app's device game.
+list of its own: with `planarDeck=digital` it deals the catalog the app sent
+(below), shuffled, and the state's `planechase` adds the face-up `plane`
+(`id`, `name`, `phenomenon`) and `deckSize`. Without a catalog the deck falls
+back to the players' own planes.
+
+Plane catalog (Atlas 2026-10-30): `GET /api/planes` answers `version` and
+`count`; `POST /api/planes` (any signed-in browser or tablet) takes `version`
+(up to 24 characters) and `planes`, one line per card
+`<36-character Scryfall id><TAB><name, up to 40><TAB><1 phenomenon | 0>`, up to
+192 cards. Atlas keeps it in RAM and on the microSD card (records `pl0`…,
+`plv`), reloading it at boot or card insertion. The app sends its downloaded
+planes whenever the versions differ.
+
+Saved commanders: up to six per profile on the microSD card (`d<profileId>`).
+`GET /api/profiles/commanders` (the session's own, or `?profileId=` from a
+tablet) answers `commanders: [{slot, name, art}]`, newest first.
+`POST /api/control/commander-choice` (signed-in seat) and
+`/api/tablet/commander-choice` (Tablet access, `moduleId`/`slot`, lobby only)
+take `name` (up to 64 characters) and optional `art` (a printing ID) to save
+and choose one, `slot` (1-based, 0 for none) to choose a saved one, or
+`forget` (a slot) to remove it. 409 without a card or for a guest. The chosen
+commander shows as each player's `commander` (`name`, `art`) in the state,
+in the lobby and through the match, and the match record carries it.
 
 `POST /api/control/planar` (signed-in participant) and `/api/tablet/planar`
 (Tablet access, acting `moduleId`/`slot`) take `action`:

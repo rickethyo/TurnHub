@@ -44,7 +44,9 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CommanderPickerDialog(player: TablePlayer, commander: Boolean, gameCards: TileCardGame,
-                                   onSave: (name: String?, printing: String?, cardOnly: Boolean) -> Unit, onDismiss: () -> Unit) {
+                                   onSave: (name: String?, printing: String?, cardOnly: Boolean) -> Unit,
+                                   /** The profile's saved commanders (name, printing), quick to pick again. */
+                                   saved: List<Pair<String, String?>> = emptyList(), onDismiss: () -> Unit) {
     val p = palette
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -83,6 +85,14 @@ internal fun CommanderPickerDialog(player: TablePlayer, commander: Boolean, game
         title = { Text(if (commander) "${player.label}'s commander" else "${player.label}'s tile card") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (saved.isNotEmpty()) {
+                    Text("Saved commanders", color = p.muted, style = MaterialTheme.typography.titleSmall)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        saved.forEach { (savedName, savedArt) ->
+                            FilterChip(player.commander == savedName, { onSave(savedName, savedArt, false) }, label = { Text(savedName) })
+                        }
+                    }
+                }
                 if (artOn) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     TileCardGame.entries.forEach { option ->
                         FilterChip(game == option, {

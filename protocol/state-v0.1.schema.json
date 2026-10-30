@@ -368,6 +368,32 @@
           "eliminationPending": {
             "type": "boolean",
             "description": "An automatic removal awaits explicit opponent, Self or Unknown attribution; the game is paused and completion/statistics are deferred."
+          },
+          "commander": {
+            "description": "Commander formats: the commander this player chose from their profile's saved ones (lobby), or plays (match). Null for none; absent from older firmware.",
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "art"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "art": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 48
+              }
+            }
           }
         }
       },
@@ -436,6 +462,13 @@
         "planechase": {
           "description": "Planechase with the players' own plane cards (Magic formats; lobby: the next match). Absent from older Atlas firmware; treat as false.",
           "type": "boolean"
+        },
+        "planarDeck": {
+          "description": "Planechase's deck: the players' own planes, or Atlas's digital deck (it falls back to physical with no saved catalog). Absent from older firmware; treat as physical.",
+          "enum": [
+            "physical",
+            "digital"
+          ]
         }
       }
     },
@@ -696,7 +729,7 @@
       "description": "Bag of Doom only, after match start. Player masks use bit (playerNumber - 1); 0 in player fields means none. A sealed draw must retry the same reserved selection, which is never exposed here. Each completed check increments cycle and refills immunity."
     },
     "planechase": {
-      "description": "Planechase in this match, with the players' own plane cards: Atlas counts the planar die's cost, chaos and planeswalks. Null when off or between matches.",
+      "description": "Planechase in this match: the players' own plane cards, or Atlas's digital deck dealt from the plane catalog the app saved (GET/POST /api/planes). Atlas counts the planar die's cost, chaos and planeswalks. Null when off or between matches.",
       "type": [
         "object",
         "null"
@@ -708,11 +741,16 @@
         "chaos",
         "counters",
         "rollCost",
-        "lastRoll"
+        "lastRoll",
+        "plane",
+        "deckSize"
       ],
       "properties": {
         "source": {
-          "const": "physical"
+          "enum": [
+            "physical",
+            "digital"
+          ]
         },
         "planeswalks": {
           "type": "integer",
@@ -771,6 +809,41 @@
               "type": "boolean"
             }
           }
+        },
+        "plane": {
+          "description": "Digital: the face-up card; name is null when the catalog no longer has it.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "phenomenon"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 36,
+              "maxLength": 36
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 40
+            },
+            "phenomenon": {
+              "type": "boolean"
+            }
+          }
+        },
+        "deckSize": {
+          "description": "Digital: cards left face down; 0 for physical planes.",
+          "type": "integer",
+          "minimum": 0
         }
       }
     }

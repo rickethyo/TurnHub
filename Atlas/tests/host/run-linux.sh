@@ -21,7 +21,7 @@ application_sources=(
   ../../src/game_engine.cpp ../../src/lobby.cpp ../../src/intent_dispatcher.cpp
   ../../src/client_state.cpp ../../src/game_checkpoint.cpp ../../src/game_recovery.cpp
   ../../src/game_recovery_store.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp
-  ../../src/match_archive.cpp ../../../core/src/turnhub_json.cpp ../../../core/src/turnhub_core.cpp
+  ../../src/match_archive.cpp ../../src/card_cache.cpp ../../../core/src/turnhub_json.cpp ../../../core/src/turnhub_core.cpp
 )
 
 mkdir -p build

@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "card_cache.h"
 #include "json_text.h"
 
 namespace TurnHub {
@@ -42,6 +43,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
   changed |= update(settings_.twoHeadedGiant, settings.twoHeadedGiant);
   changed |= update(settings_.houseRules, settings.houseRules);
   changed |= update(settings_.planechase, settings.planechase);
+  changed |= update(settings_.planarDigital, settings.planarDigital);
   const GameEngine::PlanarView planar = inGame_ ? game.planar() : GameEngine::PlanarView{};
   if (!(planar_ == planar)) { planar_ = planar; changed = true; }
   changed |= update(settings_.autoEliminateAtZeroLife, settings.autoEliminateAtZeroLife);
@@ -97,6 +99,15 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
       strncpy(name, value.c_str(), NAME_LENGTH);
       if (strcmp(name, p.name) != 0) {
         memcpy(p.name, name, sizeof(name));
+        changed = true;
+      }
+    }
+    if (commanderLookup_ != nullptr) {
+      String name, art;
+      if (!commanderLookup_(seat, inGame_, name, art)) name = art = String();
+      if (strncmp(name.c_str(), p.commander, sizeof(p.commander) - 1) || strncmp(art.c_str(), p.commanderArt, sizeof(p.commanderArt) - 1)) {
+        snprintf(p.commander, sizeof(p.commander), "%s", name.c_str());
+        snprintf(p.commanderArt, sizeof(p.commanderArt), "%s", art.c_str());
         changed = true;
       }
     }
@@ -196,7 +207,17 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   out += ",\"planechase\":";
   if (!planar_.enabled) out += "null";
   else {
-    out += "{\"source\":\"physical\",\"planeswalks\":"; out += String(planar_.planeswalks);
+    out += "{\"source\":\""; out += planar_.digital ? "digital" : "physical";
+    out += "\",\"plane\":";
+    if (!planar_.plane[0]) out += "null";
+    else {
+      const auto *card = TurnHubCards::findPlane(planar_.plane);
+      out += "{\"id\":\""; out += planar_.plane;
+      out += "\",\"name\":"; if (card) { out += '"'; out += jsonEscape(card->name); out += '"'; } else out += "null";
+      out += ",\"phenomenon\":"; out += planar_.phenomenon ? "true" : "false"; out += '}';
+    }
+    out += ",\"deckSize\":"; out += String(planar_.deckSize);
+    out += ",\"planeswalks\":"; out += String(planar_.planeswalks);
     out += ",\"chaos\":"; out += String(planar_.chaos);
     out += ",\"counters\":"; out += String(planar_.counters);
     out += ",\"rollCost\":"; out += String(planar_.rollCost);
@@ -223,6 +244,7 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   out += ",\"askEliminationSource\":"; out += settings_.askEliminationSource ? "true" : "false";
   out += ",\"houseRules\":"; out += settings_.houseRules ? "true" : "false";
   out += ",\"planechase\":"; out += settings_.planechase ? "true" : "false";
+  out += ",\"planarDeck\":"; out += settings_.planarDigital ? "\"digital\"" : "\"physical\"";
   out += "},\"sampledAtMs\":"; out += String(nowMs);
   out += ",\"gameElapsedMs\":"; out += String(game.gameElapsedMs(nowMs));
   out += ",\"turnElapsedMs\":"; out += String(game.currentTurnElapsedMs(nowMs));
@@ -261,6 +283,13 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
     out += ",\"displayName\":";
     if (p.name[0]) { out += '"'; out += jsonEscape(p.name); out += '"'; } else out += "null";
     out += ",\"participantId\":"; out += String(p.participant);
+    out += ",\"commander\":";
+    if (!p.commander[0]) out += "null";
+    else {
+      out += "{\"name\":\""; out += jsonEscape(p.commander); out += "\",\"art\":";
+      if (p.commanderArt[0]) { out += '"'; out += jsonEscape(p.commanderArt); out += '"'; } else out += "null";
+      out += '}';
+    }
     out += ",\"turnsCompleted\":"; out += String(p.turnsCompleted);
     out += ",\"counters\":{\"poison\":"; out += String(p.counters.poison);
     out += ",\"energy\":"; out += String(p.counters.energy);
