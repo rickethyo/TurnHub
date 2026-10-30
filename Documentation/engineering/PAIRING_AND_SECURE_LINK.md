@@ -60,15 +60,15 @@ is ignored until released.
 
 **Other routes:**
 
-- **Sigil Device menu** (Menu on Up, then Device; Sigil 0.9.10): Sleep,
-  Unpair (hold the click 3 s) and Factory reset (hold 5 s). Device-local:
+- **Sigil Device menu** (the Settings tab): Unpair and Factory reset, each
+  confirmed in a popup (2026-10-30; they were holds). Device-local:
   never sent to Atlas. On the **Atlas lost** screen Menu opens straight on
   these, so a Sigil whose Atlas is gone can still be unpaired or reset.
-- **Atlas touchscreen**, Menu > Device, between games: **Unpair Sigils**
-  (hold 3 s, lobby only), **Factory reset** (hold 10 s) and **Sleep**. Like
-  BOOT they need no Admin or table code: the screen is physical presence, so
-  anyone at the table can erase Atlas between games (owner's choice); the
-  long hold is the guard.
+- **Atlas touchscreen**, Settings > Device, between games: **Unpair Sigils**
+  (lobby only), **Factory reset** and **Sleep**. Like BOOT they need no Admin
+  or table code: the screen is physical presence, so anyone at the table can
+  erase Atlas between games (owner's choice); the confirm popup, which names
+  what is erased, is the guard (it replaced 3 s and 10 s holds on 2026-10-30).
 - **Portal, Device Settings** (Admin): Forget per Sigil or Forget all
   (`ForgetPairing`, lobby only, refused while anyone is seated on that
   Sigil). Atlas removes the record, releases that Sigil's seat bindings

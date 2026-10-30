@@ -577,13 +577,19 @@ and caching, with no new dependency; browsing can download uncached preview art.
   every other Sigil shows "P<n> PASSING" with an amber countdown
   (`PassPending`); the Atlas screen says "Passing in Ns". Two falling ticks
   play when a pass is queued and two rising ticks when it is undone.
-- **Master pass** (Atlas Table screen, hold 2 s) and a Game Master's pass
+- **Master pass** (Atlas Actions screen, confirmed in a popup) and a Game Master's pass
   skip the grace and are logged as master passes.
 - **S3 Atlas screen** (*Experimental*, 2026-10-28): like the app's shared
-  table, **Hold to pass** (0.6 s) sends the active player's own pass, with
+  table, **Pass** (a tap) sends the active player's own pass, with
   the usual grace, and a tap on the lower left or right half of a player's
   tile takes one life or gives one back (`ChangeLife`); the tile's name band
   opens that player's screen (big steps, Concede).
+- **No holds on the touch screens** (owner, 2026-10-30): on the Atlas screen
+  and the Sigil, an action that ends, removes or erases something (End
+  match, Master pass, Concede, Remove, Clear lobby, Reset, Claim win, Confirm
+  out, Leave lobby, Unpair, Factory reset) asks first in a confirm popup with
+  Cancel and the action; everything else is a tap. The physical BOOT and Pair
+  buttons keep their holds.
 - **Rounds:** the Atlas header and the Sigils show the table round, counted
   from each living player's completed turns. The Atlas screen also shows
   each player's total time on their own turns and the match time.
@@ -591,7 +597,7 @@ and caching, with no new dependency; browsing can download uncached preview art.
   double pulse on B's half of the ring. Down on the Sigil switches which
   seat it shows (and so whose life Left/Right change) until the turn comes
   round; an eliminated seat never leads over a living one.
-- **Pause** stops the turn clock. **End match** (Atlas Table screen, hold 5 s)
+- **Pause** stops the turn clock. **End match** (Atlas Actions screen, confirmed)
   ends a running or paused match as a draw.
 - **Win claims** need the other living players to confirm, one at a time in
   seat order starting after the claimant (in Two-Headed Giant, only the next

@@ -111,7 +111,7 @@ recorded and the stats API reports `"detailed": false`.
   a disk; sharing the card is not yet tried on it): the S3 Atlas's USB-C port is TinyUSB CDC (serial) plus a mass-storage
   disk (`ARDUINO_USB_MODE=0`, so the USB Serial/JTAG peripheral and its JTAG
   debugging are gone; upload reaches the ROM loader by a 1200 baud touch, and
-  closing a serial monitor no longer reboots into it). Menu > Device >
+  closing a serial monitor no longer reboots into it). Settings > Device >
   **USB drive** asks the SD worker to lend
   the card: it ends the record store and logging, detaches FatFs, then shows
   the computer the whole card as raw sectors; the header says **USB DRIVE**.

@@ -93,10 +93,6 @@ int main() {
     d.setMenuView(MenuView());
     d.showUnpaired(); save("unpaired" + suffix);
     MenuView pairing;
-    pairing.pairPercent = 50;
-    d.setMenuView(pairing);
-    d.showUnpaired(); save("pair-hold" + suffix);
-    pairing.pairPercent = 0;
     pairing.pairing = true;
     d.setMenuView(pairing);
     d.showUnpaired(); save("pair-search" + suffix);
@@ -135,10 +131,12 @@ int main() {
     d.showGame(game("Ricky", 22, false, 7)); save("menu-paged" + suffix);
     open.compass[static_cast<uint8_t>(Key::Down)] = MENU_LOCAL_COUNTERS;
     open.pageCount = 0;
-    open.holdAction = A(SigilAction::ClaimWin);
-    open.holdPercent = 50;
+    open.confirmAction = A(SigilAction::ClaimWin);
+    open.compass[static_cast<uint8_t>(Key::Select)] = MENU_LOCAL_CONFIRM;
+    open.compass[static_cast<uint8_t>(Key::Left)] = MENU_LOCAL_BACK;
     d.setMenuView(open);
-    d.showGame(game("Ricky", 22, false, 7)); save("action-hold" + suffix);
+    d.showGame(game("Ricky", 22, false, 7)); save("confirm" + suffix);
+    open.confirmAction = MENU_NONE;
     auto controls=game("Ricky",42,true,2);
     controls.commander=1; controls.controls.allowed=(1u<<TurnHubUi::PLAYER_CONTROL_COUNT)-1;
     controls.controls.values[0]=3; controls.controls.values[5]=2;

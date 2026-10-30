@@ -369,6 +369,7 @@ void LvglSigilDisplay::navigation(TurnHubUi::Page selected) {
 void LvglSigilDisplay::pad(const PadLabels &labels) {
   touchMap_.menuRevision = menu_.revision;
   if (layout_ == Layout::Hidden) { present(); return; }
+  if (menu_.active && menu_.confirmAction != MENU_NONE) { confirmPopup(); return; }
   const uint8_t up=0, down=1, left=2, right=3, select=4;
   PadRect rects[KEY_COUNT] = {};
   if (layout_ == Layout::Menu) {
@@ -415,15 +416,50 @@ void LvglSigilDisplay::pad(const PadLabels &labels) {
     else if (layout_ == Layout::Menu) menuRow(labels.text[i], labels.note[i], rects[i], i, menu_.compass[i], meaning);
     else button(labels.text[i], labels.note[i], rects[i], i, labels.accent[i], meaning);
   }
-  // Menu shows a hold inside its row; the pairing hold has no row.
-  const uint8_t progress = menu_.pairPercent ? menu_.pairPercent :
-      layout_ == Layout::Menu ? 0 : menu_.holdPercent;
-  if (progress) {
-    auto *track=box(lv_screen_active(),10,266,220,4);
-    card(track,pal().fillStrong,pal().fillStrong,2);
-    auto *fill=box(track,0,0,220*progress/100,4); card(fill,pal().accent,pal().accent,2);
-  }
   navigation(page_);
+  setPressedKey(pressed_);
+}
+
+// The question and what it does, for each action that asks first.
+static void confirmWords(uint8_t action, const char *&question, const char *&detail) {
+  using TurnHubProtocol::SigilAction;
+  question = "Are you sure?";
+  detail = "";
+  if (action == MENU_LOCAL_UNPAIR) { question = "Unpair from Atlas?"; detail = "Pair again to play at it."; }
+  else if (action == MENU_LOCAL_FACTORY_RESET) { question = "Erase this Sigil?"; detail = "Its pairing and settings go."; }
+  else if (action == static_cast<uint8_t>(SigilAction::ClaimWin)) { question = "Claim the win?"; detail = "The table confirms it."; }
+  else if (action == static_cast<uint8_t>(SigilAction::Eliminate)) { question = "Confirm you're out?"; detail = "Your game ends."; }
+  else if (action == static_cast<uint8_t>(SigilAction::ResetTable)) { question = "Reset the table?"; detail = "Everyone leaves the lobby."; }
+  else if (action == static_cast<uint8_t>(SigilAction::Leave)) { question = "Leave the lobby?"; detail = "Join again to play."; }
+}
+
+// A popup over whatever was on screen: the screen dims, a card asks, and
+// only Cancel (Left) and the action (Select) answer it.
+void LvglSigilDisplay::confirmPopup() {
+  auto *scrim = box(lv_screen_active(), 0, 0, W, NAV_Y + NAV_H);
+  lv_obj_set_style_bg_opa(scrim, LV_OPA_80, 0);
+  lv_obj_set_style_bg_color(scrim, rgb(pal().scrim), 0);
+  auto *popup = box(lv_screen_active(), M, 64, W - 2 * M, 196);
+  card(popup, pal().light ? pal().surface1 : pal().surface2, pal().separatorStrong, 18);
+  const char *question, *detail;
+  confirmWords(menu_.confirmAction, question, detail);
+  const struct { const char *words; const lv_font_t *font; uint32_t ink; int16_t y; } lines[] = {
+      {question, &th_bold_28, pal().text, 14}, {detail, &th_semi_16, pal().textSecondary, 84}};
+  for (const auto &line : lines) {
+    lv_obj_t *l = lv_label_create(popup);
+    lv_obj_remove_style_all(l);
+    lv_label_set_text(l, line.words);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(l, W - 2 * M - 28);
+    lv_obj_set_pos(l, 14, line.y);
+    lv_obj_set_style_text_font(l, line.font, 0);
+    lv_obj_set_style_text_color(l, rgb(line.ink), 0);
+  }
+  const uint8_t left = static_cast<uint8_t>(Key::Left), select = static_cast<uint8_t>(Key::Select);
+  const uint32_t meaning = (context_ * 65536u + menu_.revision * 256u + MENU_LOCAL_CONFIRM) ^ (menu_.confirmAction * 40503u);
+  button("Cancel", nullptr, {M + 8, 200, 104, 48}, left, false, meaning + 1);
+  button(sigilActionLabel(static_cast<TurnHubProtocol::SigilAction>(menu_.confirmAction)), nullptr,
+      {W - M - 8 - 104, 200, 104, 48}, select, true, meaning + 2);
   setPressedKey(pressed_);
 }
 
@@ -447,12 +483,8 @@ PadLabels LvglSigilDisplay::menuLabels() const {
     if (action == MENU_NONE) continue;
     l.text[i] = action == MENU_LOCAL_DEVICE_MENU ? "More" : action == MENU_LOCAL_MORE && menu_.deviceMenu ? "More actions" :
         sigilActionLabel(static_cast<TurnHubProtocol::SigilAction>(action));
-    if (menuActionNeedsHold(action)) l.note[i] = "HOLD";
   }
   const uint8_t left = static_cast<uint8_t>(Key::Left), right = static_cast<uint8_t>(Key::Right);
-  if (menu_.pairPercent) {
-    l.note[static_cast<uint8_t>(Key::Select)] = "HOLD TO PAIR";
-  }
   if (lifeRequestShown()) {
     l.text[left] = "Deny";
     l.text[right] = "Approve";
@@ -531,7 +563,7 @@ void LvglSigilDisplay::menuRow(const char *label, const char *note, PadRect r, u
   const lv_image_dsc_t *glyph = labelIcon(label);
   icon(tile, glyph ? glyph : &th_icon_sigil_24, 4, 4, pal().bg);
   const int16_t textW = r.w - 52 - (opens ? 34 : 10);
-  const char *detail = note && strcmp(note, "HOLD") == 0 ? "Hold to confirm" : note;
+  const char *detail = note;
   if (action == MENU_LOCAL_DEVICE) detail = "Theme and pairing";
   if (action == MENU_LOCAL_COUNTERS) detail = "Status and casts";
   // The look rows say what is chosen now.
@@ -547,12 +579,6 @@ void LvglSigilDisplay::menuRow(const char *label, const char *note, PadRect r, u
     text(row, label, rowFont, ink, 52, (r.h - 24) / 2, textW);
   }
   if (opens) icon(row, &th_icon_chevron_right_24, r.w - 32, (r.h - 24) / 2, pal().textTertiary);
-  if (menu_.holdPercent && menu_.holdAction == action) {
-    auto *track = box(row, 52, r.h - 7, r.w - 64, 4);
-    card(track, pal().fillStrong, pal().fillStrong, 2);
-    auto *fill = box(track, 0, 0, (r.w - 64) * menu_.holdPercent / 100, 4);
-    card(fill, tint, tint, 2);
-  }
   // A newly labeled control cannot inherit a contact from the old action.
   for (const char *c = label; *c; ++c) meaning = (meaning ^ static_cast<uint8_t>(*c)) * 16777619u;
   touchMap_.add(r, key, meaning);
@@ -581,12 +607,11 @@ void LvglSigilDisplay::showUnpaired() {
   page_=TurnHubUi::Page::Game; layout_=Layout::Actions; context_=1;
   if (drawDeviceMenu(0xFF)) return;
   PadLabels l = menuLabels();
-  // Hold the on-screen Pair button to open pairing while unpaired.
+  // Tap the on-screen Pair button to open pairing while unpaired.
   l.text[static_cast<uint8_t>(Key::Select)] = menu_.pairing ? nullptr : "Pair";
-  l.note[static_cast<uint8_t>(Key::Select)] = "HOLD";
   l.accent[static_cast<uint8_t>(Key::Select)] = true;
   statusScreen(menu_.pairing ? "Pairing" : "Unpaired",
-      menu_.pairing ? "Searching for Atlas" : "Hold Pair, then confirm", "the code on Atlas", 0xFF, l);
+      menu_.pairing ? "Searching for Atlas" : "Tap Pair, then confirm", "the code on Atlas", 0xFF, l);
 }
 
 void LvglSigilDisplay::showReady(uint8_t sigilId) {
@@ -866,25 +891,16 @@ void LvglSigilDisplay::showHome(uint8_t sigilId, bool connected, const char *nam
   text(s,name && name[0] ? name : "Welcome",&th_bold_28,pal().text,10,78,220);
   text(s,sigilId==0xFF ? "Pair with an Atlas to play" : connected ? "Connected to Atlas" : "Atlas lost / reconnecting",
       &th_semi_16,connected ? pal().good : pal().warning,10,114,220);
-  const char *status=mode==static_cast<uint8_t>(TurnHubProtocol::DisplayMode::Running) ? "Your player controls" :
-      mode==static_cast<uint8_t>(TurnHubProtocol::DisplayMode::Paused) ? "Game paused" : "Lobby and player controls";
-  // The app's grouped list: one card, two rows, a hairline between them.
-  auto *group=box(s,10,150,220,110);
+  const char *status=mode==static_cast<uint8_t>(TurnHubProtocol::DisplayMode::Running) ? "A game is on" :
+      mode==static_cast<uint8_t>(TurnHubProtocol::DisplayMode::Paused) ? "The game is paused" : "Between games";
+  // Status only: the tab bar below is the one way to Game, Table and Settings.
+  auto *group=box(s,10,150,220,56);
   card(group,pal().light ? pal().surface1 : pal().surface2,pal().separator,16);
-  auto *rule=box(group,52,55,168,1); card(rule,pal().separator,pal().separator,0);
-  const struct { const char *label, *detail; const lv_image_dsc_t *glyph; uint32_t tint; uint8_t target; } rows[]={
-      {"Game",status,&th_icon_timer_24,pal().turn,TOUCH_NAV+1},
-      {"Table","Everyone at the table",&th_icon_table_24,pal().info,TOUCH_NAV+2}};
-  for (uint8_t i=0;i<2;++i) {
-    const int16_t y=i*55;
-    auto *tile=box(group,10,y+11,32,32);
-    card(tile,rows[i].tint,rows[i].tint,9); sheen(tile,rows[i].tint);
-    icon(tile,rows[i].glyph,4,4,pal().bg);
-    text(group,rows[i].label,&th_semi_20,pal().text,52,y+6,140);
-    text(group,rows[i].detail,&th_eyebrow_13,pal().textSecondary,52,y+31,140);
-    icon(group,&th_icon_chevron_right_24,188,y+15,pal().textTertiary);
-    touchMap_.add({10,static_cast<int16_t>(150+y),220,55},rows[i].target,rows[i].target);
-  }
+  auto *tile=box(group,10,11,32,32);
+  card(tile,pal().turn,pal().turn,9); sheen(tile,pal().turn);
+  icon(tile,&th_icon_timer_24,4,4,pal().bg);
+  text(group,status,&th_semi_20,pal().text,52,6,160);
+  text(group,sigilId==0xFF ? "Not paired yet" : "Play from the Game tab",&th_eyebrow_13,pal().textSecondary,52,31,160);
   navigation(page_); present();
 }
 
