@@ -5,6 +5,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -83,6 +84,10 @@ fun GameSoundControls() {
                     style = MaterialTheme.typography.bodySmall)
             }
             Switch(prefs.enabled, onCheckedChange = null)
+        }
+        TextButton(onClick = { audio.player?.play(com.turnhub.android.domain.GameSoundCue.PASS, prefs.volume) },
+            enabled = prefs.enabled && prefs.volume > 0 && audio.foreground && audio.player != null) {
+            Text("Test device speaker")
         }
         Text("Sound volume · ${prefs.volume}%", color = palette.muted, style = MaterialTheme.typography.labelLarge)
         Slider(prefs.volume.toFloat(), { audio.onChange(prefs.copy(volume = it.toInt().coerceIn(0, 100))) },

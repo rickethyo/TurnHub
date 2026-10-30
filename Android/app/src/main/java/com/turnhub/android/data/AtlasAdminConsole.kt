@@ -360,6 +360,9 @@ class AtlasAdminConsole(
     suspend fun savePairingWindow(ms: Long) =
         post("/api/pairing", listOf("windowMs" to ms.toString()), success = "Pairing window saved.")
 
+    suspend fun testAtlasSpeaker() = post("/api/device/test",
+        listOf("target" to "atlas", "test" to "buzzer"), success = "Atlas speaker test requested.")
+
     suspend fun saveSpeakerVolume(volume: Int) =
         post("/api/speaker", listOf("volume" to volume.toString()), success = "Speaker volume saved.")
 

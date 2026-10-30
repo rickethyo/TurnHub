@@ -448,7 +448,13 @@ fun HomeScreen(
                                             "When a player names their commander, its art fills their tile. The art comes from " +
                                                 "Scryfall; only the commander's name is sent.", artOn, true, setArt)
                                     }
-                                    BrassCard { com.turnhub.android.ui.components.GameSoundControls() }
+                                    com.turnhub.android.ui.components.DisclosureCard("Sounds") {
+                                        com.turnhub.android.ui.components.GameSoundControls()
+                                        if (canDev) TextButton(onClick = { adminActions.run { testAtlasSpeaker() } },
+                                            enabled = !admin.busy && !uiState.isOffline) {
+                                            Text("Test Atlas speaker")
+                                        }
+                                    }
                                     BrassCard {
                                         val (qrOnly, setQrOnly) = com.turnhub.android.ui.tablet.rememberLanQrOnly()
                                         com.turnhub.android.ui.tablet.LanSecuritySwitch(qrOnly, !sharedGameHosting, setQrOnly)
