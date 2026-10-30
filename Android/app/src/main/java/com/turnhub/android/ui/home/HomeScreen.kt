@@ -465,8 +465,15 @@ fun HomeScreen(
                                         com.turnhub.android.ui.tablet.SetupSwitch("Discover Atlas", null, atlasEnabled, true, onAtlasEnabled)
                                         if (atlasEnabled) ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
                                     }
-                                    if (canSettings && info != null) com.turnhub.android.ui.components.DisclosureCard("Table administration") {
-                                        SettingsTab(info, admin, adminActions, onShowPeople = { playersPage = "Table"; tab = HomeTab.PLAYERS })
+                                    // Atlas settings (the admin portal's, since 2026-10-30): always listed while connected.
+                                    if (summary != null) com.turnhub.android.ui.components.DisclosureCard("Atlas settings") {
+                                        if (canSettings && info != null) SettingsTab(info, admin, adminActions, onShowPeople = { playersPage = "Table"; tab = HomeTab.PLAYERS })
+                                        else {
+                                            Text(if (info == null) "Sign in on Players > Me with an Admin account to change Wi-Fi, home Wi-Fi, Sigils, the table code, volume and accounts."
+                                                else "Your account isn't an Admin on this Atlas. Sign in with the Admin account on Players > Me to change these settings.",
+                                                color = com.turnhub.android.ui.theme.palette.muted, style = MaterialTheme.typography.bodyMedium)
+                                            com.turnhub.android.ui.components.ToneButton("Sign in", { playersPage = "Me"; tab = HomeTab.PLAYERS }, Modifier.fillMaxWidth())
+                                        }
                                     }
                                     if (canDev) com.turnhub.android.ui.components.DisclosureCard("Developer") { DevTab(admin, adminActions) }
                                 }) {

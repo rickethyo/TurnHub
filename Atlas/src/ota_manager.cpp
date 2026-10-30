@@ -8,7 +8,6 @@
 #include <esp_ota_ops.h>
 
 #include "web_api.h"
-#include "web_pages.h"
 
 #include "serial_log.h"
 
@@ -31,17 +30,6 @@ AtlasFlashSink atlasSink;
 TurnHubFirmwarePackage::MbedtlsPackageCrypto atlasCrypto;
 TurnHubFirmwarePackage::Reader atlasReader;
 
-class PortalAssetHandler final : public RequestHandler {
- public:
-  bool canHandle(HTTPMethod method, String uri) override {
-    return method == HTTP_GET && strncmp(uri.c_str(), "/assets/", 8) == 0;
-  }
-  bool handle(WebServer &server, HTTPMethod, String uri) override {
-    if (!TurnHubWeb::serveFile(server, uri.c_str() + 1)) server.send(404, "text/plain", "Not found");
-    return true;
-  }
-};
-PortalAssetHandler portalAssetHandler;
 
 void printPartitionDiagnostic(
     const char *role,
@@ -85,17 +73,7 @@ OtaManager::OtaManager(WebServer &server, AllowedCallback allowedCallback)
 void OtaManager::begin() {
   printBootPartitionDiagnostics();
 
-  server_.on("/portal", HTTP_GET, [this]() {
-    TurnHubWebApi::servePortalPage(server_, "index.html");
-  });
-  server_.addHandler(&portalAssetHandler);
-  server_.on("/dev", HTTP_GET, [this]() {
-    TurnHubWebApi::serveRestrictedPage(server_, TurnHubAccounts::Developer, "dev.html");
-  });
-  server_.on("/update", HTTP_GET, [this]() {
-    TurnHubWebApi::serveRestrictedPage(server_, TurnHubAccounts::Admin, "update.html");
-  });
-
+  // The admin portal is gone (owner, 2026-10-30): the app installs packages here.
   server_.on(
       "/api/firmware",
       HTTP_POST,

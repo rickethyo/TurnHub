@@ -12,8 +12,6 @@ Markers in the source HTML:
 
   python3 design/bundle.py design/styleguide.html --out design/dist/styleguide.html --embed-fonts
 
-The Atlas portal build (Atlas/web/build.py) imports bundle_html() and keeps the
-fonts as separate files instead of embedding them.
 """
 
 from __future__ import annotations

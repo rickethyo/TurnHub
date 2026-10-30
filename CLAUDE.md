@@ -70,9 +70,6 @@ Atlas\tests\host\run-gcc.ps1          # PowerShell, uses PlatformIO's toolchain-
 Atlas\tests\host\run.cmd              # from an x64 VS Native Tools prompt (MSVC)
 python Atlas/tests/host/audit_adapters.py          # guard: adapters must not bypass the dispatcher
 python Atlas/tests/host/check_client_contract.py   # after the host suite: validate build/client-*.json + protocol/examples against schemas
-node Atlas/tests/host/portal_smoke.cjs             # optional Playwright administration smoke (SD + flash)
-node Atlas/tests/host/basic_portal_smoke.cjs       # optional: the embedded portal with/without a microSD card
-python3 Atlas/web/build.py                         # embedded portal preview (WEB_PORTAL.md); the administration smoke renders it
 ```
 There is no per-test filter. To run one group, build the single executable (the command lines are in `tests/host/README.md`).
 - **Adding a new `src/*.cpp` to Atlas:** add it to the source lists in `run.cmd`, `run-gcc.ps1` and the README command lines too. Those lists also carry the `shared/include` path. The exception is firmware-only code that needs a hardware library: `atlas_board_none.cpp`, `atlas_battery_s3.cpp`, `atlas_display_s3.cpp` and `atlas_screen_lvgl.cpp` (the board boundary in `atlas_board.h`, `atlas_display.h`, `atlas_battery.h` and `atlas_speaker.h`; battery logic is the header-only `battery_gauge.h`), `sd_card.cpp` (Arduino SD_MMC), `factory_reset.cpp` (NVS erase + restart), `home_wifi_link.cpp` (home Wi-Fi radio work) and `secure_link_backend.cpp` (mbedTLS) are left out, and `test_globals.cpp` stubs them.

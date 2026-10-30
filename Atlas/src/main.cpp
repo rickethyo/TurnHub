@@ -679,6 +679,22 @@ void loop() {
   serviceFactoryReset(nowMs);
   serviceAutoSleep(nowMs);
   serviceSleep(nowMs);
+  // Same-name accounts are linked into one (owner, 2026-10-30): soon after
+  // boot, then every minute while no game is being played.
+  static uint32_t lastLinkMs = 0;
+  static bool linkedOnce = false;
+  bool playing = false;
+  for (const GameTable &t : tables)
+    playing = playing || t.hubState == HubState::Running || t.hubState == HubState::Paused || t.hubState == HubState::Starting;
+  if ((!linkedOnce && nowMs > 5000) || (nowMs - lastLinkMs >= 60000 && !playing)) {
+    linkedOnce = true;
+    lastLinkMs = nowMs;
+    const uint8_t merged = TurnHubWebApi::linkSameNameAccounts();
+    if (merged) {
+      serialLog.printf("ATLAS|PROFILE|LINKED|%u\n", static_cast<unsigned>(merged));
+      for (GameTable &t : tables) t.clientState.refreshNames();
+    }
+  }
   for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
     TableScope scope(t);
     updatePendingPass(nowMs);
