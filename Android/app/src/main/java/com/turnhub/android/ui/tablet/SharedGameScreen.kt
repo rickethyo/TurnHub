@@ -90,7 +90,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
     }
     BackHandler { close() }
     val p = palette
-    Box(Modifier.fillMaxSize().tableBackground(p), contentAlignment = Alignment.TopCenter) {
+    AmbientBackground(reduceMotion, Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState())
             .padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             val remote = state.remote

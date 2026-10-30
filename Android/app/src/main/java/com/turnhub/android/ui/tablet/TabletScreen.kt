@@ -62,7 +62,7 @@ import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.OfflineBanner
 import com.turnhub.android.ui.components.Eyebrow
 import com.turnhub.android.ui.components.ToneButton
-import com.turnhub.android.ui.components.tableBackground
+import com.turnhub.android.ui.components.AmbientBackground
 import com.turnhub.android.ui.theme.palette
 
 /** What the tablet screen can ask of the app; [run] sends one tablet request. */
@@ -110,7 +110,8 @@ fun TabletScreen(
     BackHandler(onBack = onClose)
     tablet.pinPrompt?.let { prompt -> PinDialog(prompt.name, onSubmit = { pin -> scopedActions.run { seatSaved(prompt.profileId, prompt.name, pin) } }, onDismiss = scopedActions.onDismissPin) }
     val granted = signedIn && session?.tablet == true
-    Column(modifier.fillMaxSize().tableBackground(p)) {
+    AmbientBackground(reduceMotion, modifier.fillMaxSize(), quiet = true) {
+    Column(Modifier.fillMaxSize()) {
         if (summary != null) com.turnhub.android.ui.home.GameSelector(summary, onFollowGame, enabled = !offline && !switching && !tablet.busy)
         androidx.compose.runtime.key(summary?.atlasId, summary?.bootId, summary?.game) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -137,6 +138,7 @@ fun TabletScreen(
                 }
             }
         }
+    }
     }
 }
 

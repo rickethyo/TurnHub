@@ -34,6 +34,17 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-10-30, Codex: owner approves warm ambient app backgrounds inspired by
+the breathing Play Together graphic. Continuing #177 on clean `7e149daa`;
+origin fetched with no incoming master changes. Scope: one shell backdrop
+behind opaque cards, asynchronous amber/copper/gold washes and faint brand
+gear outlines; quieter in gameplay, static with reduced motion, plain in high
+contrast, and stopped while backgrounded. Embedded pages inherit one backdrop
+instead of masking it or creating duplicate loops. Atlas appearance parity
+is recorded in the existing staged slice. Android `:app:assembleDebug`, docs
+links and whitespace checks pass. Physical visual/performance acceptance
+remains; no device installation or release performed.
+
 2026-10-30, Codex: owner requests TurnHub gears incorporated into the support
 motion. Continuing #177 on clean `58187a7b`: use the existing gear geometry and
 accent brush at the support beacon's center, with slow reverse rotation and

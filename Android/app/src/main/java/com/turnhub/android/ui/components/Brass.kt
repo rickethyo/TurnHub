@@ -68,7 +68,8 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /** Screen background: the portal's two soft glows over the theme's base color. */
-fun Modifier.tableBackground(p: TurnHubPalette): Modifier = drawBehind {
+@Composable
+fun Modifier.tableBackground(p: TurnHubPalette): Modifier = if (LocalAmbientBackgroundPresent.current) this else drawBehind {
     drawRect(p.bg)
     drawRect(
         Brush.radialGradient(
@@ -370,9 +371,24 @@ fun GearMark(size: Dp, modifier: Modifier = Modifier, spinning: Boolean = false,
 
 internal fun DrawScope.drawGear(brush: Brush) {
     val c = center
+    val hole = size.minDimension * .15f
+    drawPath(gearPath(), brush)
+    drawCircle(Color.Black.copy(alpha = .0f), hole, c)
+    drawCircle(brush, hole, c, style = Stroke(width = size.minDimension * .04f))
+    drawCircle(Color(0x66000000), hole * .92f, c)
+}
+
+/** Faint background outlines use exactly the same teeth as the brand mark. */
+internal fun DrawScope.drawGearOutline(color: Color) {
+    val stroke = Stroke(1.dp.toPx())
+    drawPath(gearPath(), color, style = stroke)
+    drawCircle(color, size.minDimension * .15f, center, style = stroke)
+}
+
+private fun DrawScope.gearPath(): Path {
+    val c = center
     val outer = size.minDimension * .47f
     val body = size.minDimension * .38f
-    val hole = size.minDimension * .15f
     val teeth = 12
     val path = Path()
     for (i in 0 until teeth * 2) {
@@ -385,10 +401,7 @@ internal fun DrawScope.drawGear(brush: Brush) {
         path.lineTo(p1.x, p1.y)
     }
     path.close()
-    drawPath(path, brush)
-    drawCircle(Color.Black.copy(alpha = .0f), hole, c)
-    drawCircle(brush, hole, c, style = Stroke(width = size.minDimension * .04f))
-    drawCircle(Color(0x66000000), hole * .92f, c)
+    return path
 }
 
 /**

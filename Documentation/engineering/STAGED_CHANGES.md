@@ -434,6 +434,13 @@ delete the line. A host or compile result never checks off a hardware line.
 
 ## About and donation parity
 
+Ambient appearance parity: Android's app shell, Play Together and full-screen
+tables use warm breathing glows and faint gear outlines behind opaque content,
+quieter in gameplay, static with reduced motion and plain in high contrast.
+Next appearance slice: adapt the same restrained background treatment to the
+Atlas portal, respecting its reduced-motion/high-contrast settings and hardware
+display limits. Device visual and performance acceptance remains open.
+
 Android More includes the owner-approved About introduction and Support TurnHub page with a labeled tabletop hardware concept image, gentle outward gold pulse (static with reduced motion) and matching full-width PayPal and Cash App buttons (`https://cash.app/$TurnHub`), without a persistent QR code. Contributions are optional and do not unlock features or purchase products. Next slice: expose the same introduction, support artwork/motion and both support destinations in the Atlas portal.
 
 Shopify support page (owner, store admin): Shopify product orders must use its

@@ -65,6 +65,12 @@ appearance, reduced motion, sound and Atlas connection; authorized administratio
 controls appear there when available. Navigation and scroll positions survive
 visits to the full-screen table and statistics.
 
+The main app shell, Play Together and full-screen table views have soft warm
+background glows and faint gear outlines behind opaque cards. The glows breathe
+at different slow rates; gameplay uses a quieter version. Reduced motion keeps
+the decoration still, high contrast uses a plain background, and ambient motion
+stops while the app is backgrounded. Embedded pages share the shell's backdrop.
+
 Add player opens a compact dialog; player settings and individual game details
 expand on request. Account IDs distinguish equal names. Controls use direct
 labels, with brief flavor text in introductions and empty states.
