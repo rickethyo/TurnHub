@@ -7,11 +7,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -23,6 +18,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -38,10 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -55,6 +48,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.em
 import androidx.core.content.ContextCompat
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
@@ -96,7 +90,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
     }
     BackHandler { close() }
     val p = palette
-    Box(Modifier.fillMaxSize().tableBackground(p), contentAlignment = Alignment.TopCenter) {
+    AmbientBackground(reduceMotion, Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState())
             .padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             val remote = state.remote
@@ -234,33 +228,11 @@ private fun SharedHero(eyebrow: String, title: String, subtitle: String, mood: L
     val p = palette
     val target = when (mood) { LinkMood.IDLE -> p.accent; LinkMood.LIVE -> p.good; LinkMood.LOST -> p.warn }
     val glow by animateColorAsState(target, if (reduceMotion) snap() else tween(700), label = "linkGlow")
-    val transition = rememberInfiniteTransition(label = "link")
-    val wave by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(3_200, easing = LinearEasing)), label = "wave")
-    val turn by transition.animateFloat(0f, 360f, infiniteRepeatable(tween(48_000, easing = LinearEasing)), label = "turn")
-    val breath by transition.animateFloat(.6f, 1f, infiniteRepeatable(tween(2_000), RepeatMode.Reverse), label = "breath")
-    val still = reduceMotion || mood == LinkMood.LOST
     val shape = RoundedCornerShape(24.dp)
     Box(Modifier.fillMaxWidth().heightIn(min = 172.dp).clip(shape)
         .background(Brush.verticalGradient(listOf(p.surface3, p.inset)))
         .border(1.dp, glow.copy(alpha = .55f), shape)) {
-        Canvas(Modifier.matchParentSize().clearAndSetSemantics { }) {
-            val c = Offset(size.width * .86f, size.height * .38f)
-            val r = size.height * .5f
-            drawCircle(Brush.radialGradient(listOf(glow.copy(alpha = .3f), Color.Transparent), c, r * 1.5f), r * 1.5f, c)
-            // Three rings spreading outward and fading, like a signal leaving the beacon.
-            (0 until 3).forEach { i ->
-                val t = if (still) (i + 1) / 3.5f else (wave + i / 3f) % 1f
-                drawCircle(glow.copy(alpha = .55f * (1f - t)), r * (.25f + 1.15f * t), c, style = Stroke(1.5.dp.toPx()))
-            }
-            rotate(if (reduceMotion) 0f else turn, c) {
-                drawCircle(glow.copy(alpha = .3f), r * .62f, c,
-                    style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 10f))))
-            }
-            val pulse = if (still) .85f else breath
-            drawCircle(Brush.radialGradient(listOf(glow.copy(alpha = pulse), glow.copy(alpha = 0f)), c, r * .22f), r * .22f, c)
-            drawCircle(glow, r * .06f, c)
-            drawRect(Brush.verticalGradient(0f to Color.White.copy(alpha = if (p.dark) .06f else .25f), .45f to Color.Transparent))
-        }
+        SignalBeacon(glow, reduceMotion, Modifier.matchParentSize(), paused = mood == LinkMood.LOST)
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(eyebrow.uppercase(), color = glow, style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 2.5.sp),
                 fontWeight = FontWeight.Bold)
@@ -349,12 +321,15 @@ internal fun JoinCodeTile(code: String, modifier: Modifier = Modifier, compact: 
     val p = palette
     val shape = RoundedCornerShape(if (compact) 14.dp else 20.dp)
     Box(modifier.fillMaxWidth().clip(shape).background(p.inset).border(2.dp, p.accent, shape)
-        .padding(vertical = if (compact) 8.dp else 18.dp).semantics(mergeDescendants = true) {
+        .padding(horizontal = 12.dp, vertical = if (compact) 8.dp else 18.dp).semantics(mergeDescendants = true) {
             contentDescription = "Join code " + code.toCharArray().joinToString(" ")
         }, contentAlignment = Alignment.Center) {
+        val style = if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.displayMedium
         Text(code.uppercase(), color = p.text, fontWeight = FontWeight.Black,
-            style = (if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.displayMedium)
-                .copy(letterSpacing = if (compact) 4.sp else 8.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace))
+            modifier = Modifier.fillMaxWidth().clearAndSetSemantics { }, maxLines = 1, softWrap = false,
+            autoSize = TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = style.fontSize, stepSize = 1.sp),
+            style = style.copy(letterSpacing = .08.em, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace))
     }
 }
 

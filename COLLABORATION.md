@@ -34,6 +34,44 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-10-30, Codex: owner approves warm ambient app backgrounds inspired by
+the breathing Play Together graphic. Continuing #177 on clean `7e149daa`;
+origin fetched with no incoming master changes. Scope: one shell backdrop
+behind opaque cards, asynchronous amber/copper/gold washes and faint brand
+gear outlines; quieter in gameplay, static with reduced motion, plain in high
+contrast, and stopped while backgrounded. Embedded pages inherit one backdrop
+instead of masking it or creating duplicate loops. Atlas appearance parity
+is recorded in the existing staged slice. Android `:app:assembleDebug`, docs
+links and whitespace checks pass. Physical visual/performance acceptance
+remains; no device installation or release performed.
+
+2026-10-30, Codex: owner requests TurnHub gears incorporated into the support
+motion. Continuing #177 on clean `58187a7b`: use the existing gear geometry and
+accent brush at the support beacon's center, with slow reverse rotation and
+subtle breathing; remove the separate corner mark. Play Together keeps its
+state-colored dot. Reduced motion freezes gear and rings without clocks.
+Validation: Android `:app:assembleDebug`, docs links and whitespace checks pass;
+visual device acceptance remains.
+
+2026-10-30, Codex: owner requests creative motion polish inspired by Play
+Together's outward pulse, continuing PR #177 on clean `b2de2dc2`. Scope: share
+the decorative signal renderer with support artwork, respect reduced motion
+without running clocks, and keep the full join code on one line using measured
+text autosizing. Preserve game state, link destinations and payment behavior.
+Atlas presentation counterpart stays in the staged parity slice. Android
+`:app:assembleDebug`, documentation link checks and `git diff --check` pass.
+Animation timing, reduced-motion switching and narrow/large-text code layout
+still need visual device acceptance; no device installation performed.
+
+2026-10-30, Codex: support-page artwork follow-up on `codex/master`, clean
+synchronized baseline `4bfe966c`; #176 merged and no open PRs. Owner wants a
+warmer visual introduction. Reuse the owner-requested generated tabletop
+hardware image locally in Android, with a hardware-concept caption, accessible
+description and responsive crop above the matching support buttons. Atlas
+counterpart remains in the existing staged parity slice. Android
+`:app:assembleDebug`, documentation link checks and `git diff --check` pass.
+Device layout and TalkBack acceptance remain physical.
+
 2026-10-30, Codex: active support-page presentation follow-up on `codex/master`,
 clean synchronized baseline `12e838af`; no open PRs. Owner requests removal of
 the persistent QR code and matching PayPal/Cash App buttons. Scope: Android

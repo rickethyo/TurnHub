@@ -48,7 +48,7 @@ import com.turnhub.android.ui.components.displayName
 import com.turnhub.android.ui.components.shareGameResult
 import androidx.compose.ui.graphics.toArgb
 import com.turnhub.android.ui.components.rememberNowMs
-import com.turnhub.android.ui.components.tableBackground
+import com.turnhub.android.ui.components.AmbientBackground
 import com.turnhub.android.ui.theme.palette
 import kotlinx.coroutines.launch
 
@@ -78,7 +78,7 @@ fun StandaloneScreen(
     }
     val soundSummary = remember(game) { game.toSummary(0, 0) }
     com.turnhub.android.ui.components.GameSoundEffect(soundSummary, available = state.storageProblem == null)
-    Box(modifier.fillMaxSize().tableBackground(p)) {
+    AmbientBackground(reduceMotion, modifier.fillMaxSize(), quiet = true) {
         if (state.storageProblem != null) {
             Column(Modifier.safeDrawingPadding().padding(24.dp)) {
                 Text(state.storageProblem, color = p.text)

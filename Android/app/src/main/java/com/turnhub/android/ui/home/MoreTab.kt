@@ -1,15 +1,21 @@
 package com.turnhub.android.ui.home
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -18,15 +24,23 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import com.turnhub.android.R
 import com.turnhub.android.ui.components.AppVersionLabel
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.BrassCard
+import com.turnhub.android.ui.components.SignalBeacon
 import com.turnhub.android.ui.theme.DesignTokens
 import com.turnhub.android.ui.theme.palette
 
@@ -36,7 +50,8 @@ internal enum class MorePage(val title: String) {
 
 /** Secondary destinations share the app shell, with one page visible at a time. */
 @Composable
-internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit, atlas: @Composable ColumnScope.() -> Unit, settings: @Composable ColumnScope.() -> Unit) {
+internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit, reduceMotion: Boolean = false,
+    atlas: @Composable ColumnScope.() -> Unit, settings: @Composable ColumnScope.() -> Unit) {
     val uriHandler = LocalUriHandler.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         if (page != MorePage.HOME) {
@@ -76,6 +91,8 @@ internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit, atlas: @Composa
                 AppVersionLabel()
             }
             MorePage.DONATE -> BrassCard {
+                SupportArtwork(reduceMotion)
+                Text("Hardware concept", color = palette.muted, style = MaterialTheme.typography.labelSmall)
                 Text("Help TurnHub grow", color = palette.text, style = MaterialTheme.typography.titleMedium)
                 Text("I'm Ricky, creator of TurnHub. Your support enables me to build the tools that keep tabletop gaming " +
                     "focused on the game.", color = palette.muted)
@@ -93,6 +110,25 @@ internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit, atlas: @Composa
             MorePage.STORE -> BrassCard {
                 Text("The store is not open yet.", color = palette.text, style = MaterialTheme.typography.titleMedium)
             }
+        }
+    }
+}
+
+/** Warm project artwork with the same quiet, outward signal as Play Together. */
+@Composable
+private fun SupportArtwork(reduceMotion: Boolean) {
+    val p = palette
+    val shape = RoundedCornerShape(18.dp)
+    Box(Modifier.fillMaxWidth().height(216.dp).clip(shape).border(1.dp, p.accent.copy(alpha = .5f), shape)) {
+        Image(painterResource(R.drawable.support_tabletop_concept),
+            contentDescription = "TurnHub hardware concept: Atlas and four Sigils on a wooden gaming table",
+            contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(
+            0f to Color.Black.copy(alpha = .12f), .4f to Color.Transparent, 1f to Color.Black.copy(alpha = .88f))))
+        SignalBeacon(p.accent, reduceMotion, Modifier.matchParentSize(), sheen = false, brandMark = true)
+        Column(Modifier.align(Alignment.BottomStart).padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("BUILT AROUND YOUR TABLE", color = Color(0xFFF7DD8A),
+                style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.4.sp), fontWeight = FontWeight.Bold)
         }
     }
 }

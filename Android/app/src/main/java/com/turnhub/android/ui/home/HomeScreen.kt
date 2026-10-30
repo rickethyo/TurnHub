@@ -82,7 +82,7 @@ import com.turnhub.android.ui.components.GearMark
 import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.components.Tone
 import com.turnhub.android.ui.components.rememberNowMs
-import com.turnhub.android.ui.components.tableBackground
+import com.turnhub.android.ui.components.AmbientBackground
 import com.turnhub.android.ui.theme.TurnHubThemeChoice
 import com.turnhub.android.ui.theme.palette
 import com.turnhub.android.ui.setup.SetupActions
@@ -286,8 +286,11 @@ fun HomeScreen(
         )
     }
 
+    val playing = (if (atlasGame) summary else deviceSummary)?.state == TableState.RUNNING
+    AmbientBackground(reduceMotion, modifier.fillMaxSize(), quiet = !setup.visible && tab != HomeTab.MORE &&
+        (playing || tab in listOf(HomeTab.TABLE, HomeTab.PLANES, HomeTab.ELDER))) {
     Scaffold(
-        modifier = modifier.tableBackground(p),
+        modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
         topBar = {
             Column(Modifier.background(p.bg.copy(alpha = .92f))) {
@@ -431,7 +434,7 @@ fun HomeScreen(
                                         if (canPeople) PeopleCard(info, admin, uiState.avatars, adminActions)
                                     }
                                 }
-                                HomeTab.MORE -> MoreTab(morePage, { morePage = it }, atlas = {
+                                HomeTab.MORE -> MoreTab(morePage, { morePage = it }, reduceMotion = reduceMotion, atlas = {
                                     com.turnhub.android.ui.components.DisclosureCard("Atlas connection") {
                                         com.turnhub.android.ui.tablet.SetupSwitch("Discover Atlas", null, atlasEnabled, true, onAtlasEnabled)
                                         if (atlasEnabled) ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
@@ -468,6 +471,7 @@ fun HomeScreen(
                 }
             }
         }
+    }
     }
 }
 

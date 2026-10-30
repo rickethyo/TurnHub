@@ -57,11 +57,19 @@ and game settings as connected play, without the per-seat Atlas controls. Player
 profiles available and adds Table and Me sections when connected. History keeps
 local results and Atlas import controls. More opens About TurnHub, Settings
 and Store as separate pages; the store is not open yet. Support TurnHub offers
-optional PayPal and Cash App contributions through matching full-width buttons,
+optional PayPal and Cash App contributions beneath a labeled tabletop hardware
+concept image with a slowly turning gold gear and outward pulse (static with reduced motion),
+through matching full-width buttons,
 separate from app features and purchases. Settings contains
 appearance, reduced motion, sound and Atlas connection; authorized administration and developer
 controls appear there when available. Navigation and scroll positions survive
 visits to the full-screen table and statistics.
+
+The main app shell, Play Together and full-screen table views have soft warm
+background glows and faint gear outlines behind opaque cards. The glows breathe
+at different slow rates; gameplay uses a quieter version. Reduced motion keeps
+the decoration still, high contrast uses a plain background, and ambient motion
+stops while the app is backgrounded. Embedded pages share the shell's backdrop.
 
 Add player opens a compact dialog; player settings and individual game details
 expand on request. Account IDs distinguish equal names. Controls use direct
