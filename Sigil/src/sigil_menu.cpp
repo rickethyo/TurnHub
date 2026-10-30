@@ -112,7 +112,7 @@ bool MenuView::operator==(const MenuView &o) const {
   return revision == o.revision && active == o.active && deviceMenu == o.deviceMenu && life == o.life &&
       holdAction == o.holdAction && memcmp(compass, o.compass, sizeof(compass)) == 0 &&
       holdPercent == o.holdPercent && pairPercent == o.pairPercent && pairing == o.pairing &&
-      recovery == o.recovery && page == o.page && pageCount == o.pageCount;
+      recovery == o.recovery && page == o.page && pageCount == o.pageCount && canGoBack == o.canGoBack;
 }
 
 uint8_t SigilMenu::bareAction(uint32_t actions, Key key) {
@@ -336,6 +336,7 @@ MenuView SigilMenu::view() const {
     uint8_t entries[MENU_LIST_MAX];
     v.page = page_;
     v.pageCount = pageCount(levelEntries(entries));
+    v.canGoBack = (deviceOpen_ && !deviceDirect_) || page_ > 0;
   }
   return v;
 }

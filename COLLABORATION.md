@@ -1526,3 +1526,20 @@ and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
   against the table's highest and time on turn. Game keeps the touch tiles.
   Previews: `table-overview*`. Hardware Manual line added.
 - Host suites and adapter audit pass; hardware smoothness needs the owner's eye.
+### Sigil More screen: dead touches fixed, app-style menu / Claude / 2026-10-30
+
+- Owner: the buttons on the Sigil's More screen did nothing; make it look more
+  like the app's player menu.
+- Cause: over a game, `showGame` drew the open Menu before stamping the
+  player and life request on the touch map, so `updateTouch` saw player 0 and
+  dropped every press. Every frame now stamps them (`actor_`,
+  `lifeRequestKey_`); the preview harness fails if Menu over a game loses the
+  player.
+- Menu (and the Settings tab) now draws as the app's `PlayerMenu`: the
+  player's name over "Player controls" or "Page x of y", a Done/Back pill
+  where More was, one grouped list of rows with icon tiles (Claim win in good;
+  I'm out, Leave, Reset table, Unpair, Factory reset in critical), "Hold to
+  confirm" details, the hold progress inside its row and the player's hue as
+  a wash. The Theme and Invert rows show the current choice.
+- Sigil host suites, LVGL previews and `pio run -e sigil` pass. Hardware check
+  with the owner next.

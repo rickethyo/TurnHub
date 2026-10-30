@@ -48,13 +48,17 @@ class LvglSigilDisplay : public SigilDisplay {
   virtual void present() {}
 
  private:
-  lv_obj_t *frame(const char *title, uint8_t sigilId = 0xFF, uint8_t turn = 0);
+  lv_obj_t *frame(const char *title, uint8_t sigilId = 0xFF, uint8_t turn = 0, const char *subtitle = nullptr);
   void pad(const PadLabels &labels);
   void button(const char *label, const char *note, PadRect rect, uint8_t target,
       bool accent = false, uint32_t meaning = 0);
   void navigation(TurnHubUi::Page selected);
   PadLabels menuLabels() const;
-  bool drawDeviceMenu(uint8_t sigilId);
+  // Open Menu, as the app's player menu: who is the player's name (nullptr
+  // off a game) and number picks the background wash.
+  bool drawDeviceMenu(uint8_t sigilId, const char *who = nullptr, uint8_t number = 0);
+  void menuRow(const char *label, const char *note, PadRect rect, uint8_t key, uint8_t action, uint32_t meaning);
+  void menuClose(const char *label, PadRect rect, uint32_t meaning);
   void statusScreen(const char *title, const char *line1, const char *line2, uint8_t sigilId,
       PadLabels labels);
   void finish(const PadLabels &labels);
@@ -68,6 +72,10 @@ class LvglSigilDisplay : public SigilDisplay {
   Layout layout_ = Layout::Actions;
   TouchMap touchMap_;
   TurnHubUi::Page page_ = TurnHubUi::Page::Game;
+  // The player and life request the game screen shows. Every frame stamps
+  // them on its touch map, so the open Menu over a game accepts touches too.
+  uint8_t actor_ = 0;
+  uint16_t lifeRequestKey_ = 0;
   uint32_t context_ = 0;
 };
 
