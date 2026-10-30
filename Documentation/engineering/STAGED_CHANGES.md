@@ -231,6 +231,12 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   durable completion receipts in [Shared table authority](TABLE_AUTHORITY.md).
   Unified lobby/table presentation is implemented; full offline hosting of an
   Atlas game is not.
+  When Planechase reaches the core, the Atlas screen gets a Planes tab that,
+  as in the app (2026-10-30), shows only while Planechase is on; the Atlas
+  New game list then gains its Planechase toggle and the app's other modes.
+  New game on Atlas offers what Atlas runs today: Commander (Free-for-all,
+  Two-Headed Giant, Bag of Doom, Star Commander), Standard, Yu-Gi-Oh! and
+  Other, with starting life, turn timer and house rules.
 - **Profile transfer and merge** (owner, 2026-10-28; host-tested, device checks open): profiles live
   on the device that created them and carry all their statistics to an Atlas.
   Done: imported matches accept guest seats and per-(record, profile)

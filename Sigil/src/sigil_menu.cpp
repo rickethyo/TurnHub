@@ -51,7 +51,7 @@ uint8_t firstOffered(uint32_t actions, const SigilAction (&order)[N]) {
 
 }  // namespace
 
-bool menuActionNeedsHold(uint8_t action) {
+bool menuActionNeedsConfirm(uint8_t action) {
   return action == MENU_LOCAL_FACTORY_RESET || action == MENU_LOCAL_UNPAIR ||
       (action < MENU_MAX_ITEMS &&
        TurnHubProtocol::sigilActionHold(static_cast<SigilAction>(action)) != ActionHold::None);
@@ -69,6 +69,7 @@ const char *sigilActionLabel(SigilAction action) {
     case MENU_LOCAL_THEME: return "Theme";
     case MENU_LOCAL_INVERT: return "Invert";
     case MENU_LOCAL_CALIBRATE: return "Calibrate";
+    case MENU_LOCAL_CONFIRM: return "Confirm";
     default: break;
   }
   switch (action) {
@@ -111,8 +112,7 @@ MenuView::MenuView() {
 
 bool MenuView::operator==(const MenuView &o) const {
   return revision == o.revision && active == o.active && deviceMenu == o.deviceMenu && life == o.life &&
-      holdAction == o.holdAction && memcmp(compass, o.compass, sizeof(compass)) == 0 &&
-      holdPercent == o.holdPercent && pairPercent == o.pairPercent && pairing == o.pairing &&
+      confirmAction == o.confirmAction && memcmp(compass, o.compass, sizeof(compass)) == 0 && pairing == o.pairing &&
       recovery == o.recovery && page == o.page && pageCount == o.pageCount && canGoBack == o.canGoBack;
 }
 
@@ -147,7 +147,7 @@ uint8_t SigilMenu::menuEntries(uint32_t actions, uint8_t out[MENU_LIST_MAX], boo
 
 void SigilMenu::setPlayerControlsAvailable(bool available) {
   if (playerControlsAvailable_==available) return;
-  playerControlsAvailable_=available; holding_=false; page_=0;
+  playerControlsAvailable_=available; confirm_=MENU_NONE; page_=0;
 }
 uint8_t SigilMenu::levelEntries(uint8_t out[MENU_LIST_MAX]) const {
   const uint8_t count=menuEntries(offline_ ? 0 : actions_, out, deviceOpen_);
@@ -178,6 +178,8 @@ uint8_t SigilMenu::pageAction(const uint8_t entries[], uint8_t count, uint8_t pa
 
 uint8_t SigilMenu::keyAction(Key key) const {
   if (!active_ || key >= Key::Count) return MENU_NONE;
+  // The confirm popup: Select confirms, Left cancels, nothing else.
+  if (confirm_ != MENU_NONE) return key == Key::Select ? MENU_LOCAL_CONFIRM : key == Key::Left ? MENU_LOCAL_BACK : MENU_NONE;
   if (!menuOpen_) return bareAction(offline_ ? 0 : actions_, key);
   if (key == Key::Left) return MENU_LOCAL_BACK;
   uint8_t entries[MENU_LIST_MAX];
@@ -204,8 +206,8 @@ void SigilMenu::applyFields(const TurnHubProtocol::MenuStateFields &f) {
     const uint8_t pages = pageCount(levelEntries(entries));
     if (page_ >= pages) page_ = pages - 1;
   }
-  // A held action that is no longer offered stops counting.
-  if (holding_ && holdAction_ < MENU_MAX_ITEMS && !offered(holdAction_)) holding_ = false;
+  // A popup about an action that is no longer offered closes.
+  if (confirm_ < MENU_MAX_ITEMS && !offered(confirm_)) confirm_ = MENU_NONE;
 }
 
 void SigilMenu::clear() {
@@ -213,7 +215,7 @@ void SigilMenu::clear() {
   offline_ = false;
   actions_ = 0;
   closeMenu();
-  holding_ = false;
+  confirm_ = MENU_NONE;
   pending_ = MenuChoice();
 }
 
@@ -226,11 +228,6 @@ void SigilMenu::setOffline() {
 
 void SigilMenu::endOffline() {
   if (offline_) clear();
-}
-
-void SigilMenu::setHoldTimes(uint16_t longPressMs, uint16_t winHoldMs) {
-  longPressMs_ = longPressMs;
-  winHoldMs_ = winHoldMs;
 }
 
 void SigilMenu::emit(uint8_t action) {
@@ -264,8 +261,18 @@ void SigilMenu::back() {
   closeMenu();
 }
 
-void SigilMenu::choose(uint8_t action, Key key, uint32_t nowMs) {
+void SigilMenu::choose(uint8_t action, uint32_t nowMs) {
+  (void)nowMs;
   if (action == MENU_NONE) return;
+  if (action == MENU_LOCAL_CONFIRM) {
+    const uint8_t asked = confirm_;
+    confirm_ = MENU_NONE;
+    if (asked >= MENU_MAX_ITEMS || offered(asked)) emit(asked);
+    if (confirmFromMenu_) closeMenu();
+    return;
+  }
+  // Left on the popup is Cancel: back to where it was asked.
+  if (action == MENU_LOCAL_BACK && confirm_ != MENU_NONE) { confirm_ = MENU_NONE; return; }
   if (action == MENU_LOCAL_DEVICE_MENU) { openMenu(); return; }
   if (action == MENU_LOCAL_BACK) { back(); return; }
   if (action == MENU_LOCAL_MORE) { ++page_; return; }
@@ -280,54 +287,36 @@ void SigilMenu::choose(uint8_t action, Key key, uint32_t nowMs) {
     closeMenu();
     return;
   }
-  uint32_t holdMs = action == MENU_LOCAL_UNPAIR ? MENU_UNPAIR_HOLD_MS : MENU_FACTORY_RESET_HOLD_MS;
   if (action != MENU_LOCAL_FACTORY_RESET && action != MENU_LOCAL_UNPAIR) {
     if (!offered(action)) return;
-    const ActionHold hold = TurnHubProtocol::sigilActionHold(static_cast<SigilAction>(action));
-    if (hold == ActionHold::None) {
+    if (!menuActionNeedsConfirm(action)) {
       emit(action);
       closeMenu();  // Chosen from Menu: back to the screen.
       return;
     }
-    holdMs = hold == ActionHold::Win ? winHoldMs_ : longPressMs_;
   }
-  holding_ = true;
-  holdFromMenu_ = menuOpen_;
-  holdKey_ = key;
-  holdAction_ = action;
-  holdStartMs_ = nowMs;
-  holdMs_ = holdMs;
+  // Ask first; the popup covers the screen until Confirm or Cancel.
+  confirm_ = action;
+  confirmFromMenu_ = menuOpen_;
 }
 
 void SigilMenu::keyDown(Key key, uint32_t nowMs) {
   if (!active_ || key >= Key::Count) return;
   lastKeyMs_ = nowMs;
-  choose(keyAction(key), key, nowMs);
+  choose(keyAction(key), nowMs);
 }
 
-void SigilMenu::keyUp(Key key, uint32_t) {
-  // Releasing early abandons a deliberate action.
-  if (holding_ && key == holdKey_) holding_ = false;
-}
+void SigilMenu::keyUp(Key, uint32_t) {}
 
 MenuChoice SigilMenu::update(uint32_t nowMs) {
-  if (holding_ && nowMs - holdStartMs_ >= holdMs_) {
-    holding_ = false;
-    emit(holdAction_);
-    if (holdFromMenu_) closeMenu();
+  // An unanswered popup or Menu closes by itself.
+  if ((menuOpen_ || confirm_ != MENU_NONE) && nowMs - lastKeyMs_ >= MENU_DEVICE_IDLE_MS) {
+    confirm_ = MENU_NONE;
+    closeMenu();
   }
-  if (menuOpen_ && !holding_ && nowMs - lastKeyMs_ >= MENU_DEVICE_IDLE_MS) closeMenu();
   const MenuChoice choice = pending_;
   pending_ = MenuChoice();
   return choice;
-}
-
-uint8_t SigilMenu::holdProgress(uint32_t nowMs) const {
-  if (!holding_ || holdMs_ == 0) return 0;
-  const uint32_t elapsed = nowMs - holdStartMs_;
-  if (elapsed >= holdMs_) return 255;
-  const uint32_t level = elapsed * 255 / holdMs_;
-  return static_cast<uint8_t>(level == 0 ? 1 : level);
 }
 
 MenuView SigilMenu::view() const {
@@ -337,7 +326,7 @@ MenuView SigilMenu::view() const {
   if (!active_) return v;
   for (uint8_t k = 0; k < KEY_COUNT; ++k) v.compass[k] = keyAction(static_cast<Key>(k));
   v.deviceMenu = menuOpen_;
-  v.holdAction = holding_ ? holdAction_ : MENU_NONE;
+  v.confirmAction = confirm_;
   v.life = lifeOffered();
   if (menuOpen_) {
     v.recovery = deviceOpen_;

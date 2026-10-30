@@ -59,6 +59,8 @@ class LvglSigilDisplay : public SigilDisplay {
   // off a game) and number picks the background wash.
   bool drawDeviceMenu(uint8_t sigilId, const char *who = nullptr, uint8_t number = 0);
   void menuRow(const char *label, const char *note, PadRect rect, uint8_t key, uint8_t action, uint32_t meaning);
+  // The confirm popup over the screen: Cancel (Left) and the action (Select).
+  void confirmPopup();
   void menuClose(const char *label, PadRect rect, uint32_t meaning);
   void statusScreen(const char *title, const char *line1, const char *line2, uint8_t sigilId,
       PadLabels labels);

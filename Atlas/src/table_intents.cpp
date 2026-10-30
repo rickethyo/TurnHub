@@ -1483,10 +1483,13 @@ void serviceFactoryReset(uint32_t nowMs) {
 // life, durationMs = turn timer.
 IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   PlayerSeat actor;
-  // Any seated player; during play only loss rules and their threshold can change.
-  if ((table().hubState != HubState::Lobby && table().hubState != HubState::Running && table().hubState != HubState::Paused) || table().lobby.playerCount() == 0 ||
+  // Any seated player; during play only loss rules and their threshold can
+  // change. In the lobby the Atlas touchscreen, the table's own device, sets
+  // up the next game too (its New game screen), seated players or not.
+  const bool tableDevice = intent.actor.origin == IntentOrigin::AtlasHardware && table().hubState == HubState::Lobby;
+  if (!tableDevice && ((table().hubState != HubState::Lobby && table().hubState != HubState::Running && table().hubState != HubState::Paused) || table().lobby.playerCount() == 0 ||
       !seatForModuleSlot(intent.actor.controllerId, intent.actor.slot, actor) ||
-      actor.playerNumber != intent.actor.playerNumber) {
+      actor.playerNumber != intent.actor.playerNumber)) {
     return IntentResult::reject(IntentStatus::Unauthorized,
         "Only a seated player can change settings in the lobby or during play");
   }

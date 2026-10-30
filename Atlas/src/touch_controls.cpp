@@ -1,8 +1,9 @@
 // Atlas touchscreen: the TFT's screen model and its touch buttons. The touch
 // adapter only builds Intents (IntentOrigin::AtlasHardware); the handlers
 // decide. The exceptions change no table state: Cancel takes a presence code
-// off the screen (front_panel.cpp), and the Menu, Info, QR and Table
-// buttons switch screens. The board draws the screen model (atlas_board.h).
+// off the screen (front_panel.cpp), the tabs and list rows switch screens, and
+// the confirm popup asks before a hazardous action. Nothing acts on a hold.
+// The board draws the screen model (atlas_board.h).
 
 #include "avatars.h"
 #include "touch_controls.h"
@@ -39,10 +40,8 @@ constexpr uint32_t NAME_REFRESH_MS = 3000;
 // rows sharing an action).
 bool touchDown = false;
 bool pressInside = false;
-bool holdFired = false;
 TouchAction pressedAction = TouchAction::None;
 uint8_t pressedArg = 0;
-uint32_t pressStartedAtMs = 0;
 uint32_t lastContactAtMs = 0;
 
 char noticeText[sizeof(AtlasScreen::notice)] = {};
@@ -53,10 +52,12 @@ ScreenKind openScreen = ScreenKind::Home;
 uint8_t overviewPage = 0;
 TouchAction qrChoice = TouchAction::QrPortal;
 // The Player screen: whose it is (by controller and slot, since lobby player
-// numbers change with the turn order), and whether Concede is waiting for
-// its confirmation. pressedSeat is the chip under the finger.
+// numbers change with the turn order). pressedSeat is the chip under the finger.
 PlayerSeat shownSeat;
-bool concedeArmed = false;
+// The confirm popup: the action it asks about, and the screen it covers. It
+// closes by itself when that screen does (a match ending, a code showing).
+TouchAction confirmAction = TouchAction::None;
+ScreenKind confirmOver = ScreenKind::Status;
 bool playerControlsOpen = false;
 uint8_t playerControlsPage = 0;
 PlayerSeat pressedSeat;
@@ -102,9 +103,10 @@ NameCache names[MAX_SCREEN_PLAYERS];
 struct ButtonSpec {
   TouchAction action;
   const char *label;
-  uint32_t holdMs;
+  uint8_t confirm;  // ASK: confirm in the popup before acting.
   uint8_t weight;
 };
+constexpr uint8_t ASK = 1;
 
 // Lays a row of buttons across the screen, widths in proportion to weight.
 void addRow(AtlasScreen &screen, int16_t y, const ButtonSpec *specs, uint8_t count) {
@@ -122,7 +124,7 @@ void addRow(AtlasScreen &screen, int16_t y, const ButtonSpec *specs, uint8_t cou
     button.y = y;
     button.w = w;
     button.h = BUTTON_ROW_H;
-    button.holdMs = specs[i].holdMs;
+    button.confirm = specs[i].confirm != 0;
     button.selected = specs[i].action == qrChoice && openScreen == ScreenKind::Qr;
     x += w + MARGIN;
   }
@@ -132,6 +134,21 @@ void addRow(AtlasScreen &screen, int16_t y, const ButtonSpec *specs, uint8_t cou
 void addColumn(AtlasScreen &screen, const ButtonSpec *specs, uint8_t count) {
   for (uint8_t i = 0; i < count; ++i) addRow(screen, SCREEN_BODY_Y + i * (BUTTON_ROW_H + MARGIN), &specs[i], 1);
 }
+
+// One grouped list (Settings and its pages): full-width rows packed from the
+// body's top, as tall as LIST_ROW_H or as fit above `bottom`. The display
+// draws touching rows as one card.
+void addList(AtlasScreen &screen, const ButtonSpec *specs, uint8_t count, int16_t bottom = BUTTON_ROW_Y - MARGIN) {
+  if (count == 0) return;
+  int16_t h = (bottom - SCREEN_BODY_Y) / count;
+  if (h > LIST_ROW_H) h = LIST_ROW_H;
+  for (uint8_t i = 0; i < count; ++i) {
+    addRow(screen, SCREEN_BODY_Y + i * h, &specs[i], 1);
+    screen.buttons[screen.buttonCount - 1].h = h;
+  }
+}
+// The list's bottom on pages with no Back row: just above the tab bar.
+constexpr int16_t LIST_BOTTOM_TABS = ATLAS_SCREEN_HEIGHT - 48 - MARGIN;
 
 // One key or list row at an exact spot, told apart by arg.
 void addKey(AtlasScreen &screen, TouchAction action, const char *label, int16_t x, int16_t y, int16_t w, int16_t h,
@@ -202,107 +219,158 @@ bool setupScreenDue() {
   return !(setupStage == TurnHub::SetupStage::Welcome && setupSkipped);
 }
 
-// A code a phone asked for shows over whatever screen is open, then a
-// pairing code waiting to be checked. The Table screen belongs to a match and
-// closes when it ends; Settings remains available during a game.
-ScreenKind activeScreen(uint32_t nowMs) {
+// The screen under any confirm popup. A code a phone asked for shows over
+// whatever screen is open, then a pairing code waiting to be checked. The
+// Table screen belongs to a match and closes when it ends; Settings remains
+// available during a game.
+ScreenKind baseScreen(uint32_t nowMs) {
   if (openScreen == ScreenKind::Table && !matchInProgress()) openScreen = ScreenKind::Status;
   // A player's screen closes when the lobby or match it belongs to ends, or
   // once that player is out.
   PlayerSeat shown;
-  if (openScreen == ScreenKind::Player && !currentShownSeat(shown)) {
-    openScreen = ScreenKind::Status;
-    concedeArmed = false;
-  }
+  if (openScreen == ScreenKind::Player && !currentShownSeat(shown)) openScreen = ScreenKind::Status;
   if ((openScreen == ScreenKind::Menu || openScreen == ScreenKind::Device || openScreen == ScreenKind::Themes) && !menuAvailable()) {
     openScreen = ScreenKind::Status;
   }
-  const bool seating = openScreen == ScreenKind::Seat || openScreen == ScreenKind::Name || openScreen == ScreenKind::Pin;
-  if (seating && table().hubState != HubState::Lobby) openScreen = ScreenKind::Status;
+  const bool lobbyOnly = openScreen == ScreenKind::Seat || openScreen == ScreenKind::Name ||
+      openScreen == ScreenKind::Pin || openScreen == ScreenKind::NewGame;
+  if (lobbyOnly && table().hubState != HubState::Lobby) openScreen = ScreenKind::Status;
   if (pendingPresenceCode(nowMs) != nullptr) return ScreenKind::Code;
   if (waitingPairSlot() != INVALID_ID) return ScreenKind::PairCode;
-  if ((openScreen == ScreenKind::Status || openScreen == ScreenKind::Home) && setupScreenDue()) return ScreenKind::Setup;
+  if (openScreen == ScreenKind::Status && setupScreenDue()) return ScreenKind::Setup;
   return openScreen;
 }
 
-// Between games: Pair and Clear lobby (lobby only) and QR codes above;
-// Info, Device and Back below.
-void layoutMenu(AtlasScreen &screen) {
-  ButtonSpec upper[4];
-  uint8_t n = 0;
-  if (table().hubState == HubState::Lobby && setupStage != TurnHub::SetupStage::Complete) {
-    upper[n++] = {TouchAction::OpenSetup, "Setup", 0, 1};
-  }
-  if (table().hubState == HubState::Lobby) upper[n++] = {TouchAction::Pair, "Pair a Sigil", 0, 1};
-  upper[n++] = {TouchAction::OpenQr, "QR codes", 0, 1};
-  if (table().hubState == HubState::Lobby && table().lobby.playerCount() >= 1) {
-    upper[n++] = {TouchAction::ClearLobby, "Clear lobby", LOBBY_CLEAR_HOLD_MS, 1};
-  }
-  addColumn(screen, upper, n);
-  ButtonSpec lower[4];
-  n = 0;
-  lower[n++] = {TouchAction::OpenInfo, "Info", 0, 1};
-  lower[n++] = {TouchAction::OpenDevice, "Device", 0, 1};
-  lower[n++] = {TouchAction::CloseScreen, "Back", 0, 1};
-  addRow(screen, BUTTON_ROW_Y, lower, n);
+// The confirm popup sits over the screen that asked, while that screen is up.
+ScreenKind activeScreen(uint32_t nowMs) {
+  const ScreenKind base = baseScreen(nowMs);
+  if (confirmAction == TouchAction::None) return base;
+  if (base == confirmOver) return ScreenKind::Confirm;
+  confirmAction = TouchAction::None;
+  return base;
 }
 
-// Menu > Device: Unpair Sigils (lobby only, as the handler requires) and
-// Factory reset above, Sleep and Back below. Unpair and Factory reset act
-// only when held for the BOOT button's times, which they stand in for; Sleep
-// is a tap (nothing saved is lost, and a touch wakes Atlas).
-void layoutDevice(AtlasScreen &screen) {
-  ButtonSpec upper[3];
+// The Settings tab: one list. Setup (until it is done) and Pair a Sigil in
+// the lobby, then QR codes, Theme and Device.
+void layoutMenu(AtlasScreen &screen) {
+  static char theme[32];
+  snprintf(theme, sizeof(theme), "Theme: %s", TurnHubTheme::palette(atlasDisplayTheme()).label);
+  ButtonSpec rows[5];
   uint8_t n = 0;
-  if (table().hubState == HubState::Lobby) upper[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", DEVICE_UNPAIR_HOLD_MS, 1};
-  if (!matchInProgress()) upper[n++] = {TouchAction::FactoryResetAtlas, "Factory reset", DEVICE_RESET_HOLD_MS, 1};
+  if (table().hubState == HubState::Lobby && setupStage != TurnHub::SetupStage::Complete) {
+    rows[n++] = {TouchAction::OpenSetup, "Setup", 0, 1};
+  }
+  if (table().hubState == HubState::Lobby) rows[n++] = {TouchAction::Pair, "Pair a Sigil", 0, 1};
+  rows[n++] = {TouchAction::OpenQr, "QR codes", 0, 1};
+  rows[n++] = {TouchAction::OpenThemes, theme, 0, 1};
+  rows[n++] = {TouchAction::OpenDevice, "Device", 0, 1};
+  addList(screen, rows, n, LIST_BOTTOM_TABS);
+}
+
+// Settings > Device: USB drive, Sleep (between games; a touch wakes Atlas),
+// Unpair Sigils (lobby only, as the handler requires) and Factory reset (not
+// during a match). Unpair and Factory reset ask first in the popup; they
+// stand in for the BOOT button's held gestures.
+void layoutDevice(AtlasScreen &screen) {
   const bool usbWanted = sdCardUsbShareWanted();
-  upper[n++] = {TouchAction::UsbDrive, usbWanted ? "USB drive: on" : "USB drive: off", 0, 1};
-  addColumn(screen, upper, n);
+  ButtonSpec rows[4];
+  uint8_t n = 0;
+  rows[n++] = {TouchAction::UsbDrive, usbWanted ? "USB drive: on" : "USB drive: off", 0, 1};
+  if (!matchInProgress()) rows[n++] = {TouchAction::SleepAtlas, "Sleep", 0, 1};
+  if (table().hubState == HubState::Lobby) rows[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", ASK, 1};
+  if (!matchInProgress()) rows[n++] = {TouchAction::FactoryResetAtlas, "Factory reset", ASK, 1};
+  addList(screen, rows, n);
   for (uint8_t i = 0; i < screen.buttonCount; ++i) {
     if (screen.buttons[i].action == TouchAction::UsbDrive) screen.buttons[i].selected = usbWanted;
   }
-  ButtonSpec lower[3] = {{TouchAction::OpenThemes, "Theme", 0, 1}};
-  uint8_t lowerCount = 1;
-  if (!matchInProgress()) lower[lowerCount++] = {TouchAction::SleepAtlas, "Sleep", 0, 1};
-  lower[lowerCount++] = {TouchAction::CloseScreen,"Back",0,1};
-  addRow(screen,BUTTON_ROW_Y,lower,lowerCount);
+  const ButtonSpec back[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
+  addRow(screen, BUTTON_ROW_Y, back, 1);
 }
 
+// Settings > Theme: the four looks and screen inversion, then Back.
 void layoutThemes(AtlasScreen &screen) {
-  const ButtonSpec upper[] = {{TouchAction::ThemeGraphite, "Graphite", 0, 1}, {TouchAction::ThemeDaylight, "Daylight", 0, 1}, {TouchAction::InvertDisplay, atlasDisplayInverted() ? "Invert: on" : "Invert: off", 0, 1}};
-  const ButtonSpec lower[] = {{TouchAction::ThemeBrass, "Brass", 0, 1}, {TouchAction::ThemeContrast, "High contrast", 0, 2}, {TouchAction::CloseScreen, "Back", 0, 1}};
-  addColumn(screen, upper, 3);
-  addRow(screen, BUTTON_ROW_Y, lower, 3);
+  const ButtonSpec rows[] = {{TouchAction::ThemeGraphite, "Graphite", 0, 1}, {TouchAction::ThemeDaylight, "Daylight", 0, 1},
+      {TouchAction::ThemeBrass, "Brass", 0, 1}, {TouchAction::ThemeContrast, "High contrast", 0, 1},
+      {TouchAction::InvertDisplay, atlasDisplayInverted() ? "Invert colours: on" : "Invert colours: off", 0, 1}};
+  addList(screen, rows, 5);
   for (uint8_t i = 0; i < screen.buttonCount; ++i) {
     auto &button = screen.buttons[i];
     if (button.action == TouchAction::InvertDisplay) button.selected = atlasDisplayInverted();
     if (button.action >= TouchAction::ThemeGraphite && button.action <= TouchAction::ThemeContrast)
       button.selected = static_cast<uint8_t>(button.action) - static_cast<uint8_t>(TouchAction::ThemeGraphite) == static_cast<uint8_t>(atlasDisplayTheme());
   }
+  const ButtonSpec back[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
+  addRow(screen, BUTTON_ROW_Y, back, 1);
 }
 
 // In-game controls kept off the main row: Master pass (a stuck turn, running
-// games only) above, End match and Back below. Both act only when held.
+// games only) and End match, each confirmed in the popup; then Back.
 void layoutTable(AtlasScreen &screen) {
-  if (table().hubState == HubState::Running) {
-    const ButtonSpec upper[] = {{TouchAction::MasterPass, "Master pass", MASTER_PASS_HOLD_MS, 1}};
-    addColumn(screen, upper, 1);
+  ButtonSpec rows[2];
+  uint8_t n = 0;
+  if (table().hubState == HubState::Running) rows[n++] = {TouchAction::MasterPass, "Master pass", ASK, 1};
+  rows[n++] = {TouchAction::EndMatch, "End match", ASK, 1};
+  addList(screen, rows, n);
+  const ButtonSpec back[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
+  addRow(screen, BUTTON_ROW_Y, back, 1);
+}
+
+// The game the next match plays, as the app's game tiles name it.
+const char *gameName(const TurnHub::GameSettings &settings) {
+  switch (settings.profile) {
+    case TurnHub::GameProfile::Magic: return "Standard";
+    case TurnHub::GameProfile::Commander:
+    case TurnHub::GameProfile::StarCommander:
+    case TurnHub::GameProfile::DoomCommander: return "Commander";
+    case TurnHub::GameProfile::Yugioh: return "Yu-Gi-Oh!";
+    default: return "Other";
   }
-  const ButtonSpec lower[] = {{TouchAction::EndMatch, "End match", END_MATCH_HOLD_MS, 3},
-      {TouchAction::CloseScreen, "Back", 0, 2}};
-  addRow(screen, BUTTON_ROW_Y, lower, 2);
+}
+
+// Magic and Commander modes, as the app's Mode choice names them.
+const char *modeName(const TurnHub::GameSettings &settings) {
+  if (settings.profile == TurnHub::GameProfile::StarCommander) return "Star Commander";
+  if (settings.profile == TurnHub::GameProfile::DoomCommander) return "Bag of Doom";
+  return settings.twoHeadedGiant ? "Two-Headed Giant" : "Free-for-all";
+}
+
+// New game (lobby): the app's game setup as rows that each step their
+// setting (ConfigureGame from the table), then Start game once two sit.
+void layoutNewGame(AtlasScreen &screen) {
+  const TurnHub::GameSettings &next = table().nextGameSettings;
+  static char game[32], mode[32], life[32], timer[32], house[32];
+  snprintf(game, sizeof(game), "Game: %s", gameName(next));
+  snprintf(mode, sizeof(mode), "Mode: %s", modeName(next));
+  TurnHub::OfficialRules locked{};
+  const bool official = TurnHub::lockedRules(next, locked);
+  snprintf(life, sizeof(life), "Starting life: %ld%s", static_cast<long>(next.startingLife), official ? " (rules)" : "");
+  if (next.turnTimerMs == TurnHub::TURN_TIMER_OFF) snprintf(timer, sizeof(timer), "Turn timer: off");
+  else snprintf(timer, sizeof(timer), "Turn timer: %lu min", static_cast<unsigned long>(next.turnTimerMs / 60000));
+  snprintf(house, sizeof(house), "House rules: %s", next.houseRules ? "on" : "off");
+  ButtonSpec rows[5];
+  uint8_t n = 0;
+  rows[n++] = {TouchAction::GameType, game, 0, 1};
+  if (TurnHub::magicRules(next.profile)) rows[n++] = {TouchAction::GameMode, mode, 0, 1};
+  rows[n++] = {TouchAction::GameLife, life, 0, 1};
+  rows[n++] = {TouchAction::GameTimer, timer, 0, 1};
+  TurnHub::OfficialRules rules{};
+  if (TurnHub::officialRules(next.profile, next.twoHeadedGiant, rules)) rows[n++] = {TouchAction::GameHouseRules, house, 0, 1};
+  addList(screen, rows, n);
+  ButtonSpec lower[2];
+  uint8_t m = 0;
+  if (table().lobby.playerCount() >= 2) lower[m++] = {TouchAction::StartGame, "Start game", 0, 3};
+  lower[m++] = {TouchAction::CloseScreen, "Back", 0, 2};
+  addRow(screen, BUTTON_ROW_Y, lower, m);
 }
 
 // One player's screen (playtest 2026-09-29, item 9): life steps above,
-// Concede and Back below. Concede never acts on one touch or on a hold
-// alone: it asks again with Concede / Cancel.
+// More, Concede (confirmed in the popup) and Back below.
 void layoutPlayer(AtlasScreen &screen) {
   // Lobby: turn order (item 11). Earlier and Later, then Back.
   if (table().hubState == HubState::Lobby) {
     const ButtonSpec upper[] = {{TouchAction::MoveEarlier, "Earlier", 0, 1},
         {TouchAction::MoveLater, "Later", 0, 1},
-        {TouchAction::RemoveSeat, "Remove", LOBBY_REMOVE_HOLD_MS, 1}};
+        {TouchAction::RemoveSeat, "Remove", ASK, 1}};
     addColumn(screen, upper, 3);
     PlayerSeat seat;
     if (currentShownSeat(seat) && table().lobby.hasSecondary(seat.controllerId)) {
@@ -334,12 +402,6 @@ void layoutPlayer(AtlasScreen &screen) {
     if (playerControlsPage+1<pages) row[n++]={TouchAction::PlayerControlsNext,"Next",0,1};
     addRow(screen,BUTTON_ROW_Y,row,n); return;
   }
-  if (concedeArmed) {
-    const ButtonSpec lower[] = {{TouchAction::ConfirmConcede, "Concede", 0, 3},
-        {TouchAction::CancelConcede, "Cancel", 0, 2}};
-    addRow(screen, BUTTON_ROW_Y, lower, 2);
-    return;
-  }
   // Yu-Gi-Oh! life moves in hundreds, as on the portal's life cards.
   const bool hundreds = table().game.settings().profile == TurnHub::GameProfile::Yugioh;
   const ButtonSpec upper[] = {{TouchAction::LifeMinus5, hundreds ? "-1000" : "-5", 0, 1},
@@ -348,8 +410,36 @@ void layoutPlayer(AtlasScreen &screen) {
       {TouchAction::LifePlus5, hundreds ? "+1000" : "+5", 0, 1}};
   addRow(screen, BUTTON_UPPER_ROW_Y, upper, 4);
   const ButtonSpec lower[] = {{TouchAction::OpenPlayerControls,"More",0,1},
-      {TouchAction::Concede, "Concede", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
+      {TouchAction::Concede, "Concede", ASK, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
   addRow(screen, BUTTON_ROW_Y, lower, 3);
+}
+
+// The confirm popup: the action in its own words, and Cancel.
+const char *confirmLabel(TouchAction action) {
+  switch (action) {
+    case TouchAction::EndMatch: return "End match";
+    case TouchAction::MasterPass: return "Pass turn";
+    case TouchAction::ClearLobby: return "Clear lobby";
+    case TouchAction::ResetTable: return "Reset";
+    case TouchAction::RemoveSeat: return "Remove";
+    case TouchAction::Concede: return "Concede";
+    case TouchAction::UnpairSigils: return "Unpair all";
+    case TouchAction::FactoryResetAtlas: return "Erase Atlas";
+    default: return "Confirm";
+  }
+}
+
+void layoutConfirm(AtlasScreen &screen) {
+  const ButtonSpec row[] = {{TouchAction::ConfirmNo, "Cancel", 0, 1},
+      {TouchAction::ConfirmYes, confirmLabel(confirmAction), 0, 1}};
+  addRow(screen, CONFIRM_BUTTON_Y, row, 2);
+  // Inside the popup's card, which is inset from the screen's edges.
+  constexpr int16_t INSET = 2 * MARGIN;
+  const int16_t w = (ATLAS_SCREEN_WIDTH - 2 * INSET - 3 * MARGIN) / 2;
+  for (uint8_t i = 0; i < screen.buttonCount; ++i) {
+    screen.buttons[i].x = INSET + MARGIN + i * (w + MARGIN);
+    screen.buttons[i].w = w;
+  }
 }
 
 // Add player: a page of saved profiles, then New player, More and Back.
@@ -459,11 +549,11 @@ bool chipAction(TouchAction action) {
 void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
   screen.buttonCount = 0;
   switch (activeScreen(nowMs)) {
+    // Home is the table's status and info; the tab bar is the way on.
     case ScreenKind::Home:
-      addKey(screen,TouchAction::OpenGame,"Game",8,112,304,64,1);
-      addKey(screen,TouchAction::OpenOverview,"Table",8,184,304,64,1);
-      addKey(screen,TouchAction::OpenSettings,"Settings",8,256,304,64,1);
       return;
+    case ScreenKind::Confirm: layoutConfirm(screen); return;
+    case ScreenKind::NewGame: layoutNewGame(screen); return;
     case ScreenKind::Overview: {
       const uint8_t count = table().hubState == HubState::Lobby ? table().lobby.playerCount() : table().game.playerCount();
       if (count > MAX_SCREEN_PLAYERS) {
@@ -499,11 +589,6 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     case ScreenKind::Seat: layoutSeat(screen); return;
     case ScreenKind::Name: layoutName(screen); return;
     case ScreenKind::Pin: layoutPin(screen); return;
-    case ScreenKind::Info: {
-      const ButtonSpec row[] = {{TouchAction::OpenQr, "QR codes", 0, 3}, {TouchAction::CloseScreen, "Back", 0, 2}};
-      addRow(screen, BUTTON_ROW_Y, row, 2);
-      return;
-    }
     case ScreenKind::Qr: {
       const ButtonSpec row[] = {{TouchAction::QrWifi, "Wi-Fi", 0, 1}, {TouchAction::QrPortal, "Portal", 0, 1},
           {TouchAction::QrSignIn, "Sign in", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
@@ -519,7 +604,7 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
         // Pairing belongs to setup too (the app's Sigils step), so every
         // device can take one update prompt; opening it stays a touch here.
         const ButtonSpec row[] = {{TouchAction::Pair, "Pair a Sigil", 0, 3},
-            {TouchAction::SkipSetup, "Skip", 0, 2}, {TouchAction::OpenMenu, "Menu", 0, 2}};
+            {TouchAction::SkipSetup, "Skip", 0, 2}, {TouchAction::OpenSettings, "Settings", 0, 2}};
         addRow(screen, BUTTON_ROW_Y, row, 3);
       }
       return;
@@ -529,21 +614,21 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
   }
 
   switch (table().hubState) {
-    // Add player and Start up front; Pair, Clear lobby, QR codes and Info
-    // wait under Menu.
+    // Add player, Start (New game: the game's options, then Start game) and
+    // Clear; Pair and QR codes are under the Settings tab.
     case HubState::Lobby: {
       ButtonSpec row[3];
       uint8_t n = 0;
       row[n++] = {TouchAction::OpenSeat, "Add player", 0, 3};
-      if (table().lobby.playerCount() >= 2) row[n++] = {TouchAction::StartGame, "Start", 0, 3};
-      row[n++] = {TouchAction::OpenMenu, "Menu", 0, 2};
+      row[n++] = {TouchAction::OpenNewGame, "Start", 0, 3};
+      if (table().lobby.playerCount() >= 1) row[n++] = {TouchAction::ClearLobby, "Clear", ASK, 2};
       addRow(screen, BUTTON_ROW_Y, row, n);
       break;
     }
-    // Players pass from their own seats; the master pass and End match sit
-    // on the Table screen, out of the way during play.
+    // Pass is a tap: it keeps its grace period, so the seat can still cancel.
+    // The master pass and End match sit on the Actions screen.
     case HubState::Running: {
-      const ButtonSpec row[] = {{TouchAction::PassTurn, "Hold to pass", TOUCH_PASS_HOLD_MS, 3},
+      const ButtonSpec row[] = {{TouchAction::PassTurn, "Pass", 0, 3},
           {TouchAction::Pause, "Pause", 0, 2}, {TouchAction::OpenTable, "Actions", 0, 3}};
       addRow(screen, BUTTON_ROW_Y, row, 3);
       break;
@@ -554,9 +639,8 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
       break;
     }
     case HubState::GameOver: {
-      const ButtonSpec row[] = {{TouchAction::Rematch, "Rematch", 0, 3}, {TouchAction::ResetTable, "Reset", 0, 2},
-          {TouchAction::OpenMenu, "Menu", 0, 2}};
-      addRow(screen, BUTTON_ROW_Y, row, 3);
+      const ButtonSpec row[] = {{TouchAction::Rematch, "Rematch", 0, 3}, {TouchAction::ResetTable, "Reset", ASK, 2}};
+      addRow(screen, BUTTON_ROW_Y, row, 2);
       break;
     }
     case HubState::Starting: {
@@ -572,11 +656,12 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
   layoutContentButtons(screen, nowMs);
   const auto kind = activeScreen(nowMs);
   if (kind == ScreenKind::Code || kind == ScreenKind::PairCode || kind == ScreenKind::Name ||
-      kind == ScreenKind::Pin || kind == ScreenKind::Setup) return;
+      kind == ScreenKind::Pin || kind == ScreenKind::Setup || kind == ScreenKind::Confirm) return;
   const TouchAction actions[] = {TouchAction::OpenHome, TouchAction::OpenGame,
       TouchAction::OpenOverview, TouchAction::OpenSettings};
-  const uint8_t selected = kind == ScreenKind::Home ? 0 : kind == ScreenKind::Status ||
-      kind == ScreenKind::Player || kind == ScreenKind::Table ? 1 : kind == ScreenKind::Overview ? 2 : 3;
+  const uint8_t selected = kind == ScreenKind::Home ? 0 : kind == ScreenKind::Status || kind == ScreenKind::Player ||
+      kind == ScreenKind::Table || kind == ScreenKind::Seat || kind == ScreenKind::NewGame ? 1
+      : kind == ScreenKind::Overview ? 2 : 3;
   for (uint8_t i=0; i<TurnHubUi::PAGE_COUNT; ++i) {
     addKey(screen,actions[i],TurnHubUi::pageTitle(static_cast<TurnHubUi::Page>(i)),i*80,432,80,48,0);
     screen.buttons[screen.buttonCount-1].selected = i == selected;
@@ -636,13 +721,11 @@ const char *actionName(TouchAction action) {
     case TouchAction::CancelCode: return "CANCEL_CODE";
     case TouchAction::PairConfirm: return "PAIR_CONFIRM";
     case TouchAction::PairReject: return "PAIR_REJECT";
-    case TouchAction::OpenInfo: return "OPEN_INFO";
     case TouchAction::OpenQr: return "OPEN_QR";
     case TouchAction::CloseScreen: return "CLOSE_SCREEN";
     case TouchAction::QrWifi: return "QR_WIFI";
     case TouchAction::QrPortal: return "QR_PORTAL";
     case TouchAction::QrSignIn: return "QR_SIGN_IN";
-    case TouchAction::OpenMenu: return "OPEN_MENU";
     case TouchAction::OpenPlayer: return "OPEN_PLAYER";
     case TouchAction::ChipLifeMinus: return "CHIP_LIFE_MINUS";
     case TouchAction::ChipLifePlus: return "CHIP_LIFE_PLUS";
@@ -651,9 +734,7 @@ const char *actionName(TouchAction action) {
     case TouchAction::LifeMinus1: return "LIFE_MINUS_1";
     case TouchAction::LifePlus1: return "LIFE_PLUS_1";
     case TouchAction::LifePlus5: return "LIFE_PLUS_5";
-    case TouchAction::Concede: return "CONCEDE_ASK";
-    case TouchAction::ConfirmConcede: return "CONCEDE";
-    case TouchAction::CancelConcede: return "CONCEDE_CANCEL";
+    case TouchAction::Concede: return "CONCEDE";
     case TouchAction::MoveEarlier: return "MOVE_EARLIER";
     case TouchAction::MoveLater: return "MOVE_LATER";
     case TouchAction::SeatBLeft: return "SEAT_B_LEFT";
@@ -684,6 +765,14 @@ const char *actionName(TouchAction action) {
     case TouchAction::PinKey: return "PIN_KEY";
     case TouchAction::PinBack: return "PIN_BACK";
     case TouchAction::PinDone: return "PIN_DONE";
+    case TouchAction::ConfirmYes: return "CONFIRM_YES";
+    case TouchAction::ConfirmNo: return "CONFIRM_NO";
+    case TouchAction::OpenNewGame: return "OPEN_NEW_GAME";
+    case TouchAction::GameType: return "GAME_TYPE";
+    case TouchAction::GameMode: return "GAME_MODE";
+    case TouchAction::GameLife: return "GAME_LIFE";
+    case TouchAction::GameTimer: return "GAME_TIMER";
+    case TouchAction::GameHouseRules: return "GAME_HOUSE_RULES";
     case TouchAction::None: break;
   }
   return "NONE";
@@ -708,16 +797,6 @@ IntentType tableIntentType(TouchAction action) {
     case TouchAction::ClearLobby: return IntentType::ResetGame;
     default: return IntentType::None;
   }
-}
-
-// What a hold button does, for "Keep holding for 5 s to ...".
-const char *holdPurpose(TouchAction action) {
-  if (action == TouchAction::MasterPass) return "pass this turn";
-  if (action == TouchAction::PassTurn) return "pass the turn";
-  if (action == TouchAction::ClearLobby) return "clear the lobby";
-  if (action == TouchAction::UnpairSigils) return "unpair every Sigil";
-  if (action == TouchAction::FactoryResetAtlas) return "erase Atlas";
-  return "end the match";
 }
 
 // Fills seatRows with page seatPage of the saved profiles that could sit
@@ -769,8 +848,8 @@ void typeNameKey(uint8_t index) {
 }
 
 // Screen changes: no Intent, no table state, no notice. Back leaves the
-// Menu's own screens (Info, QR codes) for the Menu while it is
-// available, and everything else for the status screen.
+// Settings pages (QR codes, Theme, Device) for Settings, and everything else
+// for the Game page.
 bool navigate(TouchAction action) {
   switch (action) {
     case TouchAction::OpenPlayerControls: playerControlsOpen=true; playerControlsPage=0; return true;
@@ -782,8 +861,8 @@ bool navigate(TouchAction action) {
     case TouchAction::OpenOverview: openScreen = ScreenKind::Overview; return true;
     case TouchAction::OpenSettings: openScreen = ScreenKind::Menu; return true;
     case TouchAction::OverviewNext: overviewPage = overviewPage ? 0 : 1; return true;
-    case TouchAction::OpenMenu: openScreen = ScreenKind::Menu; return true;
-    case TouchAction::OpenInfo: openScreen = ScreenKind::Info; return true;
+    case TouchAction::OpenNewGame: openScreen = ScreenKind::NewGame; return true;
+    case TouchAction::ConfirmNo: confirmAction = TouchAction::None; return true;
     case TouchAction::OpenQr: openScreen = ScreenKind::Qr; return true;
     case TouchAction::OpenTable: openScreen = ScreenKind::Table; return true;
     case TouchAction::OpenThemes: openScreen = ScreenKind::Themes; return true;
@@ -812,11 +891,7 @@ bool navigate(TouchAction action) {
       openScreen = ScreenKind::Player;
       shownSeat = pressedSeat;
       playerControlsOpen=false;
-      concedeArmed = false;
       return true;
-    // Concede asks again; only ConfirmConcede sends the Intent.
-    case TouchAction::Concede: concedeArmed = true; return true;
-    case TouchAction::CancelConcede: concedeArmed = false; return true;
     case TouchAction::OpenSeat: openSeatScreen(0); return true;
     case TouchAction::SeatMore: openSeatScreen(seatPages ? (seatPage + 1) % seatPages : 0); return true;
     case TouchAction::NewPlayer:
@@ -843,16 +918,14 @@ bool navigate(TouchAction action) {
       return true;
     }
     case TouchAction::CloseScreen: {
-      concedeArmed = false;
       // The keyboard and keypad go back to the list; the list to the table.
       if (openScreen == ScreenKind::Name || openScreen == ScreenKind::Pin) {
         typedPin[0] = '\0';
         openSeatScreen(seatPage);
         return true;
       }
-      if (openScreen == ScreenKind::Themes) { openScreen = ScreenKind::Device; return true; }
-      const bool fromMenuScreen = openScreen == ScreenKind::Info || openScreen == ScreenKind::Qr ||
-          openScreen == ScreenKind::Device;
+      const bool fromMenuScreen = openScreen == ScreenKind::Qr || openScreen == ScreenKind::Device ||
+          openScreen == ScreenKind::Themes;
       openScreen = fromMenuScreen && menuAvailable() ? ScreenKind::Menu : ScreenKind::Status;
       return true;
     }
@@ -871,10 +944,92 @@ bool navigate(TouchAction action) {
   }
 }
 
+// The next value of one New game row, in the app's order; nullptr when it
+// stepped, or why it cannot. Atlas's handler applies official rules after.
+const char *stepGameSetting(TouchAction action, TurnHub::GameSettings &next) {
+  using TurnHub::GameProfile;
+  switch (action) {
+    // Commander, Standard, Yu-Gi-Oh!, Other: a fresh game of the next one.
+    case TouchAction::GameType: {
+      const GameProfile now = TurnHub::commanderRules(next.profile) ? GameProfile::Commander : next.profile;
+      next.profile = now == GameProfile::Commander ? GameProfile::Magic : now == GameProfile::Magic ? GameProfile::Yugioh
+          : now == GameProfile::Yugioh ? GameProfile::Generic : GameProfile::Commander;
+      next.twoHeadedGiant = false;
+      next.houseRules = false;
+      if (next.profile == GameProfile::Generic) next.startingLife = 20;
+      return nullptr;
+    }
+    // Magic: Free-for-all and Two-Headed Giant. Commander adds Bag of Doom
+    // and Star Commander (their own profiles).
+    case TouchAction::GameMode:
+      if (next.profile == GameProfile::Magic) {
+        next.twoHeadedGiant = !next.twoHeadedGiant;
+        return nullptr;
+      }
+      if (!TurnHub::commanderRules(next.profile)) return "This game has one mode";
+      if (next.profile == GameProfile::Commander && !next.twoHeadedGiant) {
+        next.twoHeadedGiant = true;
+        next.startingLife = TurnHub::TEAM_LIFE_COMMANDER;
+      } else if (next.profile == GameProfile::Commander) {
+        next.twoHeadedGiant = false;
+        next.profile = GameProfile::DoomCommander;
+        next.startingLife = 40;
+      } else if (next.profile == GameProfile::DoomCommander) {
+        next.profile = GameProfile::StarCommander;
+        next.startingLife = TurnHub::STAR_DEFAULT_LIFE;
+      } else {
+        next.profile = GameProfile::Commander;
+      }
+      return nullptr;
+    // Official games keep their life unless House rules are on.
+    case TouchAction::GameLife: {
+      TurnHub::OfficialRules rules{};
+      if (TurnHub::lockedRules(next, rules)) return "Official rules set it: turn on House rules";
+      static const int32_t CARDS[] = {4000, 8000, 16000};
+      static const int32_t LIFE[] = {20, 25, 30, 40, 60};
+      const bool yugioh = next.profile == GameProfile::Yugioh;
+      const int32_t *presets = yugioh ? CARDS : LIFE;
+      const uint8_t count = yugioh ? 3 : 5;
+      int32_t chosen = presets[0];
+      for (uint8_t i = 0; i < count; ++i) {
+        if (presets[i] > next.startingLife) { chosen = presets[i]; break; }
+      }
+      next.startingLife = chosen;
+      return nullptr;
+    }
+    case TouchAction::GameTimer: {
+      uint8_t i = 0;
+      while (i < TurnHub::TURN_TIMER_PRESET_COUNT && TurnHub::TURN_TIMER_PRESETS_MS[i] <= next.turnTimerMs) ++i;
+      next.turnTimerMs = TurnHub::TURN_TIMER_PRESETS_MS[i < TurnHub::TURN_TIMER_PRESET_COUNT ? i : 0];
+      return nullptr;
+    }
+    case TouchAction::GameHouseRules:
+      next.houseRules = !next.houseRules;
+      return nullptr;
+    default:
+      return "Unknown setting";
+  }
+}
+
 // Adapter: turns one touch button into its Intent. Pause and Resume act for
 // the active seat; the rest act for the table (origin only, no seat).
 // Canceling a presence code changes no table state.
 void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
+  // The popup's Confirm: the action it asked about, if the screen underneath
+  // still offers it (the table may have moved on).
+  if (action == TouchAction::ConfirmYes) {
+    const TouchAction asked = confirmAction;
+    confirmAction = TouchAction::None;
+    AtlasScreen layout;
+    pressedArg = 0;
+    serialLog.println("ATLAS|TOUCH|CONFIRM_YES");
+    if (asked == TouchAction::None || currentButton(asked, layout, nowMs) == nullptr) {
+      showNotice(nowMs, "That is no longer available");
+      return;
+    }
+    dispatchTouchAction(nowMs, asked);
+    return;
+  }
   if (navigate(action)) {
     serialLog.print("ATLAS|TOUCH|");
     serialLog.println(actionName(action));
@@ -975,7 +1130,7 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
     case TouchAction::LifeMinus1:
     case TouchAction::LifePlus1:
     case TouchAction::LifePlus5:
-    case TouchAction::ConfirmConcede: {
+    case TouchAction::Concede: {
       PlayerSeat seat;
       if (!currentShownSeat(seat) || table().hubState == HubState::Lobby) {
         result = IntentResult::reject(IntentStatus::InvalidActor, "That player is not in this game");
@@ -986,7 +1141,7 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       intent.actor.controllerId = seat.controllerId;
       intent.actor.slot = seat.slot;
       intent.actor.playerNumber = seat.playerNumber;
-      if (action == TouchAction::ConfirmConcede) {
+      if (action == TouchAction::Concede) {
         intent.type = IntentType::Concede;
       } else {
         intent.type = IntentType::ChangeLife;
@@ -998,10 +1153,7 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
             : action == TouchAction::LifeMinus1 ? -step : action == TouchAction::LifePlus1 ? step : bigStep;
       }
       result = intents.dispatch(intent);
-      if (action == TouchAction::ConfirmConcede) {
-        concedeArmed = false;
-        if (result.accepted()) openScreen = ScreenKind::Status;
-      }
+      if (action == TouchAction::Concede && result.accepted()) openScreen = ScreenKind::Status;
       break;
     }
     // Turn order in the lobby: the table device asks, the handler decides.
@@ -1024,7 +1176,7 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       result = intents.dispatch(intent);
       break;
     }
-    // Held Remove on a lobby Player screen: that seat leaves the lobby.
+    // Remove on a lobby Player screen (confirmed): that seat leaves the lobby.
     case TouchAction::RemoveSeat: {
       PlayerSeat seat;
       if (!currentShownSeat(seat)) {
@@ -1115,7 +1267,7 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       }
       break;
     }
-    // Menu > Device, held: the BOOT button's Unpair and Factory reset, as the
+    // Settings > Device, confirmed: the BOOT button's Unpair and Factory reset, as the
     // same AtlasHardware Intents (front_panel.cpp's updateBootButton). The
     // handlers decide: Unpair needs the lobby and no seated Sigil.
     case TouchAction::UnpairSigils:
@@ -1130,6 +1282,40 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
         intent.payload.value = TurnHub::FACTORY_RESET_ATLAS;
       }
       result = intents.dispatch(intent);
+      break;
+    }
+    // New game: one row steps one setting; Atlas validates and saves it.
+    case TouchAction::GameType:
+    case TouchAction::GameMode:
+    case TouchAction::GameLife:
+    case TouchAction::GameTimer:
+    case TouchAction::GameHouseRules: {
+      TurnHub::GameSettings next = table().nextGameSettings;
+      const char *refused = stepGameSetting(action, next);
+      if (refused != nullptr) {
+        result = IntentResult::reject(IntentStatus::Rejected, refused);
+        break;
+      }
+      Intent intent;
+      intent.type = IntentType::ConfigureGame;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
+      intent.payload.flags = static_cast<uint32_t>(next.profile) |
+          (next.twoHeadedGiant ? TurnHub::GAME_FLAG_TWO_HEADED_GIANT : 0) |
+          (next.autoEliminateAtZeroLife ? 0 : TurnHub::GAME_FLAG_MANUAL_ELIMINATION) |
+          (next.autoEliminateAtPoisonLimit ? 0 : TurnHub::GAME_FLAG_MANUAL_POISON) |
+          (next.autoEliminateAtCommanderDamage ? 0 : TurnHub::GAME_FLAG_MANUAL_COMMANDER) |
+          (next.houseRules ? TurnHub::GAME_FLAG_HOUSE_RULES : 0);
+      intent.payload.value = next.startingLife;
+      intent.payload.poisonLimit = next.poisonLimit;
+      intent.payload.durationMs = next.turnTimerMs;
+      result = intents.dispatch(intent);
+      // The row shows the new value; only a refusal needs words.
+      if (result.accepted()) {
+        serialLog.print("ATLAS|TOUCH|");
+        serialLog.print(actionName(action));
+        serialLog.println("|ACCEPTED");
+        return;
+      }
       break;
     }
     case TouchAction::SleepAtlas: {
@@ -1303,10 +1489,10 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
             static_cast<unsigned>(screen.sigilsOnline), screen.sigilsOnline == 1 ? "Sigil" : "Sigils");
       }
       if (screen.playerCount == 0) {
-        // An empty table: how to join. The portal's QR code is under Menu.
+        // An empty table: how to join. The portal's QR code is under Settings.
         snprintf(screen.lines[0], sizeof(screen.lines[0]), "Tap Add player to seat someone,");
         snprintf(screen.lines[1], sizeof(screen.lines[1]), "or join from the app or a Sigil.");
-        snprintf(screen.lines[2], sizeof(screen.lines[2]), "Menu: pair, QR codes, info.");
+        snprintf(screen.lines[2], sizeof(screen.lines[2]), "Settings: pair Sigils, QR codes.");
         screen.lineCount = 3;
       }
       break;
@@ -1462,20 +1648,22 @@ void formatMenu(AtlasScreen &screen) {
     return;
   }
   snprintf(screen.detail, sizeof(screen.detail), "%s",
-      table().hubState == HubState::Lobby ? "Pair Sigils, share codes, table info" : "Share codes, table info");
+      table().hubState == HubState::Lobby ? "Pair Sigils, share codes, the look" : "Share codes, the look");
 }
 
 void formatDevice(AtlasScreen &screen) {
   snprintf(screen.badge, sizeof(screen.badge), "DEVICE");
   snprintf(screen.title, sizeof(screen.title), "Atlas device");
-  snprintf(screen.detail, sizeof(screen.detail), "%s",
-      table().hubState == HubState::Lobby ? "Hold: Unpair 3 s, reset 10 s. Sleep: tap" : "Hold 10 s to reset. Sleep: tap");
+  snprintf(screen.detail, sizeof(screen.detail), "Unpair and Factory reset ask first");
 }
 
-void formatInfo(AtlasScreen &screen, uint32_t nowMs) {
-  snprintf(screen.badge, sizeof(screen.badge), "INFO");
-  snprintf(screen.title, sizeof(screen.title), "Table info");
-  snprintf(screen.detail, sizeof(screen.detail), "TurnHub Atlas v%s", TurnHubFirmware::VERSION);
+// Home: the table at a glance and this Atlas's info. The tabs lead on.
+void formatHome(AtlasScreen &screen, uint32_t nowMs) {
+  const uint8_t players = table().hubState == HubState::Lobby ? table().lobby.playerCount() : table().game.playerCount();
+  snprintf(screen.badge, sizeof(screen.badge), "ATLAS");
+  snprintf(screen.title, sizeof(screen.title), "TurnHub");
+  snprintf(screen.detail, sizeof(screen.detail), "%s, %u %s", stateName(table().hubState),
+      static_cast<unsigned>(players), players == 1 ? "player" : "players");
   char uptime[12];
   formatClock(uptime, sizeof(uptime), nowMs);
   snprintf(screen.lines[0], sizeof(screen.lines[0]), "Wi-Fi: %s", AtlasConfig::WIFI_SSID);
@@ -1497,9 +1685,67 @@ void formatInfo(AtlasScreen &screen, uint32_t nowMs) {
   if (update != TurnHub::UpdateKind::None) {
     formatUpdateLine(screen.lines[4], sizeof(screen.lines[4]), update);
   } else {
-    snprintf(screen.lines[4], sizeof(screen.lines[4]), "Up %s", uptime);
+    snprintf(screen.lines[4], sizeof(screen.lines[4]), "Atlas v%s, up %s", TurnHubFirmware::VERSION, uptime);
   }
   screen.lineCount = 5;
+}
+
+// The confirm popup: what the action will do, in words.
+void formatConfirm(AtlasScreen &screen, uint32_t nowMs) {
+  snprintf(screen.badge, sizeof(screen.badge), "CONFIRM");
+  char name[SCREEN_NAME_LENGTH + 1] = "this player";
+  PlayerSeat seat;
+  if (currentShownSeat(seat)) playerName(seat, profileIdForTableSeat(seat, table().hubState != HubState::Lobby), nowMs, name);
+  const PlayerSeat *active = table().game.activePlayer();
+  char turn[SCREEN_NAME_LENGTH + 1] = "";
+  if (active != nullptr && matchInProgress()) playerName(*active, String(active->profileId), nowMs, turn);
+  switch (confirmAction) {
+    case TouchAction::EndMatch:
+      snprintf(screen.title, sizeof(screen.title), "End the match?");
+      snprintf(screen.detail, sizeof(screen.detail), "It ends for everyone as a draw.");
+      break;
+    case TouchAction::MasterPass:
+      if (turn[0]) snprintf(screen.title, sizeof(screen.title), "Pass for %s?", turn);
+      else snprintf(screen.title, sizeof(screen.title), "Pass this turn?");
+      snprintf(screen.detail, sizeof(screen.detail), "For a stuck turn: it passes now.");
+      break;
+    case TouchAction::ClearLobby:
+      snprintf(screen.title, sizeof(screen.title), "Clear the lobby?");
+      snprintf(screen.detail, sizeof(screen.detail), "Everyone leaves the table.");
+      break;
+    case TouchAction::ResetTable:
+      snprintf(screen.title, sizeof(screen.title), "Reset the table?");
+      snprintf(screen.detail, sizeof(screen.detail), "Everyone leaves for an empty lobby.");
+      break;
+    case TouchAction::RemoveSeat:
+      snprintf(screen.title, sizeof(screen.title), "Remove %s?", name);
+      snprintf(screen.detail, sizeof(screen.detail), "They leave the lobby.");
+      break;
+    case TouchAction::Concede:
+      snprintf(screen.title, sizeof(screen.title), "Concede for %s?", name);
+      snprintf(screen.detail, sizeof(screen.detail), "Their game ends.");
+      break;
+    case TouchAction::UnpairSigils:
+      snprintf(screen.title, sizeof(screen.title), "Unpair every Sigil?");
+      snprintf(screen.detail, sizeof(screen.detail), "Each one must pair again to play.");
+      break;
+    case TouchAction::FactoryResetAtlas:
+      snprintf(screen.title, sizeof(screen.title), "Erase this Atlas?");
+      snprintf(screen.detail, sizeof(screen.detail), "Profiles, stats and settings are deleted.");
+      break;
+    default:
+      snprintf(screen.title, sizeof(screen.title), "Are you sure?");
+      break;
+  }
+}
+
+// New game: the next match's settings; the rows carry the values.
+void formatNewGame(AtlasScreen &screen) {
+  snprintf(screen.badge, sizeof(screen.badge), "NEW GAME");
+  snprintf(screen.title, sizeof(screen.title), "New game");
+  const uint8_t players = table().lobby.playerCount();
+  if (players < 2) snprintf(screen.detail, sizeof(screen.detail), "Seat two players to start");
+  else snprintf(screen.detail, sizeof(screen.detail), "%u players. Tap a row to change it", static_cast<unsigned>(players));
 }
 
 // The owner-set Wi-Fi password, or "" for the shipped default. The screen
@@ -1613,8 +1859,6 @@ void formatPlayer(AtlasScreen &screen, uint32_t nowMs) {
             (table().lobby.secondaryFirst(seat.controllerId) ? "; B left, before A" : "; B right, after A") : "");
   } else if (playerControlsOpen) {
     snprintf(screen.detail,sizeof(screen.detail),"Counters & status / page %u",playerControlsPage+1);
-  } else if (concedeArmed) {
-    snprintf(screen.detail, sizeof(screen.detail), "Concede for %s? Their game ends.", name);
   } else {
     snprintf(screen.detail, sizeof(screen.detail), "%s %ld%s",
         table().game.twoHeadedGiant() ? "Team life" : "Life",
@@ -1669,27 +1913,15 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen.update = firmwareUpdateKind();
   screen.sigilsOnline = sigilBus.activeCount(nowMs);
   switch (screen.kind) {
-    case ScreenKind::Home: {
-      formatStatus(screen, nowMs);
-      const uint8_t players = table().hubState == HubState::Lobby ? table().lobby.playerCount() : table().game.playerCount();
-      screen.playerCount = 0;
-      snprintf(screen.badge,sizeof(screen.badge),"ATLAS");
-      snprintf(screen.title,sizeof(screen.title),"TurnHub");
-      snprintf(screen.detail,sizeof(screen.detail),"%u players / %u Sigils online",players,screen.sigilsOnline);
-      snprintf(screen.lines[screen.lineCount++],sizeof(screen.lines[0]),"%s / %u players",stateName(table().hubState),players);
-      snprintf(screen.lines[screen.lineCount++],sizeof(screen.lines[0]),"%u Sigils connected",screen.sigilsOnline);
-      snprintf(screen.lines[screen.lineCount++],sizeof(screen.lines[0]),"Game: play and manage the match");
-      snprintf(screen.lines[screen.lineCount++],sizeof(screen.lines[0]),"Table: see everyone, read only");
-      snprintf(screen.lines[screen.lineCount++],sizeof(screen.lines[0]),"Settings: pair, connect, appearance");
-      break;
-    }
+    case ScreenKind::Home: formatHome(screen, nowMs); break;
+    case ScreenKind::Confirm: formatConfirm(screen, nowMs); break;
+    case ScreenKind::NewGame: formatNewGame(screen); break;
     case ScreenKind::Overview:
       formatStatus(screen,nowMs);
       snprintf(screen.title,sizeof(screen.title),"Table");
       snprintf(screen.detail,sizeof(screen.detail),"Read only / %s",overviewPage ? "players 9-16" : "players 1-8");
       break;
     case ScreenKind::Status: formatStatus(screen, nowMs); break;
-    case ScreenKind::Info: formatInfo(screen, nowMs); break;
     case ScreenKind::Qr: formatQr(screen, nowMs); break;
     case ScreenKind::Code: formatCode(screen, nowMs); break;
     case ScreenKind::PairCode: formatPairCode(screen, nowMs); break;
@@ -1717,14 +1949,6 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
     if (button.action != pressedAction || button.arg != pressedArg) continue;
     screen.pressed = pressedAction;
     screen.pressedArg = pressedArg;
-    if (button.hold() && !holdFired) {
-      const uint32_t heldMs = nowMs - pressStartedAtMs;
-      const uint32_t leftMs = heldMs < button.holdMs ? button.holdMs - heldMs : 0;
-      screen.holdSecondsLeft = static_cast<uint8_t>((leftMs + 999) / 1000);
-      // Whole tenths, so the fill bar redraws about ten times a second.
-      screen.holdPermille = static_cast<uint16_t>(
-          (heldMs >= button.holdMs ? 1000 : heldMs * 1000 / button.holdMs) / 100 * 100);
-    }
   }
 }
 
@@ -1734,33 +1958,23 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
     lastContactAtMs = nowMs;
     if (!touchDown) {
       touchDown = true;
-      holdFired = false;
-      pressStartedAtMs = nowMs;
       pressedAction = buttonAt(x, y, nowMs);
     }
     const TouchButton *button = currentButton(pressedAction, layout, nowMs);
     pressInside = button != nullptr && button->contains(x, y, TOUCH_SLOP_PX);
-    if (button != nullptr && button->hold() && pressInside && !holdFired &&
-        nowMs - pressStartedAtMs >= button->holdMs) {
-      holdFired = true;
-      dispatchTouchAction(nowMs, pressedAction);
-    }
     return;
   }
 
   if (!touchDown || nowMs - lastContactAtMs < TOUCH_RELEASE_MS) return;
   touchDown = false;
   const TouchButton *button = currentButton(pressedAction, layout, nowMs);
-  if (button != nullptr && pressInside && !holdFired) {
-    if (button->hold()) {
-      char hint[sizeof(noticeText)];
-      if (button->holdMs < 1000) {
-        snprintf(hint, sizeof(hint), "Keep holding to %s", holdPurpose(pressedAction));
-      } else {
-        snprintf(hint, sizeof(hint), "Keep holding for %lu s to %s",
-            static_cast<unsigned long>(button->holdMs / 1000), holdPurpose(pressedAction));
-      }
-      showNotice(nowMs, hint);
+  if (button != nullptr && pressInside) {
+    if (button->confirm) {
+      // Ask first: the popup covers this screen until Confirm or Cancel.
+      confirmOver = baseScreen(nowMs);
+      confirmAction = pressedAction;
+      serialLog.print("ATLAS|TOUCH|ASK|");
+      serialLog.println(actionName(pressedAction));
     } else {
       dispatchTouchAction(nowMs, pressedAction);
     }
@@ -1773,7 +1987,6 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
 void resetTouchControls(bool startAtHome) {
   touchDown = false;
   pressInside = false;
-  holdFired = false;
   pressedAction = TouchAction::None;
   pressedArg = 0;
   noticeText[0] = '\0';
@@ -1782,7 +1995,7 @@ void resetTouchControls(bool startAtHome) {
   openScreen = startAtHome ? ScreenKind::Home : ScreenKind::Status;
   qrChoice = TouchAction::QrPortal;
   shownSeat = pressedSeat = PlayerSeat();
-  concedeArmed = false;
+  confirmAction = TouchAction::None;
   playerControlsOpen=false; playerControlsPage=0;
   setupSkipped = false;
   for (auto &cache : names) cache = NameCache();
