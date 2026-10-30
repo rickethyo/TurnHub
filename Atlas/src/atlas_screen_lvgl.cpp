@@ -247,7 +247,7 @@ const lv_image_dsc_t *actionIcon(TouchAction a) {
     case TouchAction::Pause: return &th_icon_pause_24;
     case TouchAction::Resume: case TouchAction::StartGame: return &th_icon_play_24;
     case TouchAction::OpenTable: return &th_icon_more_24;
-    case TouchAction::OpenNewGame: return &th_icon_play_24;
+    case TouchAction::OpenNewGame: return &th_icon_sliders_24;
     case TouchAction::OpenManaTap: return &th_icon_dice_24;
     case TouchAction::ManaQuit: return &th_icon_close_24;
     case TouchAction::GameType: return &th_icon_sparkle_24;

@@ -408,17 +408,8 @@ void layoutNewGame(AtlasScreen &screen) {
   const bool hasHouseRules = TurnHub::officialRules(next.profile, next.twoHeadedGiant, rules);
   if (hasHouseRules) rows[n++] = {TouchAction::GameHouseRules, house, 0, 1};
   if (TurnHub::magicRules(next.profile)) rows[n++] = {TouchAction::GamePlanechase, planes, 0, 1};
-  if (n <= 5) {
-    addList(screen, rows, n);
-  } else {
-    // Six settings: House rules and Planechase share the last row.
-    addList(screen, rows, 5);
-    const int16_t h = static_cast<int16_t>(screen.buttons[screen.buttonCount - 1].h);
-    const int16_t y = screen.buttons[screen.buttonCount - 1].y;
-    --screen.buttonCount;
-    addRow(screen, y, &rows[4], 2);
-    screen.buttons[screen.buttonCount - 1].h = screen.buttons[screen.buttonCount - 2].h = h;
-  }
+  // Six settings still fit as one list, 44 px rows down to the button row.
+  addList(screen, rows, n, n > 5 ? BUTTON_ROW_Y : BUTTON_ROW_Y - MARGIN);
   ButtonSpec lower[2];
   uint8_t m = 0;
   if (table().lobby.playerCount() >= 2) lower[m++] = {TouchAction::StartGame, "Start game", 0, 3};
@@ -725,7 +716,7 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
       ButtonSpec row[3];
       uint8_t n = 0;
       row[n++] = {TouchAction::OpenSeat, "Add player", 0, 3};
-      row[n++] = {TouchAction::OpenNewGame, "Start", 0, 3};
+      row[n++] = {TouchAction::OpenNewGame, "Game setup", 0, 3};
       if (table().lobby.playerCount() >= 1) row[n++] = {TouchAction::ClearLobby, "Clear", ASK, 2};
       addRow(screen, BUTTON_ROW_Y, row, n);
       break;
