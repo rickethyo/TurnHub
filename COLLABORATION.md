@@ -34,6 +34,15 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-10-30, Codex: support-page artwork follow-up on `codex/master`, clean
+synchronized baseline `4bfe966c`; #176 merged and no open PRs. Owner wants a
+warmer visual introduction. Reuse the owner-requested generated tabletop
+hardware image locally in Android, with a hardware-concept caption, accessible
+description and responsive crop above the matching support buttons. Atlas
+counterpart remains in the existing staged parity slice. Android
+`:app:assembleDebug`, documentation link checks and `git diff --check` pass.
+Device layout and TalkBack acceptance remain physical.
+
 2026-10-30, Codex: active support-page presentation follow-up on `codex/master`,
 clean synchronized baseline `12e838af`; no open PRs. Owner requests removal of
 the persistent QR code and matching PayPal/Cash App buttons. Scope: Android

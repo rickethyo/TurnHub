@@ -1,15 +1,18 @@
 package com.turnhub.android.ui.home
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -18,12 +21,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.turnhub.android.R
 import com.turnhub.android.ui.components.AppVersionLabel
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.BrassCard
@@ -76,6 +82,11 @@ internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit, atlas: @Composa
                 AppVersionLabel()
             }
             MorePage.DONATE -> BrassCard {
+                Image(painterResource(R.drawable.support_tabletop_concept),
+                    contentDescription = "TurnHub hardware concept: Atlas and four Sigils on a wooden gaming table",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(1.8f).clip(RoundedCornerShape(12.dp)))
+                Text("Hardware concept", color = palette.muted, style = MaterialTheme.typography.labelSmall)
                 Text("Help TurnHub grow", color = palette.text, style = MaterialTheme.typography.titleMedium)
                 Text("I'm Ricky, creator of TurnHub. Your support enables me to build the tools that keep tabletop gaming " +
                     "focused on the game.", color = palette.muted)
