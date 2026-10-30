@@ -22,7 +22,6 @@
 #include "controller_profiles.h"
 #include "profile_store.h"
 #include "web_api_internal.h"
-#include "web_pages.h"
 // Compile the actual application entry point; the handler and adapter
 // modules it binds are linked from ../../src, not copied rules.
 #include "../../src/main.cpp"
@@ -941,31 +940,12 @@ static void accountPermissionsAndModeration(){
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","remove"}})==409);
   assert(request("/api/accounts/permissions",admin,{{"profileId",adminId},{"permissions","31"}})==200);
   assert(has(adminId,Admin|GameMaster|Developer));
-  // Every maintenance route is present without a card; the separate pack
-  // installer/status are gone. /assets cannot expose permission-gated pages.
+  // The admin portal is gone (owner, 2026-10-30): no pages, only the APIs the
+  // app uses, and the firmware upload.
   ota.begin();
-  assert(server.routes.count("0/portal") && server.routes.count("0/dev") && server.routes.count("0/update"));
+  assert(!server.routes.count("0/portal") && !server.routes.count("0/dev") && !server.routes.count("0/update"));
   assert(server.uploads.count("/api/firmware"));
   assert(!server.routes.count("0/api/portal") && !server.uploads.count("/api/portal/install"));
-  server.headers["X-TurnHub-Token"]=gm;
-  server.routes.at("0/update")();assert(server.status==403);
-  server.headers["X-TurnHub-Token"]=admin;
-  server.routes.at("0/update")();assert(server.status==200 && server.contentType=="text/html");
-  assert(static_cast<unsigned char>(server.body[0])==0x1f);
-  // Direct page requests with credentials must enforce the independent permission.
-  // The full Developer page and all fonts/styles are flash assets, independent
-  // of the SD stub (which has no card). Binary-safe lengths and HTTP metadata.
-  WebServer assets(80);
-  assert(TurnHubWeb::serveFile(assets,"index.html"));
-  assert(assets.status==200 && assets.contentType=="text/html");
-  assert(assets.responseHeaders["Cache-Control"]=="no-store");
-  assert(assets.responseHeaders["Content-Encoding"]=="gzip");
-  assert(static_cast<unsigned char>(assets.body[0])==0x1f && static_cast<unsigned char>(assets.body[1])==0x8b);
-  assets.status=0;
-  assert(!TurnHubWeb::serveFile(assets,"../index.html") && assets.status==0);
-  assert(!TurnHubWeb::serveFile(assets,"assets/missing.css") && assets.status==0);
-  server.headers["X-TurnHub-Token"]=dev;TurnHubWebApi::serveRestrictedPage(server,Developer,"dev.html");assert(server.status==200&&!server.body.empty());
-  server.headers["X-TurnHub-Token"]=gm;TurnHubWebApi::serveRestrictedPage(server,Developer,"dev.html");assert(server.status==403);
   // The serial log download is a Developer diagnostic, like /api/diagnostics.
   assert(request("/api/diagnostics/log","",{},HTTP_GET)==401);
   assert(request("/api/diagnostics/log",gm,{},HTTP_GET)==403);
@@ -1000,6 +980,24 @@ static void accountPermissionsAndModeration(){
   assert(request("/api/profiles/sync","",{{"profileId",oldId},{"linkKey",oldKey},{"now","1800000000000"},
       {"activity","1"},{"name","Phone copy"}})==409);
   assert(responseField("mergedInto")==keepId && TurnHubWebApi::internal::linkKeyValid(keepId,responseField("linkKey")));
+  // One person, one account (owner, 2026-10-30): same-name accounts link into
+  // the Admin's (else the oldest), which keeps both accounts' permissions.
+  {
+    String plainId, adminTwinId, olderId;
+    registerPhone("Twin Ricky",plainId); registerPhone("twin ricky ",adminTwinId); registerPhone("Twin Ricky",olderId);
+    TurnHubProfiles::ProfileSync sync;
+    assert(TurnHubProfiles::loadSyncForProfile(olderId,sync)); sync.createdAtMs=1600000000000ULL;
+    assert(TurnHubProfiles::saveSyncForProfile(olderId,sync));
+    assert(request("/api/accounts/permissions",admin,{{"profileId",adminTwinId},{"permissions","2"}})==200);
+    TurnHubAccounts::Account account; assert(TurnHubAccounts::load(adminTwinId,account));
+    account.permissions|=TurnHubAccounts::Admin; assert(TurnHubAccounts::save(adminTwinId,account));
+    assert(TurnHubWebApi::linkSameNameAccounts()>=2);
+    assert(TurnHubProfiles::mergedProfileFor(plainId)==adminTwinId && TurnHubProfiles::mergedProfileFor(olderId)==adminTwinId);
+    TurnHubAccounts::Account kept; assert(TurnHubAccounts::load(adminTwinId,kept) && !kept.archived && (kept.permissions&TurnHubAccounts::Admin));
+    assert(TurnHubWebApi::linkSameNameAccounts()==0);
+    // The store is nearly full by the later scenarios: these three go again.
+    for (const String *id : {&plainId,&adminTwinId,&olderId}) ProfileFixture::profiles.erase(id->c_str());
+  }
   // A game imported under the old ID credits the profile it was merged into, once.
   {
     MemoryBlobs blobs; TurnHubStandalone::useImportStore(&blobs);
@@ -2700,7 +2698,7 @@ static void touchControls() {
   assert(requestPresenceCode(String("ABCDEFGH"),false,testNow));
   s=currentScreen();
   assert(s.kind==ScreenKind::Code && String(s.badge)=="VERIFY" && strlen(s.code)==7 && s.code[3]==' ' &&
-      startsWith(s.qr,"http://192.168.4.1/portal#code=") && s.buttonCount==1 && screenButton(s,TouchAction::CancelCode));
+      !s.qr[0] && s.buttonCount==1 && screenButton(s,TouchAction::CancelCode));
   tapButton(TouchAction::CancelCode);
   assert(pendingPresenceCode(testNow)==nullptr && currentScreen().kind==ScreenKind::Status);
   assert(requestPresenceCode(String("ABCDEFGH"),true,testNow) && String(currentScreen().badge)=="SETUP");
@@ -3010,12 +3008,9 @@ static void atlasScreens() {
   }
   fixtureBattery=TurnHub::BatteryReading();
   openMenuScreen(); tapButton(TouchAction::OpenQr); s=currentScreen();
-  assert(s.kind==ScreenKind::Qr && String(s.qr)=="http://192.168.4.1/portal" &&
-      screenButton(s,TouchAction::QrPortal)->selected && !screenButton(s,TouchAction::QrWifi)->selected);
-  tapButton(TouchAction::QrWifi); s=currentScreen();
   // The shipped default password is public, so its Wi-Fi code shows freely.
-  assert(String(s.qr)=="WIFI:T:WPA;S:TurnHub-Atlas;P:TurnHub-Setup;;" && screenButton(s,TouchAction::QrWifi)->selected);
-  tapButton(TouchAction::QrSignIn); assert(String(currentScreen().qr)=="http://192.168.4.1/login");
+  assert(s.kind==ScreenKind::Qr && String(s.qr)=="WIFI:T:WPA;S:TurnHub-Atlas;P:TurnHub-Setup;;" &&
+      !screenButton(s,TouchAction::QrPortal) && !screenButton(s,TouchAction::QrSignIn));
   assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==3);  // Screens change no table state.
   // Back steps out of QR codes to Settings; the Game tab goes to the lobby.
   tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Menu);
@@ -3550,12 +3545,11 @@ static void firstRunSetup() {
   assert(TurnHub::bootSetupStage(TurnHubStorage::Status::IoError,SetupStage::Welcome,false)==SetupStage::Complete);
   assert(TurnHub::bootSetupStage(TurnHubStorage::Status::Corrupt,SetupStage::Welcome,false)==SetupStage::Complete);
 
-  // Welcome, in words: the app first, then the Wi-Fi by hand. No QR code.
+  // Welcome, in words: set up from the app (there is no portal). No QR code.
   AtlasScreen screen=currentScreen();
   assert(screen.kind==ScreenKind::Setup && strcmp(screen.badge,"SETUP")==0);
-  assert(strcmp(screen.title,"Welcome to TurnHub")==0 && screen.qr[0]=='\0' && screen.lineCount==5);
-  assert(strstr(screen.lines[0],"TurnHub app") && strstr(screen.lines[2],AtlasConfig::WIFI_SSID));
-  assert(strstr(screen.lines[3],AtlasConfig::WIFI_DEFAULT_PASSWORD) && strstr(screen.lines[4],"192.168.4.1"));
+  assert(strcmp(screen.title,"Welcome to TurnHub")==0 && screen.qr[0]=='\0' && screen.lineCount==4);
+  assert(strstr(screen.lines[0],"TurnHub app") && strstr(screen.lines[3],"Set up this Atlas"));
   assert(screenButton(screen,TouchAction::SkipSetup) && screenButton(screen,TouchAction::OpenSettings));
   // Pairing is part of setup (one update prompt for every device): the
   // Welcome screen opens it and shows the countdown.
@@ -6535,7 +6529,7 @@ int main() {
   masterPass(); std::cout<<"PASS master pass: confirmed on the Actions screen, Atlas hardware only, immediate, logged, overrides a queued PASS\n";
   touchControls(); std::cout<<"PASS touchscreen: Pair, Start, presence code screen/cancel/expiry, Pause/Resume, Actions screen, confirm popup, slide-off, drop-out, stale press\n";
   updateNotice(); std::cout<<"PASS update notice: app-reported versions, devices behind, Menu and Info text\n";
-  atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, QR codes (Wi-Fi, portal, sign in), turn clock" << std::endl;
+  atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, Wi-Fi QR code, turn clock" << std::endl;
   sigilSeatsTwoPlayers(); std::cout<<"PASS OLED and e-paper shared seats: chord, join, leave and game start\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
   batteryStability(); std::cout<<"PASS persistent battery stability, safety and source debounce\n";

@@ -5,7 +5,6 @@
 #include "web_api.h"
 
 #include "config.h"
-#include "web_pages.h"
 #include "serial_log.h"
 #include "http_diagnostics.h"
 #include "firmware_version.h"
@@ -152,9 +151,6 @@ void accountSetupStatus(WebServer &server) { handleAccountSetup(server, true); }
 void accountSetupCreate(WebServer &server) { handleAccountSetup(server, false); }
 void joinSession(WebServer &server) { handleParticipation(server, WebControl::Join); }
 void leaveSession(WebServer &server) { handleParticipation(server, WebControl::Leave); }
-void statsPage(WebServer &server) { servePortalPage(server, "index.html"); }
-void loginPage(WebServer &server) { servePortalPage(server, "login.html"); }
-void tabletPage(WebServer &server) { servePortalPage(server, "index.html"); }
 
 struct Route {
   const char *uri;
@@ -170,11 +166,6 @@ const Route ROUTES[] = {
   {"/api/v1/info", HTTP_GET, handleInfo},
   {"/api/time", HTTP_POST, handleClockSync},
   {"/api/v1/state", HTTP_GET, handleState},
-
-  // Pages served outside the portal.
-  {"/stats", HTTP_GET, statsPage},
-  {"/login", HTTP_GET, loginPage},
-  {"/tablet", HTTP_GET, tabletPage},
 
   // Accounts and administration.
   {"/api/accounts/setup", HTTP_GET, accountSetupStatus},

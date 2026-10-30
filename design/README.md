@@ -2,7 +2,7 @@
 
 One source of truth for how the Atlas portal, Android app and device screens look. Status:
 **Implemented** in source (2026-10-02, V1 phase 0). The portal and the app adopt
-it in later phases; see the V1 plan and `Documentation/engineering/WEB_PORTAL.md`.
+it in later phases; see the V1 plan (the Atlas portal that used it is removed).
 
 | Path | What | Edit? |
 |---|---|---|

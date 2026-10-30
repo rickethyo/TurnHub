@@ -227,6 +227,14 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   text and TalkBack acceptance ([Shared devices](SHARED_DEVICES.md)). Hosting
   is a candidate upgrade; billing/entitlements/pricing remain separate work.
 
+- **Atlas administration in the app (owner, 2026-10-30):** the admin portal is
+  removed. The Android app gets an Atlas settings section over the existing
+  APIs: home Wi-Fi and the table Wi-Fi password, speaker volume, table code,
+  upload approval, pairing and forgetting Sigils, device names, firmware
+  uploads, accounts (permissions, archive, merge), diagnostics log, factory
+  reset and Return to lobby. Until then those live only on the Atlas screen
+  (volume, home Wi-Fi switch, pairing, unpair, factory reset) or the APIs.
+
 - **Atlas Planechase and saved commanders, next slices (owner, 2026-10-30):**
   Atlas plays Planechase with physical planes or its digital deck (the plane
   catalog the app sends, kept on the microSD card), with a Planes page on the

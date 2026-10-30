@@ -14,7 +14,7 @@ using TurnHub::serialLog;
 
 namespace TurnHubAtlas {
 
-// Player-facing messages below (and the portal's hints in web_pages.cpp)
+// Player-facing messages below (and the app's hints)
 // spell these durations out; change the wording with the value.
 static_assert(PASS_GRACE_MS == 3000, "Update the \"within 3 seconds\" pass wording");
 

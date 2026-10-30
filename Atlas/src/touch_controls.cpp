@@ -35,7 +35,6 @@ namespace {
 
 constexpr int16_t MARGIN = 8;
 constexpr int16_t FULL_WIDTH = ATLAS_SCREEN_WIDTH - 2 * MARGIN;
-constexpr char PORTAL_ORIGIN[] = "http://192.168.4.1";
 // Profile names are looked up at most this often (the store may read NVS).
 constexpr uint32_t NAME_REFRESH_MS = 3000;
 
@@ -53,7 +52,7 @@ uint32_t noticeAtMs = 0;
 // Which screen is up, and the QR code chosen on the QR screen.
 ScreenKind openScreen = ScreenKind::Home;
 uint8_t overviewPage = 0;
-TouchAction qrChoice = TouchAction::QrPortal;
+TouchAction qrChoice = TouchAction::QrWifi;
 // The Player screen: whose it is (by controller and slot, since lobby player
 // numbers change with the turn order). pressedSeat is the chip under the finger.
 PlayerSeat shownSeat;
@@ -465,7 +464,7 @@ void layoutPlayer(AtlasScreen &screen) {
     if (playerControlsPage+1<pages) row[n++]={TouchAction::PlayerControlsNext,"Next",0,1};
     addRow(screen,BUTTON_ROW_Y,row,n); return;
   }
-  // Yu-Gi-Oh! life moves in hundreds, as on the portal's life cards.
+  // Yu-Gi-Oh! life moves in hundreds, as on the app's life cards.
   const bool hundreds = table().game.settings().profile == TurnHub::GameProfile::Yugioh;
   const ButtonSpec upper[] = {{TouchAction::LifeMinus5, hundreds ? "-1000" : "-5", 0, 1},
       {TouchAction::LifeMinus1, hundreds ? "-100" : "-1", 0, 1},
@@ -686,9 +685,8 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     case ScreenKind::Name: layoutName(screen); return;
     case ScreenKind::Pin: layoutPin(screen); return;
     case ScreenKind::Qr: {
-      const ButtonSpec row[] = {{TouchAction::QrWifi, "Wi-Fi", 0, 1}, {TouchAction::QrPortal, "Portal", 0, 1},
-          {TouchAction::QrSignIn, "Sign in", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
-      addRow(screen, BUTTON_ROW_Y, row, 4);
+      const ButtonSpec row[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
+      addRow(screen, BUTTON_ROW_Y, row, 1);
       return;
     }
     case ScreenKind::Setup: {
@@ -989,7 +987,7 @@ bool navigate(TouchAction action) {
       return true;
     }
     case TouchAction::HomeWifi: {
-      // The network name and password are typed in the portal or the app.
+      // The network name and password are typed in the app.
       const bool on = !homeWifiEnabled();
       if (on && !homeWifiConfigured()) showNotice(millis(), "Add your home network in the app first");
       else if (!setHomeWifiEnabled(on)) showNotice(millis(), "Home Wi-Fi could not be saved");
@@ -1688,7 +1686,7 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
             static_cast<unsigned>(screen.sigilsOnline), screen.sigilsOnline == 1 ? "Sigil" : "Sigils");
       }
       if (screen.playerCount == 0) {
-        // An empty table: how to join. The portal's QR code is under Settings.
+        // An empty table: how to join. The Wi-Fi QR code is under Settings.
         snprintf(screen.lines[0], sizeof(screen.lines[0]), "Tap Add player to seat someone,");
         snprintf(screen.lines[1], sizeof(screen.lines[1]), "or join from the app or a Sigil.");
         snprintf(screen.lines[2], sizeof(screen.lines[2]), "Settings: pair Sigils, QR codes.");
@@ -1764,8 +1762,7 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
   }
 }
 
-// A presence code a signed-in phone asked for: the digits, and a QR code
-// that opens the portal with the code filled in on the phone that scans it.
+// A presence code a signed-in phone asked for: the digits, typed into the app.
 // Only that phone's profile can use it; Cancel takes it off the screen.
 void formatCode(AtlasScreen &screen, uint32_t nowMs) {
   const PresenceRequest *request = pendingPresenceCode(nowMs);
@@ -1781,8 +1778,6 @@ void formatCode(AtlasScreen &screen, uint32_t nowMs) {
       name.length() ? who : "a signed-in phone", static_cast<unsigned long>(leftS));
   snprintf(screen.code, sizeof(screen.code), "%03lu %03lu",
       static_cast<unsigned long>(request->code / 1000), static_cast<unsigned long>(request->code % 1000));
-  snprintf(screen.qr, sizeof(screen.qr), "%s/portal#code=%06lu", PORTAL_ORIGIN,
-      static_cast<unsigned long>(request->code));
   snprintf(screen.qrCaption, sizeof(screen.qrCaption), "Enter it on that phone");
 }
 
@@ -2056,52 +2051,30 @@ void formatSetup(AtlasScreen &screen, uint32_t nowMs) {
   }
   snprintf(screen.lines[0], sizeof(screen.lines[0]), "1. Open the TurnHub app, tap Connect.");
   snprintf(screen.lines[1], sizeof(screen.lines[1]), "   It joins this table's Wi-Fi itself.");
-  snprintf(screen.lines[2], sizeof(screen.lines[2]), "2. No app? Join Wi-Fi %s,", AtlasConfig::WIFI_SSID);
-  if (customWifiPassword(nowMs).length()) {
-    snprintf(screen.lines[3], sizeof(screen.lines[3]), "   with the table's own password,");
-  } else {
-    snprintf(screen.lines[3], sizeof(screen.lines[3]), "   password %s,", AtlasConfig::WIFI_DEFAULT_PASSWORD);
-  }
-  snprintf(screen.lines[4], sizeof(screen.lines[4]), "   then open 192.168.4.1");
-  screen.lineCount = 5;
+  snprintf(screen.lines[2], sizeof(screen.lines[2]), "2. Sign in or make an account,");
+  snprintf(screen.lines[3], sizeof(screen.lines[3]), "   then follow Set up this Atlas.");
+  screen.lineCount = 4;
 }
 
 // The Wi-Fi code carries the password. The shipped default is public, so it
 // shows freely; an admin-set password needs someone verified at the table.
 void formatQr(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.badge, sizeof(screen.badge), "QR CODES");
-  switch (qrChoice) {
-    case TouchAction::QrWifi: {
-      snprintf(screen.title, sizeof(screen.title), "Join the Wi-Fi");
-      const String &stored = customWifiPassword(nowMs);
-      const bool custom = stored.length() > 0;
-      if (custom && !anyPresenceActive(nowMs)) {
-        snprintf(screen.detail, sizeof(screen.detail), "Network: %s", AtlasConfig::WIFI_SSID);
-        snprintf(screen.lines[0], sizeof(screen.lines[0]), "This network has a private");
-        snprintf(screen.lines[1], sizeof(screen.lines[1]), "password. An Admin must verify");
-        snprintf(screen.lines[2], sizeof(screen.lines[2]), "at the table to show its code.");
-        screen.lineCount = 3;
-        return;
-      }
-      const String password = custom ? stored : String(AtlasConfig::WIFI_DEFAULT_PASSWORD);
-      snprintf(screen.detail, sizeof(screen.detail), "Scan to join %s", AtlasConfig::WIFI_SSID);
-      snprintf(screen.qr, sizeof(screen.qr), "WIFI:T:WPA;S:%s;P:%s;;", AtlasConfig::WIFI_SSID, password.c_str());
-      snprintf(screen.qrCaption, sizeof(screen.qrCaption), "%s", AtlasConfig::WIFI_SSID);
-      return;
-    }
-    case TouchAction::QrSignIn:
-      snprintf(screen.title, sizeof(screen.title), "Sign in");
-      snprintf(screen.detail, sizeof(screen.detail), "Scan to sign in to your profile");
-      snprintf(screen.qr, sizeof(screen.qr), "%s/login", PORTAL_ORIGIN);
-      snprintf(screen.qrCaption, sizeof(screen.qrCaption), "192.168.4.1/login");
-      return;
-    default:
-      snprintf(screen.title, sizeof(screen.title), "Table portal");
-      snprintf(screen.detail, sizeof(screen.detail), "Scan on the Atlas Wi-Fi");
-      snprintf(screen.qr, sizeof(screen.qr), "%s/portal", PORTAL_ORIGIN);
-      snprintf(screen.qrCaption, sizeof(screen.qrCaption), "192.168.4.1/portal");
-      return;
+  snprintf(screen.title, sizeof(screen.title), "Join the Wi-Fi");
+  const String &stored = customWifiPassword(nowMs);
+  const bool custom = stored.length() > 0;
+  if (custom && !anyPresenceActive(nowMs)) {
+    snprintf(screen.detail, sizeof(screen.detail), "Network: %s", AtlasConfig::WIFI_SSID);
+    snprintf(screen.lines[0], sizeof(screen.lines[0]), "This network has a private");
+    snprintf(screen.lines[1], sizeof(screen.lines[1]), "password. An Admin must verify");
+    snprintf(screen.lines[2], sizeof(screen.lines[2]), "at the table to show its code.");
+    screen.lineCount = 3;
+    return;
   }
+  const String password = custom ? stored : String(AtlasConfig::WIFI_DEFAULT_PASSWORD);
+  snprintf(screen.detail, sizeof(screen.detail), "Scan to join %s", AtlasConfig::WIFI_SSID);
+  snprintf(screen.qr, sizeof(screen.qr), "WIFI:T:WPA;S:%s;P:%s;;", AtlasConfig::WIFI_SSID, password.c_str());
+  snprintf(screen.qrCaption, sizeof(screen.qrCaption), "%s", AtlasConfig::WIFI_SSID);
 }
 
 // One player's screen: their name, and their life in words (or the
@@ -2272,7 +2245,7 @@ void resetTouchControls(bool startAtHome) {
   seatRowCount = seatPage = seatPages = pinRow = 0;
   typedName[0] = typedPin[0] = '\0';
   openScreen = startAtHome ? ScreenKind::Home : ScreenKind::Status;
-  qrChoice = TouchAction::QrPortal;
+  qrChoice = TouchAction::QrWifi;
   shownSeat = pressedSeat = PlayerSeat();
   confirmAction = TouchAction::None;
   playerControlsOpen=false; playerControlsPage=0;

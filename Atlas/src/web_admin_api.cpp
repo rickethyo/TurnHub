@@ -20,7 +20,6 @@
 #include "web_api_internal.h"
 #include "profile_statistics.h"
 #include "avatars.h"
-#include "web_pages.h"
 #include "atlas_battery.h"
 
 using TurnHub::serialLog;
@@ -1019,28 +1018,29 @@ void handleAccountArchive(WebServer &server) {
 // profileId into `into`. Statistics add up on `into`; profileId is archived
 // and remembered as merged, so imports and phone syncs that still name it
 // reach `into`. Neither may be at the table.
-void handleAccountMerge(WebServer &server) {
-  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
-  const String id = server.arg("profileId"), into = server.arg("into");
+// Folds [id] into [into]: statistics, moderation history and the oldest
+// creation time move to [into], which keeps both accounts' permissions; [id]
+// is archived and its phones follow [into] (profile sync's mergedInto).
+// 0 on success, else the HTTP status and [error].
+int mergeAccount(const String &id, const String &into, const char *&error) {
   if (id == into || !TurnHubProfiles::profileExists(id) || !TurnHubProfiles::profileExists(into)) {
-    sendError(server, 400, "Choose two different accounts");
-    return;
+    error = "Choose two different accounts";
+    return 400;
   }
   String primary;
   TurnHubAccounts::Account account, survivor;
-  if (!loadAdminTarget(server, id, primary, account)) return;
-  if (!TurnHubAccounts::load(into, survivor)) {
-    sendError(server, 503, "Account unavailable");
-    return;
+  if (!TurnHubAccounts::primaryAdmin(primary) || !TurnHubAccounts::load(id, account) || !TurnHubAccounts::load(into, survivor)) {
+    error = "Account unavailable";
+    return 503;
   }
   if (id == primary || account.archived || survivor.archived) {
-    sendError(server, 409, "The initial Admin can't be merged away, and archived accounts can't be merged");
-    return;
+    error = "The initial Admin can't be merged away, and archived accounts can't be merged";
+    return 409;
   }
   uint8_t controller = INVALID_ID, slot = 1;
   if (resolveProfile && (resolveProfile(id, controller, slot) || resolveProfile(into, controller, slot))) {
-    sendError(server, 409, "Both accounts must leave the table first");
-    return;
+    error = "Both accounts must leave the table first";
+    return 409;
   }
   TurnHubProfiles::ProfileStats from{}, stats{};
   TurnHubProfiles::ModerationStats fromModeration{}, moderation{};
@@ -1049,8 +1049,8 @@ void handleAccountMerge(WebServer &server) {
       !TurnHubProfiles::loadModerationStatsForProfile(id, fromModeration) ||
       !TurnHubProfiles::loadModerationStatsForProfile(into, moderation) ||
       !TurnHubProfiles::loadSyncForProfile(id, sync) || !TurnHubProfiles::loadSyncForProfile(into, survivorSync)) {
-    sendError(server, 503, "Statistics could not be read; nothing was merged");
-    return;
+    error = "Statistics could not be read; nothing was merged";
+    return 503;
   }
   TurnHubProfileStats::mergeStats(stats, from);
   if (sync.createdAtMs && (!survivorSync.createdAtMs || sync.createdAtMs < survivorSync.createdAtMs))
@@ -1062,20 +1062,35 @@ void handleAccountMerge(WebServer &server) {
   if (!TurnHubProfiles::saveStatsForProfile(into, stats) ||
       !TurnHubProfiles::saveSyncForProfile(into, survivorSync) ||
       !TurnHubProfiles::saveModerationStatsForProfile(into, moderation)) {
-    sendError(server, 503, "Could not save the merged statistics");
-    return;
+    error = "Could not save the merged statistics";
+    return 503;
+  }
+  if ((survivor.permissions | account.permissions) != survivor.permissions) {
+    survivor.permissions |= account.permissions;
+    TurnHubAccounts::save(into, survivor);
   }
   memcpy(sync.mergedInto, into.c_str(), TurnHubProfiles::PROFILE_ID_LENGTH);
   account.archived = true;
   if (!TurnHubProfiles::saveSyncForProfile(id, sync) || !TurnHubAccounts::save(id, account)) {
-    sendError(server, 503, "Statistics merged, but the old account could not be archived; archive it by hand");
-    return;
+    error = "Statistics merged, but the old account could not be archived; archive it by hand";
+    return 503;
   }
   revokeConnections(id);
   serialLog.print("ATLAS|PROFILE|MERGED|");
   serialLog.print(id);
   serialLog.print("|into=");
   serialLog.println(into);
+  return 0;
+}
+
+void handleAccountMerge(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  const char *error = "";
+  const int status = mergeAccount(server.arg("profileId"), server.arg("into"), error);
+  if (status) {
+    sendError(server, status, error);
+    return;
+  }
   sendJson(server, 200, "{\"ok\":true}");
 }
 
@@ -1093,21 +1108,66 @@ void handleModerate(WebServer &server) {
 
 }  // namespace internal
 
-// Serves a permission-gated page. A plain navigation has no token header,
-// so it first gets a small loader that re-requests the page with the
-// browser's stored session token.
-void servePortalPage(WebServer &server, const char *file) {
-  if (!TurnHubWeb::serveFile(server, file)) server.send(404, "text/plain", "Not found");
-}
-
-void serveRestrictedPage(WebServer &server, uint8_t permission, const char *file) {
-  if (!server.header(internal::TOKEN_HEADER).length()) {
-    server.sendHeader("Cache-Control", "no-store");
-    server.send(200, "text/html", R"HTML(<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><p id="m">Checking account access…</p><a href="/portal">Back to portal</a><script>fetch(location.pathname+location.search,{headers:{'X-TurnHub-Token':localStorage.getItem('turnhubSessionToken')||''}}).then(async r=>{if(!r.ok)throw Error('Access denied. Sign in with the required account permission.');const t=await r.text();if(!localStorage.getItem('turnhubSessionToken'))throw Error('Sign in first.');document.open();document.write(t);document.close()}).catch(e=>document.getElementById('m').textContent=e.message)</script>)HTML");
-    return;
+// One person, one account (owner, 2026-10-30): live accounts with the same
+// name (ignoring case and outer spaces) are linked into one. The survivor is
+// the initial Admin, else the oldest Admin, else the oldest account (creation
+// time; unknown counts as newest, then more games played, then the lower ID).
+// Seated accounts wait for a later pass. Returns how many were merged.
+uint8_t linkSameNameAccounts() {
+  static char ids[TurnHubProfiles::MAX_LOGIN_PROFILES][TurnHubProfiles::PROFILE_ID_LENGTH + 1];
+  const size_t count = TurnHubProfiles::listProfileIds(ids, TurnHubProfiles::MAX_LOGIN_PROFILES);
+  String primary;
+  TurnHubAccounts::primaryAdmin(primary);
+  struct Candidate { String id, name; bool admin; uint64_t created; uint32_t games; };
+  auto better = [&](const Candidate &a, const Candidate &b) {  // a outranks b as the survivor
+    if ((a.id == primary) != (b.id == primary)) return a.id == primary;
+    if (a.admin != b.admin) return a.admin;
+    const uint64_t ca = a.created ? a.created : UINT64_MAX, cb = b.created ? b.created : UINT64_MAX;
+    if (ca != cb) return ca < cb;
+    if (a.games != b.games) return a.games > b.games;
+    return a.id < b.id;
+  };
+  bool done[TurnHubProfiles::MAX_LOGIN_PROFILES] = {};
+  uint8_t merged = 0;
+  for (size_t i = 0; i < count; ++i) {
+    if (done[i]) continue;
+    String name = TurnHubProfiles::nameForProfile(ids[i]);
+    name.trim();
+    name.toUpperCase();
+    if (!name.length()) continue;
+    static Candidate group[TurnHubProfiles::MAX_LOGIN_PROFILES];
+    uint8_t members = 0;
+    for (size_t j = i; j < count; ++j) {
+      if (done[j]) continue;
+      String other = TurnHubProfiles::nameForProfile(ids[j]);
+      other.trim();
+      other.toUpperCase();
+      TurnHubAccounts::Account account;
+      if (other != name || !TurnHubAccounts::load(ids[j], account) || account.archived) continue;
+      done[j] = true;
+      TurnHubProfiles::ProfileSync sync;
+      TurnHubProfiles::ProfileStats stats{};
+      TurnHubProfiles::loadSyncForProfile(ids[j], sync);
+      TurnHubProfiles::loadStatsForProfile(ids[j], stats);
+      group[members++] = {String(ids[j]), other, (account.permissions & TurnHubAccounts::Admin) != 0,
+          sync.createdAtMs, stats.gamesPlayed};
+    }
+    if (members < 2) continue;
+    uint8_t keep = 0;
+    for (uint8_t m = 1; m < members; ++m) if (better(group[m], group[keep])) keep = m;
+    for (uint8_t m = 0; m < members; ++m) {
+      if (m == keep) continue;
+      const char *error = "";
+      if (internal::mergeAccount(group[m].id, group[keep].id, error) == 0) ++merged;
+      else {
+        serialLog.print("ATLAS|PROFILE|LINK_WAIT|");
+        serialLog.print(group[m].id);
+        serialLog.print('|');
+        serialLog.println(error);
+      }
+    }
   }
-  if (!requirePermission(server, permission)) return;
-  servePortalPage(server, file);
+  return merged;
 }
 
 }  // namespace TurnHubWebApi

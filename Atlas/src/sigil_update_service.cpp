@@ -238,9 +238,6 @@ void beginSigilUpdates(const char *ssid, const char *password) {
   flash.slot = esp_ota_get_next_update_partition(nullptr);
   store.begin(flash, crypto, TurnHubFirmwarePackage::PUBLIC_KEY, TurnHubFirmwarePackage::KEY_ID);
   store.loadStaged();
-  server.on("/sigil-update", HTTP_GET, []() {
-    TurnHubWebApi::serveRestrictedPage(server, TurnHubAccounts::Admin, "sigil-update.html");
-  });
   server.on("/api/sigil-firmware", HTTP_GET, statusRoute);
   server.on("/api/sigil-firmware", HTTP_POST, []() {
     if (uploadRetired) sendError(server, 403, TurnHubFirmwarePackage::errorMessage(TurnHubFirmwarePackage::Error::Retired));

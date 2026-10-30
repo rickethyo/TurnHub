@@ -24,6 +24,19 @@ HTTP routes are in `protocol/http-v1.md` and the route table in
   fit an offline Atlas (WebAuthn needs a domain name and a trusted
   certificate).
 
+## One person, one account (owner, 2026-10-30)
+
+Atlas links live accounts that share a name (ignoring case and outer spaces)
+into one, soon after boot and every minute while no game is played. The
+survivor is the initial Admin, else the oldest Admin, else the oldest account
+(its original creation time; unknown counts as newest, then more games played,
+then the lower ID). The others merge into it as an Admin's merge does
+(`/api/accounts/merge`): statistics, moderation history and the oldest
+creation time move over, the survivor keeps every permission either had, the
+others are archived and their phones follow the survivor on their next sync.
+Seated accounts wait for a later pass. *Experimental:* two different people
+with the same name are linked too; give them different names.
+
 ## Joining a table
 
 - One profile has **at most one participant** at the table. Two phones and a

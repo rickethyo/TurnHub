@@ -103,9 +103,6 @@ bool requirePermission(WebServer &server,uint8_t permission);
 bool hasPermission(WebServer &server,uint8_t permission);
 // The request's signed-in profile is verified at the table (presence code).
 bool verifiedAtTable(WebServer &server);
-// Embedded firmware pages. Restricted navigation gets a token loader first.
-void servePortalPage(WebServer &server,const char *file);
-void serveRestrictedPage(WebServer &server,uint8_t permission,const char *file);
 bool connectionBlocked(const String &id);
 void revokeConnections(const String &id);
 using ModerateCallback = bool (*)(const String &actor,const String &target,const String &action,String &message);
@@ -190,5 +187,7 @@ bool physicalStatsVisible(const String &profileId);
 // says why not), and whether a name is already a profile's (ignoring case).
 bool checkTablePin(const String &profileId, const String &pin, String &message);
 bool profileNameTaken(const String &name);
+// Links live accounts that share a name into one (web_admin_api.cpp); returns how many merged.
+uint8_t linkSameNameAccounts();
 
 }  // namespace TurnHubWebApi
