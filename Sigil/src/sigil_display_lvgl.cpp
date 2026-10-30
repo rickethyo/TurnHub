@@ -25,7 +25,7 @@ extern const lv_image_dsc_t th_icon_home_24, th_icon_timer_24, th_icon_table_24,
     th_icon_chevron_right_24, th_icon_chevron_left_24, th_icon_pause_24, th_icon_play_24, th_icon_pass_24,
     th_icon_more_24, th_icon_hub_24, th_icon_palette_24, th_icon_crown_24, th_icon_flag_24, th_icon_check_24,
     th_icon_close_24, th_icon_minus_24, th_icon_plus_24, th_icon_sigil_24, th_icon_link_24, th_icon_power_24,
-    th_icon_users_24, th_icon_contrast_24, th_icon_refresh_24;
+    th_icon_users_24, th_icon_contrast_24, th_icon_refresh_24, th_icon_dice_24;
 }
 
 namespace TurnHubSigil {
@@ -137,6 +137,7 @@ const lv_image_dsc_t *labelIcon(const char *label) {
       {"Concede", &th_icon_flag_24}, {"Approve", &th_icon_check_24}, {"Join", &th_icon_check_24},
       {"Join game", &th_icon_play_24}, {"Start game", &th_icon_play_24}, {"Apply", &th_icon_check_24},
       {"Deny", &th_icon_close_24}, {"Cancel", &th_icon_close_24}, {"Back", &th_icon_chevron_left_24},
+      {"Play Mana Tap", &th_icon_dice_24}, {"Start", &th_icon_play_24}, {"Play again", &th_icon_refresh_24},
       {"Previous", &th_icon_chevron_left_24}, {"Prev", &th_icon_chevron_left_24},
       {"Next", &th_icon_chevron_right_24}, {"Pair", &th_icon_sigil_24}, {"Unpair", &th_icon_link_24},
       {"Factory reset", &th_icon_power_24}, {"Invert", &th_icon_contrast_24}, {"Rematch", &th_icon_refresh_24},
@@ -256,6 +257,7 @@ bool LvglSigilDisplay::lifeKeysShown() const {
 lv_obj_t *LvglSigilDisplay::frame(const char *title, uint8_t, uint8_t, const char *subtitle) {
   styleTheme = theme_; styleInverted = inverted_;
   touchMap_ = TouchMap();
+  manaPhase_ = 0xFF;
   touchMap_.actor = actor_;
   touchMap_.lifeRequest = lifeRequestKey_;
   for (auto &key : keys_) key = nullptr;
@@ -901,7 +903,122 @@ void LvglSigilDisplay::showHome(uint8_t sigilId, bool connected, const char *nam
   icon(tile,&th_icon_timer_24,4,4,pal().bg);
   text(group,status,&th_semi_20,pal().text,52,6,160);
   text(group,sigilId==0xFF ? "Not paired yet" : "Play from the Game tab",&th_eyebrow_13,pal().textSecondary,52,31,160);
+  // Mana Tap, for between turns or games; it pauses itself on this Sigil's turn.
+  char best[20];
+  if (manaBest_) snprintf(best,sizeof(best),"BEST %u",manaBest_);
+  button("Play Mana Tap",manaBest_ ? best : nullptr,{10,216,220,48},TOUCH_MANA_OPEN,false,TOUCH_MANA_OPEN);
   navigation(page_); present();
+}
+
+void LvglSigilDisplay::headerPill(const char *label, const lv_image_dsc_t *glyph, uint8_t target, uint32_t meaning) {
+  const PadRect r={146,0,94,44};
+  auto *hit = box(lv_screen_active(), r.x, r.y, r.w, r.h);
+  auto *pill = box(hit, 2, 6, r.w - 10, 32);
+  card(pill, pal().surface1, pal().separatorStrong, 16);
+  const int16_t tw = static_cast<int16_t>(textWidth(label, &th_semi_16));
+  const int16_t x = (r.w - 10 - tw - (glyph ? 22 : 0)) / 2;
+  if (glyph) icon(pill, glyph, x - 4, 3, pal().text);
+  text(pill, label, &th_semi_16, pal().text, x + (glyph ? 22 : 0), 6, tw + 2);
+  for (const char *c = label; *c; ++c) meaning = (meaning ^ static_cast<uint8_t>(*c)) * 16777619u;
+  touchMap_.add(r, target, meaning);
+}
+
+// Mana Tap: a score row, the field the orbs rise through, and a card over
+// it to start, resume or play again. Rebuilt only when the phase changes;
+// each tick between just moves the orbs (moveManaOrbs).
+void LvglSigilDisplay::showManaTap(uint8_t sigilId, const ManaTap &game, const char *name, bool turnPaused,
+    bool rebuild) {
+  const uint8_t phase = static_cast<uint8_t>(game.phase());
+  if (!rebuild && phase == manaPhase_ && turnPaused == manaTurnPaused_ && page_ == TurnHubUi::Page::Home) {
+    moveManaOrbs(game);
+    present();
+    return;
+  }
+  page_=TurnHubUi::Page::Home; layout_=Layout::Actions;
+  auto *s=frame("Mana Tap",sigilId);
+  manaPhase_=phase; manaTurnPaused_=turnPaused;
+  manaShownScore_=0xFFFF; manaShownLives_=0xFF;
+  manaName_[0]=name && name[0] ? name[0] : 'T'; manaName_[1]=0;
+  const bool playing = game.phase()==ManaPhase::Playing;
+  if (playing) headerPill("Pause",&th_icon_pause_24,TOUCH_MANA_ACTION,TOUCH_MANA_ACTION);
+  else headerPill("Quit",&th_icon_close_24,TOUCH_MANA_QUIT,TOUCH_MANA_QUIT);
+  // Score on the left; lives as discs, full or hollow, with the count in words.
+  manaScore_=text(s,"",&th_semi_20,pal().text,M,48,120);
+  for (uint8_t i=0;i<MANA_LIVES;++i) {
+    manaLife_[i]=box(s,W-M-3*22+i*22,52,16,16);
+    lv_obj_set_style_radius(manaLife_[i],LV_RADIUS_CIRCLE,0);
+    lv_obj_set_style_border_width(manaLife_[i],2,0);
+    lv_obj_set_style_border_color(manaLife_[i],rgb(pal().critical),0);
+    lv_obj_set_style_bg_color(manaLife_[i],rgb(pal().critical),0);
+  }
+  auto *field=box(s,0,MANA_FIELD_TOP,W,MANA_FIELD_BOTTOM-MANA_FIELD_TOP);
+  lv_obj_set_style_bg_opa(field,LV_OPA_COVER,0);
+  lv_obj_set_style_bg_color(field,rgb(pal().light ? pal().surface1 : pal().surface2),0);
+  lv_obj_set_style_border_side(field,LV_BORDER_SIDE_TOP,0);
+  lv_obj_set_style_border_width(field,1,0);
+  lv_obj_set_style_border_color(field,rgb(pal().separator),0);
+  // Your orbs are your seat's token (colour, initial and a ring), so the
+  // colour is never the only sign of which to tap.
+  for (uint8_t i=0;i<MANA_ORBS;++i) {
+    manaOrb_[i]=box(field,0,0,2*MANA_ORB_R,2*MANA_ORB_R);
+    lv_obj_set_style_radius(manaOrb_[i],LV_RADIUS_CIRCLE,0);
+    lv_obj_set_style_bg_opa(manaOrb_[i],LV_OPA_COVER,0);
+    lv_obj_set_style_border_color(manaOrb_[i],rgb(pal().text),0);
+    manaInitial_[i]=lv_label_create(manaOrb_[i]);
+    lv_obj_remove_style_all(manaInitial_[i]);
+    lv_obj_set_style_text_font(manaInitial_[i],&th_semi_20,0);
+    lv_obj_set_style_text_color(manaInitial_[i],lv_color_white(),0);
+    lv_label_set_text(manaInitial_[i],manaName_);
+    lv_obj_center(manaInitial_[i]);
+    lv_obj_add_flag(manaOrb_[i],LV_OBJ_FLAG_HIDDEN);
+  }
+  moveManaOrbs(game);
+  if (playing) {
+    touchMap_.add({0,MANA_FIELD_TOP,W,MANA_FIELD_BOTTOM-MANA_FIELD_TOP},TOUCH_MANA_FIELD,TOUCH_MANA_FIELD);
+  } else {
+    auto *c=box(s,20,92,200,170);
+    card(c,pal().surface1,pal().separatorStrong,18);
+    const char *title=game.phase()==ManaPhase::Ready ? "Mana Tap" : game.phase()==ManaPhase::Paused ? "Paused" : "Game over";
+    text(c,title,&th_bold_28,pal().text,0,10,200,LV_TEXT_ALIGN_CENTER);
+    char line1[32], line2[32];
+    if (game.phase()==ManaPhase::Ready) {
+      snprintf(line1,sizeof(line1),"Tap orbs marked %s",manaName_);
+      snprintf(line2,sizeof(line2),"Let the others float");
+    } else {
+      snprintf(line1,sizeof(line1),"%s",turnPaused ? "Paused for your turn" : game.newBest() ? "New best!" : "");
+      if (game.phase()==ManaPhase::Over && !turnPaused && !game.newBest()) snprintf(line1,sizeof(line1),"Score %u",game.score());
+      snprintf(line2,sizeof(line2),"Best %u",game.best());
+    }
+    text(c,line1,&th_semi_16,game.newBest() && !turnPaused ? pal().good : pal().textSecondary,8,48,184,LV_TEXT_ALIGN_CENTER);
+    text(c,line2,&th_semi_16,pal().textSecondary,8,70,184,LV_TEXT_ALIGN_CENTER);
+    button(game.phase()==ManaPhase::Ready ? "Start" : game.phase()==ManaPhase::Paused ? "Resume" : "Play again",
+        nullptr,{30,200,180,48},TOUCH_MANA_ACTION,true,TOUCH_MANA_ACTION);
+  }
+  navigation(page_); present();
+}
+
+void LvglSigilDisplay::moveManaOrbs(const ManaTap &game) {
+  if (game.score()!=manaShownScore_ && manaScore_) {
+    manaShownScore_=game.score();
+    char score[20]; snprintf(score,sizeof(score),"Score %u",game.score());
+    lv_label_set_text(manaScore_,score);
+  }
+  if (game.lives()!=manaShownLives_) {
+    manaShownLives_=game.lives();
+    for (uint8_t i=0;i<MANA_LIVES;++i)
+      if (manaLife_[i]) lv_obj_set_style_bg_opa(manaLife_[i],i<game.lives() ? LV_OPA_COVER : LV_OPA_TRANSP,0);
+  }
+  for (uint8_t i=0;i<MANA_ORBS;++i) {
+    if (!manaOrb_[i]) continue;
+    const ManaOrb &o=game.orb(i);
+    if (!o.live) { lv_obj_add_flag(manaOrb_[i],LV_OBJ_FLAG_HIDDEN); continue; }
+    lv_obj_remove_flag(manaOrb_[i],LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_pos(manaOrb_[i],o.x-MANA_ORB_R,o.y()-MANA_ORB_R-MANA_FIELD_TOP);
+    lv_obj_set_style_bg_color(manaOrb_[i],rgb(seatColor(o.seat)),0);
+    lv_obj_set_style_border_width(manaOrb_[i],o.target ? 3 : 0,0);
+    if (o.target) lv_obj_remove_flag(manaInitial_[i],LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(manaInitial_[i],LV_OBJ_FLAG_HIDDEN);
+  }
 }
 
 void LvglSigilDisplay::showSettings(uint8_t sigilId) {

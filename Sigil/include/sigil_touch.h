@@ -14,6 +14,9 @@ Key sigilTouchRead();
 uint8_t sigilTouchMenuRevision();
 uint8_t sigilTouchPlayer();
 uint16_t sigilTouchLifeRequest();
+// Where the finger is now, in screen pixels; false when nothing is pressed.
+// Mana Tap aims at moving orbs, which no fixed key region can name.
+bool sigilTouchPoint(int16_t &x, int16_t &y);
 // Device menu > Calibrate (or the "touch cal" serial command): four
 // crosses, saved to NVS. While it runs every read returns Key::Count.
 void sigilTouchStartCalibration();

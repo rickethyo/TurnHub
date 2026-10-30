@@ -90,6 +90,8 @@ TouchContact contact;
 uint8_t inputMenuRevision = 0;
 uint8_t inputPlayer = 0;
 uint16_t inputLifeRequest = 0;
+volatile bool touchDown = false;
+volatile int16_t touchX = 0, touchY = 0;
 
 // The calibration run, shared by loop() (sampling) and the display task
 // (drawing): the target shown, or CAL_IDLE, and a message under it.
@@ -488,6 +490,7 @@ Key sigilTouchRead() {
     const uint8_t target = contact.sample(map, true, x, y);
     key = target == TOUCH_NONE ? Key::Count : static_cast<Key>(target);
     lastX = x; lastY = y;
+    touchX = x; touchY = y; touchDown = true;
     if (!logged) {
       // One line per press, for checking the calibration.
       Serial.printf("SIGIL|TOUCH|RAW|%u|%u|SCREEN|%d|%d|KEY|%u\n", rawX, rawY, x, y,
@@ -500,6 +503,7 @@ Key sigilTouchRead() {
     key = last;
   } else {
     contact.sample(activeTouchMap, false, lastX, lastY);
+    touchDown = false;
     logged = false;
     last = Key::Count;
   }
@@ -515,6 +519,10 @@ SigilDisplay &getSigilDisplay() {
 uint8_t sigilTouchMenuRevision() { return inputMenuRevision; }
 uint8_t sigilTouchPlayer() { return inputPlayer; }
 uint16_t sigilTouchLifeRequest() { return inputLifeRequest; }
+bool sigilTouchPoint(int16_t &x, int16_t &y) {
+  x = touchX; y = touchY;
+  return touchDown;
+}
 
 }  // namespace TurnHubSigil
 

@@ -37,6 +37,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Ring test compilation failed.' }
     & ..\..\.pio\host-tests\ring_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Ring scenarios failed.' }
+    & $Compiler -std=c++14 -Wall -Wextra -Werror -mno-ms-bitfields -static -Istubs -I../../include -I../../../shared/include mana_tap_scenarios.cpp -o ../../.pio/host-tests/mana_tap_scenarios.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Mana Tap test compilation failed.' }
+    & ..\..\.pio\host-tests\mana_tap_scenarios.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Mana Tap scenarios failed.' }
 } finally {
     Pop-Location
     $env:PATH = $previousPath

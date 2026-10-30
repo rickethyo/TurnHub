@@ -42,6 +42,8 @@ class LvglSigilDisplay : public SigilDisplay {
   void showHome(uint8_t sigilId, bool connected, const char *name, uint8_t mode) override;
   void showTable(uint8_t sigilId, const TableSnapshot &table, uint8_t page, bool connected) override;
   void showSettings(uint8_t sigilId) override;
+  void showManaTap(uint8_t sigilId, const ManaTap &game, const char *name, bool turnPaused,
+      bool rebuild) override;
   const TouchMap &touchMap() const { return touchMap_; }
 
  protected:
@@ -67,6 +69,9 @@ class LvglSigilDisplay : public SigilDisplay {
   void finish(const PadLabels &labels);
   bool lifeRequestShown() const { return life_.request.target != 0; }
   bool lifeKeysShown() const;
+  // The header's pill button (Pause, Quit), a little wider than Menu's Done.
+  void headerPill(const char *label, const lv_image_dsc_t *glyph, uint8_t target, uint32_t meaning);
+  void moveManaOrbs(const ManaTap &game);
 
   char seatName_[2][TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
   lv_obj_t *keys_[KEY_COUNT] = {};
@@ -80,6 +85,17 @@ class LvglSigilDisplay : public SigilDisplay {
   uint8_t actor_ = 0;
   uint16_t lifeRequestKey_ = 0;
   uint32_t context_ = 0;
+  // The Mana Tap screen's live parts, valid while manaPhase_ is not 0xFF
+  // (every other screen's frame() resets it).
+  uint8_t manaPhase_ = 0xFF;
+  bool manaTurnPaused_ = false;
+  lv_obj_t *manaOrb_[MANA_ORBS] = {};
+  lv_obj_t *manaInitial_[MANA_ORBS] = {};
+  lv_obj_t *manaLife_[MANA_LIVES] = {};
+  lv_obj_t *manaScore_ = nullptr;
+  uint16_t manaShownScore_ = 0xFFFF;
+  uint8_t manaShownLives_ = 0xFF;
+  char manaName_[2] = {};
 };
 
 }  // namespace TurnHubSigil
