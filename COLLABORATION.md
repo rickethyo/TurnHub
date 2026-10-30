@@ -34,6 +34,17 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-10-30, Codex: owner clarifies gear/pulse belongs in the app background,
+not inside the support photo; supplied device screenshots show the previous
+background was too faint. New slice on clean synchronized `c192eb29` after
+#177 merged. Scope: remove support-image animation, put a visible branded
+beacon and outward rings in the shared shell background, strengthen warm washes
+and retain opaque cards, quieter gameplay and motion/contrast/lifecycle rules.
+Validation: Android `:app:assembleDebug`, documentation links and whitespace
+checks pass. Source review confirms the only branded pulse is in the shared
+background; SupportArtwork contains no animated renderer. Physical visual
+acceptance remains; no installation performed.
+
 2026-10-30, Codex: owner approves warm ambient app backgrounds inspired by
 the breathing Play Together graphic. Continuing #177 on clean `7e149daa`;
 origin fetched with no incoming master changes. Scope: one shell backdrop

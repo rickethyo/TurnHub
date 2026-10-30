@@ -25,10 +25,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.turnhub.android.ui.theme.palette
@@ -62,11 +64,13 @@ internal fun AmbientBackground(
         tween(13_000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "gold") ?: rememberUpdatedState(.3f)
     val rotation = transition?.animateFloat(0f, 360f, infiniteRepeatable(
         tween(240_000, easing = LinearEasing)), label = "gears") ?: rememberUpdatedState(12f)
-    val strength = animateFloatAsState(if (quiet) .3f else 1f,
+    val wave = transition?.animateFloat(0f, 1f, infiniteRepeatable(
+        tween(6_400, easing = LinearEasing)), label = "backgroundSignal") ?: rememberUpdatedState(.35f)
+    val strength = animateFloatAsState(if (quiet) .45f else 1f,
         animationSpec = if (moving) tween(1_500) else snap(), label = "ambientStrength")
     Box(modifier.background(p.bg), contentAlignment = contentAlignment) {
         if (!highContrast) Canvas(Modifier.matchParentSize().clearAndSetSemantics { }) {
-            val base = if (p.dark) .2f else .09f
+            val base = if (p.dark) .24f else .14f
             val radius = size.minDimension * .85f
             // Animation state is read only during drawing; cards and text do not recompose per frame.
             clipRect {
@@ -80,9 +84,28 @@ internal fun AmbientBackground(
                     copper.value, .85f + .2f * copper.value)
                 wash(p.accentHi, Offset(size.width * .22f, size.height * .97f),
                     gold.value, .8f + .15f * gold.value)
-                val ink = p.accent.copy(alpha = (if (p.dark) .055f else .045f) * strength.value)
-                ambientGear(Offset(size.width * .96f, size.height * .24f), size.minDimension * .65f, rotation.value, ink)
-                ambientGear(Offset(size.width * .04f, size.height * .78f), size.minDimension * .46f, -rotation.value + 15f, ink)
+                // The gear is the background signal's source, outside the support photo and behind every page's cards.
+                val beacon = Offset(size.width * .88f, size.height * .22f)
+                val pulseRadius = size.minDimension * .3f
+                val signal = strength.value * (if (p.dark) .32f else .25f)
+                drawCircle(Brush.radialGradient(listOf(p.accent.copy(alpha = signal * (.65f + .35f * gold.value)),
+                    Color.Transparent), beacon, pulseRadius * 1.7f), pulseRadius * 1.7f, beacon)
+                repeat(3) { i ->
+                    val t = if (!moving) (i + 1) / 3.5f else (wave.value + i / 3f) % 1f
+                    drawCircle(p.accent.copy(alpha = signal * (1f - t)),
+                        pulseRadius * (.35f + 1.3f * t), beacon, style = Stroke(1.3.dp.toPx()))
+                }
+                val gearEdge = size.minDimension * (.235f + .012f * gold.value)
+                inset(beacon.x - gearEdge / 2, beacon.y - gearEdge / 2,
+                    size.width - beacon.x - gearEdge / 2, size.height - beacon.y - gearEdge / 2) {
+                    rotate(-rotation.value) {
+                        drawGear(Brush.verticalGradient(listOf(
+                            p.accentHi.copy(alpha = signal), p.accent.copy(alpha = signal * .8f),
+                            p.accentLo.copy(alpha = signal * .6f))), cutout = true)
+                    }
+                }
+                val ink = p.accent.copy(alpha = (if (p.dark) .1f else .085f) * strength.value)
+                ambientGear(Offset(size.width * .04f, size.height * .78f), size.minDimension * .58f, rotation.value + 15f, ink)
             }
         }
         CompositionLocalProvider(LocalAmbientBackgroundPresent provides true) { content() }
