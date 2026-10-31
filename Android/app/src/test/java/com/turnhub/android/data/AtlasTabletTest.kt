@@ -20,14 +20,21 @@ import org.junit.Test
 private class TabletAtlas : AtlasSessionTransport {
     val posts = mutableListOf<Pair<String, Map<String, String>>>()
     var tablet = false
+    var loseLifeResponse = false
+    var receiptFound = true
+    var failBootstrap = false
+    var loseProfileResponse = false
+    var lastActionId: String? = null
     /** Atlas's table code setting (off is its default); [verified] once the code is entered. */
     var codeRequired = true
     var verified = false
 
     override suspend fun raw(method: String, path: String, token: String, fields: List<Pair<String, String>>): RawResponse {
-        val f = fields.toMap()
+        fields.toMap()["actionId"]?.let { lastActionId = it }
+        val f = if (method == "POST") fields.toMap() - "actionId" else fields.toMap()
         posts += path to f
         return when (path) {
+            "/api/session/play" -> { if (failBootstrap) throw AtlasException(AtlasFailure.Timeout()); tablet = true; RawResponse(200, """{"ok":true,"token":"11111111111111111111111111111111"}""") }
             "/api/presence/request" -> RawResponse(200, """{"ok":true}""")
             "/api/presence/confirm" ->
                 if (f["code"] == "123456") { verified = true; RawResponse(200, """{"ok":true}""") }
@@ -36,6 +43,7 @@ private class TabletAtlas : AtlasSessionTransport {
                 if (codeRequired && !verified) RawResponse(403, """{"ok":false,"presenceRequired":true,"error":"Verify at the table first"}""")
                 else { tablet = true; RawResponse(200, """{"ok":true,"token":"11111111111111111111111111111111","profileId":""}""") }
             "/api/tablet/disable" -> { tablet = false; RawResponse(200, """{"ok":true}""") }
+            "/api/profiles/register" -> if (loseProfileResponse) throw AtlasException(AtlasFailure.Timeout()) else RawResponse(200,"""{"ok":true}""")
             "/api/tablet/seat" -> when {
                 f["name"] == "Ann" -> RawResponse(409, """{"ok":false,"error":"That name is taken"}""")
                 f["name"] != null -> RawResponse(200, """{"ok":true,"profileId":"P0000009"}""")
@@ -44,7 +52,8 @@ private class TabletAtlas : AtlasSessionTransport {
                 f["profileId"] == "P0000002" && f["pin"] != "1234" -> RawResponse(403, """{"ok":false,"error":"Wrong PIN"}""")
                 else -> RawResponse(200, """{"ok":true,"profileId":"${f["profileId"]}"}""")
             }
-            "/api/tablet/life" -> RawResponse(200, """{"ok":true,"status":"ACCEPTED"}""")
+            "/api/tablet/life" -> if (loseLifeResponse) throw AtlasException(AtlasFailure.Timeout()) else RawResponse(200, """{"ok":true,"status":"ACCEPTED"}""")
+            "/api/action-receipt" -> RawResponse(200, org.json.JSONObject().put("found", receiptFound).put("status",200).put("body", """{"ok":true,"status":"ACCEPTED"}""").toString())
             "/api/tablet/unseat" -> if (f["profileId"] == "refused") RawResponse(409, """{"error":"Game already started"}""")
                 else RawResponse(200, """{"ok":true}""")
             else -> RawResponse(404, "{}")
@@ -75,6 +84,62 @@ class AtlasTabletTest {
         assertTrue(atlas.posts.filter { it.first == "/api/tablet/unseat" }.all { it.second["expectedGame"] == "2" })
         assertEquals("Game already started", tablet.state.value.message?.message)
         assertFalse(tablet.state.value.busy)
+    }
+
+    @Test fun `a lost mutation response is recovered without sending the change twice`() = runTest {
+        val atlas=TabletAtlas().apply { loseLifeResponse=true }
+        val (_,tablet)=signedIn(atlas)
+        assertTrue(tablet.life(TabletSeat(9,1),-2))
+        assertNull(tablet.state.value.message)
+        assertEquals(1,atlas.posts.count{it.first=="/api/tablet/life"})
+        assertEquals(atlas.lastActionId,atlas.posts.last().second["actionId"])
+    }
+
+    @Test fun `ordinary gameplay opens one silent restricted session without profile selection`() = runTest {
+        val atlas=TabletAtlas()
+        val session=AtlasPlayerSession { atlas }
+        val tablet=AtlasTablet(session) { AtlasEndpoint.DEFAULT }
+        tablet.inGame(2) {
+            seatNew("Cid")
+            assertTrue(life(TabletSeat(9,1),1))
+        }
+        assertEquals("2",atlas.posts.first{it.first=="/api/session/play"}.second["game"])
+        assertEquals(1,atlas.posts.count{it.first=="/api/session/play"})
+        assertEquals("",(session.state.value as PlayerSessionState.SignedIn).profileId)
+        assertNull(tablet.state.value.message)
+    }
+    @Test fun `game access never replaces an existing personal session`() = runTest {
+        val atlas=TabletAtlas()
+        val (session,tablet)=signedIn(atlas)
+        tablet.life(TabletSeat(9,1),1)
+        assertEquals("P0000001",(session.state.value as PlayerSessionState.SignedIn).profileId)
+        assertTrue(atlas.posts.none{it.first=="/api/session/play"})
+    }
+    @Test fun `missing receipt leaves the result uncertain and does not replay the mutation`() = runTest {
+        val atlas=TabletAtlas().apply {loseLifeResponse=true;receiptFound=false}
+        val (_,tablet)=signedIn(atlas)
+        assertFalse(tablet.life(TabletSeat(9,1),-1))
+        assertTrue(tablet.state.value.message!!.message.contains("didn't confirm"))
+        assertEquals(1,atlas.posts.count{it.first=="/api/tablet/life"})
+    }
+
+    @Test fun `failed automatic connection is not reported as an unconfirmed game mutation`() = runTest {
+        val atlas=TabletAtlas().apply { failBootstrap=true }
+        val session=AtlasPlayerSession { atlas }
+        val tablet=AtlasTablet(session) { AtlasEndpoint.DEFAULT }
+        tablet.seatNew("Cid")
+        assertTrue(tablet.state.value.message!!.message.contains("connection is not ready"))
+        assertTrue(atlas.posts.none{it.first=="/api/tablet/seat"})
+    }
+
+    @Test fun `lost public profile upload response is resolved before seating without a second upload`() = runTest {
+        val atlas=TabletAtlas().apply { loseProfileResponse=true }
+        val (_,tablet)=signedIn(atlas)
+        tablet.seatLocal(com.turnhub.android.standalone.SavedLocalPlayer("local","Alex",profileId="A17A0123"),"atlas")
+        assertNull(tablet.state.value.message)
+        assertEquals(1,atlas.posts.count{it.first=="/api/profiles/register"})
+        assertEquals("1",atlas.posts.first{it.first=="/api/profiles/register"}.second["gameplayOnly"])
+        assertEquals(1,atlas.posts.count{it.first=="/api/tablet/seat"})
     }
 
     private suspend fun signedIn(atlas: TabletAtlas): Pair<AtlasPlayerSession, AtlasTablet> {

@@ -91,9 +91,9 @@ class HomeViewModel(
             if (value != null) standaloneObserver = viewModelScope.launch {
                 combine(value.state.map { it.library.history.map { r -> r.recordId } to it.library.players.map { p -> p.links } }.distinctUntilChanged(),
                     repository.tableSummary.map { it?.atlasId to it?.bootId }.distinctUntilChanged(),
-                    playerSession.state.map { it is PlayerSessionState.SignedIn }.distinctUntilChanged(),
-                    repository.offlineSinceMs.map { it == null }.distinctUntilChanged()) { _, epoch, signedIn, online -> Triple(epoch, signedIn, online) }
-                    .collect { (_, signedIn, online) -> if (signedIn && online) onLoadLocalImportProfiles() }
+                    playerSession.state.map { (it as? PlayerSessionState.SignedIn)?.profileId }.distinctUntilChanged(),
+                    combine(repository.connectionState, repository.offlineSinceMs) { state, since -> state == AtlasConnectionState.CONNECTED && since == null }.distinctUntilChanged()) { _, epoch, signedIn, online -> Triple(epoch, signedIn, online) }
+                    .collect { (epoch, _, online) -> if (online && epoch.first != null) onLoadLocalImportProfiles() }
             }
         }
     private val _localImport = MutableStateFlow(com.turnhub.android.standalone.LocalImportState())
@@ -125,7 +125,7 @@ class HomeViewModel(
                         ?.firstOrNull { it.profileId == signed.profileId && it.links.none { l -> l.atlasId == summary.atlasId } }
                         ?.let { standalone?.linkAccount(it.localId, summary.atlasId, signed.profileId) }
                     syncLinkedProfiles(summary, endpoint)
-                    if (playerSession.state.value is PlayerSessionState.SignedIn) sendAutomaticLocalRecords(summary.atlasId, profiles)
+                    if ((playerSession.state.value as? PlayerSessionState.SignedIn)?.profileId?.isNotBlank() == true) sendAutomaticLocalRecords(summary.atlasId, profiles)
                 } else _localImport.value = com.turnhub.android.standalone.LocalImportState(message = "Atlas changed. Load its players again.")
             } catch (e: AtlasException) {
                 _localImport.value = com.turnhub.android.standalone.LocalImportState(message = e.failure.userMessage)
@@ -282,7 +282,7 @@ class HomeViewModel(
                     message = (listOf("$brought player${if (brought == 1) "" else "s"} brought to this table; their games are on the way") + problems)
                         .joinToString(". ") + ".")
                 syncLinkedProfiles(summary, endpoint)
-                if (playerSession.state.value is PlayerSessionState.SignedIn) sendAutomaticLocalRecords(summary.atlasId, profiles)
+                if ((playerSession.state.value as? PlayerSessionState.SignedIn)?.profileId?.isNotBlank() == true) sendAutomaticLocalRecords(summary.atlasId, profiles)
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
             catch (e: Exception) {
                 _localImport.value = _localImport.value.copy(message = (e as? AtlasException)?.failure?.userMessage ?: "Upload stopped. Local data is retained.")
@@ -317,7 +317,7 @@ class HomeViewModel(
                 _localImport.value = com.turnhub.android.standalone.LocalImportState(summary.atlasId, profiles,
                     busy = true, message = result.warning ?: "Account linked. Matching games will import automatically when signed in.")
                 syncLinkedProfiles(summary, endpoint)
-                if (playerSession.state.value is PlayerSessionState.SignedIn) sendAutomaticLocalRecords(summary.atlasId, profiles)
+                if ((playerSession.state.value as? PlayerSessionState.SignedIn)?.profileId?.isNotBlank() == true) sendAutomaticLocalRecords(summary.atlasId, profiles)
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
             catch (e: Exception) {
                 _localImport.value = _localImport.value.copy(message = (e as? AtlasException)?.failure?.userMessage ?: "Account linking failed. Local data is retained.")

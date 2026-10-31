@@ -140,6 +140,26 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         LocalAccountTransfer(transports.create(endpoint)).restore(profileId, secret)
     }
 
+    private var gameClientKey = java.util.UUID.randomUUID().toString()
+
+    constructor(transports: AtlasSessionTransportFactory, stableGameClientKey: String) : this(transports) {
+        gameClientKey = java.util.UUID.fromString(stableGameClientKey).toString()
+    }
+
+    /** Silent restricted access for ordinary table play; never replaces a personal session. */
+    suspend fun ensureGameAccess(target: AtlasEndpoint) = mutex.withLock {
+        if (endpoint == target && token != null) return@withLock
+        val transport = transports.create(target)
+        val response = call { transport.raw("POST", "/api/session/play", "", listOf("clientKey" to gameClientKey, "game" to "${kotlinx.coroutines.currentCoroutineContext()[ExpectedGame]?.game ?: viewedGame}")) }
+        if (!response.ok) throw AtlasException(AtlasFailure.Rejected(if (response.code == 404) "Update Atlas firmware to use automatic game controls." else "Atlas could not open game controls."))
+        val issued = org.json.JSONObject(response.body).optString("token")
+        if (issued.length != 32) throw AtlasException(AtlasFailure.Malformed("Missing game access token"))
+        endpoint = target
+        token = issued
+        _state.value = PlayerSessionState.SignedIn("", "Game controls", null)
+        refreshLocked()
+    }
+
     /** Signs in; throws [AtlasException] with Atlas's reason (e.g. wrong PIN, throttled). */
     suspend fun signIn(endpoint: AtlasEndpoint, profile: ProfileSummary, pin: String) {
         mutex.withLock {

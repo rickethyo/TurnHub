@@ -339,7 +339,7 @@ class HttpAtlasTransport(
     ): RawResponse {
         val response = request(
             method,
-            path,
+            if (method == "GET" && fields.isNotEmpty()) path + (if (path.contains("?")) "&" else "?") + form(*fields.toTypedArray()) else path,
             headers = auth(token),
             formBody = if (method == "POST") form(*fields.toTypedArray()) else null,
         )

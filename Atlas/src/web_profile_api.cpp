@@ -177,6 +177,10 @@ void handleRegistration(WebServer &server) {
       sendError(server, 503, "Could not create profile; storage may be full");
       return;
     }
+    if (!sessionForRequest(server)->pinVerified || server.arg("gameplayOnly") == "1") {
+      sendJson(server,200,String("{\"ok\":true,\"profileId\":\"")+requestedId+"\",\"hasPin\":false}");
+      return;
+    }
     // The uploading phone keeps the profile in sync (plans: profile-transfer F).
     const String linkKey = issueLinkKey(requestedId);
     TurnHub::serialLog.print("ATLAS|PROFILE|UPLOADED_WITHOUT_PIN|");

@@ -49,6 +49,12 @@ class HttpAtlasTransportTest {
     @After
     fun stop() = server.stop(0)
 
+    @Test fun `raw GET includes encoded receipt lookup fields`() = runBlocking {
+        routes["GET /api/action-receipt"] = Triple(200, "{}", 0L)
+        transport().raw("GET", "/api/action-receipt", "token", listOf("actionId" to "a b&c"))
+        assertEquals("actionId=a+b%26c", queries.last())
+    }
+
     private fun transport(port: Int = server.address.port, readTimeoutMs: Int = 2_000) = HttpAtlasTransport(
         endpoint = AtlasEndpoint.parse("http://127.0.0.1:$port").getOrThrow(),
         readTimeoutMs = readTimeoutMs,

@@ -103,6 +103,7 @@ fun TabletScreen(
     embedded: Boolean = false,
     onFullScreen: () -> Unit = {},
     setupOnly: Boolean = false,
+    localProfiles: List<com.turnhub.android.standalone.SavedLocalPlayer> = emptyList(),
 ) {
     var previousState by remember { mutableStateOf(summary?.state) }
     androidx.compose.runtime.LaunchedEffect(summary?.state) {
@@ -116,7 +117,7 @@ fun TabletScreen(
         BackHandler(onBack = onClose)
     } else if (summary?.state == TableState.RUNNING) KeepScreenOn()
     tablet.pinPrompt?.let { prompt -> PinDialog(prompt.name, onSubmit = { pin -> scopedActions.run { seatSaved(prompt.profileId, prompt.name, pin) } }, onDismiss = scopedActions.onDismissPin) }
-    val granted = signedIn
+    val granted = summary != null
     AmbientBackground(reduceMotion, modifier.fillMaxSize(), quiet = true) {
     Column(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.safeDrawingPadding())) {
         if (embedded && !setupOnly && summary != null) TableNavigation(summary.state, onFullScreen = onFullScreen)
@@ -129,22 +130,16 @@ fun TabletScreen(
                     summary == null -> Gate(tablet, scopedActions, onClose) {
                         Text("Connect to Atlas first, then open tablet mode again.", color = p.muted)
                     }
-                    granted && session?.game != summary.game -> Gate(tablet, scopedActions, onClose) {
-                        Text("Refreshing the selected game…", color = p.muted)
-                    }
-                    summary.state == TableState.LOBBY -> Lobby(summary, tablet, scopedActions, onClose, onEditBackground, canEditBackground,
-                        enabled = granted && !offline && !switching, embedded = embedded,
-                        access = {
-                            if (!granted) TableAccess(signedIn, session, tablet, scopedActions, Modifier.padding(16.dp))
-                        })
+                    summary.state == TableState.LOBBY && setupOnly -> Lobby(summary, tablet, scopedActions, onClose, onEditBackground, canEditBackground,
+                        enabled = granted && !offline && !switching, embedded = embedded, localProfiles = localProfiles,
+                        access = {})
                     else -> {
                         if (!embedded) Immersive()
                         Column(Modifier.fillMaxSize()) {
-                            if (!granted) TableAccess(signedIn, session, tablet, scopedActions)
                             Box(Modifier.weight(1f).fillMaxWidth()) {
                                 TabletTable(summary, tablet, { block -> if (granted && !switching) scopedActions.run { this.block() } },
                                     scopedActions.onDismissMessage, reduceMotion, onClose, offline,
-                                    readOnly = !granted || switching)
+                                    readOnly = !granted || switching, phoneView = setupOnly)
                             }
                         }
                     }
@@ -157,17 +152,6 @@ fun TabletScreen(
             }
         }
     }
-    }
-}
-
-/** Authority credentials live beside the shared game, never in place of it. */
-@Composable
-private fun TableAccess(signedIn: Boolean, session: SessionInfo?, tablet: TabletState, actions: TabletActions,
-    modifier: Modifier = Modifier) {
-    BrassCard(modifier.fillMaxWidth()) {
-        Eyebrow("Table controls")
-        GateSteps(signedIn, tablet, actions)
-        tablet.message?.let { Feedback(it.message, it.isError) }
     }
 }
 
@@ -265,7 +249,7 @@ private fun Gate(tablet: TabletState, actions: TabletActions, onClose: () -> Uni
         verticalArrangement = Arrangement.Center,
     ) {
         BrassCard(Modifier.widthIn(max = 520.dp).fillMaxWidth()) {
-            Eyebrow("Tablet mode")
+            Eyebrow("Game controls")
             Text(
                 "One shared screen in the middle of the table. Every player gets a panel facing their seat " +
                     "for life, Commander damage and passing the turn.",
@@ -278,13 +262,7 @@ private fun Gate(tablet: TabletState, actions: TabletActions, onClose: () -> Uni
     }
 }
 
-@Composable
-private fun GateSteps(signedIn: Boolean, tablet: TabletState, actions: TabletActions) {
-    if (!signedIn) {
-        Text("Sign in to control this table.", color = palette.muted)
-        AccentButton("Sign in or pick a profile", actions.onSignIn, Modifier.fillMaxWidth())
-    }
-}
+
 
 @Composable
 internal fun Feedback(message: String, isError: Boolean) {
@@ -302,24 +280,9 @@ internal fun TablePlayer.seat(): TabletSeat = TabletSeat(controller.id, slot)
 @Composable
 private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletActions, onClose: () -> Unit,
     onEditBackground: ((TablePlayer) -> Unit)?, canEditBackground: (TablePlayer) -> Boolean,
-    enabled: Boolean, embedded: Boolean, access: @Composable () -> Unit) {
+    enabled: Boolean, embedded: Boolean, localProfiles: List<com.turnhub.android.standalone.SavedLocalPlayer>, access: @Composable () -> Unit) {
     val p = palette
     LaunchedEffect(summary.players.size, enabled) { if (enabled) actions.run { loadSavedProfiles() } }
-    var confirmLeave by remember { mutableStateOf(false) }
-    if (confirmLeave) {
-        AlertDialog(
-            onDismissRequest = { confirmLeave = false },
-            containerColor = p.surface,
-            title = { Text("Leave tablet mode?") },
-            text = { Text("This device stops acting for the table. Seated players stay seated.", color = p.muted) },
-            confirmButton = {
-                TextButton(onClick = { confirmLeave = false; actions.run { disable() }; onClose() }) {
-                    Text("Leave", color = p.bad, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Cancel", color = p.text) } },
-        )
-    }
     val players = summary.players.sortedBy { it.playerNumber }
     val seat = summary.anySeat()
     val seated = players.mapNotNull { it.profileId }.toSet()
@@ -332,7 +295,7 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
     }
     // Each seated profile's saved commanders, quick to pick again (kept on Atlas's card).
     var savedCommanders by remember { mutableStateOf(emptyMap<String, List<Pair<String, String?>>>()) }
-    LaunchedEffect(seated, summary.revision, enabled) {
+    LaunchedEffect(seated, summary.settings.profile, enabled) {
         if (!enabled || !summary.settings.profile.commanderRules) return@LaunchedEffect
         seated.forEach { id -> actions.run { val list = savedCommanders(id); savedCommanders = savedCommanders + (id to list) } }
     }
@@ -340,7 +303,10 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
         summary = summary,
         actions = TableLobbyActions(
             add = { name -> actions.run { seatNew(name) } },
-            select = { player -> actions.run { seatSaved(player.id, player.name) } },
+            select = { player ->
+                val local = localProfiles.firstOrNull { "local:${it.localId}" == player.id }
+                actions.run { if (local != null) seatLocal(local, summary.atlasId) else seatSaved(player.id, player.name) }
+            },
             remove = { player -> player.profileId?.let { id -> actions.run { unseat(id) } } },
             canRemove = { it.profileId != null },
             clear = { actions.run { clearSeats(players.mapNotNull { it.profileId }) } },
@@ -379,17 +345,16 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
             background = onEditBackground,
             canEditBackground = canEditBackground,
         ),
-        savedPlayers = tablet.savedProfiles.filter { it.profileId !in seated }.map { LobbySavedPlayer(it.profileId, it.name) },
+        savedPlayers = com.turnhub.android.domain.unifiedProfiles(
+            com.turnhub.android.standalone.LocalLibrary(players = localProfiles), summary.atlasId, tablet.savedProfiles)
+            .filter { (it.atlas?.profileId ?: it.local?.profileId) !in seated }
+            .map { LobbySavedPlayer(it.atlas?.profileId ?: "local:${it.local!!.localId}", "${it.name} · ${it.location}") },
         enabled = enabled && !tablet.busy,
         settingsEnabled = enabled && seat != null && !tablet.busy,
-        settingsHint = if (enabled) "Add a player to choose the game." else "Enable table controls to change the game.",
+        settingsHint = if (enabled) "Add a player to choose the game." else "Waiting for Atlas.",
         canAdd = true,
-        identityHint = "A new name gets an account without a PIN. Sigils can join too.",
+        identityHint = "Choose saved players or add a name.",
         savedTitle = "Saved players",
-        headerActions = {
-            TextButton(onClick = onClose) { Text("Back", color = p.muted) }
-            TextButton(onClick = { confirmLeave = true }) { Text("Leave tablet mode", color = p.bad) }
-        },
         embedded = embedded,
         extraSettings = {
             if (summary.settings.profile.magicRules) SetupSwitch("Planechase",

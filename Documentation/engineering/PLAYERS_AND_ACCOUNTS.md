@@ -108,7 +108,8 @@ reset when games change; queued offline changes include the venue game, boot
 and participant identity. Native raw table actions include `expectedGame`; Atlas
 rejects a stale selected-game context before dispatching the semantic action.
 
-- **Shared controls.** Signed-in profiles use Game and Table controls directly.
+- **Shared controls.** Apps open a restricted game connection automatically.
+  No profile selection or sign-in is required for Game and Table.
   No tablet role, presence code or enable step is needed. Selecting a shared
   view does not replace the personal session. PIN verification is reserved for
   private statistics and privileged administration, not seating or gameplay.
@@ -313,3 +314,14 @@ or decode failure displays a neutral fallback. Artwork is outside game-state
 polling; immutable image paths are cached per connection/game. Names, life totals
 and controls remain separate from decorative artwork. The master is suitable for
 future LCD layouts; those firmware targets and their radio transfer are pending.
+
+### One profile directory and two game views
+
+Players is one identity-based list with location labels: This device, Atlas,
+or both. Names alone never merge identities. Public gameplay references can
+be copied to the device without a PIN; this copies no credential, private
+history, privileged role or private-history link key. Selecting a local
+profile in an Atlas lobby uploads its public identity only when needed.
+Game uses the same upright player panels for device and Atlas games. Table
+shows the live facing-seat layout and does not repeat the setup form.
+Private statistics and administration remain under PIN-verified profile access.

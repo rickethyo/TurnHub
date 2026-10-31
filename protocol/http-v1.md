@@ -800,3 +800,23 @@ Manual `/api/control/eliminate` and tablet `action=eliminate` accept optional
 removal without an explicit source queues the question. Concessions and bag
 victims never queue it. Standalone imports accept `selfEliminatedN=0|1`; true
 requires an exit order and no concession, bag-drawn flag or opponent credit.
+
+### Automatic game access and action receipts (Atlas 0.7.23)
+
+`POST /api/session/play` takes a per-app `clientKey` (UUID text) and optional
+1-based `game`. It opens or reuses a RAM-only gameplay session and returns
+`{ok:true,token:...}`. No profile choice, PIN or presence prompt is required.
+The compatibility `tablet:true` field identifies its restricted capabilities;
+it has no personal profile, private statistics or administrative permissions.
+Personal sessions already in use are preserved by the app. Profile creation
+for ordinary gameplay (`gameplayOnly=1` on a PIN-less identity upload)
+does not issue private-history link keys.
+
+Shared game mutations may include `actionId` (UUID text). This is separate
+from the numeric life-approval `requestId`. Atlas retains up to 16 responses
+of at most 1024 bytes for two minutes, scoped to their session token.
+`GET /api/action-receipt?actionId=...` returns `{found:true,status,body}`
+with the original JSON body as a string, or 404 `{found:false}`. Reusing an
+unexpired action ID on a POST is refused with 409 before any mutation.
+The app queries a receipt after a transport timeout; it never retries the
+mutation automatically or treats a missing receipt as proof of rejection.

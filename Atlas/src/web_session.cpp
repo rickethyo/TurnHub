@@ -541,6 +541,24 @@ void handleSessionPoll(WebServer &server) {
 
 // profileId + PIN signs into a profile; module + slot + PIN signs into the
 // profile bound to that Sigil seat.
+// Automatic, gameplay-only access: no profile, PIN, private data or admin powers.
+void handleGameSession(WebServer &server) {
+  const String key = server.arg("clientKey");
+  if (key.length()!=36) { sendError(server,400,"Invalid game client"); return; }
+  for (size_t i=0;i<key.length();++i) {
+    const char c=key[i];
+    if (!((c>='0'&&c<='9')||(c>='a'&&c<='f')||c=='-')) { sendError(server,400,"Invalid game client"); return; }
+  }
+  cleanup(millis());
+  WebSession *target=nullptr;
+  for (auto &s:sessions) if(s.used && s.tableDevice && s.profileId[0]==0 && key==s.clientKey) { target=&s; break; }
+  if(!target) for(auto &s:sessions) if(!s.used) { target=&s; s=WebSession{}; s.used=true; s.tableDevice=true; makeToken(s.token); strncpy(s.clientKey,key.c_str(),36); break; }
+  if(!target) {sendError(server,503,"No game connections available");return;}
+  target->lastSeenMs=millis();
+  target->table=requestGame(server);
+  sendJson(server,200,String("{\"ok\":true,\"token\":\"")+target->token+"\"}");
+}
+
 void handleSessionLogin(WebServer &server) {
   if (server.hasArg("profileId")) {
     handleProfileLogin(server);
@@ -579,7 +597,7 @@ void handleSessionMe(WebServer &server) {
   response += ",\"life\":"; response += String(snapshot.life);
   response += ",\"profileId\":\""; response += jsonEscape(profileId);
   response += "\",\"statsUrl\":\"/stats\",\"name\":\"";
-  response += jsonEscape(session->tableDevice && profileId.length() == 0 ? String("Shared tablet") : TurnHubProfiles::nameForProfile(profileId));
+  response += jsonEscape(session->tableDevice && profileId.length() == 0 ? String(session->clientKey[0] ? "Game controls" : "Shared tablet") : TurnHubProfiles::nameForProfile(profileId));
   response += "\",\"hasPin\":"; response += jsonBool(TurnHubProfiles::hasPinForProfile(profileId));
   TurnHubProfiles::ProfilePolicy policy;
   const bool policyAvailable = TurnHubProfiles::loadPolicyForProfile(profileId, policy);

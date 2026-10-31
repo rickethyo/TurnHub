@@ -305,6 +305,18 @@ class StandaloneTable(
         return publish(before.copy(game = game, library = library))
     }
 
+    /** Copy only public gameplay identity. No secret, privileged role or private history is imported. */
+    fun referenceProfile(atlasId: String, profileId: String, name: String): String? {
+        val before = _state.value
+        before.library.players.firstOrNull { it.profileId == profileId ||
+            it.links.any { link -> link.atlasId == atlasId && link.profileId == profileId } }?.let { return it.localId }
+        val clean = name.trim().take(StandaloneGame.MAX_NAME)
+        if (atlasId.isBlank() || clean.isBlank() || !LocalProfileIds.valid(profileId)) return null
+        val player = SavedLocalPlayer(newId(), clean, profileId,
+            links = listOf(AtlasProfileLink(atlasId, profileId)))
+        return if (publish(before.copy(library = before.library.copy(players = before.library.players + player)))) player.localId else null
+    }
+
     /** Called only after Atlas creation or credential verification; never from a name match. */
     /**
      * Brings an Atlas account back onto this device (a fresh install or a new phone): same

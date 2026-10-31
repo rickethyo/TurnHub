@@ -415,7 +415,7 @@ for the Internal testing track; see "Android release bundle" in
 ## What the app does
 
 The app talks to a physical Atlas over its HTTP API; production always uses
-`HttpAtlasRepository`. It shows the live table, gives a signed-in player personal and shared-tablet game controls, runs first-run setup, and installs firmware
+`HttpAtlasRepository`. It shows the live table, provides automatic restricted game controls without a sign-in prompt, runs first-run setup, and installs firmware
 updates on Atlas and the Sigils.
 
 1. Open the app to the shared Game tab. Atlas discovery stays in the background.
@@ -665,3 +665,8 @@ text decision controls remain; device acceptance is tracked in STAGED_CHANGES.
 Atlas firmware includes the complete admin portal and its maintenance/Developer
 assets. The update assistant lists only Atlas and Sigils, never queries portal
 installation or card status, and ignores retired `portal` release entries.
+
+Connected and device games share the Game tab's upright player panels. The Table
+tab is the live facing-seat layout. Players is a single list with profile location
+labels; public gameplay identity can be used without copying private stats or
+credentials. Private statistics and administration still require the profile PIN.

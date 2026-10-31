@@ -77,6 +77,7 @@ struct WebSession {
   // Tablet mode: a table presence code turned this browser into the shared
   // table screen, which seats players and acts for any of them.
   bool tableDevice = false;
+  char clientKey[37] = {};
   // Venue tables: the game (0-based) this browser follows while its profile
   // isn't seated in one, and the one a table tablet serves.
   uint8_t table = 0;
@@ -173,6 +174,7 @@ String cleanName(const String &raw);
 void handleSessionRequest(WebServer &server);
 void handleSessionPoll(WebServer &server);
 void handleSessionLogin(WebServer &server);
+void handleGameSession(WebServer &server);
 void handleSessionMe(WebServer &server);
 void handleLogout(WebServer &server);
 void handleSessionGame(WebServer &server);

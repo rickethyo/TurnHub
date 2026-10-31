@@ -349,7 +349,7 @@ If Atlas stops answering, the app keeps the last known table under an **Offline:
 
 ## Shared Tablet Mode
 
-Any signed-in phone or tablet can control the shared Atlas game from Game or Table. Add profiles in the lobby and use the same game controls when play starts, including Pass. No tablet permission, enable step or table code is needed for gameplay. Your personal profile stays signed in.
+Open Game and add players; no sign-in, profile-login or table-control enable step is needed. Game shows the same upright player controls whether Atlas or this device runs the game, including Pass. Table shows the live facing-seat layout. Players is one list labelled This device, Atlas, or both. Private statistics and administration still require the profile PIN.
 
 Seat players with **Add**: type a name to create an Atlas account with no PIN, or pick a saved player, who types their PIN unless they allowed Sigil and tablet use without one. Seating, First?, Clear all and the panels work as in section 4 and 5. Players seated by the tablet can also use their own Sigil or phone.
 

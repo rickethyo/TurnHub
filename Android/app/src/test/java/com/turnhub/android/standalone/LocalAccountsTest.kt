@@ -12,6 +12,20 @@ import java.util.Base64
 import kotlin.random.Random
 
 class LocalAccountsTest {
+    @Test fun `public Atlas identity reference copies no secret history or admin powers`() {
+        val store=Store()
+        val table=StandaloneTable(store)
+        val profile=LocalProfileIds.create()
+        val local=table.referenceProfile("atlas",profile,"Sam")!!
+        val player=table.state.value.library.players.single()
+        assertNull(player.credential)
+        assertNull(player.links.single().linkKey)
+        assertNull(table.state.value.library.deviceAdmin)
+        assertTrue(table.state.value.library.history.isEmpty())
+        assertEquals(local,table.referenceProfile("atlas",profile,"Sam"))
+        assertEquals(1,table.state.value.library.players.size)
+    }
+
     @Test fun `tile backgrounds persist by identity across swaps and clearing without changing avatars`() {
         val store = Store()
         val table = StandaloneTable(store, shortGameMs = 0)

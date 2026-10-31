@@ -42,9 +42,27 @@ HardwareTestCallback hardwareTestHandler = nullptr;
 
 namespace {
 WebServer *webServer = nullptr;
+// Bounded, session-private receipts. Never resend a mutation after a lost response.
+struct ActionReceipt { String token, id, body; int status=0; uint32_t at=0; };
+ActionReceipt receipts[16];
+uint8_t receiptNext=0;
+int activeReceipt=-1;
+constexpr uint32_t RECEIPT_LIFETIME_MS=120000;
+bool receiptLive(const ActionReceipt &r) { return r.id.length() && millis()-r.at < RECEIPT_LIFETIME_MS; }
+bool validActionId(const String &id) {
+  if(id.length()!=36) return false;
+  for(size_t i=0;i<id.length();++i) if(!((id[i]>='0'&&id[i]<='9')||(id[i]>='a'&&id[i]<='f')||id[i]=='-')) return false;
+  return true;
+}
+
 }  // namespace
 
 void sendJson(WebServer &server, int status, const String &body) {
+  if(activeReceipt>=0 && body.length()<=1024) {
+    receipts[activeReceipt].at=millis();
+    receipts[activeReceipt].status=status;
+    receipts[activeReceipt].body=body;
+  }
   server.sendHeader("Cache-Control", "no-store");
   server.send(status, "application/json", body);
 }
@@ -161,6 +179,17 @@ struct Route {
 // One table, matched by one request handler. A server.on() per route cost
 // about 140 bytes of heap each (handler object, URI object, path copy):
 // roughly 10 KB for these routes.
+void handleActionReceipt(WebServer &server) {
+  const WebSession *session=sessionForRequest(server);
+  if(!session) {sendError(server,401,"Game connection expired");return;}
+  const String id=server.arg("actionId");
+  if(!validActionId(id)) {sendError(server,400,"Invalid action receipt");return;}
+  for(const auto &r:receipts) if(receiptLive(r) && r.token==session->token && r.id==id && r.status) {
+    sendJson(server,200,String("{\"found\":true,\"status\":")+String(r.status)+",\"body\":\""+jsonEscape(r.body)+"\"}");return;
+  }
+  sendJson(server,404,"{\"found\":false}");
+}
+
 const Route ROUTES[] = {
   // Client contract (protocol/http-v1.md).
   {"/api/v1/info", HTTP_GET, handleInfo},
@@ -219,6 +248,8 @@ const Route ROUTES[] = {
   {"/api/session/request", HTTP_POST, handleSessionRequest},
   {"/api/session/poll", HTTP_GET, handleSessionPoll},
   {"/api/session/login", HTTP_POST, handleSessionLogin},
+  {"/api/session/play", HTTP_POST, handleGameSession},
+  {"/api/action-receipt", HTTP_GET, handleActionReceipt},
   {"/api/session/me", HTTP_GET, handleSessionMe},
   {"/api/session/profile", HTTP_POST, handleProfile},
   {"/api/session/policy", HTTP_POST, handleProfilePolicy},
@@ -334,12 +365,26 @@ class RouteTableHandler final : public RequestHandler {
       const bool tabletRoute = strncmp(uri.c_str(), "/api/tablet/", 12) == 0;
       const bool readRoute = method == HTTP_GET && (uri == "/api/v1/info" || uri == "/api/v1/state" ||
           uri == "/api/seats" || uri == "/api/profiles" || uri == "/api/avatars" || uri == "/api/avatar" ||
-          uri == "/api/counters" || uri == "/api/session/me");
-      const bool sessionRoute = method == HTTP_POST && (uri == "/api/session/game" || uri == "/api/session/logout");
+          uri == "/api/action-receipt" || uri == "/api/counters" || uri == "/api/profiles/commanders" || uri == "/api/session/me");
+      const bool sessionRoute = method == HTTP_POST && (uri == "/api/profiles/register" || uri == "/api/session/game" || uri == "/api/session/logout");
       if (!tabletRoute && !readRoute && !sessionRoute) {
         sendError(server, 403, "The shared tablet account only has table controls");
         return true;
       }
+    }
+    activeReceipt=-1;
+    const bool gameAction=method==HTTP_POST && (strncmp(uri.c_str(),"/api/tablet/",12)==0 ||
+        strncmp(uri.c_str(),"/api/control/",13)==0 || strncmp(uri.c_str(),"/api/game/",10)==0 ||
+        (uri=="/api/profiles/register" && server.hasArg("profileId") && server.arg("pin").length()==0));
+    if(gameAction && server.hasArg("actionId")) {
+      const String id=server.arg("actionId");
+      if(!session) {sendError(server,401,"Game connection expired");return true;}
+      if(!validActionId(id)) {sendError(server,400,"Invalid action identifier");return true;}
+      for(const auto &r:receipts) if(receiptLive(r) && r.token==session->token && r.id==id) {
+        sendError(server,409,"Action identifier already used; check its receipt");return true;
+      }
+      activeReceipt=receiptNext; receiptNext=(receiptNext+1)%16;
+      auto &r=receipts[activeReceipt]; r=ActionReceipt{};r.token=session->token;r.id=id;r.at=millis();
     }
     // Every handler acts on the request's game; the previous one is restored.
     const uint8_t game = requestGame(server);
@@ -347,19 +392,21 @@ class RouteTableHandler final : public RequestHandler {
     // when that table happens to have the same revision/player numbers.
     if (server.hasArg("expectedGame") && server.arg("expectedGame") != String(game + 1)) {
       internal::sendError(server, 409, "The selected game changed. Refresh the table and try again");
+      activeReceipt=-1;
       return true;
     }
     const uint8_t previous = tableHooks.select ? tableHooks.select(game) : 0;
     // Target the recurring phone workload. Administrative requests and log
     // downloads stay outside tracing so diagnostics don't trace themselves
     // or evict gameplay evidence with unrelated activity.
-    if (route->handler == handleState || route->handler == handleSeats ||
+    if (gameAction || route->handler == handleState || route->handler == handleSeats ||
         route->handler == handleCounters || route->handler == handleSessionMe) {
       TurnHub::HttpRequestTrace trace(route->uri);
       route->handler(server);
     } else {
       route->handler(server);
     }
+    activeReceipt=-1;
     if (tableHooks.select) tableHooks.select(previous);
     return true;
   }

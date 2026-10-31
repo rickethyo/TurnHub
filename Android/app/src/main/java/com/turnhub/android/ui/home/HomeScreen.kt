@@ -209,15 +209,6 @@ fun HomeScreen(
     val source = gameSource(atlasTable = summary != null, seatedAtAtlas = me != null,
         deviceGameUnderway = deviceUnderway, chosen = chosenSource)
     val atlasGame = source == GameSource.ATLAS
-    var previousAtlasState by androidx.compose.runtime.remember(summary?.atlasId, summary?.bootId, summary?.game) {
-        mutableStateOf(summary?.state)
-    }
-    androidx.compose.runtime.LaunchedEffect(summary?.state) {
-        if (atlasGame && tab == HomeTab.GAME && info?.tablet == true &&
-            previousAtlasState in listOf(TableState.LOBBY, TableState.STARTING) &&
-            summary?.state == TableState.RUNNING) tab = HomeTab.TABLE
-        previousAtlasState = summary?.state
-    }
     val deviceSummary = androidx.compose.runtime.remember(localState.game, localState.library.players) {
         localState.game.toSummary(System.currentTimeMillis(), com.turnhub.android.domain.TableClock.nowMs(),
             localState.library.players.associate { it.localId to it.personalization })
@@ -234,7 +225,7 @@ fun HomeScreen(
     // Leaving Magic or turning Planechase off hides the Planes tab (Death May Die the Elder One tab); whoever was on it goes back to Game.
     androidx.compose.runtime.LaunchedEffect(planes) { if (!planes && tab == HomeTab.PLANES) tab = HomeTab.GAME }
     androidx.compose.runtime.LaunchedEffect(elderOne) { if (!elderOne && tab == HomeTab.ELDER) tab = HomeTab.GAME }
-    var playersPage by rememberSaveable { mutableStateOf("Device") }
+    var showPeople by rememberSaveable { mutableStateOf(false) }
     val pageState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     androidx.activity.compose.BackHandler(enabled = tab != HomeTab.GAME && !setup.visible) {
         if (tab == HomeTab.MORE && morePage != MorePage.HOME) morePage = MorePage.HOME
@@ -280,7 +271,7 @@ fun HomeScreen(
     // A saved/background Atlas connection must not label a device game as Atlas play.
     val reportFromAtlas = summary != null && (setup.visible ||
         (tab in listOf(HomeTab.GAME, HomeTab.TABLE) && atlasGame) ||
-        (tab == HomeTab.PLAYERS && playersPage != "Device"))
+        (tab == HomeTab.PLAYERS && summary != null))
     val reportContext = if (reportFromAtlas && summary != null) {
         com.turnhub.android.ui.components.tableBugReportContext(summary,
             if (setup.visible) "Atlas setup" else tab.label)
@@ -377,13 +368,6 @@ fun HomeScreen(
                     if (next == GameSource.ATLAS) onAtlasOpened()
                 }
             }
-            if (!setup.visible && tab == HomeTab.PLAYERS && summary != null) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Device", "Table", "Me").forEach { page ->
-                        androidx.compose.material3.FilterChip(playersPage == page, { playersPage = page; if (page != "Device") onAtlasOpened() }, label = { Text(page) })
-                    }
-                }
-            }
             // Tabs push sideways in the bar's direction, like slides; none when motion is reduced.
             AnimatedContent(
                 targetState = tab,
@@ -414,7 +398,7 @@ fun HomeScreen(
                                 onClose = { tab = HomeTab.GAME }, onBackToSetup = { tab = HomeTab.GAME },
                                 offline = uiState.isOffline, switching = uiState.player?.busy == true,
                                 onFollowGame = onFollowGame, embedded = true,
-                                setupOnly = shown == HomeTab.GAME, onFullScreen = { showTablet = true },
+                                setupOnly = shown == HomeTab.GAME, localProfiles = localState.library.players, onFullScreen = { showTablet = true },
                                 onEditBackground = if (localTable == null) null else { player ->
                                     editingBackgroundId = summary?.let { localState.library.linkedPlayer(it.atlasId, player.profileId)?.localId }
                                 },
@@ -424,11 +408,13 @@ fun HomeScreen(
                         !setup.visible && shown == HomeTab.HISTORY -> localHistoryContent()
                         !setup.visible && shown == HomeTab.PLANES -> localPlanesContent()
                         !setup.visible && shown == HomeTab.ELDER -> localElderContent()
-                        !setup.visible && shown == HomeTab.PLAYERS && (summary == null || playersPage == "Device") -> localPlayersContent()
+                        !setup.visible && shown == HomeTab.PLAYERS -> localPlayersContent()
                         !setup.visible && shown == HomeTab.GAME && !atlasGame -> localGameContent({ tab = HomeTab.TABLE }, { tab = HomeTab.PLANES }) {
                             val labelFor: (Int) -> String = { n -> deviceSummary.players.firstOrNull { it.playerNumber == n }?.label ?: "Player $n" }
-                            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
-                                GameTab(uiState, deviceSummary, nowMs, reduceMotion, deviceGameActions, labelFor, GameSource.DEVICE)
+                            Column(Modifier.widthIn(max = 720.dp).fillMaxSize().padding(4.dp)) {
+                                if (localTable != null) com.turnhub.android.ui.tablet.LocalTable(localState, localTable, reduceMotion,
+                                    onClose = { tab = HomeTab.GAME }, onOpenPlanes = { tab = HomeTab.PLANES }, phoneView = true)
+                                else GameTab(uiState, deviceSummary, nowMs, reduceMotion, deviceGameActions, labelFor, GameSource.DEVICE)
                             }
                         }
                         else -> Column(
@@ -445,33 +431,26 @@ fun HomeScreen(
                             if (setup.visible) {
                                 SetupScreen(setup, setupActions)
                             } else when (shown) {
-                                HomeTab.GAME -> if (summary != null) {
-                                    GameSelector(summary, onFollowGame, enabled = !uiState.isOffline && uiState.player?.busy != true && seatClaim?.waiting != true)
-                                    if (updatesAvailable > 0) UpdateAvailableCard(updatesAvailable, onOpenUpdates)
-                                    GameTab(uiState, summary, nowMs, reduceMotion, gameActions.copy(onOpenTablet = { showTablet = true }), labelFor, GameSource.ATLAS)
-                                }
-                                HomeTab.PLAYERS -> if (summary != null) {
-                                    if (playersPage == "Me") {
-                                        if (admin.presence?.setup == true) AdminSetupCard(adminActions)
-                                        AccountTab(uiState, reduceMotion, accountActions)
-                                    } else PlayersTab(summary, me?.playerNumber, nowMs, labelFor, uiState.endpointText, seatClaim, seatActions, admin.devices,
-                                        uiState.player?.signedIn == true && !uiState.isOffline) {
-                                        if (canPeople) PeopleCard(info, admin, uiState.avatars, adminActions)
-                                    }
-                                }
+                                HomeTab.GAME -> Unit
+                                HomeTab.PLAYERS -> Unit
                                 HomeTab.MORE -> MoreTab(morePage, { morePage = it }, atlas = {
+                                    com.turnhub.android.ui.components.DisclosureCard("Private stats and administration") { AccountTab(uiState, reduceMotion, accountActions) }
+                                    if (canPeople && info != null) {
+                                        TextButton(onClick = { showPeople = !showPeople }) { Text(if (showPeople) "Hide people and permissions" else "People and permissions") }
+                                        if (showPeople) PeopleCard(info, admin, uiState.avatars, adminActions)
+                                    }
                                     com.turnhub.android.ui.components.DisclosureCard("Atlas connection") {
                                         com.turnhub.android.ui.tablet.SetupSwitch("Discover Atlas", null, atlasEnabled, true, onAtlasEnabled)
                                         if (atlasEnabled) ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
                                     }
                                     // Atlas settings (the admin portal's, since 2026-10-30): always listed while connected.
                                     if (summary != null) com.turnhub.android.ui.components.DisclosureCard("Atlas settings") {
-                                        if (canSettings && info != null) SettingsTab(info, admin, adminActions, onShowPeople = { playersPage = "Table"; tab = HomeTab.PLAYERS })
+                                        if (canSettings && info != null) SettingsTab(info, admin, adminActions, onShowPeople = { showPeople = true })
                                         else {
-                                            Text(if (info == null) "Sign in on Players > Me with an Admin account to change Wi-Fi, home Wi-Fi, Sigils, the table code, volume and accounts."
-                                                else "Your account isn't an Admin on this Atlas. Sign in with the Admin account on Players > Me to change these settings.",
+                                            Text(if (info == null) "Unlock Admin access with the profile PIN to change Wi-Fi, Sigils, volume and accounts."
+                                                else "Unlock an Admin profile with its PIN to change these settings.",
                                                 color = com.turnhub.android.ui.theme.palette.muted, style = MaterialTheme.typography.bodyMedium)
-                                            com.turnhub.android.ui.components.ToneButton("Sign in", { playersPage = "Me"; tab = HomeTab.PLAYERS }, Modifier.fillMaxWidth())
+                                            com.turnhub.android.ui.components.ToneButton("Unlock Admin access", { accountActions.onPlayFromPhone() }, Modifier.fillMaxWidth())
                                         }
                                     }
                                     if (canDev) com.turnhub.android.ui.components.DisclosureCard("Developer") { DevTab(admin, adminActions) }
