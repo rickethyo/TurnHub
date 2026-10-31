@@ -48,4 +48,32 @@ class TabletLayoutTest {
         assertEquals(2, unit.lifeSeat.playerNumber)
         assertEquals("P1 & P2", unit.name)
     }
+
+    private fun card(n: Int) = TableUnit("p$n", listOf(TablePlayer(
+        playerNumber = n, label = "P$n", hasName = true, controller = ControllerHandle(8 + n), slot = 1,
+        team = null, participantId = n.toLong(), eliminated = false, life = 40, turnsCompleted = 0,
+        commanderDamage = emptyList(), lifeRequest = null,
+    )))
+
+    @Test
+    fun `single player stays selected regardless of pass and play selection`() {
+        val cards = (1..4).map(::card)
+        assertEquals(listOf(cards[1]), gameCardUnits(cards, "p2", listOf("p1", "p3"), null))
+    }
+
+    @Test
+    fun `pass and play retains table order and ignores removed selections`() {
+        val cards = (1..4).map(::card)
+        assertEquals(listOf(cards[0], cards[2]), gameCardUnits(cards, null, listOf("p3", "p9", "p1"), null))
+        assertEquals(cards, gameCardUnits(cards, "p9", listOf("p9"), null))
+        assertEquals(cards, gameCardUnits(cards, null, emptyList(), null))
+    }
+
+    @Test
+    fun `win confirmer remains available outside either display selection`() {
+        val cards = (1..4).map(::card)
+        assertEquals(listOf(cards[0], cards[2]), gameCardUnits(cards, "p1", emptyList(), 3))
+        assertEquals(listOf(cards[1], cards[2]), gameCardUnits(cards, null, listOf("p2"), 3))
+    }
+
 }

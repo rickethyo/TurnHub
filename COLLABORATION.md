@@ -1844,3 +1844,13 @@ Implementation: silent session bootstrap reuses per-app key and never replaces a
 
 Validation: all 558 Android JVM tests pass; Preview APK, release bundle and release lint succeed. All four Atlas host suites pass from their required host working directory. Documentation links, client contract (18 actual responses/14 fixtures/two records), manual export and whitespace pass. Atlas 0.7.23-dev USB upload verified image hashes. Final Preview APK installed successfully on the one connected Android device, leaving the Play app untouched. Phone remains locked, so visual UI and real-match hardware acceptance remain pending. DOCX text/XML and exported asset checked; visual DOCX rendering unavailable (no LibreOffice).
 
+
+## Mobile game panels — 2026-10-31, Codex
+
+Owner requests prominent Back to setup, grouped unambiguous Commander controls, closed-fold clipping fixes and Game card player/pass-and-play selection. Owner: Codex; branch `codex/master`, baseline `373edd22` (fetched origin and fast-forwarded; no open PRs). Scope: shared Android Game/Table presentation and manual; existing game authority/actions remain. Validation pending.
+
+Implementation: shared Android menu starts with the timed Back to setup action; Commander tax and received damage share a labeled disclosure; counters use wrapping labels and narrow Planechase actions use two rows. Game cards receive bounded height, offer fixed-player/team or selected pass-and-play display, and prioritize required win confirmation. These shared renderers cover device- and Atlas-hosted app games. Source DOCX and generated manual updated together. Added selection regressions to TabletLayoutTest.
+
+Validation: docs links, generated manual consistency and git diff --check pass. Debug assembly and JVM tests attempted: Gradle distribution downloaded through the configured proxy, but settings plugin org.gradle.toolchains.foojay-resolver-convention:1.0.0 could not resolve; compilation/tests never ran. No Android SDK found locally. Physical closed-Pixel-Fold layout, larger text and TalkBack acceptance remain pending. No device installation, push, release or integration performed.
+
+Owner follow-up (2026-10-31): prioritize code and use GitHub builds; minimize pushes. Final source review removes an empty Atlas Finish game disclosure after relocating Back to setup. Batch this slice into one commit/push and one PR for existing CI; no local build retry or release.

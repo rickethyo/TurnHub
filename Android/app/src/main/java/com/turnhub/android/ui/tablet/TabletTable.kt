@@ -149,6 +149,21 @@ internal fun tableUnits(summary: TableSummary): List<TableUnit> =
         summary.players.groupBy { it.team ?: -it.playerNumber }.map { (team, members) -> TableUnit("t$team", members) }
     }
 
+/** Display selection never removes a player whose win confirmation is required. */
+internal fun gameCardUnits(
+    all: List<TableUnit>, solo: String?, selected: List<String>, confirmer: Int?,
+): List<TableUnit> {
+    val validSolo = solo?.takeIf { key -> all.any { it.key == key } }
+    val validSelected = selected.filter { key -> all.any { it.key == key } }
+    return all.filter { unit ->
+        unit.members.any { it.playerNumber == confirmer } || when {
+            validSolo != null -> unit.key == validSolo
+            validSelected.isNotEmpty() -> unit.key in validSelected
+            else -> true
+        }
+    }
+}
+
 /**
  * Where each panel sits, as the portal: the near side holds ceil(n/2) panels
  * and the far side the rest. Seats run clockwise from the near-left corner:
@@ -255,7 +270,11 @@ internal fun TabletTable(
     var flipped by rememberSaveable { mutableStateOf(false) }
     // The phone-hosted table can show one player's panel, for a group with no centre display
     // whose host plays from their own device like everyone else (owner, 2026-10-20).
-    var soloKey by rememberSaveable(summary.bootId) { mutableStateOf<String?>(null) }
+    var soloKey by rememberSaveable(summary.bootId, summary.game) { mutableStateOf<String?>(null) }
+    val passKeys = rememberSaveable(summary.bootId, summary.game,
+        saver = listSaver<SnapshotStateList<String>, String>(save = { it.toList() }, restore = { it.toMutableStateList() })) {
+        mutableStateListOf<String>()
+    }
     val starLayout = rememberStarLayout()
     var menuOpen by remember { mutableStateOf(false) }
     // Atlas's Planechase with the players' own planes: the app rolls the die and Atlas counts.
@@ -381,9 +400,10 @@ internal fun TabletTable(
     val allUnits = tableUnits(summary)
     val soloOffered = !summary.settings.profile.cooperative
     // In one player's view a win claim's current confirmer joins it, so they can answer here.
-    val units = soloKey?.takeIf { soloOffered }?.let { key ->
-        allUnits.filter { u -> u.key == key || u.members.any { it.playerNumber == summary.pending.winConfirmationPlayer } }
-    }?.takeIf { list -> list.any { it.key == soloKey } } ?: allUnits
+    val selectedSolo = soloKey?.takeIf { soloOffered && allUnits.any { unit -> unit.key == it } }
+    val selectedPass = passKeys.filter { key -> allUnits.any { it.key == key } }
+    val units = gameCardUnits(allUnits, selectedSolo, selectedPass.takeIf { phoneView }.orEmpty(),
+        summary.pending.winConfirmationPlayer)
     val solo = units.size < allUnits.size
     val turn = if (flipped) 180 else 0
     // Official modes keep their limits unless house rules are on (Atlas enforces the same).
@@ -409,7 +429,8 @@ internal fun TabletTable(
         val emperorTable = summary.emperor && !solo && units.size == com.turnhub.android.domain.Emperor.PLAYERS
         val plan = if (emperorTable) EMPEROR_PLACEMENT else placements(units.size)
         fun share(index: Int) = emperorWeight(emperorTable, index)
-        val focused = units.indexOfFirst { !it.out && it.members.any { member -> summary.hasTurn(member.playerNumber) } }
+        val focused = units.indexOfFirst { unit -> unit.members.any { it.playerNumber == summary.pending.winConfirmationPlayer } }
+            .takeIf { it >= 0 } ?: units.indexOfFirst { !it.out && it.members.any { member -> summary.hasTurn(member.playerNumber) } }
             .takeIf { it >= 0 } ?: units.indexOfFirst { !it.out }.coerceAtLeast(0)
         // The middle panel of a side with an odd count meets the centre disc at its inner (top) edge.
         val underHub = if (star || list || solo) emptySet()
@@ -485,18 +506,47 @@ internal fun TabletTable(
                         haptics.tick()
                         menuOpen = true
                     }
-                    if (units.isNotEmpty()) {
-                        key(units[focused].key) {
-                            BoxWithConstraints(Modifier.weight(.70f).fillMaxWidth()) {
-                                val cardHeight = maxHeight
-                                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                                    panel(focused, 0, Modifier.fillMaxWidth().heightIn(min = cardHeight))
+                    if (phoneView && soloOffered) {
+                        DisclosureCard("Game card · " + (selectedSolo?.let { key -> allUnits.first { it.key == key }.name }
+                            ?: "Pass and play")) {
+                            Column(Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Choose one player's card, or follow the turn among selected players. Teams share a card.",
+                                    color = p.muted, style = MaterialTheme.typography.bodySmall)
+                                ToneButton(if (selectedSolo == null) "✓ Pass and play" else "Pass and play",
+                                    { soloKey = null }, Modifier.fillMaxWidth())
+                                if (selectedSolo == null) {
+                                    Text("No selection shows everyone. Cards follow these players' turns.", color = p.muted,
+                                        style = MaterialTheme.typography.bodySmall)
+                                    allUnits.forEach { unit ->
+                                        SetupSwitch(unit.name, "Include in pass and play", unit.key in selectedPass, true) { on ->
+                                            if (on) passKeys.add(unit.key) else passKeys.remove(unit.key)
+                                        }
+                                    }
+                                }
+                                allUnits.forEach { unit ->
+                                    ToneButton(if (selectedSolo == unit.key) "✓ Only ${unit.name}" else "Only ${unit.name}",
+                                        { soloKey = unit.key }, Modifier.fillMaxWidth())
                                 }
                             }
                         }
-                        val others = units.indices.filter { it != focused }
+                    }
+                    if (units.isNotEmpty()) {
+                        val showOtherCards = !phoneView || summary.settings.profile.cooperative
+                        key(units[focused].key) {
+                            BoxWithConstraints(Modifier.weight(if (showOtherCards && units.size > 1) .70f else 1f).fillMaxWidth()) {
+                                val cardHeight = maxHeight
+                                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                                    panel(focused, 0, Modifier.fillMaxWidth().then(
+                                        if (summary.settings.profile.deathMayDie) Modifier.heightIn(min = cardHeight)
+                                        else Modifier.height(cardHeight.coerceAtLeast(300.dp))))
+                                }
+                            }
+                        }
+                        val others = units.indices.filter { showOtherCards && it != focused }
                         if (others.isNotEmpty()) Column(Modifier.weight(.30f).fillMaxWidth().verticalScroll(rememberScrollState())) {
-                            others.forEach { panel(it, 0, Modifier.fillMaxWidth()) }
+                            others.forEach { panel(it, 0, Modifier.fillMaxWidth().then(
+                                if (summary.settings.profile.deathMayDie) Modifier else Modifier.height(300.dp))) }
                         }
                     }
                 }
@@ -706,6 +756,9 @@ internal fun TabletTable(
             summary.pending.winClaimPlayer == null && summary.pending.winConfirmationPlayer == null &&
             summary.pending.eliminationTargetPlayer == null) {
                 Overlay("Game menu", null, onDismiss = { menuOpen = false }) {
+                    BackToSetup(summary, enabled = !isOffline && anySeat != null) {
+                        menuOpen = false; send(anySeat, "back-to-setup")
+                    }
                     GameClockLine(summary)
                     if (attribution != null) AccentButton("Eliminated by? · ${attribution.label}", {
                         menuOpen = false; sourceOpen = true
@@ -823,14 +876,11 @@ internal fun TabletTable(
                             com.turnhub.android.ui.components.tableBugReportContext(summary, "Full-screen table"))
                         ToneButton("Back to the app", { menuOpen = false; onClose() }, Modifier.fillMaxWidth())
                     }
-                    DisclosureCard("Finish game") {
-                        BackToSetup(summary) { menuOpen = false; send(anySeat, "back-to-setup") }
-                        if (standalone) {
-                            ArmedButton(if (summary.settings.profile.cooperative) "The investigators lost" else "End without a winner",
-                                "Tap again to end the game", Tone.BAD) {
-                                menuOpen = false
-                                send(anySeat, "draw")
-                            }
+                    if (standalone) DisclosureCard("Finish game") {
+                        ArmedButton(if (summary.settings.profile.cooperative) "The investigators lost" else "End without a winner",
+                            "Tap again to end the game", Tone.BAD) {
+                            menuOpen = false
+                            send(anySeat, "draw")
                         }
                     }
                 }
@@ -934,7 +984,7 @@ private fun OverlayFrame(title: String, text: String?, onDismiss: (() -> Unit)?,
             .pointerInput(onDismiss) { detectTapGestures { onDismiss?.invoke() } },
         contentAlignment = Alignment.Center,
     ) {
-        BrassCard(Modifier.widthIn(max = 440.dp).padding(16.dp).heightIn(max = (maxHeight - 32.dp).coerceAtLeast(120.dp))
+        BrassCard(Modifier.padding(12.dp).widthIn(max = 440.dp).heightIn(max = (maxHeight - 24.dp).coerceAtLeast(0.dp))
             .pointerInput(Unit) { detectTapGestures { } }) {
             Text(title, color = p.text, style = MaterialTheme.typography.headlineSmall)
             text?.let { Text(it, color = p.muted) }
@@ -953,11 +1003,13 @@ private fun GameClockLine(summary: TableSummary) {
 
 /** Undoes the start in the first minutes (a wrong setup): back to the lobby, nothing recorded. */
 @Composable
-private fun BackToSetup(summary: TableSummary, onConfirm: () -> Unit) {
+private fun BackToSetup(summary: TableSummary, enabled: Boolean = true, onConfirm: () -> Unit) {
     val nowMs = rememberNowMs(ticking = summary.state == TableState.RUNNING, intervalMs = 1_000)
     val left = com.turnhub.android.standalone.StandaloneGame.UNDO_START_MS - TableClock.gameElapsedMs(summary, nowMs)
     if (left <= 0) return
-    ArmedButton("Back to setup (${TableClock.format(left)} left)", "Tap again: this game won't be saved", Tone.WARN, onConfirm)
+    val label = "Back to setup (${TableClock.format(left)} left)"
+    if (enabled) ArmedButton(label, "Tap again: this game won't be saved", Tone.WARN, onConfirm)
+    else ToneButton(label, {}, Modifier.fillMaxWidth(), tone = Tone.WARN, enabled = false)
     Text("Returns to setup with the same players and settings. Available for the first three minutes.",
         color = palette.muted, style = MaterialTheme.typography.bodySmall)
 }
@@ -1049,14 +1101,14 @@ internal fun PlayerPanel(
         val nameMax = maxWidth * .6f
         val panelWidth = maxWidth
         // Short or narrow panels put the clock inside Pass so it keeps a usable target.
-        val compact = maxHeight < 260.dp || maxWidth < 300.dp
+        val compact = maxHeight < 260.dp || maxWidth < 420.dp
         val profile = summary.settings.profile
         // Pokémon and Lorcana: the number is prizes or lore, with turn reminders under it.
         val cardGame = !profile.countsLife
         val turnHeight = if (cardGame) turnPanelHeight(unit, summary, maxWidth < 420.dp) else 0f
         // Turn lines keep their room on every panel, so the number stays put when the turn passes.
         val turnRoom = if (cardGame) maxOf(turnHeight, turnPanelReserve(unit, summary, maxWidth < 420.dp)) else 0f
-        val planarCompact = compact && active && !out && summary.state == TableState.RUNNING && onPlanarRoll != null && maxWidth < 300.dp
+        val planarCompact = compact && active && !out && summary.state == TableState.RUNNING && onPlanarRoll != null && maxWidth < 420.dp
         // Column measures the actual action bar first. Life gestures only occupy the
         // remaining area; gaps around Pass can never fall through to life controls.
         Column(Modifier.fillMaxSize()) {
@@ -1780,7 +1832,7 @@ private fun PlayerMenuItems(
             unit.members.filter { !it.eliminated }.forEach { member ->
                 if (team) Text("${member.label} counters and status", color = p.text)
                 MagicCountersEditor(member.counters, summary.initiativePlayerNumber == member.playerNumber,
-                    summary.settings.profile.commanderRules, showPoison = !team, commanderName = member.namedCommander,
+                    false, showPoison = !team, commanderName = member.namedCommander,
                     commanderRarity = rememberCommanderArt(member.namedCommander, member.commanderArt)?.rarity,
                     partnerEnabled = member.playerNumber in partners,
                     onPartnerChange = { on -> if (on) partners.add(member.playerNumber) else partners.remove(member.playerNumber) },
@@ -1798,8 +1850,17 @@ private fun PlayerMenuItems(
             { member, action -> onControl(member.seat(), action) })
     }
     if (summary.settings.profile.commanderRules) {
-        DisclosureCard("Commander damage") {
+        DisclosureCard("Commander · tax & damage") {
             unit.members.filter { !it.eliminated }.forEach { member ->
+                if (unit.members.size > 1) Text(member.label, color = p.text, fontWeight = FontWeight.Bold)
+                com.turnhub.android.ui.components.CommanderTaxEditor(
+                    member.counters, commanderName = member.namedCommander,
+                    commanderRarity = rememberCommanderArt(member.namedCommander, member.commanderArt)?.rarity,
+                    partner = member.playerNumber in partners,
+                    onPartnerChange = { on -> if (on) partners.add(member.playerNumber) else partners.remove(member.playerNumber) },
+                ) { kind, value, commander -> onCounter(member, kind, value, commander) }
+                Text("Tax changes cast cost only. Damage below also changes your life.",
+                    color = p.muted, style = MaterialTheme.typography.bodySmall)
                 Text(
                     if (unit.members.size > 1) "Commander damage to ${member.label}" else "Commander damage received",
                     color = p.muted,

@@ -213,6 +213,8 @@ Earned extensions are optional. From a player's fourth turn, passing early (befo
 
 Each player has a panel facing their seat with their name, life, counters and turn clock. The player whose turn it is has a glowing edge.
 
+On the **Game** tab, open **Game card** to show **Only** a chosen player or team, or use **Pass and play** to follow the turn among selected players. No selection includes everyone. This changes only what this device displays; it does not change turn order or player seats. A player needed to confirm a win remains available to answer. The **Table** tab retains its seating layout.
+
 - **Life:** use the minus and plus halves of the area above the bottom action strip; hold to repeat the bigger step. Steps are 1 and 5 (100 and 1000 for Yu-Gi-Oh!). On rotated panels, minus is always on the player's left and plus on their right. The action strip and the gap immediately above it do not change life, so a near-miss around Pass does nothing. Moving a life gesture out of its area cancels it.
 
 - **Pass:** the active player holds Pass for 0.6 seconds. It has a larger target in the separate bottom action strip. Small panels show the turn clock inside Pass; Planechase may use a second action row. While it says Passing… tap to keep, a tap undoes the pass.
@@ -223,7 +225,7 @@ Death May Die uses the Pass to? menu described under Game Modes.
 
 ## The Game Menu
 
-The control in the middle of the table opens the game menu. **Pause game** (or **Resume game**) stays at the top. It also holds:
+The control in the middle of the table opens the game menu. During the first three minutes, **Back to setup** appears first with its remaining time. It returns to setup with the same players and settings and saves nothing; tap again to confirm. **Pause game** (or **Resume game**) is directly below the game clock. The menu also holds:
 
 - **Table tools:** dice from d4 to d20 (more under **More dice**), a coin and a random player.
 
@@ -235,7 +237,7 @@ The control in the middle of the table opens the game menu. **Pause game** (or *
 
 - **Help & app:** report a bug, or **Back to the app** to leave the full-screen table without ending the game.
 
-- **Finish game:** **End without a winner** (a draw) and, during the first three minutes, **Back to setup**, which returns to Game with the same players and settings and saves nothing.
+- **Finish game:** **End without a winner** (a draw).
 
 ## A Player's More Card
 
@@ -243,9 +245,9 @@ The control in the middle of the table opens the game menu. **Pause game** (or *
 
 - **Turn, counters & status:** poison, energy and experience (minus corrects or spends a counter); I'm the monarch; I have the initiative; I have the city's blessing.
 
-- **Commander tax:** count each commander's casts from the command zone. The next cast costs two more generic mana per earlier cast; minus corrects a mistake.
+- **Commander · tax & damage** groups your own commander tax and received damage, with separate labels. **Commander tax · your casts:** count each commander's casts from the command zone. The next cast costs two more generic mana per earlier cast; minus corrects a mistake.
 
-- **Commander damage:** record damage this player received from each opponent's commander. Each hit also comes off their life, and a correction gives it back. Turn on **Partner commanders** for a second commander's casts and damage.
+- **Commander damage received** in the same card: record damage this player received from each opponent's commander. Each hit also comes off their life, and a correction gives it back. Turn on **Partner commanders** for a second commander's casts and damage.
 
 - **Pick an opponent:** chooses a random opponent, never a teammate, an ally or a player who is out.
 
