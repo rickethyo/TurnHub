@@ -790,8 +790,9 @@ and checkpoint schema 9, so connected play shows them all. On Atlas reversed
 turns are a Magic-format action.
 
 Everyone's counters (owner, 2026-10-27): for cards that give every player a
-counter, the game menu's **Everyone's counters** card adds or
-removes one poison, energy, experience, treasure or rad for every living player
+counter, the **Everyone's counters** rows in a player's counters card (the
+tablet player menu, moved from the game menu on 2026-10-31) add or
+remove one poison, energy, experience, treasure or rad for every living player
 in one tap (`changeCounterForEveryone`). Each player still goes through the
 normal counter rules; Two-Headed Giant's shared poison changes once per team.
 
