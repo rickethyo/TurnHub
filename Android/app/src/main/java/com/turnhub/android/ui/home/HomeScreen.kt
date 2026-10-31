@@ -295,7 +295,8 @@ fun HomeScreen(
             Column(Modifier.background(p.bg.copy(alpha = .92f))) {
                 BrandBar(uiState, running = summary?.state == TableState.RUNNING, reduceMotion = reduceMotion,
                     report = reportContext,
-                    onManualClick = { showManual = true })
+                    onManualClick = { showManual = true },
+                    onGearClick = { tab = HomeTab.MORE; morePage = MorePage.ABOUT })
                 // Atlas games too: other phones can join through this one instead of each connecting to Atlas.
                 if (onOpenSharedGame != null && !setup.visible && tab == HomeTab.GAME)
                     TextButton(onClick = onOpenSharedGame) { Text(when {
@@ -488,7 +489,7 @@ fun HomeScreen(
 
 @Composable
 private fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boolean,
-    report: com.turnhub.android.ui.components.BugReportContext, onManualClick: () -> Unit) {
+    report: com.turnhub.android.ui.components.BugReportContext, onManualClick: () -> Unit, onGearClick: () -> Unit) {
     val p = palette
     Row(
         Modifier
@@ -499,7 +500,13 @@ private fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boole
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(11.dp),
     ) {
-        GearMark(if (p.ornament) 34.dp else 28.dp, spinning = running, reduceMotion = reduceMotion)
+        // The gear opens About TurnHub; no ripple, so it looks the same as before.
+        androidx.compose.foundation.layout.Box(Modifier.clickable(
+            interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+            indication = null, role = Role.Button, onClickLabel = "Open About TurnHub", onClick = onGearClick,
+        ).semantics { contentDescription = "About TurnHub" }) {
+            GearMark(if (p.ornament) 34.dp else 28.dp, spinning = running, reduceMotion = reduceMotion)
+        }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("TurnHub", color = p.text, style = MaterialTheme.typography.headlineSmall.copy(fontSize = 22.sp),

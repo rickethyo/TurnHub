@@ -992,13 +992,13 @@ class HomeViewModel(
         viewModelScope.launch { playerSession.saveProfile(clean, null); repository.invalidatePresentationMetadata() }
     }
 
-    fun onSavePin(pin: String) {
+    fun onSavePin(pin: String, currentPin: String?) {
         if (!ProfileSecret.isValid(pin)) {
             playerSession.clearFeedback()
             return
         }
         viewModelScope.launch {
-            playerSession.saveProfile(null, pin)
+            playerSession.saveProfile(null, pin, currentPin)
             playerSession.loadChoices()
         }
     }
@@ -1020,8 +1020,8 @@ class HomeViewModel(
         viewModelScope.launch { playerSession.exportStats()?.let(onText) }
     }
 
-    fun onClearPin() {
-        viewModelScope.launch { playerSession.clearPin() }
+    fun onClearPin(currentPin: String) {
+        viewModelScope.launch { playerSession.clearPin(currentPin) }
     }
 
     fun onLoadPersonalization() {

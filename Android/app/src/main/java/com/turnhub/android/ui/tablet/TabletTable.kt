@@ -826,22 +826,6 @@ internal fun TabletTable(
                             }
                         }
                     }
-                    // A card that gives every player a counter: one tap instead of one per panel.
-                    if ((standalone || summary.dayNight != null) && summary.settings.profile.magicRules) {
-                        DisclosureCard("Everyone's counters") {
-                            Text("Adds or removes one for every living player.", color = p.muted, style = MaterialTheme.typography.bodySmall)
-                            EVERYONE_COUNTER_LABELS.forEach { (kind, label) ->
-                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text(label, color = p.text, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                                    ToneButton("−1 all", { send(anySeat, "${StandaloneGame.EVERYONE_PREFIX}$kind:-1") },
-                                        enabled = !isOffline && anySeat != null)
-                                    ToneButton("+1 all", { haptics.tick(); send(anySeat, "${StandaloneGame.EVERYONE_PREFIX}$kind:1") },
-                                        tone = Tone.ACCENT, enabled = !isOffline && anySeat != null)
-                                }
-                            }
-                        }
-                    }
                     DisclosureCard("Table tools") {
                         TableToolsCard(summary, reduceMotion) { haptics.tick() }
                     }
@@ -1842,6 +1826,20 @@ private fun PlayerMenuItems(
                     { onControl(member.seat(), "monarch") }, Modifier.fillMaxWidth(), tone = Tone.ACCENT,
                     enabled = member.playerNumber != summary.monarchPlayerNumber,
                 )
+            }
+            // A card that gives every player a counter: one tap instead of one per panel.
+            if (summary.dayNight != null) {
+                val seat = unit.members.first().seat()
+                Text("Everyone's counters", color = p.text, style = MaterialTheme.typography.titleSmall)
+                Text("Adds or removes one for every living player.", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                EVERYONE_COUNTER_LABELS.forEach { (kind, label) ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(label, color = p.text, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                        ToneButton("−1 all", { onControl(seat, "${StandaloneGame.EVERYONE_PREFIX}$kind:-1") })
+                        ToneButton("+1 all", { onControl(seat, "${StandaloneGame.EVERYONE_PREFIX}$kind:1") }, tone = Tone.ACCENT)
+                    }
+                }
             }
         }
     }

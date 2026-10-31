@@ -178,8 +178,8 @@ interface AtlasSessionTransport : AvatarImageTransport {
         houseRules: Boolean? = null,
     ): String? = unsupported()
 
-    /** `POST /api/session/profile` with a new `name` and/or `pin`. */
-    suspend fun saveProfile(token: String, name: String?, pin: String?): String? = unsupported()
+    /** `POST /api/session/profile` with a new `name` and/or `pin`; a new PIN needs [currentPin] when one is set. */
+    suspend fun saveProfile(token: String, name: String?, pin: String?, currentPin: String? = null): String? = unsupported()
 
     suspend fun getPersonalization(token: String): Personalization = unsupported()
 

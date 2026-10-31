@@ -519,7 +519,7 @@ class AtlasTablet(
     private fun flag(response: RawResponse, key: String): Boolean = json(response)?.optBoolean(key) == true
 
     /**
-     * The game menu's day/night, turn order and Everyone's counters actions
+     * The game menu's day/night and turn order and the player menu's Everyone's counters actions
      * ("everyone:rad:1") as Atlas counter fields; null for other actions.
      */
     private fun tableCounterFields(action: String): List<Pair<String, String>>? = when (action) {

@@ -442,7 +442,9 @@ static void virtualProfileFlow() {
   for(int i=0;i<5;++i) assert(request("/api/session/login","",{{"profileId",firstId},{"pin","0000"}})==401);
   assert(request("/api/session/login","",{{"profileId",firstId},{"pin","1234"}})==429);
   testNow+=30000; const String afterLimit=loginPhone(firstId);
-  assert(request("/api/session/profile",afterLimit,{{"pin","5678"}})==200);
+  assert(request("/api/session/profile",afterLimit,{{"pin","5678"}})==401);
+  assert(request("/api/session/profile",afterLimit,{{"pin","5678"},{"currentPin","0000"}})==401);
+  assert(request("/api/session/profile",afterLimit,{{"pin","5678"},{"currentPin","1234"}})==200);
   assert(request("/api/session/me",returned,{},HTTP_GET)==401);
   assert(request("/api/session/me",companion,{},HTTP_GET)==401);
   assert(request("/api/session/me",afterLimit,{},HTTP_GET)==200);
@@ -516,9 +518,9 @@ static void virtualProfileFlow() {
   assert(request("/api/session/login","",{{"profileId",passwordId},{"pin","correct horse battery"}})==200);
   const String passwordSession=responseField("token");
   assert(request("/api/session/login","",{{"profileId",passwordId},{"pin","correct horse"}})==401);
-  assert(request("/api/session/profile",passwordSession,{{"pin","2468"}})==200);
+  assert(request("/api/session/profile",passwordSession,{{"pin","2468"},{"currentPin","correct horse battery"}})==200);
   assert(request("/api/session/login","",{{"profileId",passwordId},{"pin","2468"}})==200);
-  assert(request("/api/session/profile",responseField("token"),{{"pin","Ünïcode pass 9"}})==200);
+  assert(request("/api/session/profile",responseField("token"),{{"pin","Ünïcode pass 9"},{"currentPin","2468"}})==200);
   assert(request("/api/session/login","",{{"profileId",passwordId},{"pin","Ünïcode pass 9"}})==200);
 
   // A profile with no PIN yet (made on a Sigil or the tablet) takes the PIN
@@ -666,7 +668,7 @@ static void profilePolicyFlow() {
   assert(table().lobby.playerCount()==1);
   owner=loginPhone(id);
   assert(request("/api/session/request","",{{"module","0"},{"slot","1"}})==202);
-  assert(request("/api/session/profile",owner,{{"clearPin","1"}})==409);
+  assert(request("/api/session/profile",owner,{{"clearPin","1"},{"currentPin","1234"}})==409);
   const String companion=loginPhone(id);
   assert(request("/api/session/logout",owner)==200);
   assert(TurnHubWebApi::physicalStatsVisible(id));
