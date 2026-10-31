@@ -71,7 +71,6 @@ fun StatsScreen(
                         Text(ordinal(index + 1), color = p.muted)
                         Column(Modifier.weight(1f)) {
                             Text(row.player.name, color = p.text, fontWeight = FontWeight.SemiBold)
-                            Text("ID ${row.player.profileId}", color = p.muted, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                     Text("${totals.won} wins · ${totals.played} played · ${row.winPercent}% won" +
@@ -80,6 +79,7 @@ fun StatsScreen(
                         stateDescription = if (open) "Expanded" else "Collapsed"
                     }) { Text(if (open) "Hide details" else "View details") }
                     if (open) {
+                        Text("Player ID: ${row.player.profileId}", color = p.muted, style = MaterialTheme.typography.bodySmall)
                         val f = TableClock::format
                         Text("Went first ${stats.started} · knocked out ${stats.eliminated} · conceded ${stats.conceded}", color = p.muted)
                         Text("${stats.turnsCompleted} turns · average ${f(stats.averageTurnMs)} · fastest ${f(stats.fastestTurnMs)} · longest ${f(stats.longestTurnMs)}", color = p.muted)

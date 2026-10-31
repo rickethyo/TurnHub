@@ -280,6 +280,7 @@ fun StandaloneLobby(
         table.start()
     }
     TableLobby(
+        savedSetups = { SavedSetupsCard(state, table) },
         summary = summary,
         actions = TableLobbyActions(
             add = table::addGuest,

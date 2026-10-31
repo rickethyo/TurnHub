@@ -67,6 +67,7 @@ data class LocalLibrary(
     val deviceAdmin: String? = null,
     /** The owner chose "Not now" when asked to set up the device's Admin account. */
     val adminPromptDismissed: Boolean = false,
+    val gameSetups: List<SavedGameSetup> = emptyList(),
 ) {
     fun isDeviceAdmin(localId: String) = deviceAdmin == localId
 
@@ -193,6 +194,7 @@ data class LocalLibrary(
         else copy(history = history + record).withDelivery(MatchDelivery(record.recordId))
 
     fun toJson(): JSONObject = JSONObject().apply {
+        put("gameSetups", JSONArray().apply { gameSetups.forEach { put(it.toJson()) } })
         put("schema", SCHEMA)
         put("guestNames", JSONArray(guestNames))
         put("players", JSONArray().apply {
@@ -232,6 +234,9 @@ data class LocalLibrary(
             val references = json.optJSONObject("investigatorReferences")
             val enemies = json.optJSONArray("enemies") ?: JSONArray()
             return LocalLibrary(
+                gameSetups = json.optJSONArray("gameSetups")?.let { setups ->
+                    (0 until setups.length()).map { SavedGameSetup.fromJson(setups.getJSONObject(it)) }
+                }.orEmpty(),
                 guestNames = json.optJSONArray("guestNames")?.let { names ->
                     (0 until names.length()).map { names.getString(it) }.also { list ->
                         require(list.all { it.isNotBlank() && it.length <= StandaloneGame.MAX_NAME })

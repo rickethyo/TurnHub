@@ -696,7 +696,7 @@ internal fun TabletTable(
             }
             TableState.GAME_OVER -> {
                 // Every winner: one player, a Two-Headed Giant team, or Star Commander players sharing the win.
-                val winners = units.filter { u -> u.members.any { summary.isWinner(it.playerNumber) } }
+                val winners = allUnits.filter { u -> u.members.any { summary.isWinner(it.playerNumber) } }
                 val names = winners.joinToString(" and ") { it.name }
                 val star = summary.settings.profile.starCommander
                 val together = summary.settings.profile.cooperative
@@ -1804,7 +1804,7 @@ private fun PlayerMenuItems(
         val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
         // A cooperative game is won together, from its own card below.
         if (actor != null && summary.state == TableState.RUNNING && !summary.settings.profile.cooperative) {
-            ArmedButton("Claim the win", "Tap again to claim", Tone.GOOD) { onControl(actor.seat(), "win") }
+            ArmedButton("I won the game", "Tap again to confirm your win", Tone.GOOD) { onControl(actor.seat(), "win") }
         }
         val rules = summary.localTimerRules
         if (rules != null && summary.settings.turnTimerEnabled) {

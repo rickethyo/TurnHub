@@ -208,7 +208,7 @@ internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, st
             exactPlayers != null && !ready -> "This game is for exactly $exactPlayers players"
             players < 2 -> "Add two players to start"
             !ready -> "Two-Headed Giant needs an even table of four or more"
-            else -> "Start full-screen game"
+            else -> "Start game"
         },
         onStart,
         Modifier.fillMaxWidth().heightIn(min = 64.dp),
@@ -244,7 +244,7 @@ internal data class GameChoice(val profile: GameProfile, val label: String, val 
  */
 internal val FORMATS = listOfNotNull(
     GameChoice(GameProfile.MTG_COMMANDER, "Commander", "40 life · 2+ players", GameFamily.MAGIC),
-    GameChoice(GameProfile.MTG, "Standard", "20 life · 2+ players", GameFamily.MAGIC),
+    GameChoice(GameProfile.MTG, "Magic · 20 life", "Any 20-life Magic format · 2+ players", GameFamily.MAGIC),
     GameChoice(GameProfile.YUGIOH, "Yu-Gi-Oh!", "8000 Life Points · 2 players", GameFamily.CARD_GAMES),
     GameChoice(GameProfile.POKEMON, "Pokémon", "6 Prize cards · 2 players", GameFamily.CARD_GAMES),
     GameChoice(GameProfile.LORCANA, "Lorcana", "Race to 20 lore · 2+ players", GameFamily.CARD_GAMES),

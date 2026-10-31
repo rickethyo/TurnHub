@@ -98,6 +98,35 @@ class StandaloneTable(
     private val _state = MutableStateFlow(load())
     val state: StateFlow<StandaloneState> = _state.asStateFlow()
 
+    /** Named presets are committed before the UI reports success. Same-name replacement is explicit. */
+    fun saveGameSetup(name: String, replace: Boolean = false): Boolean {
+        val before = _state.value
+        val clean = name.trim()
+        if (before.game.state != TableState.LOBBY || before.game.players.isEmpty() ||
+            clean.isBlank() || clean.length > SavedGameSetup.MAX_NAME) return false
+        val existing = before.library.gameSetups.any { it.name.equals(clean, ignoreCase = true) }
+        if (existing && !replace) return false
+        val setups = before.library.gameSetups.filterNot { it.name.equals(clean, ignoreCase = true) } +
+            SavedGameSetup(clean, freshSetup(before.game))
+        return publish(before.copy(library = before.library.copy(gameSetups = setups)), durable = true)
+    }
+
+    fun loadGameSetup(name: String): Boolean {
+        val before = _state.value
+        if (before.game.state != TableState.LOBBY) return false
+        val setup = before.library.gameSetups.firstOrNull { it.name == name } ?: return false
+        // A deleted saved identity must not be silently recreated or credited as someone else.
+        if (setup.game.players.any { p -> p.localId != null && before.library.players.none { it.localId == p.localId } }) return false
+        return publish(before.copy(game = freshSetup(setup.game).copy(revision = before.game.revision + 1)), durable = true)
+    }
+
+    fun deleteGameSetup(name: String): Boolean {
+        val before = _state.value
+        val setups = before.library.gameSetups.filterNot { it.name == name }
+        if (setups.size == before.library.gameSetups.size) return false
+        return publish(before.copy(library = before.library.copy(gameSetups = setups)), durable = true)
+    }
+
     fun tick() { if (_state.value.storageProblem == null) edit { it.applyTurnTimeout(wallClock()) } }
     fun setTimerRules(rules: com.turnhub.android.domain.LocalTimerRules) { edit { it.setTimerRules(rules) } }
 

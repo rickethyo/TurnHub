@@ -98,6 +98,7 @@ internal fun TableLobby(
     embedded: Boolean = false,
     /** Extra game options under the standard ones (the device game's Planechase switch). */
     extraSettings: @Composable () -> Unit = {},
+    savedSetups: @Composable () -> Unit = {},
     /** The phone runs this game: it also offers the formats Atlas doesn't run yet (Pokémon). */
     phoneHosted: Boolean = false,
     startReady: Boolean = true,
@@ -112,6 +113,13 @@ internal fun TableLobby(
     val official = officialMode.takeIf { actions.houseRules != null }
     val locked = official != null && !settings.houseRules
     var guided by rememberSaveable { mutableStateOf(false) }
+    var advanced by rememberSaveable { mutableStateOf(false) }
+    var confirmClear by rememberSaveable { mutableStateOf(false) }
+    if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false },
+        title = { Text("Remove everyone from setup?") },
+        text = { Text("Saved players and game history will be kept.") },
+        confirmButton = { TextButton(onClick = { actions.clear(); confirmClear = false }, enabled = enabled) { Text("Remove players") } },
+        dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } })
     Box(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.safeDrawingPadding()), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 880.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -124,9 +132,25 @@ internal fun TableLobby(
             // The app's Game tab opens straight on the table; the tagline is for the full-screen lobby.
             introduction?.takeIf { !embedded }?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic) }
             feedback()
+            savedSetups()
+            // The game folds to one tile once chosen; the mode stays one tap away.
             BrassCard {
-                Eyebrow("At the table") {
-                    TextButton(onClick = actions.clear, enabled = enabled && players.any(actions.canRemove)) { Text("Clear all") }
+                Eyebrow("1. Game")
+                Text("${settings.startingLife} ${if (settings.profile.lorcana) "lore" else if (settings.profile.pokemon) "Prize cards" else if (settings.profile.deathMayDie) "wounds" else "starting life"} · " +
+                    (if (settings.turnTimerEnabled) "Turn timer on" else "No turn timer") +
+                    (if (settings.profile.magicRules) " · ${GameMode.of(settings.profile, settings.twoHeadedGiant).label}" else "") +
+                    (if (settings.houseRules) " · House rules" else ""), color = p.muted, style = MaterialTheme.typography.bodySmall)
+                if (!settingsEnabled) Text(settingsHint, color = p.muted)
+                FoldingGamePicker(settings.profile, settingsEnabled, phoneHosted) { picked ->
+                    // Emperor keeps its seating when the table swaps Magic and Commander decks.
+                    val profile = emperorFormat(settings.profile, picked)
+                    actions.settings(profile, StandaloneGame.defaultLife(profile, settings.twoHeadedGiant && profile.magicRules), null)
+                }
+            }
+
+            BrassCard {
+                Eyebrow("2. Players") {
+                    TextButton(onClick = { confirmClear = true }, enabled = enabled && players.any(actions.canRemove)) { Text("Remove all") }
                 }
                 // The picker comes first: players added from it fill in below, so the
                 // name field and saved chips never move under a finger (owner, 2026-10-19).
@@ -149,7 +173,7 @@ internal fun TableLobby(
                             SuggestionChip(onClick = { actions.select(player) }, label = {
                                 Column {
                                     Text(player.name.ifBlank { "Unnamed" })
-                                    Text(if (player.guest) "Guest name" else "ID ${player.displayId}", style = MaterialTheme.typography.bodySmall)
+                                    Text(if (player.guest) "Guest" else "Saved player", style = MaterialTheme.typography.bodySmall)
                                 }
                             },
                                 enabled = enabled && canAdd)
@@ -285,15 +309,20 @@ internal fun TableLobby(
                         "${it.label}${if (settings.twoHeadedGiant) "'s team" else ""} goes first."
                     } ?: starterHint, color = p.muted, style = MaterialTheme.typography.bodySmall)
             }
-            // The game folds to one tile once chosen; the mode stays one tap away.
-            BrassCard {
-                Eyebrow("Game")
-                if (!settingsEnabled) Text(settingsHint, color = p.muted)
-                FoldingGamePicker(settings.profile, settingsEnabled, phoneHosted) { picked ->
-                    // Emperor keeps its seating when the table swaps Magic and Commander decks.
-                    val profile = emperorFormat(settings.profile, picked)
-                    actions.settings(profile, StandaloneGame.defaultLife(profile, settings.twoHeadedGiant && profile.magicRules), null)
-                }
+            startHint?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
+            var askingFirst by rememberSaveable { mutableStateOf(false) }
+            val startWith = actions.startWith?.takeIf { !settings.profile.cooperative }
+            if (guided) GuidedSetupDialog(summary, actions, enabled && startReady, startHint,
+                onStart = { guided = false; if (startWith != null) askingFirst = true else actions.start() },
+                onClose = { guided = false })
+            if (askingFirst && startWith != null) FirstPlayerPicker(players, settings.twoHeadedGiant,
+                { player -> askingFirst = false; startWith(player) }) { askingFirst = false }
+            StartTableButton(players.size, settings.twoHeadedGiant, enabled && startReady, settings.profile.starCommander,
+                official?.players?.takeIf { locked }, settings.profile.bagOfDoom, settings.profile.emperor) {
+                if (startWith != null) askingFirst = true else actions.start()
+            }
+            SetupSwitch("Advanced settings", "Show variants, house rules and timers. Hiding options keeps your choices.", advanced, true) { advanced = it }
+            if (advanced) {
                 if (settings.profile.magicRules) {
                     GameModeChips(settings.profile, GameMode.of(settings.profile, settings.twoHeadedGiant), settingsEnabled) { mode ->
                         if (mode != GameMode.of(settings.profile, settings.twoHeadedGiant)) {
@@ -311,81 +340,69 @@ internal fun TableLobby(
                         else "Each player picks their own tile card and color in turn, then everyone confirms.",
                         color = p.faint, style = MaterialTheme.typography.bodySmall)
                 }
-            }
-            // Rules fold away behind a title that already says the usual answer.
-            val ruleSummary = listOfNotNull(
-                "Rules",
-                when {
-                    settings.profile.deathMayDie -> null
-                    settings.profile.pokemon -> "${settings.startingLife} Prize cards"
-                    settings.profile.lorcana -> "${settings.startingLife} lore to win"
-                    else -> "${settings.startingLife} life"
-                },
-                if (!settings.turnTimerEnabled) "No turn timer" else "${com.turnhub.android.domain.TurnTimerStatus.settingLabel(settings.turnTimerMs)} turns",
-                "house rules".takeIf { official != null && settings.houseRules },
-            ).joinToString(" · ")
-            DisclosureCard(ruleSummary) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(when {
-                        settings.profile.cooperative -> "Co-op: everyone wins or loses together"
-                        officialMode == null -> "Custom mode"
-                        locked || official == null -> "Official ${officialMode.name} rules"
-                        else -> "House rules"
-                    }, color = p.muted, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-                    ModeRulesButton(settings.profile, settings.twoHeadedGiant)
+                // Rules fold away behind a title that already says the usual answer.
+                val ruleSummary = listOfNotNull(
+                    "Rules",
+                    when {
+                        settings.profile.deathMayDie -> null
+                        settings.profile.pokemon -> "${settings.startingLife} Prize cards"
+                        settings.profile.lorcana -> "${settings.startingLife} lore to win"
+                        else -> "${settings.startingLife} life"
+                    },
+                    if (!settings.turnTimerEnabled) "No turn timer" else "${com.turnhub.android.domain.TurnTimerStatus.settingLabel(settings.turnTimerMs)} turns",
+                    "house rules".takeIf { official != null && settings.houseRules },
+                ).joinToString(" · ")
+                DisclosureCard(ruleSummary) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(when {
+                            settings.profile.cooperative -> "Co-op: everyone wins or loses together"
+                            officialMode == null -> "Custom mode"
+                            locked || official == null -> "Official ${officialMode.name} rules"
+                            else -> "House rules"
+                        }, color = p.muted, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                        ModeRulesButton(settings.profile, settings.twoHeadedGiant)
+                    }
+                    var life by rememberSaveable(settings.startingLife) { mutableStateOf("${settings.startingLife}") }
+                    // Death May Die counts wounds up from 0: there is no starting number to set.
+                    if (!settings.profile.deathMayDie) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(life, { life = it.filter(Char::isDigit).take(5) },
+                            label = { Text(when {
+                                settings.profile.pokemon -> "Prize cards"
+                                settings.profile.lorcana -> "Lore to win"
+                                settings.twoHeadedGiant -> "Starting life per team"
+                                else -> "Starting life"
+                            }) },
+                            singleLine = true, enabled = settingsEnabled && !locked, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f))
+                        ToneButton("Set", { life.toIntOrNull()?.let { actions.settings(null, it, null) } },
+                            enabled = settingsEnabled && !locked && (life.toIntOrNull() ?: 0) > 0 && life != "${settings.startingLife}")
+                    }
+                    if (locked) Text(when {
+                        settings.profile.pokemon -> "Official 6 Prize cards. Turn on house rules to change them."
+                        settings.profile.lorcana -> "Official 20 lore to win. Turn on house rules to change it."
+                        else -> "Official starting life. Turn on house rules to change it."
+                    }, color = p.faint,
+                        style = MaterialTheme.typography.bodySmall)
+                    if (official != null) actions.houseRules?.let { setHouseRules ->
+                        SetupSwitch("House rules", when {
+                            settings.profile.pokemon -> "Change the Prize cards and player count. "
+                            settings.profile.lorcana -> "Change the lore to win. "
+                            else -> "Change the starting life, poison limit and player count. "
+                        } +
+                            "The game no longer follows the official ${official.name} rules.", settings.houseRules, settingsEnabled, setHouseRules)
+                    }
+                    TurnTimerChips(settings.turnTimerMs, settingsEnabled, actions.timer)
+                    if (settings.turnTimerEnabled) {
+                        val rules = summary.localTimerRules
+                        val changeRules = actions.timerRules
+                        if (rules != null && changeRules != null) TimerRulesEditor(rules, settings.turnTimerMs, settingsEnabled, changeRules)
+                        else Text("At the limit, Atlas keeps counting overtime.", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                    }
+                    // Pokémon and Lorcana have no life total: prizes and lore end the game.
+                    if (settings.profile.countsLife) {
+                        SetupSwitch("Automatic elimination at zero life", null, settings.autoEliminateAtZeroLife, settingsEnabled, actions.zeroLife)
+                    }
                 }
-                var life by rememberSaveable(settings.startingLife) { mutableStateOf("${settings.startingLife}") }
-                // Death May Die counts wounds up from 0: there is no starting number to set.
-                if (!settings.profile.deathMayDie) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(life, { life = it.filter(Char::isDigit).take(5) },
-                        label = { Text(when {
-                            settings.profile.pokemon -> "Prize cards"
-                            settings.profile.lorcana -> "Lore to win"
-                            settings.twoHeadedGiant -> "Starting life per team"
-                            else -> "Starting life"
-                        }) },
-                        singleLine = true, enabled = settingsEnabled && !locked, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f))
-                    ToneButton("Set", { life.toIntOrNull()?.let { actions.settings(null, it, null) } },
-                        enabled = settingsEnabled && !locked && (life.toIntOrNull() ?: 0) > 0 && life != "${settings.startingLife}")
-                }
-                if (locked) Text(when {
-                    settings.profile.pokemon -> "Official 6 Prize cards. Turn on house rules to change them."
-                    settings.profile.lorcana -> "Official 20 lore to win. Turn on house rules to change it."
-                    else -> "Official starting life. Turn on house rules to change it."
-                }, color = p.faint,
-                    style = MaterialTheme.typography.bodySmall)
-                if (official != null) actions.houseRules?.let { setHouseRules ->
-                    SetupSwitch("House rules", when {
-                        settings.profile.pokemon -> "Change the Prize cards and player count. "
-                        settings.profile.lorcana -> "Change the lore to win. "
-                        else -> "Change the starting life, poison limit and player count. "
-                    } +
-                        "The game no longer follows the official ${official.name} rules.", settings.houseRules, settingsEnabled, setHouseRules)
-                }
-                TurnTimerChips(settings.turnTimerMs, settingsEnabled, actions.timer)
-                if (settings.turnTimerEnabled) {
-                    val rules = summary.localTimerRules
-                    val changeRules = actions.timerRules
-                    if (rules != null && changeRules != null) TimerRulesEditor(rules, settings.turnTimerMs, settingsEnabled, changeRules)
-                    else Text("At the limit, Atlas keeps counting overtime.", color = p.muted, style = MaterialTheme.typography.bodySmall)
-                }
-                // Pokémon and Lorcana have no life total: prizes and lore end the game.
-                if (settings.profile.countsLife) {
-                    SetupSwitch("Automatic elimination at zero life", null, settings.autoEliminateAtZeroLife, settingsEnabled, actions.zeroLife)
-                }
-            }
-            startHint?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
-            var askingFirst by rememberSaveable { mutableStateOf(false) }
-            val startWith = actions.startWith?.takeIf { !settings.profile.cooperative }
-            if (guided) GuidedSetupDialog(summary, actions, enabled && startReady, startHint,
-                onStart = { guided = false; if (startWith != null) askingFirst = true else actions.start() },
-                onClose = { guided = false })
-            if (askingFirst && startWith != null) FirstPlayerPicker(players, settings.twoHeadedGiant,
-                { player -> askingFirst = false; startWith(player) }) { askingFirst = false }
-            StartTableButton(players.size, settings.twoHeadedGiant, enabled && startReady, settings.profile.starCommander,
-                official?.players?.takeIf { locked }, settings.profile.bagOfDoom, settings.profile.emperor) {
-                if (startWith != null) askingFirst = true else actions.start()
             }
             // In the app, sounds and bug reports live in Settings and the banner; the
             // full-screen lobby has neither, so it keeps them at the bottom.

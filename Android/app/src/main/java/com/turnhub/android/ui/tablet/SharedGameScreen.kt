@@ -147,8 +147,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
                     val (qrOnly, setQrOnly) = rememberLanQrOnly()
                     if (atlas?.stateWire != null) BrassCard {
                         Eyebrow("Share the Atlas game")
-                        Text("Other phones join through this device instead of each connecting to Atlas, which keeps Atlas's radio free. " +
-                            "Their taps reach Atlas while this device is the table screen; Atlas decides every one. Devices can still connect to Atlas directly.",
+                        Text("Let friends join the Atlas game using a code or QR. Keep this device connected to Atlas while they play.",
                             color = p.text, style = MaterialTheme.typography.bodyLarge)
                         LanSecuritySwitch(qrOnly, !state.busy, setQrOnly)
                         AccentButton("Share Atlas game", { requestNetwork { model.startHosting(qrOnly, fromAtlas = true) } }, Modifier.fillMaxWidth(),
@@ -156,9 +155,9 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
                     }
                     BrassCard {
                         Eyebrow("Host from this device")
-                        Text("Invite the table's other phones and tablets, from the lobby on. No internet or Atlas needed.",
+                        Text("Run the game on this device and invite friends to use their own phones. Everyone needs the same Wi-Fi; internet and Atlas are optional.",
                             color = p.text, style = MaterialTheme.typography.bodyLarge)
-                        if (!hostable) Text("Choose a TCG or Death May Die game on this device first, then come back here to share it.",
+                        if (!hostable) Text("Choose a card game on the Game tab first, then return here to invite friends.",
                             color = p.muted, style = MaterialTheme.typography.bodyMedium)
                         LanSecuritySwitch(qrOnly, !state.busy, setQrOnly)
                         AccentButton("Host game", { requestNetwork { model.startHosting(qrOnly) } }, Modifier.fillMaxWidth(),
@@ -193,7 +192,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
         }, Modifier.fillMaxWidth().height(300.dp)) },
         confirmButton = { ToneButton("Cancel", { scanning = false }) })
     if (confirmLeave) AlertDialog(onDismissRequest = { confirmLeave = false }, title = { Text("Leave shared game?") },
-        text = { Text(if (state.uncertain) "An action's reply is still unknown. Ask the host to check it before entering another change. Leaving releases this device's investigator session." else
+        text = { Text(if (state.uncertain) "An action's reply is still unknown. Ask the host to check it before entering another change. Leaving disconnects this device from the shared game." else
             "The game and its history remain on the host. Your separate local game is unchanged.") },
         confirmButton = { ToneButton("Leave", { model.leave(); confirmLeave = false; onClose() }) },
         dismissButton = { ToneButton("Stay", { confirmLeave = false }) })

@@ -69,11 +69,10 @@ internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit,
                     HorizontalDivider(color = palette.line)
                     MoreEntry("Atlas", "Connection and table administration", DesignTokens.Icons.hub) { onPage(MorePage.ATLAS) }
                     HorizontalDivider(color = palette.line)
-                    MoreEntry("Settings", "Appearance, sound and connections", DesignTokens.Icons.sliders) { onPage(MorePage.SETTINGS) }
+                    MoreEntry("Settings", "Appearance and sound", DesignTokens.Icons.sliders) { onPage(MorePage.SETTINGS) }
                     HorizontalDivider(color = palette.line)
                     MoreEntry("Support TurnHub", "Help support development", DesignTokens.Icons.info) { onPage(MorePage.DONATE) }
-                    HorizontalDivider(color = palette.line)
-                    MoreEntry("Store", "Not open yet", DesignTokens.Icons.hub) { onPage(MorePage.STORE) }
+
                 }
                 AppVersionLabel()
             }

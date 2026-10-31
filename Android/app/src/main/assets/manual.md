@@ -31,7 +31,7 @@ The app has the same tabs with or without an Atlas:
 
 - **History:** finished games and statistics.
 
-- **More:** About TurnHub, Settings and Store. Open More > Settings for appearance, sound, Commander card art, Atlas connection, and administration when you have permission on a connected Atlas. The Store is not open yet. Settings mentioned in this manual are inside More.
+- **More:** Settings, Atlas connection and administration, About TurnHub and optional support. Appearance and sound are in Settings. Hardware controls are in Atlas.
 
 Tabs slide sideways as you move between them, unless reduced motion is on. **Full screen** gives a started game the whole screen; this is the way to play with one phone or tablet in the middle of the table.
 
@@ -69,15 +69,17 @@ Images are cropped and compressed on this device to at most 512 by 512 pixels an
 
 Open **Game**. The table preview shows the seats as players join, even before there are two. A local game supports up to ten players, within the chosen mode’s player limits.
 
-1. Add everyone who is playing: type a name, or pick a saved player.
+1. Choose **Commander** (40 life) or **Magic · 20 life**, or tap Change for another game.
 
-2. Arrange the seats: drag a player onto another seat, or tap two seats to swap them. Seats run clockwise in number order. **Clear all** empties the lobby without deleting any accounts, history or settings.
+2. Add everyone: type a guest name, or choose a saved player. Arrange seats by dragging a player onto another seat, or tapping two seats. **Remove all** asks before emptying setup; saved players and history are kept.
 
-3. Optionally tap **First?** next to a player to choose who goes first; tap it again to clear it. Otherwise a random player starts.
+3. For variants, house rules, timers, Planechase and guided setup, turn on **Advanced settings**. Turning it off hides the options and keeps your choices. Current life, timer and Magic variant remain visible above the players.
 
-4. Choose the game mode, starting life and turn timer.
+4. Check the players and settings. Naming a commander and choosing artwork are optional.
 
-5. Tap **Start full-screen game**. A three-second countdown runs before the clocks start; Cancel or Back stops it.
+5. Tap **Start game**, then choose who goes first or let TurnHub choose randomly. A three-second countdown runs before the clocks start; Cancel or Back stops it.
+
+**Saved game setups** on this device: add players and choose your settings, then open Saved game setups and tap **Save current setup**. Give it a name, such as Friday Commander. **Load** restores seat order, player identities, commanders, game type, starting life, timer, rules and Planechase choices into setup. It asks before replacing your current setup. Scores, clocks and results are reset; history stays intact. Reusing a name asks before replacing the saved setup, and Delete removes only that preset. A deleted saved-player identity must be added again in a new setup. These presets are stored on this phone; applying them to an Atlas lobby is not available yet.
 
 ## Game Modes
 
