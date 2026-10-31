@@ -28,6 +28,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -88,6 +89,8 @@ fun LocalLibraryScreen(
     embeddedSection: LibrarySection? = null,
     onStats: () -> Unit = {},
 ) {
+    LaunchedEffect(canLink, importState.atlasId) { if (canLink && !importState.busy) onLoadProfiles() }
+    val profiles = com.turnhub.android.domain.unifiedProfiles(state.library, importState.atlasId, if (canLink) importState.profiles else emptyList())
     val p = palette
     var section by rememberSaveable { mutableStateOf(LibrarySection.PLAYERS) }
     var creatingAccount by rememberSaveable { mutableStateOf(false) }
@@ -143,21 +146,23 @@ fun LocalLibraryScreen(
                             if (table != null) TextButton({ copyingAccount = true }, enabled = state.storageProblem == null) {
                                 Text("Copy an account from another device") }
                             if (canLink) TextButton(onClick = onLoadProfiles,
-                                enabled = !importState.busy && state.storageProblem == null) { Text("Load Atlas accounts") }
+                                enabled = !importState.busy && state.storageProblem == null) { Text("Refresh profiles") }
                         }
-                        if (canLink && importState.atlasId != null && state.library.players.isNotEmpty()) item(key = "bring-players") {
-                            BringPlayersCard(state.library.players, importState,
-                                enabled = !importState.busy && state.storageProblem == null, onBring = onBringPlayers)
-                        }
-                        if (canLink && importState.atlasId != null && table != null &&
-                            restorableAccounts(state.library.players, importState).isNotEmpty()) item(key = "restore-account") {
-                            RestoreAccountCard(state.library.players, importState,
-                                enabled = !importState.busy && state.storageProblem == null, onRestore = onRestoreAccount)
-                        }
-                        if (state.library.players.isEmpty()) item(key = "no-players") {
+                        if (profiles.isEmpty()) item(key = "no-players") {
                             Text("Every table starts with a name.", color = p.muted)
                         }
-                        items(state.library.players, key = { "player-${it.localId}" }) { player ->
+                        items(profiles, key = { it.key }) { entry ->
+                            val player = entry.local
+                            if (player == null) {
+                                BrassCard {
+                                    Text(entry.name, color = p.text, style = MaterialTheme.typography.titleMedium)
+                                    Text("Lives on ${entry.location}", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                                    Text("ID ${entry.atlas!!.profileId}", color = p.faint, style = MaterialTheme.typography.labelSmall)
+                                    if (table != null && importState.atlasId != null) TextButton(onClick = {
+                                        table.referenceProfile(importState.atlasId, entry.atlas.profileId, entry.atlas.name)
+                                    }) { Text("Use on this device") }
+                                }
+                            } else {
                             val totals = state.library.totals(player.localId)
                             var open by rememberSaveable(player.localId) { mutableStateOf(false) }
                             BrassCard {
@@ -165,6 +170,7 @@ fun LocalLibraryScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
                                         Text(player.name, color = p.text, style = MaterialTheme.typography.titleMedium)
+                                        Text("Lives on ${entry.location}", color = p.muted, style = MaterialTheme.typography.bodySmall)
                                         if (state.library.isDeviceAdmin(player.localId))
                                             Text("Device Admin", color = p.accent, style = MaterialTheme.typography.labelMedium)
                                         Text("${totals.played} played · ${totals.won} won · ${totals.draws} draws", color = p.muted,
@@ -179,6 +185,7 @@ fun LocalLibraryScreen(
                                 if (table != null && open) LocalAccountEditor(player, table, importState, canLink, onLinkAccount)
                             }
                         }
+                            }
                     }
                     LibrarySection.GAMES -> {
                         item(key = "statistics") {
@@ -209,7 +216,7 @@ fun LocalLibraryScreen(
                         }
                         if (canImport) item(key = "load-import-accounts") {
                             TextButton(onClick = onLoadProfiles, enabled = !importState.busy && state.storageProblem == null) {
-                                Text("Load Atlas accounts")
+                                Text("Refresh profiles")
                             }
                         }
                         items(state.library.history.asReversed(), key = { "match-${it.recordId}" }) { record ->

@@ -96,7 +96,7 @@ fun StandaloneScreen(
 
 /** The running or finished local game on the shared table screen, full screen or in the Table tab. */
 @Composable
-private fun LocalTable(state: StandaloneState, table: StandaloneTable, reduceMotion: Boolean, onClose: () -> Unit, onOpenPlanes: (() -> Unit)? = null) {
+internal fun LocalTable(state: StandaloneState, table: StandaloneTable, reduceMotion: Boolean, onClose: () -> Unit, onOpenPlanes: (() -> Unit)? = null, phoneView: Boolean = false) {
     val p = palette
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -130,6 +130,7 @@ private fun LocalTable(state: StandaloneState, table: StandaloneTable, reduceMot
         }
     })
     TabletTable(
+        phoneView = phoneView,
         onPlanarRoll = if (onOpenPlanes != null && game.planechase.enabled && game.state == TableState.RUNNING && !game.planechase.phenomenonPending) {
             { rollGame = table.state.value.game; rolling = true }
         } else null,
@@ -262,6 +263,8 @@ fun StandaloneLobby(
     onStarted: () -> Unit = {},
     /** Opens the Planes tab, where the planar deck is chosen; null hides the link. */
     onOpenPlanes: (() -> Unit)? = null,
+    atlasId: String? = null,
+    remoteProfiles: List<com.turnhub.android.protocol.ProfileSummary> = emptyList(),
 ) {
     val game = state.game
     val summary = remember(game, state.library.players, state.library.investigatorReferences) {
@@ -274,13 +277,18 @@ fun StandaloneLobby(
 
     val seated = game.players.mapNotNull { it.localId }.toSet()
     val startCountdown = rememberGameStartCountdown(game.state, game.canStart) {
-        table.start(); if (table.state.value.game.state == TableState.RUNNING) onStarted()
+        table.start()
     }
     TableLobby(
         summary = summary,
         actions = TableLobbyActions(
             add = table::addGuest,
-            select = { if (it.guest) table.addGuest(it.name) else table.selectPlayer(it.id) },
+            select = { choice ->
+                val remote = remoteProfiles.firstOrNull { "atlas:${it.profileId}" == choice.id }
+                if (remote != null && atlasId != null) {
+                    table.referenceProfile(atlasId, remote.profileId, remote.name)?.let { table.selectPlayer(it) }
+                } else if (choice.guest) table.addGuest(choice.name) else table.selectPlayer(choice.id)
+            },
             remove = { table.removePlayer(it.playerNumber - 1) },
             canRemove = { true },
             clear = table::clearPlayers,
@@ -308,14 +316,15 @@ fun StandaloneLobby(
             background = { editingLocalId = game.players.getOrNull(it.playerNumber - 1)?.localId },
             canEditBackground = { player -> game.players.getOrNull(player.playerNumber - 1)?.localId in state.library.players.map { it.localId } },
         ),
-        savedPlayers = state.library.players.filter { it.localId !in seated }.map { LobbySavedPlayer(it.localId, it.name, it.profileId) } +
+        savedPlayers = com.turnhub.android.domain.unifiedProfiles(state.library, atlasId, remoteProfiles)
+            .filter { it.local?.localId !in seated }
+            .map { row -> LobbySavedPlayer(row.local?.localId ?: "atlas:${row.atlas!!.profileId}", "${row.name} · ${row.location}", row.local?.profileId ?: row.atlas!!.profileId) } +
             state.library.guestNames.map { LobbySavedPlayer("guest:$it", it, guest = true) },
         enabled = true,
         settingsEnabled = true,
         canAdd = game.players.size < StandaloneGame.MAX_PLAYERS,
-        identityHint = "Guest names keep basic match results. Choose a saved profile for detailed statistics.",
+        identityHint = "Choose saved players or add a name.",
         savedTitle = "Saved players",
-        introduction = "One screen. Many rivals. Your table.",
         embedded = embedded,
         phoneHosted = true,
         startReady = game.canStart,

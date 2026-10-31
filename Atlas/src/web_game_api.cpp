@@ -542,7 +542,7 @@ void handlePlanesCatalog(WebServer &server) {
 void handleSavedCommanders(WebServer &server) {
   WebSession *session = requireSession(server);
   if (!session) return;
-  const String profile = session->tableDevice && server.hasArg("profileId") ? server.arg("profileId") : String(session->profileId);
+  const String profile = server.hasArg("profileId") ? server.arg("profileId") : String(session->profileId);
   TurnHubCards::SavedCommanders saved;
   if (!TurnHubProfiles::profileExists(profile) || !TurnHubCards::loadCommanders(profile, saved)) {
     sendError(server, 409, "Saved commanders need this Atlas's microSD card");

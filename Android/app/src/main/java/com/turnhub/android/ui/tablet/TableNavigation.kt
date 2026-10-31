@@ -25,7 +25,7 @@ internal fun TableNavigation(
         Column(Modifier.weight(1f)) {
             Text(when {
                 practice -> "Practice table"
-                state == TableState.LOBBY -> "Set up the table"
+                state == TableState.LOBBY -> "Live table"
                 state == TableState.GAME_OVER -> "Last game"
                 state == TableState.PAUSED -> "Paused"
                 else -> "Live game"

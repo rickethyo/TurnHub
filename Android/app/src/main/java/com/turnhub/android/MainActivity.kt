@@ -74,7 +74,11 @@ class MainActivity : ComponentActivity() {
         // (falling back to a manually joined Wi-Fi when it holds no network).
         val wifiLink = TargetedAtlasWifiLink(applicationContext)
         val sessionTransports = AtlasSessionTransportFactory { endpoint -> HttpAtlasTransport(endpoint, wifiLink) }
-        val playerSession = AtlasPlayerSession(sessionTransports)
+        // Stable across app restarts, excluded from device backups. This is game access only.
+        val gameClientFile = java.io.File(applicationContext.noBackupFilesDir, "atlas-game-client")
+        val gameClientKey = runCatching { java.util.UUID.fromString(gameClientFile.readText()).toString() }.getOrNull()
+            ?: java.util.UUID.randomUUID().toString().also { key -> runCatching { gameClientFile.writeText(key) } }
+        val playerSession = AtlasPlayerSession(sessionTransports, gameClientKey)
         val transports = AtlasTransportFactory { endpoint ->
             HttpAtlasTransport(endpoint, wifiLink, pollContext = { playerSession.pollContext(endpoint) })
         }
@@ -480,7 +484,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                 } else if (localState.game.state == com.turnhub.android.protocol.TableState.LOBBY) {
                                     com.turnhub.android.ui.tablet.StandaloneLobby(localState, standaloneViewModel.table,
-                                        embedded = true, onStarted = openTable, onOpenPlanes = openPlanes)
+                                        embedded = true, onOpenPlanes = openPlanes,
+                                        atlasId = homeViewModel.localImport.collectAsStateWithLifecycle().value.atlasId,
+                                        remoteProfiles = homeViewModel.localImport.collectAsStateWithLifecycle().value.profiles)
                                 } else running()
                                 }
                             } },

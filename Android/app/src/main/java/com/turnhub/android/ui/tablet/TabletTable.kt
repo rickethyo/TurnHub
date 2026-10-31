@@ -215,7 +215,7 @@ internal fun TabletTable(
     onClose: () -> Unit,
     /** Atlas isn't answering: life and Commander taps are kept for it, everything else waits. */
     offline: Boolean = false,
-    /** The standalone game (no Atlas): the menu has no tablet grant to hand back. */
+    /** Local rule authority: applies local countdowns/cooperative rules; Atlas supplies its own. */
     standalone: Boolean = false,
     /** Optional full-record caption override; otherwise share the host's finished snapshot. */
     onShareResult: ((android.graphics.Bitmap) -> Unit)? = null,
@@ -227,6 +227,7 @@ internal fun TabletTable(
     onPlanarRoll: (() -> Unit)? = null,
     /** Observe the actual game without exposing controls before authorization. */
     readOnly: Boolean = false,
+    phoneView: Boolean = false,
 ) {
     val p = palette
     val haptics = rememberHaptics()
@@ -403,7 +404,7 @@ internal fun TabletTable(
         val landscape = maxWidth >= maxHeight || units.size <= 2
         val star = starLayout.on && summary.settings.profile.starCommander && units.size == StarCommander.PLAYERS
         // A cooperative table reads as one upright list, top to bottom, under a slim menu bar.
-        val list = summary.settings.profile.cooperative
+        val list = phoneView || summary.settings.profile.cooperative
         // Emperor: each team along one side, its emperor's bigger panel in the middle.
         val emperorTable = summary.emperor && !solo && units.size == com.turnhub.android.domain.Emperor.PLAYERS
         val plan = if (emperorTable) EMPEROR_PLACEMENT else placements(units.size)
@@ -830,16 +831,6 @@ internal fun TabletTable(
                                 menuOpen = false
                                 send(anySeat, "draw")
                             }
-                        } else {
-                            ToneButton("Leave tablet mode", {
-                                menuOpen = false
-                                if (isOffline) {
-                                    controls { refuseOffline() }
-                                } else {
-                                    controls { this.disable() }
-                                    onClose()
-                                }
-                            }, Modifier.fillMaxWidth(), tone = Tone.BAD)
                         }
                     }
                 }

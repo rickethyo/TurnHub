@@ -3734,6 +3734,41 @@ static void atlasSpeaker() {
 // existing ones, by their PIN-use choice) and acts for each seat as its own
 // controller would. A player's table presence code turns it on, and grants
 // nothing an Admin needs.
+static void automaticGameControls() {
+  TurnHubWebApi::configure(resolveWebSeat,handleWebControl,handleProfileControl,resolveProfileParticipant);
+  TurnHubWebApi::configureGameControls(readGameSettings,configureGame,changeLife);
+  resetPresence();enterEmptyLobby();TurnHub::fixtureRadio=false;
+  const char *key="11111111-1111-4111-8111-111111111111";
+  const char *id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  assert(request("/api/session/play","",{{"clientKey",key},{"game","1"}})==200);
+  const String token=responseField("token");assert(token.length()==32);
+  assert(request("/api/session/play","",{{"clientKey",key}})==200 && responseField("token")==token);
+  assert(request("/api/session/me",token,{},HTTP_GET)==200 && server.body.find("\"permissions\":0")!=std::string::npos);
+  assert(request("/api/session/stats",token,{},HTTP_GET)==403);
+  assert(request("/api/network",token,{},HTTP_GET)==403);
+  assert(request("/api/tablet/seat",token,{{"name","Receipt player"},{"actionId",id}})==200);
+  const String profile=responseField("profileId");assert(table().lobby.playerCount()==1);
+  assert(request("/api/action-receipt",token,{{"actionId",id}},HTTP_GET)==200 && server.body.find("\"status\":200")!=std::string::npos);
+  assert(request("/api/tablet/seat",token,{{"name","Do not add twice"},{"actionId",id}})==409 && table().lobby.playerCount()==1);
+  assert(request("/api/session/play","",{{"clientKey","22222222-2222-4222-8222-222222222222"}})==200);
+  const String other=responseField("token");
+  assert(request("/api/profiles/register",token,{{"name","Public gameplay copy"},{"profileId","A17A0123"},{"pin",""},{"actionId","cccccccc-cccc-4ccc-8ccc-cccccccccccc"}})==200);
+  assert(server.body.find("linkKey")==std::string::npos);
+  assert(request("/api/action-receipt",token,{{"actionId","cccccccc-cccc-4ccc-8ccc-cccccccccccc"}},HTTP_GET)==200 && server.body.find("\"status\":200")!=std::string::npos);
+  assert(server.body.find("linkKey")==std::string::npos);
+  assert(request("/api/session/stats",token,{},HTTP_GET)==403);
+  assert(request("/api/action-receipt",other,{{"actionId",id}},HTTP_GET)==404);
+  assert(request("/api/action-receipt","",{{"actionId",id}},HTTP_GET)==401);
+  const char *bad="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  assert(request("/api/tablet/seat",token,{{"name",""},{"actionId",bad}})==400);
+  assert(request("/api/action-receipt",token,{{"actionId",bad}},HTTP_GET)==200 && server.body.find("\"status\":400")!=std::string::npos);
+  testNow+=120001;
+  assert(request("/api/action-receipt",token,{{"actionId",id}},HTTP_GET)==404);
+  assert(request("/api/tablet/unseat",token,{{"profileId",profile}})==200);
+  assert(request("/api/session/logout",token)==200);assert(request("/api/session/logout",other)==200);
+  ProfileFixture::profiles.erase(profile.c_str());ProfileFixture::profiles.erase("A17A0123");enterEmptyLobby();
+}
+
 static void tabletMode() {
   TurnHubWebApi::configure(resolveWebSeat,handleWebControl,handleProfileControl,resolveProfileParticipant);
   TurnHubWebApi::configureGameControls(readGameSettings,configureGame,changeLife);
@@ -6514,6 +6549,7 @@ int main() {
   matchHistory(); std::cout<<"PASS match history: whole records kept once with Atlas profile IDs, CSV rows, torn lines, history route\n";
   touchPlayerCounters(); std::cout<<"PASS Atlas player counters: shared projection, touch requests, pagination and Done\n";
   touchSeatsPlayers(); std::cout<<"PASS touchscreen Add player: saved profiles, PIN keypad, New player keyboard, unique names\n";
+  automaticGameControls(); std::cout<<"PASS automatic restricted game access and private bounded action receipts\n";
   tabletMode(); std::cout<<"PASS tablet mode: authenticated direct controls, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
   tableCodeOptional(); std::cout<<"PASS table code optional: off by default (Admin still required), on needs codes, off again needs one" << std::endl;

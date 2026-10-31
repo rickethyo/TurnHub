@@ -170,6 +170,16 @@ class AtlasTablet(
         loadSavedProfiles()
     }
 
+    suspend fun seatLocal(player: com.turnhub.android.standalone.SavedLocalPlayer, atlasId: String) {
+        val linked = player.links.firstOrNull { it.atlasId == atlasId }?.profileId ?: player.profileId
+        val known = _state.value.savedProfiles.any { it.profileId == linked }
+        if (!known) {
+            val uploaded = post("/api/profiles/register", listOf("profileId" to linked, "name" to player.name, "pin" to "", "gameplayOnly" to "1")) ?: return
+            if (!uploaded.ok && uploaded.code != 409) return fail(uploaded)
+        }
+        seatSaved(linked, player.name)
+    }
+
     /** Seats a saved profile; Atlas asks for its PIN unless the profile allows tablet use without one. */
     suspend fun seatSaved(profileId: String, name: String, pin: String? = null) {
         val fields = buildList {
@@ -232,6 +242,7 @@ class AtlasTablet(
 
     /** A profile's saved commanders on Atlas (name, printing); empty without a card or any saved. */
     suspend fun savedCommanders(profileId: String): List<Pair<String, String?>> = try {
+        endpoint()?.let { session.ensureGameAccess(it) }
         val response = session.raw("GET", "/api/profiles/commanders", listOf("profileId" to profileId))
         if (response == null || !response.ok) emptyList() else org.json.JSONObject(response.body).getJSONArray("commanders").let { list ->
             (0 until list.length()).map { i -> list.getJSONObject(i).let { it.getString("name") to it.optString("art").takeIf { a -> a.isNotEmpty() && a != "null" } } }
@@ -447,24 +458,45 @@ class AtlasTablet(
 
     // --- plumbing -----------------------------------------------------------------
 
+    private val requests = kotlinx.coroutines.sync.Mutex()
+
     private suspend fun post(path: String, fields: List<Pair<String, String>> = emptyList()): RawResponse? {
+        requests.lock()
         _state.update { it.copy(busy = true) }
-        return try {
-            session.raw("POST", path, fields).also {
-                if (it == null) _state.update { s -> s.copy(message = ActionFeedback("Sign in first.", isError = true)) }
+        val requestId = java.util.UUID.randomUUID().toString()
+        var dispatched = false
+        try {
+            val target = endpoint() ?: throw AtlasException(AtlasFailure.Rejected("Connect to Atlas to use game controls."))
+            session.ensureGameAccess(target)
+            return try {
+                dispatched = true
+                session.raw("POST", path, if ((path.startsWith("/api/tablet/") && path !in listOf("/api/tablet/enable", "/api/tablet/disable")) || path == "/api/profiles/register") fields + ("actionId" to requestId) else fields) ?: throw AtlasException(AtlasFailure.Rejected("Atlas reconnected. Try the action again."))
+            } catch (e: AtlasException) {
+                if (e.failure is AtlasFailure.Timeout || e.failure is AtlasFailure.Unreachable) {
+                    val receipt = try { session.raw("GET", "/api/action-receipt", listOf("actionId" to requestId)) }
+                        catch (cancel: CancellationException) { throw cancel }
+                        catch (_: AtlasException) { null }
+                    val result = receipt?.takeIf { it.ok }?.let { json(it) }
+                    val status = result?.optInt("status", 0) ?: 0
+                    val body = result?.optString("body").orEmpty()
+                    val payload = body.takeIf { it.isNotEmpty() }?.let { json(RawResponse(status, it)) }
+                    val confirmed = status !in 200..299 || payload?.optBoolean("ok") == true || payload?.optString("status") == "ACCEPTED"
+                    if (result?.optBoolean("found") == true && status in 100..599 && payload != null && confirmed)
+                        return RawResponse(status, body)
+                }
+                throw e
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: AtlasException) {
+        } catch (e: CancellationException) { throw e }
+        catch (e: AtlasException) {
             val text = when (e.failure) {
-                is AtlasFailure.Timeout, is AtlasFailure.Unreachable ->
-                    "Atlas didn't confirm that. Check the table before trying again."
+                is AtlasFailure.Timeout, is AtlasFailure.Unreachable -> if (dispatched) "Atlas didn't confirm that. Check the table before trying again." else "Atlas connection is not ready. Try again."
                 else -> e.failure.userMessage
             }
             _state.update { it.copy(message = ActionFeedback(text, isError = true)) }
-            null
+            return null
         } finally {
             _state.update { it.copy(busy = false) }
+            requests.unlock()
         }
     }
 
