@@ -1122,8 +1122,8 @@ data class StandaloneGame(
         if (index !in players.indices) return this
         val clean = name?.trim()?.take(MAX_COMMANDER)?.takeIf { it.isNotEmpty() }
         val printing = art?.takeIf { clean != null && com.turnhub.android.data.TileCardGame.valid(it) }
-        // Only a Magic card can be a commander.
-        val only = clean != null && (cardOnly || com.turnhub.android.data.TileCardGame.of(printing) != com.turnhub.android.data.TileCardGame.MAGIC)
+        // Commander identity is independent of the selected artwork.
+        val only = clean != null && cardOnly
         if (players[index].commander == clean && players[index].commanderArt == printing && players[index].cardOnly == only) return this
         return update(index) { it.copy(commander = clean, commanderArt = printing, cardOnly = only) }
     }

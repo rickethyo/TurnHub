@@ -1844,3 +1844,33 @@ Implementation: silent session bootstrap reuses per-app key and never replaces a
 
 Validation: all 558 Android JVM tests pass; Preview APK, release bundle and release lint succeed. All four Atlas host suites pass from their required host working directory. Documentation links, client contract (18 actual responses/14 fixtures/two records), manual export and whitespace pass. Atlas 0.7.23-dev USB upload verified image hashes. Final Preview APK installed successfully on the one connected Android device, leaving the Play app untouched. Phone remains locked, so visual UI and real-match hardware acceptance remain pending. DOCX text/XML and exported asset checked; visual DOCX rendering unavailable (no LibreOffice).
 
+
+## Mobile game panels — 2026-10-31, Codex
+
+Owner requests prominent Back to setup, grouped unambiguous Commander controls, closed-fold clipping fixes and Game card player/pass-and-play selection. Owner: Codex; branch `codex/master`, baseline `373edd22` (fetched origin and fast-forwarded; no open PRs). Scope: shared Android Game/Table presentation and manual; existing game authority/actions remain. Validation pending.
+
+Implementation: shared Android menu starts with the timed Back to setup action; Commander tax and received damage share a labeled disclosure; counters use wrapping labels and narrow Planechase actions use two rows. Game cards receive bounded height, offer fixed-player/team or selected pass-and-play display, and prioritize required win confirmation. These shared renderers cover device- and Atlas-hosted app games. Source DOCX and generated manual updated together. Added selection regressions to TabletLayoutTest.
+
+Validation: docs links, generated manual consistency and git diff --check pass. Debug assembly and JVM tests attempted: Gradle distribution downloaded through the configured proxy, but settings plugin org.gradle.toolchains.foojay-resolver-convention:1.0.0 could not resolve; compilation/tests never ran. No Android SDK found locally. Physical closed-Pixel-Fold layout, larger text and TalkBack acceptance remain pending. No device installation, push, release or integration performed.
+
+Owner follow-up (2026-10-31): prioritize code and use GitHub builds; minimize pushes. Final source review removes an empty Atlas Finish game disclosure after relocating Back to setup. Batch this slice into one commit/push and one PR for existing CI; no local build retry or release.
+
+## Casual-player usability and saved setups — 2026-10-31, Codex
+
+Owner authorizes an app-wide usability review, an Advanced settings switch and quick saved game setups (players, format, rules). Continuing #182 on codex/master, baseline ba26b129. Scope: shorter shared lobby, clearer player/game/help flows, durable named local lobby presets with safe load/replace/delete, tests and manuals. Batch one push after source checks; GitHub owns Android build validation. Atlas preset application counterpart tracked in staged changes.
+
+Usability implementation: shared lobby now orders game → players → Start, with an explicit Advanced settings switch for variants/rules/timers/extras and an always-visible summary. Remove all confirms; player chips say Guest/Saved player instead of IDs. Magic's misleading Standard tile now reads Magic · 20 life. Removed the unopened Store destination, corrected Settings description, clarified history/player empty states and phone-sharing instructions, moved statistics IDs into details and clarified the win action. Result overlays derive winners from the full roster even in a filtered device view.
+
+Named presets live in the existing local library snapshot transaction, with explicit durable save/load/replace/delete. Capture builds a fresh lobby configuration rather than copying match state or secrets. Loading refuses active matches and deleted saved identities. Added persistence/seat order/rules/reset/overwrite/write-failure/delete/active-game regression tests. The shared app lobby benefits Atlas too; Atlas-owned preset application is the next staged parity slice.
+
+Validation: previous ba26b129 GitHub CI passes including Android assembly/JVM tests. This follow-up passes docs links, DOCX export consistency and git diff --check; added tests await GitHub CI. No further local build attempts. Physical phone/foldable/large-text/TalkBack acceptance remains pending. Batch follow-up as one push to #182; no release or integration.
+
+## Commander names and independent art — 2026-10-31, Codex
+
+Owner requests functional reusable commanders, explicit no-art, artwork from a different game and visible single-printing choices; clarified long-name request means player display name. Keep player display names at existing 32 chars with visible limit. Scope shared commander picker and rules, per-local-player presets, Atlas name-length parity and manuals/tests. Baseline cc1bf93e on codex/master; continue #182 and batch push.
+
+Commander implementation: dedicated name/art controls preserve commander identity with Pokémon/Lorcana/Yu-Gi-Oh artwork; explicit `none` art survives persistence and suppresses both cache and network lookups. A single printing renders the same picker as multiple printings. Phone saved identities retain six recent commander name/art combinations and expose them in normal/guided setup; Atlas already owns the equivalent microSD list. Commander names now consistently allow 80 characters on Atlas and app. Player display names remain 32 with explicit UI limit, as recommended to the owner after clarification.
+
+CI follow-up: cc1bf93e compiled successfully but its new preset failure-recovery test incorrectly retried after the store's intentional sticky storage failure. The test now checks the blocked state and reopens the store before retrying; no protection removed. Shared core 11 scenarios pass (new independent-art/no-art/decorative-card cases). Added local commander persistence and no-art/no-network JVM regressions. Atlas host suite running; final docs/manual/adapter/whitespace checks pending below. Hardware/art-provider/large-text acceptance remains separate.
+
+Final source checks: DOCX/app-manual consistency, docs links, adapter audit (32) and client contract (18 responses/14 fixtures/2 records) pass. Atlas main gameplay/recovery scenarios pass; remaining storage/profile/OTA host binaries still running at this checkpoint. Android build and added JVM checks delegated to GitHub in one batched follow-up push; no local Gradle retry.

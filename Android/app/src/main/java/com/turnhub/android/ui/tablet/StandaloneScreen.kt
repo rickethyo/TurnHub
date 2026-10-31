@@ -280,6 +280,7 @@ fun StandaloneLobby(
         table.start()
     }
     TableLobby(
+        savedSetups = { SavedSetupsCard(state, table) },
         summary = summary,
         actions = TableLobbyActions(
             add = table::addGuest,
@@ -296,6 +297,7 @@ fun StandaloneLobby(
             settings = table::configure,
             timer = table::setTurnTimer,
             timerRules = table::setTimerRules,
+            savedCommanders = { player -> state.library.players.firstOrNull { it.localId == game.players.getOrNull(player.playerNumber - 1)?.localId }?.commanders.orEmpty() },
             commander = { player, name, art, cardOnly -> table.setCommander(player.playerNumber - 1, name, art, cardOnly) },
             investigator = { player, name -> table.setInvestigator(player.playerNumber - 1, name) },
             dealInvestigatorCards = { player, slot -> table.dealInvestigatorCards(player.playerNumber - 1, slot) },

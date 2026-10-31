@@ -235,7 +235,7 @@ class AtlasTablet(
     /** A seat's commander: saved to its profile on Atlas's card and chosen; null clears the choice. */
     suspend fun chooseCommander(seat: TabletSeat, name: String?, printing: String?) {
         val fields = seat.fields + if (name.isNullOrBlank()) listOf("slot" to "0")
-            else listOf("name" to name.trim().take(64)) + (printing?.let { listOf("art" to it) } ?: emptyList())
+            else listOf("name" to name.trim().take(com.turnhub.android.standalone.StandaloneGame.MAX_COMMANDER)) + (printing?.let { listOf("art" to it) } ?: emptyList())
         val response = post("/api/tablet/commander-choice", fields) ?: return
         if (response.ok) succeed() else fail(response)
     }

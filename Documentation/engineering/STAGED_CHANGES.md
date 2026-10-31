@@ -473,3 +473,7 @@ Create Pages > "Support TurnHub" with the app's support copy, a PayPal link
 (the app's `TURNHUB_DONATION_URL`) and a Cash App link (`https://cash.app/$TurnHub`),
 state that support is optional and buys nothing, and add it to the footer menu.
 Then tap Cash App on a device to confirm it opens the $TurnHub profile.
+
+## Saved game setups on Atlas (next parity slice, 2026-10-31)
+
+Android saves named lobby configurations locally (seats/identities, format, rules, timers, Planechase choices). Add equivalent Atlas-owned named setup persistence and validated lobby-only application, then expose it through the shared app Saved game setups card and hardware setup. Never replay scores/clocks/history or remap identities by name. Existing app lobby simplification and Advanced settings already share presentation across hosts.

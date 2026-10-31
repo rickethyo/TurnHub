@@ -142,7 +142,7 @@ private fun ProfileCard(uiState: HomeUiState, session: PlayerSessionState.Signed
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it.take(32) },
-                label = { Text("Display name") },
+                label = { Text("Display name (up to 32 characters)") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )

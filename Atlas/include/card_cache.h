@@ -41,7 +41,7 @@ const char *planesVersion();
 // --- saved commanders ----------------------------------------------------------
 
 constexpr uint8_t COMMANDER_SLOTS = 6;
-constexpr size_t COMMANDER_NAME_LENGTH = 64;
+constexpr size_t COMMANDER_NAME_LENGTH = 80;
 constexpr size_t COMMANDER_ART_LENGTH = 48;
 
 struct Commander {

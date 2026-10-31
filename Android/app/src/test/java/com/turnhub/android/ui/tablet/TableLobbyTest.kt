@@ -38,7 +38,7 @@ class TableLobbyTest {
         assertEquals(listOf(GameMode.STANDARD, GameMode.TWO_HEADED_GIANT, GameMode.EMPEROR), GameMode.availableFor(GameProfile.MTG))
         assertEquals(GameMode.entries, GameMode.availableFor(GameProfile.MTG_COMMANDER))
         assertEquals(GameMode.entries, GameMode.availableFor(GameProfile.MTG_STAR_COMMANDER))
-        assertEquals("Standard", FORMATS.single { it.profile == GameProfile.MTG }.label)
+        assertEquals("Magic · 20 life", FORMATS.single { it.profile == GameProfile.MTG }.label)
     }
 
     @Test fun `tile cards show in every game but are named as commanders only in commander`() {

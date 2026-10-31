@@ -149,7 +149,7 @@ fun LocalLibraryScreen(
                                 enabled = !importState.busy && state.storageProblem == null) { Text("Refresh profiles") }
                         }
                         if (profiles.isEmpty()) item(key = "no-players") {
-                            Text("Every table starts with a name.", color = p.muted)
+                            Text("Add a player to keep their name, appearance and stats for next time. You can also add guests directly in Game setup.", color = p.muted)
                         }
                         items(profiles, key = { it.key }) { entry ->
                             val player = entry.local
@@ -211,7 +211,7 @@ fun LocalLibraryScreen(
                         if (state.library.history.isEmpty()) item(key = "no-games") {
                             BrassCard {
                                 Text("No games yet", color = p.text, style = MaterialTheme.typography.titleMedium)
-                                Text("Finish a game to start your story.", color = p.muted)
+                                Text("Completed games appear here. Start a game from the Game tab.", color = p.muted)
                             }
                         }
                         if (canImport) item(key = "load-import-accounts") {
@@ -308,7 +308,7 @@ private fun CreateLocalAccountDialog(table: StandaloneTable, storageAvailable: B
         title = { Text("Add player") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) }, label = { Text("Name") },
+                OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) }, label = { Text("Name (up to 32 characters)") },
                     enabled = !creating, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(secret, { secret = it.take(ProfileSecret.MAX_CHARS) }, label = { Text("PIN or password (optional)") },
                     enabled = !creating, singleLine = true, modifier = Modifier.fillMaxWidth(),

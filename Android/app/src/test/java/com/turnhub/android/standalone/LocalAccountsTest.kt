@@ -12,6 +12,24 @@ import java.util.Base64
 import kotlin.random.Random
 
 class LocalAccountsTest {
+    @Test fun `saved commanders retain name independent art and no art across reopening`() {
+        val store = Store()
+        val table = StandaloneTable(store)
+        table.addPlayer("Alex")
+        table.setCommander(0, "Atraxa", "pokemon:base1-58")
+        assertFalse(table.state.value.game.players.single().cardOnly)
+        assertEquals("Atraxa", table.state.value.game.players.single().commander)
+        table.setCommander(0, "Atraxa", "none")
+        val reopened = StandaloneTable(store)
+        assertEquals("none", reopened.state.value.game.players.single().commanderArt)
+        assertEquals(listOf("Atraxa" to "none", "Atraxa" to "pokemon:base1-58"),
+            reopened.state.value.library.players.single().commanders)
+        reopened.setCommander(0, "Pikachu", "pokemon:base1-58", cardOnly = true)
+        assertEquals(2, reopened.state.value.library.players.single().commanders.size)
+        reopened.setCommander(0, "Atraxa", "none")
+        assertEquals(2, reopened.state.value.library.players.single().commanders.size)
+    }
+
     @Test fun `public Atlas identity reference copies no secret history or admin powers`() {
         val store=Store()
         val table=StandaloneTable(store)

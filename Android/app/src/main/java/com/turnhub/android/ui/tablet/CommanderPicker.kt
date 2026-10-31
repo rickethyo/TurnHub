@@ -47,6 +47,10 @@ internal fun CommanderPickerDialog(player: TablePlayer, commander: Boolean, game
                                    onSave: (name: String?, printing: String?, cardOnly: Boolean) -> Unit,
                                    /** The profile's saved commanders (name, printing), quick to pick again. */
                                    saved: List<Pair<String, String?>> = emptyList(), onDismiss: () -> Unit) {
+    if (commander) {
+        NamedCommanderPickerDialog(player, onSave, saved, onDismiss)
+        return
+    }
     val p = palette
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -139,7 +143,7 @@ internal fun CommanderPickerDialog(player: TablePlayer, commander: Boolean, game
                             }
                             .padding(horizontal = 8.dp, vertical = 10.dp))
                 }
-                if (printings.size > 1 || (!magic && printings.isNotEmpty())) {
+                if (printings.isNotEmpty()) {
                     Text(if (magic) "Card art for their tile" else "Pick a card for their tile", color = p.muted, style = MaterialTheme.typography.labelLarge)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(printings, key = { it.id }) { option ->
@@ -204,4 +208,122 @@ private fun PrintingOption(option: CommanderPrinting, showName: Boolean, selecte
         Text(option.setName, color = if (showName) p.muted else p.text, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(option.artist, color = p.muted, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
+}
+
+/** A commander name and the tile's artwork are independent choices. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun NamedCommanderPickerDialog(
+    player: TablePlayer, onSave: (String?, String?, Boolean) -> Unit,
+    saved: List<Pair<String, String?>>, onDismiss: () -> Unit,
+) {
+    val p = palette
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var name by rememberSaveable { mutableStateOf(player.namedCommander.orEmpty()) }
+    var artMode by rememberSaveable { mutableStateOf(when (player.commanderArt) {
+        TileCardGame.NO_ART -> "none"; null -> "auto"; else -> "other"
+    }) }
+    var game by rememberSaveable { mutableStateOf(TileCardGame.of(player.commanderArt)) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var chosen by rememberSaveable { mutableStateOf<String?>(null) }
+    var printing by rememberSaveable { mutableStateOf(player.commanderArt.takeUnless { it == TileCardGame.NO_ART }) }
+    var names by remember { mutableStateOf(emptyList<String>()) }
+    var options by remember { mutableStateOf(emptyList<CommanderPrinting>()) }
+    var loading by remember { mutableStateOf(false) }
+    val artOn = rememberCommanderArtEnabled().first
+    val lookup = if (artMode == "auto") name else query
+    val sourceGame = if (artMode == "auto") TileCardGame.MAGIC else game
+    LaunchedEffect(lookup, chosen, artMode, sourceGame, artOn) {
+        names = emptyList(); options = emptyList(); loading = false
+        if (!artOn || artMode == "none" || lookup.trim().length < 2) return@LaunchedEffect
+        delay(300)
+        loading = true
+        try {
+            val source = CommanderArtCache.source(context)
+            if (sourceGame != TileCardGame.MAGIC) options = source.search(sourceGame, lookup)
+            else if (lookup == chosen) options = source.printings(lookup)
+            else names = source.suggest(lookup).take(6)
+        } finally { loading = false }
+    }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("${player.label}'s commander") },
+        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (saved.isNotEmpty()) {
+                Text("Saved commanders", color = p.muted, style = MaterialTheme.typography.titleSmall)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    saved.forEach { (label, art) ->
+                        FilterChip(name == label && (if (artMode == "none") TileCardGame.NO_ART else printing) == art, onClick = {
+                            name = label; printing = art.takeUnless { it == TileCardGame.NO_ART }
+                            artMode = when (art) { null -> "auto"; TileCardGame.NO_ART -> "none"; else -> "other" }
+                            game = TileCardGame.of(art); query = ""; chosen = null
+                        }, label = { Text(label) })
+                    }
+                }
+            }
+            OutlinedTextField(name, {
+                name = it.take(StandaloneGame.MAX_COMMANDER)
+                if (artMode == "auto") { printing = null; chosen = null }
+            }, label = { Text("Commander name (optional)") }, modifier = Modifier.fillMaxWidth(),
+                supportingText = { Text("${name.length}/${StandaloneGame.MAX_COMMANDER}") })
+            Text("Artwork", color = p.text, style = MaterialTheme.typography.titleSmall)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("auto" to "Use commander's art", "other" to "Choose other art", "none" to "No art").forEach { (value, label) ->
+                    FilterChip(artMode == value, { artMode = value; printing = null; chosen = null; query = "" }, label = { Text(label) })
+                }
+            }
+            if (artMode == "other" && artOn) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TileCardGame.entries.forEach { choice ->
+                        FilterChip(game == choice, {
+                            game = choice; query = ""; chosen = null; printing = null
+                        }, label = { Text(choice.label) })
+                    }
+                }
+                OutlinedTextField(query, { query = it.take(StandaloneGame.MAX_COMMANDER); chosen = null },
+                    label = { Text("Search ${game.label} artwork") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                TextButton(onClick = {
+                    val requested = game
+                    scope.launch {
+                        val card = CommanderArtCache.source(context).random(requested)
+                        if (game == requested && artMode == "other" && card != null) printing = card.id
+                    }
+                }) { Text("Random ${game.label} artwork") }
+                printing?.let {
+                    val art = rememberCommanderArt(name, it)
+                    Text(art?.cardName?.let { card -> "Selected art: $card" } ?: "Artwork selected", color = p.good)
+                }
+            }
+            if (loading) Text("Finding cards…", color = p.muted)
+            names.forEach { suggestion ->
+                TextButton(onClick = {
+                    if (artMode == "auto") name = suggestion else query = suggestion
+                    chosen = suggestion; printing = null
+                }) { Text(suggestion) }
+            }
+            if (options.isNotEmpty()) {
+                Text("Choose artwork · ${options.size} available", color = p.muted)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(options, key = { it.id }) { option ->
+                        PrintingOption(option, showName = true,
+                            selected = printing == option.id || (artMode == "auto" && printing == null && options.first().id == option.id)) {
+                            printing = option.id
+                        }
+                    }
+                }
+            }
+            Text(when {
+                !artOn -> "Artwork is hidden in Settings. Your commander name will still be saved."
+                artMode == "none" -> "Keeps your commander name and uses your player background without card art."
+                artMode == "other" -> "Artwork changes only the picture. Your commander name, tax and damage stay the same. Card searches use the selected game's online database."
+                else -> "Select a suggested Magic card to see its artwork. Searches use Scryfall. Naming a commander is optional."
+            }, color = p.muted, style = MaterialTheme.typography.bodySmall)
+        } },
+        confirmButton = { TextButton(onClick = {
+            onSave(name.trim().ifBlank { null }, when (artMode) {
+                "none" -> TileCardGame.NO_ART
+                "other" -> printing
+                else -> printing ?: options.firstOrNull()?.id
+            }, false)
+        }, enabled = artMode != "other" || printing != null || name.isBlank()) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }

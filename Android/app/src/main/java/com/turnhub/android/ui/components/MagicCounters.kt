@@ -155,24 +155,39 @@ fun MagicCountersEditor(counters: PlayerCounters, initiative: Boolean, commander
             { onChange("initiative", if (initiative) 0 else 1, 1) }, Modifier.fillMaxWidth(), enabled = enabled)
         ToneButton(if (counters.cityBlessing) "Clear city’s blessing (correction)" else "I have the city’s blessing",
             { onChange("city-blessing", if (counters.cityBlessing) 0 else 1, 1) }, Modifier.fillMaxWidth(), enabled = enabled)
-        if (commander) {
-            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                .toggleable(partner, enabled = enabled, role = Role.Switch, onValueChange = {
-                    if (onPartnerChange != null) onPartnerChange(it) else localPartner = it
-                }), verticalAlignment = Alignment.CenterVertically) {
-                Text("Partner commanders", color = palette.text, modifier = Modifier.weight(1f))
-                Switch(partner, onCheckedChange = null, enabled = enabled)
-            }
-            Text("Casts from the command zone", color = palette.muted, style = MaterialTheme.typography.labelLarge)
-            for (c in 1..if (partner) 2 else 1) {
-                val which = if (c == 1 && commanderName != null) commanderName else "Commander $c"
-                CounterRow("$which casts · next tax +${counters.commanderTax(c)}", counters.commanderCasts[c-1], enabled, icon = DesignTokens.Icons.commander, iconRarity = commanderRarity.takeIf { c == 1 }) {
-                    onChange("commander-casts", it, c)
-                }
-            }
-            Text("Count only casts from the command zone. Each commander has its own tax; − corrects a cast.",
-                color = palette.muted, style = MaterialTheme.typography.bodySmall)
+        if (commander) CommanderTaxEditor(counters, enabled, commanderName, commanderRarity, partner,
+            onPartnerChange = { if (onPartnerChange != null) onPartnerChange(it) else localPartner = it },
+            onChange = onChange)
+    }
+}
+
+@Composable
+fun CommanderTaxEditor(
+    counters: PlayerCounters,
+    enabled: Boolean = true,
+    commanderName: String? = null,
+    commanderRarity: String? = null,
+    partner: Boolean,
+    onPartnerChange: (Boolean) -> Unit,
+    onChange: (String, Int, Int) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .toggleable(partner, enabled = enabled, role = Role.Switch, onValueChange = {
+                onPartnerChange(it)
+            }), verticalAlignment = Alignment.CenterVertically) {
+            Text("Partner commanders", color = palette.text, modifier = Modifier.weight(1f))
+            Switch(partner, onCheckedChange = null, enabled = enabled)
         }
+        Text("Commander tax · your casts", color = palette.muted, style = MaterialTheme.typography.labelLarge)
+        for (c in 1..if (partner) 2 else 1) {
+            val which = if (c == 1 && commanderName != null) commanderName else "Commander $c"
+            CounterRow("$which casts · next tax +${counters.commanderTax(c)}", counters.commanderCasts[c-1], enabled, icon = DesignTokens.Icons.commander, iconRarity = commanderRarity.takeIf { c == 1 }) {
+                onChange("commander-casts", it, c)
+            }
+        }
+        Text("Count only casts from the command zone. Each commander has its own tax; − corrects a cast.",
+            color = palette.muted, style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -185,22 +200,25 @@ fun TeamPoisonRow(poison: Int, enabled: Boolean, onChange: (Int) -> Unit) =
 private fun CounterRow(label: String, value: Int, enabled: Boolean, glyph: String = "", tone: Tone = Tone.NEUTRAL, icon: Int? = null, iconRarity: String? = null, onDelta: (Int) -> Unit) {
     val p = palette
     val color = if (tone == Tone.NEUTRAL) p.text else toneColor(tone)
-    Row(
+    Column(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(p.surface2)
             .padding(horizontal = 12.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        if (icon != null) Icon(painterResource(icon), contentDescription = iconRarity?.let { "$it rarity" }, tint = commanderIconColor(iconRarity), modifier = Modifier.size(22.dp))
-        else if (glyph.isNotEmpty()) Text(glyph, color = color, style = MaterialTheme.typography.titleMedium)
-        Text(label, color = p.text, modifier = Modifier.weight(1f))
-        StepButton("−", "Subtract one $label", enabled && value > 0) { onDelta(-1) }
-        Text("$value", color = color, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-            textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 36.dp))
-        StepButton("+", "Add one $label", enabled && value < 1_000_000) { onDelta(1) }
+        Text(label, color = p.text, style = MaterialTheme.typography.bodyMedium)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (icon != null) Icon(painterResource(icon), contentDescription = iconRarity?.let { "$it rarity" }, tint = commanderIconColor(iconRarity), modifier = Modifier.size(22.dp))
+            else if (glyph.isNotEmpty()) Text(glyph, color = color, style = MaterialTheme.typography.titleMedium)
+            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+            StepButton("−", "Subtract one $label", enabled && value > 0) { onDelta(-1) }
+            Text("$value", color = color, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 36.dp))
+            StepButton("+", "Add one $label", enabled && value < 1_000_000) { onDelta(1) }
+        }
     }
 }
 

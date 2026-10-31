@@ -31,7 +31,7 @@ The app has the same tabs with or without an Atlas:
 
 - **History:** finished games and statistics.
 
-- **More:** About TurnHub, Settings and Store. Open More > Settings for appearance, sound, Commander card art, Atlas connection, and administration when you have permission on a connected Atlas. The Store is not open yet. Settings mentioned in this manual are inside More.
+- **More:** Settings, Atlas connection and administration, About TurnHub and optional support. Appearance and sound are in Settings. Hardware controls are in Atlas.
 
 Tabs slide sideways as you move between them, unless reduced motion is on. **Full screen** gives a started game the whole screen; this is the way to play with one phone or tablet in the middle of the table.
 
@@ -69,15 +69,17 @@ Images are cropped and compressed on this device to at most 512 by 512 pixels an
 
 Open **Game**. The table preview shows the seats as players join, even before there are two. A local game supports up to ten players, within the chosen mode’s player limits.
 
-1. Add everyone who is playing: type a name, or pick a saved player.
+1. Choose **Commander** (40 life) or **Magic · 20 life**, or tap Change for another game.
 
-2. Arrange the seats: drag a player onto another seat, or tap two seats to swap them. Seats run clockwise in number order. **Clear all** empties the lobby without deleting any accounts, history or settings.
+2. Add everyone: type a guest name, or choose a saved player. Arrange seats by dragging a player onto another seat, or tapping two seats. **Remove all** asks before emptying setup; saved players and history are kept.
 
-3. Optionally tap **First?** next to a player to choose who goes first; tap it again to clear it. Otherwise a random player starts.
+3. For variants, house rules, timers, Planechase and guided setup, turn on **Advanced settings**. Turning it off hides the options and keeps your choices. Current life, timer and Magic variant remain visible above the players.
 
-4. Choose the game mode, starting life and turn timer.
+4. Check the players and settings. Naming a commander and choosing artwork are optional.
 
-5. Tap **Start full-screen game**. A three-second countdown runs before the clocks start; Cancel or Back stops it.
+5. Tap **Start game**, then choose who goes first or let TurnHub choose randomly. A three-second countdown runs before the clocks start; Cancel or Back stops it.
+
+**Saved game setups** on this device: add players and choose your settings, then open Saved game setups and tap **Save current setup**. Give it a name, such as Friday Commander. **Load** restores seat order, player identities, commanders, game type, starting life, timer, rules and Planechase choices into setup. It asks before replacing your current setup. Scores, clocks and results are reset; history stays intact. Reusing a name asks before replacing the saved setup, and Delete removes only that preset. A deleted saved-player identity must be added again in a new setup. These presets are stored on this phone; applying them to an Atlas lobby is not available yet.
 
 ## Game Modes
 
@@ -197,7 +199,7 @@ A due bag check and its result open a full-screen pop-up on the shared tablet an
 
 ## Naming Your Commander
 
-In any Commander mode, **Name commander** next to a player lets them name their commander. The name shows under theirs, names their commander-tax counter and labels the Commander damage others take from it. As you type, matching card names are suggested from Scryfall; pick one, and choose a printing whose art fills the player's tile, credited to its artist. The original commander-card icon takes the printing's rarity color. Only what you type is sent to Scryfall. **Commander card art** in Settings turns the suggestions and art off.
+In any Commander mode, Name commander lets a player type their commander name (up to 80 characters). Choose Use commander's art, No art, or Choose other art to search Magic, Pokémon, Lorcana or Yu-Gi-Oh! independently. Artwork never changes the named commander, tax or damage labels. Selecting a suggested card shows every available artwork, including a single printing. Saved players on this device remember their six most recent name/art combinations; Saved commanders reopens a choice for editing before Save. Atlas profiles store up to six choices on its microSD card. Guests can name a commander for the current phone-hosted game, but have no per-player saved commander list. Naming and artwork are optional. Player display names remain limited to 32 characters for readable controls.
 
 ## Turn Timer
 
@@ -213,6 +215,8 @@ Earned extensions are optional. From a player's fourth turn, passing early (befo
 
 Each player has a panel facing their seat with their name, life, counters and turn clock. The player whose turn it is has a glowing edge.
 
+On the **Game** tab, open **Game card** to show **Only** a chosen player or team, or use **Pass and play** to follow the turn among selected players. No selection includes everyone. This changes only what this device displays; it does not change turn order or player seats. A player needed to confirm a win remains available to answer. The **Table** tab retains its seating layout.
+
 - **Life:** use the minus and plus halves of the area above the bottom action strip; hold to repeat the bigger step. Steps are 1 and 5 (100 and 1000 for Yu-Gi-Oh!). On rotated panels, minus is always on the player's left and plus on their right. The action strip and the gap immediately above it do not change life, so a near-miss around Pass does nothing. Moving a life gesture out of its area cancels it.
 
 - **Pass:** the active player holds Pass for 0.6 seconds. It has a larger target in the separate bottom action strip. Small panels show the turn clock inside Pass; Planechase may use a second action row. While it says Passing… tap to keep, a tap undoes the pass.
@@ -223,7 +227,7 @@ Death May Die uses the Pass to? menu described under Game Modes.
 
 ## The Game Menu
 
-The control in the middle of the table opens the game menu. **Pause game** (or **Resume game**) stays at the top. It also holds:
+The control in the middle of the table opens the game menu. During the first three minutes, **Back to setup** appears first with its remaining time. It returns to setup with the same players and settings and saves nothing; tap again to confirm. **Pause game** (or **Resume game**) is directly below the game clock. The menu also holds:
 
 - **Table tools:** dice from d4 to d20 (more under **More dice**), a coin and a random player.
 
@@ -235,7 +239,7 @@ The control in the middle of the table opens the game menu. **Pause game** (or *
 
 - **Help & app:** report a bug, or **Back to the app** to leave the full-screen table without ending the game.
 
-- **Finish game:** **End without a winner** (a draw) and, during the first three minutes, **Back to setup**, which returns to Game with the same players and settings and saves nothing.
+- **Finish game:** **End without a winner** (a draw).
 
 ## A Player's More Card
 
@@ -243,9 +247,9 @@ The control in the middle of the table opens the game menu. **Pause game** (or *
 
 - **Turn, counters & status:** poison, energy and experience (minus corrects or spends a counter); I'm the monarch; I have the initiative; I have the city's blessing.
 
-- **Commander tax:** count each commander's casts from the command zone. The next cast costs two more generic mana per earlier cast; minus corrects a mistake.
+- **Commander · tax & damage** groups your own commander tax and received damage, with separate labels. **Commander tax · your casts:** count each commander's casts from the command zone. The next cast costs two more generic mana per earlier cast; minus corrects a mistake.
 
-- **Commander damage:** record damage this player received from each opponent's commander. Each hit also comes off their life, and a correction gives it back. Turn on **Partner commanders** for a second commander's casts and damage.
+- **Commander damage received** in the same card: record damage this player received from each opponent's commander. Each hit also comes off their life, and a correction gives it back. Turn on **Partner commanders** for a second commander's casts and damage.
 
 - **Pick an opponent:** chooses a random opponent, never a teammate, an ally or a player who is out.
 

@@ -45,6 +45,7 @@ class ScryfallCommanderArt(
      * from the cache or Scryfall; null when no card matches or the lookup fails.
      */
     suspend fun art(name: String, printing: String? = null): CommanderArt? = withContext(ioDispatcher) {
+        if (printing == TileCardGame.NO_ART) return@withContext null
         val game = TileCardGame.of(printing)
         val id = game.id(printing)
         val key = cacheKey(if (id == null) name else "$name#$id")
