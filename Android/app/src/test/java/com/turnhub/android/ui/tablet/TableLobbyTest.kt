@@ -52,10 +52,12 @@ class TableLobbyTest {
         val duel = lobby.setFormat(GameProfile.YUGIOH).toSummary(0, 0).players[0]
         assertEquals("Atraxa", duel.commander)
         assertEquals(null, duel.namedCommander)
-        // Another game's card is tile art only, even in Commander.
-        val pikachu = lobby.setCommander(2, "Pikachu", "pokemon:base1-58").toSummary(0, 0).players[2]
-        assertEquals("pokemon:base1-58", pikachu.commanderArt)
-        assertEquals(null, pikachu.namedCommander)
+        // Artwork from another game never replaces or suppresses the named commander.
+        val pokemonArt = lobby.setCommander(2, "Atraxa", "pokemon:base1-58").toSummary(0, 0).players[2]
+        assertEquals("pokemon:base1-58", pokemonArt.commanderArt)
+        assertEquals("Atraxa", pokemonArt.namedCommander)
+        val decorative = lobby.setCommander(2, "Pikachu", "pokemon:base1-58", cardOnly = true).toSummary(0, 0).players[2]
+        assertEquals(null, decorative.namedCommander)
         assertEquals(null, lobby.setCommander(2, "Pikachu", "pokemon:../x").players[2].commanderArt)
 
         // A random card in Commander is only tile art, and survives saving as such.
