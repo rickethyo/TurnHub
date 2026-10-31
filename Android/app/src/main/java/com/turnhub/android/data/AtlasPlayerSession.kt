@@ -344,8 +344,8 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     }
 
     /** A new display name and/or PIN for the signed-in profile. */
-    suspend fun saveProfile(name: String?, pin: String?) = act {
-        val message = transports.create(it.first).saveProfile(it.second, name, pin)
+    suspend fun saveProfile(name: String?, pin: String?, currentPin: String? = null) = act {
+        val message = transports.create(it.first).saveProfile(it.second, name, pin, currentPin)
         if (name != null) {
             (_state.value as? PlayerSessionState.SignedIn)?.let { s -> _state.value = s.copy(name = name) }
         }
@@ -386,9 +386,9 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         loadChoices()
     }
 
-    /** Removes the profile's PIN or password; Atlas refuses it for accounts with a role. */
-    suspend fun clearPin() {
-        act { formPost(it, "/api/session/profile", listOf("clearPin" to "1"), "PIN removed.") }
+    /** Removes the profile's PIN or password after checking [currentPin]; Atlas refuses it for accounts with a role. */
+    suspend fun clearPin(currentPin: String) {
+        act { formPost(it, "/api/session/profile", listOf("clearPin" to "1", "currentPin" to currentPin), "PIN removed.") }
         loadChoices()
     }
 

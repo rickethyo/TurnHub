@@ -443,7 +443,8 @@ void handleParticipation(WebServer &server, WebControl control) {
   sendOkMessage(server, message);
 }
 
-// Updates the signed-in profile: any of name, pin, clearPin=1.
+// Updates the signed-in profile: any of name, pin, clearPin=1. A pin or
+// clearPin on a profile that has a PIN needs currentPin.
 void handleProfile(WebServer &server) {
   WebSession *session = sessionForRequest(server);
   if (session == nullptr) {
@@ -468,6 +469,12 @@ void handleProfile(WebServer &server) {
 
   if ((clearPin || server.hasArg("pin")) && TurnHubProfiles::hasPinForProfile(profileId) && !session->pinVerified) {
     sendError(server,403,"Enter your current PIN before changing protected credentials"); return;
+  }
+  // Changing or removing a PIN also needs the current one (review item M2), so
+  // an unattended signed-in session cannot take over the profile.
+  if ((clearPin || server.hasArg("pin")) && TurnHubProfiles::hasPinForProfile(profileId) &&
+      !verifyProfileSecret(server, profileId, server.arg("currentPin"))) {
+    return;
   }
   resolveSessionParticipant(*session);
   const SigilRecord *record = recordForModule(session->controllerId);

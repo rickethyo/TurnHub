@@ -57,10 +57,10 @@ import com.turnhub.android.ui.theme.palette
 data class AccountActions(
     val onPlayFromPhone: () -> Unit = {},
     val onSaveName: (String) -> Unit = {},
-    val onSavePin: (String) -> Unit = {},
+    val onSavePin: (String, String?) -> Unit = { _, _ -> },
     val onLoadChoices: () -> Unit = {},
     val onSavePolicy: (allowPhysicalWithoutPin: Boolean, hideStatsWithoutAuthentication: Boolean) -> Unit = { _, _ -> },
-    val onClearPin: () -> Unit = {},
+    val onClearPin: (String) -> Unit = {},
     val onLoadStats: () -> Unit = {},
     /** Hands the profile's statistics report to another app (never includes moderation history). */
     val onShareStats: () -> Unit = {},
@@ -122,6 +122,7 @@ private fun ProfileCard(uiState: HomeUiState, session: PlayerSessionState.Signed
     val p = palette
     var name by rememberSaveable(session.profileId) { mutableStateOf(session.name.orEmpty()) }
     var pin by rememberSaveable { mutableStateOf("") }
+    var currentPin by rememberSaveable { mutableStateOf("") }
     val me = uiState.me()
     BrassCard {
         Eyebrow("My account")
@@ -148,6 +149,19 @@ private fun ProfileCard(uiState: HomeUiState, session: PlayerSessionState.Signed
             )
             ToneButton("Save", { actions.onSaveName(name) }, enabled = name.isNotBlank() && name != session.name)
         }
+        val hasPin = uiState.profileChoices?.hasPin == true
+        if (hasPin) {
+            // Atlas needs the current PIN to change or remove it.
+            OutlinedTextField(
+                value = currentPin,
+                onValueChange = { currentPin = it.take(ProfileSecret.MAX_CHARS) },
+                label = { Text("Current PIN or password") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = pin,
@@ -158,20 +172,24 @@ private fun ProfileCard(uiState: HomeUiState, session: PlayerSessionState.Signed
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 modifier = Modifier.weight(1f),
             )
-            ToneButton("Set PIN", { actions.onSavePin(pin); pin = "" }, enabled = ProfileSecret.isValid(pin))
+            ToneButton(
+                "Set PIN",
+                { actions.onSavePin(pin, currentPin.takeIf { hasPin }); pin = ""; currentPin = "" },
+                enabled = ProfileSecret.isValid(pin) && (!hasPin || currentPin.isNotEmpty()),
+            )
         }
-        if (uiState.profileChoices?.hasPin == true) {
+        if (hasPin) {
             var confirmClear by remember { mutableStateOf(false) }
             if (confirmClear) {
                 ConfirmDialog(
                     "Remove PIN?",
                     "Remove the saved PIN or password for this profile? Accounts with a role keep theirs.",
                     "Remove PIN",
-                    onConfirm = { confirmClear = false; actions.onClearPin() },
+                    onConfirm = { confirmClear = false; actions.onClearPin(currentPin); currentPin = "" },
                     onDismiss = { confirmClear = false },
                 )
             }
-            ToneButton("Remove PIN", { confirmClear = true }, tone = Tone.BAD)
+            ToneButton("Remove PIN", { confirmClear = true }, enabled = currentPin.isNotEmpty(), tone = Tone.BAD)
         }
         ToneButton("Log out", actions.onSignOut, Modifier.fillMaxWidth(), tone = Tone.BAD)
     }

@@ -248,10 +248,11 @@ class HttpAtlasTransport(
         return messageOf(response.body)
     }
 
-    override suspend fun saveProfile(token: String, name: String?, pin: String?): String? {
+    override suspend fun saveProfile(token: String, name: String?, pin: String?, currentPin: String?): String? {
         val fields = buildList {
             name?.let { add("name" to it) }
             pin?.let { add("pin" to it) }
+            currentPin?.let { add("currentPin" to it) }
         }
         val response = request("POST", "/api/session/profile", headers = auth(token), formBody = form(*fields.toTypedArray()))
         requireOk(response, "Atlas did not save your profile")
