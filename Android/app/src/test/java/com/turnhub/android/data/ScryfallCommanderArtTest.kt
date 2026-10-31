@@ -41,6 +41,13 @@ class ScryfallCommanderArtTest {
 
     private fun card(json: String) = Reply(200, json.toByteArray())
 
+    @Test fun `explicit no art never fetches or falls back to commander name lookup`() = runBlocking {
+        val web = FakeWeb { error("No artwork request expected") }
+        val service = ScryfallCommanderArt(folder.root, "TurnHub/test", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
+        assertNull(service.art("Atraxa", TileCardGame.NO_ART))
+        assertTrue(web.asked.isEmpty())
+    }
+
     @Test fun `community reference images are cached across service restarts without fetching other cards`() = runBlocking {
         val web = FakeWeb { Reply(200, jpeg) }
         val service = ScryfallCommanderArt(folder.root, "TurnHub/test", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)

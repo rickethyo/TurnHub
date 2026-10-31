@@ -577,7 +577,7 @@ void chooseCommanderFor(WebServer &server, uint8_t controllerId, uint8_t slot) {
   }
   if (server.hasArg("name")) {
     if (!TurnHubCards::validCommander(server.arg("name"), server.arg("art"))) {
-      sendError(server, 400, "Name a commander (up to 64 characters) and an optional printing ID");
+      sendError(server, 400, "Name a commander (up to 80 characters) and an optional printing ID");
       return;
     }
     chosen = TurnHubCards::rememberCommander(profile, server.arg("name"), server.arg("art"));

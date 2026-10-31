@@ -199,7 +199,7 @@ A due bag check and its result open a full-screen pop-up on the shared tablet an
 
 ## Naming Your Commander
 
-In any Commander mode, **Name commander** next to a player lets them name their commander. The name shows under theirs, names their commander-tax counter and labels the Commander damage others take from it. As you type, matching card names are suggested from Scryfall; pick one, and choose a printing whose art fills the player's tile, credited to its artist. The original commander-card icon takes the printing's rarity color. Only what you type is sent to Scryfall. **Commander card art** in Settings turns the suggestions and art off.
+In any Commander mode, Name commander lets a player type their commander name (up to 80 characters). Choose Use commander's art, No art, or Choose other art to search Magic, Pokémon, Lorcana or Yu-Gi-Oh! independently. Artwork never changes the named commander, tax or damage labels. Selecting a suggested card shows every available artwork, including a single printing. Saved players on this device remember their six most recent name/art combinations; Saved commanders reopens a choice for editing before Save. Atlas profiles store up to six choices on its microSD card. Guests can name a commander for the current phone-hosted game, but have no per-player saved commander list. Naming and artwork are optional. Player display names remain limited to 32 characters for readable controls.
 
 ## Turn Timer
 

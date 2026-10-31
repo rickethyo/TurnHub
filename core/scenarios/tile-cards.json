@@ -33,7 +33,7 @@
         "art": "pokemon:base1-58"
       },
       "expect": {
-        "players.1.cardOnly": true
+        "players.1.cardOnly": false
       }
     },
     {
@@ -46,6 +46,44 @@
       "expect": {
         "players.1.commanderArt": null,
         "players.1.cardOnly": false
+      }
+    },
+    {
+      "action": {
+        "do": "setCommander",
+        "index": 0,
+        "name": "Atraxa",
+        "art": "none"
+      },
+      "expect": {
+        "players.0.commander": "Atraxa",
+        "players.0.commanderArt": "none",
+        "players.0.cardOnly": false
+      }
+    },
+    {
+      "action": {
+        "do": "setCommander",
+        "index": 0,
+        "name": "Atraxa",
+        "art": "pokemon:base1-58"
+      },
+      "expect": {
+        "players.0.commander": "Atraxa",
+        "players.0.commanderArt": "pokemon:base1-58",
+        "players.0.cardOnly": false
+      }
+    },
+    {
+      "action": {
+        "do": "setCommander",
+        "index": 1,
+        "name": "Pikachu",
+        "art": "pokemon:base1-58",
+        "cardOnly": true
+      },
+      "expect": {
+        "players.1.cardOnly": true
       }
     },
     {

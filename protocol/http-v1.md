@@ -745,7 +745,7 @@ Saved commanders: up to six per profile on the microSD card (`d<profileId>`).
 tablet) answers `commanders: [{slot, name, art}]`, newest first.
 `POST /api/control/commander-choice` (signed-in seat) and
 `/api/tablet/commander-choice` (signed-in session, `moduleId`/`slot`, lobby only)
-take `name` (up to 64 characters) and optional `art` (a printing ID) to save
+take `name` (up to 80 characters) and optional `art` (a printing ID, or `none` for explicitly no artwork) to save
 and choose one, `slot` (1-based, 0 for none) to choose a saved one, or
 `forget` (a slot) to remove it. 409 without a card or for a guest. The chosen
 commander shows as each player's `commander` (`name`, `art`) in the state,

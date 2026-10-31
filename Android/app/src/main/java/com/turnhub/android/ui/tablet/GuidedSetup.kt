@@ -228,7 +228,7 @@ private fun PlayerStep(summary: TableSummary, player: TablePlayer, actions: Tabl
         }
         if (namingCard) actions.commander?.let { save ->
             CommanderPickerDialog(player, profile.commanderRules, com.turnhub.android.data.TileCardGame.forProfile(profile),
-                { name, art, cardOnly -> save(player, name, art, cardOnly); namingCard = false }) { namingCard = false }
+                { name, art, cardOnly -> save(player, name, art, cardOnly); namingCard = false }, actions.savedCommanders(player)) { namingCard = false }
         }
     }
     actions.background?.takeIf { actions.canEditBackground(player) }?.let { edit ->

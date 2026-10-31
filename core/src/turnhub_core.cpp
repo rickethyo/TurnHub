@@ -364,7 +364,7 @@ Game Game::setCommander(int index, const std::string &name, const std::string &a
   if (index < 0 || index >= static_cast<int>(players.size())) return *this;
   const auto clean = trimTake(name, 80);
   auto hex = [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); };
-  bool valid = false, magicCard = true;
+  bool valid = art == "none";
   if (art.size() == 36) {
     valid = true;
     for (size_t i = 0; i < art.size(); ++i)
@@ -374,21 +374,18 @@ Game Game::setCommander(int index, const std::string &name, const std::string &a
     const auto id = art.substr(8);
     valid = !id.empty() && id.size() <= 40 && std::isalnum(static_cast<unsigned char>(id[0]));
     for (char c : id) if (!std::isalnum(static_cast<unsigned char>(c)) && c != '.' && c != '-') valid = false;
-    magicCard = false;
   } else if (art.rfind("lorcana:", 0) == 0) {
     const auto id = art.substr(8);
     valid = id.size() == 36 && id.rfind("crd_", 0) == 0;
     for (size_t i = 4; i < id.size(); ++i) if (!hex(id[i])) valid = false;
-    magicCard = false;
   } else if (art.rfind("yugioh:", 0) == 0) {
     const auto id = art.substr(7);
     valid = !id.empty() && id.size() <= 10;
     for (char c : id) if (c < '0' || c > '9') valid = false;
-    magicCard = false;
   }
   const auto printing = valid && !clean.empty() ? art : "";
-  // Invalid printing IDs are discarded; without one, the card source is Magic.
-  const bool only = !clean.empty() && (cardOnly || (!printing.empty() && !magicCard));
+  // Artwork never determines whether a name is a commander.
+  const bool only = !clean.empty() && cardOnly;
   Game g = *this;
   auto &p = g.players[index];
   p.commander = clean; p.commanderArt = printing; p.cardOnly = only;

@@ -9,8 +9,7 @@ class ArtCrop(val left: Float, val top: Float, val right: Float, val bottom: Flo
 /**
  * The card games a player can take tile art from, in any game: a Magic card
  * (Scryfall, whose printing ids are bare UUIDs) or a card from another game's
- * community database, saved as `<prefix><that database's id>`. Only Magic
- * cards can be named as a commander.
+ * community database, saved as `<prefix><that database's id>`. Commander names are independent of the chosen artwork.
  */
 enum class TileCardGame(val label: String, val prefix: String, private val idPattern: Regex, val crop: ArtCrop?, val source: String) {
     MAGIC("Magic", "", com.turnhub.android.standalone.StandaloneGame.PRINTING_ID, null, "Scryfall"),
@@ -29,7 +28,8 @@ enum class TileCardGame(val label: String, val prefix: String, private val idPat
         fun of(printing: String?): TileCardGame =
             entries.firstOrNull { it.prefix.isNotEmpty() && printing?.startsWith(it.prefix) == true } ?: MAGIC
 
-        fun valid(printing: String): Boolean = of(printing).id(printing) != null
+        const val NO_ART = "none"
+        fun valid(printing: String): Boolean = printing == NO_ART || of(printing).id(printing) != null
 
         /** The picker opens on the game being played, when it has a card database. */
         fun forProfile(profile: GameProfile): TileCardGame = when (profile) {

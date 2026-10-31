@@ -58,7 +58,7 @@ class ClientState {
     int32_t damage[MAX_PLAYERS][COMMANDERS_PER_PLAYER] = {};
     LifeChangeRequest request{};
     char name[NAME_LENGTH + 1] = {};
-    char commander[65] = {};
+    char commander[81] = {};
     char commanderArt[49] = {};
   };
   Player players_[MAX_PLAYERS]{};

@@ -15,6 +15,7 @@ data class SavedLocalPlayer(
     val lastActivityMs: Long = 0,
     /** Original UTC creation time; 0 means unknown, never the date of a later import. */
     val createdAtMs: Long = 0,
+    val commanders: List<Pair<String, String?>> = emptyList(),
 )
 
 enum class DeliveryStatus { NEEDS_LINKING, PENDING, IMPORTED, REJECTED }
@@ -202,6 +203,8 @@ data class LocalLibrary(
                 .put("profileId", p.profileId).put("personalization", p.personalization.toJson())
                 .put("links", JSONArray().apply { p.links.forEach { put(JSONObject()
                     .put("atlasId", it.atlasId).put("profileId", it.profileId).put("linkKey", it.linkKey ?: JSONObject.NULL)) } })
+                .put("commanders", JSONArray().apply { p.commanders.forEach { (name, art) ->
+                    put(JSONObject().put("name", name).put("art", art ?: JSONObject.NULL)) } })
                 .put("lastActivityMs", p.lastActivityMs)
                 .put("createdAtMs", p.createdAtMs)
                 .put("credential", p.credential?.let { JSONObject().put("salt", it.salt).put("hash", it.hash) } ?: JSONObject.NULL)) }
@@ -258,7 +261,15 @@ data class LocalLibrary(
                         (0 until links.length()).map { i -> links.getJSONObject(i).let { l ->
                             AtlasProfileLink(l.getString("atlasId"), l.getString("profileId"), l.optStringOrNull("linkKey")) } },
                         it.optJSONObject("credential")?.let { c -> LocalCredential(c.getString("salt"), c.getString("hash")) },
-                        it.optLong("lastActivityMs", 0), it.optLong("createdAtMs", 0).coerceAtLeast(0))
+                        it.optLong("lastActivityMs", 0), it.optLong("createdAtMs", 0).coerceAtLeast(0),
+                        it.optJSONArray("commanders")?.let { choices -> (0 until choices.length()).map { index ->
+                            val choice = choices.getJSONObject(index)
+                            val name = choice.getString("name")
+                            val art = choice.optStringOrNull("art")
+                            require(name.isNotBlank() && name.length <= StandaloneGame.MAX_COMMANDER)
+                            require(art == null || com.turnhub.android.data.TileCardGame.valid(art))
+                            name to art
+                        }.also { require(it.size <= 6) } }.orEmpty())
                 } },
                 history = (0 until history.length()).map { i ->
                     requireNotNull(GameRecord.fromJson(history.getJSONObject(i))) { "Invalid match" }

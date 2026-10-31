@@ -58,7 +58,7 @@ fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destina
     val icon = remember(prefs) { prefs.icon() }
     PlayerAvatar(player.name, 1, icon, size = 56.dp, color = playerColor(prefs.color, palette.avatarColor(1)))
     Text("Account ID ${player.profileId}", color = palette.muted)
-    OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) }, label = { Text("Display name") },
+    OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) }, label = { Text("Display name (up to 32 characters)") },
         singleLine = true, modifier = Modifier.fillMaxWidth())
     ToneButton("Save name", { saveError = !table.saveAccount(player.localId, name, prefs) },
         enabled = name.isNotBlank() && name.trim() != player.name)

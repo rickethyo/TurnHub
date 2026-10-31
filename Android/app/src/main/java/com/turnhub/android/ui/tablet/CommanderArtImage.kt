@@ -65,7 +65,7 @@ internal fun cropArt(bitmap: Bitmap, crop: ArtCrop?): Bitmap {
 internal fun rememberCommanderArt(name: String?, printing: String? = null): TileArt? {
     val context = LocalContext.current
     val enabled = rememberCommanderArtEnabled().first
-    if (name.isNullOrBlank() || !enabled) return null
+    if (name.isNullOrBlank() || !enabled || printing == TileCardGame.NO_ART) return null
     val key = ScryfallCommanderArt.cacheKey(if (printing == null) name else "$name#$printing")
     // Keyed state, not produceState: its value would keep the previous card's art (and name)
     // until the new card's art finished downloading.

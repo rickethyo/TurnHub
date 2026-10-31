@@ -68,9 +68,11 @@ class SavedGameSetupTest {
         assertFalse(table.saveGameSetup("Friday", replace = true))
         assertEquals(1, table.state.value.library.gameSetups.single().game.players.size)
         store.fail = false
-        assertTrue(table.saveGameSetup("Friday", replace = true))
-        assertEquals(2, table.state.value.library.gameSetups.single().game.players.size)
-        assertTrue(table.deleteGameSetup("Friday"))
+        assertNotNull(table.state.value.storageProblem)
+        val recovered = StandaloneTable(store)
+        assertTrue(recovered.saveGameSetup("Friday", replace = true))
+        assertEquals(2, recovered.state.value.library.gameSetups.single().game.players.size)
+        assertTrue(recovered.deleteGameSetup("Friday"))
         assertTrue(StandaloneTable(store).state.value.library.gameSetups.isEmpty())
     }
 

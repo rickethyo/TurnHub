@@ -308,7 +308,7 @@ private fun CreateLocalAccountDialog(table: StandaloneTable, storageAvailable: B
         title = { Text("Add player") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) }, label = { Text("Name") },
+                OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) }, label = { Text("Name (up to 32 characters)") },
                     enabled = !creating, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(secret, { secret = it.take(ProfileSecret.MAX_CHARS) }, label = { Text("PIN or password (optional)") },
                     enabled = !creating, singleLine = true, modifier = Modifier.fillMaxWidth(),

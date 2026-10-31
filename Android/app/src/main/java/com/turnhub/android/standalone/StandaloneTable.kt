@@ -743,7 +743,19 @@ class StandaloneTable(
         edit { it.commanderDamage(StandaloneGame.indexOf(seat.moduleId), source - 1, commander, delta, wallClock()) }
 
     // A standalone game has no phones asking for life changes, and is never offline.
-    fun setCommander(index: Int, name: String?, art: String? = null, cardOnly: Boolean = false) { edit { it.setCommander(index, name, art, cardOnly) } }
+    fun setCommander(index: Int, name: String?, art: String? = null, cardOnly: Boolean = false) {
+        val before = _state.value
+        val game = before.game.setCommander(index, name, art, cardOnly)
+        val player = game.players.getOrNull(index) ?: return
+        val library = if (player.localId != null && !player.cardOnly && player.commander != null) {
+            val choice = player.commander to player.commanderArt
+            before.library.copy(players = before.library.players.map { saved ->
+                if (saved.localId != player.localId) saved else saved.copy(
+                    commanders = (listOf(choice) + saved.commanders.filterNot { it == choice }).take(6))
+            })
+        } else before.library
+        publish(before.copy(game = game, library = library), durable = true)
+    }
     fun setInvestigator(index: Int, name: String?) { edit { it.setInvestigator(index, name) } }
     fun setInvestigatorCard(index: Int, slot: com.turnhub.android.domain.InvestigatorCardSlot,
         card: com.turnhub.android.domain.InvestigatorCard?) { edit { it.setInvestigatorCard(index, slot, card) } }

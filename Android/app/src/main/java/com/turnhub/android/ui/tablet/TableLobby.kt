@@ -160,6 +160,7 @@ internal fun TableLobby(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(name, { name = it.take(StandaloneGame.MAX_NAME) }, label = { Text("Player's name") },
+                        supportingText = { Text("${name.length}/${StandaloneGame.MAX_NAME} characters") },
                         singleLine = true, enabled = enabled && canAdd,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { add() }),
                         modifier = Modifier.weight(1f))
