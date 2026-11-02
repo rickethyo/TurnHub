@@ -277,6 +277,16 @@ void serviceAtlasDisplay(uint32_t nowMs) {
   lv_timer_handler();
 }
 
+// Before deep sleep: the backlight off and the panel in its own sleep (the
+// next beginAtlasDisplay's init sends SLPOUT). The touch controller stays
+// awake, because its interrupt is what wakes Atlas.
+void darkenAtlasDisplayForSleep() {
+  if (!displayReady) return;
+  if (tft.getStartCount() > 0) tft.endWrite();
+  tft.setBrightness(0);
+  tft.sleep();
+}
+
 bool startAtlasScreenTest() {
   if (!displayReady || screenTesting) return false;
   screenTestStartedMs = millis();

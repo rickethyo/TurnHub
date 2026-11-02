@@ -128,8 +128,12 @@ PCA9554 can assert INT without polling while powered. GPIO14 is an RTC-capable
 S3 pin and can be a low-level deep-sleep wake source. Keep expander supply and
 INT pull-up powered; read/clear a pending interrupt before sleeping to avoid a
 wake loop. Test held switch, release, simultaneous presses and sleep entry race.
-Touch IRQ GPIO17 is also RTC-capable, but wake depends on controller power and
-its sleep/interrupt configuration; touch wake is **not yet verified**.
+Touch IRQ GPIO17 is also RTC-capable. Sleep (`atlas_board_none.cpp`, since
+2026-11-02) arms it as an ext1 low-level wake beside BOOT's ext0, keeps the
+FT6336U awake with its reset (GPIO18) held high, and holds the backlight
+(GPIO45, the VDD_SPI strap) low through sleep and the wake restart. Before
+that only BOOT was armed, so the 4-inch Atlas needed a reset after Sleep.
+Touch wake is *Needs verification* on the board.
 
 Future production alternative: bare SF303GJ26 or equivalent five-way switch,
 PCA9554/PCA9534 with explicit contact pull-ups, decoupling, address straps and
