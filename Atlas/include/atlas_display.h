@@ -18,9 +18,11 @@ TurnHubTheme::Id atlasDisplayTheme();
 bool chooseAtlasDisplayTheme(TurnHubTheme::Id theme);
 bool atlasDisplayInverted();
 bool chooseAtlasDisplayInverted(bool inverted);
+// Backlight off and panel asleep, just before deep sleep (sleepAtlas).
+void darkenAtlasDisplayForSleep();
 // Menu > Device Sleep (scheduled by handleSleepIntent, table_intents.cpp):
-// screen dark, outputs held off, then deep sleep until the screen is touched
-// (the XPT2046 pen interrupt, GPIO36) or BOOT (GPIO0) is pressed. Never
+// screen dark, backlight held off, then deep sleep until the screen is
+// touched (the FT6336U interrupt, TOUCH_INT_PIN) or BOOT (GPIO0) is pressed. Never
 // returns: waking restarts Atlas. Asleep on the cell, Atlas also wakes every
 // minute to look for USB (stayAsleepWithoutUsb) and starts when it is back.
 // batteryEmpty: the cell is flat, so a touch or BOOT doesn't start Atlas
