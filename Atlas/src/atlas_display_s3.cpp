@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "atlas_app.h"
+#include "atlas_battery.h"
 #include "atlas_screen_lvgl.h"
 #include "config.h"
 #include "firmware_version.h"
@@ -124,6 +125,10 @@ uint32_t lastTouchPollMs = 0;
 uint32_t lastScreenPollMs = 0;
 uint32_t lastTouchedAtMs = 0;
 bool touchLogged = false;
+// Screen off (AtlasConfig::SCREEN_OFF_IDLE_MS): the backlight only.
+bool screenDark = false;
+bool swallowTouch = false;  // The touch that lit the screen, until released.
+uint32_t screenActiveAtMs = 0;
 
 TurnHubTheme::Id theme = TurnHubTheme::Id::Graphite;
 bool inverted = false;
@@ -133,6 +138,29 @@ bool shownValid = false;
 bool screenTesting = false;
 uint32_t screenTestStartedMs = 0;
 bool screenTestReleaseTouch = false;
+
+void lightScreen(uint32_t nowMs) {
+  screenActiveAtMs = nowMs;
+  if (!screenDark) return;
+  screenDark = false;
+  tft.setBrightness(BACKLIGHT_ON);
+  serialLog.println("ATLAS|DISPLAY|SCREEN_ON");
+}
+
+void serviceScreenOff(uint32_t nowMs) {
+  if (screenDark || splashUp) return;
+  const bool battery = atlasOnBattery();
+  // On USB a running match keeps the clock in view.
+  if (!battery && !allTablesBetweenGames()) {
+    screenActiveAtMs = nowMs;
+    return;
+  }
+  const uint32_t idleMs = battery ? AtlasConfig::BATTERY_SCREEN_OFF_IDLE_MS : AtlasConfig::SCREEN_OFF_IDLE_MS;
+  if (nowMs - screenActiveAtMs < idleMs) return;
+  screenDark = true;
+  tft.setBrightness(0);
+  serialLog.println("ATLAS|DISPLAY|SCREEN_OFF");
+}
 
 // --- LVGL glue -----------------------------------------------------------
 
@@ -251,9 +279,15 @@ void serviceAtlasDisplay(uint32_t nowMs) {
       }
       lastTouchedAtMs = nowMs;
       noteAtlasActivity(nowMs);
+      // A touch on a dark screen only lights it: nothing under the finger is
+      // pressed until it lifts.
+      if (screenDark) swallowTouch = true;
+      lightScreen(nowMs);
     } else if (nowMs - lastTouchedAtMs >= TOUCH_RELEASE_MS) {
       touchLogged = false;
+      swallowTouch = false;
     }
+    if (swallowTouch) touched = false;
     // The splash ignores touches rather than acting on an unseen screen.
     if (!splashUp) updateTouchControls(nowMs, touched, x, y);
   }
@@ -266,14 +300,18 @@ void serviceAtlasDisplay(uint32_t nowMs) {
     AtlasScreen screen;
     buildAtlasScreen(nowMs, screen);
     if (!shownValid || !sameScreen(screen, shown)) {
-      // A ticking clock and Mana Tap's orbs update in place; anything else rebuilds.
+      // A ticking clock and Mana Tap's orbs update in place; anything else
+      // rebuilds, and lights a dark screen.
       if (!shownValid || !sameScreenButTimes(screen, shown) || !updateAtlasScreenTimes(screen) ||
-          !updateAtlasScreenMana(screen))
+          !updateAtlasScreenMana(screen)) {
         renderAtlasScreen(screen, {theme, inverted});
+        lightScreen(nowMs);
+      }
       shown = screen;
       shownValid = true;
     }
   }
+  serviceScreenOff(nowMs);
   lv_timer_handler();
 }
 
@@ -293,6 +331,7 @@ bool startAtlasScreenTest() {
   screenTesting = true;
   screenTestReleaseTouch = true;
   noteAtlasActivity(screenTestStartedMs);
+  lightScreen(screenTestStartedMs);
   return true;
 }
 
