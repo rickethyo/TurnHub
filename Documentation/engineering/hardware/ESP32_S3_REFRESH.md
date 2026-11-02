@@ -143,7 +143,7 @@ or `BATTERY_SCREEN_OFF_IDLE_MS` (30 s) on the cell, even mid-match; the Sigil
 after `SIGIL_SCREEN_OFF_IDLE_MS` (2 min), never during a match or while
 showing a pairing code. A touch lights it without pressing anything; a new
 screen (a pass, a request, Atlas lost) lights it too. Presentation only: no
-Intent, no saved state. *Needs verification* on the boards.
+Intent, no saved state. *Verified* on both boards (owner, 2026-11-02).
 
 Future production alternative: bare SF303GJ26 or equivalent five-way switch,
 PCA9554/PCA9534 with explicit contact pull-ups, decoupling, address straps and
