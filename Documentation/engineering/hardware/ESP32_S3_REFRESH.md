@@ -135,6 +135,16 @@ FT6336U awake with its reset (GPIO18) held high, and holds the backlight
 that only BOOT was armed, so the 4-inch Atlas needed a reset after Sleep.
 Touch wake is *Verified* on the board (owner, 2026-11-02).
 
+Screen off (owner 2026-11-02, Atlas `atlas_display_s3.cpp` and Sigil
+`sigil_board_e32r28t.cpp`): with no touch and nothing new on screen (a ticking
+clock doesn't count) the backlight goes off while everything else keeps
+running: Atlas after `SCREEN_OFF_IDLE_MS` (2 min) on USB, only between games,
+or `BATTERY_SCREEN_OFF_IDLE_MS` (30 s) on the cell, even mid-match; the Sigil
+after `SIGIL_SCREEN_OFF_IDLE_MS` (2 min), never during a match or while
+showing a pairing code. A touch lights it without pressing anything; a new
+screen (a pass, a request, Atlas lost) lights it too. Presentation only: no
+Intent, no saved state. *Needs verification* on the boards.
+
 Future production alternative: bare SF303GJ26 or equivalent five-way switch,
 PCA9554/PCA9534 with explicit contact pull-ups, decoupling, address straps and
 INT pull-up on one interface PCB. Quote assembly/test costs before concluding it

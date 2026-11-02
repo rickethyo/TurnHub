@@ -19,6 +19,14 @@ uint16_t sigilTouchLifeRequest();
 bool sigilTouchPoint(int16_t &x, int16_t &y);
 // Device menu > Calibrate (or the "touch cal" serial command): four
 // crosses, saved to NVS. While it runs every read returns Key::Count.
+// Screen off (owner 2026-11-02, as on Atlas): after SIGIL_SCREEN_OFF_IDLE_MS
+// with no touch and nothing new to show, the backlight goes off; the radio
+// and game keep running. A touch lights it without pressing anything.
+// sigilScreenActivity lights it (something new to show); sigilScreenKeepOn
+// keeps it lit (a match is running or paused).
+constexpr uint32_t SIGIL_SCREEN_OFF_IDLE_MS = 2UL * 60UL * 1000UL;
+void sigilScreenActivity();
+void sigilScreenKeepOn(bool keepOn);
 void sigilTouchStartCalibration();
 bool sigilTouchCalibrating();
 

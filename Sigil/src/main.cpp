@@ -2169,6 +2169,24 @@ void readSerialCommands() {
   }
 }
 
+// Screen off (sigil_touch.h): anything new to show lights the screen, and a
+// match in progress keeps it lit.
+void updateScreenLight() {
+  static uint32_t shown = 0;
+  const int32_t payload = displayPayload;
+  const uint32_t request = static_cast<uint32_t>(lifeRequest.target << 8) | lifeRequest.tag;
+  const uint32_t signature = static_cast<uint32_t>(payload) * 31u + sigilId * 7u + request * 131u +
+      (pairingCodeShown ? 1u : 0u) + (atlasLostShown ? 2u : 0u) + (pickerActive ? 4u : 0u) +
+      (commanderActive ? 8u : 0u);
+  if (signature != shown) {
+    shown = signature;
+    TurnHubSigil::sigilScreenActivity();
+  }
+  const DisplayMode mode = TurnHubProtocol::displayMode(payload);
+  TurnHubSigil::sigilScreenKeepOn(mode == DisplayMode::Starting || mode == DisplayMode::Running ||
+      mode == DisplayMode::Paused || pairingCodeShown);
+}
+
 void loop() {
   readSerialCommands();
   ReceivedPacket received;
@@ -2184,6 +2202,7 @@ void loop() {
   if (updater.pending()) updater.run();  // Blocks; restarts on success.
 #endif
   updateTouch(millis());
+  updateScreenLight();
   updateMenuKeys();
   updatePairButton();
   updatePairing();

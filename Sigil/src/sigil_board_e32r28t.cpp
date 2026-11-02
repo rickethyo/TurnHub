@@ -92,6 +92,11 @@ uint8_t inputPlayer = 0;
 uint16_t inputLifeRequest = 0;
 volatile bool touchDown = false;
 volatile int16_t touchX = 0, touchY = 0;
+// Screen off: loop() notes activity, the display task owns the backlight.
+volatile uint32_t screenActiveAtMs = 0;
+volatile uint32_t screenLightRequests = 0;
+volatile bool screenKeepOn = false;
+volatile bool screenDark = false;
 
 // The calibration run, shared by loop() (sampling) and the display task
 // (drawing): the target shown, or CAL_IDLE, and a message under it.
@@ -155,8 +160,9 @@ class TouchSigilDisplay : public LvglSigilDisplay {
     return display ? IDLE_WORK_MS : UINT32_MAX;
   }
 
-  void idleWork(uint32_t) override {
+  void idleWork(uint32_t nowMs) override {
     if (!display) return;
+    serviceScreenOff(nowMs);
     const Key key = static_cast<Key>(touchedKey);
     if (key != shownKey_) {
       shownKey_ = key;
@@ -239,6 +245,26 @@ class TouchSigilDisplay : public LvglSigilDisplay {
     lv_refr_now(display);
   }
 
+  void serviceScreenOff(uint32_t nowMs) {
+    const uint32_t requests = screenLightRequests;
+    if (requests != litRequests_) {
+      litRequests_ = requests;
+      if (screenDark) {
+        screenDark = false;
+        tft.setBrightness(BACKLIGHT_ON);
+        Serial.println("SIGIL|DISPLAY|SCREEN_ON");
+      }
+      return;
+    }
+    if (screenDark || calStep != CAL_IDLE) return;
+    if (screenKeepOn) { screenActiveAtMs = nowMs; return; }
+    if (nowMs - screenActiveAtMs < SIGIL_SCREEN_OFF_IDLE_MS) return;
+    screenDark = true;
+    tft.setBrightness(0);
+    Serial.println("SIGIL|DISPLAY|SCREEN_OFF");
+  }
+
+  uint32_t litRequests_ = 0;
   Key shownKey_ = Key::Count;
   uint8_t drawnStep_ = CAL_IDLE;
   CalMessage drawnMessage_ = CalMessage::None;
@@ -448,6 +474,13 @@ void sigilTouchBegin() {
   loadCalibration();
 }
 
+void sigilScreenActivity() {
+  screenActiveAtMs = millis();
+  screenLightRequests = screenLightRequests + 1;
+}
+
+void sigilScreenKeepOn(bool keepOn) { screenKeepOn = keepOn; }
+
 void sigilTouchStartCalibration() {
   if (calStep != CAL_IDLE) return;
   run = CalibrationRun();
@@ -477,7 +510,22 @@ Key sigilTouchRead() {
     touchedKey = static_cast<uint8_t>(Key::Count);
     return Key::Count;
   }
-  if (readRaw(rawX, rawY)) {
+  // A touch on a dark screen only lights it: nothing is pressed until the
+  // finger lifts.
+  static bool swallow = false;
+  const bool pressed = readRaw(rawX, rawY);
+  if (pressed) {
+    if (screenDark) swallow = true;
+    sigilScreenActivity();
+  }
+  if (swallow) {
+    if (!pressed && nowMs - screenActiveAtMs >= RELEASE_MS) swallow = false;
+    contact.sample(activeTouchMap, false, lastX, lastY);
+    touchDown = false;
+    touchedKey = static_cast<uint8_t>(Key::Count);
+    return Key::Count;
+  }
+  if (pressed) {
     int16_t x = 0, y = 0;
     mapTouch(touchCal, rawX, rawY, SIGIL_SCREEN_W, SIGIL_SCREEN_H, x, y);
     TouchMap map;

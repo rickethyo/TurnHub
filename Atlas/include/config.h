@@ -67,6 +67,16 @@ constexpr uint32_t BATTERY_DIVIDER_DENOMINATOR = 1;
 // resets Atlas (three_part_button.h).
 constexpr uint8_t BOOT_BUTTON_PIN = 0;
 
+// Screen off (owner 2026-11-02: the backlight is the biggest draw and need
+// not run constantly). With no touch and nothing new on screen (a ticking
+// clock doesn't count) for this long, the backlight goes off and everything
+// else keeps running; a touch lights it again without pressing anything, and
+// anything new on screen (a pass, a phone joining) lights it too. On USB the
+// screen stays on while a match is running and not paused; on the cell it
+// goes off sooner, even during a match.
+constexpr uint32_t SCREEN_OFF_IDLE_MS = 2UL * 60UL * 1000UL;
+constexpr uint32_t BATTERY_SCREEN_OFF_IDLE_MS = 30UL * 1000UL;
+
 // Auto sleep on the cell (owner 2026-10-08: keep the small backup cell from
 // running flat). Between games, Atlas sleeps after this long with no player
 // action (an Intent from a Sigil, phone or the touchscreen, or a touch). On
