@@ -133,7 +133,7 @@ Touch IRQ GPIO17 is also RTC-capable. Sleep (`atlas_board_none.cpp`, since
 FT6336U awake with its reset (GPIO18) held high, and holds the backlight
 (GPIO45, the VDD_SPI strap) low through sleep and the wake restart. Before
 that only BOOT was armed, so the 4-inch Atlas needed a reset after Sleep.
-Touch wake is *Needs verification* on the board.
+Touch wake is *Verified* on the board (owner, 2026-11-02).
 
 Future production alternative: bare SF303GJ26 or equivalent five-way switch,
 PCA9554/PCA9534 with explicit contact pull-ups, decoupling, address straps and
