@@ -264,6 +264,7 @@ struct AtlasScreen {
   // and letter, so none relies on colour alone: the TurnHub hotspot (A, lit
   // while a phone is on it), home Wi-Fi (H, slashed while joining, hidden
   // when off) and the Sigil radio (S, lit while a Sigil is online).
+  bool hotspotOn = true;  // Off on the home-only bench build: no A icon.
   uint8_t hotspotStations = 0;
   bool homeWifiOn = false;
   bool homeWifiLinked = false;
@@ -326,7 +327,7 @@ inline bool sameHeader(const AtlasScreen &a, const AtlasScreen &b) {
       a.batteryPercent == b.batteryPercent && a.batteryLow == b.batteryLow &&
       a.batteryCharging == b.batteryCharging &&
       a.update == b.update && a.sigilsOnline == b.sigilsOnline &&
-      a.hotspotStations == b.hotspotStations && a.homeWifiOn == b.homeWifiOn && a.homeWifiLinked == b.homeWifiLinked &&
+      a.hotspotOn == b.hotspotOn && a.hotspotStations == b.hotspotStations && a.homeWifiOn == b.homeWifiOn && a.homeWifiLinked == b.homeWifiLinked &&
       a.round == b.round;
 }
 

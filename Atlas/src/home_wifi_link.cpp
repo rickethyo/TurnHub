@@ -217,12 +217,54 @@ void publishPin() {
   mdnsPinned = true;
 }
 
+// Bench, temporarily (owner, 2026-11-03): "disable the atlas hotspot and move
+// all communication to the home wifi". Phones learn Atlas's key over the
+// hotspot once, so it stays up for 2 min after Atlas joins the home network,
+// then goes off (ESP-NOW stays on the station interface). With no home
+// network for 1 min it comes back, so a lost router never strands the table.
+#ifndef TURNHUB_HOTSPOT_OFF_ON_HOME
+#define TURNHUB_HOTSPOT_OFF_ON_HOME 1
+#endif
+constexpr uint32_t HOTSPOT_OFF_AFTER_MS = 2UL * 60UL * 1000UL;
+constexpr uint32_t HOTSPOT_BACK_AFTER_MS = 60UL * 1000UL;
+bool hotspotUp = true;
+uint32_t homeUpSinceMs = 0, homeDownSinceMs = 0;
+
+void serviceHotspot(uint32_t nowMs) {
+#if TURNHUB_HOTSPOT_OFF_ON_HOME
+  const bool home = phase == Phase::Connected;
+  if (home) {
+    homeDownSinceMs = 0;
+    if (!homeUpSinceMs) homeUpSinceMs = nowMs | 1;
+  } else {
+    homeUpSinceMs = 0;
+    if (!homeDownSinceMs) homeDownSinceMs = nowMs | 1;
+  }
+  if (hotspotUp && home && nowMs - homeUpSinceMs >= HOTSPOT_OFF_AFTER_MS) {
+    WiFi.softAPdisconnect(true);
+    hotspotUp = false;
+    serialLog.printf("ATLAS|WIFI_AP|OFF|home_only|channel=%u\n", static_cast<unsigned>(radioChannel()));
+  } else if (!hotspotUp && !home && nowMs - homeDownSinceMs >= HOTSPOT_BACK_AFTER_MS) {
+    const String stored = TurnHub::readStoredWifiPassword();
+    const String password = TurnHub::validWifiPassword(stored) ? stored : String(AtlasConfig::WIFI_DEFAULT_PASSWORD);
+    WiFi.mode(WIFI_AP_STA);
+    hotspotUp = WiFi.softAP(AtlasConfig::WIFI_SSID, password.c_str(), radioChannel(), false, 8);
+    WiFi.setSleep(false);
+    serialLog.printf("ATLAS|WIFI_AP|%s|no_home_wifi|channel=%u\n", hotspotUp ? "BACK" : "ERROR",
+        static_cast<unsigned>(radioChannel()));
+  }
+#else
+  (void)nowMs;
+#endif
+}
+
 }  // namespace
 
 bool homeWifiEnabled() { load(); return enabled; }
 bool homeWifiConfigured() { load(); return ssid[0] != '\0'; }
 bool homeWifiConnected() { return phase == Phase::Connected; }
 const char *homeWifiAddress() { return phase == Phase::Connected ? address : ""; }
+bool atlasHotspotOn() { return hotspotUp; }
 uint8_t homeWifiNetworkChannel() { return networkChannel; }
 const char *homeWifiSsid() { load(); return ssid; }
 TurnHub::HomeWifiResult homeWifiResult() { return result; }
@@ -294,6 +336,7 @@ void requestHomeWifiCheck() {
 }
 
 void serviceHomeWifi(uint32_t nowMs) {
+  serviceHotspot(nowMs);
   static uint32_t lastClockCheck = 0;
   if (WiFi.status() == WL_CONNECTED && nowMs - lastClockCheck >= 1000) {
     lastClockCheck = nowMs;

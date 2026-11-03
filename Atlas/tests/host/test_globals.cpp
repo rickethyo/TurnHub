@@ -115,6 +115,7 @@ bool TurnHubAtlas::homeWifiEnabled() { return fixtureHomeWifiOn; }
 bool TurnHubAtlas::homeWifiConfigured() { return !fixtureHomeSsid.empty(); }
 bool TurnHubAtlas::homeWifiConnected() { return false; }
 const char *TurnHubAtlas::homeWifiAddress() { return ""; }
+bool TurnHubAtlas::atlasHotspotOn() { return true; }
 uint8_t TurnHubAtlas::homeWifiNetworkChannel() { return 0; }
 bool TurnHubAtlas::setHomeWifiEnabled(bool on) {
   if (on && fixtureHomeSsid.empty()) return false;
