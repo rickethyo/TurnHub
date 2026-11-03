@@ -69,6 +69,10 @@ internal object LanAtlasFrame {
 
 private fun relay(block: suspend TableControls.() -> Boolean) = block
 
+/** A Play together guest's Atlas screen choice: `atlas-screen:` and one of [ATLAS_SCREEN_VIEWS]. */
+internal const val ATLAS_SCREEN_KIND = "atlas-screen:"
+internal val ATLAS_SCREEN_VIEWS = setOf("game", "table", "planes", "card")
+
 /** Where a relayed command must still apply: the same Atlas boot and game. */
 internal fun TableSummary.relayMatch() = "$atlasId/$bootId/$game/$matchId"
 
@@ -86,6 +90,9 @@ internal fun atlasRelayAction(summary: TableSummary, player: Int, kind: String, 
         kind.startsWith("planar-atlas:") && simple &&
             kind.removePrefix("planar-atlas:").matches(Regex("(roll|effect):(blank|chaos|planeswalk)|(planeswalk|chaos|resolve)|counter:-?1")) ->
             relay { control(seat, com.turnhub.android.data.PLANAR_PREFIX + kind.removePrefix("planar-atlas:")) }
+        // The Atlas screen picker, for the guest's own seat; Atlas refuses Sigils and guests without an account.
+        kind.startsWith(ATLAS_SCREEN_KIND) && simple && kind.removePrefix(ATLAS_SCREEN_KIND) in ATLAS_SCREEN_VIEWS ->
+            relay { showOnAtlas(seat, kind.removePrefix(ATLAS_SCREEN_KIND)) }
         kind == "life" && slot == 0 && source == 0 && value != 0 && value in -10_000..10_000 -> relay { life(seat, value) }
         kind == "commander" && slot in 1..2 && summary.players.any { it.playerNumber == source } && value in listOf(-1, 1) ->
             relay { commander(seat, source, slot, value); true }

@@ -441,7 +441,9 @@ private fun PlanarCredit() {
 internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, actions: TabletActions, reduceMotion: Boolean, offline: Boolean,
     /** A signed-in player of this phone at the table (not a Sigil or a guest), who may set the Atlas screen. */
     screenSeat: TabletSeat? = null, readOnly: Boolean = false,
-    onRoomControl: ((TabletSeat, String) -> Unit)? = null) {
+    onRoomControl: ((TabletSeat, String) -> Unit)? = null,
+    /** Play together: the guest's Atlas screen choice goes through the hub instead of [actions]. */
+    onScreenView: ((String) -> Unit)? = null, screenEnabled: Boolean = !readOnly) {
     val p = palette
     val context = LocalContext.current
     val planes = summary.atlasPlanechase
@@ -503,7 +505,8 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
             }, Modifier.fillMaxWidth(), enabled = can)
             if (!running) Text("The active player rolls while the game runs.", color = p.faint, style = MaterialTheme.typography.bodySmall)
         }
-        if (running && screenSeat != null) AtlasScreenPicker(screenSeat, actions, cardView = planes.digital && planes.plane != null, enabled = !offline && !readOnly)
+        if (running && screenSeat != null) AtlasScreenPicker(screenSeat, actions, cardView = planes.digital && planes.plane != null,
+            enabled = !offline && screenEnabled, onScreenView = onScreenView)
         PlanarCredit()
     }
     if (rolling) PlanarRollDialog(reduceMotion, onRoll = {
@@ -515,7 +518,8 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
 
 /** Sets what the Atlas screen shows during the game: Game, Table, Planes or the plane's Card. */
 @Composable
-private fun AtlasScreenPicker(seat: TabletSeat, actions: TabletActions, cardView: Boolean, enabled: Boolean) {
+private fun AtlasScreenPicker(seat: TabletSeat, actions: TabletActions, cardView: Boolean, enabled: Boolean,
+    onScreenView: ((String) -> Unit)? = null) {
     val p = palette
     var shown by rememberSaveable { mutableStateOf<String?>(null) }
     val views = listOf("game" to "Game", "table" to "Table", "planes" to "Planes") + if (cardView) listOf("card" to "Card") else emptyList()
@@ -524,7 +528,8 @@ private fun AtlasScreenPicker(seat: TabletSeat, actions: TabletActions, cardView
         Text("Choose what Atlas shows the table.", color = p.muted)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             views.forEach { (key, label) ->
-                val pick = { actions.run { if (showOnAtlas(seat, key)) shown = key } }
+                // Through the hub, Atlas's answer comes back as the room's message; mark the choice now.
+                val pick = { onScreenView?.let { it(key); shown = key } ?: actions.run { if (showOnAtlas(seat, key)) shown = key } }
                 val chosen = Modifier.weight(1f).semantics { selected = shown == key }
                 if (shown == key) AccentButton(label, pick, chosen, enabled = enabled)
                 else ToneButton(label, pick, chosen, enabled = enabled)

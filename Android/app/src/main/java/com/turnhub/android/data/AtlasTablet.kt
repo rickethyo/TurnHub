@@ -310,7 +310,7 @@ class AtlasTablet(
      * Sets what the Atlas screen shows during the game (`game`, `table`, `planes` or `card`),
      * for a signed-in player at the table ([seat]); Atlas refuses Sigil seats and guests.
      */
-    suspend fun showOnAtlas(seat: TabletSeat, view: String): Boolean {
+    override suspend fun showOnAtlas(seat: TabletSeat, view: String): Boolean {
         val response = post("/api/atlas/screen", seat.fields + ("view" to view)) ?: return false
         if (response.ok) succeed() else fail(response)
         return response.ok

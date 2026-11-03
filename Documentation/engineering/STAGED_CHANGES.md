@@ -248,7 +248,8 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   Atlas screen (2026-11-02, GAMEPLAY.md); Card shows the face-up plane full
   screen in landscape with its art and text, which the app sends (2026-11-03).
   Seated signed-in players pick the Atlas screen's view from the app's Planes
-  tab (2026-11-03); the same picker for games without Planechase (Game or
+  tab (2026-11-03), and Play together guests from its Planes view through the
+  hub (`atlas-screen:`, `lan-v1.md`); the same picker for games without Planechase (Game or
   Table) waits for a home in the app's Game menu.
   Next: Atlas
   downloads the catalog itself over home Wi-Fi and refreshes it periodically;

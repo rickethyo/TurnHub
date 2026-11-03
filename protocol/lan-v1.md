@@ -80,7 +80,9 @@ validator rather than carrying old game-specific seat capabilities forward.
 Existing local own-seat commands include life, counters, received Commander
 damage, pass, win/confirm/deny/concede/eliminate, pause and DMD investigator
 commands. Planar commands retain the `planar-` vocabulary; Atlas plane controls
-use bounded `planar-atlas:` actions. Setup and special table decisions unsupported
+use bounded `planar-atlas:` actions, and `atlas-screen:<game|table|planes|card>`
+sets the Atlas screen's view for the guest's own seat (Atlas accepts signed-in
+players only, as from their own phone). Setup and special table decisions unsupported
 by the LAN vocabulary stay on the host and are reported visibly.
 
 Local commands require the exact match/revision. Atlas commands require its

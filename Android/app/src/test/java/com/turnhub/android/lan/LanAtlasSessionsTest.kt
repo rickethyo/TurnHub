@@ -25,6 +25,7 @@ class LanAtlasSessionsTest {
     private class Recorder : TableControls {
         val sent = mutableListOf<String>()
         override suspend fun control(seat: TabletSeat, action: String): Boolean { sent += "control $seat $action"; return true }
+        override suspend fun showOnAtlas(seat: TabletSeat, view: String): Boolean { sent += "screen $seat $view"; return true }
         override suspend fun eliminate(seat: TabletSeat, eliminatedBy: Int?): Boolean { sent += "eliminate $seat"; return true }
         override suspend fun resolveElimination(seat: TabletSeat, victim: Int, source: Int?, token: GameActionToken) = true
         override suspend fun doom(seat: TabletSeat, action: DoomAction, token: GameActionToken, player: Int, value: Int) = true
@@ -81,6 +82,17 @@ class LanAtlasSessionsTest {
         assertEquals("rejected", f.handle(f.action(token, "reset")).getString("code"))
         assertEquals("stale", f.handle(f.action(token, "life", -1).put("match", "other/boot/1")).getString("code"))
         assertEquals(3, f.atlas.sent.size)
+    }
+
+    @Test fun `a guest picks the Atlas screen view for their own seat`() {
+        val f = Fixture()
+        val token = f.join(player = 2).getString("token")
+        val seat = f.table!!.players.first { it.playerNumber == 2 }.let { TabletSeat(it.controller.id, it.slot) }
+        assertEquals("ok", f.handle(f.action(token, "atlas-screen:planes").put("player", 1)).getString("code"))
+        assertEquals("ok", f.handle(f.action(token, "atlas-screen:card")).getString("code"))
+        assertEquals("rejected", f.handle(f.action(token, "atlas-screen:settings")).getString("code"))
+        assertEquals("rejected", f.handle(f.action(token, "atlas-screen:game", value = 1)).getString("code"))
+        assertEquals(listOf("screen $seat planes", "screen $seat card"), f.atlas.sent)
     }
 
     @Test fun `a retried tap is answered from its receipt instead of reaching Atlas twice`() {

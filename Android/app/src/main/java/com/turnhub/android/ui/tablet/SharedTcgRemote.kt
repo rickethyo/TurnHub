@@ -191,7 +191,13 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             if (state.atlas != null) AtlasPlanesTab(summary, TabletActions(), reduceMotion, offline = !state.online,
                 readOnly = !state.master || state.busy || state.uncertain,
                 onRoomControl = { seat, action -> model.act("planar-atlas:" + action.removePrefix(com.turnhub.android.data.PLANAR_PREFIX),
-                    target = summary.players.firstOrNull { it.controller.id == seat.moduleId && it.slot == seat.slot }?.playerNumber ?: 0) })
+                    target = summary.players.firstOrNull { it.controller.id == seat.moduleId && it.slot == seat.slot }?.playerNumber ?: 0) },
+                // The same Atlas screen picker as the player's own phone, relayed by the hub for this
+                // guest's seat (owner, 2026-11-03): signed-in players only, never a Sigil or a guest.
+                screenSeat = own?.takeIf { it.profileId != null && it.controller.kind == com.turnhub.android.domain.ControllerHandle.Kind.VIRTUAL }
+                    ?.let { com.turnhub.android.data.TabletSeat(it.controller.id, it.slot) },
+                onScreenView = { view -> model.act(com.turnhub.android.lan.ATLAS_SCREEN_KIND + view) },
+                screenEnabled = !state.busy && !state.uncertain)
             else device?.let { SharedPlanes(it, planarControls) }
         } else {
             val visible = if (tableView) tableUnits(summary) else listOfNotNull(own?.let { TableUnit("own", listOf(it)) })

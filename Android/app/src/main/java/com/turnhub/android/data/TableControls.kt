@@ -6,6 +6,11 @@ package com.turnhub.android.data
  * applies it to the app's own standalone game when no Atlas is at the table.
  */
 interface TableControls {
+    /**
+     * What the Atlas screen shows during the match (`game`, `table`, `planes` or `card`),
+     * for a signed-in player's [seat]; Atlas checks the seat. Only Atlas games have one.
+     */
+    suspend fun showOnAtlas(seat: TabletSeat, view: String): Boolean = false
     /** `pass`, `pause`, `concede`, `win`, `confirm`, `deny`, `rematch` or `reset` (Atlas also takes the lobby ones). */
     suspend fun control(seat: TabletSeat, action: String): Boolean
     /** Remove this seat, optionally crediting another player number (null = unknown). */
