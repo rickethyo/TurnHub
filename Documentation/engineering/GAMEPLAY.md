@@ -238,6 +238,13 @@ loss condition; Commander damage totals alone do not trigger elimination.
   During local Planechase play, Planar die beside Pass animates one validated
   engine roll. Blank stays on Table; chaos and planeswalk open Planes with the
   corresponding effect highlighted. Cancellation before the roll changes nothing.
+  On the S3 Atlas (2026-11-02; preview renders only, *needs a flash test*),
+  the Planes page shows the face-up plane as a card (name, counters, cards
+  left) over the walks, chaos and next roll's cost, with Roll and Planeswalk
+  under it. Every roll Atlas accepts, from a Sigil, the app, a tablet or the
+  Atlas screen, drops an animated planar die over whatever page is open; it
+  lands on the face, then names it and who rolled (the Planes page says the
+  same in words). A restart never replays a roll.
 - **Who goes first:** any player can choose (`SelectStarter`); choosing the
   chosen player again clears it. With nobody chosen, Atlas picks a random
   player when the countdown ends, as the standalone app does (rematches too).

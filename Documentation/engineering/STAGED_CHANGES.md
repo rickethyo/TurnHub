@@ -239,7 +239,9 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   Atlas plays Planechase with physical planes or its digital deck (the plane
   catalog the app sends, kept on the microSD card), with a Planes page on the
   Atlas screen; profiles keep six saved commanders on the card, chosen from
-  the app, the tablet or the Atlas screen's player page. Next: Atlas
+  the app, the tablet or the Atlas screen's player page. The Planes page is
+  a full plane card and every accepted roll animates the planar die on the
+  Atlas screen (2026-11-02, GAMEPLAY.md). Next: Atlas
   downloads the catalog itself over home Wi-Fi and refreshes it periodically;
   the Sigil's profile picker offers saved commanders; recovery keeps the
   digital deck's order (it restarts as physical planes today).

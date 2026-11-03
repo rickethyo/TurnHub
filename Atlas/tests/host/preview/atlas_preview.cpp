@@ -294,6 +294,49 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     lv_obj_clean(lv_layer_top());
   }
   {
+    // Planechase: the Planes screen (digital deck, a phenomenon, the players'
+    // own planes), then the planar die rolling over the game.
+    auto planes = [&](AtlasScreen &s) {
+      s.kind = ScreenKind::Planes;
+      row(s, BUTTON_UPPER_ROW_Y, {{TouchAction::PlanarRoll, "Roll: 1 mana"}});
+      row(s, BUTTON_ROW_Y, {{TouchAction::PlanarWalk, "Planeswalk"}, {TouchAction::CloseScreen, "Back"}}, {3, 2});
+    };
+    AtlasScreen s = base("PLANES", "Planechase", "Casey rolled chaos");
+    s.planes.on = s.planes.digital = true;
+    snprintf(s.planes.plane, sizeof(s.planes.plane), "Sokenzan, Crucible of Defiance");
+    s.planes.deckLeft = 31; s.planes.planeswalks = 4; s.planes.chaos = 2; s.planes.counters = 3; s.planes.rollCost = 1;
+    planes(s);
+    renderShell(s, style); save("planes" + suffix);
+    AtlasScreen ph = base("PLANES", "Planechase", "Phenomenon: resolve it first");
+    ph.planes = s.planes; ph.planes.phenomenon = true; ph.planes.counters = 0;
+    snprintf(ph.planes.plane, sizeof(ph.planes.plane), "Interplanar Tunnel");
+    ph.kind = ScreenKind::Planes;
+    row(ph, BUTTON_UPPER_ROW_Y, {{TouchAction::PlanarResolve, "Resolve phenomenon"}});
+    row(ph, BUTTON_ROW_Y, {{TouchAction::PlanarWalk, "Planeswalk"}, {TouchAction::CloseScreen, "Back"}}, {3, 2});
+    renderShell(ph, style); save("planes-phenomenon" + suffix);
+    AtlasScreen own = base("PLANES", "Planechase", "The active player rolls");
+    own.planes.on = true; own.planes.planeswalks = 1;
+    planes(own);
+    renderShell(own, style); save("planes-own" + suffix);
+    // The die: Sam rolls planeswalk from a Sigil while the game shows.
+    AtlasScreen g = base("PLAYING", "Sam's turn", "Turn 3");
+    g.round = 3; players(g, 4, true);
+    row(g, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Pass"}, {TouchAction::Pause, "Pause"}, {TouchAction::OpenPlanes, "Planes"}, {TouchAction::OpenTable, "Actions"}}, {7, 5, 6, 6});
+    g.planes.on = true; g.planes.roll = 0;
+    renderShell(g, style);
+    g.planes.roll = 1; g.planes.face = 2; g.planes.cost = 1;
+    snprintf(g.planes.roller, sizeof(g.planes.roller), "Sam");
+    renderShell(g, style, true);
+    nowMs += 520; lv_timer_handler(); save("planar-die-tumble" + suffix);
+    nowMs += 900; lv_timer_handler(); save("planar-die-landed" + suffix);
+    g.planes.roll = 2; g.planes.face = 1; g.planes.cost = 0; g.planes.fromEffect = true;
+    renderShell(g, style, true);
+    nowMs += 1420; lv_timer_handler(); save("planar-die-chaos" + suffix);
+    nowMs += 4000; lv_timer_handler();
+    lv_obj_clean(lv_layer_top());
+    g.planes = ScreenPlanes(); renderShell(g, style);
+  }
+  {
     AtlasScreen s = base("QR", "Join this table", "Scan with a phone camera");
     s.kind = ScreenKind::Qr;
     snprintf(s.qr, sizeof(s.qr), "WIFI:T:WPA;S:TurnHub-Atlas;P:TurnHub-Setup;;");

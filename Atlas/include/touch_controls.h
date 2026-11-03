@@ -200,6 +200,33 @@ struct ScreenPlayer {
   char turnTime[9] = {};
 };
 
+// Planechase on the screen (a match with Planechase on). The roll fields are
+// set on every screen, so the display rolls its planar die over whatever is
+// open whenever any player rolls (a Sigil, the app, a tablet or this screen);
+// the rest is the Planes screen's plane card. Faces: 0 blank, 1 chaos,
+// 2 planeswalk, as in GameEngine::PlanarView.
+constexpr uint8_t SCREEN_PLANE_NAME_LENGTH = 40;
+struct ScreenPlanes {
+  bool on = false;
+  bool digital = false;      // Atlas's digital deck, else the players' own plane cards.
+  bool phenomenon = false;
+  char plane[SCREEN_PLANE_NAME_LENGTH + 1] = {};  // The face-up card's name (digital).
+  int32_t deckLeft = 0, planeswalks = 0, chaos = 0, counters = 0, rollCost = 0;
+  // The match's latest roll: its number (0 before the first), who, the face,
+  // what it cost and whether a card made it (free).
+  int32_t roll = 0;
+  uint8_t face = 0, cost = 0;
+  bool fromEffect = false;
+  char roller[SCREEN_NAME_LENGTH + 1] = {};
+  bool operator==(const ScreenPlanes &o) const {
+    return on == o.on && digital == o.digital && phenomenon == o.phenomenon && !strcmp(plane, o.plane) &&
+        deckLeft == o.deckLeft && planeswalks == o.planeswalks && chaos == o.chaos && counters == o.counters &&
+        rollCost == o.rollCost && roll == o.roll && face == o.face && cost == o.cost && fromEffect == o.fromEffect &&
+        !strcmp(roller, o.roller);
+  }
+  bool operator!=(const ScreenPlanes &o) const { return !(*this == o); }
+};
+
 // Everything the TFT shows. Equal screens need no redraw; atlas_display.cpp
 // compares region by region.
 struct AtlasScreen {
@@ -246,6 +273,8 @@ struct AtlasScreen {
   // paused itself because a turn passed.
   TurnHub::ManaTap mana;
   bool manaTurnPaused = false;
+
+  ScreenPlanes planes;
 
   TouchButton buttons[MAX_TOUCH_BUTTONS];
   uint8_t buttonCount = 0;
@@ -309,7 +338,7 @@ inline bool sameBody(const AtlasScreen &a, const AtlasScreen &b, bool times = tr
       a.showPlayerControls != b.showPlayerControls || a.controlsPage != b.controlsPage ||
       memcmp(&a.controls,&b.controls,sizeof(a.controls)) || a.kind != b.kind || a.playerCount != b.playerCount || a.showLife != b.showLife ||
       a.lineCount != b.lineCount || !sameScreenText(a.qr, b.qr) || !sameScreenText(a.qrCaption, b.qrCaption) ||
-      !sameScreenText(a.code, b.code)) {
+      !sameScreenText(a.code, b.code) || a.planes != b.planes) {
     return false;
   }
   for (uint8_t i = 0; i < a.lineCount; ++i) if (!sameScreenText(a.lines[i], b.lines[i])) return false;

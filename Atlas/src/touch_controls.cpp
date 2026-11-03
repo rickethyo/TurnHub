@@ -635,16 +635,21 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     }
     case ScreenKind::Confirm: layoutConfirm(screen); return;
     case ScreenKind::NewGame: layoutNewGame(screen); return;
+    // The plane card fills the body (the display draws it); the die and the
+    // card-says-so planeswalk sit under it within thumb reach.
     case ScreenKind::Planes: {
-      ButtonSpec rows[3];
-      uint8_t n = 0;
       const auto planes = table().game.planar();
       if (table().hubState == HubState::Running) {
-        if (planes.phenomenon) rows[n++] = {TouchAction::PlanarResolve, "Resolve phenomenon", 0, 1};
-        else rows[n++] = {TouchAction::PlanarRoll, "Roll the planar die", 0, 1};
-        rows[n++] = {TouchAction::PlanarWalk, "Planeswalk (a card says so)", 0, 1};
+        static char roll[32];
+        if (planes.rollCost > 0) snprintf(roll, sizeof(roll), "Roll: %ld mana", static_cast<long>(planes.rollCost));
+        else snprintf(roll, sizeof(roll), "Roll the die: free");
+        const ButtonSpec upper[] = {planes.phenomenon ? ButtonSpec{TouchAction::PlanarResolve, "Resolve phenomenon", 0, 1}
+                                                       : ButtonSpec{TouchAction::PlanarRoll, roll, 0, 1}};
+        addRow(screen, BUTTON_UPPER_ROW_Y, upper, 1);
+        const ButtonSpec lower[] = {{TouchAction::PlanarWalk, "Planeswalk", 0, 3}, {TouchAction::CloseScreen, "Back", 0, 2}};
+        addRow(screen, BUTTON_ROW_Y, lower, 2);
+        return;
       }
-      addList(screen, rows, n);
       const ButtonSpec lower[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
       addRow(screen, BUTTON_ROW_Y, lower, 1);
       return;
@@ -723,8 +728,9 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     // The master pass and End match sit on the Actions screen.
     case HubState::Running: {
       if (table().game.planar().enabled) {
-        const ButtonSpec row[] = {{TouchAction::PassTurn, "Pass", 0, 3}, {TouchAction::Pause, "Pause", 0, 2},
-            {TouchAction::OpenPlanes, "Planes", 0, 2}, {TouchAction::OpenTable, "Actions", 0, 2}};
+        // Weighted so each label fits on one line of the 320 px screen.
+        const ButtonSpec row[] = {{TouchAction::PassTurn, "Pass", 0, 7}, {TouchAction::Pause, "Pause", 0, 5},
+            {TouchAction::OpenPlanes, "Planes", 0, 6}, {TouchAction::OpenTable, "Actions", 0, 6}};
         addRow(screen, BUTTON_ROW_Y, row, 4);
         break;
       }
@@ -1901,15 +1907,45 @@ void formatHome(AtlasScreen &screen, uint32_t nowMs) {
   screen.lineCount = 4;
 }
 
-// Planechase: the face-up plane (Atlas's digital deck) or the players' own.
+// Planechase: the face-up plane (Atlas's digital deck) or the players' own,
+// and the latest roll in words (the die animation is never the only place
+// it shows). planes.* was filled by fillPlanes.
 void formatPlanes(AtlasScreen &screen) {
-  const auto planes = table().game.planar();
+  const ScreenPlanes &planes = screen.planes;
   snprintf(screen.badge, sizeof(screen.badge), "PLANES");
-  const auto *card = planes.plane[0] ? TurnHubCards::findPlane(planes.plane) : nullptr;
-  snprintf(screen.title, sizeof(screen.title), "%s", card ? card->name : planes.digital ? "Planechase" : "Your own planes");
-  if (planes.phenomenon) snprintf(screen.detail, sizeof(screen.detail), "Phenomenon: resolve it, then planeswalk");
-  else snprintf(screen.detail, sizeof(screen.detail), "Walks %ld, chaos %ld. Next roll: %ld mana",
-      static_cast<long>(planes.planeswalks), static_cast<long>(planes.chaos), static_cast<long>(planes.rollCost));
+  snprintf(screen.title, sizeof(screen.title), "Planechase");
+  static const char *const faces[] = {"blank", "chaos", "planeswalk"};
+  if (planes.phenomenon) snprintf(screen.detail, sizeof(screen.detail), "Phenomenon: resolve it first");
+  else if (planes.roll > 0)
+    snprintf(screen.detail, sizeof(screen.detail), "%s rolled %s", planes.roller[0] ? planes.roller : "A player",
+        faces[planes.face < 3 ? planes.face : 0]);
+  else snprintf(screen.detail, sizeof(screen.detail), "The active player rolls");
+}
+
+// The Planechase fields every screen carries in a match (see ScreenPlanes).
+void fillPlanes(AtlasScreen &screen, uint32_t nowMs) {
+  if (!matchInProgress()) return;
+  const auto view = table().game.planar();
+  if (!view.enabled) return;
+  ScreenPlanes &out = screen.planes;
+  out.on = true;
+  out.digital = view.digital;
+  out.phenomenon = view.phenomenon;
+  if (const auto *card = view.plane[0] ? TurnHubCards::findPlane(view.plane) : nullptr)
+    snprintf(out.plane, sizeof(out.plane), "%s", card->name);
+  out.deckLeft = view.deckSize;
+  out.planeswalks = view.planeswalks;
+  out.chaos = view.chaos;
+  out.counters = view.counters;
+  out.rollCost = view.rollCost;
+  out.roll = view.lastRoll;
+  out.face = view.lastFace;
+  out.cost = view.lastCost;
+  out.fromEffect = view.lastFromEffect;
+  if (view.lastRoll > 0) {
+    if (const PlayerSeat *seat = table().game.playerByNumber(view.lastPlayer))
+      playerName(*seat, profileIdForTableSeat(*seat, true), nowMs, out.roller);
+  }
 }
 
 void formatManaTap(AtlasScreen &screen) {
@@ -2153,6 +2189,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen.batteryCharging = battery.present && battery.charging;
   screen.update = firmwareUpdateKind();
   screen.sigilsOnline = sigilBus.activeCount(nowMs);
+  fillPlanes(screen, nowMs);
   switch (screen.kind) {
     case ScreenKind::Home:
       formatHome(screen, nowMs);

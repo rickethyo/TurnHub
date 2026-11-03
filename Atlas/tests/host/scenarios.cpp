@@ -5404,12 +5404,22 @@ static void cardCacheOnAtlas() {
   assert(request("/api/control/planar",mine,{{"action","roll"},{"face","blank"}})==409);
   // The Atlas screen's Planes page acts for the active player.
   tapButton(TouchAction::OpenPlanes);
-  assert(currentScreen().kind==ScreenKind::Planes && String(currentScreen().title)=="Chaotic Aether");
+  assert(currentScreen().kind==ScreenKind::Planes && String(currentScreen().planes.plane)=="Chaotic Aether" &&
+      currentScreen().planes.phenomenon && currentScreen().planes.digital);
   tapButton(TouchAction::PlanarResolve);
   assert(!table().game.planar().phenomenon && screenButton(currentScreen(),TouchAction::PlanarRoll));
   tapButton(TouchAction::PlanarRoll);
-  assert(table().game.planar().lastRoll==1);
+  assert(table().game.planar().lastRoll==1 && currentScreen().planes.roll==1 && currentScreen().planes.roller[0]);
   tapButton(TouchAction::CloseScreen);
+  // A phone's roll reaches every screen, so the display rolls its die over the game.
+  if (table().game.planar().phenomenon) assert(request("/api/control/planar",mine,{{"action","resolve"}})==200);
+  const uint8_t cost=static_cast<uint8_t>(table().game.planar().rollCost);
+  assert(request("/api/control/planar",mine,{{"action","roll"},{"face","planeswalk"}})==200);
+  {
+    const AtlasScreen &shown=currentScreen();
+    assert(shown.kind==ScreenKind::Status && shown.planes.on && shown.planes.roll==2 && shown.planes.face==2 &&
+        shown.planes.cost==cost && !shown.planes.fromEffect && shown.planes.roller[0]);
+  }
   // Starting without a catalog falls back to the players' own planes.
   enterEmptyLobby();
   TurnHubCards::setStoreForTests(nullptr);

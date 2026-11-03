@@ -173,7 +173,7 @@ bool primaryAction(TouchAction a) {
     case TouchAction::StartGame: case TouchAction::Rematch:
     case TouchAction::Resume: case TouchAction::Pair: case TouchAction::SetupPair:
     case TouchAction::PairConfirm: case TouchAction::NameDone:
-    case TouchAction::PinDone: case TouchAction::OpenNewGame:
+    case TouchAction::PinDone: case TouchAction::OpenNewGame: case TouchAction::PlanarRoll:
       return true;
     default:
       return false;
@@ -285,7 +285,7 @@ bool keyAction(TouchAction a) {
 // app's Settings and Players screens; the bottom row keeps real buttons.
 bool listRow(const AtlasScreen &s, const TouchButton &b) {
   return !keyAction(b.action) && !tabAction(b) && b.w >= W - 24 && b.y < BUTTON_ROW_Y &&
-      s.kind != ScreenKind::Player;
+      s.kind != ScreenKind::Player && s.kind != ScreenKind::Planes;
 }
 
 // The tint of a row's leading icon tile, like the coloured squares in a
@@ -764,6 +764,139 @@ void drawHome(lv_obj_t *root, const AtlasScreen &s) {
   }
 }
 
+// --- Planechase --------------------------------------------------------------
+
+// The planar die's faces, drawn in the die's ink: our own marks, not card
+// symbols. Planeswalk is a portal (a ring round a core), chaos a burst of
+// eight rays, and the four other faces are blank. The words always go with
+// them (the roll panel and the Planes screen), so the mark is never the only
+// way to read a roll.
+constexpr int16_t DIE = 120;
+const lv_point_precise_t CHAOS_RAYS[4][2] = {
+    {{60, 22}, {60, 98}}, {{22, 60}, {98, 60}}, {{33, 33}, {87, 87}}, {{87, 33}, {33, 87}}};
+
+lv_obj_t *dieFace(lv_obj_t *die, uint8_t face, uint32_t ink) {
+  lv_obj_t *g = box(die, 0, 0, DIE, DIE);
+  if (face == 2) {
+    lv_obj_t *ring = box(g, 24, 24, 72, 72);
+    lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_width(ring, 9, 0);
+    lv_obj_set_style_border_color(ring, rgb(ink), 0);
+    lv_obj_t *core = box(g, 49, 49, 22, 22);
+    lv_obj_set_style_radius(core, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(core, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(core, rgb(ink), 0);
+  } else if (face == 1) {
+    for (const auto &ray : CHAOS_RAYS) {
+      lv_obj_t *l = lv_line_create(g);
+      lv_obj_remove_style_all(l);
+      lv_line_set_points(l, ray, 2);
+      lv_obj_set_style_line_width(l, 9, 0);
+      lv_obj_set_style_line_rounded(l, true, 0);
+      lv_obj_set_style_line_color(l, rgb(ink), 0);
+    }
+    lv_obj_t *core = box(g, 46, 46, 28, 28);
+    lv_obj_set_style_radius(core, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(core, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(core, rgb(ink), 0);
+  }
+  return g;
+}
+
+// An ivory die with a glossy top, its three faces stacked (one shown).
+lv_obj_t *planarDie(lv_obj_t *parent, int16_t x, int16_t y, uint8_t face) {
+  constexpr uint32_t ivory = 0xF4EFE4, ink = 0x1E1B24;
+  lv_obj_t *die = box(parent, x, y, DIE, DIE);
+  card(die, ivory, mixRgbHex(ivory, 0x000000, 200), 26);
+  lv_obj_set_style_border_width(die, 3, 0);
+  lv_obj_set_style_bg_color(die, rgb(0xFFFFFF), 0);
+  lv_obj_set_style_bg_grad_color(die, rgb(ivory), 0);
+  lv_obj_set_style_bg_grad_dir(die, LV_GRAD_DIR_VER, 0);
+  lv_obj_set_style_bg_main_stop(die, 0, 0);
+  lv_obj_set_style_bg_grad_stop(die, 90, 0);
+  for (uint8_t f = 0; f < 3; ++f) {
+    lv_obj_t *g = dieFace(die, f, ink);
+    if (f != face) lv_obj_add_flag(g, LV_OBJ_FLAG_HIDDEN);
+  }
+  return die;
+}
+
+void showDieFace(lv_obj_t *die, uint8_t face) {
+  for (uint8_t f = 0; f < 3; ++f) {
+    lv_obj_t *g = lv_obj_get_child(die, f);
+    if (f == face) lv_obj_remove_flag(g, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(g, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
+const char *faceWord(uint8_t face) { return face == 2 ? "PLANESWALK" : face == 1 ? "CHAOS" : "BLANK"; }
+uint32_t faceInk(uint8_t face) { return face == 2 ? pal().accent : face == 1 ? pal().warning : pal().textSecondary; }
+
+// One small figure under the plane: its value over a caption.
+void planeStat(lv_obj_t *parent, const char *value, const char *caption, int16_t x, int16_t y, int16_t w) {
+  lv_obj_t *tile = box(parent, x, y, w, 52);
+  card(tile, pal().surface3, pal().surface3, 12);
+  text(tile, value, &th_semi_20, pal().text, 0, 6, w, LV_TEXT_ALIGN_CENTER);
+  text(tile, caption, &th_eyebrow_13, pal().textTertiary, 0, 31, w, LV_TEXT_ALIGN_CENTER);
+}
+
+// The Planes screen's card: the face-up plane (or the players' own deck),
+// its counters, and the match's walks, chaos and the next roll's cost.
+void drawPlanes(lv_obj_t *root, const AtlasScreen &s) {
+  const ScreenPlanes &p = s.planes;
+  const int16_t x = 8, y = SCREEN_BODY_Y, w = W - 16, h = BUTTON_UPPER_ROW_Y - 8 - SCREEN_BODY_Y;
+  const uint32_t edge = p.phenomenon ? pal().warning : pal().accent;
+  lv_obj_t *plate = box(root, x, y, w, h);
+  card(plate, pal().surface2, edge, 20);
+  lv_obj_set_style_border_width(plate, 2, 0);
+  lv_obj_set_style_clip_corner(plate, true, 0);
+  lift(plate);
+  // A short glossy band across the top (short, so RGB565 doesn't band).
+  lv_obj_t *gloss = box(plate, 0, 0, w, 44);
+  lv_obj_set_style_bg_opa(gloss, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(gloss, mixRgb(pal().surface2, edge, pal().light ? 40 : 60), 0);
+  lv_obj_set_style_bg_grad_color(gloss, rgb(pal().surface2), 0);
+  lv_obj_set_style_bg_grad_dir(gloss, LV_GRAD_DIR_VER, 0);
+  const char *kind = !p.digital ? "YOUR OWN PLANES" : p.phenomenon ? "PHENOMENON" : "PLANE";
+  text(plate, kind, &th_eyebrow_13, edge, 16, 12, w - 32);
+  if (p.digital) {
+    char left[20];
+    snprintf(left, sizeof(left), "%ld LEFT", static_cast<long>(p.deckLeft));
+    text(plate, left, &th_eyebrow_13, pal().textTertiary, 16, 12, w - 32, LV_TEXT_ALIGN_RIGHT);
+  }
+  // The name, up to two lines.
+  const char *name = p.digital ? (p.plane[0] ? p.plane : "Shuffling the planes") : "Flip your top plane";
+  lv_obj_t *l = lv_label_create(plate);
+  lv_obj_remove_style_all(l);
+  lv_label_set_text(l, name);
+  lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+  const lv_font_t *font = textWidth(name, &th_cinzel_32) <= w - 32 ? &th_cinzel_32 : &th_bold_28;
+  lv_obj_set_style_text_font(l, font, 0);
+  lv_obj_set_style_text_color(l, rgb(pal().text), 0);
+  lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_style_text_line_space(l, -2, 0);
+  lv_obj_set_size(l, w - 32, 2 * lv_font_get_line_height(font));
+  lv_obj_set_pos(l, 16, 36);
+  if (p.counters > 0) {
+    char counters[24];
+    snprintf(counters, sizeof(counters), "%ld COUNTER%s", static_cast<long>(p.counters), p.counters == 1 ? "" : "S");
+    lv_obj_t *tag = pill(plate, counters, pal().accentSoft, pal().accent);
+    lv_obj_align(tag, LV_ALIGN_TOP_MID, 0, 104);
+  } else if (!p.digital) {
+    text(plate, "Planeswalk turns over the next one", &th_semi_16, pal().textSecondary, 16, 104, w - 32,
+         LV_TEXT_ALIGN_CENTER);
+  }
+  const int16_t gap = 8, tileW = (w - 24 - 2 * gap) / 3, tileY = h - 52 - 12;
+  char walks[12], chaos[12], cost[20];
+  snprintf(walks, sizeof(walks), "%ld", static_cast<long>(p.planeswalks));
+  snprintf(chaos, sizeof(chaos), "%ld", static_cast<long>(p.chaos));
+  if (p.rollCost > 0) snprintf(cost, sizeof(cost), "%ld mana", static_cast<long>(p.rollCost));
+  else snprintf(cost, sizeof(cost), "Free");
+  planeStat(plate, walks, "WALKS", 12, tileY, tileW);
+  planeStat(plate, chaos, "CHAOS", 12 + tileW + gap, tileY, tileW);
+  planeStat(plate, cost, "NEXT ROLL", 12 + 2 * (tileW + gap), tileY, tileW);
+}
+
 void drawBody(lv_obj_t *root, const AtlasScreen &s) {
   if (s.showPlayerControls) {
     uint8_t ids[TurnHubUi::PLAYER_CONTROL_COUNT];
@@ -803,6 +936,10 @@ void drawBody(lv_obj_t *root, const AtlasScreen &s) {
       y += 26;
     }
     drawLines(root, s, 16, y, W - 32);
+    return;
+  }
+  if (s.kind == ScreenKind::Planes) {
+    drawPlanes(root, s);
     return;
   }
   if (buttonsUseBody(s)) return;
@@ -1054,14 +1191,27 @@ void drawConfirm(lv_obj_t *root, const AtlasScreen &s) {
 // alone. The hero title says the same thing, so the banner is never the only
 // place the turn shows.
 uint8_t bannerTurn = 0;
+lv_obj_t *bannerCard = nullptr;
 
 void slideX(void *obj, int32_t v) { lv_obj_set_x(static_cast<lv_obj_t *>(obj), v); }
+void slideY(void *obj, int32_t v) { lv_obj_set_y(static_cast<lv_obj_t *>(obj), v); }
+
+// Top-layer cards (the turn banner, the die roll) forget themselves when
+// LVGL deletes them, so each can replace only its own earlier one.
+void forgetOnDelete(lv_obj_t *o, lv_obj_t **slot) {
+  *slot = o;
+  lv_obj_add_event_cb(o, [](lv_event_t *e) {
+    lv_obj_t **owner = static_cast<lv_obj_t **>(lv_event_get_user_data(e));
+    if (*owner == lv_event_get_target(e)) *owner = nullptr;
+  }, LV_EVENT_DELETE, slot);
+}
 
 void showTurnBanner(const ScreenPlayer &p, uint16_t round) {
   lv_obj_t *layer = lv_layer_top();
-  lv_obj_clean(layer);
+  if (bannerCard) lv_obj_delete(bannerCard);
   constexpr int16_t bw = W - 24, bh = 96;
   lv_obj_t *banner = box(layer, W, (H - bh) / 2 - 20, bw, bh);
+  forgetOnDelete(banner, &bannerCard);
   card(banner, pal().turn, pal().turn, 20);
   sheen(banner, pal().turn);
   // No drop shadow: a wide blurred shadow re-renders on every frame of the
@@ -1096,6 +1246,105 @@ void showTurnBanner(const ScreenPlayer &p, uint16_t round) {
   lv_anim_set_path_cb(&out, lv_anim_path_ease_in);
   lv_anim_set_completed_cb(&out, lv_obj_delete_anim_completed_cb);
   lv_anim_start(&out);
+}
+
+// The planar die, over whatever screen is open, whenever any player rolls
+// (a Sigil, the app, a tablet or this screen): a panel drops in, the die
+// tumbles in with a bounce, flicking through its faces, and lands on the
+// roll; the face's word and who rolled fade in under it, and the panel
+// slides away. Like the banner it lives on the top layer and carries no
+// wide shadow (those stutter on the panel). The Planes screen says the same
+// in words, so the animation is never the only place a roll shows.
+int32_t seenRoll = -1;  // -1 until the first screen: a restart never replays a roll.
+lv_obj_t *rollPanel = nullptr;
+
+constexpr int16_t ROLL_W = 272, ROLL_H = 284, ROLL_Y = 84;
+constexpr uint32_t ROLL_IN_MS = 280, TUMBLE_MS = 900, ROLL_HOLD_MS = 1700, ROLL_OUT_MS = 260;
+
+void tumbleFace(lv_anim_t *a, int32_t v) {
+  // Flick through the faces as it falls; slow down as it settles.
+  lv_obj_t *die = static_cast<lv_obj_t *>(a->var);
+  const uint8_t face = static_cast<uint8_t>(reinterpret_cast<uintptr_t>(lv_anim_get_user_data(a)));
+  showDieFace(die, v >= 9 ? face : static_cast<uint8_t>((v + face + 1) % 3));
+}
+
+void spin(void *obj, int32_t v) { lv_obj_set_style_transform_rotation(static_cast<lv_obj_t *>(obj), v, 0); }
+void fade(void *obj, int32_t v) { lv_obj_set_style_opa(static_cast<lv_obj_t *>(obj), static_cast<lv_opa_t>(v), 0); }
+
+void animate(void *var, lv_anim_exec_xcb_t exec, int32_t from, int32_t to, uint32_t delay, uint32_t ms,
+             lv_anim_path_cb_t path) {
+  lv_anim_t a;
+  lv_anim_init(&a);
+  lv_anim_set_var(&a, var);
+  lv_anim_set_exec_cb(&a, exec);
+  lv_anim_set_values(&a, from, to);
+  lv_anim_set_delay(&a, delay);
+  lv_anim_set_duration(&a, ms);
+  lv_anim_set_path_cb(&a, path);
+  lv_anim_start(&a);
+}
+
+void showDieRoll(const ScreenPlanes &p) {
+  if (rollPanel) lv_obj_delete(rollPanel);
+  lv_obj_t *panel = box(lv_layer_top(), (W - ROLL_W) / 2, -ROLL_H, ROLL_W, ROLL_H);
+  forgetOnDelete(panel, &rollPanel);
+  card(panel, pal().surface1, pal().accent, 24);
+  lv_obj_set_style_border_width(panel, 2, 0);
+  lv_obj_set_style_clip_corner(panel, true, 0);
+  const uint8_t face = p.face < 3 ? p.face : 0;
+  // A soft glow of the result's colour where the die lands.
+  lv_obj_t *glow = box(panel, (ROLL_W - 160) / 2, 38, 160, 160);
+  lv_obj_set_style_radius(glow, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_opa(glow, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(glow, mixRgb(pal().surface1, faceInk(face), 52), 0);
+  lv_obj_set_style_opa(glow, LV_OPA_TRANSP, 0);
+  lv_obj_t *die = planarDie(panel, (ROLL_W - DIE) / 2, -DIE, (face + 1) % 3);
+  lv_obj_set_style_transform_pivot_x(die, DIE / 2, 0);
+  lv_obj_set_style_transform_pivot_y(die, DIE / 2, 0);
+  text(panel, "PLANAR DIE", &th_eyebrow_13, pal().textTertiary, 0, 14, ROLL_W, LV_TEXT_ALIGN_CENTER);
+  lv_obj_t *word = text(panel, faceWord(face), &th_bold_28, faceInk(face), 0, 206, ROLL_W, LV_TEXT_ALIGN_CENTER);
+  char line[48];
+  const char *who = p.roller[0] ? p.roller : "A player";
+  if (p.fromEffect) snprintf(line, sizeof(line), "%s / a card's roll", who);
+  else if (p.cost > 0) snprintf(line, sizeof(line), "%s / paid %u mana", who, static_cast<unsigned>(p.cost));
+  else snprintf(line, sizeof(line), "%s / free roll", who);
+  lv_obj_t *by = text(panel, line, &th_semi_16, pal().textSecondary, 12, 244, ROLL_W - 24, LV_TEXT_ALIGN_CENTER);
+  lv_obj_set_style_opa(word, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_opa(by, LV_OPA_TRANSP, 0);
+
+  const uint32_t landed = ROLL_IN_MS + TUMBLE_MS;
+  animate(panel, slideY, -ROLL_H, ROLL_Y, 0, ROLL_IN_MS, lv_anim_path_ease_out);
+  animate(die, slideY, -DIE, 58, ROLL_IN_MS - 80, TUMBLE_MS, lv_anim_path_bounce);
+  animate(die, spin, -1440, 0, ROLL_IN_MS - 80, TUMBLE_MS - 120, lv_anim_path_ease_out);
+  lv_anim_t faces;
+  lv_anim_init(&faces);
+  lv_anim_set_var(&faces, die);
+  lv_anim_set_custom_exec_cb(&faces, tumbleFace);
+  lv_anim_set_values(&faces, 0, 9);
+  lv_anim_set_delay(&faces, ROLL_IN_MS - 80);
+  lv_anim_set_duration(&faces, TUMBLE_MS - 200);
+  lv_anim_set_path_cb(&faces, lv_anim_path_ease_out);
+  lv_anim_set_user_data(&faces, reinterpret_cast<void *>(static_cast<uintptr_t>(face)));
+  lv_anim_start(&faces);
+  animate(glow, fade, LV_OPA_TRANSP, LV_OPA_COVER, landed - 160, 240, lv_anim_path_ease_out);
+  animate(word, fade, LV_OPA_TRANSP, LV_OPA_COVER, landed - 120, 200, lv_anim_path_linear);
+  animate(by, fade, LV_OPA_TRANSP, LV_OPA_COVER, landed, 200, lv_anim_path_linear);
+  lv_anim_t out;
+  lv_anim_init(&out);
+  lv_anim_set_var(&out, panel);
+  lv_anim_set_exec_cb(&out, slideY);
+  lv_anim_set_values(&out, ROLL_Y, H);
+  lv_anim_set_delay(&out, landed + ROLL_HOLD_MS);
+  lv_anim_set_duration(&out, ROLL_OUT_MS);
+  lv_anim_set_path_cb(&out, lv_anim_path_ease_in);
+  lv_anim_set_completed_cb(&out, lv_obj_delete_anim_completed_cb);
+  lv_anim_start(&out);
+}
+
+void noteRoll(const AtlasScreen &s) {
+  const int32_t roll = s.planes.on ? s.planes.roll : 0;
+  if (seenRoll >= 0 && roll > seenRoll) showDieRoll(s.planes);
+  seenRoll = roll;
 }
 
 void noteTurn(const AtlasScreen &s) {
@@ -1133,6 +1382,7 @@ void renderAtlasScreen(const AtlasScreen &s, const ScreenStyle &chosen) {
   // A new match starts without a banner; only a pass shows one.
   if (!s.showLife) bannerTurn = 0;
   noteTurn(s);
+  noteRoll(s);
 }
 
 bool updateAtlasScreenMana(const AtlasScreen &s) {
