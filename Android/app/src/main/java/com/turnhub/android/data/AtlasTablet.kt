@@ -259,6 +259,7 @@ class AtlasTablet(
         if (cards.isEmpty()) return
         val version = "${cards.size}-" + Integer.toHexString(cards.map { it.id }.sorted().hashCode())
         try {
+            endpoint()?.let { session.ensureGameAccess(it) }
             val info = session.raw("GET", "/api/planes") ?: return
             if (info.ok && org.json.JSONObject(info.body).optString("version") == version) return
             progress("Sending ${minOf(cards.size, 192)} planes to Atlas…")
@@ -281,6 +282,7 @@ class AtlasTablet(
     suspend fun syncPlaneCards(cards: List<com.turnhub.android.data.PlaneInfo>, all: Boolean = false,
         progress: (String) -> Unit = {}, art: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray?) {
         try {
+            endpoint()?.let { session.ensureGameAccess(it) }
             val info = session.raw("GET", "/api/planes") ?: return progress("Couldn't reach Atlas to send the plane cards.")
             if (!info.ok) return progress("Atlas didn't answer about its plane cards.")
             val withArt = if (all) emptySet() else org.json.JSONObject(info.body).optJSONArray("art")
