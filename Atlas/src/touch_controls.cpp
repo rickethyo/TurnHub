@@ -2268,7 +2268,8 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen.batteryCharging = battery.present && battery.charging;
   screen.update = firmwareUpdateKind();
   screen.sigilsOnline = sigilBus.activeCount(nowMs);
-  screen.hotspotStations = static_cast<uint8_t>(WiFi.softAPgetStationNum());
+  screen.hotspotOn = atlasHotspotOn();
+  screen.hotspotStations = screen.hotspotOn ? static_cast<uint8_t>(WiFi.softAPgetStationNum()) : 0;
   screen.homeWifiOn = homeWifiEnabled() && homeWifiConfigured();
   screen.homeWifiLinked = screen.homeWifiOn && homeWifiConnected();
   fillPlanes(screen, nowMs);

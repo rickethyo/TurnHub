@@ -424,7 +424,7 @@ int16_t drawLink(lv_obj_t *bar, int16_t right, const char *letter, uint32_t colo
 int16_t drawLinks(lv_obj_t *bar, const AtlasScreen &s, int16_t right) {
   int16_t used = drawLink(bar, right, "S", pal().turn, s.sigilsOnline > 0, false, true);
   if (s.homeWifiOn) used += drawLink(bar, right - used, "H", pal().info, s.homeWifiLinked, !s.homeWifiLinked, false);
-  used += drawLink(bar, right - used, "A", pal().accent, s.hotspotStations > 0, false, false);
+  if (s.hotspotOn) used += drawLink(bar, right - used, "A", pal().accent, s.hotspotStations > 0, false, false);
   return used;
 }
 
