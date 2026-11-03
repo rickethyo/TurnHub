@@ -293,6 +293,13 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
     }
     BrassCard {
         Eyebrow("Joined devices · ${state.guests.size}")
+        // Atlas's own screen is a satellite of the room, with the same picker as the Planes tab.
+        val screenSeat = atlas?.takeIf { host.atlas && (it.state == TableState.RUNNING || it.state == TableState.PAUSED) }?.players
+            ?.firstOrNull { it.profileId != null && it.controller.kind == com.turnhub.android.domain.ControllerHandle.Kind.VIRTUAL }
+            ?.let { com.turnhub.android.data.TabletSeat(it.controller.id, it.slot) }
+        if (screenSeat != null) AtlasScreenPicker(screenSeat, TabletActions(),
+            cardView = atlas.atlasPlanechase?.let { it.digital && it.plane != null } == true, enabled = state.online,
+            onScreenView = model::showOnAtlas, title = "Atlas screen", detail = "Satellite · choose what Atlas shows the table")
         if (state.guests.isEmpty()) Text("No one has joined yet. Devices appear here as they join.", color = p.muted,
             style = MaterialTheme.typography.bodyMedium)
         state.guests.forEach { guest ->

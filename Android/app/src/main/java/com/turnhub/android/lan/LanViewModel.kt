@@ -416,6 +416,19 @@ internal class LanViewModel(
         retry()
     }
 
+    /**
+     * The hub's own Atlas screen picker, listed in Play together as a satellite of the room
+     * (owner, 2026-11-03): the tablet acts for a signed-in seated player, and Atlas checks it.
+     */
+    fun showOnAtlas(view: String) {
+        if (state.value.host?.atlas != true || view !in ATLAS_SCREEN_VIEWS) return
+        val link = atlasLink ?: return
+        val summary = link.summary() ?: return
+        val seat = summary.players.firstOrNull { it.profileId != null && it.controller.kind == com.turnhub.android.domain.ControllerHandle.Kind.VIRTUAL }
+            ?.let { com.turnhub.android.data.TabletSeat(it.controller.id, it.slot) } ?: return
+        if (link.canAct()) viewModelScope.launch { runCatching { link.act(summary.game) { showOnAtlas(seat, view) } } }
+    }
+
     fun retry() {
         val body = pending ?: return
         val invitation = invite ?: return

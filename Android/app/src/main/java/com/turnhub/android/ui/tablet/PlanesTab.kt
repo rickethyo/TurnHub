@@ -518,14 +518,15 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
 
 /** Sets what the Atlas screen shows during the game: Game, Table, Planes or the plane's Card. */
 @Composable
-private fun AtlasScreenPicker(seat: TabletSeat, actions: TabletActions, cardView: Boolean, enabled: Boolean,
-    onScreenView: ((String) -> Unit)? = null) {
+internal fun AtlasScreenPicker(seat: TabletSeat, actions: TabletActions, cardView: Boolean, enabled: Boolean,
+    onScreenView: ((String) -> Unit)? = null,
+    title: String = "On the Atlas screen", detail: String = "Choose what Atlas shows the table.") {
     val p = palette
     var shown by rememberSaveable { mutableStateOf<String?>(null) }
     val views = listOf("game" to "Game", "table" to "Table", "planes" to "Planes") + if (cardView) listOf("card" to "Card") else emptyList()
     BrassCard {
-        Text("On the Atlas screen", color = p.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-        Text("Choose what Atlas shows the table.", color = p.muted)
+        Text(title, color = p.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+        Text(detail, color = p.muted)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             views.forEach { (key, label) ->
                 // Through the hub, Atlas's answer comes back as the room's message; mark the choice now.
