@@ -440,14 +440,15 @@ private fun PlanarCredit() {
 @Composable
 internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, actions: TabletActions, reduceMotion: Boolean, offline: Boolean,
     /** A signed-in player of this phone at the table (not a Sigil or a guest), who may set the Atlas screen. */
-    screenSeat: TabletSeat? = null) {
+    screenSeat: TabletSeat? = null, readOnly: Boolean = false,
+    onRoomControl: ((TabletSeat, String) -> Unit)? = null) {
     val p = palette
     val context = LocalContext.current
     val planes = summary.atlasPlanechase
     val active = summary.players.firstOrNull { it.playerNumber == summary.activePlayerNumber }?.seat()
     val anySeat = summary.anySeat()
     val running = summary.state == TableState.RUNNING
-    fun send(seat: TabletSeat?, action: String) { seat?.let { s -> actions.run { control(s, action) } } }
+    fun send(seat: TabletSeat?, action: String) { seat?.let { s -> if (onRoomControl != null) onRoomControl(s, action) else actions.run { control(s, action) } } }
     var rolling by remember { mutableStateOf(false) }
     Column(
         Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -462,7 +463,7 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
                 val known = PlaneLibrary.known(context)?.values?.toList().orEmpty()
                 if (known.isNotEmpty()) AccentButton(if (AtlasPlaneSync.running) "Sending planes…" else "Send planes to Atlas",
                     { AtlasPlaneSync.send(actions, known, all = true) { PlaneLibrary.source(context).art(it) } },
-                    Modifier.fillMaxWidth(), enabled = !offline && !AtlasPlaneSync.running)
+                    Modifier.fillMaxWidth(), enabled = !offline && !readOnly && !AtlasPlaneSync.running)
                 else Text("Download the planes from the Planes setup on this phone first.", color = p.faint)
             }
             PlanarCredit()
@@ -471,13 +472,13 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
         planes.plane?.let { face ->
             val info = PlaneLibrary.known(context)?.get(face.id)
             PlaneCardView(info, PlanarCard(face.id, face.phenomenon), planes.counters,
-                chaosNow = planes.lastRoll?.face == "chaos", enabled = !offline && anySeat != null) { delta ->
+                chaosNow = planes.lastRoll?.face == "chaos", enabled = !offline && !readOnly && anySeat != null) { delta ->
                 send(anySeat, "${com.turnhub.android.data.PLANAR_PREFIX}counter:$delta")
             }
         } ?: BrassCard {
             Text("Your own planes", color = p.text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
             Text("Planeswalk turns over the next plane of your planar deck.", color = p.muted)
-            PlaneCounters(planes.counters, !offline && anySeat != null) { send(anySeat, "${com.turnhub.android.data.PLANAR_PREFIX}counter:$it") }
+            PlaneCounters(planes.counters, !offline && !readOnly && anySeat != null) { send(anySeat, "${com.turnhub.android.data.PLANAR_PREFIX}counter:$it") }
         }
         BrassCard {
             val last = planes.lastRoll?.let { roll ->
@@ -488,7 +489,7 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
                 "next roll ${if (planes.rollCost == 0) "free" else "${planes.rollCost} mana"}" + if (planes.digital) " · ${planes.deckSize} left" else "",
                 color = p.text, style = MaterialTheme.typography.titleMedium)
             last?.let { Text(it, color = p.muted, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
-            val can = running && !offline && active != null
+            val can = running && !offline && !readOnly && active != null
             if (planes.plane?.phenomenon == true) AccentButton("Resolve the phenomenon",
                 { send(active, "${com.turnhub.android.data.PLANAR_PREFIX}resolve") }, Modifier.fillMaxWidth(), enabled = can)
             else AccentButton("Roll the planar die", { rolling = true }, Modifier.fillMaxWidth(), enabled = can)
@@ -502,7 +503,7 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
             }, Modifier.fillMaxWidth(), enabled = can)
             if (!running) Text("The active player rolls while the game runs.", color = p.faint, style = MaterialTheme.typography.bodySmall)
         }
-        if (running && screenSeat != null) AtlasScreenPicker(screenSeat, actions, cardView = planes.digital && planes.plane != null, enabled = !offline)
+        if (running && screenSeat != null) AtlasScreenPicker(screenSeat, actions, cardView = planes.digital && planes.plane != null, enabled = !offline && !readOnly)
         PlanarCredit()
     }
     if (rolling) PlanarRollDialog(reduceMotion, onRoll = {

@@ -6,6 +6,7 @@ import com.turnhub.android.protocol.LedStyle
 import com.turnhub.android.protocol.ProfileSummary
 import com.turnhub.android.protocol.SessionInfo
 import kotlinx.coroutines.CancellationException
+import org.json.JSONObject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -128,6 +129,54 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     suspend fun verifyLocalAccount(endpoint: AtlasEndpoint, player: com.turnhub.android.standalone.SavedLocalPlayer,
         targetId: String?, secret: String): LocalAccountTransfer.Result = call {
         LocalAccountTransfer(transports.create(endpoint)).verify(player, targetId, secret)
+    }
+
+    /** A separate, short-lived profile verification; never replaces the hub's own session. */
+    suspend fun attachRoomProfile(target: AtlasEndpoint, request: JSONObject): String? = call {
+        val transport = transports.create(target)
+        val offered = request.optJSONObject("profile")
+        val id = request.optString("profileId").ifBlank { offered?.optString("profileId").orEmpty() }
+        if (!com.turnhub.android.standalone.LocalProfileIds.valid(id)) return@call null
+        val known = transport.getProfiles().firstOrNull { it.profileId == id }
+        val secret = request.optString("pin")
+        if (known?.hasPin == true && secret.isBlank()) return@call null
+        val login = if (known != null) transport.login(id, secret) else {
+            if (offered == null) return@call null
+            val response = transport.raw("POST", "/api/profiles/register", pollContext(target).token,
+                listOf("profileId" to id, "name" to offered.getString("name"), "pin" to secret, "gameplayOnly" to "1"))
+            if (!response.ok) return@call null
+            if (secret.isBlank()) null else com.turnhub.android.protocol.AtlasWireParser.parseLogin(response.body)
+        }
+        try {
+            // PIN verification enables the durable sync link. Room credentials remain separately scoped.
+            if (login != null && secret.isNotBlank()) {
+                val linked = transport.raw("POST", "/api/profiles/link-key", login.token)
+                if (!linked.ok) return@call null
+                val link = JSONObject(linked.body).put("atlasId", request.getString("_atlasId"))
+                request.put("_profileLink", link)
+                if (offered != null) {
+                    val look = offered.optJSONObject("look")
+                    val avatar = transport.getAvatars().firstOrNull { it.key == look?.optString("avatar") }?.id ?: 0
+                    val sync = transport.raw("POST", "/api/profiles/sync", "", listOf("profileId" to id,
+                        "linkKey" to link.getString("linkKey"), "now" to "${System.currentTimeMillis()}",
+                        "activity" to "${offered.optLong("activity").coerceAtLeast(1)}",
+                        "createdAtMs" to "${offered.optLong("createdAtMs")}", "name" to offered.getString("name"),
+                        "color" to (look?.optString("color")?.takeIf { it.startsWith("#") } ?: "none"),
+                        "avatar" to "$avatar", "reduceMotion" to if (look?.optBoolean("reduceMotion") == true) "1" else "0"))
+                    if (!sync.ok) return@call null
+                    val updated = JSONObject(sync.body)
+                    val key = transport.getAvatars().firstOrNull { it.id == updated.optInt("avatar") }?.key ?: "none"
+                    request.put("_profile", JSONObject().put("profileId", id).put("name", updated.optString("name"))
+                        .put("activity", updated.optLong("activity")).put("createdAtMs", updated.optLong("createdAtMs"))
+                        .put("look", com.turnhub.android.standalone.LocalPersonalization(
+                            color = updated.optString("color").takeIf { it.startsWith("#") }, avatar = key,
+                            reduceMotion = updated.optBoolean("reduceMotion")).toJson()))
+                }
+            }
+            id
+        } finally {
+            if (login != null) kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { transport.logout(login.token) }
+        }
     }
 
     /** One page of a linked profile's match records on Atlas (no sign-in: the link key). */

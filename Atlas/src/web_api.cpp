@@ -202,6 +202,7 @@ const Route ROUTES[] = {
   {"/api/v1/offline", HTTP_POST, handleOfflineSync},
 
   // Accounts and administration.
+  {"/api/room", HTTP_POST, handleRoom},
   {"/api/accounts/setup", HTTP_GET, accountSetupStatus},
   {"/api/accounts/setup", HTTP_POST, accountSetupCreate},
   {"/api/presence", HTTP_GET, handlePresenceStatus},
@@ -379,7 +380,7 @@ class RouteTableHandler final : public RequestHandler {
       const bool sessionRoute = method == HTTP_POST && (uri == "/api/profiles/register" || uri == "/api/session/game" || uri == "/api/session/logout");
       // The app's planes and plane cards for Atlas, and what the Atlas screen
       // shows (for a seated player the app names; the handler checks it).
-      const bool planesRoute = uri == "/api/planes" || uri == "/api/planes/card" || uri == "/api/atlas/screen";
+      const bool planesRoute = uri == "/api/room" || uri == "/api/planes" || uri == "/api/planes/card" || uri == "/api/atlas/screen";
       if (!tabletRoute && !readRoute && !sessionRoute && !planesRoute) {
         sendError(server, 403, "The shared tablet account only has table controls");
         return true;

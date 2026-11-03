@@ -495,3 +495,20 @@ Then tap Cash App on a device to confirm it opens the $TurnHub profile.
 ## Saved game setups on Atlas (next parity slice, 2026-10-31)
 
 Android saves named lobby configurations locally (seats/identities, format, rules, timers, Planechase choices). Add equivalent Atlas-owned named setup persistence and validated lobby-only application, then expose it through the shared app Saved game setups card and hardware setup. Never replay scores/clocks/history or remap identities by name. Existing app lobby simplification and Advanced settings already share presentation across hosts.
+
+## Persistent rooms: device acceptance and iOS counterpart
+
+Android and Atlas implement the version-2 room contract in
+[Shared devices](SHARED_DEVICES.md). Verify two real devices through process
+recreation, Wi-Fi address changes, same-profile reconnect without PIN, game-type
+changes, simultaneous facing-panel taps and loss/recovery of Atlas backup.
+Verify the UI with large text and TalkBack. Atlas remains the connected game
+authority; the room does not create an additional takeover path.
+
+iOS remains a foundation. Its future gameplay/transport slice must implement
+version-2 persistent membership, secure reconnect storage, profile-first joining,
+PIN-once links, read-only public views and account-free shared table controls.
+LAN special setup/decision commands beyond normal gameplay remain host-only;
+extend the shared command vocabulary and server validators together when adding
+remote support. Explicit cross-ID account merging keeps the existing Admin
+merge workflow; entering a room never silently combines private histories.

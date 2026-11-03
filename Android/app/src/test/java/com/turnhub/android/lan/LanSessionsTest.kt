@@ -55,7 +55,7 @@ class LanSessionsTest {
         assertEquals("invalid", f.sessions.handle(f.action(token, "life").put("source", 1.5)).getString("code"))
         assertEquals(0, f.store.commits)
         assertEquals("invalid", Fixture().join("player").getString("code"))
-        assertEquals("ended", Fixture(tcg(GameProfile.GENERIC)).join("player").getString("code"))
+        assertEquals("ok", Fixture(tcg(GameProfile.GENERIC)).join("player").getString("code"))
     }
 
     @Test fun `Commander source slot and delta are bound to the receipt and own recipient`() {

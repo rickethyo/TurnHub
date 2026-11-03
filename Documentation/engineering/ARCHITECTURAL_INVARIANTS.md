@@ -32,7 +32,7 @@ iOS is at the foundation stage ([development framework](IOS_DEVELOPMENT.md)).
 
 An Android standalone TCG or Death May Die host may serve [shared devices](SHARED_DEVICES.md).
 That host alone runs the standalone engine and persists the match/results. Guest
-apps render snapshots and send authenticated own-player requests; they
+apps render snapshots and send authenticated own-player/shared-table requests; they
 never become another authority, save remote results or take over on disconnect.
 
 They may:
@@ -53,6 +53,11 @@ Controller -> request/intent -> Atlas -> validate/mutate -> canonical state -> r
 ```
 
 If a controller disconnects, restarts, or disagrees with Atlas, Atlas wins.
+
+Room membership is distinct from game authority. The designated Android hub may
+persist game-night membership and reconnect capabilities and mirror them to
+Atlas. Room grants never confer account administration. The existing authority
+continues to validate each command; room persistence does not elect a new host.
 
 ## Invariant 2: One semantic implementation per game action
 

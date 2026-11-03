@@ -3,4 +3,5 @@
 <full-backup-content>
     <exclude domain="sharedpref" path="atlas_wifi.xml" />
     <exclude domain="sharedpref" path="profile_vault.xml" />
+        <exclude domain="sharedpref" path="turnhub_rooms.xml" />
 </full-backup-content>

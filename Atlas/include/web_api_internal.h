@@ -177,6 +177,7 @@ void handleSessionPoll(WebServer &server);
 void handleSessionLogin(WebServer &server);
 void handleGameSession(WebServer &server);
 void handleSessionMe(WebServer &server);
+void handleRoom(WebServer &server);
 void handleLogout(WebServer &server);
 void handleSessionGame(WebServer &server);
 

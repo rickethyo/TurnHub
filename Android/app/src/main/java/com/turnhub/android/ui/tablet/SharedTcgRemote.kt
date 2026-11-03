@@ -50,11 +50,12 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     val p = palette
     // A table display joins with no seat: it only ever shows the whole table.
     val displayOnly = state.role == "display"
-    var tableView by rememberSaveable { mutableStateOf(displayOnly) }
+    var tableView by rememberSaveable { mutableStateOf(state.view == "table" || displayOnly || state.role in setOf("table", "planes")) }
     // The Planes screen, from a seat or as the planes display (owner, 2026-10-20).
-    var planesChosen by rememberSaveable { mutableStateOf(false) }
+    var planesChosen by rememberSaveable { mutableStateOf(state.view == "planes") }
+    LaunchedEffect(tableView, planesChosen) { model.chooseView(if (planesChosen) "planes" else if (tableView) "table" else "personal") }
     val planesDisplay = state.role == "planes"
-    val planesView = planesDisplay || planesChosen && device?.planechase?.enabled == true
+    val planesView = (planesDisplay || planesChosen) && (device?.planechase?.enabled == true || state.atlas?.settings?.planechase == true)
     var menu by rememberSaveable { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
     var confirmElimination by remember { mutableStateOf(false) }
@@ -106,31 +107,31 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     val planar = device?.planechase ?: com.turnhub.android.standalone.Planechase()
     // Planar buttons act for the active player on the host, from any seat or the display.
     val planarControls = PlanarControls(
-        roll = { model.act("planar-roll", if (it) 1 else 0) },
-        planeswalk = { model.act("planar-walk") },
-        resolvePhenomenon = { model.act("planar-resolve") },
-        chaosEnsues = { model.act("planar-chaos") },
-        reverseTurnOrder = { model.act("planar-reverse", if (it) 1 else 0) },
-        topToBottom = { model.act("planar-bottom") },
+        roll = { if (state.master) model.act("planar-roll", if (it) 1 else 0) },
+        planeswalk = { if (state.master) model.act("planar-walk") },
+        resolvePhenomenon = { if (state.master) model.act("planar-resolve") },
+        chaosEnsues = { if (state.master) model.act("planar-chaos") },
+        reverseTurnOrder = { if (state.master) model.act("planar-reverse", if (it) 1 else 0) },
+        topToBottom = { if (state.master) model.act("planar-bottom") },
         changeCounter = { card, delta ->
             val slot = if (card == com.turnhub.android.standalone.Planechase.PHYSICAL_PLANE) 0 else planar.faceUp.indexOfFirst { it.id == card } + 1
             if (slot >= 0) model.act("planar-counter", delta, slot)
         },
-        enabled = state.online && !state.busy && !state.uncertain && (planesDisplay || own != null),
+        enabled = state.online && state.master && !state.busy && !state.uncertain,
     )
     Column(Modifier.fillMaxSize().background(p.bg).safeDrawingPadding().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!planesDisplay && !displayOnly) ToneButton(if (tableView && !planesView) "My player" else "Table · read only", {
+            if (!displayOnly && state.role != "table") ToneButton(if (tableView && !planesView) "My player" else "Table · read only", {
                 menu = false; tableView = !tableView || planesView; planesChosen = false
             }, Modifier.weight(1f))
-            if (!planesDisplay && planar.enabled) ToneButton(if (planesView) "My player" else "Planes", {
+            if (!planesDisplay && (planar.enabled || summary.settings.planechase)) ToneButton(if (planesView) "My player" else "Planes", {
                 menu = false; tableView = false; planesChosen = !planesChosen
             }, Modifier.weight(1f))
             if (planesDisplay || displayOnly) Spacer(Modifier.weight(1f))
             if (!planesDisplay && !displayOnly) GuestPauseButton(summary.state, state.online && !state.busy && !state.uncertain && own != null && !own.eliminated, model)
             ToneButton("Leave", { confirmLeave = true })
         }
-        Text("${device?.let { sharedGameTitle(it) } ?: sharedGameTitle(summary.settings.profile)} · ${if (planesDisplay) "Planes display" else if (displayOnly) "Table display" else if (planesView) "Planes" else if (tableView) "Table · read only" else own?.label ?: "My player"} · ${if (!state.online) "Disconnected · last update" else if (state.busy) "Sending…" else "Connected"}",
+        Text("${device?.let { sharedGameTitle(it) } ?: sharedGameTitle(summary.settings.profile)} · ${if (planesDisplay) "Planes display" else if (displayOnly) "Table display" else if (planesView) "Planes" else if (tableView) if (state.role == "table") "Shared table controls" else "Table · read only" else own?.label ?: "My player"} · ${if (!state.online) "Disconnected · last update" else if (state.busy) "Sending…" else "Connected"}",
             color = if (state.online) p.muted else p.warn, style = MaterialTheme.typography.labelLarge)
         state.message?.let { Text(it, color = p.warn) }
         when (summary.state) {
@@ -175,8 +176,21 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             color = p.warn)
         else if (claimDenied && summary.state == TableState.RUNNING || claimDenied && summary.state == TableState.PAUSED)
             Text("Your win claim was denied. Play continues.", color = p.warn)
-        if (planesView) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-            device?.let { SharedPlanes(it, planarControls) }
+        if ((tableView || own == null) && !planesView) {
+            val controls = com.turnhub.android.lan.LanTableControls(model, summary)
+            val scope = rememberCoroutineScope()
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                TabletTable(summary, com.turnhub.android.data.TabletState(),
+                    controls = { block -> scope.launch { controls.block() } }, onDismissMessage = {},
+                    reduceMotion = reduceMotion, onClose = onLeave,
+                    readOnly = !state.online || state.busy || state.uncertain || state.role != "table" && !state.master)
+            }
+        } else if (planesView) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            if (state.atlas != null) AtlasPlanesTab(summary, TabletActions(), reduceMotion, offline = !state.online,
+                readOnly = !state.master || state.busy || state.uncertain,
+                onRoomControl = { seat, action -> model.act("planar-atlas:" + action.removePrefix(com.turnhub.android.data.PLANAR_PREFIX),
+                    target = summary.players.firstOrNull { it.controller.id == seat.moduleId && it.slot == seat.slot }?.playerNumber ?: 0) })
+            else device?.let { SharedPlanes(it, planarControls) }
         } else {
             val visible = if (tableView) tableUnits(summary) else listOfNotNull(own?.let { TableUnit("own", listOf(it)) })
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {

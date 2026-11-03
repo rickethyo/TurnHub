@@ -56,6 +56,7 @@ import com.google.zxing.MultiFormatWriter
 import com.turnhub.android.domain.DeathMayDie
 import com.turnhub.android.domain.InvestigatorCard
 import com.turnhub.android.domain.InvestigatorDashboard
+import com.turnhub.android.lan.RoomProfile
 import com.turnhub.android.lan.LanUiState
 import com.turnhub.android.lan.LanViewModel
 import com.turnhub.android.lan.lanSupported
@@ -84,7 +85,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) scanning = true
         else camera.launch(Manifest.permission.CAMERA)
     }
-    if (state.remote?.profile?.let { !it.deathMayDie } == true || state.atlas != null) {
+    if (state.remote?.profile?.let { !it.deathMayDie } == true || state.atlas != null || state.remote != null && state.role in setOf("display", "table", "planes")) {
         SharedTcgRemote(state, model, reduceMotion) { model.leave(); onClose() }
         return
     }
@@ -93,6 +94,11 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
     AmbientBackground(reduceMotion, Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 720.dp).fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState())
             .padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            if (state.reconnecting) {
+                Text("Reconnecting to your room…", color = p.text)
+                ToneButton("Leave room", { model.leave(); onClose() })
+                return@Column
+            }
             val remote = state.remote
             val host = state.host
             when {
@@ -129,6 +135,10 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
                     subtitle = "One device owns the game. Join as your player or a shared display.",
                     mood = LinkMood.IDLE, reduceMotion = reduceMotion) {}
             }
+            if (state.resumable && state.host == null && !state.joined) {
+                AccentButton("Resume room", { requestNetwork(model::resumeRoom) }, Modifier.fillMaxWidth(), enabled = !state.busy)
+                ToneButton("End saved room", model::stopHosting, tone = Tone.BAD, enabled = !state.busy)
+            }
             state.message?.let { Notice(it, p.warn, Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
             when {
                 host != null -> HostingPanel(state, local, model, atlas)
@@ -140,7 +150,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
                         ViewChoice("My investigator", !elderView, Modifier.weight(1f)) { elderView = false }
                         ViewChoice("Elder One · read only", elderView, Modifier.weight(1f)) { elderView = true }
                     }
-                    if (state.role == "elder" || elderView) ElderOneDisplay(remote, reduceMotion) else InvestigatorRemote(state, model)
+                    if (state.role in setOf("elder", "display", "planes") || elderView) ElderOneDisplay(remote, reduceMotion) else InvestigatorRemote(state, model)
                 }
                 else -> {
                     val hostable = local.profile.lanSupported
@@ -157,11 +167,11 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
                         Eyebrow("Host from this device")
                         Text("Run the game on this device and invite friends to use their own phones. Everyone needs the same Wi-Fi; internet and Atlas are optional.",
                             color = p.text, style = MaterialTheme.typography.bodyLarge)
-                        if (!hostable) Text("Choose a card game on the Game tab first, then return here to invite friends.",
+                        if (!hostable) Text("Open a room now, then choose the game on the Game tab.",
                             color = p.muted, style = MaterialTheme.typography.bodyMedium)
                         LanSecuritySwitch(qrOnly, !state.busy, setQrOnly)
                         AccentButton("Host game", { requestNetwork { model.startHosting(qrOnly) } }, Modifier.fillMaxWidth(),
-                            enabled = !state.busy && hostable)
+                            enabled = !state.busy)
                     }
                     BrassCard {
                         Eyebrow("Join another device")
@@ -177,8 +187,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
                             Modifier.fillMaxWidth(), enabled = !state.busy && com.turnhub.android.lan.LanJoinCode.normalize(invitation) != null)
                         ToneButton("Scan QR code", ::scan, Modifier.fillMaxWidth(), enabled = !state.busy)
                     }
-                    state.preview?.let { game -> SeatPicker(game, enabled = !state.busy) { role, seat -> requestNetwork { model.join(role, seat) } } }
-                    state.previewAtlas?.let { table -> AtlasSeatPicker(table, enabled = !state.busy) { role, seat -> requestNetwork { model.join(role, seat) } } }
+                    if (state.preview != null || state.previewAtlas != null) RoomPicker(state, model, requestNetwork)
                 }
             }
             ToneButton(if (state.joined) "Leave shared game" else "Back to game", ::close, Modifier.fillMaxWidth(), enabled = !state.busy)
@@ -293,7 +302,10 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
                     PlayerAvatar(seat?.label ?: "Table", guest.player, seat?.avatar, size = 40.dp)
                     Text(if (guest.player == 0) "Table display" else seat?.label ?: guest.name ?: "Player", Modifier.weight(1f),
                         color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Column {
+                    ToneButton(if (guest.master) "Remove game master" else "Make game master", { model.grantMaster(guest) })
                     ToneButton("Disconnect", { model.revoke(guest) }, tone = Tone.BAD)
+                }
                 }
                 return@forEach
             }
@@ -307,11 +319,15 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
                     Text(if (guest.role == "planes") "Shows the face-up plane and the die" else if (guest.player == 0) "Shows the track and stages" else player?.name ?: "", color = p.muted,
                         style = MaterialTheme.typography.bodySmall)
                 }
-                ToneButton("Disconnect", { model.revoke(guest) }, tone = Tone.BAD)
+                Column {
+                    ToneButton(if (guest.master) "Remove game master" else "Make game master", { model.grantMaster(guest) })
+                    ToneButton("Disconnect", { model.revoke(guest) }, tone = Tone.BAD)
+                }
             }
         }
     }
-    ArmedButton("Stop sharing", "Tap again: disconnect every device", Tone.BAD, model::stopHosting)
+    if (state.host?.atlas == true) ToneButton("Back up room", model::backupRoom)
+    ArmedButton("End room", "Tap again: disconnect every device", Tone.BAD, model::stopHosting)
 }
 
 /** The code in large spaced letters, readable across a table. */
@@ -368,38 +384,48 @@ internal fun InviteQr(text: String,
     }
 }
 
-/** TCG player seats; Death May Die also offers the Elder One display, and Planechase the planes display. */
+/** Joining the room authorizes entry. Only protected profile linking asks for a PIN. */
 @Composable
-private fun SeatPicker(game: StandaloneGame, enabled: Boolean, onJoin: (String, Int) -> Unit) {
+private fun RoomPicker(state: LanUiState, model: LanViewModel, requestNetwork: (() -> Unit) -> Unit) {
     val p = palette
+    var selected by remember { mutableStateOf<RoomProfile?>(null) }
+    var local by remember { mutableStateOf<com.turnhub.android.standalone.SavedLocalPlayer?>(null) }
+    var pin by remember { mutableStateOf("") }
+    var newName by remember { mutableStateOf("") }
     BrassCard {
-        Eyebrow("Found · choose your seat")
-        Text(sharedGameTitle(game), color = p.text,
-            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        if (game.profile.deathMayDie) SeatRow({ ElderSigil(44.dp) }, "Elder One display", "A shared screen for the track and stages", enabled) { onJoin("elder", 0) }
-        if (game.profile.magicRules && game.planechase.enabled) SeatRow({ PlanesMark(44.dp) }, "Planes display",
-            "A shared screen for the face-up plane and the planar die", enabled) { onJoin("planes", 0) }
-        game.players.forEachIndexed { index, player ->
-            SeatRow({ PlayerAvatar(player.name, index + 1, null) }, if (game.profile.deathMayDie) player.investigator ?: player.name else player.name,
-                "Play as ${player.name}" + if (player.eliminated) " · out" else "", enabled) { onJoin(if (game.profile.deathMayDie) "investigator" else "player", index + 1) }
+        Eyebrow("Join the room")
+        Text("Choose a screen or your profile. You stay connected between games.", color = p.text)
+        SeatRow({ PlayerAvatar("Table", 0, null) }, "Table display", "Read only · no account needed", !state.busy) { requestNetwork { model.join("display", 0) } }
+        SeatRow({ PlayerAvatar("Table", 0, null) }, "Shared table controls", "Facing-seat panels for everyone · no account needed", !state.busy) { requestNetwork { model.join("table", 0) } }
+        SeatRow({ PlanesMark(44.dp) }, "Planes display", "Read only · available when this game uses Planechase", !state.busy) { requestNetwork { model.join("planes", 0) } }
+        OutlinedTextField(value = newName, onValueChange = { newName = it.take(32) }, label = { Text("New player name") },
+            singleLine = true, modifier = Modifier.fillMaxWidth())
+        ToneButton("Join as a new player", { requestNetwork { model.joinNewProfile(newName) } }, enabled = !state.busy && newName.isNotBlank())
+        if (state.preview?.profile?.deathMayDie == true) SeatRow({ ElderSigil(44.dp) }, "Elder One display",
+            "Read only · track, ritual and stages", !state.busy) { requestNetwork { model.join("elder", 0) } }
+        Text("Your profiles on this device", color = p.muted)
+        model.savedPlayers().forEach { player ->
+            SeatRow({ PlayerAvatar(player.name, 1, null) }, player.name, "Bring your profile into this room", !state.busy) {
+                local = player; selected = null; pin = ""
+            }
         }
-    }
-}
-
-/** A relayed Atlas game's seats, plus a read-only display of the whole table. */
-@Composable
-private fun AtlasSeatPicker(table: com.turnhub.android.domain.TableSummary, enabled: Boolean, onJoin: (String, Int) -> Unit) {
-    val p = palette
-    BrassCard {
-        Eyebrow("Found · Atlas table · choose your seat")
-        Text(sharedGameTitle(table.settings.profile), color = p.text,
-            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        SeatRow({ PlayerAvatar("Table", 0, null) }, "Table display", "A read-only screen showing every player", enabled) { onJoin("display", 0) }
-        table.players.forEach { player ->
-            SeatRow({ PlayerAvatar(player.label, player.playerNumber, player.avatar) }, player.label,
-                "Play as ${player.label}" + if (player.eliminated) " · out" else "", enabled) { onJoin("player", player.playerNumber) }
+        Text("Profiles at this table", color = p.muted)
+        state.directory.forEach { profile ->
+            SeatRow({ PlayerAvatar(profile.name, 1, null) }, profile.name, "Use this profile" + if (profile.hasPin) " · PIN on first link" else "", !state.busy) {
+                selected = profile; local = null; pin = ""
+            }
         }
-        if (table.players.isEmpty()) Text("No one is seated at Atlas yet. Seat players on the table screen first.", color = p.muted)
+        if (selected != null || local != null) {
+            Text("Join as ${selected?.name ?: local?.name}", color = p.text)
+            if (selected?.hasPin == true || local?.credential != null) {
+                androidx.compose.material3.OutlinedTextField(value = pin, onValueChange = { pin = it }, label = { Text("Profile PIN or password") },
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), singleLine = true,
+                    modifier = Modifier.fillMaxWidth())
+            }
+            AccentButton("Join with this profile", { requestNetwork {
+                model.join("player", 0, profileId = selected?.id, pin = pin, localId = local?.localId)
+            } }, Modifier.fillMaxWidth(), enabled = !state.busy)
+        }
     }
 }
 
