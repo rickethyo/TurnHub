@@ -99,6 +99,7 @@ class MainActivity : ComponentActivity() {
                 com.turnhub.android.data.PreferencesHomeAtlasStore(applicationContext),
                 info = { endpoint -> HttpAtlasTransport(endpoint, wifiLink).getInfo() },
                 discover = com.turnhub.android.data.NsdAtlasDiscovery(applicationContext)::find,
+                discoverNew = com.turnhub.android.data.NsdAtlasDiscovery(applicationContext)::findNew,
             ),
         )
     }
@@ -547,6 +548,8 @@ class MainActivity : ComponentActivity() {
                             discoveryActions = com.turnhub.android.ui.home.DiscoveryActions(
                                 onSearchAgain = { requestAtlas(AtlasAction.SEARCH) },
                                 onSetUpNewTable = { requestAtlas(AtlasAction.SETUP) },
+                                onConfirmHomePairing = homeViewModel::onConfirmHomePairing,
+                                onDismissHomePairing = homeViewModel::onDismissHomePairing,
                             ),
                             gameActions = GameActions(
                                 onControl = homeViewModel::onControl,

@@ -19,6 +19,43 @@ class AtlasHomeLinkTest {
     private val pin = "5f1c0b2a9d7e4c3b8a6f0e1d2c3b4a59687766554433221100ffeeddccbbaa99"
 
     @Test
+    fun `fresh install discovers without hotspot but saves only after physical confirmation`() = runBlocking {
+        val store = MemoryHomeAtlasStore()
+        val candidate = SavedHomeAtlas("THA-cc68c78d84ac", "192.168.1.40", 443, pin)
+        val asked = mutableListOf<AtlasEndpoint>()
+        val link = AtlasHomeLink(store, info = { asked += it; Fixtures.info { put("atlasId", "THA-CC68C78D84AC") } }, discoverNew = { candidate })
+        assertEquals(candidate, link.pairingCandidate())
+        assertNull(store.last())
+        assertEquals("5F1C-0B2A-9D7E", candidate.linkCode)
+        assertEquals(candidate.endpoint, link.confirmPairing(candidate))
+        assertEquals(candidate, store.last())
+        assertEquals(candidate.endpoint, link.find())
+        assertTrue(asked.all { it.secure && it.tlsPin == pin })
+    }
+
+    @Test
+    fun `discovery never replaces saved trust and changed identity cannot be confirmed`() = runBlocking {
+        val candidate = SavedHomeAtlas("THA-025448410001", "192.168.1.40", 443, pin)
+        val store = MemoryHomeAtlasStore().apply { save(candidate) }
+        val saved = AtlasHomeLink(store, info = { error("must not probe new tables") },
+            discoverNew = { error("must not discover new tables") })
+        assertNull(saved.pairingCandidate())
+        assertNull(saved.confirmPairing(candidate.copy(pin = "a".repeat(64))))
+        assertEquals(candidate, store.last())
+
+        val fresh = MemoryHomeAtlasStore()
+        var sameTable = true
+        val link = AtlasHomeLink(fresh, info = {
+            Fixtures.info { if (!sameTable) put("atlasId", "THA-OTHER") }
+        }, discoverNew = { candidate })
+        assertEquals(candidate, link.pairingCandidate())
+        sameTable = false
+        assertNull(link.confirmPairing(candidate))
+        assertNull(fresh.last())
+        assertNull(link.pairingCandidate())
+    }
+
+    @Test
     fun `info carries the home address and pin`() {
         val info = AtlasWireParser.parseInfo(Fixtures.text("info.response.json"))
         assertEquals(AtlasHomeAddress("192.168.1.40", 443, pin), info.home)

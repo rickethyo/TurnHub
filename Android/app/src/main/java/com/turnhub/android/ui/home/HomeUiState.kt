@@ -34,6 +34,7 @@ data class HomeUiState(
     val wifiPrompt: WifiPrompt? = null,
     /** The phone's Wi-Fi is off: ask to turn it on before joining Atlas. */
     val wifiOff: Boolean = false,
+    val homePairing: com.turnhub.android.data.SavedHomeAtlas? = null,
     val player: PlayerPanel? = null,
     val signIn: SignInPrompt? = null,
     /** The next match's setup, while this session may read it. */

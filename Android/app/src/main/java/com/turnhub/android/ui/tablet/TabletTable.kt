@@ -243,6 +243,7 @@ internal fun TabletTable(
     /** Observe the actual game without exposing controls before authorization. */
     readOnly: Boolean = false,
     phoneView: Boolean = false,
+    atlasScreen: (@Composable () -> Unit)? = null,
 ) {
     val p = palette
     val haptics = rememberHaptics()
@@ -507,31 +508,6 @@ internal fun TabletTable(
                         haptics.tick()
                         menuOpen = true
                     }
-                    if (phoneView && soloOffered) {
-                        DisclosureCard("Game card · " + (selectedSolo?.let { key -> allUnits.first { it.key == key }.name }
-                            ?: "Pass and play")) {
-                            Column(Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("Choose one player's card, or follow the turn among selected players. Teams share a card.",
-                                    color = p.muted, style = MaterialTheme.typography.bodySmall)
-                                ToneButton(if (selectedSolo == null) "✓ Pass and play" else "Pass and play",
-                                    { soloKey = null }, Modifier.fillMaxWidth())
-                                if (selectedSolo == null) {
-                                    Text("No selection shows everyone. Cards follow these players' turns.", color = p.muted,
-                                        style = MaterialTheme.typography.bodySmall)
-                                    allUnits.forEach { unit ->
-                                        SetupSwitch(unit.name, "Include in pass and play", unit.key in selectedPass, true) { on ->
-                                            if (on) passKeys.add(unit.key) else passKeys.remove(unit.key)
-                                        }
-                                    }
-                                }
-                                allUnits.forEach { unit ->
-                                    ToneButton(if (selectedSolo == unit.key) "✓ Only ${unit.name}" else "Only ${unit.name}",
-                                        { soloKey = unit.key }, Modifier.fillMaxWidth())
-                                }
-                            }
-                        }
-                    }
                     if (units.isNotEmpty()) {
                         val showOtherCards = !phoneView || summary.settings.profile.cooperative
                         key(units[focused].key) {
@@ -757,6 +733,32 @@ internal fun TabletTable(
             summary.pending.winClaimPlayer == null && summary.pending.winConfirmationPlayer == null &&
             summary.pending.eliminationTargetPlayer == null) {
                 Overlay("Game menu", null, onDismiss = { menuOpen = false }) {
+                    if (phoneView && soloOffered) {
+                        DisclosureCard("Game card · " + (selectedSolo?.let { key -> allUnits.first { it.key == key }.name }
+                            ?: "Pass and play")) {
+                            Column(Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Choose one player's card, or follow the turn among selected players. Teams share a card.",
+                                    color = p.muted, style = MaterialTheme.typography.bodySmall)
+                                ToneButton(if (selectedSolo == null) "✓ Pass and play" else "Pass and play",
+                                    { soloKey = null }, Modifier.fillMaxWidth())
+                                if (selectedSolo == null) {
+                                    Text("No selection shows everyone. Cards follow these players' turns.", color = p.muted,
+                                        style = MaterialTheme.typography.bodySmall)
+                                    allUnits.forEach { unit ->
+                                        SetupSwitch(unit.name, "Include in pass and play", unit.key in selectedPass, true) { on ->
+                                            if (on) passKeys.add(unit.key) else passKeys.remove(unit.key)
+                                        }
+                                    }
+                                }
+                                allUnits.forEach { unit ->
+                                    ToneButton(if (selectedSolo == unit.key) "✓ Only ${unit.name}" else "Only ${unit.name}",
+                                        { soloKey = unit.key }, Modifier.fillMaxWidth())
+                                }
+                            }
+                        }
+                    }
+                    atlasScreen?.invoke()
                     BackToSetup(summary, enabled = !isOffline && anySeat != null) {
                         menuOpen = false; send(anySeat, "back-to-setup")
                     }

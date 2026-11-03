@@ -20,6 +20,7 @@
 #include "speaker_settings.h"
 #include "firmware_version.h"
 #include "home_wifi.h"
+#include "home_tls.h"
 #include "optional_preferences.h"
 #include "profile_store.h"
 #include "sd_card.h"
@@ -304,7 +305,7 @@ void layoutMenu(AtlasScreen &screen) {
   static char theme[32];
   snprintf(theme, sizeof(theme), "Theme: %s", TurnHubTheme::palette(atlasDisplayTheme()).label);
   const bool homeOn = homeWifiEnabled();
-  ButtonSpec rows[6];
+  ButtonSpec rows[7];
   uint8_t n = 0;
   if (table().hubState == HubState::Lobby && setupStage != TurnHub::SetupStage::Complete) {
     rows[n++] = {TouchAction::OpenSetup, "Setup", 0, 1};
@@ -313,6 +314,13 @@ void layoutMenu(AtlasScreen &screen) {
   rows[n++] = {TouchAction::OpenQr, "QR codes", 0, 1};
   rows[n++] = {TouchAction::OpenThemes, theme, 0, 1};
   rows[n++] = {TouchAction::HomeWifi, !homeOn ? "Home Wi-Fi: off" : homeWifiConnected() ? "Home Wi-Fi: connected" : "Home Wi-Fi: on", 0, 1};
+  static char appLink[32];
+  const char *pin = homeTlsPin();
+  if (homeTlsRunning() && strlen(pin) == 64) {
+    snprintf(appLink, sizeof(appLink), "App link: %.4s-%.4s-%.4s", pin, pin + 4, pin + 8);
+    for (char *c = appLink + 10; *c; ++c) if (*c >= 'a' && *c <= 'f') *c -= 'a' - 'A';
+    rows[n++] = {TouchAction::None, appLink, 0, 1};
+  }
   rows[n++] = {TouchAction::OpenDevice, "Device", 0, 1};
   addList(screen, rows, n, LIST_BOTTOM_TABS);
   for (uint8_t i = 0; i < screen.buttonCount; ++i) {

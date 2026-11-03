@@ -1206,7 +1206,7 @@ void drawTabBar(lv_obj_t *root, const AtlasScreen &s) {
 // label, and at the right its value, a check for the shown choice or a
 // chevron (none on a row that asks first in the popup). top/bottom are the row's slice of the group card.
 void drawListRow(lv_obj_t *group, const AtlasScreen &s, const TouchButton &b, int16_t top, int16_t bottom, bool first) {
-  const bool pressed = s.pressed == b.action && s.pressedArg == b.arg;
+  const bool pressed = b.action != TouchAction::None && s.pressed == b.action && s.pressedArg == b.arg;
   const int16_t w = b.w;
   if (pressed) {
     lv_obj_t *shade = box(group, 0, top, w, bottom - top);
@@ -1220,6 +1220,12 @@ void drawListRow(lv_obj_t *group, const AtlasScreen &s, const TouchButton &b, in
   }
   // "USB drive: on" reads as the label "USB drive" and the value "On";
   // "Casey (PIN)" as "Casey" with a lock.
+  if (b.action == TouchAction::None && strncmp(b.label, "App link: ", 10) == 0) {
+    const int16_t mid = (top + bottom) / 2;
+    text(group, "APP LINK", &th_eyebrow_13, pal().textSecondary, 16, mid - 18, w - 32);
+    text(group, b.label + 10, &th_semi_16, pal().text, 16, mid - 1, w - 32);
+    return;
+  }
   char label[32], value[12] = {};
   snprintf(label, sizeof(label), "%s", b.label);
   bool locked = false;
