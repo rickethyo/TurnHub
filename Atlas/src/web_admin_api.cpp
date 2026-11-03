@@ -14,6 +14,7 @@
 #include "pairing_settings.h"
 #include "setup_stage.h"
 #include "speaker_settings.h"
+#include "home_tls.h"
 #include "home_wifi.h"
 #include "wifi_password_store.h"
 #include "serial_log.h"
@@ -520,7 +521,15 @@ void handleNetworkInfo(WebServer &server) {
   response += ",\"channel\":";
   const uint8_t homeChannel = TurnHubAtlas::homeWifiNetworkChannel();
   response += homeChannel ? String(homeChannel) : String("null");
-  response += "}}";
+  // HTTPS on the home network (home_tls.h): the port and the key's pin.
+  response += ",\"tls\":{\"running\":";
+  response += jsonBool(TurnHubAtlas::homeTlsRunning());
+  response += ",\"port\":";
+  response += String(TurnHub::HOME_TLS_PORT);
+  response += ",\"pin\":";
+  const char *pin = TurnHubAtlas::homeTlsPin();
+  response += pin[0] ? String("\"") + pin + "\"" : String("null");
+  response += "}}}";
   sendJson(server, 200, response);
 }
 

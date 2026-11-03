@@ -133,3 +133,8 @@ void TurnHubAtlas::requestHomeWifiCheck() { ++fixtureHomeChecks; }
 TurnHub::HomeWifiResult TurnHubAtlas::homeWifiResult() { return TurnHub::HomeWifiResult::None; }
 int32_t TurnHubAtlas::homeWifiLastCheckAgeMs(uint32_t) { return -1; }
 void TurnHubAtlas::serviceHomeWifi(uint32_t) {}
+// HTTPS on the home network is firmware-only (home_tls_server.cpp).
+#include "home_tls.h"
+void TurnHubAtlas::startHomeTls() {}
+bool TurnHubAtlas::homeTlsRunning() { return false; }
+const char *TurnHubAtlas::homeTlsPin() { return ""; }

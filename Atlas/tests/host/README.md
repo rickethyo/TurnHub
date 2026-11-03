@@ -24,8 +24,9 @@ the account limit. No saved user records are deleted by this filtering.
 
 `src/atlas_board_none.cpp` (the S3 Atlas's parts without drivers yet: status
 LED, BOOT sleep, no speaker), `src/atlas_battery_s3.cpp` (its ADC), `src/sd_card.cpp` (Arduino SD_MMC),
-`src/secure_link_backend.cpp` (mbedTLS self-test) and `src/home_wifi_link.cpp`
-(home Wi-Fi joins and the release-feed fetch) are firmware-only;
+`src/secure_link_backend.cpp` (mbedTLS self-test), `src/home_wifi_link.cpp`
+(home Wi-Fi joins and the release-feed fetch) and `src/home_tls_server.cpp`
+(HTTPS on the home network) are firmware-only;
 `test_globals.cpp` stubs them (no speaker, a battery reading the scenarios
 set, no card, self-test passes). The gauge logic and checkpoint
 codec/throttling are header-only `battery_gauge.h` and `battery_checkpoint.h`,

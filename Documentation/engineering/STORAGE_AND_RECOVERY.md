@@ -57,6 +57,7 @@ prefix plus the profile ID.
 | First-run setup stage | `setup` | `setup_stage.h` |
 | Atlas Wi-Fi password | `atlas-net/ap-pass` | `web_admin_api.cpp` |
 | Home Wi-Fi on/off, network name and password ([Home Wi-Fi](HOME_WIFI.md)) | `atlas-net/home-on`, `home-ssid`, `home-pass` | `home_wifi_link.cpp` |
+| HTTPS key and self-signed certificate for the home network ([Home Wi-Fi](HOME_WIFI.md)) | `atlas-tls/key`, `crt` (DER) | `home_tls_server.cpp` |
 | Table channel | `atlas-net/chan` (absent = 6) | `web_admin_api.cpp`, read by `wifi_password_store.h` |
 | Sigil's last table channel | Sigil `radio/channel` | `Sigil/src/main.cpp` |
 | Sigil pairings | `th_pair/s0`-`s7` | `sigil_bus.cpp` |

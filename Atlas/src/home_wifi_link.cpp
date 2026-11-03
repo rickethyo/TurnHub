@@ -7,6 +7,7 @@
 // which would clash with secure_link.h's constant of that name.
 #include "atlas_app.h"
 #include "config.h"
+#include "home_tls.h"
 #include "optional_preferences.h"
 #include "serial_log.h"
 #include "sigil_update_service.h"
@@ -54,6 +55,7 @@ uint8_t channelBeforeJoin = 0;
 uint8_t networkChannel = 0;
 char address[16] = "";
 bool mdnsStarted = false;
+bool mdnsPinned = false;
 
 // The release feed fetch runs in its own task while Atlas stays connected.
 // fetchOk and fetched are read by loop() once fetchDone is set.
@@ -175,12 +177,12 @@ void startMdns() {
     serialLog.println("ATLAS|HOME_WIFI|MDNS|ERROR");
     return;
   }
-  // Plain HTTP for now; the app uses the home network once HTTPS with a
-  // pinned key lands (HOME_WIFI.md, "Home Wi-Fi as primary").
-  MDNS.addService("turnhub-atlas", "tcp", AtlasConfig::HTTP_PORT);
+  // HTTPS with a pinned key (home_tls.h); `fp` follows once the key exists.
+  // The app uses the home network from HOME_WIFI.md slice 3 on.
+  MDNS.addService("turnhub-atlas", "tcp", TurnHub::HOME_TLS_PORT);
   MDNS.addServiceTxt("turnhub-atlas", "tcp", "id", (String("THA-") + mac).c_str());
   MDNS.addServiceTxt("turnhub-atlas", "tcp", "api", "1");
-  MDNS.addServiceTxt("turnhub-atlas", "tcp", "tls", "0");
+  MDNS.addServiceTxt("turnhub-atlas", "tcp", "tls", "1");
   mdnsStarted = true;
   serialLog.print("ATLAS|HOME_WIFI|MDNS|");
   serialLog.println(host);
@@ -195,7 +197,15 @@ void joined() {
   // The hotspot and ESP-NOW now run on the router's channel.
   serialLog.printf("ATLAS|HOME_WIFI|JOINED|channel=%u|table=%u\n",
       static_cast<unsigned>(networkChannel), static_cast<unsigned>(tableChannel));
+  startHomeTls();
   startMdns();
+}
+
+// The key's pin in mDNS, once the TLS server has made or loaded it.
+void publishPin() {
+  if (!mdnsStarted || mdnsPinned || !homeTlsRunning()) return;
+  MDNS.addServiceTxt("turnhub-atlas", "tcp", "fp", homeTlsPin());
+  mdnsPinned = true;
 }
 
 }  // namespace
@@ -354,6 +364,7 @@ void serviceHomeWifi(uint32_t nowMs) {
             static_cast<unsigned>(channel));
         networkChannel = channel;
       }
+      publishPin();
       if (!fetching && schedule.due(nowMs, enabled, true, tableIdle())) startFetch(nowMs);
       return;
     }

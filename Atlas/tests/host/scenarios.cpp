@@ -3,6 +3,7 @@
 #include <fstream>
 #include <Arduino.h>
 #include "profile_fixture.h"
+#include "home_tls.h"
 #include "wall_clock.h"
 #include "card_cache.h"
 #include "profile_statistics.h"
@@ -869,7 +870,8 @@ static void accountPermissionsAndModeration(){
   assert(request("/api/network",admin,{},HTTP_GET)==200);
   assert(server.body.find("\"ssid\":\"Home Net\"")!=std::string::npos &&
       server.body.find("\"enabled\":true")!=std::string::npos && server.body.find("hunter2")==std::string::npos &&
-      server.body.find("\"address\":null")!=std::string::npos);
+      server.body.find("\"address\":null")!=std::string::npos &&
+      server.body.find("\"tls\":{\"running\":false,\"port\":443,\"pin\":null}")!=std::string::npos);
   assert(request("/api/network/home/check",gm)==403&&request("/api/network/home/check",admin)==200);
   assert(request("/api/network/home",admin,{{"forget","1"}})==200&&!TurnHubAtlas::homeWifiEnabled()&&
       !TurnHubAtlas::homeWifiConfigured());
@@ -6657,6 +6659,10 @@ static void homeWifiCheckIns() {
   rejoin.joined();
   rejoin.lost(900000);  // The router dropped Atlas: retry quickly.
   assert(rejoin.waitMs() == HOME_WIFI_START_JOIN_MS && rejoin.due(900000 + HOME_WIFI_START_JOIN_MS, true, true));
+  const uint8_t digest[32] = {0x00, 0x01, 0xab, 0xff};
+  char pinHex[HOME_TLS_PIN_HEX_SIZE];
+  homeTlsPinHex(digest, pinHex);
+  assert(std::string(pinHex).rfind("0001abff", 0) == 0 && std::string(pinHex).size() == 64);
   assert(homeWifiJoinScan(true) == HomeWifiJoinScan::AllChannels);
   assert(homeWifiJoinScan(false) == HomeWifiJoinScan::CurrentChannelOnly);
 
