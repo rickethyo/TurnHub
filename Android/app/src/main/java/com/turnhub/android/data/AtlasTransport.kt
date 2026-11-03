@@ -191,6 +191,14 @@ interface AtlasSessionTransport : AvatarImageTransport {
     suspend fun raw(method: String, path: String, token: String, fields: List<Pair<String, String>> = emptyList()): RawResponse =
         unsupported()
 
+    /**
+     * [raw] POST with [fields] in the query and [body] as a `text/plain` body,
+     * which Atlas reads as `plain` without URL-decoding it: for the large plane
+     * uploads, whose form decoding stalled Atlas's web server for about 30 s.
+     */
+    suspend fun rawText(path: String, token: String, fields: List<Pair<String, String>>, body: String): RawResponse =
+        raw("POST", path, token, fields + ("plain" to body))
+
     /** `GET /api/avatars` (public): the presets a profile may choose. */
     suspend fun getAvatars(): List<AvatarIcon> = emptyList()
 

@@ -627,6 +627,18 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
             mutex.withLock { rawRequest(method, path, fields) }
         else rawRequest(method, path, fields)
 
+    /** [AtlasTransport.rawText] for a signed-in session; null when signed out. */
+    suspend fun rawText(path: String, fields: List<Pair<String, String>>, body: String): RawResponse? {
+        val endpoint = endpoint ?: return null
+        val token = token ?: return null
+        val response = call { transports.create(endpoint).rawText(path, token, fields, body) }
+        if (response.code == 401) {
+            clear()
+            _feedback.value = ActionFeedback(AtlasFailure.SessionExpired.userMessage, isError = true)
+        }
+        return response
+    }
+
     private suspend fun rawRequest(method: String, path: String, fields: List<Pair<String, String>>): RawResponse? {
         val endpoint = endpoint ?: return null
         val token = token ?: return null

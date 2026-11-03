@@ -595,8 +595,9 @@ bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::I
 }
 
 // GET: the catalog's version and size, so the app knows when to send it.
-// POST (any signed-in browser or tablet): version + planes, one line per card
-// "id<TAB>name<TAB>0|1". Kept in RAM and on the microSD card.
+// POST (any signed-in browser or tablet): version in the query and the planes
+// as the text/plain body, one line per card "id<TAB>name<TAB>0|1". Kept in RAM
+// and on the microSD card.
 // It also lists the planes whose card (text, and art) Atlas keeps, so the
 // app sends only the missing ones.
 void handlePlanesCatalogInfo(WebServer &server) {
@@ -649,13 +650,16 @@ bool decodeBase64(const String &in, std::vector<uint8_t> &out) {
 }  // namespace
 
 // POST (any signed-in browser or tablet): one catalog plane's card for the
-// Atlas card view: id, type, artist, text, chaos and art (a base64 480x320
-// baseline JPEG; optional). Kept on the microSD card. index and total
-// (optional) are where this card falls in the app's batch, for the screen.
+// Atlas card view: id, type, artist, text and chaos in the query, and the art
+// (a base64 480x320 baseline JPEG, or empty) as the text/plain body, which
+// WebServer keeps as arg("plain") without URL-decoding it (decoding a big
+// form field one character at a time froze Atlas for about 30 s). Kept on the
+// microSD card. index and total (optional) are where this card falls in the
+// app's batch, for the screen.
 void handlePlaneCard(WebServer &server) {
   if (!requireSession(server)) return;
   std::vector<uint8_t> jpeg;
-  if (!decodeBase64(server.arg("art"), jpeg)) {
+  if (!decodeBase64(server.arg("plain"), jpeg)) {
     sendError(server, 400, "Send the art as base64");
     return;
   }
@@ -735,7 +739,7 @@ void handleSetAtlasScreen(WebServer &server) { atlasScreen(server, true); }
 void handlePlanesCatalog(WebServer &server) {
   if (!requireSession(server)) return;
   bool saved = false;
-  if (!TurnHubCards::replacePlanes(server.arg("planes").c_str(), server.arg("version").c_str(), saved)) {
+  if (!TurnHubCards::replacePlanes(server.arg("plain").c_str(), server.arg("version").c_str(), saved)) {
     sendError(server, 400, "Send the planes as id, name and phenomenon lines with a version");
     return;
   }

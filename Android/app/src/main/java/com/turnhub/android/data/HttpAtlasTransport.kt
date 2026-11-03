@@ -350,6 +350,17 @@ class HttpAtlasTransport(
         return RawResponse(response.code, response.body)
     }
 
+    override suspend fun rawText(path: String, token: String, fields: List<Pair<String, String>>, body: String): RawResponse {
+        val response = request(
+            "POST",
+            path + (if (path.contains("?")) "&" else "?") + form(*fields.toTypedArray()),
+            headers = auth(token),
+            rawBody = body.toByteArray(Charsets.UTF_8),
+            contentType = "text/plain; charset=utf-8",
+        )
+        return RawResponse(response.code, response.body)
+    }
+
     override suspend fun register(name: String, pin: String): LoginResult {
         val response = request("POST", "/api/profiles/register", formBody = form("name" to name, "pin" to pin))
         requireOk(response, "Could not create the account")
@@ -429,7 +440,7 @@ class HttpAtlasTransport(
         contentType: String? = null,
         // Atlas checks or writes its microSD card for these, which can take longer than a state read.
         readTimeout: Int = if (path == "/api/avatar/review" || path == "/api/session/avatar" ||
-            path == "/api/planes" || path == "/api/planes/card")
+            path.substringBefore('?') == "/api/planes" || path.substringBefore('?') == "/api/planes/card")
             maxOf(readTimeoutMs, ARTWORK_TIMEOUT_MS) else readTimeoutMs,
     ): Response = withContext(ioDispatcher) {
         val expectedGame = kotlinx.coroutines.currentCoroutineContext()[ExpectedGame]?.game

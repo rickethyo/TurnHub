@@ -5530,9 +5530,9 @@ static void cardCacheOnAtlas() {
   const String planes = String("11111111-1111-1111-1111-111111111111\tAkoum\t0\n") +
       "22222222-2222-2222-2222-222222222222\tBant\t0\n" + "33333333-3333-3333-3333-333333333333\tChaotic Aether\t1\n";
   assert(request("/api/planes","",{},HTTP_GET)==200 && has("\"count\":0"));
-  assert(request("/api/planes","",{{"planes",planes},{"version","v1"}})==401);
-  assert(request("/api/planes",a,{{"planes","bad line"},{"version","v1"}})==400);
-  assert(request("/api/planes",a,{{"planes",planes},{"version","v1"}})==200 && has("\"saved\":true"));
+  assert(request("/api/planes","",{{"plain",planes},{"version","v1"}})==401);
+  assert(request("/api/planes",a,{{"plain","bad line"},{"version","v1"}})==400);
+  assert(request("/api/planes",a,{{"plain",planes},{"version","v1"}})==200 && has("\"saved\":true"));
   TurnHubCards::setStoreForTests(&card);  // Forgets RAM, as a reboot does.
   assert(TurnHubCards::planeCount()==0 && TurnHubCards::loadPlanes() && TurnHubCards::planeCount()==3);
   assert(!strcmp(TurnHubCards::planesVersion(),"v1") && !strcmp(TurnHubCards::findPlane("22222222-2222-2222-2222-222222222222")->name,"Bant"));
@@ -5573,14 +5573,14 @@ static void cardCacheOnAtlas() {
     MemoryArchive cards; TurnHubCards::setCardFilesForTests(&cards);
     const String id=table().game.planar().plane;
     assert(request("/api/planes/card",mine,{{"id",id},{"type","Phenomenon"},{"artist","A. Painter"},
-        {"text","Made-up rules text.\nSecond line."},{"chaos",""},{"art","/9j/2Q=="}})==200 && has("\"art\":true"));
-    assert(request("/api/planes/card",mine,{{"id","00000000-0000-0000-0000-000000000000"},{"text","x"},{"art",""}})==409);
-    assert(request("/api/planes/card",mine,{{"id",id},{"text","x"},{"art","not base64!"}})==400);
+        {"text","Made-up rules text.\nSecond line."},{"chaos",""},{"plain","/9j/2Q=="}})==200 && has("\"art\":true"));
+    assert(request("/api/planes/card",mine,{{"id","00000000-0000-0000-0000-000000000000"},{"text","x"},{"plain",""}})==409);
+    assert(request("/api/planes/card",mine,{{"id",id},{"text","x"},{"plain","not base64!"}})==400);
     assert(request("/api/planes",mine,{},HTTP_GET)==200 && has((String("\"cards\":[\"")+id+"\"]").c_str()) && has((String("\"art\":[\"")+id+"\"]").c_str()));
-    assert(request("/api/planes/card",mine,{{"id",id},{"text","x"},{"art",""},{"index","3"},{"total","9"}})==200 &&
+    assert(request("/api/planes/card",mine,{{"id",id},{"text","x"},{"plain",""},{"index","3"},{"total","9"}})==200 &&
         String(currentScreen().sync)=="Plane cards: 3 of 9");
     assert(request("/api/planes/card",mine,{{"id",id},{"text","Made-up rules text.\nSecond line."},{"artist","A. Painter"},
-        {"type","Phenomenon"},{"art","/9j/2Q=="},{"index","9"},{"total","9"}})==200 && String(currentScreen().sync)=="All 9 plane cards saved");
+        {"type","Phenomenon"},{"plain","/9j/2Q=="},{"index","9"},{"total","9"}})==200 && String(currentScreen().sync)=="All 9 plane cards saved");
     testNow+=SYNC_TOAST_MS+1; assert(!currentScreen().sync[0]);
     tapButton(TouchAction::OpenPlaneCard);
     const AtlasScreen view=currentScreen();

@@ -778,7 +778,8 @@ back to the players' own planes.
 
 Plane catalog (Atlas 2026-10-30): `GET /api/planes` answers `version` and
 `count`; `POST /api/planes` (any signed-in browser or tablet) takes `version`
-(up to 24 characters) and `planes`, one line per card
+(up to 24 characters) in the query and the planes as a `text/plain` body, one
+line per card
 `<36-character Scryfall id><TAB><name, up to 40><TAB><1 phenomenon | 0>`, up to
 192 cards. Atlas keeps it in RAM and on the microSD card (records `pl0`…,
 `plv`), reloading it at boot or card insertion. The app sends its downloaded
@@ -788,11 +789,13 @@ Plane cards (Atlas 2026-11-03, for the Atlas screen's card view): `GET
 /api/planes` also answers `cards` (ids whose text Atlas keeps) and `art` (ids
 with art too). `POST /api/planes/card` (any signed-in browser or tablet) takes
 one catalog plane's `id`, `type` and `artist` (up to 47 printable ASCII
-characters each), `text` (rules, up to 639, newlines allowed), `chaos` (the
-chaos ability, up to 319) and `art`: a base64 baseline JPEG, 480x320, at most
-96 KB, or empty for text only. Keep the encoded field under 64 KB (about 46 KB
-of JPEG): Atlas's web server corrupts longer form fields while URL-decoding
-them, and answers 400. Atlas keeps them on the microSD card
+characters each), `text` (rules, up to 639, newlines allowed) and `chaos` (the
+chaos ability, up to 319) in the query, and the art as a `text/plain` body: a
+base64 baseline JPEG, 480x320, at most 96 KB, or empty for text only. Both
+routes take their large part as a plain body because Atlas's web server
+URL-decodes form fields one character at a time: a 64 KB art field held it
+for about 30 s, freezing the screen (2026-11-03). The app keeps the JPEG under
+about 46 KB. Atlas keeps them on the microSD card
 (`pc-<id>.txt`, `pc-<id>.jpg`): 400 for bad base64, 409 for an unknown plane,
 bad text, a non-JPEG or no card. Optional `index` and `total` (this card's
 place in the app's batch) let the Atlas screen show the progress. The app

@@ -267,7 +267,7 @@ class AtlasTablet(
                 val name = card.name.map { if (it.code in 32..126) it else '?' }.joinToString("").take(40)
                 "${card.id}\t$name\t${if (card.card.phenomenon) 1 else 0}"
             }
-            val sent = session.raw("POST", "/api/planes", listOf("version" to version, "planes" to lines))
+            val sent = session.rawText("/api/planes", listOf("version" to version), lines)
             progress(if (sent?.ok == true) "Atlas has the ${minOf(cards.size, 192)} planes." else "Atlas didn't take the planes. Try Send planes to Atlas.")
         } catch (e: CancellationException) { throw e } catch (e: Exception) { android.util.Log.w("AtlasTablet", "Plane catalog sync failed", e); progress("Couldn't reach Atlas to send the planes.") }
     }
@@ -293,10 +293,10 @@ class AtlasTablet(
                 progress("Sending plane cards to Atlas: ${i + 1} of ${missing.size}")
                 val text = AtlasPlaneCards.text(card)
                 val jpeg = art(card)?.let { AtlasPlaneCards.artJpeg(it) }
-                val response = session.raw("POST", "/api/planes/card", listOf("id" to card.id, "type" to text.type,
+                val response = session.rawText("/api/planes/card", listOf("id" to card.id, "type" to text.type,
                     "artist" to text.artist, "text" to text.text, "chaos" to text.chaos,
-                    "art" to (jpeg?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) } ?: ""),
-                    "index" to "${i + 1}", "total" to "${missing.size}"))
+                    "index" to "${i + 1}", "total" to "${missing.size}"),
+                    jpeg?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) } ?: "")
                     ?: return progress("Lost Atlas after ${i} of ${missing.size} plane cards.")
                 if (!response.ok) return progress(
                     runCatching { org.json.JSONObject(response.body).optString("error") }.getOrNull()?.takeIf { it.isNotBlank() }
