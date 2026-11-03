@@ -15,8 +15,12 @@ data class AtlasPlaneText(val type: String, val artist: String, val text: String
 object AtlasPlaneCards {
     const val ART_WIDTH = 480
     const val ART_HEIGHT = 320
-    /** Atlas's limit for one card's JPEG. */
-    const val MAX_ART_BYTES = 96 * 1024
+    /**
+     * The largest JPEG the app sends. Atlas keeps up to 96 KB, but its web server
+     * (arduino-esp32 WString) corrupts a form field that grows past 64 KB while it
+     * URL-decodes it, so the base64 art must stay under that: 46 KB is about 62 KB encoded.
+     */
+    const val MAX_ART_BYTES = 46 * 1024
 
     /** Atlas's fonts are printable ASCII: typographic marks become their plain forms. */
     fun ascii(text: String): String = buildString {
@@ -53,7 +57,7 @@ object AtlasPlaneCards {
             else source.width to (source.width / ratio).toInt()
         val cut = Bitmap.createBitmap(source, (source.width - w) / 2, (source.height - h) / 2, w, h)
         val scaled = Bitmap.createScaledBitmap(cut, ART_WIDTH, ART_HEIGHT, true)
-        for (quality in intArrayOf(82, 70, 58)) {
+        for (quality in intArrayOf(82, 70, 58, 46, 34)) {
             val out = ByteArrayOutputStream()
             scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)
             if (out.size() <= MAX_ART_BYTES) return out.toByteArray()

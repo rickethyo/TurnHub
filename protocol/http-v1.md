@@ -785,7 +785,9 @@ with art too). `POST /api/planes/card` (any signed-in browser or tablet) takes
 one catalog plane's `id`, `type` and `artist` (up to 47 printable ASCII
 characters each), `text` (rules, up to 639, newlines allowed), `chaos` (the
 chaos ability, up to 319) and `art`: a base64 baseline JPEG, 480x320, at most
-96 KB, or empty for text only. Atlas keeps them on the microSD card
+96 KB, or empty for text only. Keep the encoded field under 64 KB (about 46 KB
+of JPEG): Atlas's web server corrupts longer form fields while URL-decoding
+them, and answers 400. Atlas keeps them on the microSD card
 (`pc-<id>.txt`, `pc-<id>.jpg`): 400 for bad base64, 409 for an unknown plane,
 bad text, a non-JPEG or no card. Optional `index` and `total` (this card's
 place in the app's batch) let the Atlas screen show the progress. The app
