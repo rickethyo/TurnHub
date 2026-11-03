@@ -111,6 +111,7 @@ extern SetupStageCallback readSetupStage;
 extern AccessibilityChangedCallback accessibilityChanged;
 extern StateCallback readClientState;
 extern RevisionCallback readClientRevision;
+extern OfflineHooks offlineHooks;
 
 // --- Responses (web_api.cpp) ---------------------------------------------------
 
@@ -208,6 +209,8 @@ void handleStandaloneImport(WebServer &server);
 
 void handleInfo(WebServer &server);
 void handleState(WebServer &server);
+void handleOfflineGame(WebServer &server);
+void handleOfflineSync(WebServer &server);
 void handleSeats(WebServer &server);
 void handleGameSettings(WebServer &server);
 void handleSaveGameSettings(WebServer &server);

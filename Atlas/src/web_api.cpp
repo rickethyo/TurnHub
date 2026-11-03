@@ -108,6 +108,9 @@ void configureClientState(StateCallback state, RevisionCallback revision) {
   readClientRevision = revision;
 }
 
+namespace internal { OfflineHooks offlineHooks; }
+void configureOffline(const OfflineHooks &hooks) { internal::offlineHooks = hooks; }
+
 void configureGameControls(GameSettingsCallback read, ConfigureGameCallback configure,
     ChangeLifeCallback life) {
   readGameConfiguration = read;
@@ -195,6 +198,8 @@ const Route ROUTES[] = {
   {"/api/v1/info", HTTP_GET, handleInfo},
   {"/api/time", HTTP_POST, handleClockSync},
   {"/api/v1/state", HTTP_GET, handleState},
+  {"/api/v1/game", HTTP_GET, handleOfflineGame},
+  {"/api/v1/offline", HTTP_POST, handleOfflineSync},
 
   // Accounts and administration.
   {"/api/accounts/setup", HTTP_GET, accountSetupStatus},

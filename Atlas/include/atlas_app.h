@@ -163,6 +163,18 @@ struct GameTable {
     TurnHubCards::Commander card{};
   };
   SeatCommander commanders[MAX_PLAYERS];
+  // Offline play: the outage the phones' queues are merging into. Open from
+  // the first phone's sync until anything else changes the game, so a second
+  // phone's queue joins the same timeline rather than landing on top.
+  struct OfflineMerge {
+    bool open = false;
+    turnhub::Game base;
+    String baseBoot;
+    bool onThisClock = false;  // base runs on this boot's clock.
+    std::vector<turnhub::OfflineEntry> entries;
+    int64_t resultRevision = 0;
+    int64_t untilMs = 0;  // On base's clock.
+  } offline;
 };
 
 constexpr uint8_t MAX_GAME_TABLES = 2;
@@ -298,6 +310,12 @@ IntentResult handleResetIntent(const Intent &intent, void *);
 IntentResult handleBackToSetupIntent(const Intent &intent, void *);
 IntentResult handleCountShortGameIntent(const Intent &intent, void *);
 IntentResult handlePlanarIntent(const Intent &intent, void *);
+// Offline play: the request the web adapter staged for SyncOffline (null
+// outside that dispatch), and the core's state with Atlas's clock for
+// GET /api/v1/game.
+extern TurnHubWebApi::OfflineSyncRequest *pendingOfflineSync;
+IntentResult handleSyncOfflineIntent(const Intent &intent, void *);
+String offlineGameJson(const String &atlasId, const char *bootId);
 // A finished match under SHORT_GAME_MS that nobody has counted yet.
 bool shortGameUncounted();
 IntentResult handleCancelPassIntent(const Intent &intent, void *);

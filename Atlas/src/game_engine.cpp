@@ -70,6 +70,7 @@ void GameEngine::reset() {
   core_ = turnhub::Game();
   autoOut_ = lastAutoOut_ = 0;
   winRestoreRunning_ = false;
+  restoredRevision_ = -1;
   settings_ = GameSettings{};
   playerCount_ = 0;
   for (uint8_t i = 0; i < MAX_PLAYERS; ++i) {
@@ -88,6 +89,17 @@ bool GameEngine::commitRules(const turnhub::Game &next) {
   if (!commit(next)) return false;
   autoOut_ |= out;
   return true;
+}
+
+bool GameEngine::adoptOffline(turnhub::Game next) {
+  if (!playing() || next.gameId != core_.gameId || next.players.size() != core_.players.size()) return false;
+  for (size_t i = 0; i < next.players.size(); ++i)
+    if (next.players[i].profileId != core_.players[i].profileId) return false;
+  cancelLifeChanges();
+  winRestoreRunning_ = false;
+  restoredRevision_ = -1;
+  next.revision = core_.revision + 1;
+  return commit(next);
 }
 
 bool GameEngine::commit(const turnhub::Game &next) {

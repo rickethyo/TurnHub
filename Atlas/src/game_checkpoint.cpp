@@ -218,6 +218,7 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
       if (s.damage[j][i][1]) partner_[i] = true;
   g.revision = core_.revision + 1;
   core_ = g;
+  restoredRevision_ = g.revision;
   mirror();
   // Pending requests, claims and confirmations are deliberately canceled.
   // Restoration never invokes the game-completed statistics callback.

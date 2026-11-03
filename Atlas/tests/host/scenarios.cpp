@@ -383,7 +383,7 @@ static void verifyAtTable(const String &token) {
   assert(pendingPresenceCode(testNow)==nullptr);
 }
 static String registerPhone(const char *name,String &id) {
-  assert(request("/api/profiles/register","",{{"name",name},{"pin","1234"}})==200);
+  const int regStatus=request("/api/profiles/register","",{{"name",name},{"pin","1234"}}); if(regStatus!=200) std::cerr<<"REG "<<name<<" "<<regStatus<<" "<<server.body<<std::endl; assert(regStatus==200);
   id=responseField("profileId"); return responseField("token");
 }
 static String loginPhone(const String &id) {
@@ -4999,6 +4999,81 @@ struct MemoryArchive : TurnHubHistory::ArchiveFiles {
   }
   bool remove(const char *name) override { files.erase(name); return true; }
 };
+// Offline play: phones keep the game going while Atlas is out of reach and
+// send their queues back (turnhub_offline.h, protocol/http-v1.md).
+namespace TurnHubWebApi { namespace internal { extern char bootId[33]; } }
+// Run inside matchHistory with its two signed-in phones (the profile store is nearly full by then).
+static void offlinePlay(const String &ana,const String &ben) {
+  enterEmptyLobby(); TurnHub::fixtureRadio=false;
+  assert(request("/api/session/join",ana)==200 && request("/api/session/join",ben)==200);
+  assert(request("/api/control/start",ana)==200); testNow+=3000; updateCountdown(testNow);
+  assert(table().hubState==HubState::Running);
+  auto snapshot=[](){
+    assert(request("/api/v1/game","",{},HTTP_GET)==200);
+    bool ok=false; const turnhub::Json j=turnhub::Json::parse(server.body,&ok); assert(ok);
+    return j;
+  };
+  const turnhub::Json first=snapshot();
+  const turnhub::Json base=first.get("state");
+  const int64_t atlasMs=first.get("atlasMs").asInt();
+  const int active=static_cast<int>(base.get("active").asInt());
+  const int L=static_cast<int>(base.get("startingLife").asInt());
+  assert(first.get("bootId").asString()==std::string(TurnHubWebApi::internal::bootId) && base.get("revision").isNumber());
+  auto entry=[](int seq,int64_t at,const std::string &action){
+    return std::string("{\"seq\":")+std::to_string(seq)+",\"atMs\":"+std::to_string(at)+",\"action\":"+action+"}";
+  };
+  auto life=[](int index,int delta){ return std::string("{\"do\":\"changeLife\",\"index\":")+std::to_string(index)+",\"delta\":"+std::to_string(delta)+"}"; };
+  const std::string pass=std::string("{\"do\":\"pass\",\"index\":")+std::to_string(active)+"}";
+  auto sync=[&](const String &token,const char *device,const std::string &entries,int64_t now,const std::string &boot,const turnhub::Json &from){
+    return request("/api/v1/offline",token,{{"device",device},{"baseBoot",boot.c_str()},{"base",from.dump().c_str()},
+        {"nowMs",String(static_cast<long long>(now))},{"entries",("["+entries+"]").c_str()}});
+  };
+  const std::string boot=TurnHubWebApi::internal::bootId;
+  testNow+=3000;
+  // Ana's phone: the active player passed, then a life change. Ben's phone,
+  // synced second, changed life before that; both land in one timeline.
+  assert(sync("","ana",entry(1,atlasMs+2000,pass),atlasMs+3000,boot,base)==401);
+  assert(sync(ana,"ana","{\"seq\":0}",atlasMs+3000,boot,base)==400);
+  assert(sync(ana,"ana",entry(1,atlasMs+2000,pass)+","+entry(2,atlasMs+2500,life(1,-5)),atlasMs+3000,boot,base)==200);
+  assert(server.body.find("\"mode\":\"replayed\"")!=std::string::npos && server.body.find("\"applied\":false")==std::string::npos);
+  assert(table().game.core().active && *table().game.core().active!=active && table().game.core().players[1].life==L-5);
+  assert(sync(ben,"ben",entry(1,atlasMs+1000,life(0,-2))+","+entry(2,atlasMs+2600,pass),atlasMs+3000,boot,base)==200);
+  assert(server.body.find("\"mode\":\"merged\"")!=std::string::npos);
+  // Ben's second pass names a turn that had already moved on: refused, only for Ben.
+  assert(server.body.find("\"device\":\"ana\"")==std::string::npos && server.body.find("\"applied\":false")!=std::string::npos);
+  const turnhub::Game &merged=table().game.core();
+  assert(merged.players[1].life==L-5 && merged.players[0].life==L-2 && merged.players[active].turnsCompleted==1);
+  assert(table().hubState==HubState::Running);
+  // Something else changes the game: a later queue lands on top, now.
+  const int up=*merged.active;
+  const turnhub::Game &merged0=table().game.core();
+  const String upToken=merged0.players[up].name=="Ana History"?ana:ben;
+  assert(request("/api/control/pass",upToken)==200); testNow+=PASS_GRACE_MS+1; updatePendingPass(testNow);
+  assert(sync(ana,"third",entry(1,atlasMs+1500,life(0,-1)),atlasMs+3000,boot,base)==200);
+  assert(server.body.find("\"mode\":\"late\"")!=std::string::npos && table().game.core().players[0].life==L-3);
+
+  // Atlas restarts and restores the match paused; a phone that kept playing
+  // brings its copy back, and the game continues from there, running.
+  const turnhub::Json before=snapshot();
+  TurnHub::GameCheckpoint saved,decoded;
+  table().game.checkpoint(saved,testNow);
+  uint8_t bytes[TurnHub::GAME_CHECKPOINT_CAPACITY];
+  const size_t size=TurnHub::encodeCheckpoint(saved,bytes,sizeof(bytes));
+  assert(size && TurnHub::decodeCheckpoint(bytes,size,decoded)==TurnHubStorage::Status::Ok);
+  assert(table().game.restoreCheckpoint(decoded,testNow+1000)); table().hubState=HubState::Paused;
+  strcpy(TurnHubWebApi::internal::bootId,"rebooted-boot-id");
+  testNow+=5000;
+  const int64_t oldMs=before.get("atlasMs").asInt();
+  assert(sync(ana,"ana",entry(1,oldMs+1000,life(1,-4)),oldMs+4000,boot,before.get("state"))==200);
+  assert(server.body.find("\"mode\":\"restored\"")!=std::string::npos);
+  assert(table().game.core().players[1].life==L-9 && table().hubState==HubState::Running && !table().game.paused());
+  // A game that has since ended refuses every queue.
+  turnhub::Json other=before.get("state"); other.set("gameId","another-match");
+  assert(sync(ana,"ana",entry(1,oldMs+1000,life(1,-4)),oldMs+4000,boot,other)==409);
+  strcpy(TurnHubWebApi::internal::bootId,boot.c_str());
+  enterEmptyLobby();
+}
+
 static void matchHistory() {
   MemoryBlobs blobs; TurnHubStandalone::useImportStore(&blobs);
   enterEmptyLobby(); TurnHub::fixtureRadio=false; testNow=1000;
@@ -5082,6 +5157,7 @@ static void matchHistory() {
   assert(archive.files[TurnHubHistory::CSV_FILE].find("Ben History")!=std::string::npos);
   enterEmptyLobby();
   TurnHubHistory::useFiles(nullptr);
+  offlinePlay(ana,ben); std::cout<<"PASS offline play: full game for phones, queues replayed, merged across phones, late and restored syncs\n";
   assert(request("/api/profiles/history",ana,{{"profileId",anaId}},HTTP_GET)==503);
   assert(request("/api/session/logout",ana)==200 && request("/api/session/logout",ben)==200);
   ProfileFixture::profiles.erase(anaId.c_str()); ProfileFixture::profiles.erase(benId.c_str());

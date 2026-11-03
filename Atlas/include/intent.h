@@ -149,6 +149,10 @@ enum class IntentType : uint8_t {
   // Lobby: the actor's seat plays its profile's saved commander number
   // payload.value (1-based, card_cache.h), or none (0).
   SetCommander,
+  // Offline play (turnhub_offline.h): a phone's queue of what it did while
+  // Atlas was out of reach. The request itself is too big for a payload; the
+  // web adapter stages it in TurnHubAtlas::pendingOfflineSync for the handler.
+  SyncOffline,
 
   Count,
 };
@@ -322,6 +326,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::CountShortGame: return "COUNT_SHORT_GAME";
     case IntentType::PlanarAction: return "PLANAR_ACTION";
     case IntentType::SetCommander: return "SET_COMMANDER";
+    case IntentType::SyncOffline: return "SYNC_OFFLINE";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

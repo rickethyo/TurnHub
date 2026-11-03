@@ -159,6 +159,64 @@ void handleState(WebServer &server) {
   sendJson(server, 200, readClientState(atlasHardwareId(), bootId));
 }
 
+// Offline play: the full game a phone keeps playing on if Atlas drops off.
+void handleOfflineGame(WebServer &server) {
+  if (!offlineHooks.game) {
+    sendError(server, 503, "Offline play is not configured");
+    return;
+  }
+  sendJson(server, 200, offlineHooks.game(atlasHardwareId(), bootId));
+}
+
+// Offline play: a phone's queue, once Atlas answers again.
+void handleOfflineSync(WebServer &server) {
+  if (!sessionForRequest(server)) {
+    sendError(server, 401, "Sign in first");
+    return;
+  }
+  if (!offlineHooks.sync) {
+    sendError(server, 503, "Offline play is not configured");
+    return;
+  }
+  OfflineSyncRequest request;
+  request.device = server.arg("device");
+  request.baseBoot = server.arg("baseBoot");
+  request.atlasBoot = bootId;
+  const String base = server.arg("base"), entries = server.arg("entries");
+  bool baseOk = false, entriesOk = false;
+  const turnhub::Json baseJson = base.length() <= 16384 ? turnhub::Json::parse(base.c_str(), &baseOk) : turnhub::Json();
+  const turnhub::Json list = entries.length() <= 65536 ? turnhub::Json::parse(entries.c_str(), &entriesOk) : turnhub::Json();
+  int64_t now = 0;
+  if (request.device.length() < 1 || request.device.length() > 40 || request.baseBoot.length() > TOKEN_LENGTH ||
+      !baseOk || !baseJson.isObject() || !baseJson.get("gameId").isString() || !entriesOk || !list.isArray() ||
+      list.size() > 512 || !server.hasArg("nowMs")) {
+    sendError(server, 400, "Those offline actions are not valid");
+    return;
+  }
+  now = atoll(server.arg("nowMs").c_str());
+  request.base = turnhub::gameFromJson(baseJson);
+  request.nowOnBase = now;
+  for (size_t i = 0; i < list.size(); ++i) {
+    turnhub::OfflineEntry entry;
+    if (!turnhub::offlineEntryFromJson(list[i], request.device.c_str(), entry)) {
+      sendError(server, 400, "Those offline actions are not valid");
+      return;
+    }
+    request.entries.push_back(entry);
+  }
+  String message;
+  if (!offlineHooks.sync(request, message)) {
+    sendError(server, 409, message);
+    return;
+  }
+  turnhub::Json body = turnhub::Json::object();
+  body.set("ok", true);
+  body.set("mode", request.mode);
+  body.set("revision", readClientRevision ? static_cast<int64_t>(readClientRevision()) : int64_t(0));
+  body.set("outcomes", request.outcomes);
+  sendJson(server, 200, body.dump().c_str());
+}
+
 void handleSeats(WebServer &server) {
   resolveAllSessions(millis());
   String json = "{\"seats\":[";

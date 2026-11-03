@@ -5,6 +5,8 @@
 #include "game_profile.h"
 #include "account_access.h"
 #include "game_engine.h"
+#include "turnhub_offline.h"
+#include <vector>
 #include "intent.h"
 #include "update_notice.h"
 
@@ -168,6 +170,26 @@ struct TableHooks {
   uint8_t (*select)(uint8_t index) = nullptr;                 // Returns the previous one.
 };
 void configureTables(const TableHooks &hooks);
+
+// Offline play (protocol/http-v1.md, "Offline play"): a phone that kept the
+// game going while Atlas was out of reach sends what it did.
+struct OfflineSyncRequest {
+  String device;     // The phone's queue id.
+  String baseBoot;   // Atlas's bootId when the phone took its copy.
+  String atlasBoot;  // Atlas's bootId now.
+  turnhub::Game base;  // That copy (the core's state at its revision).
+  int64_t nowOnBase = 0;  // Now, on the base copy's clock.
+  std::vector<turnhub::OfflineEntry> entries;
+  // The answer: how Atlas merged it, and each entry's outcome.
+  const char *mode = "";
+  turnhub::Json outcomes = turnhub::Json::array();
+};
+struct OfflineHooks {
+  // The core's state for GET /api/v1/game.
+  String (*game)(const String &atlasId, const char *bootId) = nullptr;
+  bool (*sync)(OfflineSyncRequest &request, String &message) = nullptr;
+};
+void configureOffline(const OfflineHooks &hooks);
 // The game (0-based) a request acts on, for routes outside the route table.
 uint8_t requestGame(WebServer &server);
 
