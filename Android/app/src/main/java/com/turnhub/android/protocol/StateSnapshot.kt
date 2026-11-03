@@ -50,6 +50,8 @@ data class StateSnapshot(
     val winnerPlayers: List<Int> = listOfNotNull(winnerPlayer),
     /** The response body this was parsed from, kept so a Play together hub can relay it as is. */
     val wire: String? = null,
+    /** Individual match UUID; a venue game number survives rematches. */
+    val matchId: String = "",
 )
 
 /**

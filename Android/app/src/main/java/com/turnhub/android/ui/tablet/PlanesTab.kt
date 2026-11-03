@@ -448,7 +448,7 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
     val active = summary.players.firstOrNull { it.playerNumber == summary.activePlayerNumber }?.seat()
     val anySeat = summary.anySeat()
     val running = summary.state == TableState.RUNNING
-    fun send(seat: TabletSeat?, action: String) { seat?.let { s -> if (onRoomControl != null) onRoomControl(s, action) else actions.run { control(s, action) } } }
+    fun send(seat: TabletSeat?, action: String) { seat?.let { s -> if (onRoomControl != null) onRoomControl(s, action) else actions.run { inGame(summary.game, summary.matchId) { control(s, action) } } } }
     var rolling by remember { mutableStateOf(false) }
     Column(
         Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),

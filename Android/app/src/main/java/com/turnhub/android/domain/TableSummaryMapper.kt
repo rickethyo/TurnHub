@@ -52,6 +52,7 @@ object TableSummaryMapper {
         return TableSummary(
             atlasId = snapshot.atlasId,
             bootId = snapshot.bootId,
+            matchId = snapshot.matchId,
             firmwareVersion = info.firmwareVersion,
             revision = snapshot.revision,
             state = snapshot.state,

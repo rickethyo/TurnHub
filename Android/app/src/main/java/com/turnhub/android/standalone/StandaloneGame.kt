@@ -81,6 +81,7 @@ data class LocalPlayer(
  * app being closed; pausing stops them.
  */
 data class StandaloneGame(
+
     /** Fresh for every match (start, rematch); the record's dedupe key on Atlas. */
     val gameId: String = "",
     val state: TableState = TableState.LOBBY,
@@ -158,6 +159,8 @@ data class StandaloneGame(
     /** Death May Die: the Elder One, episode, Summoning track and stages ([ElderOneTrack]). */
     val elder: ElderOneTrack = ElderOneTrack(),
     val revision: Long = 0,
+    /** Runtime-only action journal; never serialized or shared with another table. */
+    val offlineRecorder: OfflineRecorder? = null,
 ) {
     fun gameElapsedMs(nowMs: Long): Long = elapsedMs + (runningSinceMs?.let { (nowMs - it).coerceAtLeast(0) } ?: 0)
 
@@ -1377,6 +1380,7 @@ data class StandaloneGame(
         return TableSummary(
             atlasId = "",
             bootId = gameId,
+            matchId = gameId,
             firmwareVersion = "",
             revision = revision,
             state = state,

@@ -413,7 +413,7 @@ fun HomeScreen(
                         !setup.visible && shown == HomeTab.TABLE -> localTableContent({ tab = HomeTab.GAME }, { tab = HomeTab.PLANES })
                         !setup.visible && shown == HomeTab.HISTORY -> localHistoryContent()
                         !setup.visible && shown == HomeTab.PLANES && atlasGame && summary != null ->
-                            com.turnhub.android.ui.tablet.AtlasPlanesTab(summary, tabletActions, reduceMotion, uiState.isOffline,
+                            com.turnhub.android.ui.tablet.AtlasPlanesTab(summary, tabletActions, reduceMotion, uiState.isOffline || offlineGame?.base?.matches(summary) == true,
                                 // A signed-in player of this phone (its own account, or one seated from it), never a Sigil or a guest.
                                 screenSeat = (listOfNotNull(me) + summary.players.filter { localState.library.linkedPlayer(summary.atlasId, it.profileId) != null })
                                     .firstOrNull { it.profileId != null && it.controller.kind == com.turnhub.android.domain.ControllerHandle.Kind.VIRTUAL }

@@ -12,6 +12,8 @@ data class ProfileSummary(
     val name: String,
     /** Browser/app sign-in needs a PIN; PIN-less profiles sign in physically. */
     val hasPin: Boolean,
+    /** IDs redirected here by an explicit Atlas account merge. */
+    val aliases: List<String> = emptyList(),
 )
 
 /** `POST /api/session/login` success. [token] goes in `X-TurnHub-Token`; keep it private. */

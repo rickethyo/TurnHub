@@ -135,7 +135,14 @@ void handleProfiles(WebServer &server) {
     json += "{\"profileId\":\""; json += ids[i];
     json += "\",\"name\":\""; json += jsonEscape(TurnHubProfiles::nameForProfile(ids[i]));
     json += "\",\"hasPin\":"; json += jsonBool(TurnHubProfiles::hasPinForProfile(ids[i]));
-    json += '}';
+    json += ",\"aliases\":[";
+    bool aliasComma=false;
+    for(size_t j=0;j<count;++j) {
+      if(i==j || TurnHubProfiles::mergedProfileFor(ids[j])!=String(ids[i])) continue;
+      if(aliasComma) json+=',';
+      aliasComma=true; json+='"'; json+=ids[j]; json+='"';
+    }
+    json += "]}";
   }
   json += "]}";
   sendJson(server, 200, json);

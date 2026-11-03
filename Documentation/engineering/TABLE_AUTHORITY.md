@@ -220,3 +220,20 @@ land before automatic cross-host completion is enabled.
 The authority invariant and client/persistence contracts change together with
 the handoff implementation. Until then, the current sole-Atlas rule remains
 the connected runtime contract.
+
+### Offline journal recovery and room compatibility
+
+The Android offline journal is device-private durable state, excluded from OS
+backup/transfer. It saves the full pending game and queue before showing each
+recorded edit. Failed writes refuse that edit; failed or rejected delivery keeps
+the journal. App recreation restores the original stream ID and sequence numbers.
+A journal is bound to Atlas ID, venue and match UUID, not to a reused seat/name.
+Only confirmed delivery and successful journal removal end reconciliation.
+
+Atlas retains bounded immutable replay receipts for its current process/match,
+including after intervening live actions. This prevents a lost reply from replaying
+all deltas in a new merge window. The existing best-effort cross-boot timestamp
+policy remains: receipts are not yet durable across Atlas power loss. The durable
+completion/authority guarantees described elsewhere in this reference remain
+separate work. Room guests wait for the hub's reconciliation; persistent membership
+does not itself grant offline takeover or expose the hidden full-core checkpoint.

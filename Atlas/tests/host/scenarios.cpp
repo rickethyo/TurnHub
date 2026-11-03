@@ -5020,6 +5020,17 @@ static void offlinePlay(const String &ana,const String &ben) {
         {"nowMs",String(static_cast<long long>(now))},{"entries",("["+entries+"]").c_str()}});
   };
   const std::string boot=TurnHubWebApi::internal::bootId;
+  // Account-free table sessions can fetch and sync offline state, scoped to their venue.
+  assert(request("/api/session/play","",{{"clientKey","11111111-1111-1111-1111-111111111111"},{"game","1"}})==200);
+  const String shared=responseField("token");
+  assert(request("/api/v1/game",shared,{},HTTP_GET)==200);
+  assert(sync(shared,"shared","",atlasMs,boot,base)==200);
+  assert(request("/api/tablet/life",shared,{{"module","8"},{"slot","1"},{"delta","-1"},{"expectedGame","1"},{"expectedMatchId","old-match"}})==409);
+  assert(request("/api/session/game",shared,{{"game","2"}})==200);
+  assert(request("/api/v1/game",shared,{{"game","2"}},HTTP_GET)==200);
+  { bool ok=false; const auto state=turnhub::Json::parse(server.body,&ok); assert(ok && state.get("game").asInt()==2); }
+  assert(request("/api/v1/offline",shared,{{"game","2"},{"expectedGame","1"}})==409);
+  assert(request("/api/session/logout",shared)==200);
   testNow+=3000;
   // Ana's phone: the active player passed, then a life change. Ben's phone,
   // synced second, changed life before that; both land in one timeline.
@@ -5040,6 +5051,11 @@ static void offlinePlay(const String &ana,const String &ben) {
   const turnhub::Game &merged0=table().game.core();
   const String upToken=merged0.players[up].name=="Ana History"?ana:ben;
   assert(request("/api/control/pass",upToken)==200); testNow+=PASS_GRACE_MS+1; updatePendingPass(testNow);
+  const auto beforeRetry=turnhub::toJson(table().game.core()).dump();
+  assert(sync(ana,"ana",entry(1,atlasMs+2000,pass)+","+entry(2,atlasMs+2500,life(1,-5)),atlasMs+3000,boot,base)==200);
+  assert(server.body.find("\"mode\":\"duplicate\"")!=std::string::npos);
+  assert(turnhub::toJson(table().game.core()).dump()==beforeRetry);
+  assert(sync(ana,"ana",entry(1,atlasMs+2000,life(1,-9)),atlasMs+3000,boot,base)==409);
   assert(sync(ana,"third",entry(1,atlasMs+1500,life(0,-1)),atlasMs+3000,boot,base)==200);
   assert(server.body.find("\"mode\":\"late\"")!=std::string::npos && table().game.core().players[0].life==L-3);
 

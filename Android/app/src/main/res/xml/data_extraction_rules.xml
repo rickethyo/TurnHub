@@ -5,10 +5,12 @@
         <exclude domain="sharedpref" path="atlas_wifi.xml" />
         <exclude domain="sharedpref" path="profile_vault.xml" />
         <exclude domain="sharedpref" path="turnhub_rooms.xml" />
+        <exclude domain="sharedpref" path="atlas_offline.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="atlas_wifi.xml" />
         <exclude domain="sharedpref" path="profile_vault.xml" />
         <exclude domain="sharedpref" path="turnhub_rooms.xml" />
+        <exclude domain="sharedpref" path="atlas_offline.xml" />
     </device-transfer>
 </data-extraction-rules>

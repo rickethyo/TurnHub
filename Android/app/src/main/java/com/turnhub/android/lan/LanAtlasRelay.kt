@@ -25,6 +25,7 @@ internal interface LanAtlasLink {
     /** This device is the Atlas table's tablet, so it may act for a guest's seat. */
     fun canAct(): Boolean
     suspend fun roomProfiles(): JSONArray = JSONArray()
+    fun resolveIdentity(id: String): String = id
     suspend fun attachProfile(request: JSONObject): String? = null
     suspend fun backupRoom(record: JSONObject): Boolean = false
     suspend fun endRoom(record: JSONObject): Boolean = false
@@ -69,7 +70,7 @@ internal object LanAtlasFrame {
 private fun relay(block: suspend TableControls.() -> Boolean) = block
 
 /** Where a relayed command must still apply: the same Atlas boot and game. */
-internal fun TableSummary.relayMatch() = "$atlasId/$bootId/$game"
+internal fun TableSummary.relayMatch() = "$atlasId/$bootId/$game/$matchId"
 
 /**
  * A guest's command as an Atlas tablet request for the guest's own [player]; null when
@@ -215,7 +216,7 @@ internal class LanAtlasSessions(
         // Atlas orders every tap itself, so only another boot or game makes one stale, not a newer revision.
         val code = when {
             match != summary.relayMatch() -> "stale"
-            !link.canAct() -> "view-only"
+            (!link.canAct() || summary.matchId.isBlank()) -> "view-only"
             else -> {
                 val action = atlasRelayAction(summary, client.guest.player, kind, value, slot, source)
                 if (action != null && link.act(summary.game, action)) "ok" else "rejected"
@@ -230,7 +231,7 @@ internal class LanAtlasSessions(
         val frame = LanAtlasFrame.encode(summary, clock()) ?: return reply("unavailable")
         return reply(code).put("atlas", frame)
             .put("claimed", JSONArray(clients.values.map { it.guest.player }.filter { it > 0 }))
-            .put("viewOnly", !link.canAct())
+            .put("viewOnly", !link.canAct() || summary.matchId.isBlank())
     }
 
     private fun reply(code: String) = JSONObject().put("v", LAN_VERSION).put("session", session).put("code", code)

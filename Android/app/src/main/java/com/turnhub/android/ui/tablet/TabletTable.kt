@@ -360,6 +360,7 @@ internal fun TabletTable(
             bootId = current.bootId,
             gameElapsedMs = current.gameElapsedMs,
             game = current.game,
+            matchId = current.matchId,
         )
         controls { queueOffline(change) }
     }

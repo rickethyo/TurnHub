@@ -21,7 +21,9 @@ class LanRoomTest {
         var delayAttach = false
         var writable = true
         var authorized = true
+        var alias: Pair<String, String>? = null
         val room = LanRoom(record, save = { if (writable) { record = JSONObject(it.toString()); true } else false },
+            resolveIdentity = { id -> if (id == alias?.first) alias!!.second else id },
             snapshot = { base("ok").put("code", "ok").put("match", match) }, seats = { roster },
             profiles = { JSONArray() }, attach = { if (delayAttach) kotlinx.coroutines.delay(10)
                 if (authorized && it.optString("pin") == "1234") it.optString("profileId") else null },
@@ -155,6 +157,16 @@ class LanRoomTest {
         joined.put("epoch", renewal.text("epoch"))
         f.authorized = false
         assertEquals("ok", f.room.handle(f.action(joined)).text("code"))
+    }
+    @Test fun `an explicit profile merge redirects room membership without another PIN`() = runBlocking {
+        val f = Fixture()
+        val joined = f.join()
+        f.authorized = false
+        f.alias = "PROFILE1" to "PROFILE2"
+        f.roster = listOf(LanRoom.RoomSeat("PROFILE2", 2, "Survivor"))
+        assertEquals(2, f.room.handle(f.poll(joined.text("token"))).getInt("player"))
+        assertEquals("ok", f.room.handle(f.action(joined, target = 1)).text("code"))
+        assertEquals(2, f.lastTarget)
     }
     @Test fun `retrying join id does not create another member`() = runBlocking {
         val f = Fixture()

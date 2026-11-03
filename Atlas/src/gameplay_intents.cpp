@@ -9,6 +9,8 @@
 #include "profile_store.h"
 #include "runtime_diagnostics.h"
 #include "serial_log.h"
+#include <mbedtls/sha256.h>
+#include <algorithm>
 
 using TurnHub::serialLog;
 
@@ -362,6 +364,29 @@ class OfflineRandom : public turnhub::Random {
 };
 }  // namespace
 
+namespace {
+std::array<uint8_t,32> offlineHash(const std::string &value) {
+  std::array<uint8_t,32> digest{};
+  mbedtls_sha256_context context;
+  mbedtls_sha256_init(&context);
+  const bool ok = mbedtls_sha256_starts_ret(&context,0)==0 &&
+      mbedtls_sha256_update_ret(&context,reinterpret_cast<const unsigned char *>(value.data()),value.size())==0 &&
+      mbedtls_sha256_finish_ret(&context,digest.data())==0;
+  mbedtls_sha256_free(&context);
+  if(!ok) digest.fill(0);
+  return digest;
+}
+std::array<uint8_t,32> offlineEntryId(const TurnHubWebApi::OfflineSyncRequest &request,const turnhub::OfflineEntry &entry) {
+  return offlineHash(std::string(request.baseBoot.c_str())+"/"+std::to_string(request.base.revision)+"/"+entry.device+"/"+std::to_string(entry.seq));
+}
+std::array<uint8_t,32> offlinePayload(const turnhub::OfflineEntry &entry) {
+  turnhub::Json body=turnhub::Json::object();
+  body.set("atMs",entry.atMs); body.set("action",entry.action);
+  turnhub::Json draws=turnhub::Json::array(); for(int value:entry.draws) draws.push(value);
+  body.set("draws",draws); return offlineHash(body.dump());
+}
+}  // namespace
+
 String offlineGameJson(const String &atlasId, const char *bootId) {
   turnhub::Json j = turnhub::Json::object();
   j.set("atlasId", atlasId.c_str());
@@ -387,11 +412,35 @@ IntentResult handleSyncOfflineIntent(const Intent &, void *) {
   TurnHubWebApi::OfflineSyncRequest *request = pendingOfflineSync;
   if (!request) return IntentResult::reject(IntentStatus::InvalidState, "There are no offline actions to sync");
   const turnhub::Game &current = table().game.core();
-  if (!gameInProgress() || current.gameId != request->base.gameId)
+  if (current.gameId != request->base.gameId)
     return IntentResult::reject(IntentStatus::Conflict, "That game has ended or changed on Atlas");
   const int64_t atlasNow = table().game.clockMs(millis());
   auto &merge = table().offline;
-  std::vector<turnhub::OfflineEntry> entries = request->entries;
+  if(merge.receiptMatch!=current.gameId) { merge.receipts.clear(); merge.receiptMatch=current.gameId; merge.open=false; }
+  std::vector<turnhub::OfflineEntry> entries;
+  std::vector<GameTable::OfflineMerge::Receipt> fresh;
+  for(const auto &entry:request->entries) {
+    const auto id=offlineEntryId(*request,entry), payload=offlinePayload(entry);
+    if(id==std::array<uint8_t,32>{} || payload==std::array<uint8_t,32>{})
+      return IntentResult::reject(IntentStatus::InvalidState,"Offline receipt hashing failed");
+    const auto found=std::find_if(merge.receipts.begin(),merge.receipts.end(),[&](const auto &r){return r.id==id;});
+    const auto waiting=std::find_if(fresh.begin(),fresh.end(),[&](const auto &r){return r.id==id;});
+    if(found!=merge.receipts.end()) {
+      if(found->payload!=payload) return IntentResult::reject(IntentStatus::Conflict,"An offline action ID was reused with different contents");
+    } else if(waiting!=fresh.end()) {
+      if(waiting->payload!=payload) return IntentResult::reject(IntentStatus::Conflict,"An offline action ID was reused with different contents");
+    } else { fresh.push_back({id,payload,false}); entries.push_back(entry); }
+  }
+  auto report=[&]() {
+    for(const auto &entry:request->entries) {
+      const auto id=offlineEntryId(*request,entry);
+      const auto found=std::find_if(merge.receipts.begin(),merge.receipts.end(),[&](const auto &r){return r.id==id;});
+      if(found!=merge.receipts.end()) request->outcomes.push(turnhub::toJson({entry.device,entry.seq,found->applied}));
+    }
+  };
+  if(entries.empty()) {request->mode="duplicate";report();return IntentResult::accept("Offline actions already synced");}
+  if(!gameInProgress()) return IntentResult::reject(IntentStatus::Conflict,"That game has ended on Atlas");
+  if(merge.receipts.size()+fresh.size()>1024) return IntentResult::reject(IntentStatus::Conflict,"Offline receipt capacity reached; keep this queue for review");
   turnhub::Game base;
   bool onThisClock = true;
   int64_t untilMs = atlasNow;
@@ -418,12 +467,18 @@ IntentResult handleSyncOfflineIntent(const Intent &, void *) {
   OfflineRandom random;
   const turnhub::Reconciled result = turnhub::reconcile(base, entries, untilMs, random);
   const turnhub::Game next = onThisClock ? result.game : turnhub::rebased(result.game, atlasNow - untilMs);
-  for (const auto &outcome : result.outcomes)
-    if (outcome.device == request->device.c_str()) request->outcomes.push(turnhub::toJson(outcome));
   clearPendingPass("OFFLINE_SYNC");
   table().eliminationTargetPlayer = 0;
   if (!table().game.adoptOffline(next))
     return IntentResult::reject(IntentStatus::Conflict, "That game's players changed on Atlas");
+  merge.receipts.insert(merge.receipts.end(),fresh.begin(),fresh.end());
+  for(const auto &outcome:result.outcomes) {
+    turnhub::OfflineEntry identity; identity.device=outcome.device; identity.seq=outcome.seq;
+    const auto id=offlineEntryId(*request,identity);
+    auto found=std::find_if(merge.receipts.begin(),merge.receipts.end(),[&](const auto &r){return r.id==id;});
+    if(found!=merge.receipts.end()) found->applied=outcome.applied;
+  }
+  report();
   const bool closes = std::string(request->mode) == "late";
   merge.open = !closes;
   if (!closes) {

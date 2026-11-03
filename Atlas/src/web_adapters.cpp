@@ -308,6 +308,7 @@ void registerWebCallbacks() {
   games.count = MAX_GAME_TABLES;
   games.profileTable = tableForProfile;
   games.select = selectTable;
+  games.matchId = []() { return String(table().game.core().gameId.c_str()); };
   TurnHubWebApi::configureTables(games);
 }
 

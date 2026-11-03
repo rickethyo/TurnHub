@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
                 AtlasUpdateWatcher.RELEASE_INTERVAL_MS
             },
             vault = KeystoreProfileVault(applicationContext).takeIf { it.available },
+            offlineQueues = com.turnhub.android.data.PreferencesOfflineQueueStore(applicationContext),
         )
     }
 

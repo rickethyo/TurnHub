@@ -374,13 +374,13 @@ class RouteTableHandler final : public RequestHandler {
     const WebSession *session = sessionForRequest(server);
     if (session && session->tableDevice && session->profileId[0] == 0) {
       const bool tabletRoute = strncmp(uri.c_str(), "/api/tablet/", 12) == 0;
-      const bool readRoute = method == HTTP_GET && (uri == "/api/v1/info" || uri == "/api/v1/state" ||
+      const bool readRoute = method == HTTP_GET && (uri == "/api/v1/info" || uri == "/api/v1/state" || uri == "/api/v1/game" ||
           uri == "/api/seats" || uri == "/api/profiles" || uri == "/api/avatars" || uri == "/api/avatar" ||
           uri == "/api/action-receipt" || uri == "/api/counters" || uri == "/api/profiles/commanders" || uri == "/api/session/me");
       const bool sessionRoute = method == HTTP_POST && (uri == "/api/profiles/register" || uri == "/api/session/game" || uri == "/api/session/logout");
       // The app's planes and plane cards for Atlas, and what the Atlas screen
       // shows (for a seated player the app names; the handler checks it).
-      const bool planesRoute = uri == "/api/room" || uri == "/api/planes" || uri == "/api/planes/card" || uri == "/api/atlas/screen";
+      const bool planesRoute = uri == "/api/v1/offline" || uri == "/api/room" || uri == "/api/planes" || uri == "/api/planes/card" || uri == "/api/atlas/screen";
       if (!tabletRoute && !readRoute && !sessionRoute && !planesRoute) {
         sendError(server, 403, "The shared tablet account only has table controls");
         return true;
@@ -410,6 +410,12 @@ class RouteTableHandler final : public RequestHandler {
       return true;
     }
     const uint8_t previous = tableHooks.select ? tableHooks.select(game) : 0;
+    if (server.hasArg("expectedMatchId") && (!tableHooks.matchId || server.arg("expectedMatchId") != tableHooks.matchId())) {
+      internal::sendError(server,409,"The match changed. Refresh the table before making another edit");
+      activeReceipt=-1;
+      if(tableHooks.select) tableHooks.select(previous);
+      return true;
+    }
     // Target the recurring phone workload. Administrative requests and log
     // downloads stay outside tracing so diagnostics don't trace themselves
     // or evict gameplay evidence with unrelated activity.
