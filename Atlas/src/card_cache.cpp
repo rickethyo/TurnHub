@@ -6,6 +6,7 @@
 #if defined(ESP_PLATFORM)
 #include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #endif
 
 #include "match_archive.h"
@@ -175,6 +176,16 @@ struct Guard {
 struct Guard {};
 #endif
 
+// The SD worker gives the card lock back after every write; without a pause it
+// takes it again before the waiting loop runs, so a 20 s catalog save held the
+// loop's own card reads for 15 s on the bench (2026-11-03). A tick lets the
+// loop in between. Worker only.
+void letLoopIn() {
+#if defined(ESP_PLATFORM)
+  vTaskDelay(1);
+#endif
+}
+
 void *bigAlloc(size_t size) {
 #if defined(ESP_PLATFORM)
   if (void *p = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)) return p;
@@ -274,6 +285,7 @@ bool writeFile(TurnHubHistory::ArchiveFiles *f, const String &name, const char *
   for (size_t at = 0; at < size; at += 4096) {
     const size_t n = size - at < 4096 ? size - at : 4096;
     if (!f->append(name.c_str(), data + at, n)) return false;
+    letLoopIn();
   }
   return true;
 }
@@ -457,6 +469,7 @@ void writeCatalog(Job &job) {
       char key[8];
       chunkKey(key, sizeof(key), chunk++);
       ok = s->write(key, start, cut - start) == Status::Ok;
+      letLoopIn();
       start = cut;
     }
     if (ok && !*start) {
@@ -578,6 +591,7 @@ bool servicePlaneStorage(uint32_t cardGeneration) {
   }
   if (f && legacyNames && legacyNext < legacyCount) {
     if (f->remove(legacyNames[legacyNext])) ++legacyRemoved;
+    letLoopIn();
     if (++legacyNext == legacyCount)
       TurnHub::serialLog.printf("ATLAS|PLANES|LEGACY|REMOVED|%u\n", static_cast<unsigned>(legacyRemoved));
     return true;
