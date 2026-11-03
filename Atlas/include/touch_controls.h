@@ -98,8 +98,8 @@ enum class TouchAction : uint8_t {
   // Settings > Device > Sound, screen, sleep (with the volume): each tap moves its row to the next
   // choice (ConfigurePower, power_settings.h).
   OpenPower, PowerScreenOff, PowerGameScreen, PowerAutoSleep,
-  // Settings > Home Wi-Fi: a tap turns the optional home network check-ins
-  // on or off (home_wifi.h); the network itself is set in the portal or app.
+  // Settings > Home Wi-Fi: a tap turns home Wi-Fi on or off (home_wifi.h);
+  // the row says when Atlas is connected. The network itself is set in the app.
   HomeWifi,
   OpenThemes, ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast, InvertDisplay,
   // In a game, like the app's table: the lower halves of a player's tile take

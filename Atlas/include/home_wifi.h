@@ -1,22 +1,22 @@
 #pragma once
 
-// Optional home Wi-Fi (Ricky, 2026-10-30): off by default. When an Admin
-// stores a home network and turns it on, Atlas checks the release feed itself
-// instead of waiting for an app to report it (update_notice.h). Its own
-// TurnHub-Atlas hotspot stays up throughout, so phones join it as before.
+// Home Wi-Fi as Atlas's primary network (Ricky, 2026-11-03; plan in
+// HOME_WIFI.md). Off until an Admin saves a home network, which turns it on.
+// Once on, Atlas joins the home network soon after start-up and stays on it,
+// rejoining by itself when the router drops it. Its own TurnHub-Atlas hotspot
+// stays up the whole time as the fallback for phones.
 //
 // One radio serves the hotspot, ESP-NOW and the home network, so all three
-// share a channel. Atlas's is the table channel (protocol.h; 6 unless the
-// owner picks another, which Sigils find by searching). A router on another
-// channel would pull Atlas off it, so then Atlas joins the home network only
-// for a short check-in with no game running (and no firmware update busy),
-// and leaves it for the table channel again. A check-in may briefly drop a
-// phone or Sigil in the lobby; each reconnects by itself. When the router
-// shares the table channel, Atlas stays on the home network.
+// share a channel: while Atlas is on the home network that is the router's
+// channel, and the hotspot and ESP-NOW move with it (Sigils find the new
+// channel by searching, channel_search.h). The saved table channel is used
+// only until Atlas first joins. A router that changes channel mid-match moves
+// the table too (accepted 2026-11-03); phones carry on through offline play.
 //
-// This header is the pure part, host-tested: when a check-in is due and how
-// the release feed is read. home_wifi_link.cpp (firmware only) does the radio
-// work; the settings live in NVS under AtlasConfig::WIFI_PREF_NAMESPACE.
+// This header is the pure part, host-tested: when to (re)join, when a release
+// feed check is due and how the feed is read. home_wifi_link.cpp (firmware
+// only) does the radio work; the settings live in NVS under
+// AtlasConfig::WIFI_PREF_NAMESPACE.
 
 #include <stdint.h>
 #include <string.h>
@@ -25,18 +25,25 @@
 
 namespace TurnHub {
 
-// First check-in a little after start-up (so Sigils reconnect first), then
-// every few hours; a failed one tries again sooner.
+// Release feed checks while on the home network: the first a little after
+// start-up, then every few hours; a failed one tries again sooner.
 constexpr uint32_t HOME_WIFI_FIRST_CHECK_MS = 2UL * 60UL * 1000UL;
 constexpr uint32_t HOME_WIFI_CHECK_INTERVAL_MS = 6UL * 60UL * 60UL * 1000UL;
 constexpr uint32_t HOME_WIFI_RETRY_MS = 30UL * 60UL * 1000UL;
-// How long a check-in may hold the home network before giving up.
+// How long one join attempt may take before it counts as failed.
 constexpr uint32_t HOME_WIFI_JOIN_TIMEOUT_MS = 15000;
 constexpr uint32_t HOME_WIFI_FETCH_TIMEOUT_MS = 10000;
 constexpr size_t HOME_WIFI_SSID_MAX_LENGTH = 32;
 constexpr size_t HOME_WIFI_PASSWORD_MAX_LENGTH = 63;
 
-// The last check-in's outcome, for the screen, portal and serial log.
+// Joining: the first try a little after start-up (so the hotspot and Sigils
+// come up first), then after a failure 30 s, doubling to at most 5 min. A
+// dropped connection retries after the start-up delay again.
+constexpr uint32_t HOME_WIFI_START_JOIN_MS = 10000;
+constexpr uint32_t HOME_WIFI_REJOIN_MIN_MS = 30000;
+constexpr uint32_t HOME_WIFI_REJOIN_MAX_MS = 5UL * 60UL * 1000UL;
+
+// The last release-feed check's outcome, for the screen, app and serial log.
 enum class HomeWifiResult : uint8_t { None, Checking, Checked, NoNetwork, FeedFailed };
 
 inline const char *homeWifiResultName(HomeWifiResult result) {
@@ -49,14 +56,14 @@ inline const char *homeWifiResultName(HomeWifiResult result) {
   }
 }
 
-// When the next check-in is due. RAM only: a restart starts over.
+// When the next release feed check is due. RAM only: a restart starts over.
 class HomeWifiSchedule {
  public:
-  // Ask for a check-in as soon as the table allows one (Check now, or the
+  // Ask for a check as soon as the table allows one (Check now, or the
   // setting just turned on).
   void requestNow() { requested_ = true; }
 
-  // A check-in should start now: on, a network stored, the table idle, and
+  // A check should start now: on, a network stored, the table idle, and
   // either asked for or its time has come.
   bool due(uint32_t nowMs, bool enabled, bool configured, bool tableIdle) const {
     if (!enabled || !configured || !tableIdle) return false;
@@ -81,6 +88,57 @@ class HomeWifiSchedule {
   bool lastOk_ = false;
   uint32_t lastMs_ = 0;
 };
+
+// When Atlas next tries to join the home network. RAM only.
+class HomeWifiRejoin {
+ public:
+  // Join as soon as possible (network saved, setting turned on).
+  void requestNow() { requested_ = true; }
+  void joined() { requested_ = false; failures_ = 0; }
+  void failed(uint32_t nowMs) {
+    requested_ = false;
+    tried_ = true;
+    lastMs_ = nowMs;
+    if (failures_ < 16) ++failures_;
+  }
+  // The router dropped an established connection.
+  void lost(uint32_t nowMs) {
+    requested_ = false;
+    tried_ = true;
+    lastMs_ = nowMs;
+    failures_ = 0;
+  }
+
+  uint32_t waitMs() const {
+    if (failures_ == 0) return HOME_WIFI_START_JOIN_MS;
+    uint32_t wait = HOME_WIFI_REJOIN_MIN_MS;
+    for (uint8_t i = 1; i < failures_ && wait < HOME_WIFI_REJOIN_MAX_MS; ++i) wait *= 2;
+    return wait < HOME_WIFI_REJOIN_MAX_MS ? wait : HOME_WIFI_REJOIN_MAX_MS;
+  }
+
+  bool due(uint32_t nowMs, bool enabled, bool configured) const {
+    if (!enabled || !configured) return false;
+    if (requested_) return true;
+    return static_cast<uint32_t>(nowMs - (tried_ ? lastMs_ : 0)) >= waitMs();
+  }
+
+  uint8_t failures() const { return failures_; }
+
+ private:
+  bool requested_ = false;
+  bool tried_ = false;
+  uint8_t failures_ = 0;
+  uint32_t lastMs_ = 0;
+};
+
+// How a join may search. A full scan hops the radio across channels, which
+// briefly takes the hotspot and ESP-NOW with it; during a match Atlas only
+// looks on the channel it is already on (where Sigils are).
+enum class HomeWifiJoinScan : uint8_t { AllChannels, CurrentChannelOnly };
+
+inline HomeWifiJoinScan homeWifiJoinScan(bool tableIdle) {
+  return tableIdle ? HomeWifiJoinScan::AllChannels : HomeWifiJoinScan::CurrentChannelOnly;
+}
 
 namespace HomeWifiDetail {
 // The string value of `"key":"..."` between `from` and `end`, copied to out.
@@ -142,15 +200,18 @@ namespace TurnHubAtlas {
 // Whether the setting is on and a home network is stored.
 bool homeWifiEnabled();
 bool homeWifiConfigured();
-// Staying on the home network: it shares the table channel.
+// On the home network now.
 bool homeWifiConnected();
+// Atlas's address on the home network ("" when not connected).
+const char *homeWifiAddress();
 // The home network's channel when Atlas last joined it, or 0.
 uint8_t homeWifiNetworkChannel();
-// Turns the setting on or off (saved). Turning it on asks for a check-in.
+// Turns the setting on or off (saved). Turning it on joins at once; off
+// leaves the home network and puts the radio back on the table channel.
 // False if it could not be saved, or on with no network stored.
 bool setHomeWifiEnabled(bool enabled);
-// Saves the home network (an empty password keeps the stored one when the
-// name is unchanged). False if invalid or not saved.
+// Saves the home network and turns home Wi-Fi on (an empty password keeps
+// the stored one when the name is unchanged). False if invalid or not saved.
 bool storeHomeWifiNetwork(const char *ssid, const char *password);
 // Forgets the network and turns the setting off.
 bool forgetHomeWifiNetwork();
@@ -158,7 +219,7 @@ bool forgetHomeWifiNetwork();
 const char *homeWifiSsid();
 void requestHomeWifiCheck();
 TurnHub::HomeWifiResult homeWifiResult();
-// Milliseconds since the last finished check-in, or -1 before the first.
+// Milliseconds since the last finished feed check, or -1 before the first.
 int32_t homeWifiLastCheckAgeMs(uint32_t nowMs);
 void serviceHomeWifi(uint32_t nowMs);
 

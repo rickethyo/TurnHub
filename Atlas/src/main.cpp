@@ -53,7 +53,7 @@ namespace TurnHubAtlas {
 
 // Construction order matters: the renderers and OTA hold references to
 // sigilBus and server, which are defined first.
-SigilBus sigilBus(AtlasConfig::WIFI_CHANNEL);
+SigilBus sigilBus;
 IntentDispatcher intents;
 LedRenderer leds(sigilBus);
 AudioController audio(sigilBus);
@@ -480,10 +480,10 @@ void startNetworking() {
 
   constexpr bool HIDDEN_SSID = false;
   constexpr int MAX_STATIONS = 8;
-  // The owner may move the table off channel 6 to match a home network
+  // The saved table channel (6 unless the owner picks another). Once Atlas
+  // joins the home network the radio follows the router's channel instead
   // (home_wifi.h); Sigils search for it (channel_search.h).
   const uint8_t channel = TurnHub::readTableChannel();
-  sigilBus.setWifiChannel(channel);
   if (!WiFi.softAP(AtlasConfig::WIFI_SSID, wifiPassword.c_str(), channel,
           HIDDEN_SSID, MAX_STATIONS)) {
     serialLog.println("ATLAS|WIFI_AP|ERROR");

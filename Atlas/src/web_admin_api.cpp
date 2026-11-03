@@ -514,6 +514,9 @@ void handleNetworkInfo(WebServer &server) {
   response += age < 0 ? String("null") : String(age);
   response += ",\"connected\":";
   response += jsonBool(TurnHubAtlas::homeWifiConnected());
+  response += ",\"address\":";
+  const char *homeAddress = TurnHubAtlas::homeWifiAddress();
+  response += homeAddress[0] ? String("\"") + homeAddress + "\"" : String("null");
   response += ",\"channel\":";
   const uint8_t homeChannel = TurnHubAtlas::homeWifiNetworkChannel();
   response += homeChannel ? String(homeChannel) : String("null");
@@ -580,8 +583,8 @@ void handleNetworkPassword(WebServer &server) {
 }
 
 // Home Wi-Fi (home_wifi.h): forget=1 forgets the network; otherwise ssid (and
-// password, kept when blank for the same network) saves it, and enabled=0/1
-// turns the check-ins off or on. Admin, verified at the table, like the AP
+// password, kept when blank for the same network) saves it and turns home
+// Wi-Fi on, and enabled=0/1 turns it off or on. Admin, verified at the table, like the AP
 // password: the network name and password are the owner's.
 void handleHomeNetwork(WebServer &server) {
   if (!requirePermission(server, TurnHubAccounts::Admin)) return;
@@ -606,7 +609,7 @@ void handleHomeNetwork(WebServer &server) {
     }
   }
   sendOkMessage(server, TurnHubAtlas::homeWifiEnabled()
-      ? "Saved. Atlas checks in between games."
+      ? "Saved. Atlas joins your home network and keeps its own hotspot as a fallback."
       : "Saved. Home Wi-Fi is off.");
 }
 
@@ -639,7 +642,8 @@ void handleTableChannel(WebServer &server) {
   restartSoon();
 }
 
-// Check now: the next idle moment (no match, no update) starts a check-in.
+// Check now: checks the release feed at the next idle moment (no match, no
+// update), joining the home network first if Atlas is not on it.
 void handleHomeNetworkCheck(WebServer &server) {
   if (!requirePermission(server, TurnHubAccounts::Admin)) return;
   if (!TurnHubAtlas::homeWifiEnabled()) { sendError(server, 409, "Turn home Wi-Fi on first"); return; }

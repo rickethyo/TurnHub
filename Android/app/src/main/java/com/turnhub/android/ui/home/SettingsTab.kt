@@ -324,10 +324,10 @@ private fun WifiCard(admin: AdminState, actions: AdminActions) {
 }
 
 /**
- * Atlas's optional home Wi-Fi (Atlas/include/home_wifi.h): off by default.
- * Atlas joins the home network between games to check for updates, and stays
- * on it when the home network shares the table channel. Atlas's own network
- * stays up for phones and Sigils either way.
+ * Atlas's home Wi-Fi (Atlas/include/home_wifi.h): off until a network is
+ * saved, which turns it on. Atlas then joins and stays on the home network,
+ * rejoining by itself, and the table moves to the router's channel. Atlas's
+ * own network stays up as the fallback for phones and Sigils.
  */
 @Composable
 private fun HomeWifiCard(admin: AdminState, actions: AdminActions) {
@@ -376,8 +376,8 @@ private fun HomeWifiCard(admin: AdminState, actions: AdminActions) {
             Column(Modifier.weight(1f)) {
                 Text("Use home Wi-Fi", color = p.text)
                 Text(
-                    "Off by default. Atlas joins your home network between games, never during one, to check for " +
-                        "updates itself. Its own network stays on for phones and Sigils.",
+                    "Saving a network turns this on. Atlas joins your home network and stays on it, rejoining by " +
+                        "itself, and checks for updates there. Its own network stays on as the fallback.",
                     color = p.muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -389,6 +389,7 @@ private fun HomeWifiCard(admin: AdminState, actions: AdminActions) {
             when {
                 home == null -> "—"
                 !home.configured -> "None saved"
+                home.connected && home.address != null -> "${home.ssid} · connected at ${home.address}"
                 home.connected -> "${home.ssid} · connected"
                 home.channel != null -> "${home.ssid} · channel ${home.channel}"
                 else -> home.ssid
@@ -423,13 +424,8 @@ private fun HomeWifiCard(admin: AdminState, actions: AdminActions) {
         }
         Eyebrow("Table channel (advanced)")
         Text(
-            if (home?.channel != null && home.channel != net.savedChannel) {
-                "Your home network is on channel ${home.channel}. Choose it so Atlas can stay connected instead of " +
-                    "checking in."
-            } else {
-                "Atlas, its network and the Sigils share one radio channel. When your home network uses the same " +
-                    "channel, Atlas stays connected to it. Sigils find Atlas on any channel by themselves."
-            },
+            "Atlas, its network and the Sigils share one radio channel. On your home network they use the " +
+                "router's channel; this one applies until Atlas joins it. Sigils find Atlas on any channel by themselves.",
             color = p.muted,
             style = MaterialTheme.typography.bodySmall,
         )

@@ -389,7 +389,7 @@ To open the portal, join the Atlas's Wi-Fi and go to http://192.168.4.1/portal, 
 
 - **Wi-Fi:** the table's own password, 8 to 63 characters. Saving restarts Atlas.
 
-- **Home Wi-Fi: optional and off by default. Save your home network's name and password, then turn on Use home Wi-Fi; Atlas checks for updates on it between games, and Check now asks for a check at once. Table channel (advanced) moves Atlas, its network and the Sigils to another channel, 1 to 11; choose your home network's channel so Atlas can stay connected to it. Saving the channel restarts Atlas.**
+- **Home Wi-Fi: off until you save your home network's name and password, which turns it on. Atlas then joins your home network and stays on it, rejoining by itself, and checks for updates there; Check now asks for a check at once. Atlas's own network stays on as the fallback. On your home network, Atlas, its network and the Sigils use your router's channel; Table channel (advanced) picks the channel, 1 to 11, used until Atlas joins. Saving the channel restarts Atlas.**
 
 - **Table code:** when on, actions that change the table need a code from the Atlas screen.
 
@@ -560,7 +560,7 @@ Turn on each Sigil. It shows the TurnHub logo, then either its Sigil number (it 
 
 Atlas creates its own Wi-Fi network, **TurnHub-Atlas**. Its password is **TurnHub-Setup** until an administrator changes it. The TurnHub app joins it by itself (App Manual, section 10).
 
-Home Wi-Fi (optional, off by default): an administrator can save a home network in the app or portal and turn on Settings > Home Wi-Fi. Atlas then joins it between games, never during one, to check for updates itself. TurnHub-Atlas stays on the whole time, so phones still join it for games. Atlas, its network and the Sigils share one radio channel (6 unless changed). Under Table channel (advanced) you can match your home network's channel, so Atlas stays connected to it instead of checking in; Atlas restarts, and the Sigils find it on the new channel by themselves within a few seconds.
+Home Wi-Fi (off until a network is saved): an administrator saves a home network in the app or portal, which turns on Settings > Home Wi-Fi. Atlas then joins it a few seconds after starting and stays connected, rejoining by itself if the router drops it; the row shows Home Wi-Fi: connected. TurnHub-Atlas stays on the whole time, so phones still join it for games. Atlas, its network and the Sigils share one radio channel: your router's while Atlas is on your home network, otherwise the Table channel (6 unless changed). If the router changes channel, the Sigils find Atlas on the new one by themselves within a few seconds. During a game Atlas only rejoins your home network if the router is on the channel it is already using.
 
 ## QR Codes on the Atlas Screen
 

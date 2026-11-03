@@ -33,8 +33,8 @@ data class NetworkInfo(
 )
 
 /**
- * `/api/network` `home`: Atlas's optional home Wi-Fi (Atlas/include/home_wifi.h).
- * [channel] is the home network's channel when Atlas last joined it; never the password.
+ * `/api/network` `home`: Atlas's home Wi-Fi (Atlas/include/home_wifi.h). [address] is Atlas's
+ * address on it while connected; [channel] is its channel when Atlas last joined; never the password.
  */
 data class HomeWifiInfo(
     val enabled: Boolean = false,
@@ -43,6 +43,7 @@ data class HomeWifiInfo(
     val result: String = "none",
     val lastCheckAgeMs: Long? = null,
     val connected: Boolean = false,
+    val address: String? = null,
     val channel: Int? = null,
 )
 
@@ -394,13 +395,13 @@ class AtlasAdminConsole(
     suspend fun saveHomeNetwork(ssid: String, password: String) = protectedPost(
         "/api/network/home",
         listOf("ssid" to ssid, "password" to password),
-        success = "Home network saved.",
+        success = "Home network saved. Atlas joins it now.",
     ) { refreshNetwork() }
 
     suspend fun setHomeWifiEnabled(on: Boolean) = protectedPost(
         "/api/network/home",
         listOf("enabled" to if (on) "1" else "0"),
-        success = if (on) "Home Wi-Fi on. Atlas checks in between games." else "Home Wi-Fi off.",
+        success = if (on) "Home Wi-Fi on. Atlas joins your home network now." else "Home Wi-Fi off.",
     ) { refreshNetwork() }
 
     suspend fun forgetHomeNetwork() = protectedPost(
@@ -411,7 +412,7 @@ class AtlasAdminConsole(
 
     suspend fun checkHomeWifi() = post(
         "/api/network/home/check",
-        success = "Atlas checks for updates now, unless a match is running.",
+        success = "Atlas checks for updates now, or after the match.",
     ) { refreshNetwork() }
 
     /** Atlas restarts on [channel]; the app and the Sigils find it again by themselves. */
@@ -514,6 +515,7 @@ class AtlasAdminConsole(
         result = d.optString("result", "none"),
         lastCheckAgeMs = if (d.isNull("lastCheckAgeMs")) null else d.optLong("lastCheckAgeMs"),
         connected = d.optBoolean("connected"),
+        address = if (d.isNull("address")) null else d.optString("address").ifEmpty { null },
         channel = if (d.isNull("channel")) null else d.optInt("channel"),
     )
 

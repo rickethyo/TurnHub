@@ -50,7 +50,7 @@ namespace TurnHub {
 static SigilBus *fixtureBus=nullptr;
 static SigilRecord fixtureRecords[MAX_PHYSICAL_SIGILS];
 static bool fixtureRadio=false;
-SigilBus::SigilBus(uint8_t channel) : wifiChannel_(channel) { fixtureBus=this; }
+SigilBus::SigilBus() { fixtureBus=this; }
 SigilBus *SigilBus::activeInstance() { return fixtureBus; }
 bool SigilBus::begin() { return true; }
 static TurnHubProtocol::SigilUpdateOfferPacket fixtureUpdateOffer{};
@@ -862,10 +862,14 @@ static void accountPermissionsAndModeration(){
   assert(request("/api/network/home",admin,{{"enabled","1"}})==409);  // No network saved.
   assert(request("/api/network/home/check",admin)==409);
   assert(request("/api/network/home",admin,{{"ssid",""}})==400);
-  assert(request("/api/network/home",admin,{{"ssid","Home Net"},{"password","hunter2hunter2"},{"enabled","1"}})==200);
+  assert(request("/api/network/home",admin,{{"ssid","Home Net"},{"password","hunter2hunter2"}})==200);
+  assert(TurnHubAtlas::homeWifiEnabled());  // Saving a network turns it on.
+  assert(request("/api/network/home",admin,{{"enabled","0"}})==200&&!TurnHubAtlas::homeWifiEnabled());
+  assert(request("/api/network/home",admin,{{"enabled","1"}})==200);
   assert(request("/api/network",admin,{},HTTP_GET)==200);
   assert(server.body.find("\"ssid\":\"Home Net\"")!=std::string::npos &&
-      server.body.find("\"enabled\":true")!=std::string::npos && server.body.find("hunter2")==std::string::npos);
+      server.body.find("\"enabled\":true")!=std::string::npos && server.body.find("hunter2")==std::string::npos &&
+      server.body.find("\"address\":null")!=std::string::npos);
   assert(request("/api/network/home/check",gm)==403&&request("/api/network/home/check",admin)==200);
   assert(request("/api/network/home",admin,{{"forget","1"}})==200&&!TurnHubAtlas::homeWifiEnabled()&&
       !TurnHubAtlas::homeWifiConfigured());
@@ -6606,7 +6610,7 @@ static void manaTapOnAtlas() {
 }
 
 // Home Wi-Fi's pure parts (home_wifi.h) and its Settings row: the release
-// feed the app reads, when a check-in is due, and the on/off toggle.
+// feed the app reads, when a feed check and a join are due, and the toggle.
 static void homeWifiCheckIns() {
   using namespace TurnHub;
   LatestFirmware latest;
@@ -6636,6 +6640,26 @@ static void homeWifiCheckIns() {
   schedule.requestNow();  // Check now.
   assert(schedule.due(700001, true, true, true) && !schedule.due(700001, true, true, false));
 
+  // Joining: soon after start-up, then backing off after failures, never
+  // hopping channels during a match.
+  HomeWifiRejoin rejoin;
+  assert(!rejoin.due(HOME_WIFI_START_JOIN_MS, false, true) && !rejoin.due(HOME_WIFI_START_JOIN_MS, true, false));
+  assert(!rejoin.due(HOME_WIFI_START_JOIN_MS - 1, true, true) && rejoin.due(HOME_WIFI_START_JOIN_MS, true, true));
+  rejoin.failed(20000);
+  assert(rejoin.waitMs() == HOME_WIFI_REJOIN_MIN_MS && !rejoin.due(20000 + HOME_WIFI_REJOIN_MIN_MS - 1, true, true));
+  assert(rejoin.due(20000 + HOME_WIFI_REJOIN_MIN_MS, true, true));
+  rejoin.failed(60000);
+  assert(rejoin.waitMs() == 2 * HOME_WIFI_REJOIN_MIN_MS);
+  for (int i = 0; i < 20; ++i) rejoin.failed(100000);
+  assert(rejoin.waitMs() == HOME_WIFI_REJOIN_MAX_MS);
+  rejoin.requestNow();  // Network saved or setting turned on.
+  assert(rejoin.due(100001, true, true));
+  rejoin.joined();
+  rejoin.lost(900000);  // The router dropped Atlas: retry quickly.
+  assert(rejoin.waitMs() == HOME_WIFI_START_JOIN_MS && rejoin.due(900000 + HOME_WIFI_START_JOIN_MS, true, true));
+  assert(homeWifiJoinScan(true) == HomeWifiJoinScan::AllChannels);
+  assert(homeWifiJoinScan(false) == HomeWifiJoinScan::CurrentChannelOnly);
+
   enterEmptyLobby();
   TurnHubAtlas::forgetHomeWifiNetwork();
   if (currentScreen().kind != ScreenKind::Menu) tapButton(TouchAction::OpenSettings);
@@ -6644,7 +6668,9 @@ static void homeWifiCheckIns() {
   tapButton(TouchAction::HomeWifi);  // No network saved: it stays off and says where to add one.
   s = currentScreen();
   assert(!TurnHubAtlas::homeWifiEnabled() && std::string(s.notice).find("home network") != std::string::npos);
-  assert(TurnHubAtlas::storeHomeWifiNetwork("Home", "password123"));
+  assert(TurnHubAtlas::storeHomeWifiNetwork("Home", "password123"));  // Saving turns it on.
+  tapButton(TouchAction::HomeWifi);
+  assert(!TurnHubAtlas::homeWifiEnabled());
   tapButton(TouchAction::HomeWifi);
   s = currentScreen();
   assert(TurnHubAtlas::homeWifiEnabled() && screenButton(s, TouchAction::HomeWifi)->selected &&
@@ -6734,7 +6760,7 @@ int main() {
   sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
   deviceNavigation(); std::cout<<"PASS device navigation, read-only table, live settings and Atlas roster projection\n";
-  homeWifiCheckIns(); std::cout<<"PASS home Wi-Fi: release feed, check-in schedule, Settings toggle\n";
+  homeWifiCheckIns(); std::cout<<"PASS home Wi-Fi: release feed, check schedule, rejoin backoff, Settings toggle\n";
   manaTapOnAtlas(); std::cout<<"PASS Mana Tap on Atlas: touch play, pause on leaving or a pass, record, no table state\n";
   observeClientState(); intents.setObserver(observeIntent);
   GameEngine::setGameCompletedCallback(completed);

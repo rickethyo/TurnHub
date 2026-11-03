@@ -311,7 +311,7 @@ void layoutMenu(AtlasScreen &screen) {
   if (table().hubState == HubState::Lobby) rows[n++] = {TouchAction::Pair, "Pair a Sigil", 0, 1};
   rows[n++] = {TouchAction::OpenQr, "QR codes", 0, 1};
   rows[n++] = {TouchAction::OpenThemes, theme, 0, 1};
-  rows[n++] = {TouchAction::HomeWifi, homeOn ? "Home Wi-Fi: on" : "Home Wi-Fi: off", 0, 1};
+  rows[n++] = {TouchAction::HomeWifi, !homeOn ? "Home Wi-Fi: off" : homeWifiConnected() ? "Home Wi-Fi: connected" : "Home Wi-Fi: on", 0, 1};
   rows[n++] = {TouchAction::OpenDevice, "Device", 0, 1};
   addList(screen, rows, n, LIST_BOTTOM_TABS);
   for (uint8_t i = 0; i < screen.buttonCount; ++i) {

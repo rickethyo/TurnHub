@@ -112,6 +112,7 @@ unsigned fixtureHomeChecks = 0;
 bool TurnHubAtlas::homeWifiEnabled() { return fixtureHomeWifiOn; }
 bool TurnHubAtlas::homeWifiConfigured() { return !fixtureHomeSsid.empty(); }
 bool TurnHubAtlas::homeWifiConnected() { return false; }
+const char *TurnHubAtlas::homeWifiAddress() { return ""; }
 uint8_t TurnHubAtlas::homeWifiNetworkChannel() { return 0; }
 bool TurnHubAtlas::setHomeWifiEnabled(bool on) {
   if (on && fixtureHomeSsid.empty()) return false;
@@ -122,6 +123,8 @@ bool TurnHubAtlas::setHomeWifiEnabled(bool on) {
 bool TurnHubAtlas::storeHomeWifiNetwork(const char *ssid, const char *) {
   if (ssid == nullptr || ssid[0] == '\0' || strlen(ssid) > TurnHub::HOME_WIFI_SSID_MAX_LENGTH) return false;
   fixtureHomeSsid = ssid;
+  fixtureHomeWifiOn = true;  // Saving a network turns home Wi-Fi on.
+  ++fixtureHomeChecks;
   return true;
 }
 bool TurnHubAtlas::forgetHomeWifiNetwork() { fixtureHomeSsid.clear(); fixtureHomeWifiOn = false; return true; }

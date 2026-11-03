@@ -49,9 +49,7 @@ struct SigilRecord {
 // and pairing handshakes only; it never interprets game meaning.
 class SigilBus {
  public:
-  explicit SigilBus(uint8_t wifiChannel);
-  // The owner's table channel (protocol.h), read at start-up before begin().
-  void setWifiChannel(uint8_t channel) { wifiChannel_ = channel; }
+  SigilBus();
 
   bool begin();
   // Opens Atlas's pairing window for windowMs (see pairing_settings.h).
@@ -164,7 +162,6 @@ class SigilBus {
 
   static void printMac(const uint8_t *mac);
 
-  uint8_t wifiChannel_;
   bool pairingOpen_ = false;
   SeatedQuery seatedQuery_ = nullptr;
   uint32_t pairingStartedMs_ = 0;

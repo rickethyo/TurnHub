@@ -1,6 +1,6 @@
 #include "home_wifi.h"
 
-// The radio side of the optional home Wi-Fi check-in (home_wifi.h).
+// The radio side of home Wi-Fi (home_wifi.h).
 // Firmware only: the host tests stub this file in test_globals.cpp.
 
 // Project headers first: HTTPClient pulls in mbedTLS's TAG_BYTES macro,
@@ -18,6 +18,7 @@
 #include <Arduino.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
+#include <ESPmDNS.h>
 #include <WiFiClientSecure.h>
 #include <atomic>
 #include <esp_wifi.h>
@@ -33,22 +34,30 @@ namespace {
 constexpr char FEED_URL[] = "https://github.com/rickethyo/TurnHub/releases/latest/download/turnhub-firmware.json";
 constexpr size_t FEED_MAX_BYTES = 8192;
 
-// Connected: the home network shares the table channel, so Atlas stays on it.
-enum class Phase : uint8_t { Idle, Joining, Fetching, Connected };
+// Probing: during a match, an async scan of the current channel only, so
+// joining never hops the radio away from the Sigils.
+enum class Phase : uint8_t { Idle, Probing, Joining, Connected };
 
 bool loaded = false;
 bool enabled = false;
 char ssid[TurnHub::HOME_WIFI_SSID_MAX_LENGTH + 1] = "";
 char password[TurnHub::HOME_WIFI_PASSWORD_MAX_LENGTH + 1] = "";
+TurnHub::HomeWifiRejoin rejoin;
 TurnHub::HomeWifiSchedule schedule;
 TurnHub::HomeWifiResult result = TurnHub::HomeWifiResult::None;
 Phase phase = Phase::Idle;
 uint32_t phaseAtMs = 0;
 uint8_t tableChannel = AtlasConfig::WIFI_CHANNEL;
+// The radio's channel before a join, restored if the join fails.
+uint8_t channelBeforeJoin = 0;
 // The home network's channel when Atlas last joined it (0 before).
 uint8_t networkChannel = 0;
+char address[16] = "";
+bool mdnsStarted = false;
 
-// Written by the fetch task, read by loop() once fetchDone is set.
+// The release feed fetch runs in its own task while Atlas stays connected.
+// fetchOk and fetched are read by loop() once fetchDone is set.
+bool fetching = false;
 std::atomic<bool> fetchDone{false};
 bool fetchOk = false;
 TurnHub::LatestFirmware fetched;
@@ -73,13 +82,19 @@ bool save(const char *key, const char *value) {
   return ok;
 }
 
-// No match on any table and no firmware being written: a channel change
-// can't cost a turn or a package.
+// No match on any table and no firmware being written.
 bool tableIdle() {
   for (const GameTable &t : tables) {
     if (t.hubState == HubState::Running || t.hubState == HubState::Paused) return false;
   }
   return !sigilUpdatesBusy() && !ota.inProgress();
+}
+
+uint8_t radioChannel() {
+  uint8_t primary = 0;
+  wifi_second_chan_t second = WIFI_SECOND_CHAN_NONE;
+  esp_wifi_get_channel(&primary, &second);
+  return primary;
 }
 
 void fetchTask(void *) {
@@ -106,30 +121,81 @@ void fetchTask(void *) {
   vTaskDelete(nullptr);
 }
 
-// Leaves the home network and puts the hotspot and ESP-NOW back on the
-// Sigils' channel.
+void startFetch(uint32_t nowMs) {
+  fetchDone = false;
+  result = TurnHub::HomeWifiResult::Checking;
+  if (xTaskCreate(fetchTask, "home-wifi", 8192, nullptr, 1, nullptr) == pdPASS) {
+    fetching = true;
+    return;
+  }
+  result = TurnHub::HomeWifiResult::FeedFailed;
+  schedule.finished(nowMs, false);
+}
+
+// Turned off, forgotten or another network saved: leave the home network and
+// put the hotspot and ESP-NOW back on the saved table channel.
 void leave() {
+  if (phase == Phase::Probing) WiFi.scanDelete();
   WiFi.disconnect(false, false);
   esp_wifi_set_channel(tableChannel, WIFI_SECOND_CHAN_NONE);
   phase = Phase::Idle;
+  address[0] = '\0';
 }
 
-// A check-in ended: stay on a home network that shares the table channel,
-// otherwise leave it.
-void finish(uint32_t nowMs, TurnHub::HomeWifiResult outcome) {
-  result = outcome;
-  schedule.finished(nowMs, outcome == TurnHub::HomeWifiResult::Checked);
-  const bool stay = WiFi.status() == WL_CONNECTED && networkChannel == tableChannel;
-  if (stay) phase = Phase::Connected;
-  else leave();
-  serialLog.print("ATLAS|HOME_WIFI|DONE|");
-  serialLog.print(TurnHub::homeWifiResultName(outcome));
-  serialLog.println(stay ? "|STAYING" : "|LEFT");
+// A join attempt that found nothing: stay on the channel the radio was on.
+void joinFailed(uint32_t nowMs, const char *why) {
+  WiFi.disconnect(false, false);
+  if (channelBeforeJoin) esp_wifi_set_channel(channelBeforeJoin, WIFI_SECOND_CHAN_NONE);
+  phase = Phase::Idle;
+  rejoin.failed(nowMs);
+  if (result == TurnHub::HomeWifiResult::None || result == TurnHub::HomeWifiResult::Checking)
+    result = TurnHub::HomeWifiResult::NoNetwork;
+  serialLog.printf("ATLAS|HOME_WIFI|JOIN_FAILED|%s|retry_ms=%lu\n", why,
+      static_cast<unsigned long>(rejoin.waitMs()));
 }
 
-bool startFetch() {
-  fetchDone = false;
-  return xTaskCreate(fetchTask, "home-wifi", 8192, nullptr, 1, nullptr) == pdPASS;
+void beginJoin(uint32_t nowMs, uint8_t channel) {
+  // Kept out of the SDK's own flash store and never retried by it: rejoin
+  // decides when the radio may search (home_wifi.h).
+  WiFi.persistent(false);
+  WiFi.setAutoReconnect(false);
+  WiFi.begin(ssid, password[0] ? password : nullptr, channel);
+  phase = Phase::Joining;
+  phaseAtMs = nowMs;
+  serialLog.printf("ATLAS|HOME_WIFI|JOINING|hint=%u\n", static_cast<unsigned>(channel));
+}
+
+void startMdns() {
+  if (mdnsStarted) return;
+  String mac = WiFi.macAddress();
+  mac.replace(":", "");
+  mac.toLowerCase();
+  const String host = String("atlas-") + mac;
+  if (!MDNS.begin(host.c_str())) {
+    serialLog.println("ATLAS|HOME_WIFI|MDNS|ERROR");
+    return;
+  }
+  // Plain HTTP for now; the app uses the home network once HTTPS with a
+  // pinned key lands (HOME_WIFI.md, "Home Wi-Fi as primary").
+  MDNS.addService("turnhub-atlas", "tcp", AtlasConfig::HTTP_PORT);
+  MDNS.addServiceTxt("turnhub-atlas", "tcp", "id", (String("THA-") + mac).c_str());
+  MDNS.addServiceTxt("turnhub-atlas", "tcp", "api", "1");
+  MDNS.addServiceTxt("turnhub-atlas", "tcp", "tls", "0");
+  mdnsStarted = true;
+  serialLog.print("ATLAS|HOME_WIFI|MDNS|");
+  serialLog.println(host);
+}
+
+void joined() {
+  configTime(0, 0, "time.google.com", "pool.ntp.org");
+  networkChannel = static_cast<uint8_t>(WiFi.channel());
+  snprintf(address, sizeof(address), "%s", WiFi.localIP().toString().c_str());
+  phase = Phase::Connected;
+  rejoin.joined();
+  // The hotspot and ESP-NOW now run on the router's channel.
+  serialLog.printf("ATLAS|HOME_WIFI|JOINED|channel=%u|table=%u\n",
+      static_cast<unsigned>(networkChannel), static_cast<unsigned>(tableChannel));
+  startMdns();
 }
 
 }  // namespace
@@ -137,6 +203,7 @@ bool startFetch() {
 bool homeWifiEnabled() { load(); return enabled; }
 bool homeWifiConfigured() { load(); return ssid[0] != '\0'; }
 bool homeWifiConnected() { return phase == Phase::Connected; }
+const char *homeWifiAddress() { return phase == Phase::Connected ? address : ""; }
 uint8_t homeWifiNetworkChannel() { return networkChannel; }
 const char *homeWifiSsid() { load(); return ssid; }
 TurnHub::HomeWifiResult homeWifiResult() { return result; }
@@ -150,8 +217,12 @@ bool setHomeWifiEnabled(bool on) {
   if (on && ssid[0] == '\0') return false;
   if (!save(AtlasConfig::HOME_WIFI_PREF_ON, on ? "1" : "0")) return false;
   enabled = on;
-  if (on) schedule.requestNow();
-  else if (phase == Phase::Connected) leave();
+  if (on) {
+    rejoin.requestNow();
+    schedule.requestNow();
+  } else if (phase != Phase::Idle) {
+    leave();
+  }
   serialLog.println(on ? "ATLAS|HOME_WIFI|ON" : "ATLAS|HOME_WIFI|OFF");
   return true;
 }
@@ -167,14 +238,19 @@ bool storeHomeWifiNetwork(const char *newSsid, const char *newPassword) {
   const char *keep = passLength == 0 && sameNetwork ? password : newPassword;
   char pass[sizeof(password)];
   snprintf(pass, sizeof(pass), "%s", keep ? keep : "");
-  if (!save(AtlasConfig::HOME_WIFI_PREF_SSID, newSsid) || !save(AtlasConfig::HOME_WIFI_PREF_PASS, pass)) return false;
+  // Saving a network turns home Wi-Fi on: that is what it was saved for.
+  if (!save(AtlasConfig::HOME_WIFI_PREF_SSID, newSsid) || !save(AtlasConfig::HOME_WIFI_PREF_PASS, pass) ||
+      !save(AtlasConfig::HOME_WIFI_PREF_ON, "1")) return false;
   snprintf(ssid, sizeof(ssid), "%s", newSsid);
   snprintf(password, sizeof(password), "%s", pass);
+  enabled = true;
   result = TurnHub::HomeWifiResult::None;
   networkChannel = 0;
-  if (phase == Phase::Connected) leave();
-  if (enabled) schedule.requestNow();
-  serialLog.println("ATLAS|HOME_WIFI|NETWORK_SAVED");
+  if (phase != Phase::Idle) leave();
+  rejoin = TurnHub::HomeWifiRejoin();
+  rejoin.requestNow();
+  schedule.requestNow();
+  serialLog.println("ATLAS|HOME_WIFI|NETWORK_SAVED|ON");
   return true;
 }
 
@@ -183,7 +259,7 @@ bool forgetHomeWifiNetwork() {
   const bool ok = save(AtlasConfig::HOME_WIFI_PREF_ON, "0") && save(AtlasConfig::HOME_WIFI_PREF_SSID, "") &&
       save(AtlasConfig::HOME_WIFI_PREF_PASS, "");
   if (ok) {
-    if (phase == Phase::Connected) leave();
+    if (phase != Phase::Idle) leave();
     enabled = false;
     networkChannel = 0;
     ssid[0] = password[0] = '\0';
@@ -193,7 +269,10 @@ bool forgetHomeWifiNetwork() {
   return ok;
 }
 
-void requestHomeWifiCheck() { schedule.requestNow(); }
+void requestHomeWifiCheck() {
+  schedule.requestNow();
+  if (phase == Phase::Idle) rejoin.requestNow();
+}
 
 void serviceHomeWifi(uint32_t nowMs) {
   static uint32_t lastClockCheck = 0;
@@ -209,59 +288,75 @@ void serviceHomeWifi(uint32_t nowMs) {
   }
   TurnHubClock::clock.now(nowMs);
 
+  // A finished feed check, whatever the connection did meanwhile.
+  if (fetching && fetchDone) {
+    fetching = false;
+    if (fetchOk) noteLatestFirmware(fetched);
+    result = fetchOk ? TurnHub::HomeWifiResult::Checked : TurnHub::HomeWifiResult::FeedFailed;
+    schedule.finished(nowMs, fetchOk);
+    serialLog.print("ATLAS|HOME_WIFI|CHECKED|");
+    serialLog.println(TurnHub::homeWifiResultName(result));
+  }
+
   load();
   switch (phase) {
-    case Phase::Idle:
-      if (!schedule.due(nowMs, enabled, ssid[0] != '\0', tableIdle())) return;
-      // Kept out of the SDK's own flash store, and never retried by it: a
-      // lost home network must not keep the radio scanning other channels.
-      WiFi.persistent(false);
-      WiFi.setAutoReconnect(false);
-      WiFi.begin(ssid, password[0] ? password : nullptr);
-      phase = Phase::Joining;
+    case Phase::Idle: {
+      if (!rejoin.due(nowMs, enabled, ssid[0] != '\0')) return;
+      channelBeforeJoin = radioChannel();
+      if (result != TurnHub::HomeWifiResult::Checked) result = TurnHub::HomeWifiResult::Checking;
+      if (TurnHub::homeWifiJoinScan(tableIdle()) == TurnHub::HomeWifiJoinScan::AllChannels) {
+        // The last known channel first, then the others.
+        beginJoin(nowMs, networkChannel);
+        return;
+      }
+      // A match is running: look for the router on this channel only.
+      WiFi.scanNetworks(true, false, false, 120, channelBeforeJoin, ssid);
+      phase = Phase::Probing;
       phaseAtMs = nowMs;
-      result = TurnHub::HomeWifiResult::Checking;
-      serialLog.println("ATLAS|HOME_WIFI|JOINING");
       return;
+    }
+    case Phase::Probing: {
+      const int16_t found = WiFi.scanComplete();
+      if (found == WIFI_SCAN_RUNNING) {
+        if (nowMs - phaseAtMs < 3000) return;
+        WiFi.scanDelete();
+        joinFailed(nowMs, "probe_timeout");
+        return;
+      }
+      bool here = false;
+      for (int16_t i = 0; i < found; ++i) {
+        if (WiFi.SSID(i) == ssid && WiFi.channel(i) == channelBeforeJoin) here = true;
+      }
+      WiFi.scanDelete();
+      if (here) beginJoin(nowMs, channelBeforeJoin);
+      else joinFailed(nowMs, "not_on_channel");
+      return;
+    }
     case Phase::Joining:
-      if (WiFi.status() == WL_CONNECTED) {
-        configTime(0, 0, "time.google.com", "pool.ntp.org");
-        networkChannel = static_cast<uint8_t>(WiFi.channel());
-        serialLog.printf("ATLAS|HOME_WIFI|JOINED|channel=%u|table=%u\n",
-            static_cast<unsigned>(networkChannel), static_cast<unsigned>(tableChannel));
-        if (!startFetch()) { finish(nowMs, TurnHub::HomeWifiResult::FeedFailed); return; }
-        phase = Phase::Fetching;
-        phaseAtMs = nowMs;
-        return;
-      }
-      // Give up when the network doesn't answer or a match starts.
-      if (nowMs - phaseAtMs >= TurnHub::HOME_WIFI_JOIN_TIMEOUT_MS || !tableIdle()) {
-        leave();
-        result = TurnHub::HomeWifiResult::NoNetwork;
-        schedule.finished(nowMs, false);
-        serialLog.println("ATLAS|HOME_WIFI|DONE|noNetwork|LEFT");
-      }
+      if (WiFi.status() == WL_CONNECTED) { joined(); return; }
+      if (nowMs - phaseAtMs >= TurnHub::HOME_WIFI_JOIN_TIMEOUT_MS) joinFailed(nowMs, "timeout");
       return;
-    case Phase::Fetching:
-      if (!fetchDone) return;
-      if (fetchOk) noteLatestFirmware(fetched);
-      finish(nowMs, fetchOk ? TurnHub::HomeWifiResult::Checked : TurnHub::HomeWifiResult::FeedFailed);
-      return;
-    case Phase::Connected:
-      // Dropped, or the router moved channel (which would pull the hotspot
-      // and the Sigils with it): leave and go back to check-ins.
+    case Phase::Connected: {
       if (!enabled || ssid[0] == '\0') { leave(); return; }
-      if (WiFi.status() != WL_CONNECTED || WiFi.channel() != tableChannel) {
+      if (WiFi.status() != WL_CONNECTED) {
+        // Stay on this channel (the Sigils are here) and rejoin by itself.
+        phase = Phase::Idle;
+        address[0] = '\0';
+        rejoin.lost(nowMs);
         serialLog.println("ATLAS|HOME_WIFI|CONNECTION_LOST");
-        leave();
         return;
       }
-      if (!schedule.due(nowMs, enabled, true, tableIdle())) return;
-      if (!startFetch()) { finish(nowMs, TurnHub::HomeWifiResult::FeedFailed); return; }
-      result = TurnHub::HomeWifiResult::Checking;
-      phase = Phase::Fetching;
-      phaseAtMs = nowMs;
+      const uint8_t channel = static_cast<uint8_t>(WiFi.channel());
+      if (channel != networkChannel) {
+        // The router moved: the hotspot and ESP-NOW moved with it, and Sigils
+        // search for the new channel.
+        serialLog.printf("ATLAS|HOME_WIFI|CHANNEL|%u->%u\n", static_cast<unsigned>(networkChannel),
+            static_cast<unsigned>(channel));
+        networkChannel = channel;
+      }
+      if (!fetching && schedule.due(nowMs, enabled, true, tableIdle())) startFetch(nowMs);
       return;
+    }
   }
 }
 

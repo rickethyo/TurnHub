@@ -44,8 +44,7 @@ void displaySafeName(const String &name,
 
 SigilBus *SigilBus::instance_ = nullptr;
 
-SigilBus::SigilBus(uint8_t wifiChannel)
-    : wifiChannel_(wifiChannel) {}
+SigilBus::SigilBus() {}
 
 SigilBus *SigilBus::activeInstance() {
   return instance_;
@@ -610,7 +609,9 @@ bool SigilBus::ensurePeer(const uint8_t *mac) {
 
   esp_now_peer_info_t peer{};
   memcpy(peer.peer_addr, mac, 6);
-  peer.channel = wifiChannel_;
+  // 0: the radio's current channel, which follows the home network's
+  // (home_wifi.h), so peers stay valid when the router moves the table.
+  peer.channel = 0;
   peer.encrypt = false;
 
   const esp_err_t result = esp_now_add_peer(&peer);
