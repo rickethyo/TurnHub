@@ -52,6 +52,10 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
+    <queries>
+        <package android:name="com.turnhub.android" />
+    </queries>
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -75,6 +79,10 @@
             android:name=".data.AtlasLinkHoldService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+        <activity
+            android:name=".ProfileTransferActivity"
+            android:exported="true"
+            android:theme="@style/Theme.TurnHub" />
         <!-- Hands a finished game's picture to the share sheet (ResultShare.kt). -->
         <provider
             android:name="androidx.core.content.FileProvider"

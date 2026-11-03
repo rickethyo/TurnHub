@@ -229,6 +229,7 @@ fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable) {
                 }
                 error?.let { Text(it, color = p.warn) }
                 TextButton({ copying = true }, enabled = !saving) { Text("Use my account from another device") }
+                ImportTurnHubButton(table)
             }
         },
         confirmButton = {

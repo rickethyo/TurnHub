@@ -219,6 +219,23 @@ class StandaloneTable(
 
     enum class CopyResult { ADDED, ALREADY_HERE, NOT_SAVED }
 
+    /** All selected accounts and history reach durable storage together; the running game is untouched. */
+    fun importPreviewProfiles(bundle: JSONObject): CopyResult {
+        val before = _state.value
+        if (before.storageProblem != null) return CopyResult.NOT_SAVED
+        val merged = runCatching {
+            val accounts = PreviewProfileTransfer.accounts(bundle)
+            val staged = StandaloneTable(MemoryStandaloneStore(before.game, before.library))
+            val admin = bundle.optStringOrNull("adminProfileId")
+            for (account in accounts) {
+                require(staged.addCopiedAccount(account, admin = account.getString("profileId") == admin) != CopyResult.NOT_SAVED)
+            }
+            staged.state.value.library
+        }.getOrNull() ?: return CopyResult.NOT_SAVED
+        if (merged == before.library) return CopyResult.ALREADY_HERE
+        return if (publish(before.copy(library = merged), durable = true)) CopyResult.ADDED else CopyResult.NOT_SAVED
+    }
+
     fun accountCopy(localId: String): JSONObject {
         val state = _state.value
         val player = requireNotNull(state.library.players.firstOrNull { it.localId == localId })
