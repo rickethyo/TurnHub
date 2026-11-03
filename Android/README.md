@@ -667,6 +667,10 @@ assets. The update assistant lists only Atlas and Sigils, never queries portal
 installation or card status, and ignores retired `portal` release entries.
 
 Connected and device games share the Game tab's upright player panels. The Table
-tab is the live facing-seat layout. Players is a single list with profile location
+tab is the live facing-seat layout. A compact wrapping row above the Game tab
+keeps the game selector and Play Together together. Game menu contains the
+Game card selector for personal/pass-and-play views. For eligible connected
+players it also offers On the Atlas screen, using the same screen picker and
+permissions as the Planes tab. Players is a single list with profile location
 labels; public gameplay identity can be used without copying private stats or
 credentials. Private statistics and administration still require the profile PIN.

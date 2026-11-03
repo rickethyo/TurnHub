@@ -107,6 +107,7 @@ fun TabletScreen(
     localProfiles: List<com.turnhub.android.standalone.SavedLocalPlayer> = emptyList(),
     /** Atlas dropped off mid-game: the game going on on this device until it answers again. */
     offlineGame: com.turnhub.android.data.OfflineAtlasGame? = null,
+    atlasScreenSeat: TabletSeat? = null,
 ) {
     var previousState by remember { mutableStateOf(summary?.state) }
     androidx.compose.runtime.LaunchedEffect(summary?.state) {
@@ -126,7 +127,7 @@ fun TabletScreen(
     AmbientBackground(reduceMotion, modifier.fillMaxSize(), quiet = true) {
     Column(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.safeDrawingPadding())) {
         if (embedded && !setupOnly && summary != null) TableNavigation(summary.state, onFullScreen = onFullScreen)
-        if (summary != null && summary.games.size > 1) Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+        if (!(embedded && setupOnly) && summary != null && summary.games.size > 1) Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
             com.turnhub.android.ui.home.GameSelector(summary, onFollowGame, enabled = !offline && !switching && !tablet.busy)
         }
         androidx.compose.runtime.key(summary?.atlasId, summary?.bootId, summary?.game) {
@@ -148,7 +149,12 @@ fun TabletScreen(
                             Box(Modifier.weight(1f).fillMaxWidth()) {
                                 TabletTable(summary, tablet, { block -> if (granted && !switching && !reconciling) scopedActions.run { this.block() } },
                                     scopedActions.onDismissMessage, reduceMotion, onClose, offline,
-                                    readOnly = !granted || switching || reconciling, phoneView = setupOnly)
+                                    readOnly = !granted || switching || reconciling, phoneView = setupOnly,
+                                    atlasScreen = if (summary.state == TableState.RUNNING && atlasScreenSeat != null) {
+                                        { AtlasScreenPicker(atlasScreenSeat, scopedActions,
+                                            cardView = summary.atlasPlanechase?.let { it.digital && it.plane != null } == true,
+                                            enabled = !offline && !switching && !reconciling && !tablet.busy) }
+                                    } else null)
                             }
                         }
                     }

@@ -214,6 +214,11 @@ fun HomeScreen(
         HomeTab.entries.firstOrNull { it.name == requestedTab }?.let { tab = it; onTabRequestHandled() }
     }
     val me = uiState.me()
+    val atlasScreenSeat = summary?.let { table ->
+        (listOfNotNull(me) + table.players.filter { localState.library.linkedPlayer(table.atlasId, it.profileId) != null })
+            .firstOrNull { it.profileId != null && it.controller.kind == com.turnhub.android.domain.ControllerHandle.Kind.VIRTUAL }
+            ?.let { com.turnhub.android.data.TabletSeat(it.controller.id, it.slot) }
+    }
     val info = uiState.sessionInfo()
     val canSettings = info?.has(com.turnhub.android.protocol.AccountPermission.ADMIN) == true
     val canPeople = canSettings || info?.has(com.turnhub.android.protocol.AccountPermission.GAME_MASTER) == true
@@ -271,6 +276,7 @@ fun HomeScreen(
             reduceMotion = reduceMotion,
             offline = uiState.isOffline,
             offlineGame = offlineGame,
+            atlasScreenSeat = atlasScreenSeat,
             onFollowGame = onFollowGame,
             switching = uiState.player?.busy == true,
             onClose = {
@@ -316,13 +322,6 @@ fun HomeScreen(
                     report = reportContext,
                     onManualClick = { showManual = true },
                     onGearClick = { tab = HomeTab.MORE; morePage = MorePage.ABOUT })
-                // Atlas games too: other phones can join through this one instead of each connecting to Atlas.
-                if (onOpenSharedGame != null && !setup.visible && tab == HomeTab.GAME)
-                    TextButton(onClick = onOpenSharedGame) { Text(when {
-                        sharedGameCode != null -> "Play together · Code ${sharedGameCode.uppercase()}"
-                        sharedGameHosting -> "Play together · Hosting"
-                        else -> "Play together · Host or join"
-                    }) }
             }
         },
         bottomBar = {
@@ -380,12 +379,26 @@ fun HomeScreen(
         val labels = summary?.players?.associate { it.playerNumber to it.label }.orEmpty()
         val labelFor: (Int) -> String = { number -> labels[number] ?: "Player $number" }
         Column(Modifier.fillMaxSize().padding(innerPadding)) {
-            if (!setup.visible && tab == HomeTab.GAME && summary != null) {
-                GameSourceSwitch(source, otherUnderway = if (atlasGame) deviceUnderway else summary.state.underway(),
-                    shownInLobby = (if (atlasGame) summary.state else localState.game.state) in listOf(TableState.LOBBY, TableState.GAME_OVER),
-                    seatedAtAtlas = me != null) { next ->
-                    chosenSource = next
-                    if (next == GameSource.ATLAS) onAtlasOpened()
+            if (!setup.visible && tab == HomeTab.GAME) {
+                androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    if (summary != null && atlasGame && summary.games.size > 1)
+                        GameSelector(summary, onFollowGame, enabled = !uiState.isOffline && uiState.player?.busy != true && !tablet.busy, compact = true)
+                    else Text(if (atlasGame) "Atlas" else "On device", color = p.muted,
+                        style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 8.dp, vertical = 16.dp))
+                    if (summary != null && (if (atlasGame) deviceUnderway else summary.state.underway())) {
+                        TextButton(onClick = {
+                            chosenSource = if (atlasGame) GameSource.DEVICE else GameSource.ATLAS
+                            if (!atlasGame) onAtlasOpened()
+                        }) { Text(if (atlasGame) "Device game" else "Atlas game") }
+                    }
+                    if (onOpenSharedGame != null) TextButton(onClick = onOpenSharedGame) {
+                        Text(when {
+                            sharedGameCode != null -> "Room · ${sharedGameCode.uppercase()}"
+                            sharedGameHosting -> "Room · Hosting"
+                            else -> "Play together"
+                        })
+                    }
                 }
             }
             // Tabs push sideways in the bar's direction, like slides; none when motion is reduced.
@@ -417,6 +430,7 @@ fun HomeScreen(
                                 tablet = tablet, actions = tabletActions, reduceMotion = reduceMotion,
                                 onClose = { tab = HomeTab.GAME }, onBackToSetup = { tab = HomeTab.GAME },
                                 offline = uiState.isOffline, offlineGame = offlineGame, switching = uiState.player?.busy == true,
+                                atlasScreenSeat = atlasScreenSeat,
                                 onFollowGame = onFollowGame, embedded = true,
                                 setupOnly = shown == HomeTab.GAME, localProfiles = localState.library.players, onFullScreen = { showTablet = true },
                                 onEditBackground = if (localTable == null) null else { player ->
@@ -429,9 +443,7 @@ fun HomeScreen(
                         !setup.visible && shown == HomeTab.PLANES && atlasGame && summary != null ->
                             com.turnhub.android.ui.tablet.AtlasPlanesTab(summary, tabletActions, reduceMotion, uiState.isOffline || offlineGame?.base?.matches(summary) == true,
                                 // A signed-in player of this phone (its own account, or one seated from it), never a Sigil or a guest.
-                                screenSeat = (listOfNotNull(me) + summary.players.filter { localState.library.linkedPlayer(summary.atlasId, it.profileId) != null })
-                                    .firstOrNull { it.profileId != null && it.controller.kind == com.turnhub.android.domain.ControllerHandle.Kind.VIRTUAL }
-                                    ?.let { com.turnhub.android.data.TabletSeat(it.controller.id, it.slot) })
+                                screenSeat = atlasScreenSeat)
                         !setup.visible && shown == HomeTab.PLANES -> localPlanesContent()
                         !setup.visible && shown == HomeTab.ELDER -> localElderContent()
                         !setup.visible && shown == HomeTab.PLAYERS -> localPlayersContent()
@@ -760,31 +772,6 @@ private fun ErrorCard(message: String, detail: String?, retrying: Boolean, onOpe
             Text(message, color = p.text, style = MaterialTheme.typography.bodyMedium)
             detail?.let { Text(it, color = p.faint, style = MaterialTheme.typography.bodySmall) }
             onOpenAppSettings?.let { ToneButton("Open app settings", it, tone = Tone.INFO) }
-        }
-    }
-}
-
-/**
- * One line over the Game tab while an Atlas is in reach: says where the game
- * runs and offers the other only when it makes sense (setting up or done
- * here, or a game already under way there), so a game isn't left by accident.
- */
-@Composable
-private fun GameSourceSwitch(source: GameSource, otherUnderway: Boolean, shownInLobby: Boolean, seatedAtAtlas: Boolean,
-    onChoose: (GameSource) -> Unit) {
-    val p = palette
-    val atlas = source == GameSource.ATLAS
-    val offer = otherUnderway
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(if (atlas) "Connected table game" else "Game on this device", color = p.muted,
-            style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        if (offer) TextButton(onClick = { onChoose(if (atlas) GameSource.DEVICE else GameSource.ATLAS) }) {
-            Text(when {
-                atlas && otherUnderway -> "Back to this device's game"
-                atlas -> "Play on this device"
-                otherUnderway -> "Back to the Atlas game"
-                else -> "Play at Atlas"
-            })
         }
     }
 }
