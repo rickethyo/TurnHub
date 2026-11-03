@@ -5501,6 +5501,37 @@ static void cardCacheOnAtlas() {
     assert(currentScreen().kind==ScreenKind::Planes);
     TurnHubCards::setCardFilesForTests(nullptr);
   }
+  // Any signed-in player seated in the game sets what the Atlas screen shows
+  // (owner, 2026-11-02); a signed-in profile that isn't playing can't.
+  assert(request("/api/atlas/screen","",{},HTTP_GET)==401);
+  assert(request("/api/atlas/screen",b,{{"view","card"}})==200 && currentScreen().kind==ScreenKind::PlaneCard && has("\"view\":\"card\""));
+  assert(request("/api/atlas/screen",b,{{"view","table"}})==200 && currentScreen().kind==ScreenKind::Overview);
+  assert(request("/api/atlas/screen",a,{},HTTP_GET)==200 && has("\"view\":\"table\"") &&
+      has("\"views\":[\"game\",\"table\",\"planes\",\"card\"]"));
+  assert(request("/api/atlas/screen",a,{{"view","sideways"}})==400);
+  {
+    char list[TurnHubProfiles::MAX_LOGIN_PROFILES][TurnHubProfiles::PROFILE_ID_LENGTH + 1];
+    const size_t count = TurnHubProfiles::listProfileIds(list, TurnHubProfiles::MAX_LOGIN_PROFILES);
+    for (size_t i = 0; i < count; ++i) {
+      if (ids[0]==list[i] || ids[1]==list[i] || request("/api/session/login","",{{"profileId",list[i]},{"pin","1234"}})!=200) continue;
+      const String watcher=responseField("token");
+      assert(request("/api/atlas/screen",watcher,{{"view","game"}})==409 && currentScreen().kind==ScreenKind::Overview);
+      break;
+    }
+  }
+  {
+    // The app's game controls act for the seat they name, as /api/tablet/* do.
+    assert(request("/api/session/play","",{{"clientKey","44444444-4444-4444-8444-444444444444"}})==200);
+    const String app=responseField("token");
+    const uint8_t module=TurnHubControllers::registerBrowser(ids[0]);
+    assert(request("/api/planes",app,{},HTTP_GET)==200);
+    assert(request("/api/atlas/screen",app,{{"view","game"}})==409);
+    assert(request("/api/atlas/screen",app,{{"view","game"},{"module",String(module)},{"slot","1"}})==200 &&
+        currentScreen().kind==ScreenKind::Status);
+    assert(request("/api/atlas/screen",app,{{"view","game"},{"module","0"},{"slot","1"}})==409);
+    assert(request("/api/session/logout",app)==200);
+  }
+  assert(request("/api/atlas/screen",a,{{"view","planes"}})==200 && currentScreen().kind==ScreenKind::Planes);
   tapButton(TouchAction::PlanarResolve);
   assert(!table().game.planar().phenomenon && screenButton(currentScreen(),TouchAction::PlanarRoll));
   tapButton(TouchAction::PlanarRoll);
@@ -5517,6 +5548,7 @@ static void cardCacheOnAtlas() {
   }
   // Starting without a catalog falls back to the players' own planes.
   enterEmptyLobby();
+  assert(request("/api/atlas/screen",a,{{"view","game"}})==409);
   TurnHubCards::setStoreForTests(nullptr);
   TurnHubCards::SavedCommanders none;
   assert(!TurnHubCards::loadCommanders(ids[0], none));

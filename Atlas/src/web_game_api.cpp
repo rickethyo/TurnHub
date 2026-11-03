@@ -601,6 +601,64 @@ void handlePlaneCard(WebServer &server) {
   sendJson(server, 200, String("{\"ok\":true,\"art\":") + jsonBool(!jpeg.empty()) + "}");
 }
 
+// GET (any signed-in browser or app) or POST view=game|table|planes|card:
+// what the Atlas screen shows during Game 1's match. Any signed-in player
+// seated in that game may set it from a phone (owner, 2026-11-02): the app
+// names the seat it acts for (module, slot) as with /api/tablet/*, and a
+// browser uses its own seat. Sigil seats and guests (no profile) can't.
+// Answers the open view and the views available now.
+static void atlasScreen(WebServer &server, bool set) {
+  WebSession *session = requireSession(server);
+  if (!session) return;
+  if (set) {
+    const bool own = !server.hasArg("module") && resolveSessionParticipant(*session);
+    uint8_t module = own ? session->controllerId : TurnHub::INVALID_ID, slot = session->slot;
+    int32_t m = 0, n = 0;
+    if (server.hasArg("module")) {
+      if (!parseBoundedNumber(server.arg("module"), 0, TurnHub::MAX_CONTROLLERS - 1, m) ||
+          !parseBoundedNumber(server.arg("slot"), 1, 2, n)) {
+        sendError(server, 400, "Choose a player");
+        return;
+      }
+      module = static_cast<uint8_t>(m);
+      slot = static_cast<uint8_t>(n);
+    }
+    SeatSnapshot seat;
+    if (module == TurnHub::INVALID_ID || !resolveSeatNow(module, slot, seat)) {
+      sendError(server, 409, "Join this game first");
+      return;
+    }
+    if (module < TurnHub::MAX_PHYSICAL_SIGILS || profileIdForPhysicalSeat(module, slot).length() == 0) {
+      sendError(server, 403, "Sign in to your account on a phone to change the Atlas screen");
+      return;
+    }
+    TurnHubAtlas::AtlasView view;
+    if (!TurnHubAtlas::parseAtlasView(server.arg("view").c_str(), view)) {
+      sendError(server, 400, "Choose game, table, planes or card");
+      return;
+    }
+    const char *error = nullptr;
+    if (!TurnHubAtlas::showAtlasView(view, error)) {
+      sendError(server, 409, error ? error : "That view isn't available");
+      return;
+    }
+  }
+  String views;
+  const char *keys[] = {"game", "table", "planes", "card"};
+  for (const char *key : keys) {
+    TurnHubAtlas::AtlasView view;
+    const char *error = nullptr;
+    if (!TurnHubAtlas::parseAtlasView(key, view) || !TurnHubAtlas::atlasViewAvailable(view, error)) continue;
+    if (views.length()) views += ',';
+    views += String("\"") + key + "\"";
+  }
+  sendJson(server, 200, String("{\"ok\":true,\"view\":\"") + TurnHubAtlas::atlasViewKey(millis()) +
+      "\",\"views\":[" + views + "]}");
+}
+
+void handleAtlasScreen(WebServer &server) { atlasScreen(server, false); }
+void handleSetAtlasScreen(WebServer &server) { atlasScreen(server, true); }
+
 void handlePlanesCatalog(WebServer &server) {
   if (!requireSession(server)) return;
   bool saved = false;

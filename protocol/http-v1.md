@@ -760,6 +760,17 @@ place in the app's batch) let the Atlas screen show the progress. The app
 (tablet mode) sends every catalog plane Atlas lacks art for after the
 catalog, or every plane from its Send planes to Atlas button.
 
+Atlas screen view (Atlas 2026-11-03): `GET /api/atlas/screen` (any signed-in
+session) answers `{ok:true, view, views}`: the Atlas touchscreen's open page
+(`game`, `table`, `planes`, `card` or `other`) and the views it can show now.
+`POST /api/atlas/screen` with `view` turns the Atlas screen to one of them
+during Game 1's match (the touchscreen shows Game 1). It is presentation only.
+Any signed-in player seated in that game may set it (owner, 2026-11-02): a
+browser uses its own seat, the app names the seat it acts for with `module`
+and `slot` as `/api/tablet/*` do. 403 for a Sigil seat or a guest (no
+profile), 409 when the seat isn't in the game or the view isn't available
+(no match, no Planechase, no digital plane face up), 400 for an unknown view.
+
 Saved commanders: up to six per profile on the microSD card (`d<profileId>`).
 `GET /api/profiles/commanders` (the session's own, or `?profileId=` from a
 tablet) answers `commanders: [{slot, name, art}]`, newest first.
@@ -828,6 +839,8 @@ requires an exit order and no concession, bag-drawn flag or opponent credit.
 `{ok:true,token:...}`. No profile choice, PIN or presence prompt is required.
 The compatibility `tablet:true` field identifies its restricted capabilities;
 it has no personal profile, private statistics or administrative permissions.
+Besides `/api/tablet/*` and the table reads, it may use `/api/planes`,
+`/api/planes/card` and `/api/atlas/screen`.
 Personal sessions already in use are preserved by the app. Profile creation
 for ordinary gameplay (`gameplayOnly=1` on a PIN-less identity upload)
 does not issue private-history link keys.

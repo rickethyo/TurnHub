@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,11 +37,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.data.PlaneInfo
+import com.turnhub.android.data.TabletSeat
 import com.turnhub.android.data.ScryfallPlanes
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.standalone.PlanarCard
@@ -435,7 +438,9 @@ private fun PlanarCredit() {
  * Planechase will do and offers Send planes to Atlas.
  */
 @Composable
-internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, actions: TabletActions, reduceMotion: Boolean, offline: Boolean) {
+internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, actions: TabletActions, reduceMotion: Boolean, offline: Boolean,
+    /** A signed-in player of this phone at the table (not a Sigil or a guest), who may set the Atlas screen. */
+    screenSeat: TabletSeat? = null) {
     val p = palette
     val context = LocalContext.current
     val planes = summary.atlasPlanechase
@@ -497,6 +502,7 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
             }, Modifier.fillMaxWidth(), enabled = can)
             if (!running) Text("The active player rolls while the game runs.", color = p.faint, style = MaterialTheme.typography.bodySmall)
         }
+        if (running && screenSeat != null) AtlasScreenPicker(screenSeat, actions, cardView = planes.digital && planes.plane != null, enabled = !offline)
         PlanarCredit()
     }
     if (rolling) PlanarRollDialog(reduceMotion, onRoll = {
@@ -504,4 +510,24 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
         send(active, "${com.turnhub.android.data.PLANAR_PREFIX}roll:${face.wireValue}")
         face
     }, onFinish = { rolling = false })
+}
+
+/** Sets what the Atlas screen shows during the game: Game, Table, Planes or the plane's Card. */
+@Composable
+private fun AtlasScreenPicker(seat: TabletSeat, actions: TabletActions, cardView: Boolean, enabled: Boolean) {
+    val p = palette
+    var shown by rememberSaveable { mutableStateOf<String?>(null) }
+    val views = listOf("game" to "Game", "table" to "Table", "planes" to "Planes") + if (cardView) listOf("card" to "Card") else emptyList()
+    BrassCard {
+        Text("On the Atlas screen", color = p.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+        Text("Choose what Atlas shows the table.", color = p.muted)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            views.forEach { (key, label) ->
+                val pick = { actions.run { if (showOnAtlas(seat, key)) shown = key } }
+                val chosen = Modifier.weight(1f).semantics { selected = shown == key }
+                if (shown == key) AccentButton(label, pick, chosen, enabled = enabled)
+                else ToneButton(label, pick, chosen, enabled = enabled)
+            }
+        }
+    }
 }

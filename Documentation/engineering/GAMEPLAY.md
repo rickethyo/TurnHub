@@ -257,6 +257,10 @@ loss condition; Commander damage totals alone do not trigger elimination.
   catalog or cards, the Atlas screen shows a toast ("Plane cards: 12 of 86")
   and the app's lobby shows the same in words, with Send planes to Atlas to
   resend every card by hand.
+  During the game, any signed-in player seated at the table can pick what
+  the Atlas screen shows (Game, Table, Planes or the plane's Card) from the
+  app's Planes tab (`/api/atlas/screen`, owner 2026-11-02); Sigils and
+  guests can't. It changes only the screen, never the game.
 - **Who goes first:** any player can choose (`SelectStarter`); choosing the
   chosen player again clears it. With nobody chosen, Atlas picks a random
   player when the countdown ends, as the standalone app does (rematches too).

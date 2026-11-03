@@ -302,6 +302,16 @@ class AtlasTablet(
         } catch (e: CancellationException) { throw e } catch (_: Exception) { progress("Couldn't finish sending the plane cards. Try again.") }
     }
 
+    /**
+     * Sets what the Atlas screen shows during the game (`game`, `table`, `planes` or `card`),
+     * for a signed-in player at the table ([seat]); Atlas refuses Sigil seats and guests.
+     */
+    suspend fun showOnAtlas(seat: TabletSeat, view: String): Boolean {
+        val response = post("/api/atlas/screen", seat.fields + ("view" to view)) ?: return false
+        if (response.ok) succeed() else fail(response)
+        return response.ok
+    }
+
     // --- the table ----------------------------------------------------------------
 
     /** `pass`, `pause`, `concede`, `win`, `confirm`, `deny`, `starter`, `start`, `cancel-start`, `rematch` or `reset`. */

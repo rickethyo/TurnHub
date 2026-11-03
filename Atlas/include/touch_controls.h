@@ -409,6 +409,18 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y);
 constexpr uint32_t SYNC_TOAST_MS = TOUCH_NOTICE_MS;
 void showSyncStatus(uint32_t nowMs, const char *text);
 
+// What a phone may put on the Atlas screen during Game 1's match (owner,
+// 2026-11-02: any signed-in player seated in that game; the HTTP handler
+// checks who asks). Presentation only, like the tabs: no game state moves.
+enum class AtlasView : uint8_t { Game, Table, Planes, Card };
+bool parseAtlasView(const char *key, AtlasView &view);
+const char *atlasViewKey(uint32_t nowMs);  // The open tab: game, table, planes, card or other.
+// Whether the view can show now (for the current table() scope), and why not.
+bool atlasViewAvailable(AtlasView view, const char *&error);
+// Opens the view for the current table() scope. False (with a reason for
+// the phone) when that view isn't there now.
+bool showAtlasView(AtlasView view, const char *&error);
+
 // Clears press, notice and screen state (tests, and boot).
 void resetTouchControls(bool startAtHome = false);
 

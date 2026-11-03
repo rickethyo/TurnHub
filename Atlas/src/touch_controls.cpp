@@ -2363,6 +2363,53 @@ void showSyncStatus(uint32_t nowMs, const char *text) {
   syncAtMs = nowMs;
 }
 
+bool parseAtlasView(const char *key, AtlasView &view) {
+  if (key == nullptr) return false;
+  if (!strcmp(key, "game")) view = AtlasView::Game;
+  else if (!strcmp(key, "table")) view = AtlasView::Table;
+  else if (!strcmp(key, "planes")) view = AtlasView::Planes;
+  else if (!strcmp(key, "card")) view = AtlasView::Card;
+  else return false;
+  return true;
+}
+
+const char *atlasViewKey(uint32_t nowMs) {
+  switch (baseScreen(nowMs)) {
+    case ScreenKind::Status: return "game";
+    case ScreenKind::Overview: return "table";
+    case ScreenKind::Planes: return "planes";
+    case ScreenKind::PlaneCard: return "card";
+    default: return "other";
+  }
+}
+
+bool atlasViewAvailable(AtlasView view, const char *&error) {
+  // The touchscreen shows Game 1 until its game selector lands.
+  if (tableIndex() != 0) { error = "The Atlas screen shows Game 1"; return false; }
+  if (!matchInProgress()) { error = "Only during a game"; return false; }
+  const auto &planar = table().game.planar();
+  if ((view == AtlasView::Planes || view == AtlasView::Card) && !planar.enabled) {
+    error = "This game has no Planechase";
+    return false;
+  }
+  if (view == AtlasView::Card && (!planar.digital || !planar.plane[0])) {
+    error = "No plane card to show";
+    return false;
+  }
+  error = nullptr;
+  return true;
+}
+
+bool showAtlasView(AtlasView view, const char *&error) {
+  if (!atlasViewAvailable(view, error)) return false;
+  openScreen = view == AtlasView::Game ? ScreenKind::Status : view == AtlasView::Table ? ScreenKind::Overview
+      : view == AtlasView::Planes ? ScreenKind::Planes : ScreenKind::PlaneCard;
+  // A phone's choice drops a half-done touch on Atlas (its popup or player page).
+  confirmAction = TouchAction::None;
+  playerControlsOpen = false;
+  return true;
+}
+
 void resetTouchControls(bool startAtHome) {
   syncText[0] = '\0';
   touchDown = false;

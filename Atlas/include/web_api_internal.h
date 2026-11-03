@@ -220,6 +220,8 @@ void handleCounterControl(WebServer &server, TurnHub::IntentType type);
 void handlePlanesCatalogInfo(WebServer &server);
 void handlePlanesCatalog(WebServer &server);
 void handlePlaneCard(WebServer &server);
+void handleAtlasScreen(WebServer &server);
+void handleSetAtlasScreen(WebServer &server);
 void handleSavedCommanders(WebServer &server);
 void handleCommanderChoice(WebServer &server);
 void handleTabletCommanderChoice(WebServer &server);

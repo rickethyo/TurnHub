@@ -289,6 +289,10 @@ On the table, **Planar die** beside Pass rolls with a short animation. A blank k
 
 With physical cards, TurnHub rolls the die, counts the cost and tells you when to turn over the next plane. Rolls and deck moves wait while the game is paused.
 
+## Planechase on an Atlas
+
+In a game on an Atlas, the Planes tab shows the Atlas game's plane, and every roll drops an animated die on the Atlas screen. With the digital deck, the app sends Atlas each plane's art and text so the Atlas screen can show the face-up plane like the real card; **Send planes to Atlas** in the lobby resends them, and both screens show the progress. During the game, **On the Atlas screen** lets any player signed in at the table choose what Atlas shows: Game, Table, Planes or the plane's Card. Sigils and guests can't change it.
+
 # 7. Ending a Game
 
 The game ends when one player or team is left, when a win claim is confirmed, or with **End without a winner** (a draw). If nobody survives automatic elimination, it is a draw.
