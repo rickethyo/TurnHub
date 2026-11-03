@@ -108,6 +108,9 @@ void configureClientState(StateCallback state, RevisionCallback revision) {
   readClientRevision = revision;
 }
 
+namespace internal { OfflineHooks offlineHooks; }
+void configureOffline(const OfflineHooks &hooks) { internal::offlineHooks = hooks; }
+
 void configureGameControls(GameSettingsCallback read, ConfigureGameCallback configure,
     ChangeLifeCallback life) {
   readGameConfiguration = read;
@@ -195,6 +198,8 @@ const Route ROUTES[] = {
   {"/api/v1/info", HTTP_GET, handleInfo},
   {"/api/time", HTTP_POST, handleClockSync},
   {"/api/v1/state", HTTP_GET, handleState},
+  {"/api/v1/game", HTTP_GET, handleOfflineGame},
+  {"/api/v1/offline", HTTP_POST, handleOfflineSync},
 
   // Accounts and administration.
   {"/api/accounts/setup", HTTP_GET, accountSetupStatus},
@@ -217,6 +222,8 @@ const Route ROUTES[] = {
   {"/api/pairing", HTTP_POST, handleSavePairingSettings},
   {"/api/speaker", HTTP_GET, handleSpeakerSettings},
   {"/api/speaker", HTTP_POST, handleSaveSpeakerSettings},
+  {"/api/power", HTTP_GET, handlePowerSettings},
+  {"/api/power", HTTP_POST, handleSavePowerSettings},
   {"/api/upload-approval", HTTP_GET, handleUploadApprovalSettings},
   {"/api/upload-approval", HTTP_POST, handleSaveUploadApprovalSettings},
   {"/api/table-code", HTTP_GET, handleTableCodeSettings},
@@ -299,6 +306,9 @@ const Route ROUTES[] = {
   {"/api/control/commander-choice", HTTP_POST, handleCommanderChoice},
   {"/api/planes", HTTP_GET, handlePlanesCatalogInfo},
   {"/api/planes", HTTP_POST, handlePlanesCatalog},
+  {"/api/planes/card", HTTP_POST, handlePlaneCard},
+  {"/api/atlas/screen", HTTP_GET, handleAtlasScreen},
+  {"/api/atlas/screen", HTTP_POST, handleSetAtlasScreen},
   {"/api/profiles/commanders", HTTP_GET, handleSavedCommanders},
   // Tablet mode: one shared table screen acting for any seated player.
   {"/api/standalone/import", HTTP_POST, handleStandaloneImport},
@@ -367,7 +377,10 @@ class RouteTableHandler final : public RequestHandler {
           uri == "/api/seats" || uri == "/api/profiles" || uri == "/api/avatars" || uri == "/api/avatar" ||
           uri == "/api/action-receipt" || uri == "/api/counters" || uri == "/api/profiles/commanders" || uri == "/api/session/me");
       const bool sessionRoute = method == HTTP_POST && (uri == "/api/profiles/register" || uri == "/api/session/game" || uri == "/api/session/logout");
-      if (!tabletRoute && !readRoute && !sessionRoute) {
+      // The app's planes and plane cards for Atlas, and what the Atlas screen
+      // shows (for a seated player the app names; the handler checks it).
+      const bool planesRoute = uri == "/api/planes" || uri == "/api/planes/card" || uri == "/api/atlas/screen";
+      if (!tabletRoute && !readRoute && !sessionRoute && !planesRoute) {
         sendError(server, 403, "The shared tablet account only has table controls");
         return true;
       }

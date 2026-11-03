@@ -289,6 +289,10 @@ On the table, **Planar die** beside Pass rolls with a short animation. A blank k
 
 With physical cards, TurnHub rolls the die, counts the cost and tells you when to turn over the next plane. Rolls and deck moves wait while the game is paused.
 
+## Planechase on an Atlas
+
+In a game on an Atlas, the Planes tab shows the Atlas game's plane, and every roll drops an animated die on the Atlas screen. With the digital deck, the app sends Atlas each plane's art and text so the Atlas screen can show the face-up plane like the real card; **Send planes to Atlas** in the lobby resends them, and both screens show the progress. During the game, **On the Atlas screen** lets any player signed in at the table choose what Atlas shows: Game, Table, Planes or the plane's Card. Sigils and guests can't change it.
+
 # 7. Ending a Game
 
 The game ends when one player or team is left, when a win claim is confirmed, or with **End without a winner** (a draw). If nobody survives automatic elimination, it is a draw.
@@ -808,9 +812,9 @@ There is no shut-down command. End or pause the game, disconnect Atlas's power, 
 
 Atlas's small battery keeps the game, radio and portal alive when USB is pulled; keep USB connected for normal play.
 
-- The screen turns off when nobody has touched it and nothing new has happened for a while: after two minutes on USB, between games only, or after 30 seconds on battery, even during a game. Atlas keeps running. A touch lights it again, and that first touch does not press anything; a turn passing or a phone joining lights it too.
+- The screen turns off when nobody has touched it and nothing new has happened for a while: by default after two minutes on USB, between games only, or after 30 seconds on battery, even during a game. Atlas keeps running. A touch lights it again, and that first touch does not press anything; a turn passing or a phone joining lights it too. Choose the timing under Settings > Device > Sound, screen, sleep on Atlas, or in the app’s Device Settings (Admin): Screen off (Auto, 30 s, 1, 2, 5 or 10 min, or Never) and Off in games (On battery, No or Yes).
 
-- Between games, five minutes without player activity on battery puts Atlas to sleep.
+- Between games on battery, Atlas goes into deep sleep after five minutes without player activity. Deep sleep (same place) can be set to 5, 10, 15, 30 or 60 minutes, or Off. A flat battery still puts Atlas to sleep, whatever the setting.
 
 - The header shows an estimated charge, and a lightning bolt on USB. Both are estimates, not measurements, and may be unavailable for about five seconds after start-up.
 

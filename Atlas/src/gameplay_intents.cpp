@@ -351,6 +351,101 @@ IntentResult handlePlanarIntent(const Intent &intent, void *) {
   return IntentResult::accept(view.lastFace == 2 ? "Planeswalk!" : view.lastFace == 1 ? "Chaos ensues!" : "Blank: nothing happens");
 }
 
+// --- Offline play ---------------------------------------------------------------
+
+TurnHubWebApi::OfflineSyncRequest *pendingOfflineSync = nullptr;
+
+namespace {
+class OfflineRandom : public turnhub::Random {
+ public:
+  int nextInt(int bound) override { return bound > 0 ? static_cast<int>(esp_random() % static_cast<uint32_t>(bound)) : 0; }
+};
+}  // namespace
+
+String offlineGameJson(const String &atlasId, const char *bootId) {
+  turnhub::Json j = turnhub::Json::object();
+  j.set("atlasId", atlasId.c_str());
+  j.set("bootId", bootId);
+  j.set("game", static_cast<int>(tableIndex() + 1));
+  j.set("atlasMs", table().game.clockMs(millis()));
+  j.set("state", turnhub::toJson(table().game.core()));
+  return String(j.dump().c_str());
+}
+
+// A phone kept the game going while Atlas was out of reach (turnhub_offline.h).
+// Its queue is replayed by the rules from a common starting point when there
+// is one, merged in time order with other phones' queues from the same outage:
+//  - merged: another phone from this outage already synced and nothing has
+//    changed since; replay every queue so far from the outage's start.
+//  - replayed: Atlas's game hasn't moved since the phone's copy (same boot).
+//  - restored: Atlas restarted and restored this match, and nobody has acted
+//    since; the phone's copy is more complete than the restore, so it is the
+//    start, moved onto this boot's clock afterwards.
+//  - late: the game moved on here (a Sigil, another phone); each action is
+//    applied now, in the phone's order, and the rules decide.
+IntentResult handleSyncOfflineIntent(const Intent &, void *) {
+  TurnHubWebApi::OfflineSyncRequest *request = pendingOfflineSync;
+  if (!request) return IntentResult::reject(IntentStatus::InvalidState, "There are no offline actions to sync");
+  const turnhub::Game &current = table().game.core();
+  if (!gameInProgress() || current.gameId != request->base.gameId)
+    return IntentResult::reject(IntentStatus::Conflict, "That game has ended or changed on Atlas");
+  const int64_t atlasNow = table().game.clockMs(millis());
+  auto &merge = table().offline;
+  std::vector<turnhub::OfflineEntry> entries = request->entries;
+  turnhub::Game base;
+  bool onThisClock = true;
+  int64_t untilMs = atlasNow;
+  if (merge.open && merge.base.gameId == request->base.gameId && merge.base.revision == request->base.revision &&
+      merge.baseBoot == request->baseBoot && current.revision == merge.resultRevision) {
+    request->mode = "merged";
+    base = merge.base;
+    onThisClock = merge.onThisClock;
+    entries.insert(entries.begin(), merge.entries.begin(), merge.entries.end());
+    if (!onThisClock) untilMs = std::max(merge.untilMs, request->nowOnBase);
+  } else if (request->baseBoot == request->atlasBoot && current.revision == request->base.revision) {
+    request->mode = "replayed";
+    base = current;
+  } else if (request->baseBoot != request->atlasBoot && current.revision == table().game.restoredRevision()) {
+    request->mode = "restored";
+    base = request->base;
+    onThisClock = false;
+    untilMs = request->nowOnBase;
+  } else {
+    request->mode = "late";
+    base = current;
+    for (auto &entry : entries) entry.atMs = atlasNow;
+  }
+  OfflineRandom random;
+  const turnhub::Reconciled result = turnhub::reconcile(base, entries, untilMs, random);
+  const turnhub::Game next = onThisClock ? result.game : turnhub::rebased(result.game, atlasNow - untilMs);
+  for (const auto &outcome : result.outcomes)
+    if (outcome.device == request->device.c_str()) request->outcomes.push(turnhub::toJson(outcome));
+  clearPendingPass("OFFLINE_SYNC");
+  table().eliminationTargetPlayer = 0;
+  if (!table().game.adoptOffline(next))
+    return IntentResult::reject(IntentStatus::Conflict, "That game's players changed on Atlas");
+  const bool closes = std::string(request->mode) == "late";
+  merge.open = !closes;
+  if (!closes) {
+    merge.base = base;
+    merge.baseBoot = request->baseBoot;
+    merge.onThisClock = onThisClock;
+    merge.entries = entries;
+    merge.resultRevision = table().game.core().revision;
+    merge.untilMs = untilMs;
+  }
+  if (table().game.gameOver()) finishGameState();
+  else table().hubState = table().game.core().state == turnhub::TableState::Running ? HubState::Running : HubState::Paused;
+  leds.invalidateAll();
+  serialLog.print("ATLAS|OFFLINE|");
+  serialLog.print(request->mode);
+  serialLog.print('|');
+  serialLog.print(static_cast<uint32_t>(request->entries.size()));
+  serialLog.print('|');
+  serialLog.println(static_cast<uint32_t>(request->outcomes.size()));
+  return IntentResult::accept("Offline actions synced");
+}
+
 // --- Concession -----------------------------------------------------------------
 
 // Unlike Eliminate, a concession restores running play if the match continues.

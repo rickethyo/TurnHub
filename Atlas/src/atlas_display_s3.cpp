@@ -17,12 +17,14 @@
 #include <LovyanGFX.hpp>
 #include <esp_heap_caps.h>
 #include <lvgl.h>
+#include <src/libs/tjpgd/tjpgd.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "atlas_app.h"
 #include "atlas_battery.h"
 #include "atlas_screen_lvgl.h"
+#include "card_cache.h"
 #include "config.h"
 #include "firmware_version.h"
 #include "optional_preferences.h"
@@ -125,7 +127,7 @@ uint32_t lastTouchPollMs = 0;
 uint32_t lastScreenPollMs = 0;
 uint32_t lastTouchedAtMs = 0;
 bool touchLogged = false;
-// Screen off (AtlasConfig::SCREEN_OFF_IDLE_MS): the backlight only.
+// Screen off (power_settings.h): the backlight only.
 bool screenDark = false;
 bool swallowTouch = false;  // The touch that lit the screen, until released.
 uint32_t screenActiveAtMs = 0;
@@ -149,13 +151,13 @@ void lightScreen(uint32_t nowMs) {
 
 void serviceScreenOff(uint32_t nowMs) {
   if (screenDark || splashUp) return;
-  const bool battery = atlasOnBattery();
-  // On USB a running match keeps the clock in view.
-  if (!battery && !allTablesBetweenGames()) {
+  // Settings > Device > Sound, screen, sleep (power_settings.h); 0 keeps it on,
+  // by default during a match on USB so the clock stays in view.
+  const uint32_t idleMs = TurnHub::screenOffIdleMs(powerSettings, atlasOnBattery(), !allTablesBetweenGames());
+  if (idleMs == 0) {
     screenActiveAtMs = nowMs;
     return;
   }
-  const uint32_t idleMs = battery ? AtlasConfig::BATTERY_SCREEN_OFF_IDLE_MS : AtlasConfig::SCREEN_OFF_IDLE_MS;
   if (nowMs - screenActiveAtMs < idleMs) return;
   screenDark = true;
   tft.setBrightness(0);
@@ -252,6 +254,80 @@ void beginAtlasDisplay() {
   serialLog.println(line);
 }
 
+namespace {
+
+// The Planechase card view turns the panel (and its touch) to landscape;
+// everything else is portrait.
+bool landscape = false;
+void orient(bool wide) {
+  if (wide == landscape) return;
+  landscape = wide;
+  tft.setRotation(wide ? AtlasConfig::LCD_CARD_ROTATION : AtlasConfig::LCD_ROTATION);
+  lv_display_set_resolution(display, wide ? H : W, wide ? W : H);
+  serialLog.println(wide ? "ATLAS|DISPLAY|LANDSCAPE" : "ATLAS|DISPLAY|PORTRAIT");
+}
+
+// --- the card view's art: one plane's JPEG decoded into PSRAM ---------------
+
+struct JpegSource {
+  const uint8_t *data;
+  size_t size, at;
+  uint16_t *out;
+};
+
+size_t jpegInput(JDEC *jd, uint8_t *buff, size_t n) {
+  auto *src = static_cast<JpegSource *>(jd->device);
+  if (n > src->size - src->at) n = src->size - src->at;
+  if (buff) memcpy(buff, src->data + src->at, n);
+  src->at += n;
+  return n;
+}
+
+// TJpgDec hands over RGB888 blocks; the panel's buffers are RGB565.
+int jpegOutput(JDEC *jd, void *bitmap, JRECT *rect) {
+  auto *src = static_cast<JpegSource *>(jd->device);
+  const uint8_t *rgb = static_cast<const uint8_t *>(bitmap);
+  for (int y = rect->top; y <= rect->bottom; ++y) {
+    for (int x = rect->left; x <= rect->right; ++x, rgb += 3) {
+      if (x >= TurnHubCards::PLANE_ART_WIDTH || y >= TurnHubCards::PLANE_ART_HEIGHT) continue;
+      src->out[y * TurnHubCards::PLANE_ART_WIDTH + x] =
+          static_cast<uint16_t>((rgb[0] & 0xF8) << 8 | (rgb[1] & 0xFC) << 3 | rgb[2] >> 3);
+    }
+  }
+  return 1;
+}
+
+}  // namespace
+
+const uint16_t *planeArtPixels(const char *planeId) {
+  static uint16_t *pixels = nullptr;
+  static uint8_t *jpeg = nullptr;
+  static char shownId[TurnHubCards::CARD_ID_LENGTH + 1] = "";
+  static bool decoded = false;
+  if (!planeId || !planeId[0]) return nullptr;
+  if (!strcmp(shownId, planeId)) return decoded ? pixels : nullptr;
+  snprintf(shownId, sizeof(shownId), "%s", planeId);
+  decoded = false;
+  constexpr size_t pixelBytes = sizeof(uint16_t) * TurnHubCards::PLANE_ART_WIDTH * TurnHubCards::PLANE_ART_HEIGHT;
+  if (!pixels) pixels = static_cast<uint16_t *>(heap_caps_malloc(pixelBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  if (!jpeg) jpeg = static_cast<uint8_t *>(heap_caps_malloc(TurnHubCards::MAX_PLANE_ART_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  size_t size = 0;
+  if (!pixels || !jpeg || !TurnHubCards::readPlaneArt(planeId, jpeg, TurnHubCards::MAX_PLANE_ART_BYTES, size)) return nullptr;
+  memset(pixels, 0, pixelBytes);
+  JpegSource src{jpeg, size, 0, pixels};
+  static uint8_t work[4096];
+  JDEC jd;
+  const uint32_t startedMs = millis();
+  JRESULT rc = jd_prepare(&jd, jpegInput, work, sizeof(work), &src);
+  if (rc == JDR_OK) rc = jd_decomp(&jd, jpegOutput, 0);
+  char line[72];
+  snprintf(line, sizeof(line), "ATLAS|DISPLAY|PLANE_ART|%s|%u|MS|%lu", rc == JDR_OK ? "OK" : "BAD", static_cast<unsigned>(rc),
+           static_cast<unsigned long>(millis() - startedMs));
+  serialLog.println(line);
+  decoded = rc == JDR_OK;
+  return decoded ? pixels : nullptr;
+}
+
 void serviceAtlasDisplay(uint32_t nowMs) {
   if (!displayReady) return;
   if (screenTesting) {
@@ -304,6 +380,7 @@ void serviceAtlasDisplay(uint32_t nowMs) {
       // rebuilds, and lights a dark screen.
       if (!shownValid || !sameScreenButTimes(screen, shown) || !updateAtlasScreenTimes(screen) ||
           !updateAtlasScreenMana(screen)) {
+        orient(screen.kind == ScreenKind::PlaneCard);
         renderAtlasScreen(screen, {theme, inverted});
         lightScreen(nowMs);
       }

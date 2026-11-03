@@ -239,7 +239,14 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   Atlas plays Planechase with physical planes or its digital deck (the plane
   catalog the app sends, kept on the microSD card), with a Planes page on the
   Atlas screen; profiles keep six saved commanders on the card, chosen from
-  the app, the tablet or the Atlas screen's player page. Next: Atlas
+  the app, the tablet or the Atlas screen's player page. The Planes page is
+  a full plane card and every accepted roll animates the planar die on the
+  Atlas screen (2026-11-02, GAMEPLAY.md); Card shows the face-up plane full
+  screen in landscape with its art and text, which the app sends (2026-11-03).
+  Seated signed-in players pick the Atlas screen's view from the app's Planes
+  tab (2026-11-03); the same picker for games without Planechase (Game or
+  Table) waits for a home in the app's Game menu.
+  Next: Atlas
   downloads the catalog itself over home Wi-Fi and refreshes it periodically;
   the Sigil's profile picker offers saved commanders; recovery keeps the
   digital deck's order (it restarts as physical planes today).
@@ -259,8 +266,12 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   markers ported), then the old engines and Invariant 1's wording go. Then implement
   the validated handoff, fenced phone authority, reconnect reconciliation and
   durable completion receipts in [Shared table authority](TABLE_AUTHORITY.md).
-  Unified lobby/table presentation is implemented; full offline hosting of an
-  Atlas game is not.
+  Unified lobby/table presentation is implemented. Offline play (2026-11-03,
+  [Shared table authority](TABLE_AUTHORITY.md#offline-play-owner-2026-11-03)):
+  phones keep an Atlas game going and Atlas merges their timestamped queues;
+  host-tested only. Open: play it on the boards (drop Atlas's power mid-game with
+  two phones, then a Wi-Fi drop with a Sigil pressing meanwhile); keep the queue
+  across an app restart; a rematch offline; Sigils during an outage.
   When Planechase reaches the core, the Atlas screen gets a Planes tab that,
   as in the app (2026-10-30), shows only while Planechase is on; the Atlas
   New game list then gains its Planechase toggle and the app's other modes.
@@ -383,6 +394,13 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   measured multi-phone evidence. Measure idle/radio/display/audio/LED/sleep
   current and power-bank behavior (H03). Product transport, battery/charging
   and manufacturing choices remain in Production decisions below.
+
+- **Sigil screen-off choice** (Planned, owner 2026-11-03): Atlas's screen and
+  sleep settings (`power_settings.h`) don't reach Sigils, which keep a fixed
+  2 min screen off outside a match. Carry a screen-off choice to Sigils over
+  the radio (a `protocol.h` change, reflash both) or give the Sigil its own
+  Settings row. The phone app keeps the screen awake in tablet mode; a matching
+  choice there is the app's counterpart.
 
 - **Mana Tap champion on Atlas** (Planned, owner idea 2026-10-30): Atlas could
   show a "Mana Tap champ" line between games. Needs the Sigils to report best

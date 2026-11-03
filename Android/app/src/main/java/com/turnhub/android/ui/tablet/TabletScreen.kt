@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -104,6 +105,8 @@ fun TabletScreen(
     onFullScreen: () -> Unit = {},
     setupOnly: Boolean = false,
     localProfiles: List<com.turnhub.android.standalone.SavedLocalPlayer> = emptyList(),
+    /** Atlas dropped off mid-game: the game going on on this device until it answers again. */
+    offlineGame: com.turnhub.android.data.OfflineAtlasGame? = null,
 ) {
     var previousState by remember { mutableStateOf(summary?.state) }
     androidx.compose.runtime.LaunchedEffect(summary?.state) {
@@ -133,6 +136,10 @@ fun TabletScreen(
                     summary.state == TableState.LOBBY && setupOnly -> Lobby(summary, tablet, scopedActions, onClose, onEditBackground, canEditBackground,
                         enabled = granted && !offline && !switching, embedded = embedded, localProfiles = localProfiles,
                         access = {})
+                    offline && offlineGame != null -> {
+                        if (!embedded) Immersive()
+                        OfflineTable(offlineGame, reduceMotion, onClose, phoneView = setupOnly)
+                    }
                     else -> {
                         if (!embedded) Immersive()
                         Column(Modifier.fillMaxSize()) {
@@ -146,13 +153,49 @@ fun TabletScreen(
                 }
                 if (offline && summary != null) {
                     val playing = granted && summary.state != TableState.LOBBY
-                    if (playing) OfflineStrip(tablet.waiting, Modifier.align(Alignment.TopCenter))
+                    if (playing && offlineGame != null) OfflinePlayStrip(Modifier.align(Alignment.TopCenter))
+                    else if (playing) OfflineStrip(tablet.waiting, Modifier.align(Alignment.TopCenter))
                     else OfflineCover(summary, onClose)
                 }
             }
         }
     }
     }
+}
+
+/**
+ * Atlas dropped off mid-game (owner, 2026-11-03): the game goes on here on the
+ * same rules, from Atlas's last whole game. Every move is saved for Atlas with
+ * its time and goes to it when it answers again.
+ */
+@Composable
+private fun OfflineTable(played: com.turnhub.android.data.OfflineAtlasGame, reduceMotion: Boolean, onClose: () -> Unit, phoneView: Boolean) {
+    val state by played.table.state.collectAsState()
+    // Turn timers run out here as they would on Atlas (Atlas works them out again itself).
+    LaunchedEffect(played) {
+        while (true) {
+            played.table.tick()
+            kotlinx.coroutines.delay(500)
+        }
+    }
+    LocalTable(state, played.table, reduceMotion, onClose, phoneView = phoneView)
+}
+
+@Composable
+private fun OfflinePlayStrip(modifier: Modifier) {
+    val p = palette
+    Text(
+        "Atlas is offline. The game goes on here; every move is saved for Atlas.",
+        color = p.text,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = modifier
+            .safeDrawingPadding()
+            .padding(top = 6.dp)
+            .background(p.surface, RoundedCornerShape(99.dp))
+            .border(1.dp, p.warn, RoundedCornerShape(99.dp))
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+    )
 }
 
 /**
@@ -291,7 +334,8 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
     // when Atlas's catalog differs (first connection, newer download).
     LaunchedEffect(summary.atlasId, enabled, PlaneLibrary.cards) {
         val planes = PlaneLibrary.known(context)?.values?.toList().orEmpty()
-        if (enabled && planes.isNotEmpty()) actions.run { syncPlanes(planes) }
+        // ...then each plane's text and art for the Atlas card view.
+        if (enabled && planes.isNotEmpty()) AtlasPlaneSync.send(actions, planes, all = false) { PlaneLibrary.source(context).art(it) }
     }
     // Each seated profile's saved commanders, quick to pick again (kept on Atlas's card).
     var savedCommanders by remember { mutableStateOf(emptyMap<String, List<Pair<String, String?>>>()) }
@@ -376,6 +420,14 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
                     if (PlaneLibrary.pool(context).isEmpty()) "Downloading the planes for Atlas…"
                     else "Atlas shuffles the ${PlaneLibrary.pool(context).size} planes this app sent it.",
                     color = p.muted, style = MaterialTheme.typography.bodySmall)
+                // What the sync is doing now, and a manual resend of every plane's text and art.
+                AtlasPlaneSync.status?.let { Text(it, color = p.text, style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite }) }
+                val planes = PlaneLibrary.known(context)?.values?.toList().orEmpty()
+                if (planes.isNotEmpty()) androidx.compose.material3.OutlinedButton(
+                    onClick = { AtlasPlaneSync.send(actions, planes, all = true) { PlaneLibrary.source(context).art(it) } },
+                    enabled = enabled && !AtlasPlaneSync.running,
+                ) { Text(if (AtlasPlaneSync.running) "Sending planes…" else "Send planes to Atlas") }
             }
         },
         feedback = {
@@ -413,4 +465,25 @@ private fun PinDialog(name: String, onSubmit: (String) -> Unit, onDismiss: () ->
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = p.text) } },
     )
+}
+
+/**
+ * The plane catalog and card sync to Atlas: one at a time, with its progress in words for
+ * the lobby (the Atlas screen shows the same as a toast).
+ */
+internal object AtlasPlaneSync {
+    var status by mutableStateOf<String?>(null)
+    var running by mutableStateOf(false)
+
+    fun send(actions: TabletActions, planes: List<com.turnhub.android.data.PlaneInfo>, all: Boolean,
+        art: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray?) {
+        if (running) return
+        running = true
+        actions.run {
+            try {
+                syncPlanes(planes) { status = it }
+                syncPlaneCards(planes, all, { status = it }, art)
+            } finally { running = false }
+        }
+    }
 }

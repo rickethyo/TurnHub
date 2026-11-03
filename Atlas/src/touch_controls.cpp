@@ -47,6 +47,8 @@ uint8_t pressedArg = 0;
 uint32_t lastContactAtMs = 0;
 
 char noticeText[sizeof(AtlasScreen::notice)] = {};
+char syncText[sizeof(AtlasScreen::sync)] = {};
+uint32_t syncAtMs = 0;
 uint32_t noticeAtMs = 0;
 
 // Which screen is up, and the QR code chosen on the QR screen.
@@ -269,13 +271,17 @@ ScreenKind baseScreen(uint32_t nowMs) {
   // once that player is out.
   PlayerSeat shown;
   if (openScreen == ScreenKind::Player && !currentShownSeat(shown)) openScreen = ScreenKind::Status;
-  if ((openScreen == ScreenKind::Menu || openScreen == ScreenKind::Device || openScreen == ScreenKind::Themes) && !menuAvailable()) {
+  if ((openScreen == ScreenKind::Menu || openScreen == ScreenKind::Device || openScreen == ScreenKind::Power ||
+       openScreen == ScreenKind::Themes) && !menuAvailable()) {
     openScreen = ScreenKind::Status;
   }
   const bool lobbyOnly = openScreen == ScreenKind::Seat || openScreen == ScreenKind::Name ||
       openScreen == ScreenKind::Pin || openScreen == ScreenKind::NewGame;
   if (lobbyOnly && table().hubState != HubState::Lobby) openScreen = ScreenKind::Status;
-  if (openScreen == ScreenKind::Planes && (!matchInProgress() || !table().game.planar().enabled)) openScreen = ScreenKind::Status;
+  if (openScreen == ScreenKind::PlaneCard && (!table().game.planar().digital || !table().game.planar().plane[0]))
+    openScreen = ScreenKind::Planes;
+  if ((openScreen == ScreenKind::Planes || openScreen == ScreenKind::PlaneCard) &&
+      (!matchInProgress() || !table().game.planar().enabled)) openScreen = ScreenKind::Status;
   if (pendingPresenceCode(nowMs) != nullptr) return ScreenKind::Code;
   if (waitingPairSlot() != INVALID_ID) return ScreenKind::PairCode;
   if (openScreen == ScreenKind::Status && setupScreenDue()) return ScreenKind::Setup;
@@ -319,11 +325,9 @@ void layoutMenu(AtlasScreen &screen) {
 // stand in for the BOOT button's held gestures.
 void layoutDevice(AtlasScreen &screen) {
   const bool usbWanted = sdCardUsbShareWanted();
-  static char volume[32];
-  snprintf(volume, sizeof(volume), "Volume: %s", TurnHub::speakerVolumeName(audio.speakerVolume()));
   ButtonSpec rows[5];
   uint8_t n = 0;
-  rows[n++] = {TouchAction::SpeakerVolume, volume, 0, 1};
+  rows[n++] = {TouchAction::OpenPower, "Sound, screen, sleep", 0, 1};
   rows[n++] = {TouchAction::UsbDrive, usbWanted ? "USB drive: on" : "USB drive: off", 0, 1};
   if (!matchInProgress()) rows[n++] = {TouchAction::SleepAtlas, "Sleep", 0, 1};
   if (table().hubState == HubState::Lobby) rows[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", ASK, 1};
@@ -332,6 +336,21 @@ void layoutDevice(AtlasScreen &screen) {
   for (uint8_t i = 0; i < screen.buttonCount; ++i) {
     if (screen.buttons[i].action == TouchAction::UsbDrive) screen.buttons[i].selected = usbWanted;
   }
+  const ButtonSpec back[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
+  addRow(screen, BUTTON_ROW_Y, back, 1);
+}
+
+// Settings > Device > Sound, screen, sleep: the speaker volume and the three
+// power rows, each tap the next choice, then Back to Device.
+void layoutPower(AtlasScreen &screen) {
+  static char volume[32], screenOff[32], inGames[32], autoSleep[32];
+  snprintf(volume, sizeof(volume), "Volume: %s", TurnHub::speakerVolumeName(audio.speakerVolume()));
+  snprintf(screenOff, sizeof(screenOff), "Screen off: %s", TurnHub::SCREEN_OFF_CHOICES[powerSettings.screenOff]);
+  snprintf(inGames, sizeof(inGames), "Off in games: %s", TurnHub::GAME_SCREEN_CHOICES[powerSettings.gameScreen]);
+  snprintf(autoSleep, sizeof(autoSleep), "Deep sleep: %s", TurnHub::AUTO_SLEEP_CHOICES[powerSettings.autoSleep]);
+  const ButtonSpec rows[] = {{TouchAction::SpeakerVolume, volume, 0, 1}, {TouchAction::PowerScreenOff, screenOff, 0, 1},
+      {TouchAction::PowerGameScreen, inGames, 0, 1}, {TouchAction::PowerAutoSleep, autoSleep, 0, 1}};
+  addList(screen, rows, 4);
   const ButtonSpec back[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
   addRow(screen, BUTTON_ROW_Y, back, 1);
 }
@@ -355,9 +374,12 @@ void layoutThemes(AtlasScreen &screen) {
 // In-game controls kept off the main row: Master pass (a stuck turn, running
 // games only) and End match, each confirmed in the popup; then Back.
 void layoutTable(AtlasScreen &screen) {
-  ButtonSpec rows[2];
+  ButtonSpec rows[3];
   uint8_t n = 0;
   if (table().hubState == HubState::Running) rows[n++] = {TouchAction::MasterPass, "Master pass", ASK, 1};
+  // As in the app: within the first three minutes, undo the start (nothing is recorded).
+  if (table().game.gameElapsedMs(millis()) <= TurnHub::UNDO_START_MS)
+    rows[n++] = {TouchAction::BackToSetup, "Back to setup", ASK, 1};
   rows[n++] = {TouchAction::EndMatch, "End match", ASK, 1};
   addList(screen, rows, n);
   const ButtonSpec back[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
@@ -481,6 +503,7 @@ const char *confirmLabel(TouchAction action) {
   switch (action) {
     case TouchAction::EndMatch: return "End match";
     case TouchAction::MasterPass: return "Pass turn";
+    case TouchAction::BackToSetup: return "Back to setup";
     case TouchAction::ClearLobby: return "Clear lobby";
     case TouchAction::ResetTable: return "Reset";
     case TouchAction::RemoveSeat: return "Remove";
@@ -635,20 +658,36 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     }
     case ScreenKind::Confirm: layoutConfirm(screen); return;
     case ScreenKind::NewGame: layoutNewGame(screen); return;
+    // The plane card fills the body (the display draws it); the die and the
+    // card-says-so planeswalk sit under it within thumb reach.
     case ScreenKind::Planes: {
-      ButtonSpec rows[3];
-      uint8_t n = 0;
       const auto planes = table().game.planar();
       if (table().hubState == HubState::Running) {
-        if (planes.phenomenon) rows[n++] = {TouchAction::PlanarResolve, "Resolve phenomenon", 0, 1};
-        else rows[n++] = {TouchAction::PlanarRoll, "Roll the planar die", 0, 1};
-        rows[n++] = {TouchAction::PlanarWalk, "Planeswalk (a card says so)", 0, 1};
+        static char roll[32];
+        if (planes.rollCost > 0) snprintf(roll, sizeof(roll), "Roll: %ld mana", static_cast<long>(planes.rollCost));
+        else snprintf(roll, sizeof(roll), "Roll the die: free");
+        const ButtonSpec upper[] = {planes.phenomenon ? ButtonSpec{TouchAction::PlanarResolve, "Resolve phenomenon", 0, 1}
+                                                       : ButtonSpec{TouchAction::PlanarRoll, roll, 0, 1}};
+        addRow(screen, BUTTON_UPPER_ROW_Y, upper, 1);
+        ButtonSpec lower[3];
+        uint8_t n = 0;
+        lower[n++] = {TouchAction::PlanarWalk, "Planeswalk", 0, 3};
+        if (planes.digital && planes.plane[0]) lower[n++] = {TouchAction::OpenPlaneCard, "Card", 0, 2};
+        lower[n++] = {TouchAction::CloseScreen, "Back", 0, 2};
+        addRow(screen, BUTTON_ROW_Y, lower, n);
+        return;
       }
-      addList(screen, rows, n);
-      const ButtonSpec lower[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
-      addRow(screen, BUTTON_ROW_Y, lower, 1);
+      ButtonSpec lower[2];
+      uint8_t n = 0;
+      if (planes.digital && planes.plane[0]) lower[n++] = {TouchAction::OpenPlaneCard, "Card view", 0, 1};
+      lower[n++] = {TouchAction::CloseScreen, "Back", 0, 1};
+      addRow(screen, BUTTON_ROW_Y, lower, n);
       return;
     }
+    // The whole landscape panel is one button back to the Planes page.
+    case ScreenKind::PlaneCard:
+      addKey(screen, TouchAction::PlaneCardBack, "Back", 0, 0, ATLAS_SCREEN_HEIGHT, ATLAS_SCREEN_WIDTH, 0);
+      return;
     case ScreenKind::Overview: {
       const uint8_t count = table().hubState == HubState::Lobby ? table().lobby.playerCount() : table().game.playerCount();
       if (count > MAX_SCREEN_PLAYERS) {
@@ -678,6 +717,7 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     case ScreenKind::Device:
       layoutDevice(screen);
       return;
+    case ScreenKind::Power: layoutPower(screen); return;
     case ScreenKind::Player:
       layoutPlayer(screen);
       return;
@@ -722,12 +762,7 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     // Pass is a tap: it keeps its grace period, so the seat can still cancel.
     // The master pass and End match sit on the Actions screen.
     case HubState::Running: {
-      if (table().game.planar().enabled) {
-        const ButtonSpec row[] = {{TouchAction::PassTurn, "Pass", 0, 3}, {TouchAction::Pause, "Pause", 0, 2},
-            {TouchAction::OpenPlanes, "Planes", 0, 2}, {TouchAction::OpenTable, "Actions", 0, 2}};
-        addRow(screen, BUTTON_ROW_Y, row, 4);
-        break;
-      }
+      // Planechase's Planes page is a tab of its own (layoutButtons).
       const ButtonSpec row[] = {{TouchAction::PassTurn, "Pass", 0, 3},
           {TouchAction::Pause, "Pause", 0, 2}, {TouchAction::OpenTable, "Actions", 0, 3}};
       addRow(screen, BUTTON_ROW_Y, row, 3);
@@ -756,15 +791,25 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
   layoutContentButtons(screen, nowMs);
   const auto kind = activeScreen(nowMs);
   if (kind == ScreenKind::Code || kind == ScreenKind::PairCode || kind == ScreenKind::Name ||
-      kind == ScreenKind::Pin || kind == ScreenKind::Setup || kind == ScreenKind::Confirm) return;
+      kind == ScreenKind::Pin || kind == ScreenKind::Setup || kind == ScreenKind::Confirm ||
+      kind == ScreenKind::PlaneCard) return;
+  // A Planechase match adds a Planes tab after Table, as the app does.
+  const bool planesTab = matchInProgress() && table().game.planar().enabled;
   const TouchAction actions[] = {TouchAction::OpenHome, TouchAction::OpenGame,
-      TouchAction::OpenOverview, TouchAction::OpenSettings};
+      TouchAction::OpenOverview, TouchAction::OpenPlanes, TouchAction::OpenSettings};
+  const char *labels[] = {TurnHubUi::pageTitle(TurnHubUi::Page::Home), TurnHubUi::pageTitle(TurnHubUi::Page::Game),
+      TurnHubUi::pageTitle(TurnHubUi::Page::Table), "Planes", TurnHubUi::pageTitle(TurnHubUi::Page::Settings)};
   const uint8_t selected = kind == ScreenKind::Home || kind == ScreenKind::ManaTap ? 0 : kind == ScreenKind::Status || kind == ScreenKind::Player ||
-      kind == ScreenKind::Table || kind == ScreenKind::Seat || kind == ScreenKind::NewGame || kind == ScreenKind::Planes ? 1
-      : kind == ScreenKind::Overview ? 2 : 3;
-  for (uint8_t i=0; i<TurnHubUi::PAGE_COUNT; ++i) {
-    addKey(screen,actions[i],TurnHubUi::pageTitle(static_cast<TurnHubUi::Page>(i)),i*80,432,80,48,0);
+      kind == ScreenKind::Table || kind == ScreenKind::Seat || kind == ScreenKind::NewGame || (!planesTab && kind == ScreenKind::Planes) ? 1
+      : kind == ScreenKind::Overview ? 2 : kind == ScreenKind::Planes ? 3 : 4;
+  const uint8_t count = planesTab ? 5 : 4;
+  const int16_t w = ATLAS_SCREEN_WIDTH / count;
+  uint8_t slot = 0;
+  for (uint8_t i = 0; i < 5; ++i) {
+    if (i == 3 && !planesTab) continue;
+    addKey(screen, actions[i], labels[i], slot * w, 432, slot + 1 == count ? ATLAS_SCREEN_WIDTH - slot * w : w, 48, 0);
     screen.buttons[screen.buttonCount-1].selected = i == selected;
+    ++slot;
   }
 }
 
@@ -815,6 +860,7 @@ const char *actionName(TouchAction action) {
     case TouchAction::ClearLobby: return "CLEAR_LOBBY";
     case TouchAction::OpenTable: return "OPEN_TABLE";
     case TouchAction::MasterPass: return "MASTER_PASS";
+    case TouchAction::BackToSetup: return "BACK_TO_SETUP";
     case TouchAction::Pause: return "PAUSE";
     case TouchAction::Resume: return "RESUME";
     case TouchAction::EndMatch: return "END_MATCH";
@@ -857,6 +903,10 @@ const char *actionName(TouchAction action) {
     case TouchAction::UnpairSigils: return "UNPAIR_SIGILS";
     case TouchAction::FactoryResetAtlas: return "FACTORY_RESET_ATLAS";
     case TouchAction::SleepAtlas: return "SLEEP_ATLAS";
+    case TouchAction::OpenPower: return "OPEN_POWER";
+    case TouchAction::PowerScreenOff: return "POWER_SCREEN_OFF";
+    case TouchAction::PowerGameScreen: return "POWER_GAME_SCREEN";
+    case TouchAction::PowerAutoSleep: return "POWER_AUTO_SLEEP";
     case TouchAction::OpenSeat: return "OPEN_SEAT";
     case TouchAction::SeatProfile: return "SEAT_PROFILE";
     case TouchAction::SeatMore: return "SEAT_MORE";
@@ -880,6 +930,8 @@ const char *actionName(TouchAction action) {
     case TouchAction::ManaAction: return "MANA_ACTION";
     case TouchAction::ManaQuit: return "MANA_QUIT";
     case TouchAction::OpenPlanes: return "OPEN_PLANES";
+    case TouchAction::OpenPlaneCard: return "OPEN_PLANE_CARD";
+    case TouchAction::PlaneCardBack: return "PLANE_CARD_BACK";
     case TouchAction::PlanarRoll: return "PLANAR_ROLL";
     case TouchAction::PlanarWalk: return "PLANAR_WALK";
     case TouchAction::PlanarResolve: return "PLANAR_RESOLVE";
@@ -901,6 +953,7 @@ IntentType tableIntentType(TouchAction action) {
     case TouchAction::Pair: return IntentType::PairRequest;
     case TouchAction::EndMatch: return IntentType::EndMatch;
     case TouchAction::MasterPass: return IntentType::MasterPass;
+    case TouchAction::BackToSetup: return IntentType::BackToSetup;
     case TouchAction::StartGame: return IntentType::StartGame;
     case TouchAction::CancelStart: return IntentType::CancelStart;
     case TouchAction::Rematch: return IntentType::Rematch;
@@ -974,6 +1027,8 @@ bool navigate(TouchAction action) {
     case TouchAction::OverviewNext: overviewPage = overviewPage ? 0 : 1; return true;
     case TouchAction::OpenNewGame: openScreen = ScreenKind::NewGame; return true;
     case TouchAction::OpenPlanes: openScreen = ScreenKind::Planes; return true;
+    case TouchAction::OpenPlaneCard: openScreen = ScreenKind::PlaneCard; return true;
+    case TouchAction::PlaneCardBack: openScreen = ScreenKind::Planes; return true;
     case TouchAction::ConfirmNo: confirmAction = TouchAction::None; return true;
     case TouchAction::OpenQr: openScreen = ScreenKind::Qr; return true;
     case TouchAction::OpenTable: openScreen = ScreenKind::Table; return true;
@@ -1009,6 +1064,7 @@ bool navigate(TouchAction action) {
       return true;
     }
     case TouchAction::OpenDevice: openScreen = ScreenKind::Device; return true;
+    case TouchAction::OpenPower: openScreen = ScreenKind::Power; return true;
     case TouchAction::OpenPlayer:
       openScreen = ScreenKind::Player;
       shownSeat = pressedSeat;
@@ -1044,6 +1100,10 @@ bool navigate(TouchAction action) {
       if (openScreen == ScreenKind::Name || openScreen == ScreenKind::Pin) {
         typedPin[0] = '\0';
         openSeatScreen(seatPage);
+        return true;
+      }
+      if (openScreen == ScreenKind::Power && menuAvailable()) {
+        openScreen = ScreenKind::Device;
         return true;
       }
       const bool fromMenuScreen = openScreen == ScreenKind::Qr || openScreen == ScreenKind::Device ||
@@ -1202,6 +1262,7 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
     case TouchAction::Pair:
     case TouchAction::EndMatch:
     case TouchAction::MasterPass:
+    case TouchAction::BackToSetup:
     case TouchAction::StartGame:
     case TouchAction::CancelStart:
     case TouchAction::Rematch:
@@ -1214,7 +1275,7 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       // After a master pass, End match or Pair (from the Menu), show the
       // table what happened: the turn, the result or the pairing countdown.
       if (result.accepted() && (action == TouchAction::MasterPass || action == TouchAction::EndMatch ||
-          action == TouchAction::Pair)) {
+          action == TouchAction::BackToSetup || action == TouchAction::Pair)) {
         openScreen = ScreenKind::Status;
       }
       break;
@@ -1360,6 +1421,20 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       intent.actor.controllerId = seat.controllerId;
       intent.actor.slot = seat.slot;
       intent.payload.value = next;
+      result = intents.dispatch(intent);
+      break;
+    }
+    case TouchAction::PowerScreenOff:
+    case TouchAction::PowerGameScreen:
+    case TouchAction::PowerAutoSleep: {
+      TurnHub::PowerSettings next = powerSettings;
+      if (action == TouchAction::PowerScreenOff) next.screenOff = (next.screenOff + 1) % TurnHub::SCREEN_OFF_CHOICE_COUNT;
+      else if (action == TouchAction::PowerGameScreen) next.gameScreen = (next.gameScreen + 1) % TurnHub::GAME_SCREEN_CHOICE_COUNT;
+      else next.autoSleep = (next.autoSleep + 1) % TurnHub::AUTO_SLEEP_CHOICE_COUNT;
+      Intent intent;
+      intent.type = IntentType::ConfigurePower;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
+      intent.payload.value = TurnHub::packPowerSettings(next);
       result = intents.dispatch(intent);
       break;
     }
@@ -1901,15 +1976,50 @@ void formatHome(AtlasScreen &screen, uint32_t nowMs) {
   screen.lineCount = 4;
 }
 
-// Planechase: the face-up plane (Atlas's digital deck) or the players' own.
+// Planechase: the face-up plane (Atlas's digital deck) or the players' own,
+// and the latest roll in words (the die animation is never the only place
+// it shows). planes.* was filled by fillPlanes.
 void formatPlanes(AtlasScreen &screen) {
-  const auto planes = table().game.planar();
+  const ScreenPlanes &planes = screen.planes;
   snprintf(screen.badge, sizeof(screen.badge), "PLANES");
-  const auto *card = planes.plane[0] ? TurnHubCards::findPlane(planes.plane) : nullptr;
-  snprintf(screen.title, sizeof(screen.title), "%s", card ? card->name : planes.digital ? "Planechase" : "Your own planes");
-  if (planes.phenomenon) snprintf(screen.detail, sizeof(screen.detail), "Phenomenon: resolve it, then planeswalk");
-  else snprintf(screen.detail, sizeof(screen.detail), "Walks %ld, chaos %ld. Next roll: %ld mana",
-      static_cast<long>(planes.planeswalks), static_cast<long>(planes.chaos), static_cast<long>(planes.rollCost));
+  snprintf(screen.title, sizeof(screen.title), "Planechase");
+  static const char *const faces[] = {"blank", "chaos", "planeswalk"};
+  if (planes.phenomenon) snprintf(screen.detail, sizeof(screen.detail), "Phenomenon: resolve it first");
+  else if (planes.roll > 0)
+    snprintf(screen.detail, sizeof(screen.detail), "%s rolled %s", planes.roller[0] ? planes.roller : "A player",
+        faces[planes.face < 3 ? planes.face : 0]);
+  else snprintf(screen.detail, sizeof(screen.detail), "The active player rolls");
+}
+
+// The Planechase fields every screen carries in a match (see ScreenPlanes).
+void fillPlanes(AtlasScreen &screen, uint32_t nowMs) {
+  if (!matchInProgress()) return;
+  const auto view = table().game.planar();
+  if (!view.enabled) return;
+  ScreenPlanes &out = screen.planes;
+  out.on = true;
+  out.digital = view.digital;
+  out.phenomenon = view.phenomenon;
+  if (const auto *card = view.plane[0] ? TurnHubCards::findPlane(view.plane) : nullptr)
+    snprintf(out.plane, sizeof(out.plane), "%s", card->name);
+  out.deckLeft = view.deckSize;
+  out.planeswalks = view.planeswalks;
+  out.chaos = view.chaos;
+  out.counters = view.counters;
+  out.rollCost = view.rollCost;
+  out.roll = view.lastRoll;
+  out.face = view.lastFace;
+  out.cost = view.lastCost;
+  out.fromEffect = view.lastFromEffect;
+  if (view.lastRoll > 0) {
+    if (const PlayerSeat *seat = table().game.playerByNumber(view.lastPlayer))
+      playerName(*seat, profileIdForTableSeat(*seat, true), nowMs, out.roller);
+  }
+  // Only the card view reads the card (from the microSD card, once per plane).
+  if (screen.kind == ScreenKind::PlaneCard && view.plane[0]) {
+    out.card = TurnHubCards::planeCard(view.plane);
+    if (out.card && out.card->art) out.art = planeArtPixels(view.plane);
+  }
 }
 
 void formatManaTap(AtlasScreen &screen) {
@@ -1966,6 +2076,10 @@ void formatConfirm(AtlasScreen &screen, uint32_t nowMs) {
     case TouchAction::EndMatch:
       snprintf(screen.title, sizeof(screen.title), "End the match?");
       snprintf(screen.detail, sizeof(screen.detail), "It ends for everyone as a draw.");
+      break;
+    case TouchAction::BackToSetup:
+      snprintf(screen.title, sizeof(screen.title), "Back to setup?");
+      snprintf(screen.detail, sizeof(screen.detail), "Same players and settings; nothing saved.");
       break;
     case TouchAction::MasterPass:
       if (turn[0]) snprintf(screen.title, sizeof(screen.title), "Pass for %s?", turn);
@@ -2153,6 +2267,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen.batteryCharging = battery.present && battery.charging;
   screen.update = firmwareUpdateKind();
   screen.sigilsOnline = sigilBus.activeCount(nowMs);
+  fillPlanes(screen, nowMs);
   switch (screen.kind) {
     case ScreenKind::Home:
       formatHome(screen, nowMs);
@@ -2160,7 +2275,8 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
     case ScreenKind::ManaTap: formatManaTap(screen); break;
     case ScreenKind::Confirm: formatConfirm(screen, nowMs); break;
     case ScreenKind::NewGame: formatNewGame(screen); break;
-    case ScreenKind::Planes: formatPlanes(screen); break;
+    case ScreenKind::Planes:
+    case ScreenKind::PlaneCard: formatPlanes(screen); break;
     case ScreenKind::Overview:
       formatStatus(screen,nowMs);
       snprintf(screen.title,sizeof(screen.title),"Table");
@@ -2178,6 +2294,11 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
       snprintf(screen.detail, sizeof(screen.detail), "Choose the look for this Atlas");
       break;
     case ScreenKind::Device: formatDevice(screen); break;
+    case ScreenKind::Power:
+      snprintf(screen.badge, sizeof(screen.badge), "POWER");
+      snprintf(screen.title, sizeof(screen.title), "Sound, screen, sleep");
+      snprintf(screen.detail, sizeof(screen.detail), "Deep sleep runs on battery only");
+      break;
     case ScreenKind::Player: formatPlayer(screen, nowMs); break;
     case ScreenKind::Setup: formatSetup(screen, nowMs); break;
     case ScreenKind::Seat:
@@ -2185,6 +2306,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
     case ScreenKind::Pin: formatSeat(screen); break;
   }
   layoutButtons(screen, nowMs);
+  if (syncText[0] != '\0' && nowMs - syncAtMs < SYNC_TOAST_MS) snprintf(screen.sync, sizeof(screen.sync), "%s", syncText);
   if (noticeText[0] != '\0' && nowMs - noticeAtMs < TOUCH_NOTICE_MS) {
     snprintf(screen.notice, sizeof(screen.notice), "%s", noticeText);
   }
@@ -2236,7 +2358,60 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
   pressInside = false;
 }
 
+void showSyncStatus(uint32_t nowMs, const char *text) {
+  snprintf(syncText, sizeof(syncText), "%s", text ? text : "");
+  syncAtMs = nowMs;
+}
+
+bool parseAtlasView(const char *key, AtlasView &view) {
+  if (key == nullptr) return false;
+  if (!strcmp(key, "game")) view = AtlasView::Game;
+  else if (!strcmp(key, "table")) view = AtlasView::Table;
+  else if (!strcmp(key, "planes")) view = AtlasView::Planes;
+  else if (!strcmp(key, "card")) view = AtlasView::Card;
+  else return false;
+  return true;
+}
+
+const char *atlasViewKey(uint32_t nowMs) {
+  switch (baseScreen(nowMs)) {
+    case ScreenKind::Status: return "game";
+    case ScreenKind::Overview: return "table";
+    case ScreenKind::Planes: return "planes";
+    case ScreenKind::PlaneCard: return "card";
+    default: return "other";
+  }
+}
+
+bool atlasViewAvailable(AtlasView view, const char *&error) {
+  // The touchscreen shows Game 1 until its game selector lands.
+  if (tableIndex() != 0) { error = "The Atlas screen shows Game 1"; return false; }
+  if (!matchInProgress()) { error = "Only during a game"; return false; }
+  const auto &planar = table().game.planar();
+  if ((view == AtlasView::Planes || view == AtlasView::Card) && !planar.enabled) {
+    error = "This game has no Planechase";
+    return false;
+  }
+  if (view == AtlasView::Card && (!planar.digital || !planar.plane[0])) {
+    error = "No plane card to show";
+    return false;
+  }
+  error = nullptr;
+  return true;
+}
+
+bool showAtlasView(AtlasView view, const char *&error) {
+  if (!atlasViewAvailable(view, error)) return false;
+  openScreen = view == AtlasView::Game ? ScreenKind::Status : view == AtlasView::Table ? ScreenKind::Overview
+      : view == AtlasView::Planes ? ScreenKind::Planes : ScreenKind::PlaneCard;
+  // A phone's choice drops a half-done touch on Atlas (its popup or player page).
+  confirmAction = TouchAction::None;
+  playerControlsOpen = false;
+  return true;
+}
+
 void resetTouchControls(bool startAtHome) {
+  syncText[0] = '\0';
   touchDown = false;
   pressInside = false;
   pressedAction = TouchAction::None;

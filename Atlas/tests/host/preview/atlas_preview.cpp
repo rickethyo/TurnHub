@@ -4,6 +4,7 @@
 // converts them to PNG when Pillow is available).
 
 #include <lvgl.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <string>
@@ -21,9 +22,9 @@ uint32_t nowMs = 0;
 
 void flush(lv_display_t *disp, const lv_area_t *area, uint8_t *pixels) {
   const auto *src = reinterpret_cast<const uint16_t *>(pixels);
-  const int w = lv_area_get_width(area);
+  const int w = lv_area_get_width(area), stride = lv_display_get_horizontal_resolution(disp);
   for (int y = area->y1; y <= area->y2; ++y)
-    for (int x = area->x1; x <= area->x2; ++x) frame[y * WIDTH + x] = src[(y - area->y1) * w + (x - area->x1)];
+    for (int x = area->x1; x <= area->x2; ++x) frame[y * stride + x] = src[(y - area->y1) * w + (x - area->x1)];
   lv_display_flush_ready(disp);
 }
 
@@ -32,7 +33,8 @@ void save(const std::string &name) {
   lv_refr_now(nullptr);
   const std::string path = "build/preview/" + name + ".ppm";
   FILE *f = fopen(path.c_str(), "wb");
-  fprintf(f, "P6\n%d %d\n255\n", WIDTH, HEIGHT);
+  fprintf(f, "P6\n%d %d\n255\n", static_cast<int>(lv_display_get_horizontal_resolution(nullptr)),
+          static_cast<int>(lv_display_get_vertical_resolution(nullptr)));
   for (uint16_t c : frame) {
     const uint8_t rgb[3] = {static_cast<uint8_t>((c >> 11 & 31) * 255 / 31),
         static_cast<uint8_t>((c >> 5 & 63) * 255 / 63), static_cast<uint8_t>((c & 31) * 255 / 31)};
@@ -102,6 +104,13 @@ void renderShell(AtlasScreen &s,const ScreenStyle &style,bool keepBanner=false) 
     const TouchAction actions[]={TouchAction::OpenHome,TouchAction::OpenGame,TouchAction::OpenOverview,TouchAction::OpenSettings};
     const uint8_t selected=s.kind==ScreenKind::Home||s.kind==ScreenKind::ManaTap?0:s.kind==ScreenKind::Overview?2:
         s.kind==ScreenKind::Menu||s.kind==ScreenKind::Device||s.kind==ScreenKind::Themes?3:1;
+    if (s.planes.on) {
+      // A Planechase match: Home, Game, Table, Planes, Settings.
+      const TouchAction five[]={TouchAction::OpenHome,TouchAction::OpenGame,TouchAction::OpenOverview,TouchAction::OpenPlanes,TouchAction::OpenSettings};
+      const char *names[]={"Home","Game","Table","Planes","Settings"};
+      const uint8_t pick=s.kind==ScreenKind::Planes?3:selected==3?4:selected;
+      for(uint8_t i=0;i<5;++i) { auto &b=s.buttons[s.buttonCount++];b.action=five[i];b.label=names[i];b.x=i*64;b.y=432;b.w=64;b.h=48;b.selected=i==pick; }
+    } else
     for(uint8_t i=0;i<4;++i) { auto &b=s.buttons[s.buttonCount++];b.action=actions[i];b.label=TurnHubUi::pageTitle(static_cast<TurnHubUi::Page>(i));b.x=i*80;b.y=432;b.w=80;b.h=48;b.selected=i==selected; }
   }
   renderAtlasScreen(s,style);
@@ -203,6 +212,21 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     renderShell(s, style); save("menu" + suffix);
   }
   {
+    // Actions in a game's first three minutes: Back to setup, as in the app.
+    AtlasScreen s = base("PLAYING", "Actions", "For the whole table");
+    s.kind = ScreenKind::Table;
+    list(s, {{TouchAction::MasterPass, "Master pass"}, {TouchAction::BackToSetup, "Back to setup"}, {TouchAction::EndMatch, "End match"}});
+    for (uint8_t i = 0; i < s.buttonCount; ++i) s.buttons[i].confirm = true;
+    row(s, BUTTON_ROW_Y, {{TouchAction::CloseScreen, "Back"}});
+    renderShell(s, style); save("actions" + suffix);
+    // The app sending plane cards: a toast over the game.
+    AtlasScreen g = base("PLAYING", "Sam's turn", "Turn 3");
+    g.round = 3; players(g, 4, true);
+    row(g, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Pass"}, {TouchAction::Pause, "Pause"}, {TouchAction::OpenTable, "Actions"}}, {3, 2, 3});
+    snprintf(g.sync, sizeof(g.sync), "Plane cards: 12 of 86");
+    renderShell(g, style); save("sync-toast" + suffix);
+  }
+  {
     AtlasScreen s = base("DEVICE", "Atlas device", "Unpair and Factory reset ask first");
     s.kind = ScreenKind::Device;
     list(s, {{TouchAction::UsbDrive, "USB drive: off"}, {TouchAction::SleepAtlas, "Sleep"},
@@ -292,6 +316,86 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     save("turn-banner" + suffix);
     nowMs += 3000; lv_timer_handler();
     lv_obj_clean(lv_layer_top());
+  }
+  {
+    // Planechase: the Planes screen (digital deck, a phenomenon, the players'
+    // own planes), then the planar die rolling over the game.
+    auto planes = [&](AtlasScreen &s) {
+      s.kind = ScreenKind::Planes;
+      row(s, BUTTON_UPPER_ROW_Y, {{TouchAction::PlanarRoll, "Roll: 1 mana"}});
+      row(s, BUTTON_ROW_Y, {{TouchAction::PlanarWalk, "Planeswalk"}, {TouchAction::CloseScreen, "Back"}}, {3, 2});
+    };
+    AtlasScreen s = base("PLANES", "Planechase", "Casey rolled chaos");
+    s.planes.on = s.planes.digital = true;
+    snprintf(s.planes.plane, sizeof(s.planes.plane), "Sokenzan, Crucible of Defiance");
+    s.planes.deckLeft = 31; s.planes.planeswalks = 4; s.planes.chaos = 2; s.planes.counters = 3; s.planes.rollCost = 1;
+    planes(s);
+    renderShell(s, style); save("planes" + suffix);
+    AtlasScreen ph = base("PLANES", "Planechase", "Phenomenon: resolve it first");
+    ph.planes = s.planes; ph.planes.phenomenon = true; ph.planes.counters = 0;
+    snprintf(ph.planes.plane, sizeof(ph.planes.plane), "Interplanar Tunnel");
+    ph.kind = ScreenKind::Planes;
+    row(ph, BUTTON_UPPER_ROW_Y, {{TouchAction::PlanarResolve, "Resolve phenomenon"}});
+    row(ph, BUTTON_ROW_Y, {{TouchAction::PlanarWalk, "Planeswalk"}, {TouchAction::CloseScreen, "Back"}}, {3, 2});
+    renderShell(ph, style); save("planes-phenomenon" + suffix);
+    AtlasScreen own = base("PLANES", "Planechase", "The active player rolls");
+    own.planes.on = true; own.planes.planeswalks = 1;
+    planes(own);
+    renderShell(own, style); save("planes-own" + suffix);
+    // The die: Sam rolls planeswalk from a Sigil while the game shows.
+    AtlasScreen g = base("PLAYING", "Sam's turn", "Turn 3");
+    g.round = 3; players(g, 4, true);
+    row(g, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Pass"}, {TouchAction::Pause, "Pause"}, {TouchAction::OpenTable, "Actions"}}, {3, 2, 3});
+    g.planes.on = true; g.planes.roll = 0;
+    renderShell(g, style);
+    g.planes.roll = 1; g.planes.face = 2; g.planes.cost = 1;
+    snprintf(g.planes.roller, sizeof(g.planes.roller), "Sam");
+    renderShell(g, style, true);
+    nowMs += 520; lv_timer_handler(); save("planar-die-tumble" + suffix);
+    nowMs += 900; lv_timer_handler(); save("planar-die-landed" + suffix);
+    g.planes.roll = 2; g.planes.face = 1; g.planes.cost = 0; g.planes.fromEffect = true;
+    renderShell(g, style, true);
+    nowMs += 1420; lv_timer_handler(); save("planar-die-chaos" + suffix);
+    nowMs += 4000; lv_timer_handler();
+    lv_obj_clean(lv_layer_top());
+    g.planes = ScreenPlanes(); renderShell(g, style);
+  }
+  {
+    // The card view, landscape: made-up plane text over generated scenery
+    // (no real card art or text in the repo), then with no art yet, then the
+    // die rolling over it.
+    static std::vector<uint16_t> art(TurnHubCards::PLANE_ART_WIDTH * TurnHubCards::PLANE_ART_HEIGHT);
+    for (int y = 0; y < TurnHubCards::PLANE_ART_HEIGHT; ++y)
+      for (int x = 0; x < TurnHubCards::PLANE_ART_WIDTH; ++x) {
+        const int ridge = 150 + static_cast<int>(40 * sin(x / 37.0) + 18 * sin(x / 11.0));
+        int r, g, b;
+        if (y < ridge) { r = 40 + y / 3; g = 70 + y / 2; b = 140 + y / 3; }
+        else { r = 30 + (y - ridge) / 4; g = 50 + (x % 60) / 6; b = 60; }
+        art[y * TurnHubCards::PLANE_ART_WIDTH + x] = static_cast<uint16_t>((r & 0xF8) << 8 | (g & 0xFC) << 3 | b >> 3);
+      }
+    static TurnHubCards::PlaneCard card;
+    snprintf(card.id, sizeof(card.id), "00000000-0000-0000-0000-000000000001");
+    snprintf(card.type, sizeof(card.type), "Plane - Glasswing");
+    snprintf(card.artist, sizeof(card.artist), "A. Painter");
+    snprintf(card.text, sizeof(card.text), "Artifact creatures you control get +1/+1.\nAt the beginning of your upkeep, you may scry 1.");
+    snprintf(card.chaos, sizeof(card.chaos), "Whenever chaos ensues, each player creates a 1/1 colorless Thopter artifact creature token with flying.");
+    card.art = true;
+    AtlasScreen s = base("PLANES", "Planechase", "");
+    s.kind = ScreenKind::PlaneCard;
+    s.planes.on = s.planes.digital = true; s.planes.counters = 2; s.planes.roll = 2;
+    snprintf(s.planes.plane, sizeof(s.planes.plane), "Glasswing Spires");
+    s.planes.card = &card; s.planes.art = art.data();
+    lv_display_set_resolution(lv_display_get_default(), HEIGHT, WIDTH);
+    renderShell(s, style); save("plane-card" + suffix);
+    AtlasScreen bare = s; bare.planes.art = nullptr; bare.planes.counters = 0;
+    renderShell(bare, style); save("plane-card-no-art" + suffix);
+    s.planes.roll = 3; s.planes.face = 1; snprintf(s.planes.roller, sizeof(s.planes.roller), "Casey");
+    renderShell(s, style, true);
+    nowMs += 1420; lv_timer_handler(); save("plane-card-roll" + suffix);
+    nowMs += 4000; lv_timer_handler();
+    lv_obj_clean(lv_layer_top());
+    lv_display_set_resolution(lv_display_get_default(), WIDTH, HEIGHT);
+    s.planes = ScreenPlanes(); s.kind = ScreenKind::Status; renderShell(s, style);
   }
   {
     AtlasScreen s = base("QR", "Join this table", "Scan with a phone camera");

@@ -15,7 +15,7 @@ rem JBR distributions omit headers; use the SDK's VM-neutral JNI header.
 copy /y "%sdk%\ndk\29.0.14206865\toolchains\llvm\prebuilt\windows-x86_64\sysroot\usr\include\jni.h" "%out%\jni.h" >nul
 if errorlevel 1 exit /b 1
 pushd "%out%"
-cl /nologo /std:c++17 /EHsc /utf-8 /LD /MT /W4 /WX /I"%out%" /I"%core%\include" "%~dp0game_jni.cpp" "%core%\src\turnhub_core.cpp" "%core%\src\turnhub_json.cpp" /link /OUT:turnhub_game.dll
+cl /nologo /std:c++17 /EHsc /utf-8 /LD /MT /W4 /WX /I"%out%" /I"%core%\include" "%~dp0game_jni.cpp" "%core%\src\turnhub_core.cpp" "%core%\src\turnhub_offline.cpp" "%core%\src\turnhub_json.cpp" /link /OUT:turnhub_game.dll
 set "result=%errorlevel%"
 popd
 exit /b %result%

@@ -30,7 +30,7 @@
 #include "../../../Sigil/include/received_packet.h"
 #include "../../../Sigil/include/display_name.h"
 
-namespace TurnHub { extern uint32_t fixturePairingWindowSaved; extern int fixtureSpeakerVolumeSaved; }
+namespace TurnHub { extern uint32_t fixturePairingWindowSaved; extern int fixtureSpeakerVolumeSaved; extern int fixturePowerSettingsSaved; }
 static TurnHubProtocol::TableDisplayPacket sentTableDisplays[8][2]{};
 bool TurnHub::SigilBus::sendTableDisplay(const TurnHubProtocol::TableDisplayPacket &p) {
   assert(TurnHubProtocol::validTableDisplay(p));
@@ -383,7 +383,7 @@ static void verifyAtTable(const String &token) {
   assert(pendingPresenceCode(testNow)==nullptr);
 }
 static String registerPhone(const char *name,String &id) {
-  assert(request("/api/profiles/register","",{{"name",name},{"pin","1234"}})==200);
+  const int regStatus=request("/api/profiles/register","",{{"name",name},{"pin","1234"}}); if(regStatus!=200) std::cerr<<"REG "<<name<<" "<<regStatus<<" "<<server.body<<std::endl; assert(regStatus==200);
   id=responseField("profileId"); return responseField("token");
 }
 static String loginPhone(const String &id) {
@@ -2775,7 +2775,7 @@ static void touchControls() {
 
   // End match asks in the popup first, and acts once on Confirm.
   tapButton(TouchAction::OpenTable); s=currentScreen();
-  assert(s.kind==ScreenKind::Table && String(s.badge)=="TABLE" && s.buttonCount==7 &&
+  assert(s.kind==ScreenKind::Table && String(s.badge)=="TABLE" && s.buttonCount==(screenButton(s,TouchAction::BackToSetup)?8:7) &&
       screenButton(s,TouchAction::MasterPass)->confirm &&
       screenButton(s,TouchAction::EndMatch)->confirm && screenButton(s,TouchAction::CloseScreen));
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
@@ -3001,6 +3001,7 @@ static void atlasScreens() {
   openMenuScreen(); tapButton(TouchAction::OpenDevice);
   assert(startsWith(currentScreen().detail,"TurnHub Atlas v"));
   // The speaker's volume is set at Atlas itself too, without an Admin sign-in.
+  tapButton(TouchAction::OpenPower);
   {
     const uint8_t before=audio.speakerVolume();
     tapButton(TouchAction::SpeakerVolume);
@@ -3009,6 +3010,7 @@ static void atlasScreens() {
         String("Volume: ")+TurnHub::speakerVolumeName(audio.speakerVolume()));
     while (audio.speakerVolume()!=before) tapButton(TouchAction::SpeakerVolume);
   }
+  tapButton(TouchAction::CloseScreen);
   fixtureBattery=TurnHub::BatteryReading();
   openMenuScreen(); tapButton(TouchAction::OpenQr); s=currentScreen();
   // The shipped default password is public, so its Wi-Fi code shows freely.
@@ -3728,6 +3730,26 @@ static void atlasSpeaker() {
   Intent forged; forged.type=IntentType::ConfigureSpeaker; forged.actor.origin=IntentOrigin::Browser;
   strncpy(forged.payload.moderatorId,playerId.c_str(),8); forged.payload.value=1;
   assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && audio.speakerVolume()==3);
+  // Screen and sleep over HTTP (power_settings.h): Admin only; indices
+  // checked; a storage failure changes nothing.
+  assert(request("/api/power",player,{},HTTP_GET)==403);
+  assert(request("/api/power",player,{{"autoSleep","2"}})==403);
+  powerSettings=TurnHub::PowerSettings(); powerSettings.screenOff=1; powerSettings.gameScreen=1; powerSettings.autoSleep=0;
+  assert(request("/api/power",admin,{},HTTP_GET)==200);
+  assert(server.body.find("\"autoSleep\":0")!=std::string::npos &&
+      server.body.find("\"screenOffChoices\":[\"Auto\",\"30 s\"")!=std::string::npos);
+  for (const char *bad : {"7","99","-1","x",""}) assert(request("/api/power",admin,{{"screenOff",bad}})==400);
+  assert(request("/api/power",admin,{{"gameScreen","3"}})==400 && powerSettings.gameScreen==1);
+  assert(request("/api/power",admin,{{"autoSleep","3"},{"gameScreen","2"}})==200);
+  assert(powerSettings.autoSleep==3 && powerSettings.gameScreen==2 && powerSettings.screenOff==1);
+  ProfileFixture::gameSettingsWritable=false;
+  assert(request("/api/power",admin,{{"autoSleep","1"}})==409 && powerSettings.autoSleep==3);
+  ProfileFixture::gameSettingsWritable=true;
+  Intent forgedPower; forgedPower.type=IntentType::ConfigurePower; forgedPower.actor.origin=IntentOrigin::Browser;
+  strncpy(forgedPower.payload.moderatorId,playerId.c_str(),8); forgedPower.payload.value=0;
+  assert(intents.dispatch(forgedPower).status==IntentStatus::Unauthorized && powerSettings.autoSleep==3);
+
+  powerSettings=TurnHub::PowerSettings(); TurnHub::fixturePowerSettingsSaved=-1;
 
   audio.setSpeaker(nullptr); audio.setSpeakerVolume(0); audio.clear(); enterEmptyLobby();
 }
@@ -4322,7 +4344,7 @@ static void autoSleepOnBattery() {
   resetPresence(); resetTouchControls();
   freshLobby(2); fixtureSleeps=0; fixtureOnBattery=false;
   fixtureBattery=TurnHub::BatteryReading(); fixtureBattery.present=true; fixtureBattery.percent=50;
-  const uint32_t idle=AtlasConfig::BATTERY_IDLE_SLEEP_MS;
+  const uint32_t idle=TurnHub::autoSleepIdleMs(powerSettings);
   serviceAutoSleep(testNow); testNow+=idle*2; serviceAutoSleep(testNow);
   assert(!sleepScheduled());
   // Unplugged: the idle count starts now, and any player action restarts it.
@@ -4359,6 +4381,49 @@ static void autoSleepOnBattery() {
   ++testNow; serviceAutoSleep(testNow); assert(sleepScheduled());
   serviceSleep(testNow+3000); assert(fixtureSleeps==3 && fixtureSleptEmpty);
   fixtureOnBattery=false; fixtureBattery=TurnHub::BatteryReading();
+  enterEmptyLobby(); resetTouchControls();
+}
+
+// Screen and sleep (owner 2026-11-03): chosen at the Atlas screen by anyone,
+// or by an Admin over HTTP; saved; Off stops idle sleep but not the empty cell.
+static void powerSettingsChoices() {
+  using namespace TurnHub;
+  PowerSettings s;  // Defaults keep the 2026-11-02 behavior.
+  assert(screenOffIdleMs(s,false,false)==120000 && screenOffIdleMs(s,true,false)==30000);
+  assert(screenOffIdleMs(s,false,true)==0 && screenOffIdleMs(s,true,true)==30000);
+  assert(autoSleepIdleMs(s)==5UL*60000UL);
+  s.gameScreen=1; assert(screenOffIdleMs(s,true,true)==0);
+  s.gameScreen=2; s.screenOff=4; assert(screenOffIdleMs(s,false,true)==300000);
+  s.screenOff=SCREEN_OFF_NEVER; assert(screenOffIdleMs(s,true,false)==0);
+  PowerSettings back; assert(unpackPowerSettings(packPowerSettings(s),back) && back==s);
+  assert(!unpackPowerSettings(7,back) && !unpackPowerSettings(3<<8,back) && !unpackPowerSettings(6<<16,back) &&
+      !unpackPowerSettings(-1,back) && !unpackPowerSettings(1<<24,back));
+
+  // The Atlas screen: Settings > Device > Sound, screen, sleep, each tap the next choice.
+  powerSettings=PowerSettings(); fixturePowerSettingsSaved=-1;
+  enterEmptyLobby(); resetTouchControls(); openMenuScreen(); tapButton(TouchAction::OpenDevice);
+  tapButton(TouchAction::OpenPower);
+  AtlasScreen screen=currentScreen();
+  assert(screen.kind==ScreenKind::Power);
+  assert(String(screenButton(screen,TouchAction::PowerScreenOff)->label)=="Screen off: Auto");
+  assert(String(screenButton(screen,TouchAction::PowerGameScreen)->label)=="Off in games: On battery");
+  assert(String(screenButton(screen,TouchAction::PowerAutoSleep)->label)=="Deep sleep: 5 min");
+  tapButton(TouchAction::PowerScreenOff); tapButton(TouchAction::PowerGameScreen);
+  for (int i=0;i<5;++i) tapButton(TouchAction::PowerAutoSleep);
+  assert(powerSettings.screenOff==1 && powerSettings.gameScreen==1 && powerSettings.autoSleep==0);
+  assert(fixturePowerSettingsSaved==packPowerSettings(powerSettings));
+  assert(String(screenButton(currentScreen(),TouchAction::PowerAutoSleep)->label)=="Deep sleep: Off");
+  for (const TouchButton &b : currentScreen().buttons) if (b.action!=TouchAction::None)
+    assert(b.w>=44 && b.h>=44 && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
+  tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Device);
+
+  // Off: idle never sleeps Atlas on the cell.
+  fixtureOnBattery=true; fixtureBattery=BatteryReading(); fixtureBattery.present=true; fixtureBattery.percent=50;
+  fixtureSleeps=0; serviceAutoSleep(testNow); testNow+=2UL*60UL*60000UL; serviceAutoSleep(testNow);
+  assert(!sleepScheduled());
+  fixtureOnBattery=false; fixtureBattery=BatteryReading(); serviceAutoSleep(testNow);
+
+  powerSettings=PowerSettings(); fixturePowerSettingsSaved=-1;
   enterEmptyLobby(); resetTouchControls();
 }
 
@@ -4760,6 +4825,11 @@ static void backToSetupAndShortGames() {
   assert(request("/api/control/back-to-setup",tokens[1])==200);
   assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==2 && !table().game.hasPlayers());
   assert(completedGames==baseGames && played(0)==0 && played(1)==0);
+  // The Atlas screen's Actions offers it too (confirmed), like the app.
+  start();
+  openTableScreen();
+  tapConfirmed(TouchAction::BackToSetup);
+  assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==2 && completedGames==baseGames);
   // Paused time doesn't count; past three minutes of play it is gone.
   start();
   assert(request("/api/control/pause",tokens[0])==200); testNow+=10*60000;
@@ -4767,6 +4837,7 @@ static void backToSetupAndShortGames() {
   assert(request("/api/tablet/control",tokens[0],{{"action","back-to-setup"}})!=200);  // Not a tablet.
   testNow+=UNDO_START_MS+1;
   assert(request("/api/control/back-to-setup",tokens[0])==409 && table().hubState==HubState::Running);
+  openTableScreen(); assert(!screenButton(currentScreen(),TouchAction::BackToSetup)); tapButton(TouchAction::CloseScreen);
   // A long game counts at once.
   assert(request("/api/control/concede",tokens[1])==200 && table().hubState==HubState::GameOver);
   assert(played(0)==1 && played(1)==1);
@@ -4926,7 +4997,83 @@ struct MemoryArchive : TurnHubHistory::ArchiveFiles {
     got=offset<f->second.size()?std::min(capacity,f->second.size()-offset):0;
     memcpy(data,f->second.data()+offset,got); return true;
   }
+  bool remove(const char *name) override { files.erase(name); return true; }
 };
+// Offline play: phones keep the game going while Atlas is out of reach and
+// send their queues back (turnhub_offline.h, protocol/http-v1.md).
+namespace TurnHubWebApi { namespace internal { extern char bootId[33]; } }
+// Run inside matchHistory with its two signed-in phones (the profile store is nearly full by then).
+static void offlinePlay(const String &ana,const String &ben) {
+  enterEmptyLobby(); TurnHub::fixtureRadio=false;
+  assert(request("/api/session/join",ana)==200 && request("/api/session/join",ben)==200);
+  assert(request("/api/control/start",ana)==200); testNow+=3000; updateCountdown(testNow);
+  assert(table().hubState==HubState::Running);
+  auto snapshot=[](){
+    assert(request("/api/v1/game","",{},HTTP_GET)==200);
+    bool ok=false; const turnhub::Json j=turnhub::Json::parse(server.body,&ok); assert(ok);
+    return j;
+  };
+  const turnhub::Json first=snapshot();
+  const turnhub::Json base=first.get("state");
+  const int64_t atlasMs=first.get("atlasMs").asInt();
+  const int active=static_cast<int>(base.get("active").asInt());
+  const int L=static_cast<int>(base.get("startingLife").asInt());
+  assert(first.get("bootId").asString()==std::string(TurnHubWebApi::internal::bootId) && base.get("revision").isNumber());
+  auto entry=[](int seq,int64_t at,const std::string &action){
+    return std::string("{\"seq\":")+std::to_string(seq)+",\"atMs\":"+std::to_string(at)+",\"action\":"+action+"}";
+  };
+  auto life=[](int index,int delta){ return std::string("{\"do\":\"changeLife\",\"index\":")+std::to_string(index)+",\"delta\":"+std::to_string(delta)+"}"; };
+  const std::string pass=std::string("{\"do\":\"pass\",\"index\":")+std::to_string(active)+"}";
+  auto sync=[&](const String &token,const char *device,const std::string &entries,int64_t now,const std::string &boot,const turnhub::Json &from){
+    return request("/api/v1/offline",token,{{"device",device},{"baseBoot",boot.c_str()},{"base",from.dump().c_str()},
+        {"nowMs",String(static_cast<long long>(now))},{"entries",("["+entries+"]").c_str()}});
+  };
+  const std::string boot=TurnHubWebApi::internal::bootId;
+  testNow+=3000;
+  // Ana's phone: the active player passed, then a life change. Ben's phone,
+  // synced second, changed life before that; both land in one timeline.
+  assert(sync("","ana",entry(1,atlasMs+2000,pass),atlasMs+3000,boot,base)==401);
+  assert(sync(ana,"ana","{\"seq\":0}",atlasMs+3000,boot,base)==400);
+  assert(sync(ana,"ana",entry(1,atlasMs+2000,pass)+","+entry(2,atlasMs+2500,life(1,-5)),atlasMs+3000,boot,base)==200);
+  assert(server.body.find("\"mode\":\"replayed\"")!=std::string::npos && server.body.find("\"applied\":false")==std::string::npos);
+  assert(table().game.core().active && *table().game.core().active!=active && table().game.core().players[1].life==L-5);
+  assert(sync(ben,"ben",entry(1,atlasMs+1000,life(0,-2))+","+entry(2,atlasMs+2600,pass),atlasMs+3000,boot,base)==200);
+  assert(server.body.find("\"mode\":\"merged\"")!=std::string::npos);
+  // Ben's second pass names a turn that had already moved on: refused, only for Ben.
+  assert(server.body.find("\"device\":\"ana\"")==std::string::npos && server.body.find("\"applied\":false")!=std::string::npos);
+  const turnhub::Game &merged=table().game.core();
+  assert(merged.players[1].life==L-5 && merged.players[0].life==L-2 && merged.players[active].turnsCompleted==1);
+  assert(table().hubState==HubState::Running);
+  // Something else changes the game: a later queue lands on top, now.
+  const int up=*merged.active;
+  const turnhub::Game &merged0=table().game.core();
+  const String upToken=merged0.players[up].name=="Ana History"?ana:ben;
+  assert(request("/api/control/pass",upToken)==200); testNow+=PASS_GRACE_MS+1; updatePendingPass(testNow);
+  assert(sync(ana,"third",entry(1,atlasMs+1500,life(0,-1)),atlasMs+3000,boot,base)==200);
+  assert(server.body.find("\"mode\":\"late\"")!=std::string::npos && table().game.core().players[0].life==L-3);
+
+  // Atlas restarts and restores the match paused; a phone that kept playing
+  // brings its copy back, and the game continues from there, running.
+  const turnhub::Json before=snapshot();
+  TurnHub::GameCheckpoint saved,decoded;
+  table().game.checkpoint(saved,testNow);
+  uint8_t bytes[TurnHub::GAME_CHECKPOINT_CAPACITY];
+  const size_t size=TurnHub::encodeCheckpoint(saved,bytes,sizeof(bytes));
+  assert(size && TurnHub::decodeCheckpoint(bytes,size,decoded)==TurnHubStorage::Status::Ok);
+  assert(table().game.restoreCheckpoint(decoded,testNow+1000)); table().hubState=HubState::Paused;
+  strcpy(TurnHubWebApi::internal::bootId,"rebooted-boot-id");
+  testNow+=5000;
+  const int64_t oldMs=before.get("atlasMs").asInt();
+  assert(sync(ana,"ana",entry(1,oldMs+1000,life(1,-4)),oldMs+4000,boot,before.get("state"))==200);
+  assert(server.body.find("\"mode\":\"restored\"")!=std::string::npos);
+  assert(table().game.core().players[1].life==L-9 && table().hubState==HubState::Running && !table().game.paused());
+  // A game that has since ended refuses every queue.
+  turnhub::Json other=before.get("state"); other.set("gameId","another-match");
+  assert(sync(ana,"ana",entry(1,oldMs+1000,life(1,-4)),oldMs+4000,boot,other)==409);
+  strcpy(TurnHubWebApi::internal::bootId,boot.c_str());
+  enterEmptyLobby();
+}
+
 static void matchHistory() {
   MemoryBlobs blobs; TurnHubStandalone::useImportStore(&blobs);
   enterEmptyLobby(); TurnHub::fixtureRadio=false; testNow=1000;
@@ -5010,6 +5157,7 @@ static void matchHistory() {
   assert(archive.files[TurnHubHistory::CSV_FILE].find("Ben History")!=std::string::npos);
   enterEmptyLobby();
   TurnHubHistory::useFiles(nullptr);
+  offlinePlay(ana,ben); std::cout<<"PASS offline play: full game for phones, queues replayed, merged across phones, late and restored syncs\n";
   assert(request("/api/profiles/history",ana,{{"profileId",anaId}},HTTP_GET)==503);
   assert(request("/api/session/logout",ana)==200 && request("/api/session/logout",ben)==200);
   ProfileFixture::profiles.erase(anaId.c_str()); ProfileFixture::profiles.erase(benId.c_str());
@@ -5404,14 +5552,79 @@ static void cardCacheOnAtlas() {
   assert(request("/api/control/planar",mine,{{"action","roll"},{"face","blank"}})==409);
   // The Atlas screen's Planes page acts for the active player.
   tapButton(TouchAction::OpenPlanes);
-  assert(currentScreen().kind==ScreenKind::Planes && String(currentScreen().title)=="Chaotic Aether");
+  assert(currentScreen().kind==ScreenKind::Planes && String(currentScreen().planes.plane)=="Chaotic Aether" &&
+      currentScreen().planes.phenomenon && currentScreen().planes.digital);
+  // The card view: the app sends the face-up card's text and art, then the
+  // Planes page's Card turns the screen to it; a tap anywhere goes back.
+  {
+    MemoryArchive cards; TurnHubCards::setCardFilesForTests(&cards);
+    const String id=table().game.planar().plane;
+    assert(request("/api/planes/card",mine,{{"id",id},{"type","Phenomenon"},{"artist","A. Painter"},
+        {"text","Made-up rules text.\nSecond line."},{"chaos",""},{"art","/9j/2Q=="}})==200 && has("\"art\":true"));
+    assert(request("/api/planes/card",mine,{{"id","00000000-0000-0000-0000-000000000000"},{"text","x"},{"art",""}})==409);
+    assert(request("/api/planes/card",mine,{{"id",id},{"text","x"},{"art","not base64!"}})==400);
+    assert(request("/api/planes",mine,{},HTTP_GET)==200 && has((String("\"cards\":[\"")+id+"\"]").c_str()) && has((String("\"art\":[\"")+id+"\"]").c_str()));
+    assert(request("/api/planes/card",mine,{{"id",id},{"text","x"},{"art",""},{"index","3"},{"total","9"}})==200 &&
+        String(currentScreen().sync)=="Plane cards: 3 of 9");
+    assert(request("/api/planes/card",mine,{{"id",id},{"text","Made-up rules text.\nSecond line."},{"artist","A. Painter"},
+        {"type","Phenomenon"},{"art","/9j/2Q=="},{"index","9"},{"total","9"}})==200 && String(currentScreen().sync)=="All 9 plane cards saved");
+    testNow+=SYNC_TOAST_MS+1; assert(!currentScreen().sync[0]);
+    tapButton(TouchAction::OpenPlaneCard);
+    const AtlasScreen view=currentScreen();
+    assert(view.kind==ScreenKind::PlaneCard && view.planes.card && String(view.planes.card->text)=="Made-up rules text.\nSecond line." &&
+        String(view.planes.card->artist)=="A. Painter" && view.planes.card->art && !view.planes.art);
+    tapButton(TouchAction::PlaneCardBack);
+    assert(currentScreen().kind==ScreenKind::Planes);
+    TurnHubCards::setCardFilesForTests(nullptr);
+  }
+  // Any signed-in player seated in the game sets what the Atlas screen shows
+  // (owner, 2026-11-02); a signed-in profile that isn't playing can't.
+  assert(request("/api/atlas/screen","",{},HTTP_GET)==401);
+  assert(request("/api/atlas/screen",b,{{"view","card"}})==200 && currentScreen().kind==ScreenKind::PlaneCard && has("\"view\":\"card\""));
+  assert(request("/api/atlas/screen",b,{{"view","table"}})==200 && currentScreen().kind==ScreenKind::Overview);
+  assert(request("/api/atlas/screen",a,{},HTTP_GET)==200 && has("\"view\":\"table\"") &&
+      has("\"views\":[\"game\",\"table\",\"planes\",\"card\"]"));
+  assert(request("/api/atlas/screen",a,{{"view","sideways"}})==400);
+  {
+    char list[TurnHubProfiles::MAX_LOGIN_PROFILES][TurnHubProfiles::PROFILE_ID_LENGTH + 1];
+    const size_t count = TurnHubProfiles::listProfileIds(list, TurnHubProfiles::MAX_LOGIN_PROFILES);
+    for (size_t i = 0; i < count; ++i) {
+      if (ids[0]==list[i] || ids[1]==list[i] || request("/api/session/login","",{{"profileId",list[i]},{"pin","1234"}})!=200) continue;
+      const String watcher=responseField("token");
+      assert(request("/api/atlas/screen",watcher,{{"view","game"}})==409 && currentScreen().kind==ScreenKind::Overview);
+      break;
+    }
+  }
+  {
+    // The app's game controls act for the seat they name, as /api/tablet/* do.
+    assert(request("/api/session/play","",{{"clientKey","44444444-4444-4444-8444-444444444444"}})==200);
+    const String app=responseField("token");
+    const uint8_t module=TurnHubControllers::registerBrowser(ids[0]);
+    assert(request("/api/planes",app,{},HTTP_GET)==200);
+    assert(request("/api/atlas/screen",app,{{"view","game"}})==409);
+    assert(request("/api/atlas/screen",app,{{"view","game"},{"module",String(module)},{"slot","1"}})==200 &&
+        currentScreen().kind==ScreenKind::Status);
+    assert(request("/api/atlas/screen",app,{{"view","game"},{"module","0"},{"slot","1"}})==409);
+    assert(request("/api/session/logout",app)==200);
+  }
+  assert(request("/api/atlas/screen",a,{{"view","planes"}})==200 && currentScreen().kind==ScreenKind::Planes);
   tapButton(TouchAction::PlanarResolve);
   assert(!table().game.planar().phenomenon && screenButton(currentScreen(),TouchAction::PlanarRoll));
   tapButton(TouchAction::PlanarRoll);
-  assert(table().game.planar().lastRoll==1);
+  assert(table().game.planar().lastRoll==1 && currentScreen().planes.roll==1 && currentScreen().planes.roller[0]);
   tapButton(TouchAction::CloseScreen);
+  // A phone's roll reaches every screen, so the display rolls its die over the game.
+  if (table().game.planar().phenomenon) assert(request("/api/control/planar",mine,{{"action","resolve"}})==200);
+  const uint8_t cost=static_cast<uint8_t>(table().game.planar().rollCost);
+  assert(request("/api/control/planar",mine,{{"action","roll"},{"face","planeswalk"}})==200);
+  {
+    const AtlasScreen &shown=currentScreen();
+    assert(shown.kind==ScreenKind::Status && shown.planes.on && shown.planes.roll==2 && shown.planes.face==2 &&
+        shown.planes.cost==cost && !shown.planes.fromEffect && shown.planes.roller[0]);
+  }
   // Starting without a catalog falls back to the players' own planes.
   enterEmptyLobby();
+  assert(request("/api/atlas/screen",a,{{"view","game"}})==409);
   TurnHubCards::setStoreForTests(nullptr);
   TurnHubCards::SavedCommanders none;
   assert(!TurnHubCards::loadCommanders(ids[0], none));
@@ -6564,6 +6777,7 @@ int main() {
   touchThemeChoices(); std::cout<<"PASS theme picker: four independent choices, selected state, targets, Back and no game mutation" << std::endl;
   touchDeviceSleep(); std::cout<<"PASS touchscreen Device screen: Sleep (a tap, between games, touchscreen only)" << std::endl;
   autoSleepOnBattery(); std::cout<<"PASS auto sleep on the cell: idle between games, empty at any time" << std::endl;
+  powerSettingsChoices(); std::cout<<"PASS screen and sleep settings: Atlas screen and Admin HTTP" << std::endl;
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   helloCapabilityLayout(); std::cout<<"PASS Hello capability layout and firmware version fields\n";
   firstRunSetup(); std::cout<<"PASS first-run setup: boot stage, Welcome and Skip, account, table code, private Wi-Fi password, finish, all set, Pair a Sigil\n";

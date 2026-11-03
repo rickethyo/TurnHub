@@ -1,6 +1,7 @@
 #include "game_settings_store.h"
 #include "nvs_blob_store.h"
 #include "pairing_settings.h"
+#include "power_settings.h"
 #include "setup_stage.h"
 #include "speaker_settings.h"
 #include "table_code_setting.h"
@@ -30,6 +31,14 @@ TurnHubStorage::Status loadSpeakerVolume(uint8_t &volume) {
 TurnHubStorage::Status saveSpeakerVolume(uint8_t volume) {
   const auto status=store.begin("turnhub");
   return status==TurnHubStorage::Status::Ok?writeSpeakerVolume(store,volume):status;
+}
+TurnHubStorage::Status loadPowerSettings(PowerSettings &settings) {
+  const auto status=store.begin("turnhub");
+  return status==TurnHubStorage::Status::Ok?readPowerSettings(store,settings):status;
+}
+TurnHubStorage::Status savePowerSettings(const PowerSettings &settings) {
+  const auto status=store.begin("turnhub");
+  return status==TurnHubStorage::Status::Ok?writePowerSettings(store,settings):status;
 }
 TurnHubStorage::Status loadUploadApprovalRequired(bool &required) {
   const auto status = store.begin("turnhub");

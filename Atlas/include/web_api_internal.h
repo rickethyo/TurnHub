@@ -111,6 +111,7 @@ extern SetupStageCallback readSetupStage;
 extern AccessibilityChangedCallback accessibilityChanged;
 extern StateCallback readClientState;
 extern RevisionCallback readClientRevision;
+extern OfflineHooks offlineHooks;
 
 // --- Responses (web_api.cpp) ---------------------------------------------------
 
@@ -208,6 +209,8 @@ void handleStandaloneImport(WebServer &server);
 
 void handleInfo(WebServer &server);
 void handleState(WebServer &server);
+void handleOfflineGame(WebServer &server);
+void handleOfflineSync(WebServer &server);
 void handleSeats(WebServer &server);
 void handleGameSettings(WebServer &server);
 void handleSaveGameSettings(WebServer &server);
@@ -219,6 +222,9 @@ void handleCounterControl(WebServer &server, TurnHub::IntentType type);
 // Cards Atlas keeps (card_cache.h): the planar catalog and saved commanders.
 void handlePlanesCatalogInfo(WebServer &server);
 void handlePlanesCatalog(WebServer &server);
+void handlePlaneCard(WebServer &server);
+void handleAtlasScreen(WebServer &server);
+void handleSetAtlasScreen(WebServer &server);
 void handleSavedCommanders(WebServer &server);
 void handleCommanderChoice(WebServer &server);
 void handleTabletCommanderChoice(WebServer &server);
@@ -246,6 +252,8 @@ void handlePairingSettings(WebServer &server);
 void handleSavePairingSettings(WebServer &server);
 void handleSpeakerSettings(WebServer &server);
 void handleSaveSpeakerSettings(WebServer &server);
+void handlePowerSettings(WebServer &server);
+void handleSavePowerSettings(WebServer &server);
 void handleUploadApprovalSettings(WebServer &server);
 void handleSaveUploadApprovalSettings(WebServer &server);
 void handleTableCodeSettings(WebServer &server);

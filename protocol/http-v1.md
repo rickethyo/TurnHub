@@ -243,6 +243,13 @@ Session-token authenticated; other accounts get 403.
   "choicesMs":[15000,30000,60000]}`: Atlas's pairing window, the Sigil's fixed
   window and the allowed choices. `POST /api/pairing` with `windowMs` saves one
   of the choices (anything else: 409, nothing stored).
+- `GET /api/power` returns `{"screenOff":0,"screenOffChoices":["Auto","30 s",
+  ...],"gameScreen":0,"gameScreenChoices":["On battery","No","Yes"],
+  "autoSleep":1,"autoSleepChoices":["Off","5 min",...]}`: Atlas's screen-off
+  timer, whether the screen may go off during a match, and deep sleep on
+  battery, each an index into its labels. `POST /api/power` with any of
+  `screenOff`, `gameScreen`, `autoSleep` (indices; omitted fields keep their
+  value) saves them: 400 for an unknown index, 409 when saving fails.
 
 ## People: accounts, roles and moderation
 
@@ -408,6 +415,38 @@ One shared screen at the table acting for every seat. Engineering record:
      `reset`, `back-to-setup`, `count-game`, or (lobby) `move-earlier`/`move-later` for turn order; answers like `/api/control/*` (status, revision, optional
      `expectedRevision`).
 
+
+## Offline play (2026-11-03)
+
+When Atlas drops off mid-game, a phone keeps the game going on its own copy
+of the shared core and sends what it did once Atlas answers again (owner,
+2026-11-03). Engineering record: `Documentation/engineering/TABLE_AUTHORITY.md`.
+
+- `GET /api/v1/game` (the session's game, like `/api/v1/state`): `atlasId`,
+  `bootId`, `game`, `atlasMs` (Atlas's game clock now, the core's `nowMs`) and
+  `state` (the core's whole game, `toJson`). The app keeps the latest one while a
+  game runs.
+- `POST /api/v1/offline` (signed-in session): `device` (1 to 40 characters, the
+  phone's queue name), `baseBoot` (the `bootId` the copy came from), `base` (that
+  `state`, at most 16 KB), `nowMs` (now, on the copy's clock) and `entries`, a JSON
+  array of at most 512 `{"seq": 1, "atMs": ..., "action": {...}, "draws": [...]}`:
+  `seq` counts from 1 per device, `atMs` is the copy's `atlasMs` plus the phone's
+  time since it arrived, `action` is a core action (`applyAction`, no `nowMs`) and
+  `draws` the random draws it took. Atlas merges queues in `atMs` order (then
+  device, then `seq`; a repeated `seq` counts once), works turn timeouts out again
+  at their own deadlines and answers `{"ok":true,"mode","revision","outcomes":[{"device","seq","applied"}]}`
+  for this device's entries. `mode`:
+  - `replayed`: nothing moved on Atlas since the copy; replayed from it.
+  - `merged`: another phone from the same outage synced first and nothing else has
+    happened since; every queue so far is replayed together from the start.
+  - `restored`: Atlas restarted and restored this match and nobody has acted since;
+    the phone's copy (more complete than the restore) is the start, moved onto the
+    new boot's clock. The game continues running if it was.
+  - `late`: the game moved on here (a Sigil, another phone); each entry is applied
+    now, in the phone's order.
+  Starting, rematching, resetting or seating are refused (`applied: false`):
+  offline play ends with the match. 409 when the match has ended or changed (or its
+  players did), 400 for a malformed request, 401 without a session.
 
 ## Standalone tablet game import (2026-10-07)
 
@@ -740,6 +779,30 @@ Plane catalog (Atlas 2026-10-30): `GET /api/planes` answers `version` and
 `plv`), reloading it at boot or card insertion. The app sends its downloaded
 planes whenever the versions differ.
 
+Plane cards (Atlas 2026-11-03, for the Atlas screen's card view): `GET
+/api/planes` also answers `cards` (ids whose text Atlas keeps) and `art` (ids
+with art too). `POST /api/planes/card` (any signed-in browser or tablet) takes
+one catalog plane's `id`, `type` and `artist` (up to 47 printable ASCII
+characters each), `text` (rules, up to 639, newlines allowed), `chaos` (the
+chaos ability, up to 319) and `art`: a base64 baseline JPEG, 480x320, at most
+96 KB, or empty for text only. Atlas keeps them on the microSD card
+(`pc-<id>.txt`, `pc-<id>.jpg`): 400 for bad base64, 409 for an unknown plane,
+bad text, a non-JPEG or no card. Optional `index` and `total` (this card's
+place in the app's batch) let the Atlas screen show the progress. The app
+(tablet mode) sends every catalog plane Atlas lacks art for after the
+catalog, or every plane from its Send planes to Atlas button.
+
+Atlas screen view (Atlas 2026-11-03): `GET /api/atlas/screen` (any signed-in
+session) answers `{ok:true, view, views}`: the Atlas touchscreen's open page
+(`game`, `table`, `planes`, `card` or `other`) and the views it can show now.
+`POST /api/atlas/screen` with `view` turns the Atlas screen to one of them
+during Game 1's match (the touchscreen shows Game 1). It is presentation only.
+Any signed-in player seated in that game may set it (owner, 2026-11-02): a
+browser uses its own seat, the app names the seat it acts for with `module`
+and `slot` as `/api/tablet/*` do. 403 for a Sigil seat or a guest (no
+profile), 409 when the seat isn't in the game or the view isn't available
+(no match, no Planechase, no digital plane face up), 400 for an unknown view.
+
 Saved commanders: up to six per profile on the microSD card (`d<profileId>`).
 `GET /api/profiles/commanders` (the session's own, or `?profileId=` from a
 tablet) answers `commanders: [{slot, name, art}]`, newest first.
@@ -808,6 +871,8 @@ requires an exit order and no concession, bag-drawn flag or opponent credit.
 `{ok:true,token:...}`. No profile choice, PIN or presence prompt is required.
 The compatibility `tablet:true` field identifies its restricted capabilities;
 it has no personal profile, private statistics or administrative permissions.
+Besides `/api/tablet/*` and the table reads, it may use `/api/planes`,
+`/api/planes/card` and `/api/atlas/screen`.
 Personal sessions already in use are preserved by the app. Profile creation
 for ordinary gameplay (`gameplayOnly=1` on a PIN-less identity upload)
 does not issue private-history link keys.

@@ -6,6 +6,7 @@
 #include <esp_heap_caps.h>
 #endif
 
+#include "match_archive.h"
 #include "sd_card.h"
 #include "storage.h"
 
@@ -167,6 +168,120 @@ const Plane *findPlane(const char *id) {
   return nullptr;
 }
 const char *planesVersion() { return version; }
+
+// --- plane cards ---------------------------------------------------------------
+
+namespace {
+TurnHubHistory::ArchiveFiles *injectedFiles = nullptr;
+bool injectedFilesSet = false;
+TurnHubHistory::ArchiveFiles *files() { return injectedFilesSet ? injectedFiles : TurnHubAtlas::sdArchiveFiles(); }
+
+PlaneCard cached;
+bool cachedValid = false;
+
+String cardFile(const char *id, const char *ext) { return String("pc-") + id + ext; }
+
+bool cardText(const String &text, size_t max, bool lines) {
+  if (text.length() > max) return false;
+  for (size_t i = 0; i < text.length(); ++i) {
+    const char c = text[i];
+    if ((c < 32 || c > 126) && !(lines && c == '\n')) return false;
+  }
+  return true;
+}
+
+bool writeFile(TurnHubHistory::ArchiveFiles *f, const String &name, const char *data, size_t size) {
+  if (!f->remove(name.c_str())) return false;
+  // In pieces, so the card's writes stay short.
+  for (size_t at = 0; at < size; at += 4096) {
+    const size_t n = size - at < 4096 ? size - at : 4096;
+    if (!f->append(name.c_str(), data + at, n)) return false;
+  }
+  return true;
+}
+}  // namespace
+
+void setCardFilesForTests(TurnHubHistory::ArchiveFiles *f) {
+  injectedFiles = f;
+  injectedFilesSet = true;
+  cachedValid = false;
+}
+
+bool savePlaneCard(const char *id, const String &type, const String &artist, const String &text, const String &chaos,
+    const uint8_t *jpeg, size_t jpegSize) {
+  TurnHubHistory::ArchiveFiles *f = files();
+  if (!f || !findPlane(id) || !cardText(type, PLANE_TYPE_LENGTH, false) || !cardText(artist, PLANE_ARTIST_LENGTH, false) ||
+      !cardText(text, PLANE_TEXT_LENGTH, true) || !cardText(chaos, PLANE_CHAOS_LENGTH, true) || jpegSize > MAX_PLANE_ART_BYTES)
+    return false;
+  // A baseline JPEG starts FF D8 and ends FF D9.
+  if (jpegSize && (jpegSize < 4 || !jpeg || jpeg[0] != 0xFF || jpeg[1] != 0xD8 || jpeg[jpegSize - 2] != 0xFF ||
+                   jpeg[jpegSize - 1] != 0xD9))
+    return false;
+  cachedValid = false;
+  if (jpegSize) {
+    if (!writeFile(f, cardFile(id, ".jpg"), reinterpret_cast<const char *>(jpeg), jpegSize)) return false;
+  } else if (!f->remove(cardFile(id, ".jpg").c_str())) {
+    return false;
+  }
+  // type, artist, chaos (newlines as tabs), then the text.
+  String chaosLine = chaos;
+  chaosLine.replace("\n", "\t");
+  const String body = type + "\n" + artist + "\n" + chaosLine + "\n" + text;
+  return writeFile(f, cardFile(id, ".txt"), body.c_str(), body.length());
+}
+
+bool hasPlaneCard(const char *id, bool &art) {
+  art = false;
+  TurnHubHistory::ArchiveFiles *f = files();
+  size_t size = 0;
+  if (!f || !id || !f->size(cardFile(id, ".txt").c_str(), size)) return false;
+  art = f->size(cardFile(id, ".jpg").c_str(), size) && size > 0;
+  return true;
+}
+
+const PlaneCard *planeCard(const char *id) {
+  if (!id || !id[0]) return nullptr;
+  if (cachedValid && !strcmp(cached.id, id)) return &cached;
+  TurnHubHistory::ArchiveFiles *f = files();
+  if (!f) return nullptr;
+  char body[PLANE_TYPE_LENGTH + PLANE_ARTIST_LENGTH + PLANE_CHAOS_LENGTH + PLANE_TEXT_LENGTH + 8];
+  size_t got = 0;
+  if (!f->readAt(cardFile(id, ".txt").c_str(), 0, body, sizeof(body) - 1, got) || !got) return nullptr;
+  body[got] = '\0';
+  PlaneCard card;
+  snprintf(card.id, sizeof(card.id), "%s", id);
+  char *fields[4] = {body, nullptr, nullptr, nullptr};
+  for (int i = 1; i < 4; ++i) {
+    char *nl = strchr(fields[i - 1], '\n');
+    if (!nl) return nullptr;
+    *nl = '\0';
+    fields[i] = nl + 1;
+  }
+  for (char *c = fields[2]; *c; ++c) if (*c == '\t') *c = '\n';
+  snprintf(card.type, sizeof(card.type), "%s", fields[0]);
+  snprintf(card.artist, sizeof(card.artist), "%s", fields[1]);
+  snprintf(card.chaos, sizeof(card.chaos), "%s", fields[2]);
+  snprintf(card.text, sizeof(card.text), "%s", fields[3]);
+  size_t size = 0;
+  card.art = f->size(cardFile(id, ".jpg").c_str(), size) && size > 0;
+  cached = card;
+  cachedValid = true;
+  return &cached;
+}
+
+bool readPlaneArt(const char *id, uint8_t *out, size_t capacity, size_t &size) {
+  size = 0;
+  TurnHubHistory::ArchiveFiles *f = files();
+  size_t total = 0;
+  if (!f || !id || !f->size(cardFile(id, ".jpg").c_str(), total) || !total || total > capacity) return false;
+  while (size < total) {
+    size_t got = 0;
+    if (!f->readAt(cardFile(id, ".jpg").c_str(), size, reinterpret_cast<char *>(out) + size, total - size, got) || !got)
+      return false;
+    size += got;
+  }
+  return true;
+}
 
 bool validCommander(const String &name, const String &art) {
   if (!printable(name, COMMANDER_NAME_LENGTH) || art.length() > COMMANDER_ART_LENGTH) return false;

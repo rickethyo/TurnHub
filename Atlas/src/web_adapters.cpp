@@ -249,7 +249,8 @@ TurnHubWebApi::PresenceHooks presenceHooks() {
 bool manageDevices(const String &actor, IntentType type, int32_t value, String &message) {
   if (actor.length() != 8 ||
       (type != IntentType::ForgetPairing && type != IntentType::ConfigurePairing &&
-       type != IntentType::ConfigureSpeaker && type != IntentType::ConfigureTableCode &&
+       type != IntentType::ConfigureSpeaker && type != IntentType::ConfigurePower &&
+       type != IntentType::ConfigureTableCode &&
        type != IntentType::ConfigureUploadApproval &&
        type != IntentType::ResetTable &&
        type != IntentType::FactoryReset && type != IntentType::PairConfirm && type != IntentType::UpdateSigil &&
@@ -270,6 +271,18 @@ bool manageDevices(const String &actor, IntentType type, int32_t value, String &
   return result.accepted();
 }
 
+// Offline play: stages the phone's queue for the SyncOffline handler.
+bool syncOffline(TurnHubWebApi::OfflineSyncRequest &request, String &message) {
+  Intent intent;
+  intent.type = IntentType::SyncOffline;
+  intent.actor.origin = IntentOrigin::AndroidApp;
+  pendingOfflineSync = &request;
+  const IntentResult result = intents.dispatch(intent);
+  pendingOfflineSync = nullptr;
+  message = result.message;
+  return result.accepted();
+}
+
 void registerWebCallbacks() {
   TurnHubWebApi::configure(resolveWebSeat, handleWebControl, handleProfileControl,
       resolveProfileParticipant);
@@ -287,6 +300,10 @@ void registerWebCallbacks() {
   TurnHubWebApi::configureSpeaker([]() { return audio.speakerVolume(); });
   TurnHubWebApi::configureSetup([]() { return static_cast<uint8_t>(setupStage); });
   TurnHubWebApi::configureClientState(clientSnapshot, clientRevision);
+  TurnHubWebApi::OfflineHooks offline;
+  offline.game = offlineGameJson;
+  offline.sync = syncOffline;
+  TurnHubWebApi::configureOffline(offline);
   TurnHubWebApi::TableHooks games;
   games.count = MAX_GAME_TABLES;
   games.profileTable = tableForProfile;

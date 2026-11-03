@@ -311,6 +311,17 @@ class GameEngine {
   // rest is what only Atlas has: the seats' controllers, its settings form,
   // life-change approvals, Commander hit receipts and partners.
   const turnhub::Game &core() const { return core_; }
+  // A millis() reading on the core's clock: the time phones stamp their
+  // offline actions against (GET /api/v1/game, atlasMs).
+  int64_t clockMs(uint32_t nowMs) const { return at(nowMs); }
+  // The core revision a restored match came back with (restoreCheckpoint),
+  // or -1: still that revision means nobody has acted since the restart.
+  int64_t restoredRevision() const { return restoredRevision_; }
+  // Offline play (turnhub_offline.h): takes the merged game the phones played
+  // while Atlas was out of reach, as the next revision. The same match and
+  // players only; open life-change approvals and win-claim pauses end. Calls
+  // the completion callback once if the merged game finished.
+  bool adoptOffline(turnhub::Game next);
 
  private:
   // Core player index for a player number (players are numbered in seat
@@ -352,6 +363,7 @@ class GameEngine {
   // resolveEliminationRules(), and those it reported.
   uint16_t autoOut_ = 0, lastAutoOut_ = 0;
   bool winRestoreRunning_ = false;
+  int64_t restoredRevision_ = -1;
   uint32_t anchor32_ = 0;
   int64_t anchor64_ = int64_t(1) << 32;
 };

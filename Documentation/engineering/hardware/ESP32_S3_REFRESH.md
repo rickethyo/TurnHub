@@ -138,12 +138,22 @@ Touch wake is *Verified* on the board (owner, 2026-11-02).
 Screen off (owner 2026-11-02, Atlas `atlas_display_s3.cpp` and Sigil
 `sigil_board_e32r28t.cpp`): with no touch and nothing new on screen (a ticking
 clock doesn't count) the backlight goes off while everything else keeps
-running: Atlas after `SCREEN_OFF_IDLE_MS` (2 min) on USB, only between games,
-or `BATTERY_SCREEN_OFF_IDLE_MS` (30 s) on the cell, even mid-match; the Sigil
+running: Atlas by default after 2 min on USB, only between games, or 30 s on
+the cell, even mid-match (owner settings since 2026-11-03: Settings > Device > Sound,
+screen, sleep or the app, `power_settings.h`, NVS `power`); the Sigil
 after `SIGIL_SCREEN_OFF_IDLE_MS` (2 min), never during a match or while
 showing a pairing code. A touch lights it without pressing anything; a new
-screen (a pass, a request, Atlas lost) lights it too. Presentation only: no
-Intent, no saved state. *Needs verification* on the boards.
+screen (a pass, a request, Atlas lost) lights it too. *Verified* on both
+boards (owner, 2026-11-02).
+
+Screen and sleep settings (owner 2026-11-03): Atlas's screen-off timer (Auto,
+30 s to 10 min, Never), whether it may go off during a running match (On
+battery, No, Yes) and its idle deep sleep on the cell (Off, 5 to 60 min; the
+empty-cell sleep stays) are one `ConfigurePower` Intent, from the Atlas screen
+(anyone) or `POST /api/power` (Admin), saved in NVS `power`. Defaults keep the
+2026-11-02 behavior. The Sigil keeps its fixed 2 min; carrying the choice to
+Sigils over the radio is in `STAGED_CHANGES.md`. On-board check *Needs
+verification*.
 
 Future production alternative: bare SF303GJ26 or equivalent five-way switch,
 PCA9554/PCA9534 with explicit contact pull-ups, decoupling, address straps and

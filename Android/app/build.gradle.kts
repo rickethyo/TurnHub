@@ -108,7 +108,7 @@ val hostGameCore = tasks.register<Exec>("buildHostGameCore") {
         "-Wall", "-Wextra", "-Werror", "-fPIC", "-static-libgcc", "-static-libstdc++",
         "-I${jdk.resolve("include")}", "-I${jdk.resolve("include/linux")}",
         "-I${core.resolve("include")}", bridge.absolutePath,
-        core.resolve("src/turnhub_core.cpp").absolutePath, core.resolve("src/turnhub_json.cpp").absolutePath,
+        core.resolve("src/turnhub_core.cpp").absolutePath, core.resolve("src/turnhub_offline.cpp").absolutePath, core.resolve("src/turnhub_json.cpp").absolutePath,
         "-o", hostCoreLibrary.get().asFile.absolutePath))
 }
 tasks.withType<Test>().configureEach {

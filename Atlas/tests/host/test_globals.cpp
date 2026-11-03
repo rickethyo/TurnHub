@@ -21,6 +21,8 @@ EspStub ESP;
 // The TFT is firmware-only presentation; host builds draw nothing.
 void TurnHubAtlas::beginAtlasDisplay() {}
 void TurnHubAtlas::serviceAtlasDisplay(uint32_t) {}
+// JPEG decoding is firmware-only (LVGL's TJpgDec); a host card view has no art.
+const uint16_t *TurnHubAtlas::planeArtPixels(const char *) { return nullptr; }
 // No TFT is initialized on the host, so its hardware screen test is unavailable.
 bool TurnHubAtlas::startAtlasScreenTest() { return false; }
 static bool fixtureInverted = false;

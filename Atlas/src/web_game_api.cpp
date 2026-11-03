@@ -3,11 +3,13 @@
 // Mutations go through the callbacks registered by Atlas's web adapters.
 
 #include <stdlib.h>
+#include <vector>
 
 #include "firmware_version.h"
 #include "protocol.h"
 #include "web_api_internal.h"
 #include "card_cache.h"
+#include "touch_controls.h"
 #include "controller_profiles.h"
 #include "avatars.h"
 
@@ -155,6 +157,64 @@ void handleState(WebServer &server) {
     return;
   }
   sendJson(server, 200, readClientState(atlasHardwareId(), bootId));
+}
+
+// Offline play: the full game a phone keeps playing on if Atlas drops off.
+void handleOfflineGame(WebServer &server) {
+  if (!offlineHooks.game) {
+    sendError(server, 503, "Offline play is not configured");
+    return;
+  }
+  sendJson(server, 200, offlineHooks.game(atlasHardwareId(), bootId));
+}
+
+// Offline play: a phone's queue, once Atlas answers again.
+void handleOfflineSync(WebServer &server) {
+  if (!sessionForRequest(server)) {
+    sendError(server, 401, "Sign in first");
+    return;
+  }
+  if (!offlineHooks.sync) {
+    sendError(server, 503, "Offline play is not configured");
+    return;
+  }
+  OfflineSyncRequest request;
+  request.device = server.arg("device");
+  request.baseBoot = server.arg("baseBoot");
+  request.atlasBoot = bootId;
+  const String base = server.arg("base"), entries = server.arg("entries");
+  bool baseOk = false, entriesOk = false;
+  const turnhub::Json baseJson = base.length() <= 16384 ? turnhub::Json::parse(base.c_str(), &baseOk) : turnhub::Json();
+  const turnhub::Json list = entries.length() <= 65536 ? turnhub::Json::parse(entries.c_str(), &entriesOk) : turnhub::Json();
+  int64_t now = 0;
+  if (request.device.length() < 1 || request.device.length() > 40 || request.baseBoot.length() > TOKEN_LENGTH ||
+      !baseOk || !baseJson.isObject() || !baseJson.get("gameId").isString() || !entriesOk || !list.isArray() ||
+      list.size() > 512 || !server.hasArg("nowMs")) {
+    sendError(server, 400, "Those offline actions are not valid");
+    return;
+  }
+  now = atoll(server.arg("nowMs").c_str());
+  request.base = turnhub::gameFromJson(baseJson);
+  request.nowOnBase = now;
+  for (size_t i = 0; i < list.size(); ++i) {
+    turnhub::OfflineEntry entry;
+    if (!turnhub::offlineEntryFromJson(list[i], request.device.c_str(), entry)) {
+      sendError(server, 400, "Those offline actions are not valid");
+      return;
+    }
+    request.entries.push_back(entry);
+  }
+  String message;
+  if (!offlineHooks.sync(request, message)) {
+    sendError(server, 409, message);
+    return;
+  }
+  turnhub::Json body = turnhub::Json::object();
+  body.set("ok", true);
+  body.set("mode", request.mode);
+  body.set("revision", readClientRevision ? static_cast<int64_t>(readClientRevision()) : int64_t(0));
+  body.set("outcomes", request.outcomes);
+  sendJson(server, 200, body.dump().c_str());
 }
 
 void handleSeats(WebServer &server) {
@@ -522,10 +582,140 @@ bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::I
 // GET: the catalog's version and size, so the app knows when to send it.
 // POST (any signed-in browser or tablet): version + planes, one line per card
 // "id<TAB>name<TAB>0|1". Kept in RAM and on the microSD card.
+// It also lists the planes whose card (text, and art) Atlas keeps, so the
+// app sends only the missing ones.
 void handlePlanesCatalogInfo(WebServer &server) {
-  sendJson(server, 200, String("{\"version\":\"") + jsonEscape(TurnHubCards::planesVersion()) +
-      "\",\"count\":" + String(TurnHubCards::planeCount()) + "}");
+  String body = String("{\"version\":\"") + jsonEscape(TurnHubCards::planesVersion()) +
+      "\",\"count\":" + String(TurnHubCards::planeCount()) + ",\"cards\":[";
+  String art = ",\"art\":[";
+  bool firstCard = true, firstArt = true;
+  for (uint16_t i = 0; i < TurnHubCards::planeCount(); ++i) {
+    const auto *plane = TurnHubCards::plane(i);
+    bool hasArt = false;
+    if (!TurnHubCards::hasPlaneCard(plane->id, hasArt)) continue;
+    body += firstCard ? "\"" : ",\""; body += plane->id; body += '"';
+    firstCard = false;
+    if (!hasArt) continue;
+    art += firstArt ? "\"" : ",\""; art += plane->id; art += '"';
+    firstArt = false;
+  }
+  sendJson(server, 200, body + "]" + art + "]}");
 }
+
+namespace {
+// Standard base64 (RFC 4648, padding optional); false for any other character.
+bool decodeBase64(const String &in, std::vector<uint8_t> &out) {
+  out.clear();
+  out.reserve(in.length() * 3 / 4);
+  uint32_t bits = 0;
+  int count = 0;
+  for (size_t i = 0; i < in.length(); ++i) {
+    const char c = in[i];
+    int v;
+    if (c >= 'A' && c <= 'Z') v = c - 'A';
+    else if (c >= 'a' && c <= 'z') v = c - 'a' + 26;
+    else if (c >= '0' && c <= '9') v = c - '0' + 52;
+    else if (c == '+') v = 62;
+    else if (c == '/') v = 63;
+    else if (c == '=') break;
+    else return false;
+    bits = (bits << 6) | static_cast<uint32_t>(v);
+    if (++count == 4) {
+      out.push_back(static_cast<uint8_t>(bits >> 16)); out.push_back(static_cast<uint8_t>(bits >> 8));
+      out.push_back(static_cast<uint8_t>(bits));
+      bits = 0; count = 0;
+    }
+  }
+  if (count == 1) return false;
+  if (count == 2) out.push_back(static_cast<uint8_t>(bits >> 4));
+  if (count == 3) { out.push_back(static_cast<uint8_t>(bits >> 10)); out.push_back(static_cast<uint8_t>(bits >> 2)); }
+  return true;
+}
+}  // namespace
+
+// POST (any signed-in browser or tablet): one catalog plane's card for the
+// Atlas card view: id, type, artist, text, chaos and art (a base64 480x320
+// baseline JPEG; optional). Kept on the microSD card. index and total
+// (optional) are where this card falls in the app's batch, for the screen.
+void handlePlaneCard(WebServer &server) {
+  if (!requireSession(server)) return;
+  std::vector<uint8_t> jpeg;
+  if (!decodeBase64(server.arg("art"), jpeg)) {
+    sendError(server, 400, "Send the art as base64");
+    return;
+  }
+  if (!TurnHubCards::savePlaneCard(server.arg("id").c_str(), server.arg("type"), server.arg("artist"), server.arg("text"),
+          server.arg("chaos"), jpeg.data(), jpeg.size())) {
+    TurnHubAtlas::showSyncStatus(millis(), "Couldn't save a plane card");
+    sendError(server, 409, "Atlas couldn't keep that plane: it needs a catalog plane, plain text and a microSD card");
+    return;
+  }
+  const long index = server.arg("index").toInt(), total = server.arg("total").toInt();
+  char line[48];
+  if (total > 0 && index >= total) snprintf(line, sizeof(line), "All %ld plane cards saved", total);
+  else if (total > 0) snprintf(line, sizeof(line), "Plane cards: %ld of %ld", index, total);
+  else snprintf(line, sizeof(line), "Plane card saved");
+  TurnHubAtlas::showSyncStatus(millis(), line);
+  sendJson(server, 200, String("{\"ok\":true,\"art\":") + jsonBool(!jpeg.empty()) + "}");
+}
+
+// GET (any signed-in browser or app) or POST view=game|table|planes|card:
+// what the Atlas screen shows during Game 1's match. Any signed-in player
+// seated in that game may set it from a phone (owner, 2026-11-02): the app
+// names the seat it acts for (module, slot) as with /api/tablet/*, and a
+// browser uses its own seat. Sigil seats and guests (no profile) can't.
+// Answers the open view and the views available now.
+static void atlasScreen(WebServer &server, bool set) {
+  WebSession *session = requireSession(server);
+  if (!session) return;
+  if (set) {
+    const bool own = !server.hasArg("module") && resolveSessionParticipant(*session);
+    uint8_t module = own ? session->controllerId : TurnHub::INVALID_ID, slot = session->slot;
+    int32_t m = 0, n = 0;
+    if (server.hasArg("module")) {
+      if (!parseBoundedNumber(server.arg("module"), 0, TurnHub::MAX_CONTROLLERS - 1, m) ||
+          !parseBoundedNumber(server.arg("slot"), 1, 2, n)) {
+        sendError(server, 400, "Choose a player");
+        return;
+      }
+      module = static_cast<uint8_t>(m);
+      slot = static_cast<uint8_t>(n);
+    }
+    SeatSnapshot seat;
+    if (module == TurnHub::INVALID_ID || !resolveSeatNow(module, slot, seat)) {
+      sendError(server, 409, "Join this game first");
+      return;
+    }
+    if (module < TurnHub::MAX_PHYSICAL_SIGILS || profileIdForPhysicalSeat(module, slot).length() == 0) {
+      sendError(server, 403, "Sign in to your account on a phone to change the Atlas screen");
+      return;
+    }
+    TurnHubAtlas::AtlasView view;
+    if (!TurnHubAtlas::parseAtlasView(server.arg("view").c_str(), view)) {
+      sendError(server, 400, "Choose game, table, planes or card");
+      return;
+    }
+    const char *error = nullptr;
+    if (!TurnHubAtlas::showAtlasView(view, error)) {
+      sendError(server, 409, error ? error : "That view isn't available");
+      return;
+    }
+  }
+  String views;
+  const char *keys[] = {"game", "table", "planes", "card"};
+  for (const char *key : keys) {
+    TurnHubAtlas::AtlasView view;
+    const char *error = nullptr;
+    if (!TurnHubAtlas::parseAtlasView(key, view) || !TurnHubAtlas::atlasViewAvailable(view, error)) continue;
+    if (views.length()) views += ',';
+    views += String("\"") + key + "\"";
+  }
+  sendJson(server, 200, String("{\"ok\":true,\"view\":\"") + TurnHubAtlas::atlasViewKey(millis()) +
+      "\",\"views\":[" + views + "]}");
+}
+
+void handleAtlasScreen(WebServer &server) { atlasScreen(server, false); }
+void handleSetAtlasScreen(WebServer &server) { atlasScreen(server, true); }
 
 void handlePlanesCatalog(WebServer &server) {
   if (!requireSession(server)) return;
@@ -534,6 +724,10 @@ void handlePlanesCatalog(WebServer &server) {
     sendError(server, 400, "Send the planes as id, name and phenomenon lines with a version");
     return;
   }
+  char line[48];
+  snprintf(line, sizeof(line), saved ? "Got %u planes from the app" : "%u planes, no microSD card",
+      static_cast<unsigned>(TurnHubCards::planeCount()));
+  TurnHubAtlas::showSyncStatus(millis(), line);
   sendJson(server, 200, String("{\"ok\":true,\"count\":") + String(TurnHubCards::planeCount()) +
       ",\"saved\":" + jsonBool(saved) + "}");
 }

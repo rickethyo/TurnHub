@@ -253,18 +253,63 @@ class AtlasTablet(
      * Sends the app's downloaded planes for Atlas's digital Planechase deck when Atlas's
      * catalog differs (first connection, or after the app downloads newer planes).
      */
-    suspend fun syncPlanes(cards: List<com.turnhub.android.data.PlaneInfo>) {
+    suspend fun syncPlanes(cards: List<com.turnhub.android.data.PlaneInfo>, progress: (String) -> Unit = {}) {
         if (cards.isEmpty()) return
         val version = "${cards.size}-" + Integer.toHexString(cards.map { it.id }.sorted().hashCode())
         try {
             val info = session.raw("GET", "/api/planes") ?: return
             if (info.ok && org.json.JSONObject(info.body).optString("version") == version) return
+            progress("Sending ${minOf(cards.size, 192)} planes to Atlas…")
             val lines = cards.take(192).joinToString("\n") { card ->
                 val name = card.name.map { if (it.code in 32..126) it else '?' }.joinToString("").take(40)
                 "${card.id}\t$name\t${if (card.card.phenomenon) 1 else 0}"
             }
-            session.raw("POST", "/api/planes", listOf("version" to version, "planes" to lines))
-        } catch (e: CancellationException) { throw e } catch (_: Exception) { /* Next connection tries again. */ }
+            val sent = session.raw("POST", "/api/planes", listOf("version" to version, "planes" to lines))
+            progress(if (sent?.ok == true) "Atlas has the ${minOf(cards.size, 192)} planes." else "Atlas didn't take the planes. Try Send planes to Atlas.")
+        } catch (e: CancellationException) { throw e } catch (_: Exception) { progress("Couldn't reach Atlas to send the planes.") }
+    }
+
+    /**
+     * Sends Atlas the card view's text and art for each catalog plane it lacks art for
+     * (after [syncPlanes]), or for every plane when [all] (the manual Send planes to Atlas).
+     * One request per plane, numbered so the Atlas screen shows the same progress; stops at
+     * the first refusal (no microSD card, or the catalog changed). [progress] gets each step
+     * in words for the app's screen.
+     */
+    suspend fun syncPlaneCards(cards: List<com.turnhub.android.data.PlaneInfo>, all: Boolean = false,
+        progress: (String) -> Unit = {}, art: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray?) {
+        try {
+            val info = session.raw("GET", "/api/planes") ?: return progress("Couldn't reach Atlas to send the plane cards.")
+            if (!info.ok) return progress("Atlas didn't answer about its plane cards.")
+            val withArt = if (all) emptySet() else org.json.JSONObject(info.body).optJSONArray("art")
+                ?.let { list -> (0 until list.length()).map { list.getString(it) }.toSet() }.orEmpty()
+            val missing = cards.take(192).filter { it.id !in withArt }
+            if (missing.isEmpty()) return progress("Atlas has every plane's card.")
+            missing.forEachIndexed { i, card ->
+                progress("Sending plane cards to Atlas: ${i + 1} of ${missing.size}")
+                val text = AtlasPlaneCards.text(card)
+                val jpeg = art(card)?.let { AtlasPlaneCards.artJpeg(it) }
+                val response = session.raw("POST", "/api/planes/card", listOf("id" to card.id, "type" to text.type,
+                    "artist" to text.artist, "text" to text.text, "chaos" to text.chaos,
+                    "art" to (jpeg?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) } ?: ""),
+                    "index" to "${i + 1}", "total" to "${missing.size}"))
+                    ?: return progress("Lost Atlas after ${i} of ${missing.size} plane cards.")
+                if (!response.ok) return progress(
+                    runCatching { org.json.JSONObject(response.body).optString("error") }.getOrNull()?.takeIf { it.isNotBlank() }
+                        ?: "Atlas didn't keep the plane cards.")
+            }
+            progress("Sent ${missing.size} plane cards to Atlas.")
+        } catch (e: CancellationException) { throw e } catch (_: Exception) { progress("Couldn't finish sending the plane cards. Try again.") }
+    }
+
+    /**
+     * Sets what the Atlas screen shows during the game (`game`, `table`, `planes` or `card`),
+     * for a signed-in player at the table ([seat]); Atlas refuses Sigil seats and guests.
+     */
+    suspend fun showOnAtlas(seat: TabletSeat, view: String): Boolean {
+        val response = post("/api/atlas/screen", seat.fields + ("view" to view)) ?: return false
+        if (response.ok) succeed() else fail(response)
+        return response.ok
     }
 
     // --- the table ----------------------------------------------------------------
@@ -442,6 +487,42 @@ class AtlasTablet(
                 isError = true,
             ))
         }
+    }
+
+    // --- offline play (protocol/http-v1.md, "Offline play") ----------------------
+
+    /** Atlas's whole game, to keep playing on if it drops off; null when it can't say. */
+    suspend fun fetchOfflineBase(game: Int, nowMs: Long): OfflineBase? = try {
+        kotlinx.coroutines.withContext(ExpectedGame(game)) { session.raw("GET", "/api/v1/game") }
+            ?.takeIf { it.ok }?.let { OfflineBase.parse(it.body, nowMs) }?.takeIf { it.game == game }
+    } catch (e: CancellationException) { throw e }
+    catch (_: AtlasException) { null }
+
+    /**
+     * Sends what [played] did while Atlas was away. Atlas replays it in time
+     * order with any other phone's queue; one note says if some of it no
+     * longer fit the game. False when Atlas refused it (the game had ended or
+     * changed), which is said too; null when it didn't arrive, to try again.
+     */
+    suspend fun syncOffline(played: OfflineAtlasGame): Boolean? {
+        if (played.queue.isEmpty()) return true
+        val response = kotlinx.coroutines.withContext(ExpectedGame(played.base.game)) {
+            post("/api/v1/offline", played.syncFields())
+        } ?: return null
+        if (!response.ok) {
+            fail(response, "Atlas couldn't take the moves made while it was offline.")
+            return false
+        }
+        val outcomes = json(response)?.optJSONArray("outcomes")
+        val refused = (0 until (outcomes?.length() ?: 0)).count { outcomes?.optJSONObject(it)?.optBoolean("applied") == false }
+        _state.update {
+            it.copy(message = if (refused == 0) null else ActionFeedback(
+                if (refused == 1) "1 move made while Atlas was offline no longer fit the game, so Atlas left it out."
+                else "$refused moves made while Atlas was offline no longer fit the game, so Atlas left them out.",
+                isError = true,
+            ))
+        }
+        return true
     }
 
     /** Forgets sent changes once a snapshot newer than the one they were sent against arrives. */

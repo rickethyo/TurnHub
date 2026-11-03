@@ -37,6 +37,9 @@ constexpr uint8_t LCD_BACKLIGHT_PIN = 45;  // High = lit.
 // 2 since 2026-10-29: in the case USB-C faces away from the player, so the
 // board sits upside down. Touch follows the rotation. *Needs verification*.
 constexpr uint8_t LCD_ROTATION = 2;
+// The Planechase card view's landscape turn (1 or 3: which long edge is the
+// card's bottom). *Needs verification* on the board.
+constexpr uint8_t LCD_CARD_ROTATION = 3;
 constexpr bool LCD_INVERT = true;
 // FT6336U capacitive touch (I2C 0x38), on the bus the codec will share.
 constexpr int8_t TOUCH_SDA_PIN = 16;
@@ -67,21 +70,9 @@ constexpr uint32_t BATTERY_DIVIDER_DENOMINATOR = 1;
 // resets Atlas (three_part_button.h).
 constexpr uint8_t BOOT_BUTTON_PIN = 0;
 
-// Screen off (owner 2026-11-02: the backlight is the biggest draw and need
-// not run constantly). With no touch and nothing new on screen (a ticking
-// clock doesn't count) for this long, the backlight goes off and everything
-// else keeps running; a touch lights it again without pressing anything, and
-// anything new on screen (a pass, a phone joining) lights it too. On USB the
-// screen stays on while a match is running and not paused; on the cell it
-// goes off sooner, even during a match.
-constexpr uint32_t SCREEN_OFF_IDLE_MS = 2UL * 60UL * 1000UL;
-constexpr uint32_t BATTERY_SCREEN_OFF_IDLE_MS = 30UL * 1000UL;
-
-// Auto sleep on the cell (owner 2026-10-08: keep the small backup cell from
-// running flat). Between games, Atlas sleeps after this long with no player
-// action (an Intent from a Sigil, phone or the touchscreen, or a touch). On
-// USB it never sleeps by itself.
-constexpr uint32_t BATTERY_IDLE_SLEEP_MS = 5UL * 60UL * 1000UL;
+// Screen off and auto sleep on the cell are owner settings now
+// (power_settings.h, Settings > Device > Sound, screen, sleep). Screen off darkens
+// only the backlight; a touch, or anything new on screen, lights it again.
 // Voltage protection is independent of displayed percent (battery_gauge.h).
 // An interrupted match comes back paused; only USB wakes an empty Atlas.
 // The empty reading must hold this long, so one sag under load can't trip it.

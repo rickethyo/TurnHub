@@ -2,8 +2,42 @@
 
 Status: design requested by the owner, 2026-10-13. The app must contain the
 same game engine and hosting abilities as Atlas, prefer Atlas when connected,
-and continue the whole match on the designated host phone when Atlas drops
-off. Authority transfer and reconciliation are not implemented yet.
+and continue the match when Atlas drops off. Offline play with timestamped
+queues is implemented (2026-11-03, below, *Experimental*: host-tested, not yet
+played on the boards); fenced authority transfer is not.
+
+## Offline play (owner, 2026-11-03)
+
+The owner's direction: when Atlas disconnects during a game, the game continues
+on the phones, and every action is saved for Atlas with its time relative to the
+last known Atlas time. This replaces the single designated recovery phone below
+for now: every phone showing the table keeps going on its own copy.
+
+- **Copy:** while a game runs, the app keeps `GET /api/v1/game` (the core's whole
+  game and Atlas's game clock `atlasMs`), refetched when the state's revision
+  changes (`HomeViewModel`, `OfflineBase`).
+- **Playing on:** when Atlas stops answering, the Table screen switches to that
+  game on the phone (`OfflineAtlasGame`: an in-memory `StandaloneTable` on the
+  shared core, moved onto the phone's clock). `NativeGameCore.recorder` queues
+  each applied core action with `atMs` = the copy's `atlasMs` + the phone's time
+  since, plus the random draws it took. Turn timeouts are not queued; Atlas works
+  them out again. A strip says the game goes on and moves are saved.
+- **Reconnect:** before anything else the app sends the queue
+  (`POST /api/v1/offline`, protocol/http-v1.md "Offline play"), then any older
+  life/Commander queue, then follows Atlas again.
+- **Merging (core `turnhub::reconcile`, Atlas `SyncOffline`):** queues are sorted
+  by `atMs`, device, `seq` and replayed through the same rules; an entry the merged
+  game refuses (a pass for a turn that already moved on) is dropped and reported to
+  its phone. Several phones from one outage join one timeline while nothing else
+  changes the game (`GameTable::offline`); after a restart Atlas starts from the
+  phone's copy when nobody has acted on the restored match. Otherwise entries apply
+  on top, now. This deliberately chooses by timestamp (owner's decision), unlike
+  the fenced review below.
+- **Limits:** the match ends offline play (start, rematch, reset, Back to setup and
+  seating wait for Atlas); the queue lives in memory, so closing the app during an
+  outage loses it; Sigils keep their last screen (no radio path to a phone); a
+  phone must be signed in to Atlas to keep a copy and to send it; any signed-in
+  session can send a copy after a restart (trusted like tablet mode).
 
 ## Current foundation
 

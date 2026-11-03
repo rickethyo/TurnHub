@@ -28,6 +28,8 @@
 #define LV_DRAW_SW_SUPPORT_I1 0
 
 #define LV_USE_QRCODE 1
+// TJpgDec decodes the Planechase card view's art (atlas_display_s3.cpp).
+#define LV_USE_TJPGD 1
 #define LV_USE_THEME_DEFAULT 0
 #define LV_USE_THEME_SIMPLE 0
 #define LV_USE_THORVG_INTERNAL 0

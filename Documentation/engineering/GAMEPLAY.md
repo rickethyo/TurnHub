@@ -230,7 +230,9 @@ loss condition; Commander damage totals alone do not trigger elimination.
   with the same players and settings and nothing is recorded. A match under a
   minute (`SHORT_GAME_MS`) commits its finished checkpoint but its statistics
   wait for `CountShortGame` (state `shortGameUncounted`); left uncounted, it
-  never reaches the statistics. The standalone app does the same. Android returns
+  never reaches the statistics. The standalone app does the same, and the
+  Atlas screen offers it under Actions (confirmed) for those three minutes
+  (2026-11-03). Android returns
   to the Game tab when this action succeeds, including from full screen.
 - Local Android starts and rematches show a cancellable three-second countdown
   before committing the engine action. Back, leaving the screen or backgrounding
@@ -238,6 +240,27 @@ loss condition; Commander damage totals alone do not trigger elimination.
   During local Planechase play, Planar die beside Pass animates one validated
   engine roll. Blank stays on Table; chaos and planeswalk open Planes with the
   corresponding effect highlighted. Cancellation before the roll changes nothing.
+  On the S3 Atlas (2026-11-02; preview renders only, *needs a flash test*),
+  the Planes page shows the face-up plane as a card (name, counters, cards
+  left) over the walks, chaos and next roll's cost, with Roll and Planeswalk
+  under it. Every roll Atlas accepts, from a Sigil, the app, a tablet or the
+  Atlas screen, drops an animated planar die over whatever page is open; it
+  lands on the face, then names it and who rolled (the Planes page says the
+  same in words). A restart never replays a roll. With the digital deck,
+  Card turns the screen landscape and shows the face-up plane like the
+  physical card: the art edge to edge, the name, the rules text and the chaos
+  ability (marked with a burst and set apart) in a box along the bottom, the
+  counters, and the artist and Scryfall credit, in TurnHub's own frame. A tap
+  anywhere goes back; a roll drops the die over it too. The app sends each
+  plane's text and art to Atlas (`POST /api/planes/card`, `http-v1.md`); a
+  plane without them shows its name and a note. While the app sends the
+  catalog or cards, the Atlas screen shows a toast ("Plane cards: 12 of 86")
+  and the app's lobby shows the same in words, with Send planes to Atlas to
+  resend every card by hand.
+  During the game, any signed-in player seated at the table can pick what
+  the Atlas screen shows (Game, Table, Planes or the plane's Card) from the
+  app's Planes tab (`/api/atlas/screen`, owner 2026-11-02); Sigils and
+  guests can't. It changes only the screen, never the game.
 - **Who goes first:** any player can choose (`SelectStarter`); choosing the
   chosen player again clears it. With nobody chosen, Atlas picks a random
   player when the countdown ends, as the standalone app does (rematches too).

@@ -649,7 +649,9 @@ private fun TableAndAtlasCard(admin: AdminState, actions: AdminActions) {
     // Chosen here, sent only by Save (the saved values reset them on refresh).
     var pairingDraft by remember(admin.pairingWindowMs) { mutableStateOf(admin.pairingWindowMs) }
     var volumeDraft by remember(admin.speakerVolume) { mutableStateOf(admin.speakerVolume) }
-    val tableDirty = pairingDraft != admin.pairingWindowMs || volumeDraft != admin.speakerVolume
+    var powerDraft by remember(admin.power) { mutableStateOf(admin.power) }
+    val tableDirty = pairingDraft != admin.pairingWindowMs || volumeDraft != admin.speakerVolume ||
+        powerDraft != admin.power
     BrassCard {
         Eyebrow("Table and Atlas")
         if (admin.pairingChoicesMs.isNotEmpty()) {
@@ -678,13 +680,51 @@ private fun TableAndAtlasCard(admin: AdminState, actions: AdminActions) {
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        if (admin.pairingChoicesMs.isNotEmpty() || admin.speakerVolume != null) {
+        powerDraft?.let { power ->
+            Eyebrow("Screen and sleep")
+            ChoiceDropdown(
+                label = "Turn the Atlas screen off after",
+                options = power.screenOffChoices.mapIndexed { i, label ->
+                    i to if (label == "Auto") "Auto (2 min, 30 s on battery)" else label
+                },
+                selected = power.screenOff,
+                onSelect = { powerDraft = power.copy(screenOff = it) },
+                enabled = !admin.busy,
+            )
+            ChoiceDropdown(
+                label = "Screen off during games",
+                options = power.gameScreenChoices.mapIndexed { i, label ->
+                    i to if (label == "On battery") "Only on battery (default)" else label
+                },
+                selected = power.gameScreen,
+                onSelect = { powerDraft = power.copy(gameScreen = it) },
+                enabled = !admin.busy,
+            )
+            ChoiceDropdown(
+                label = "Deep sleep on battery",
+                options = power.autoSleepChoices.mapIndexed { i, label ->
+                    i to if (label == "Off") "Off (never sleeps by itself)" else "After $label idle"
+                },
+                selected = power.autoSleep,
+                onSelect = { powerDraft = power.copy(autoSleep = it) },
+                enabled = !admin.busy,
+            )
+            Text(
+                "Screen off only darkens the screen; a touch lights it again. Deep sleep happens between games on " +
+                    "battery: the lobby empties and phones sign in again after a touch wakes Atlas. A flat battery " +
+                    "still puts Atlas to sleep. The same choices are on Atlas under Settings > Device > Sound, screen, sleep.",
+                color = p.faint,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        if (admin.pairingChoicesMs.isNotEmpty() || admin.speakerVolume != null || admin.power != null) {
             AccentButton(
                 if (tableDirty) "Save Atlas settings" else "Atlas settings saved",
                 {
                     val ms = pairingDraft.takeIf { it != admin.pairingWindowMs }
                     val v = volumeDraft.takeIf { it != admin.speakerVolume }
-                    actions.run { saveTableSettings(ms, v); refresh(admin = true, gameMaster = false) }
+                    val pw = powerDraft.takeIf { it != admin.power }
+                    actions.run { saveTableSettings(ms, v, pw); refresh(admin = true, gameMaster = false) }
                 },
                 Modifier.fillMaxWidth(),
                 enabled = tableDirty && !admin.busy,

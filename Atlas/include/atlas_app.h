@@ -41,6 +41,7 @@
 #include "led_renderer.h"
 #include "lobby.h"
 #include "ota_manager.h"
+#include "power_settings.h"
 #include "protocol.h"
 #include "setup_stage.h"
 #include "sigil_bus.h"
@@ -98,6 +99,9 @@ extern bool gameSettingsAvailable;
 extern bool espNowReady;
 // Atlas's pairing window; admins choose it (pairing_settings.h).
 extern uint32_t pairingWindowMs;
+// Screen off and auto sleep (power_settings.h); changed only by
+// handleConfigurePowerIntent.
+extern TurnHub::PowerSettings powerSettings;
 // How far this Atlas is through first-run setup (setup_stage.h). Loaded at
 // boot by beginFirstRunSetup(); changed only by handleAdvanceSetupIntent.
 extern TurnHub::SetupStage setupStage;
@@ -159,6 +163,18 @@ struct GameTable {
     TurnHubCards::Commander card{};
   };
   SeatCommander commanders[MAX_PLAYERS];
+  // Offline play: the outage the phones' queues are merging into. Open from
+  // the first phone's sync until anything else changes the game, so a second
+  // phone's queue joins the same timeline rather than landing on top.
+  struct OfflineMerge {
+    bool open = false;
+    turnhub::Game base;
+    String baseBoot;
+    bool onThisClock = false;  // base runs on this boot's clock.
+    std::vector<turnhub::OfflineEntry> entries;
+    int64_t resultRevision = 0;
+    int64_t untilMs = 0;  // On base's clock.
+  } offline;
 };
 
 constexpr uint8_t MAX_GAME_TABLES = 2;
@@ -294,6 +310,12 @@ IntentResult handleResetIntent(const Intent &intent, void *);
 IntentResult handleBackToSetupIntent(const Intent &intent, void *);
 IntentResult handleCountShortGameIntent(const Intent &intent, void *);
 IntentResult handlePlanarIntent(const Intent &intent, void *);
+// Offline play: the request the web adapter staged for SyncOffline (null
+// outside that dispatch), and the core's state with Atlas's clock for
+// GET /api/v1/game.
+extern TurnHubWebApi::OfflineSyncRequest *pendingOfflineSync;
+IntentResult handleSyncOfflineIntent(const Intent &intent, void *);
+String offlineGameJson(const String &atlasId, const char *bootId);
 // A finished match under SHORT_GAME_MS that nobody has counted yet.
 bool shortGameUncounted();
 IntentResult handleCancelPassIntent(const Intent &intent, void *);
@@ -304,6 +326,7 @@ IntentResult handleForgetPairingIntent(const Intent &intent, void *);
 IntentResult handlePairConfirmIntent(const Intent &intent, void *);
 IntentResult handleConfigurePairingIntent(const Intent &intent, void *);
 IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *);
+IntentResult handleConfigurePowerIntent(const Intent &intent, void *);
 IntentResult handleConfigureUploadApprovalIntent(const Intent &intent, void *);
 IntentResult handleConfigureTableCodeIntent(const Intent &intent, void *);
 IntentResult handleResetTableIntent(const Intent &intent, void *);
@@ -328,8 +351,8 @@ bool sleepScheduled();
 constexpr int32_t SLEEP_REASON_MENU = 0;
 constexpr int32_t SLEEP_REASON_IDLE = 1;
 constexpr int32_t SLEEP_REASON_EMPTY = 2;
-// On the cell only: dispatches Sleep after AtlasConfig::BATTERY_IDLE_SLEEP_MS
-// with no player action between games, or once the charge has read empty for
+// On the cell only: dispatches Sleep after the auto-sleep choice
+// (power_settings.h; Off never) with no player action between games, or once the charge has read empty for
 // BATTERY_EMPTY_CONFIRM_MS. Called from loop().
 void serviceAutoSleep(uint32_t nowMs);
 // A player did something (a non-System Intent, or a touch): restarts the idle

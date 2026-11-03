@@ -20,6 +20,7 @@
 #include <string.h>
 
 #include "mana_tap.h"
+#include "card_cache.h"
 #include "update_notice.h"
 #include "device_navigation.h"
 
@@ -27,6 +28,7 @@ namespace TurnHubAtlas {
 
 // Portrait screen size in pixels: the S3 Atlas's 4-inch panel, drawn 1:1.
 constexpr int16_t ATLAS_SCREEN_WIDTH = 320;
+// The card view turns the panel to landscape: ATLAS_SCREEN_HEIGHT wide.
 constexpr int16_t ATLAS_SCREEN_HEIGHT = 480;
 
 // A touch counts as released only after this long without contact, because
@@ -64,6 +66,9 @@ enum class TouchAction : uint8_t {
   ClearLobby,
   // In a game: the Table screen and its master pass (a stuck turn).
   OpenTable, MasterPass,
+  // ...and, within the first three minutes, Back to setup (confirmed): the
+  // app's undo of the start, the same BackToSetup Intent.
+  BackToSetup,
   OpenPlayerControls, PlayerControlsBack, PlayerControlsPrev, PlayerControlsNext, ControlMinus, ControlPlus,
   // Presence code screen: cancel the code a phone asked for.
   CancelCode,
@@ -90,6 +95,9 @@ enum class TouchAction : uint8_t {
   // ...and USB drive (a tap) lends the microSD card to a computer on USB-C,
   // or takes it back (sd_card.h).
   UsbDrive,
+  // Settings > Device > Sound, screen, sleep (with the volume): each tap moves its row to the next
+  // choice (ConfigurePower, power_settings.h).
+  OpenPower, PowerScreenOff, PowerGameScreen, PowerAutoSleep,
   // Settings > Home Wi-Fi: a tap turns the optional home network check-ins
   // on or off (home_wifi.h); the network itself is set in the portal or app.
   HomeWifi,
@@ -117,6 +125,9 @@ enum class TouchAction : uint8_t {
   // Planechase (when on): the Planes screen from the Game page, its die,
   // a card's planeswalk, and resolving a phenomenon (the active player's).
   OpenPlanes, PlanarRoll, PlanarWalk, PlanarResolve,
+  // ...and the card view: the face-up plane full screen in landscape, like
+  // the physical card (art, text, chaos ability); a tap anywhere goes back.
+  OpenPlaneCard, PlaneCardBack,
   // Lobby, a player's screen: step through their profile's saved commanders.
   SeatCommander,
   // Settings > Device: step the speaker volume (off, low, medium, high).
@@ -136,7 +147,7 @@ enum class TouchAction : uint8_t {
 // Confirm: the popup asking before a hazardous action.
 // NewGame: the lobby's game setup before Start game.
 // ManaTap: the mini game, opened from Home.
-enum class ScreenKind : uint8_t { Home, Overview, Status, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Themes, Seat, Name, Pin, Confirm, NewGame, ManaTap, Planes };
+enum class ScreenKind : uint8_t { Home, Overview, Status, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Power, Themes, Seat, Name, Pin, Confirm, NewGame, ManaTap, Planes, PlaneCard };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -200,6 +211,37 @@ struct ScreenPlayer {
   char turnTime[9] = {};
 };
 
+// Planechase on the screen (a match with Planechase on). The roll fields are
+// set on every screen, so the display rolls its planar die over whatever is
+// open whenever any player rolls (a Sigil, the app, a tablet or this screen);
+// the rest is the Planes screen's plane card. Faces: 0 blank, 1 chaos,
+// 2 planeswalk, as in GameEngine::PlanarView.
+constexpr uint8_t SCREEN_PLANE_NAME_LENGTH = 40;
+struct ScreenPlanes {
+  bool on = false;
+  bool digital = false;      // Atlas's digital deck, else the players' own plane cards.
+  bool phenomenon = false;
+  char plane[SCREEN_PLANE_NAME_LENGTH + 1] = {};  // The face-up card's name (digital).
+  int32_t deckLeft = 0, planeswalks = 0, chaos = 0, counters = 0, rollCost = 0;
+  // The match's latest roll: its number (0 before the first), who, the face,
+  // what it cost and whether a card made it (free).
+  int32_t roll = 0;
+  uint8_t face = 0, cost = 0;
+  bool fromEffect = false;
+  char roller[SCREEN_NAME_LENGTH + 1] = {};
+  // Card view (PlaneCard): the saved card's text and its art, 480x320
+  // RGB565 (nullptr without art). Both stay valid until the plane changes.
+  const TurnHubCards::PlaneCard *card = nullptr;
+  const uint16_t *art = nullptr;
+  bool operator==(const ScreenPlanes &o) const {
+    return on == o.on && digital == o.digital && phenomenon == o.phenomenon && !strcmp(plane, o.plane) &&
+        deckLeft == o.deckLeft && planeswalks == o.planeswalks && chaos == o.chaos && counters == o.counters &&
+        rollCost == o.rollCost && roll == o.roll && face == o.face && cost == o.cost && fromEffect == o.fromEffect &&
+        !strcmp(roller, o.roller) && card == o.card && (!card || !strcmp(card->id, o.card->id)) && art == o.art;
+  }
+  bool operator!=(const ScreenPlanes &o) const { return !(*this == o); }
+};
+
 // Everything the TFT shows. Equal screens need no redraw; atlas_display.cpp
 // compares region by region.
 struct AtlasScreen {
@@ -208,6 +250,7 @@ struct AtlasScreen {
   char title[32] = {};
   char detail[48] = {};
   char notice[48] = {};   // Action message; shown in place of detail while set.
+  char sync[48] = {};     // showSyncStatus's toast while it is up.
   bool sdMissing = false; // Header warning: "NO SD CARD".
   bool sdOnUsb = false;   // ...or "USB DRIVE" while a computer has the card.
   // Battery charge estimate (0-100), or -1 with no cell; the header shows it
@@ -247,6 +290,8 @@ struct AtlasScreen {
   TurnHub::ManaTap mana;
   bool manaTurnPaused = false;
 
+  ScreenPlanes planes;
+
   TouchButton buttons[MAX_TOUCH_BUTTONS];
   uint8_t buttonCount = 0;
   // The button under a finger right now.
@@ -283,7 +328,7 @@ inline bool sameGameClock(const AtlasScreen &a, const AtlasScreen &b) {
 
 inline bool sameHero(const AtlasScreen &a, const AtlasScreen &b) {
   return a.kind == b.kind && sameScreenText(a.title, b.title) && sameScreenText(a.detail, b.detail) &&
-      sameScreenText(a.notice, b.notice);
+      sameScreenText(a.notice, b.notice) && sameScreenText(a.sync, b.sync);
 }
 
 inline bool sameTimer(const AtlasScreen &a, const AtlasScreen &b) {
@@ -309,7 +354,7 @@ inline bool sameBody(const AtlasScreen &a, const AtlasScreen &b, bool times = tr
       a.showPlayerControls != b.showPlayerControls || a.controlsPage != b.controlsPage ||
       memcmp(&a.controls,&b.controls,sizeof(a.controls)) || a.kind != b.kind || a.playerCount != b.playerCount || a.showLife != b.showLife ||
       a.lineCount != b.lineCount || !sameScreenText(a.qr, b.qr) || !sameScreenText(a.qrCaption, b.qrCaption) ||
-      !sameScreenText(a.code, b.code)) {
+      !sameScreenText(a.code, b.code) || a.planes != b.planes) {
     return false;
   }
   for (uint8_t i = 0; i < a.lineCount; ++i) if (!sameScreenText(a.lines[i], b.lines[i])) return false;
@@ -357,6 +402,24 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen);
 // dispatches Intents; audit_adapters.py checks it.
 void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y);
 
+
+// A message about data arriving from an app (the plane catalog, plane
+// cards...), shown over any screen as a toast for TOUCH_NOTICE_MS after the
+// latest one, so the table sees the update happen. Presentation only.
+constexpr uint32_t SYNC_TOAST_MS = TOUCH_NOTICE_MS;
+void showSyncStatus(uint32_t nowMs, const char *text);
+
+// What a phone may put on the Atlas screen during Game 1's match (owner,
+// 2026-11-02: any signed-in player seated in that game; the HTTP handler
+// checks who asks). Presentation only, like the tabs: no game state moves.
+enum class AtlasView : uint8_t { Game, Table, Planes, Card };
+bool parseAtlasView(const char *key, AtlasView &view);
+const char *atlasViewKey(uint32_t nowMs);  // The open tab: game, table, planes, card or other.
+// Whether the view can show now (for the current table() scope), and why not.
+bool atlasViewAvailable(AtlasView view, const char *&error);
+// Opens the view for the current table() scope. False (with a reason for
+// the phone) when that view isn't there now.
+bool showAtlasView(AtlasView view, const char *&error);
 
 // Clears press, notice and screen state (tests, and boot).
 void resetTouchControls(bool startAtHome = false);
