@@ -125,6 +125,20 @@ recorded and the stats API reports `"detailed": false`.
   holds stale FAT state. Atlas and the computer never both use the card. A
   match that ends while the card is lent keeps only its NVS core counts.
   Eject on the computer before tapping, or its unwritten changes can be lost.
+- **Plane cards** (`card_cache.h`, 2026-11-03): each plane's text and art sit
+  in `/turnhub/planes/` under 8.3 names (`<8 hex of FNV-1a(id)>.txt/.jpg`), so
+  FatFs needs no long-name entries and a small folder. The SD worker lists the
+  folder once per mount into an in-RAM index (PSRAM), which answers every
+  "has this plane a card" question, and writes the cards and the catalog's
+  records that the loop queues (three cards at most, in PSRAM). It wakes at
+  once for a queued job (`wakeSdWorker`) and writes one job per pass, so the
+  log still drains between them. The old layout (`/turnhub/pc-<id>.*`, long
+  names beside the records) is removed one file per pass after each mount.
+  Before this, each lookup in the crowded `/turnhub` folder took about 320 ms
+  on the loop (the S3 bench, 10 MHz SDMMC) and a sync froze the screen for up
+  to 110 s; the worker logs `ATLAS|PLANES|INDEX` with the listing and lookup
+  times and `ATLAS|SD|USB_MSC|unsharedCalls` (the computer's sector calls while
+  the card isn't lent) to compare (*Needs verification* on the board).
 - **Factory reset** empties the card (`wipeSdCard()`); the portal stays in firmware,
   then erases NVS.
 

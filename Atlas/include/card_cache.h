@@ -31,9 +31,10 @@ void setStoreForTests(TurnHubStorage::BlobStore *store);
 // Reads the catalog saved on the card into RAM; false when there is none.
 bool loadPlanes();
 // Replaces the catalog from lines "id<TAB>name<TAB>0|1" (1: a phenomenon).
-// Kept in RAM for this boot even without a card; saved to the card when one
-// is in. False (nothing changed) for a malformed or empty list.
-bool replacePlanes(const char *lines, const char *version, bool &saved);
+// Kept in RAM for this boot even without a card. With a card in, the records
+// are queued for the SD worker (queued true) and written there, never on the
+// loop. False (nothing changed) for a malformed or empty list.
+bool replacePlanes(const char *lines, const char *version, bool &queued);
 uint16_t planeCount();
 const Plane *plane(uint16_t index);
 const Plane *findPlane(const char *id);
@@ -43,8 +44,15 @@ const char *planesVersion();
 //
 // The app sends each catalog plane's rules text, its chaos ability (apart,
 // as the card sets it off), type line and artist, and its art as a 480x320
-// baseline JPEG it cut from Scryfall's art crop. Kept on the microSD card as
-// "pc-<id>.txt" and "pc-<id>.jpg" in Atlas's folder; nothing without a card.
+// baseline JPEG it cut from Scryfall's art crop. Kept on the microSD card in
+// Atlas's "planes" folder under 8.3 names, "<hash>.txt" and "<hash>.jpg"
+// (planeFileStem); nothing without a card.
+//
+// The loop never waits for the card here (owner, 2026-11-03: Send planes froze
+// the Atlas screen for 30-110 s when every lookup and write ran on it). The SD
+// worker keeps an index of which planes have text and art, built once per
+// mount from one listing of the folder, and writes queued cards one at a
+// time. hasPlaneCard answers from that index; savePlaneCard queues.
 
 constexpr size_t PLANE_TYPE_LENGTH = 47;
 constexpr size_t PLANE_ARTIST_LENGTH = 47;
@@ -64,13 +72,42 @@ struct PlaneCard {
 
 // The files cards are kept in (the microSD card's) unless a test sets others.
 void setCardFilesForTests(TurnHubHistory::ArchiveFiles *files);
-// Saves one catalog plane's card (text printable ASCII; newlines allowed in
-// text). jpeg may be empty (text only). False for an unknown plane, bad
-// text, a JPEG that isn't one, or no card.
-bool savePlaneCard(const char *id, const String &type, const String &artist, const String &text, const String &chaos,
-    const uint8_t *jpeg, size_t jpegSize);
-// Whether Atlas has that plane's text (and art).
+
+// The 8 lower-case hex digits naming a plane's files (FNV-1a of its ID).
+void planeFileStem(const char *id, char (&stem)[9]);
+
+enum class CardQueue : uint8_t {
+  Queued,   // The SD worker will write it.
+  Busy,     // The queue is full, or the card's index is still being read: try again shortly.
+  NoCard,   // No working card.
+  Invalid,  // An unknown plane, bad text or a JPEG that isn't one.
+};
+// Queues one catalog plane's card (text printable ASCII; newlines allowed in
+// text). jpeg may be empty (text only); it is copied, so the caller's buffer
+// can go. index/total (0: none) are where it falls in the app's batch, for
+// the screen's progress once it is written.
+CardQueue savePlaneCard(const char *id, const String &type, const String &artist, const String &text, const String &chaos,
+    const uint8_t *jpeg, size_t jpegSize, uint16_t index = 0, uint16_t total = 0);
+// Whether Atlas has that plane's text (and art), from the index. False before
+// the index is read and without a card (planeIndexReady tells them apart).
 bool hasPlaneCard(const char *id, bool &art);
+// The index of this mount's plane files is read (a card is in and listed).
+bool planeIndexReady();
+// A card is in but its index isn't read yet: answers about it would be wrong.
+bool planeIndexPending();
+
+// --- the SD worker's side (sd_card.cpp; tests call it directly) -------------------
+//
+// Reads the plane folder's index after a new mount (generation changes),
+// writes one queued job, then removes one file of the old layout ("pc-*" in
+// Atlas's folder) per call until none are left. Returns true while there is
+// more to do, so the worker calls again at once. Never on the loop.
+bool servicePlaneStorage(uint32_t cardGeneration);
+// A progress line the worker posted ("Plane cards: 3 of 9", "All 9 plane
+// cards saved", "Couldn't save a plane card"), once; the loop shows it.
+bool takePlaneProgress(char *line, size_t size);
+// Jobs waiting for the worker (diagnostics and tests).
+uint8_t pendingPlaneJobs();
 // The card for id, read from the card once and kept for the next call;
 // nullptr when it isn't saved. Application task only.
 const PlaneCard *planeCard(const char *id);

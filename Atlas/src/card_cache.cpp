@@ -2,12 +2,15 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #if defined(ESP_PLATFORM)
 #include <esp_heap_caps.h>
+#include <freertos/FreeRTOS.h>
 #endif
 
 #include "match_archive.h"
 #include "sd_card.h"
+#include "serial_log.h"
 #include "storage.h"
 
 namespace TurnHubCards {
@@ -87,6 +90,9 @@ bool printable(const String &text, size_t max) {
 
 }  // namespace
 
+// Hands the catalog's lines to the SD worker (the plane cards section below).
+bool queueCatalog(const char *lines, const char *catalogVersion);
+
 void setStoreForTests(TurnHubStorage::BlobStore *s) {
   injected = s;
   injectedSet = true;
@@ -121,8 +127,8 @@ bool loadPlanes() {
   return true;
 }
 
-bool replacePlanes(const char *lines, const char *newVersion, bool &saved) {
-  saved = false;
+bool replacePlanes(const char *lines, const char *newVersion, bool &queued) {
+  queued = false;
   if (!lines || !newVersion || !newVersion[0] || strlen(newVersion) > VERSION_LENGTH) return false;
   // Parsed in place: a malformed list puts the saved catalog back.
   if (!reserve()) return false;
@@ -134,29 +140,8 @@ bool replacePlanes(const char *lines, const char *newVersion, bool &saved) {
   }
   planesCount = count;
   snprintf(version, sizeof(version), "%s", newVersion);
-  TurnHubStorage::BlobStore *s = store();
-  if (!s) return true;
-  // Whole lines per record, so a record never splits a plane.
-  uint8_t chunk = 0;
-  const char *start = lines;
-  while (*start && chunk < MAX_CHUNKS) {
-    const char *end = start;
-    const char *cut = start;
-    while (*end && static_cast<size_t>(end - start) < CHUNK) {
-      if (*end == '\n') cut = end + 1;
-      ++end;
-    }
-    if (!*end) cut = end;
-    if (cut == start) return true;  // A line longer than a record (can't happen for valid lines).
-    char key[8];
-    chunkKey(key, sizeof(key), chunk++);
-    if (s->write(key, start, cut - start) != Status::Ok) return true;
-    start = cut;
-  }
-  if (*start) return true;
-  char meta[8 + VERSION_LENGTH + 1];
-  const int length = snprintf(meta, sizeof(meta), "%u\t%s", static_cast<unsigned>(chunk), version);
-  saved = s->write("plv", meta, static_cast<size_t>(length)) == Status::Ok;
+  // The records go to the card from the SD worker (writeCatalog).
+  if (store()) queued = queueCatalog(lines, version);
   return true;
 }
 
@@ -176,10 +161,100 @@ TurnHubHistory::ArchiveFiles *injectedFiles = nullptr;
 bool injectedFilesSet = false;
 TurnHubHistory::ArchiveFiles *files() { return injectedFilesSet ? injectedFiles : TurnHubAtlas::sdArchiveFiles(); }
 
+// The loop queues and reads; the SD worker writes. Every field below that both
+// touch is read or changed inside a Guard, which never waits for the card.
+#if defined(ESP_PLATFORM)
+portMUX_TYPE cardsMux = portMUX_INITIALIZER_UNLOCKED;
+struct Guard {
+  Guard() { portENTER_CRITICAL(&cardsMux); }
+  ~Guard() { portEXIT_CRITICAL(&cardsMux); }
+  Guard(const Guard &) = delete;
+  Guard &operator=(const Guard &) = delete;
+};
+#else
+struct Guard {};
+#endif
+
+void *bigAlloc(size_t size) {
+#if defined(ESP_PLATFORM)
+  if (void *p = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)) return p;
+#endif
+  return malloc(size);
+}
+
+constexpr char PLANE_FOLDER[] = "planes";
+
+// Which planes have text and art on this mount, by file stem (planeFileStem).
+// One listing of the planes folder fills it; the worker updates it after each
+// write. In PSRAM: two entries per catalog plane is room for every file.
+struct IndexEntry {
+  uint32_t key;
+  bool text, art;
+};
+constexpr uint16_t INDEX_CAPACITY = MAX_PLANES * 2;
+IndexEntry *indexEntries = nullptr;
+uint16_t indexCount = 0;
+bool indexReady = false;
+bool indexBuilt = false;  // indexGeneration is set.
+uint32_t indexGeneration = 0;
+
+uint32_t stemKey(const char *id) {
+  uint32_t hash = 2166136261u;  // FNV-1a
+  for (const char *c = id; *c; ++c) hash = (hash ^ static_cast<uint8_t>(*c)) * 16777619u;
+  return hash;
+}
+
+// Inside a Guard.
+IndexEntry *findEntry(uint32_t key) {
+  for (uint16_t i = 0; i < indexCount; ++i) if (indexEntries[i].key == key) return &indexEntries[i];
+  return nullptr;
+}
+void noteFile(uint32_t key, bool text, bool art, bool present) {
+  Guard guard;
+  if (!indexEntries) return;
+  IndexEntry *e = findEntry(key);
+  if (!e) {
+    if (!present || indexCount >= INDEX_CAPACITY) return;
+    e = &indexEntries[indexCount++];
+    *e = IndexEntry{key, false, false};
+  }
+  if (text) e->text = present;
+  if (art) e->art = present;
+}
+
+// "1a2b3c4d.txt" or ".jpg" -> its key and kind; false for anything else.
+bool parseStem(const char *name, uint32_t &key, bool &text) {
+  if (strlen(name) != 12 || name[8] != '.') return false;
+  key = 0;
+  for (int i = 0; i < 8; ++i) {
+    const char c = name[i];
+    const int v = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+    if (v < 0) return false;
+    key = (key << 4) | static_cast<uint32_t>(v);
+  }
+  const char *ext = name + 9;
+  if (!strcasecmp(ext, "txt")) text = true;
+  else if (!strcasecmp(ext, "jpg")) text = false;
+  else return false;
+  return true;
+}
+
+void listed(const char *name, size_t size, void *) {
+  uint32_t key = 0;
+  bool text = false;
+  if (parseStem(name, key, text)) noteFile(key, text, !text, text || size > 0);
+}
+
+String planePath(const char *id, const char *ext) {
+  char stem[9];
+  planeFileStem(id, stem);
+  return String(PLANE_FOLDER) + "/" + stem + ext;
+}
+
 PlaneCard cached;
 bool cachedValid = false;
-
-String cardFile(const char *id, const char *ext) { return String("pc-") + id + ext; }
+uint32_t cardsWritten = 0;  // The worker bumps it; a cached card older than that is read again.
+uint32_t cachedAt = 0;
 
 bool cardText(const String &text, size_t max, bool lines) {
   if (text.length() > max) return false;
@@ -192,61 +267,352 @@ bool cardText(const String &text, size_t max, bool lines) {
 
 bool writeFile(TurnHubHistory::ArchiveFiles *f, const String &name, const char *data, size_t size) {
   if (!f->remove(name.c_str())) return false;
-  // In pieces, so the card's writes stay short.
+  // In pieces, each under the card lock on its own, so the log and the record
+  // store get the card between them.
   for (size_t at = 0; at < size; at += 4096) {
     const size_t n = size - at < 4096 ? size - at : 4096;
     if (!f->append(name.c_str(), data + at, n)) return false;
   }
   return true;
 }
+
+// --- the queue: the loop fills a slot, the SD worker empties it ----------------
+
+enum class JobState : uint8_t { Free, Filling, Ready, Writing };
+enum class JobKind : uint8_t { Card, Catalog };
+struct Job {
+  JobState state = JobState::Free;
+  JobKind kind = JobKind::Card;
+  uint32_t sequence = 0;
+  char id[CARD_ID_LENGTH + 1] = "";
+  char version[VERSION_LENGTH + 1] = "";
+  char *text = nullptr;  // The card's text file, or the catalog's lines.
+  size_t textSize = 0;
+  uint8_t *jpeg = nullptr;
+  size_t jpegSize = 0;
+  uint16_t index = 0, total = 0;
+};
+// A card's art is up to 46 KB from the app; three in flight keep the worker
+// busy while the next upload arrives. The buffers are PSRAM, freed when written.
+constexpr uint8_t JOB_SLOTS = 3;
+Job jobs[JOB_SLOTS];
+uint32_t nextSequence = 1;
+
+char progressLine[48] = "";
+bool progressWaiting = false;
+
+void postProgress(const char *line) {
+  Guard guard;
+  snprintf(progressLine, sizeof(progressLine), "%s", line);
+  progressWaiting = true;
+}
+
+Job *reserveJob() {
+  Guard guard;
+  for (Job &job : jobs) {
+    if (job.state != JobState::Free) continue;
+    job.state = JobState::Filling;
+    return &job;
+  }
+  return nullptr;
+}
+void releaseJob(Job &job) {
+  free(job.text);
+  free(job.jpeg);
+  Guard guard;
+  job = Job{};
+}
+void publishJob(Job &job) {
+  {
+    Guard guard;
+    job.sequence = nextSequence++;
+    job.state = JobState::Ready;
+  }
+  TurnHubAtlas::wakeSdWorker();
+}
+Job *takeJob() {
+  Guard guard;
+  Job *first = nullptr;
+  for (Job &job : jobs)
+    if (job.state == JobState::Ready && (!first || job.sequence < first->sequence)) first = &job;
+  if (first) first->state = JobState::Writing;
+  return first;
+}
+
+// The old layout ("pc-<id>.txt/.jpg" beside the records, long names): the
+// worker removes them, one per pass, after listing them once per mount.
+constexpr uint16_t LEGACY_CAPACITY = 512;
+constexpr size_t LEGACY_NAME = 48;
+char (*legacyNames)[LEGACY_NAME] = nullptr;
+uint16_t legacyCount = 0, legacyNext = 0, legacyRemoved = 0;
+
+void listedLegacy(const char *name, size_t, void *) {
+  if (strncmp(name, "pc-", 3) || strlen(name) >= LEGACY_NAME || legacyCount >= LEGACY_CAPACITY) return;
+  snprintf(legacyNames[legacyCount++], LEGACY_NAME, "%s", name);
+}
+
+// From the worker, for a new mount: list the planes folder once, and note
+// the old layout's files. Logs how long the card took, to compare a listing
+// with single lookups (one lookup took about 320 ms in the old folder).
+void buildIndex(TurnHubHistory::ArchiveFiles *f) {
+  if (!indexEntries) indexEntries = static_cast<IndexEntry *>(bigAlloc(sizeof(IndexEntry) * INDEX_CAPACITY));
+  {
+    Guard guard;
+    indexReady = false;
+    indexCount = 0;
+  }
+  if (!indexEntries) return;
+  const uint32_t started = millis();
+  f->makeFolder(PLANE_FOLDER);
+  const bool listedFolder = f->list(PLANE_FOLDER, listed, nullptr);
+  const uint32_t listMs = millis() - started;
+  unsigned text = 0, art = 0;
+  char sample[13] = "";
+  {
+    Guard guard;
+    for (uint16_t i = 0; i < indexCount; ++i) {
+      text += indexEntries[i].text;
+      art += indexEntries[i].art;
+      if (!sample[0] && indexEntries[i].text)
+        snprintf(sample, sizeof(sample), "%08lx.txt", static_cast<unsigned long>(indexEntries[i].key));
+    }
+    indexReady = listedFolder;
+  }
+  // The old layout, listed once; one lookup there and one in the planes
+  // folder are timed for the record.
+  if (!legacyNames) legacyNames = static_cast<char (*)[LEGACY_NAME]>(bigAlloc(LEGACY_CAPACITY * LEGACY_NAME));
+  legacyCount = legacyNext = legacyRemoved = 0;
+  uint32_t folderMs = 0, legacyStatMs = 0, statMs = 0;
+  size_t size = 0;
+  if (legacyNames) {
+    const uint32_t at = millis();
+    f->list("", listedLegacy, nullptr);
+    folderMs = millis() - at;
+    if (legacyCount) {
+      const uint32_t statAt = millis();
+      f->size(legacyNames[0], size);
+      legacyStatMs = millis() - statAt;
+    }
+  }
+  if (sample[0]) {
+    const uint32_t statAt = millis();
+    f->size((String(PLANE_FOLDER) + "/" + sample).c_str(), size);
+    statMs = millis() - statAt;
+  }
+  TurnHub::serialLog.printf(
+      "ATLAS|PLANES|INDEX|%s|text=%u|art=%u|listMs=%lu|statMs=%lu|legacy=%u|folderListMs=%lu|legacyStatMs=%lu\n",
+      listedFolder ? "READY" : "NO_FOLDER", text, art, static_cast<unsigned long>(listMs),
+      static_cast<unsigned long>(statMs), static_cast<unsigned>(legacyCount), static_cast<unsigned long>(folderMs),
+      static_cast<unsigned long>(legacyStatMs));
+}
+
+void writeCard(TurnHubHistory::ArchiveFiles *f, Job &job) {
+  const uint32_t key = stemKey(job.id);
+  const uint32_t started = millis();
+  bool ok;
+  if (job.jpegSize) ok = writeFile(f, planePath(job.id, ".jpg"), reinterpret_cast<const char *>(job.jpeg), job.jpegSize);
+  else ok = f->remove(planePath(job.id, ".jpg").c_str());
+  if (ok) noteFile(key, false, true, job.jpegSize > 0);
+  if (ok) ok = writeFile(f, planePath(job.id, ".txt"), job.text, job.textSize);
+  noteFile(key, true, false, ok);
+  {
+    Guard guard;
+    ++cardsWritten;
+  }
+  char line[48];
+  if (!ok) snprintf(line, sizeof(line), "Couldn't save a plane card");
+  else if (job.total > 0 && job.index >= job.total) snprintf(line, sizeof(line), "All %u plane cards saved", job.total);
+  else if (job.total > 0) snprintf(line, sizeof(line), "Plane cards: %u of %u", job.index, job.total);
+  else snprintf(line, sizeof(line), "Plane card saved");
+  postProgress(line);
+  TurnHub::serialLog.printf("ATLAS|PLANES|CARD|%s|%u/%u|art=%u|ms=%lu\n", ok ? "SAVED" : "FAILED", job.index, job.total,
+      static_cast<unsigned>(job.jpegSize), static_cast<unsigned long>(millis() - started));
+}
+
+// The catalog as text in records of up to CHUNK bytes: "pl0".."pl<n-1>",
+// then "plv" = "<n>\t<version>" (loadPlanes reads them back).
+void writeCatalog(Job &job) {
+  TurnHubStorage::BlobStore *s = store();
+  const uint32_t started = millis();
+  bool saved = false;
+  if (s) {
+    uint8_t chunk = 0;
+    const char *start = job.text;
+    bool ok = true;
+    // Whole lines per record, so a record never splits a plane.
+    while (ok && *start && chunk < MAX_CHUNKS) {
+      const char *end = start;
+      const char *cut = start;
+      while (*end && static_cast<size_t>(end - start) < CHUNK) {
+        if (*end == '\n') cut = end + 1;
+        ++end;
+      }
+      if (!*end) cut = end;
+      if (cut == start) {  // A line longer than a record (can't happen for valid lines).
+        ok = false;
+        break;
+      }
+      char key[8];
+      chunkKey(key, sizeof(key), chunk++);
+      ok = s->write(key, start, cut - start) == Status::Ok;
+      start = cut;
+    }
+    if (ok && !*start) {
+      char meta[8 + VERSION_LENGTH + 1];
+      const int length = snprintf(meta, sizeof(meta), "%u\t%s", static_cast<unsigned>(chunk), job.version);
+      saved = s->write("plv", meta, static_cast<size_t>(length)) == Status::Ok;
+    }
+  }
+  TurnHub::serialLog.printf("ATLAS|PLANES|CATALOG|%s|ms=%lu\n", saved ? "SAVED" : "FAILED",
+      static_cast<unsigned long>(millis() - started));
+}
 }  // namespace
+
+bool queueCatalog(const char *lines, const char *catalogVersion) {
+  Job *job = reserveJob();
+  if (!job) return false;
+  const size_t size = strlen(lines);
+  job->kind = JobKind::Catalog;
+  job->text = static_cast<char *>(bigAlloc(size + 1));
+  if (!job->text) {
+    releaseJob(*job);
+    return false;
+  }
+  memcpy(job->text, lines, size + 1);
+  job->textSize = size;
+  snprintf(job->version, sizeof(job->version), "%s", catalogVersion);
+  publishJob(*job);
+  return true;
+}
+
+void planeFileStem(const char *id, char (&stem)[9]) {
+  snprintf(stem, sizeof(stem), "%08lx", static_cast<unsigned long>(stemKey(id ? id : "")));
+}
 
 void setCardFilesForTests(TurnHubHistory::ArchiveFiles *f) {
   injectedFiles = f;
   injectedFilesSet = true;
   cachedValid = false;
+  for (Job &job : jobs) if (job.state != JobState::Free) releaseJob(job);
+  legacyCount = legacyNext = legacyRemoved = 0;
+  Guard guard;
+  indexReady = indexBuilt = false;
+  indexCount = 0;
+  progressWaiting = false;
 }
 
-bool savePlaneCard(const char *id, const String &type, const String &artist, const String &text, const String &chaos,
-    const uint8_t *jpeg, size_t jpegSize) {
-  TurnHubHistory::ArchiveFiles *f = files();
-  if (!f || !findPlane(id) || !cardText(type, PLANE_TYPE_LENGTH, false) || !cardText(artist, PLANE_ARTIST_LENGTH, false) ||
+CardQueue savePlaneCard(const char *id, const String &type, const String &artist, const String &text, const String &chaos,
+    const uint8_t *jpeg, size_t jpegSize, uint16_t index, uint16_t total) {
+  if (!id || !findPlane(id) || !cardText(type, PLANE_TYPE_LENGTH, false) || !cardText(artist, PLANE_ARTIST_LENGTH, false) ||
       !cardText(text, PLANE_TEXT_LENGTH, true) || !cardText(chaos, PLANE_CHAOS_LENGTH, true) || jpegSize > MAX_PLANE_ART_BYTES)
-    return false;
+    return CardQueue::Invalid;
   // A baseline JPEG starts FF D8 and ends FF D9.
   if (jpegSize && (jpegSize < 4 || !jpeg || jpeg[0] != 0xFF || jpeg[1] != 0xD8 || jpeg[jpegSize - 2] != 0xFF ||
                    jpeg[jpegSize - 1] != 0xD9))
-    return false;
-  cachedValid = false;
-  if (jpegSize) {
-    if (!writeFile(f, cardFile(id, ".jpg"), reinterpret_cast<const char *>(jpeg), jpegSize)) return false;
-  } else if (!f->remove(cardFile(id, ".jpg").c_str())) {
-    return false;
-  }
+    return CardQueue::Invalid;
+  if (!files()) return CardQueue::NoCard;
+  if (!planeIndexReady()) return CardQueue::Busy;
+  Job *job = reserveJob();
+  if (!job) return CardQueue::Busy;
   // type, artist, chaos (newlines as tabs), then the text.
   String chaosLine = chaos;
   chaosLine.replace("\n", "\t");
   const String body = type + "\n" + artist + "\n" + chaosLine + "\n" + text;
-  return writeFile(f, cardFile(id, ".txt"), body.c_str(), body.length());
+  job->kind = JobKind::Card;
+  snprintf(job->id, sizeof(job->id), "%s", id);
+  job->text = static_cast<char *>(bigAlloc(body.length() + 1));
+  job->jpeg = jpegSize ? static_cast<uint8_t *>(bigAlloc(jpegSize)) : nullptr;
+  if (!job->text || (jpegSize && !job->jpeg)) {
+    releaseJob(*job);
+    return CardQueue::Busy;
+  }
+  memcpy(job->text, body.c_str(), body.length() + 1);
+  job->textSize = body.length();
+  if (jpegSize) memcpy(job->jpeg, jpeg, jpegSize);
+  job->jpegSize = jpegSize;
+  job->index = index;
+  job->total = total;
+  publishJob(*job);
+  return CardQueue::Queued;
 }
+
+bool planeIndexReady() {
+  Guard guard;
+  return indexReady;
+}
+
+bool planeIndexPending() { return files() && !planeIndexReady(); }
 
 bool hasPlaneCard(const char *id, bool &art) {
   art = false;
-  TurnHubHistory::ArchiveFiles *f = files();
-  size_t size = 0;
-  if (!f || !id || !f->size(cardFile(id, ".txt").c_str(), size)) return false;
-  art = f->size(cardFile(id, ".jpg").c_str(), size) && size > 0;
+  if (!id) return false;
+  const uint32_t key = stemKey(id);
+  Guard guard;
+  if (!indexReady) return false;
+  const IndexEntry *e = findEntry(key);
+  if (!e || !e->text) return false;
+  art = e->art;
   return true;
+}
+
+bool servicePlaneStorage(uint32_t cardGeneration) {
+  TurnHubHistory::ArchiveFiles *f = files();
+  if (!f) {
+    Guard guard;
+    indexReady = indexBuilt = false;
+  } else if (!indexBuilt || indexGeneration != cardGeneration) {
+    buildIndex(f);
+    indexBuilt = true;
+    indexGeneration = cardGeneration;
+    return true;
+  }
+  if (Job *job = takeJob()) {
+    // The catalog needs only the record store; a card the files too.
+    if (job->kind == JobKind::Catalog) writeCatalog(*job);
+    else if (f) writeCard(f, *job);
+    else postProgress("Couldn't save a plane card");
+    releaseJob(*job);
+    return true;
+  }
+  if (f && legacyNames && legacyNext < legacyCount) {
+    if (f->remove(legacyNames[legacyNext])) ++legacyRemoved;
+    if (++legacyNext == legacyCount)
+      TurnHub::serialLog.printf("ATLAS|PLANES|LEGACY|REMOVED|%u\n", static_cast<unsigned>(legacyRemoved));
+    return true;
+  }
+  return false;
+}
+
+bool takePlaneProgress(char *line, size_t size) {
+  Guard guard;
+  if (!progressWaiting) return false;
+  progressWaiting = false;
+  snprintf(line, size, "%s", progressLine);
+  return true;
+}
+
+uint8_t pendingPlaneJobs() {
+  Guard guard;
+  uint8_t pending = 0;
+  for (const Job &job : jobs) pending += job.state != JobState::Free;
+  return pending;
 }
 
 const PlaneCard *planeCard(const char *id) {
   if (!id || !id[0]) return nullptr;
-  if (cachedValid && !strcmp(cached.id, id)) return &cached;
+  bool art = false;
+  if (!hasPlaneCard(id, art)) return nullptr;
+  uint32_t written;
+  {
+    Guard guard;
+    written = cardsWritten;
+  }
+  if (cachedValid && cachedAt == written && !strcmp(cached.id, id)) return &cached;
   TurnHubHistory::ArchiveFiles *f = files();
   if (!f) return nullptr;
   char body[PLANE_TYPE_LENGTH + PLANE_ARTIST_LENGTH + PLANE_CHAOS_LENGTH + PLANE_TEXT_LENGTH + 8];
   size_t got = 0;
-  if (!f->readAt(cardFile(id, ".txt").c_str(), 0, body, sizeof(body) - 1, got) || !got) return nullptr;
+  if (!f->readAt(planePath(id, ".txt").c_str(), 0, body, sizeof(body) - 1, got) || !got) return nullptr;
   body[got] = '\0';
   PlaneCard card;
   snprintf(card.id, sizeof(card.id), "%s", id);
@@ -262,21 +628,24 @@ const PlaneCard *planeCard(const char *id) {
   snprintf(card.artist, sizeof(card.artist), "%s", fields[1]);
   snprintf(card.chaos, sizeof(card.chaos), "%s", fields[2]);
   snprintf(card.text, sizeof(card.text), "%s", fields[3]);
-  size_t size = 0;
-  card.art = f->size(cardFile(id, ".jpg").c_str(), size) && size > 0;
+  card.art = art;
   cached = card;
   cachedValid = true;
+  cachedAt = written;
   return &cached;
 }
 
 bool readPlaneArt(const char *id, uint8_t *out, size_t capacity, size_t &size) {
   size = 0;
+  bool art = false;
+  if (!id || !hasPlaneCard(id, art) || !art) return false;
   TurnHubHistory::ArchiveFiles *f = files();
+  const String name = planePath(id, ".jpg");
   size_t total = 0;
-  if (!f || !id || !f->size(cardFile(id, ".jpg").c_str(), total) || !total || total > capacity) return false;
+  if (!f || !f->size(name.c_str(), total) || !total || total > capacity) return false;
   while (size < total) {
     size_t got = 0;
-    if (!f->readAt(cardFile(id, ".jpg").c_str(), size, reinterpret_cast<char *>(out) + size, total - size, got) || !got)
+    if (!f->readAt(name.c_str(), size, reinterpret_cast<char *>(out) + size, total - size, got) || !got)
       return false;
     size += got;
   }

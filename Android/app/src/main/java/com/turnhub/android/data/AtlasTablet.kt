@@ -54,6 +54,10 @@ data class OfflineChange(
 /** Tablet control actions for Atlas's Planechase ([AtlasTablet.control]). */
 const val PLANAR_PREFIX = "planar:"
 
+/** How often and how far apart a plane request is sent again while Atlas answers 503 (about 90 s in all). */
+internal const val PLANES_BUSY_TRIES = 60
+internal const val PLANES_BUSY_WAIT_MS = 1_500L
+
 /** A saved profile Atlas wants a PIN for before the tablet may seat it. */
 data class TabletPinPrompt(val profileId: String, val name: String)
 
@@ -252,16 +256,34 @@ class AtlasTablet(
     } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList() }
 
     /**
+     * A plane request, sent again while Atlas answers 503: it is still reading a new
+     * microSD card's index, or its queue of plane cards to save is full. Atlas answers
+     * those at once, so the waits stay short; null when the session is gone.
+     */
+    private suspend fun planesRequest(send: suspend () -> RawResponse?): RawResponse? {
+        repeat(PLANES_BUSY_TRIES) {
+            val response = send() ?: return null
+            if (response.code != 503) return response
+            kotlinx.coroutines.delay(PLANES_BUSY_WAIT_MS)
+        }
+        return send()
+    }
+
+    /**
      * Sends the app's downloaded planes for Atlas's digital Planechase deck when Atlas's
      * catalog differs (first connection, or after the app downloads newer planes).
+     * Returns Atlas's answer about its planes (GET /api/planes), for [syncPlaneCards] to
+     * reuse; null when Atlas couldn't be asked.
      */
-    suspend fun syncPlanes(cards: List<com.turnhub.android.data.PlaneInfo>, progress: (String) -> Unit = {}) {
-        if (cards.isEmpty()) return
+    suspend fun syncPlanes(cards: List<com.turnhub.android.data.PlaneInfo>, progress: (String) -> Unit = {}): org.json.JSONObject? {
+        if (cards.isEmpty()) return null
         val version = "${cards.size}-" + Integer.toHexString(cards.map { it.id }.sorted().hashCode())
-        try {
+        return try {
             endpoint()?.let { session.ensureGameAccess(it) }
-            val info = session.raw("GET", "/api/planes") ?: return
-            if (info.ok && org.json.JSONObject(info.body).optString("version") == version) return
+            val response = planesRequest { session.raw("GET", "/api/planes") } ?: return null
+            if (!response.ok) return null.also { progress("Atlas didn't answer about its planes.") }
+            val info = org.json.JSONObject(response.body)
+            if (info.optString("version") == version) return info
             progress("Sending ${minOf(cards.size, 192)} planes to Atlas…")
             val lines = cards.take(192).joinToString("\n") { card ->
                 val name = card.name.map { if (it.code in 32..126) it else '?' }.joinToString("").take(40)
@@ -269,23 +291,34 @@ class AtlasTablet(
             }
             val sent = session.rawText("/api/planes", listOf("version" to version), lines)
             progress(if (sent?.ok == true) "Atlas has the ${minOf(cards.size, 192)} planes." else "Atlas didn't take the planes. Try Send planes to Atlas.")
-        } catch (e: CancellationException) { throw e } catch (e: Exception) { android.util.Log.w("AtlasTablet", "Plane catalog sync failed", e); progress("Couldn't reach Atlas to send the planes.") }
+            // The art list still holds: a plane's card stays on Atlas across catalogs.
+            if (sent?.ok == true) info else null
+        } catch (e: CancellationException) { throw e } catch (e: Exception) {
+            android.util.Log.w("AtlasTablet", "Plane catalog sync failed", e); progress("Couldn't reach Atlas to send the planes."); null
+        }
     }
 
     /**
      * Sends Atlas the card view's text and art for each catalog plane it lacks art for
      * (after [syncPlanes]), or for every plane when [all] (the manual Send planes to Atlas).
      * One request per plane, numbered so the Atlas screen shows the same progress; stops at
-     * the first refusal (no microSD card, or the catalog changed). [progress] gets each step
-     * in words for the app's screen.
+     * the first refusal (no microSD card, or the catalog changed). Atlas queues each card
+     * (202) and saves it in the background; a full queue (503) is waited out. [info] is
+     * [syncPlanes]'s answer, so Atlas isn't asked twice. [progress] gets each step in
+     * words for the app's screen.
      */
     suspend fun syncPlaneCards(cards: List<com.turnhub.android.data.PlaneInfo>, all: Boolean = false,
-        progress: (String) -> Unit = {}, art: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray?) {
+        progress: (String) -> Unit = {}, info: org.json.JSONObject? = null,
+        art: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray?) {
         try {
             endpoint()?.let { session.ensureGameAccess(it) }
-            val info = session.raw("GET", "/api/planes") ?: return progress("Couldn't reach Atlas to send the plane cards.")
-            if (!info.ok) return progress("Atlas didn't answer about its plane cards.")
-            val withArt = if (all) emptySet() else org.json.JSONObject(info.body).optJSONArray("art")
+            val known = info ?: run {
+                val response = planesRequest { session.raw("GET", "/api/planes") }
+                    ?: return progress("Couldn't reach Atlas to send the plane cards.")
+                if (!response.ok) return progress("Atlas didn't answer about its plane cards.")
+                org.json.JSONObject(response.body)
+            }
+            val withArt = if (all) emptySet() else known.optJSONArray("art")
                 ?.let { list -> (0 until list.length()).map { list.getString(it) }.toSet() }.orEmpty()
             val missing = cards.take(192).filter { it.id !in withArt }
             if (missing.isEmpty()) return progress("Atlas has every plane's card.")
@@ -293,16 +326,17 @@ class AtlasTablet(
                 progress("Sending plane cards to Atlas: ${i + 1} of ${missing.size}")
                 val text = AtlasPlaneCards.text(card)
                 val jpeg = art(card)?.let { AtlasPlaneCards.artJpeg(it) }
-                val response = session.rawText("/api/planes/card", listOf("id" to card.id, "type" to text.type,
-                    "artist" to text.artist, "text" to text.text, "chaos" to text.chaos,
-                    "index" to "${i + 1}", "total" to "${missing.size}"),
-                    jpeg?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) } ?: "")
-                    ?: return progress("Lost Atlas after ${i} of ${missing.size} plane cards.")
+                val body = jpeg?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) } ?: ""
+                val response = planesRequest {
+                    session.rawText("/api/planes/card", listOf("id" to card.id, "type" to text.type,
+                        "artist" to text.artist, "text" to text.text, "chaos" to text.chaos,
+                        "index" to "${i + 1}", "total" to "${missing.size}"), body)
+                } ?: return progress("Lost Atlas after ${i} of ${missing.size} plane cards.")
                 if (!response.ok) return progress(
                     runCatching { org.json.JSONObject(response.body).optString("error") }.getOrNull()?.takeIf { it.isNotBlank() }
                         ?: "Atlas didn't keep the plane cards.")
             }
-            progress("Sent ${missing.size} plane cards to Atlas.")
+            progress("Sent ${missing.size} plane cards. Atlas saves them in the background.")
         } catch (e: CancellationException) { throw e } catch (e: Exception) { android.util.Log.w("AtlasTablet", "Plane card sync failed", e); progress("Couldn't finish sending the plane cards. Try again.") }
     }
 

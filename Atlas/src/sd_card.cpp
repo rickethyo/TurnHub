@@ -13,6 +13,7 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
+#include "card_cache.h"
 #include "config.h"
 #include "diagnostic_log.h"
 #include "firmware_version.h"
@@ -123,6 +124,7 @@ const char *logStateName(LogState state) {
 // application's record store (detailed statistics) never use the SD library
 // at the same time.
 SemaphoreHandle_t cardLock = nullptr;
+TaskHandle_t sdTaskHandle = nullptr;
 
 class CardLock {
  public:
@@ -198,6 +200,37 @@ class LockedArchiveFiles final : public TurnHubHistory::ArchiveFiles {
     if (!storeUsable()) return false;
     const String file = path(name);
     return !sdFileSystem.exists(file.c_str()) || sdFileSystem.remove(file.c_str());
+  }
+  // One directory pass under one lock: FatFs reads the folder's entries in
+  // order instead of searching it again for every name.
+  bool list(const char *folder, EachFile each, void *context) override {
+    if (!storeUsable()) return false;
+    CardLock lock;
+    if (!storeUsable()) return false;
+    String at = path(folder);
+    if (at.length() > 1 && at.endsWith("/")) at.remove(at.length() - 1);
+    File dir = cardFs.open(at.c_str());
+    if (!dir || !dir.isDirectory()) {
+      if (dir) dir.close();
+      return false;
+    }
+    for (File entry = dir.openNextFile(); entry; entry = dir.openNextFile()) {
+      if (!entry.isDirectory()) {
+        const char *name = entry.name();
+        const char *slash = strrchr(name, '/');
+        each(slash ? slash + 1 : name, entry.size(), context);
+      }
+      entry.close();
+    }
+    dir.close();
+    return true;
+  }
+  bool makeFolder(const char *folder) override {
+    if (!storeUsable()) return false;
+    CardLock lock;
+    if (!storeUsable()) return false;
+    const String at = path(folder);
+    return sdFileSystem.exists(at.c_str()) || sdFileSystem.mkdir(at.c_str());
   }
 
  private:
@@ -366,8 +399,14 @@ constexpr uint16_t SECTOR_BYTES = 512;
 // Sector reads and writes for the computer, straight to the card (FatFs
 // drive 0 is the SDMMC driver, as in cardAnswers). TinyUSB's task calls them;
 // only while shared, and under the card lock.
+// Sector calls the computer made while the card was not shared (each waits for
+// the card lock), logged with the plane index to rule the USB drive in or out
+// as a source of slow card access.
+std::atomic<uint32_t> usbCallsUnshared{0};
+
 int32_t usbDiskRead(uint32_t lba, uint32_t offset, void *buffer, uint32_t size) {
   if (offset != 0 || size % SECTOR_BYTES != 0) return -1;
+  if (cardState.load() != CardState::UsbDrive) usbCallsUnshared.fetch_add(1);
   CardLock lock;
   if (cardState.load() != CardState::UsbDrive) return -1;
   return disk_read(0, static_cast<BYTE *>(buffer), lba, size / SECTOR_BYTES) == RES_OK
@@ -375,6 +414,7 @@ int32_t usbDiskRead(uint32_t lba, uint32_t offset, void *buffer, uint32_t size) 
 }
 int32_t usbDiskWrite(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_t size) {
   if (offset != 0 || size % SECTOR_BYTES != 0) return -1;
+  if (cardState.load() != CardState::UsbDrive) usbCallsUnshared.fetch_add(1);
   CardLock lock;
   if (cardState.load() != CardState::UsbDrive) return -1;
   return disk_write(0, buffer, lba, size / SECTOR_BYTES) == RES_OK
@@ -453,8 +493,13 @@ void sdTask(void *) {
   uint64_t cursor = 0;
   char buffer[1024];
   char marker[160];
+  bool morePlaneWork = false;
+  uint32_t usbLoggedGeneration = 0;
   for (;;) {
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    // A second between passes, or at once when a plane card is queued
+    // (wakeSdWorker) or the last pass left plane work.
+    if (!morePlaneWork) ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
+    morePlaneWork = false;
     uint32_t nowMs = millis();
 
     // USB drive: while shared, nothing else here touches the card.
@@ -545,6 +590,17 @@ void sdTask(void *) {
       }
     }
 
+    // Plane cards (card_cache.h): the index after a mount, then queued writes,
+    // one per pass, so the log above drains between them.
+    if (plug.mounted() && !logBlocked) {
+      const uint32_t generation = cardGeneration.load();
+      morePlaneWork = TurnHubCards::servicePlaneStorage(generation);
+      if (usbLoggedGeneration != generation) {
+        usbLoggedGeneration = generation;
+        serialLog.printf("ATLAS|SD|USB_MSC|unsharedCalls=%lu\n", static_cast<unsigned long>(usbCallsUnshared.load()));
+      }
+    }
+
     nowMs = millis();
     switch (plug.next(nowMs)) {
       case SdStep::Idle:
@@ -606,7 +662,8 @@ void beginSdCard() {
   // is bytes; includes the 1 KiB drain buffer plus filesystem call headroom
   // (the headroom the earlier 2 KiB buffer had in 6 KiB).
   // The worker runs with or without a card: it mounts one inserted later.
-  if (xTaskCreate(sdTask, "sd-card", 5120, nullptr, 1, nullptr) != pdPASS) {
+  // 6 KiB since the worker also writes plane cards and the catalog's records.
+  if (xTaskCreate(sdTask, "sd-card", 6144, nullptr, 1, &sdTaskHandle) != pdPASS) {
     logState.store(LogState::TaskUnavailable);
     serialLog.println("ATLAS|SD|LOG|TASK_UNAVAILABLE");
   }
@@ -660,6 +717,10 @@ int wipeSdCard() {
 }
 
 uint32_t sdCardGeneration() { return cardGeneration.load(); }
+
+void wakeSdWorker() {
+  if (sdTaskHandle) xTaskNotifyGive(sdTaskHandle);
+}
 
 bool shareSdCardOverUsb(bool share) {
   if (share && (cardLock == nullptr || cardState.load() != CardState::Mounted)) return false;

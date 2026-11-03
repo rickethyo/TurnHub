@@ -343,7 +343,8 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
     LaunchedEffect(summary.atlasId, enabled, PlaneLibrary.cards) {
         val planes = PlaneLibrary.known(context)?.values?.toList().orEmpty()
         // ...then each plane's text and art for the Atlas card view.
-        if (enabled && planes.isNotEmpty()) AtlasPlaneSync.send(actions, planes, all = false) { PlaneLibrary.source(context).art(it) }
+        if (enabled && planes.isNotEmpty()) AtlasPlaneSync.send(actions, planes, all = false,
+            automaticFor = "${summary.atlasId}/${summary.bootId}") { PlaneLibrary.source(context).art(it) }
     }
     // Each seated profile's saved commanders, quick to pick again (kept on Atlas's card).
     var savedCommanders by remember { mutableStateOf(emptyMap<String, List<Pair<String, String?>>>()) }
@@ -482,15 +483,24 @@ private fun PinDialog(name: String, onSubmit: (String) -> Unit, onDismiss: () ->
 internal object AtlasPlaneSync {
     var status by mutableStateOf<String?>(null)
     var running by mutableStateOf(false)
+    /** The Atlas boots ("atlasId/bootId") this app session already synced to on its own. */
+    private val automatic = mutableSetOf<String>()
 
+    /**
+     * [automaticFor] ("atlasId/bootId") marks the lobby's own sync: at most once per Atlas
+     * boot and app session, and never again after it fails, so a slow or refused sync
+     * can't retry itself in a loop (owner, 2026-11-03). Send planes to Atlas passes null.
+     */
     fun send(actions: TabletActions, planes: List<com.turnhub.android.data.PlaneInfo>, all: Boolean,
-        art: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray?) {
+        automaticFor: String? = null, art: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray?) {
         if (running) return
+        if (automaticFor != null && !automatic.add(automaticFor)) return
         running = true
         actions.run {
             try {
-                syncPlanes(planes) { status = it }
-                syncPlaneCards(planes, all, { status = it }, art)
+                val info = syncPlanes(planes) { status = it }
+                // Nothing more when Atlas couldn't be asked; the button tries again.
+                if (info != null || all) syncPlaneCards(planes, all, { status = it }, info, art)
             } finally { running = false }
         }
     }

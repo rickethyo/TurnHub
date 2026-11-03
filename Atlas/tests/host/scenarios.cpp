@@ -4995,6 +4995,16 @@ struct MemoryArchive : TurnHubHistory::ArchiveFiles {
     memcpy(data,f->second.data()+offset,got); return true;
   }
   bool remove(const char *name) override { files.erase(name); return true; }
+  // A folder is the names with that prefix and a slash; "" is the top.
+  bool list(const char *folder,EachFile each,void *context) override {
+    const std::string prefix=folder[0] ? std::string(folder)+"/" : std::string();
+    for (const auto &f : files) {
+      if (f.first.compare(0,prefix.size(),prefix)) continue;
+      const std::string rest=f.first.substr(prefix.size());
+      if (rest.find('/')==std::string::npos) each(rest.c_str(),f.second.size(),context);
+    }
+    return true;
+  }
 };
 // Offline play: phones keep the game going while Atlas is out of reach and
 // send their queues back (turnhub_offline.h, protocol/http-v1.md).
@@ -5532,7 +5542,11 @@ static void cardCacheOnAtlas() {
   assert(request("/api/planes","",{},HTTP_GET)==200 && has("\"count\":0"));
   assert(request("/api/planes","",{{"plain",planes},{"version","v1"}})==401);
   assert(request("/api/planes",a,{{"plain","bad line"},{"version","v1"}})==400);
-  assert(request("/api/planes",a,{{"plain",planes},{"version","v1"}})==200 && has("\"saved\":true"));
+  // In RAM at once; the SD worker writes the records afterwards.
+  assert(request("/api/planes",a,{{"plain",planes},{"version","v1"}})==200 && has("\"queued\":true"));
+  assert(TurnHubCards::pendingPlaneJobs()==1 && TurnHubCards::planeCount()==3);
+  while (TurnHubCards::servicePlaneStorage(0)) {}
+  assert(TurnHubCards::pendingPlaneJobs()==0);
   TurnHubCards::setStoreForTests(&card);  // Forgets RAM, as a reboot does.
   assert(TurnHubCards::planeCount()==0 && TurnHubCards::loadPlanes() && TurnHubCards::planeCount()==3);
   assert(!strcmp(TurnHubCards::planesVersion(),"v1") && !strcmp(TurnHubCards::findPlane("22222222-2222-2222-2222-222222222222")->name,"Bant"));
@@ -5570,17 +5584,46 @@ static void cardCacheOnAtlas() {
   // The card view: the app sends the face-up card's text and art, then the
   // Planes page's Card turns the screen to it; a tap anywhere goes back.
   {
-    MemoryArchive cards; TurnHubCards::setCardFilesForTests(&cards);
+    // Atlas never waits for the card on the loop (owner, 2026-11-03): the SD
+    // worker reads an index of the planes folder once per mount and writes
+    // queued cards; the files of the old layout ("pc-<id>.*") go meanwhile.
     const String id=table().game.planar().plane;
+    MemoryArchive cards;
+    cards.files[std::string("pc-")+id.c_str()+".txt"]="old"; cards.files[std::string("pc-")+id.c_str()+".jpg"]="old";
+    cards.files["games.jsonl"]="";
+    TurnHubCards::setCardFilesForTests(&cards);
+    assert(request("/api/planes",mine,{},HTTP_GET)==503);  // The index isn't read yet: no guessing.
+    assert(request("/api/planes/card",mine,{{"id",id},{"text","x"},{"plain",""}})==503);
+    assert(TurnHubCards::servicePlaneStorage(0) && TurnHubCards::planeIndexReady());
+    assert(request("/api/planes",mine,{},HTTP_GET)==200 && has("\"cards\":[]"));
     assert(request("/api/planes/card",mine,{{"id",id},{"type","Phenomenon"},{"artist","A. Painter"},
-        {"text","Made-up rules text.\nSecond line."},{"chaos",""},{"plain","/9j/2Q=="}})==200 && has("\"art\":true"));
+        {"text","Made-up rules text.\nSecond line."},{"chaos",""},{"plain","/9j/2Q=="}})==202 && has("\"queued\":true") && has("\"art\":true"));
     assert(request("/api/planes/card",mine,{{"id","00000000-0000-0000-0000-000000000000"},{"text","x"},{"plain",""}})==409);
     assert(request("/api/planes/card",mine,{{"id",id},{"text","x"},{"plain","not base64!"}})==400);
+    assert(request("/api/planes",mine,{},HTTP_GET)==200 && has("\"cards\":[]"));  // Queued, not written yet.
+    while (TurnHubCards::servicePlaneStorage(0)) {}
+    char stem[9]; TurnHubCards::planeFileStem(id.c_str(),stem);
+    assert(strlen(stem)==8 && cards.files.count(std::string("planes/")+stem+".jpg") && cards.files.count(std::string("planes/")+stem+".txt"));
+    assert(!cards.files.count(std::string("pc-")+id.c_str()+".txt") && !cards.files.count(std::string("pc-")+id.c_str()+".jpg") &&
+        cards.files.count("games.jsonl"));
     assert(request("/api/planes",mine,{},HTTP_GET)==200 && has((String("\"cards\":[\"")+id+"\"]").c_str()) && has((String("\"art\":[\"")+id+"\"]").c_str()));
-    assert(request("/api/planes/card",mine,{{"id",id},{"text","x"},{"plain",""},{"index","3"},{"total","9"}})==200 &&
-        String(currentScreen().sync)=="Plane cards: 3 of 9");
+    // Three wait at most; the next is told to try again, and nothing is lost.
+    for (int i=1;i<=3;++i)
+      assert(request("/api/planes/card",mine,{{"id",id},{"text","x"},{"plain",""},{"index",String(i)},{"total","9"}})==202);
+    assert(request("/api/planes/card",mine,{{"id",id},{"text","x"},{"plain",""},{"index","4"},{"total","9"}})==503);
+    assert(TurnHubCards::pendingPlaneJobs()==3);
+    while (TurnHubCards::servicePlaneStorage(0)) {}
+    showPlaneCardProgress(testNow);
+    assert(String(currentScreen().sync)=="Plane cards: 3 of 9");
+    assert(request("/api/planes",mine,{},HTTP_GET)==200 && has("\"art\":[]"));  // Text only now.
+    // A fresh index (a remount) finds the same files.
+    assert(TurnHubCards::servicePlaneStorage(1) && TurnHubCards::planeIndexReady());
+    bool art=true; assert(TurnHubCards::hasPlaneCard(id.c_str(),art) && !art);
     assert(request("/api/planes/card",mine,{{"id",id},{"text","Made-up rules text.\nSecond line."},{"artist","A. Painter"},
-        {"type","Phenomenon"},{"plain","/9j/2Q=="},{"index","9"},{"total","9"}})==200 && String(currentScreen().sync)=="All 9 plane cards saved");
+        {"type","Phenomenon"},{"plain","/9j/2Q=="},{"index","9"},{"total","9"}})==202);
+    while (TurnHubCards::servicePlaneStorage(1)) {}
+    showPlaneCardProgress(testNow);
+    assert(String(currentScreen().sync)=="All 9 plane cards saved");
     testNow+=SYNC_TOAST_MS+1; assert(!currentScreen().sync[0]);
     tapButton(TouchAction::OpenPlaneCard);
     const AtlasScreen view=currentScreen();

@@ -50,6 +50,8 @@ TurnHubHistory::ArchiveFiles *TurnHubAtlas::sdArchiveFiles() { return nullptr; }
 bool fixtureSdCardReady = true;
 bool TurnHubAtlas::sdCardReady() { return fixtureSdCardReady; }
 uint32_t TurnHubAtlas::sdCardGeneration() { return 0; }
+// No worker on the host: tests run TurnHubCards::servicePlaneStorage themselves.
+void TurnHubAtlas::wakeSdWorker() {}
 bool fixtureSdUsbShared = false;
 bool TurnHubAtlas::shareSdCardOverUsb(bool share) {
   if (share && !fixtureSdCardReady) return false;

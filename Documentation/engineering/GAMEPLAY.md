@@ -255,8 +255,10 @@ loss condition; Commander damage totals alone do not trigger elimination.
   plane's text and art to Atlas (`POST /api/planes/card`, `http-v1.md`); a
   plane without them shows its name and a note. While the app sends the
   catalog or cards, the Atlas screen shows a toast ("Plane cards: 12 of 86")
-  and the app's lobby shows the same in words, with Send planes to Atlas to
-  resend every card by hand.
+  as its SD worker saves each one, and the app's lobby shows the same in
+  words, with Send planes to Atlas to resend every card by hand. Saving never
+  runs on Atlas's main loop, so the screen and the game keep going during a
+  sync (2026-11-03; STORAGE_AND_RECOVERY.md).
   During the game, any signed-in player seated at the table can pick what
   the Atlas screen shows (Game, Table, Planes or the plane's Card) from the
   app's Planes tab (`/api/atlas/screen`, owner 2026-11-02); Sigils and

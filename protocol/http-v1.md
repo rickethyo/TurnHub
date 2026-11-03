@@ -781,8 +781,9 @@ Plane catalog (Atlas 2026-10-30): `GET /api/planes` answers `version` and
 (up to 24 characters) in the query and the planes as a `text/plain` body, one
 line per card
 `<36-character Scryfall id><TAB><name, up to 40><TAB><1 phenomenon | 0>`, up to
-192 cards. Atlas keeps it in RAM and on the microSD card (records `pl0`…,
-`plv`), reloading it at boot or card insertion. The app sends its downloaded
+192 cards. Atlas keeps it in RAM at once and answers `{ok, count, queued}`;
+with a card in, its SD worker then writes the records (`pl0`…, `plv`), and
+Atlas reloads them at boot or card insertion. The app sends its downloaded
 planes whenever the versions differ.
 
 Plane cards (Atlas 2026-11-03, for the Atlas screen's card view): `GET
@@ -795,12 +796,21 @@ base64 baseline JPEG, 480x320, at most 96 KB, or empty for text only. Both
 routes take their large part as a plain body because Atlas's web server
 URL-decodes form fields one character at a time: a 64 KB art field held it
 for about 30 s, freezing the screen (2026-11-03). The app keeps the JPEG under
-about 46 KB. Atlas keeps them on the microSD card
-(`pc-<id>.txt`, `pc-<id>.jpg`): 400 for bad base64, 409 for an unknown plane,
-bad text, a non-JPEG or no card. Optional `index` and `total` (this card's
-place in the app's batch) let the Atlas screen show the progress. The app
-(tablet mode) sends every catalog plane Atlas lacks art for after the
-catalog, or every plane from its Send planes to Atlas button.
+about 46 KB. Atlas answers 202 `{ok, queued:true, art}` once the card is
+queued and its SD worker writes it to the microSD card's `planes` folder
+(8.3 names from a hash of the id) in the background; 400 for bad base64, 409
+for an unknown plane, bad text, a non-JPEG or no card, and 503 while the
+queue (three cards) is full. `GET /api/planes` answers `cards` and `art` from
+the worker's index of that folder, read once per card mount, never from the
+card itself, and 503 while a new card's index is still being read. The card
+work ran on Atlas's main loop before (2026-11-03): about 320 lookups froze the
+screen for up to 110 s. On 503 the app sends the same request again after
+1.5 s, for up to about 90 s. Optional `index` and `total` (this card's place
+in the app's batch) let the Atlas screen show the progress as each card is
+written. The app (tablet mode) sends every catalog plane Atlas lacks art for
+after the catalog, on its own once per Atlas boot (`atlasId` + `bootId`) and
+app session, never again after a failure; its Send planes to Atlas button
+sends every plane.
 
 Atlas screen view (Atlas 2026-11-03): `GET /api/atlas/screen` (any signed-in
 session) answers `{ok:true, view, views}`: the Atlas touchscreen's open page

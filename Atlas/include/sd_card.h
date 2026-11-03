@@ -38,6 +38,9 @@ bool sdCardReady();
 // Changes whenever a card is mounted or dropped. The application loop
 // compares it to re-point the luxury store (refreshSdLuxuryStore, main.cpp).
 uint32_t sdCardGeneration();
+// Wakes the SD worker for queued card work (plane cards, card_cache.h)
+// instead of waiting out its one-second pause. Any task.
+void wakeSdWorker();
 
 // USB drive: lend the card to a computer on the USB-C port as a disk (Menu >
 // Device > USB drive), or take it back. Atlas stops using the card first and

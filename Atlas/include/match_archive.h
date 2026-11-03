@@ -30,6 +30,13 @@ class ArchiveFiles {
   virtual bool readAt(const char *name, size_t offset, char *data, size_t capacity, size_t &got) = 0;
   // Deletes the file; true when it is gone (or was never there).
   virtual bool remove(const char *name) = 0;
+  // One pass over a folder ("" for Atlas's own): each file's name (without the
+  // folder) and size. False when the folder is missing or unreadable. The
+  // plane cards' index uses it (card_cache.h) instead of one lookup per file.
+  using EachFile = void (*)(const char *name, size_t size, void *context);
+  virtual bool list(const char *folder, EachFile each, void *context) { (void)folder; (void)each; (void)context; return false; }
+  // Creates a folder inside Atlas's; true when it exists afterwards.
+  virtual bool makeFolder(const char *folder) { (void)folder; return true; }
 };
 
 constexpr char RECORDS_FILE[] = "games.jsonl";

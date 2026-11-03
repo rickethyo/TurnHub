@@ -12,6 +12,7 @@
 #include "sigil_menu.h"
 #include "profile_picker.h"
 #include "commander_picker.h"
+#include "touch_controls.h"
 #include "atlas_board.h"
 #include "atlas_battery.h"
 #include "atlas_display.h"
@@ -676,6 +677,12 @@ void refreshSdLuxuryStore() {
   if (store && TurnHubCards::loadPlanes()) serialLog.printf("ATLAS|PLANES|LOADED|%u\n", TurnHubCards::planeCount());
 }
 
+// The SD worker saved (or couldn't save) a plane card: the screen's toast.
+void showPlaneCardProgress(uint32_t nowMs) {
+  char line[48];
+  if (TurnHubCards::takePlaneProgress(line, sizeof(line))) TurnHubAtlas::showSyncStatus(nowMs, line);
+}
+
 // Bench diagnostics (off in normal builds): -DTURNHUB_LOOP_TIMING=1 logs any
 // loop() step that holds the loop for LOOP_STEP_WARN_MS or more, to find what
 // freezes the screen (ATLAS|LOOP|SLOW|<step>|<ms>).
@@ -713,6 +720,7 @@ void loop() {
   LOOP_STEP(readSerialCommands(nowMs));
   LOOP_STEP(updatePairingWindow(nowMs));
   LOOP_STEP(updateBootButton(digitalRead(AtlasConfig::BOOT_BUTTON_PIN) == LOW, nowMs));
+  LOOP_STEP(showPlaneCardProgress(nowMs));
   LOOP_STEP(serviceAtlasDisplay(nowMs));
   LOOP_STEP(serviceFactoryReset(nowMs));
   LOOP_STEP(serviceAutoSleep(nowMs));

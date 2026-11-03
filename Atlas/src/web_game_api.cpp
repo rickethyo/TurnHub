@@ -599,8 +599,13 @@ bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::I
 // as the text/plain body, one line per card "id<TAB>name<TAB>0|1". Kept in RAM
 // and on the microSD card.
 // It also lists the planes whose card (text, and art) Atlas keeps, so the
-// app sends only the missing ones.
+// app sends only the missing ones. That list is the SD worker's index, never
+// a card lookup (card_cache.h); 503 while the index of a new card is read.
 void handlePlanesCatalogInfo(WebServer &server) {
+  if (TurnHubCards::planeIndexPending()) {
+    sendError(server, 503, "Atlas is still reading its microSD card. Try again in a moment");
+    return;
+  }
   String body = String("{\"version\":\"") + jsonEscape(TurnHubCards::planesVersion()) +
       "\",\"count\":" + String(TurnHubCards::planeCount()) + ",\"cards\":[";
   String art = ",\"art\":[";
@@ -653,9 +658,11 @@ bool decodeBase64(const String &in, std::vector<uint8_t> &out) {
 // Atlas card view: id, type, artist, text and chaos in the query, and the art
 // (a base64 480x320 baseline JPEG, or empty) as the text/plain body, which
 // WebServer keeps as arg("plain") without URL-decoding it (decoding a big
-// form field one character at a time froze Atlas for about 30 s). Kept on the
-// microSD card. index and total (optional) are where this card falls in the
-// app's batch, for the screen.
+// form field one character at a time froze Atlas for about 30 s). index and
+// total (optional) are where this card falls in the app's batch, for the
+// screen. 202 once queued: the SD worker writes it to the microSD card and
+// the Atlas screen shows the progress then; 503 while the queue is full (the
+// app sends the same card again shortly).
 void handlePlaneCard(WebServer &server) {
   if (!requireSession(server)) return;
   std::vector<uint8_t> jpeg;
@@ -663,19 +670,23 @@ void handlePlaneCard(WebServer &server) {
     sendError(server, 400, "Send the art as base64");
     return;
   }
-  if (!TurnHubCards::savePlaneCard(server.arg("id").c_str(), server.arg("type"), server.arg("artist"), server.arg("text"),
-          server.arg("chaos"), jpeg.data(), jpeg.size())) {
-    TurnHubAtlas::showSyncStatus(millis(), "Couldn't save a plane card");
-    sendError(server, 409, "Atlas couldn't keep that plane: it needs a catalog plane, plain text and a microSD card");
-    return;
-  }
   const long index = server.arg("index").toInt(), total = server.arg("total").toInt();
-  char line[48];
-  if (total > 0 && index >= total) snprintf(line, sizeof(line), "All %ld plane cards saved", total);
-  else if (total > 0) snprintf(line, sizeof(line), "Plane cards: %ld of %ld", index, total);
-  else snprintf(line, sizeof(line), "Plane card saved");
-  TurnHubAtlas::showSyncStatus(millis(), line);
-  sendJson(server, 200, String("{\"ok\":true,\"art\":") + jsonBool(!jpeg.empty()) + "}");
+  const auto queued = TurnHubCards::savePlaneCard(server.arg("id").c_str(), server.arg("type"), server.arg("artist"),
+      server.arg("text"), server.arg("chaos"), jpeg.data(), jpeg.size(),
+      static_cast<uint16_t>(index > 0 && index < 65536 ? index : 0), static_cast<uint16_t>(total > 0 && total < 65536 ? total : 0));
+  switch (queued) {
+    case TurnHubCards::CardQueue::Queued:
+      sendJson(server, 202, String("{\"ok\":true,\"queued\":true,\"art\":") + jsonBool(!jpeg.empty()) + "}");
+      return;
+    case TurnHubCards::CardQueue::Busy:
+      sendError(server, 503, "Atlas is still saving the last plane cards. Try again in a moment");
+      return;
+    case TurnHubCards::CardQueue::NoCard:
+    case TurnHubCards::CardQueue::Invalid:
+      TurnHubAtlas::showSyncStatus(millis(), "Couldn't save a plane card");
+      sendError(server, 409, "Atlas couldn't keep that plane: it needs a catalog plane, plain text and a microSD card");
+      return;
+  }
 }
 
 // GET (any signed-in browser or app) or POST view=game|table|planes|card:
@@ -738,17 +749,18 @@ void handleSetAtlasScreen(WebServer &server) { atlasScreen(server, true); }
 
 void handlePlanesCatalog(WebServer &server) {
   if (!requireSession(server)) return;
-  bool saved = false;
-  if (!TurnHubCards::replacePlanes(server.arg("plain").c_str(), server.arg("version").c_str(), saved)) {
+  // In RAM at once; the SD worker writes the records (queued).
+  bool queued = false;
+  if (!TurnHubCards::replacePlanes(server.arg("plain").c_str(), server.arg("version").c_str(), queued)) {
     sendError(server, 400, "Send the planes as id, name and phenomenon lines with a version");
     return;
   }
   char line[48];
-  snprintf(line, sizeof(line), saved ? "Got %u planes from the app" : "%u planes, no microSD card",
+  snprintf(line, sizeof(line), queued ? "Got %u planes from the app" : "%u planes, not on the microSD card",
       static_cast<unsigned>(TurnHubCards::planeCount()));
   TurnHubAtlas::showSyncStatus(millis(), line);
   sendJson(server, 200, String("{\"ok\":true,\"count\":") + String(TurnHubCards::planeCount()) +
-      ",\"saved\":" + jsonBool(saved) + "}");
+      ",\"queued\":" + jsonBool(queued) + "}");
 }
 
 // GET ?profileId= (a tablet, for a seated player) or the session's own profile.
