@@ -291,7 +291,11 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
     // when Atlas's catalog differs (first connection, newer download).
     LaunchedEffect(summary.atlasId, enabled, PlaneLibrary.cards) {
         val planes = PlaneLibrary.known(context)?.values?.toList().orEmpty()
-        if (enabled && planes.isNotEmpty()) actions.run { syncPlanes(planes) }
+        // ...then each plane's text and art for the Atlas card view.
+        if (enabled && planes.isNotEmpty()) actions.run {
+            syncPlanes(planes)
+            syncPlaneCards(planes) { PlaneLibrary.source(context).art(it) }
+        }
     }
     // Each seated profile's saved commanders, quick to pick again (kept on Atlas's card).
     var savedCommanders by remember { mutableStateOf(emptyMap<String, List<Pair<String, String?>>>()) }

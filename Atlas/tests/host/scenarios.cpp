@@ -4926,6 +4926,7 @@ struct MemoryArchive : TurnHubHistory::ArchiveFiles {
     got=offset<f->second.size()?std::min(capacity,f->second.size()-offset):0;
     memcpy(data,f->second.data()+offset,got); return true;
   }
+  bool remove(const char *name) override { files.erase(name); return true; }
 };
 static void matchHistory() {
   MemoryBlobs blobs; TurnHubStandalone::useImportStore(&blobs);
@@ -5406,6 +5407,24 @@ static void cardCacheOnAtlas() {
   tapButton(TouchAction::OpenPlanes);
   assert(currentScreen().kind==ScreenKind::Planes && String(currentScreen().planes.plane)=="Chaotic Aether" &&
       currentScreen().planes.phenomenon && currentScreen().planes.digital);
+  // The card view: the app sends the face-up card's text and art, then the
+  // Planes page's Card turns the screen to it; a tap anywhere goes back.
+  {
+    MemoryArchive cards; TurnHubCards::setCardFilesForTests(&cards);
+    const String id=table().game.planar().plane;
+    assert(request("/api/planes/card",mine,{{"id",id},{"type","Phenomenon"},{"artist","A. Painter"},
+        {"text","Made-up rules text.\nSecond line."},{"chaos",""},{"art","/9j/2Q=="}})==200 && has("\"art\":true"));
+    assert(request("/api/planes/card",mine,{{"id","00000000-0000-0000-0000-000000000000"},{"text","x"},{"art",""}})==409);
+    assert(request("/api/planes/card",mine,{{"id",id},{"text","x"},{"art","not base64!"}})==400);
+    assert(request("/api/planes",mine,{},HTTP_GET)==200 && has((String("\"cards\":[\"")+id+"\"]").c_str()) && has((String("\"art\":[\"")+id+"\"]").c_str()));
+    tapButton(TouchAction::OpenPlaneCard);
+    const AtlasScreen view=currentScreen();
+    assert(view.kind==ScreenKind::PlaneCard && view.planes.card && String(view.planes.card->text)=="Made-up rules text.\nSecond line." &&
+        String(view.planes.card->artist)=="A. Painter" && view.planes.card->art && !view.planes.art);
+    tapButton(TouchAction::PlaneCardBack);
+    assert(currentScreen().kind==ScreenKind::Planes);
+    TurnHubCards::setCardFilesForTests(nullptr);
+  }
   tapButton(TouchAction::PlanarResolve);
   assert(!table().game.planar().phenomenon && screenButton(currentScreen(),TouchAction::PlanarRoll));
   tapButton(TouchAction::PlanarRoll);

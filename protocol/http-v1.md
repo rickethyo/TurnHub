@@ -740,6 +740,17 @@ Plane catalog (Atlas 2026-10-30): `GET /api/planes` answers `version` and
 `plv`), reloading it at boot or card insertion. The app sends its downloaded
 planes whenever the versions differ.
 
+Plane cards (Atlas 2026-11-03, for the Atlas screen's card view): `GET
+/api/planes` also answers `cards` (ids whose text Atlas keeps) and `art` (ids
+with art too). `POST /api/planes/card` (any signed-in browser or tablet) takes
+one catalog plane's `id`, `type` and `artist` (up to 47 printable ASCII
+characters each), `text` (rules, up to 639, newlines allowed), `chaos` (the
+chaos ability, up to 319) and `art`: a base64 baseline JPEG, 480x320, at most
+96 KB, or empty for text only. Atlas keeps them on the microSD card
+(`pc-<id>.txt`, `pc-<id>.jpg`): 400 for bad base64, 409 for an unknown plane,
+bad text, a non-JPEG or no card. The app (tablet mode) sends every catalog
+plane Atlas lacks art for, after the catalog.
+
 Saved commanders: up to six per profile on the microSD card (`d<profileId>`).
 `GET /api/profiles/commanders` (the session's own, or `?profileId=` from a
 tablet) answers `commanders: [{slot, name, art}]`, newest first.

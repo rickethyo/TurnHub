@@ -3,6 +3,7 @@
 // Mutations go through the callbacks registered by Atlas's web adapters.
 
 #include <stdlib.h>
+#include <vector>
 
 #include "firmware_version.h"
 #include "protocol.h"
@@ -522,9 +523,73 @@ bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::I
 // GET: the catalog's version and size, so the app knows when to send it.
 // POST (any signed-in browser or tablet): version + planes, one line per card
 // "id<TAB>name<TAB>0|1". Kept in RAM and on the microSD card.
+// It also lists the planes whose card (text, and art) Atlas keeps, so the
+// app sends only the missing ones.
 void handlePlanesCatalogInfo(WebServer &server) {
-  sendJson(server, 200, String("{\"version\":\"") + jsonEscape(TurnHubCards::planesVersion()) +
-      "\",\"count\":" + String(TurnHubCards::planeCount()) + "}");
+  String body = String("{\"version\":\"") + jsonEscape(TurnHubCards::planesVersion()) +
+      "\",\"count\":" + String(TurnHubCards::planeCount()) + ",\"cards\":[";
+  String art = ",\"art\":[";
+  bool firstCard = true, firstArt = true;
+  for (uint16_t i = 0; i < TurnHubCards::planeCount(); ++i) {
+    const auto *plane = TurnHubCards::plane(i);
+    bool hasArt = false;
+    if (!TurnHubCards::hasPlaneCard(plane->id, hasArt)) continue;
+    body += firstCard ? "\"" : ",\""; body += plane->id; body += '"';
+    firstCard = false;
+    if (!hasArt) continue;
+    art += firstArt ? "\"" : ",\""; art += plane->id; art += '"';
+    firstArt = false;
+  }
+  sendJson(server, 200, body + "]" + art + "]}");
+}
+
+namespace {
+// Standard base64 (RFC 4648, padding optional); false for any other character.
+bool decodeBase64(const String &in, std::vector<uint8_t> &out) {
+  out.clear();
+  out.reserve(in.length() * 3 / 4);
+  uint32_t bits = 0;
+  int count = 0;
+  for (size_t i = 0; i < in.length(); ++i) {
+    const char c = in[i];
+    int v;
+    if (c >= 'A' && c <= 'Z') v = c - 'A';
+    else if (c >= 'a' && c <= 'z') v = c - 'a' + 26;
+    else if (c >= '0' && c <= '9') v = c - '0' + 52;
+    else if (c == '+') v = 62;
+    else if (c == '/') v = 63;
+    else if (c == '=') break;
+    else return false;
+    bits = (bits << 6) | static_cast<uint32_t>(v);
+    if (++count == 4) {
+      out.push_back(static_cast<uint8_t>(bits >> 16)); out.push_back(static_cast<uint8_t>(bits >> 8));
+      out.push_back(static_cast<uint8_t>(bits));
+      bits = 0; count = 0;
+    }
+  }
+  if (count == 1) return false;
+  if (count == 2) out.push_back(static_cast<uint8_t>(bits >> 4));
+  if (count == 3) { out.push_back(static_cast<uint8_t>(bits >> 10)); out.push_back(static_cast<uint8_t>(bits >> 2)); }
+  return true;
+}
+}  // namespace
+
+// POST (any signed-in browser or tablet): one catalog plane's card for the
+// Atlas card view: id, type, artist, text, chaos and art (a base64 480x320
+// baseline JPEG; optional). Kept on the microSD card.
+void handlePlaneCard(WebServer &server) {
+  if (!requireSession(server)) return;
+  std::vector<uint8_t> jpeg;
+  if (!decodeBase64(server.arg("art"), jpeg)) {
+    sendError(server, 400, "Send the art as base64");
+    return;
+  }
+  if (!TurnHubCards::savePlaneCard(server.arg("id").c_str(), server.arg("type"), server.arg("artist"), server.arg("text"),
+          server.arg("chaos"), jpeg.data(), jpeg.size())) {
+    sendError(server, 409, "Atlas couldn't keep that plane: it needs a catalog plane, plain text and a microSD card");
+    return;
+  }
+  sendJson(server, 200, String("{\"ok\":true,\"art\":") + jsonBool(!jpeg.empty()) + "}");
 }
 
 void handlePlanesCatalog(WebServer &server) {

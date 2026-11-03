@@ -20,6 +20,7 @@
 #include <string.h>
 
 #include "mana_tap.h"
+#include "card_cache.h"
 #include "update_notice.h"
 #include "device_navigation.h"
 
@@ -27,6 +28,7 @@ namespace TurnHubAtlas {
 
 // Portrait screen size in pixels: the S3 Atlas's 4-inch panel, drawn 1:1.
 constexpr int16_t ATLAS_SCREEN_WIDTH = 320;
+// The card view turns the panel to landscape: ATLAS_SCREEN_HEIGHT wide.
 constexpr int16_t ATLAS_SCREEN_HEIGHT = 480;
 
 // A touch counts as released only after this long without contact, because
@@ -117,6 +119,9 @@ enum class TouchAction : uint8_t {
   // Planechase (when on): the Planes screen from the Game page, its die,
   // a card's planeswalk, and resolving a phenomenon (the active player's).
   OpenPlanes, PlanarRoll, PlanarWalk, PlanarResolve,
+  // ...and the card view: the face-up plane full screen in landscape, like
+  // the physical card (art, text, chaos ability); a tap anywhere goes back.
+  OpenPlaneCard, PlaneCardBack,
   // Lobby, a player's screen: step through their profile's saved commanders.
   SeatCommander,
   // Settings > Device: step the speaker volume (off, low, medium, high).
@@ -136,7 +141,7 @@ enum class TouchAction : uint8_t {
 // Confirm: the popup asking before a hazardous action.
 // NewGame: the lobby's game setup before Start game.
 // ManaTap: the mini game, opened from Home.
-enum class ScreenKind : uint8_t { Home, Overview, Status, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Themes, Seat, Name, Pin, Confirm, NewGame, ManaTap, Planes };
+enum class ScreenKind : uint8_t { Home, Overview, Status, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Themes, Seat, Name, Pin, Confirm, NewGame, ManaTap, Planes, PlaneCard };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -218,11 +223,15 @@ struct ScreenPlanes {
   uint8_t face = 0, cost = 0;
   bool fromEffect = false;
   char roller[SCREEN_NAME_LENGTH + 1] = {};
+  // Card view (PlaneCard): the saved card's text and its art, 480x320
+  // RGB565 (nullptr without art). Both stay valid until the plane changes.
+  const TurnHubCards::PlaneCard *card = nullptr;
+  const uint16_t *art = nullptr;
   bool operator==(const ScreenPlanes &o) const {
     return on == o.on && digital == o.digital && phenomenon == o.phenomenon && !strcmp(plane, o.plane) &&
         deckLeft == o.deckLeft && planeswalks == o.planeswalks && chaos == o.chaos && counters == o.counters &&
         rollCost == o.rollCost && roll == o.roll && face == o.face && cost == o.cost && fromEffect == o.fromEffect &&
-        !strcmp(roller, o.roller);
+        !strcmp(roller, o.roller) && card == o.card && (!card || !strcmp(card->id, o.card->id)) && art == o.art;
   }
   bool operator!=(const ScreenPlanes &o) const { return !(*this == o); }
 };

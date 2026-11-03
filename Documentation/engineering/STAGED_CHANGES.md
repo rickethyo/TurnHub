@@ -241,7 +241,9 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   Atlas screen; profiles keep six saved commanders on the card, chosen from
   the app, the tablet or the Atlas screen's player page. The Planes page is
   a full plane card and every accepted roll animates the planar die on the
-  Atlas screen (2026-11-02, GAMEPLAY.md). Next: Atlas
+  Atlas screen (2026-11-02, GAMEPLAY.md); Card shows the face-up plane full
+  screen in landscape with its art and text, which the app sends (2026-11-03).
+  Next: Atlas
   downloads the catalog itself over home Wi-Fi and refreshes it periodically;
   the Sigil's profile picker offers saved commanders; recovery keeps the
   digital deck's order (it restarts as physical planes today).

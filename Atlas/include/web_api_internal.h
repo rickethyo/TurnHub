@@ -219,6 +219,7 @@ void handleCounterControl(WebServer &server, TurnHub::IntentType type);
 // Cards Atlas keeps (card_cache.h): the planar catalog and saved commanders.
 void handlePlanesCatalogInfo(WebServer &server);
 void handlePlanesCatalog(WebServer &server);
+void handlePlaneCard(WebServer &server);
 void handleSavedCommanders(WebServer &server);
 void handleCommanderChoice(WebServer &server);
 void handleTabletCommanderChoice(WebServer &server);

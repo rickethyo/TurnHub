@@ -897,6 +897,123 @@ void drawPlanes(lv_obj_t *root, const AtlasScreen &s) {
   planeStat(plate, cost, "NEXT ROLL", 12 + 2 * (tileW + gap), tileY, tileW);
 }
 
+// The card view: the face-up plane full screen in landscape, laid out like
+// the physical card in our own frame (not a card frame): the art edge to
+// edge, the name across the top, the rules text and the chaos ability in a
+// box along the bottom, and the artist and Scryfall credit under it.
+constexpr int16_t CW = ATLAS_SCREEN_HEIGHT, CH = ATLAS_SCREEN_WIDTH;
+lv_image_dsc_t cardArt;
+const lv_point_precise_t SMALL_RAYS[4][2] = {
+    {{11, 1}, {11, 21}}, {{1, 11}, {21, 11}}, {{4, 4}, {18, 18}}, {{18, 4}, {4, 18}}};
+
+void chaosMark(lv_obj_t *parent, uint32_t ink) {
+  lv_obj_t *g = box(parent, 0, 0, 22, 22);
+  for (const auto &ray : SMALL_RAYS) {
+    lv_obj_t *l = lv_line_create(g);
+    lv_obj_remove_style_all(l);
+    lv_line_set_points(l, ray, 2);
+    lv_obj_set_style_line_width(l, 3, 0);
+    lv_obj_set_style_line_rounded(l, true, 0);
+    lv_obj_set_style_line_color(l, rgb(ink), 0);
+  }
+}
+
+lv_obj_t *wrapped(lv_obj_t *parent, const char *s, const lv_font_t *font, uint32_t color, int16_t w) {
+  lv_obj_t *l = lv_label_create(parent);
+  lv_obj_remove_style_all(l);
+  lv_label_set_text(l, s);
+  lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(l, w);
+  lv_obj_set_style_text_font(l, font, 0);
+  lv_obj_set_style_text_color(l, rgb(color), 0);
+  lv_obj_set_style_text_line_space(l, 1, 0);
+  return l;
+}
+
+void drawPlaneCard(lv_obj_t *root, const AtlasScreen &s) {
+  const ScreenPlanes &p = s.planes;
+  const TurnHubCards::PlaneCard *c = p.card;
+  const uint32_t edge = p.phenomenon ? pal().warning : pal().accent;
+  if (p.art) {
+    // One buffer for every plane's art: drop any cached copy of the last one.
+    lv_image_cache_drop(&cardArt);
+    cardArt = lv_image_dsc_t();
+    cardArt.header.magic = LV_IMAGE_HEADER_MAGIC;
+    cardArt.header.cf = LV_COLOR_FORMAT_RGB565;
+    cardArt.header.w = TurnHubCards::PLANE_ART_WIDTH;
+    cardArt.header.h = TurnHubCards::PLANE_ART_HEIGHT;
+    cardArt.header.stride = TurnHubCards::PLANE_ART_WIDTH * 2;
+    cardArt.data_size = TurnHubCards::PLANE_ART_WIDTH * TurnHubCards::PLANE_ART_HEIGHT * 2;
+    cardArt.data = reinterpret_cast<const uint8_t *>(p.art);
+    lv_obj_t *img = lv_image_create(root);
+    lv_obj_remove_style_all(img);
+    lv_image_set_src(img, &cardArt);
+    lv_obj_set_pos(img, 0, 0);
+  } else {
+    // No art yet: the plane's colour and a faint portal.
+    lv_obj_set_style_bg_color(root, rgb(pal().surface2), 0);
+    lv_obj_t *ring = box(root, CW / 2 - 70, 54, 140, 140);
+    lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_width(ring, 14, 0);
+    lv_obj_set_style_border_color(ring, rgb(pal().separatorStrong), 0);
+  }
+  // The name bar.
+  lv_obj_t *bar = box(root, 0, 0, CW, 46);
+  lv_obj_set_style_bg_opa(bar, LV_OPA_70, 0);
+  lv_obj_set_style_bg_color(bar, lv_color_black(), 0);
+  const char *name = p.plane[0] ? p.plane : "Planechase";
+  const lv_font_t *font = textWidth(name, &th_cinzel_32) <= CW - 28 ? &th_cinzel_32
+      : textWidth(name, &th_bold_28) <= CW - 28 ? &th_bold_28 : &th_semi_20;
+  lv_obj_t *title = text(bar, name, font, 0xFFFFFF, 14, (46 - lv_font_get_line_height(font)) / 2, CW - 28);
+  lv_obj_set_style_text_color(title, lv_color_white(), 0);
+  if (p.counters > 0) {
+    char counters[24];
+    snprintf(counters, sizeof(counters), "%ld COUNTER%s", static_cast<long>(p.counters), p.counters == 1 ? "" : "S");
+    lv_obj_t *tag = pill(root, counters, edge, pal().onAccent);
+    lv_obj_align(tag, LV_ALIGN_TOP_RIGHT, -12, 54);
+  }
+  // The text box, sized to its text, along the bottom.
+  lv_obj_t *panel = box(root, 10, 0, CW - 20, LV_SIZE_CONTENT);
+  card(panel, pal().surface1, edge, 14);
+  lv_obj_set_style_bg_opa(panel, LV_OPA_90, 0);
+  lv_obj_set_style_pad_all(panel, 10, 0);
+  lv_obj_set_style_pad_row(panel, 6, 0);
+  lv_obj_set_style_max_height(panel, CH - 46 - 34, 0);
+  lv_obj_set_flex_flow(panel, LV_FLEX_FLOW_COLUMN);
+  const int16_t inner = CW - 20 - 20 - 2;
+  if (!c) {
+    wrapped(panel, "This plane's text isn't on Atlas yet. The app sends it when it next connects.", &th_semi_16,
+            pal().textSecondary, inner);
+  } else {
+    if (c->text[0]) wrapped(panel, c->text, &th_semi_16, pal().text, inner);
+    if (c->chaos[0]) {
+      lv_obj_t *rule = box(panel, 0, 0, inner, 1);
+      lv_obj_set_style_bg_opa(rule, LV_OPA_COVER, 0);
+      lv_obj_set_style_bg_color(rule, rgb(pal().separator), 0);
+      lv_obj_t *row = box(panel, 0, 0, inner, LV_SIZE_CONTENT);
+      lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+      lv_obj_set_style_pad_column(row, 8, 0);
+      chaosMark(row, pal().warning);
+      wrapped(row, c->chaos, &th_semi_16, pal().text, inner - 30);
+    }
+  }
+  lv_obj_align(panel, LV_ALIGN_BOTTOM_MID, 0, -26);
+  // Credit, as Scryfall asks: the artist with the art.
+  char credit[96];
+  if (c && c->artist[0]) snprintf(credit, sizeof(credit), "Art: %s / Data and images: Scryfall", c->artist);
+  else snprintf(credit, sizeof(credit), "Data and images: Scryfall");
+  lv_obj_t *foot = box(root, 0, CH - 24, CW, 24);
+  lv_obj_set_style_bg_opa(foot, LV_OPA_60, 0);
+  lv_obj_set_style_bg_color(foot, lv_color_black(), 0);
+  lv_obj_t *by = text(foot, credit, &th_semi_16, 0xFFFFFF, 12, 2, CW - 24, LV_TEXT_ALIGN_CENTER);
+  lv_obj_set_style_text_color(by, lv_color_hex(0xD8D8D8), 0);
+  // Our own frame: a rounded hairline in the plane's colour.
+  lv_obj_t *frame = box(root, 0, 0, CW, CH);
+  lv_obj_set_style_radius(frame, 18, 0);
+  lv_obj_set_style_border_width(frame, 3, 0);
+  lv_obj_set_style_border_color(frame, rgb(edge), 0);
+}
+
 void drawBody(lv_obj_t *root, const AtlasScreen &s) {
   if (s.showPlayerControls) {
     uint8_t ids[TurnHubUi::PLAYER_CONTROL_COUNT];
@@ -1286,7 +1403,10 @@ void animate(void *var, lv_anim_exec_xcb_t exec, int32_t from, int32_t to, uint3
 
 void showDieRoll(const ScreenPlanes &p) {
   if (rollPanel) lv_obj_delete(rollPanel);
-  lv_obj_t *panel = box(lv_layer_top(), (W - ROLL_W) / 2, -ROLL_H, ROLL_W, ROLL_H);
+  // Centred on the panel as it is turned now (the card view is landscape).
+  const int32_t sw = lv_display_get_horizontal_resolution(nullptr), sh = lv_display_get_vertical_resolution(nullptr);
+  const int32_t restY = sh > sw ? ROLL_Y : (sh - ROLL_H) / 2;
+  lv_obj_t *panel = box(lv_layer_top(), (sw - ROLL_W) / 2, -ROLL_H, ROLL_W, ROLL_H);
   forgetOnDelete(panel, &rollPanel);
   card(panel, pal().surface1, pal().accent, 24);
   lv_obj_set_style_border_width(panel, 2, 0);
@@ -1313,7 +1433,7 @@ void showDieRoll(const ScreenPlanes &p) {
   lv_obj_set_style_opa(by, LV_OPA_TRANSP, 0);
 
   const uint32_t landed = ROLL_IN_MS + TUMBLE_MS;
-  animate(panel, slideY, -ROLL_H, ROLL_Y, 0, ROLL_IN_MS, lv_anim_path_ease_out);
+  animate(panel, slideY, -ROLL_H, restY, 0, ROLL_IN_MS, lv_anim_path_ease_out);
   animate(die, slideY, -DIE, 58, ROLL_IN_MS - 80, TUMBLE_MS, lv_anim_path_bounce);
   animate(die, spin, -1440, 0, ROLL_IN_MS - 80, TUMBLE_MS - 120, lv_anim_path_ease_out);
   lv_anim_t faces;
@@ -1333,7 +1453,7 @@ void showDieRoll(const ScreenPlanes &p) {
   lv_anim_init(&out);
   lv_anim_set_var(&out, panel);
   lv_anim_set_exec_cb(&out, slideY);
-  lv_anim_set_values(&out, ROLL_Y, H);
+  lv_anim_set_values(&out, restY, sh);
   lv_anim_set_delay(&out, landed + ROLL_HOLD_MS);
   lv_anim_set_duration(&out, ROLL_OUT_MS);
   lv_anim_set_path_cb(&out, lv_anim_path_ease_in);
@@ -1369,6 +1489,11 @@ void renderAtlasScreen(const AtlasScreen &s, const ScreenStyle &chosen) {
   lv_obj_set_style_bg_color(root, rgb(pal().bg), 0);
   lv_obj_set_style_bg_grad_dir(root, LV_GRAD_DIR_NONE, 0);
   lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
+  if (s.kind == ScreenKind::PlaneCard) {
+    drawPlaneCard(root, s);
+    noteRoll(s);
+    return;
+  }
   drawHeader(root, s);
   if (s.kind == ScreenKind::Confirm) drawConfirm(root, s);
   else drawHero(root, s);

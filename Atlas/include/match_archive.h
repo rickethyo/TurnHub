@@ -28,6 +28,8 @@ class ArchiveFiles {
   virtual bool append(const char *name, const char *data, size_t size) = 0;
   // Up to capacity bytes from offset; got is 0 at the end.
   virtual bool readAt(const char *name, size_t offset, char *data, size_t capacity, size_t &got) = 0;
+  // Deletes the file; true when it is gone (or was never there).
+  virtual bool remove(const char *name) = 0;
 };
 
 constexpr char RECORDS_FILE[] = "games.jsonl";

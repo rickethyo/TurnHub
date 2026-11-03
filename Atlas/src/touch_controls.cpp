@@ -275,7 +275,10 @@ ScreenKind baseScreen(uint32_t nowMs) {
   const bool lobbyOnly = openScreen == ScreenKind::Seat || openScreen == ScreenKind::Name ||
       openScreen == ScreenKind::Pin || openScreen == ScreenKind::NewGame;
   if (lobbyOnly && table().hubState != HubState::Lobby) openScreen = ScreenKind::Status;
-  if (openScreen == ScreenKind::Planes && (!matchInProgress() || !table().game.planar().enabled)) openScreen = ScreenKind::Status;
+  if (openScreen == ScreenKind::PlaneCard && (!table().game.planar().digital || !table().game.planar().plane[0]))
+    openScreen = ScreenKind::Planes;
+  if ((openScreen == ScreenKind::Planes || openScreen == ScreenKind::PlaneCard) &&
+      (!matchInProgress() || !table().game.planar().enabled)) openScreen = ScreenKind::Status;
   if (pendingPresenceCode(nowMs) != nullptr) return ScreenKind::Code;
   if (waitingPairSlot() != INVALID_ID) return ScreenKind::PairCode;
   if (openScreen == ScreenKind::Status && setupScreenDue()) return ScreenKind::Setup;
@@ -646,14 +649,25 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
         const ButtonSpec upper[] = {planes.phenomenon ? ButtonSpec{TouchAction::PlanarResolve, "Resolve phenomenon", 0, 1}
                                                        : ButtonSpec{TouchAction::PlanarRoll, roll, 0, 1}};
         addRow(screen, BUTTON_UPPER_ROW_Y, upper, 1);
-        const ButtonSpec lower[] = {{TouchAction::PlanarWalk, "Planeswalk", 0, 3}, {TouchAction::CloseScreen, "Back", 0, 2}};
-        addRow(screen, BUTTON_ROW_Y, lower, 2);
+        ButtonSpec lower[3];
+        uint8_t n = 0;
+        lower[n++] = {TouchAction::PlanarWalk, "Planeswalk", 0, 3};
+        if (planes.digital && planes.plane[0]) lower[n++] = {TouchAction::OpenPlaneCard, "Card", 0, 2};
+        lower[n++] = {TouchAction::CloseScreen, "Back", 0, 2};
+        addRow(screen, BUTTON_ROW_Y, lower, n);
         return;
       }
-      const ButtonSpec lower[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
-      addRow(screen, BUTTON_ROW_Y, lower, 1);
+      ButtonSpec lower[2];
+      uint8_t n = 0;
+      if (planes.digital && planes.plane[0]) lower[n++] = {TouchAction::OpenPlaneCard, "Card view", 0, 1};
+      lower[n++] = {TouchAction::CloseScreen, "Back", 0, 1};
+      addRow(screen, BUTTON_ROW_Y, lower, n);
       return;
     }
+    // The whole landscape panel is one button back to the Planes page.
+    case ScreenKind::PlaneCard:
+      addKey(screen, TouchAction::PlaneCardBack, "Back", 0, 0, ATLAS_SCREEN_HEIGHT, ATLAS_SCREEN_WIDTH, 0);
+      return;
     case ScreenKind::Overview: {
       const uint8_t count = table().hubState == HubState::Lobby ? table().lobby.playerCount() : table().game.playerCount();
       if (count > MAX_SCREEN_PLAYERS) {
@@ -762,7 +776,8 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
   layoutContentButtons(screen, nowMs);
   const auto kind = activeScreen(nowMs);
   if (kind == ScreenKind::Code || kind == ScreenKind::PairCode || kind == ScreenKind::Name ||
-      kind == ScreenKind::Pin || kind == ScreenKind::Setup || kind == ScreenKind::Confirm) return;
+      kind == ScreenKind::Pin || kind == ScreenKind::Setup || kind == ScreenKind::Confirm ||
+      kind == ScreenKind::PlaneCard) return;
   const TouchAction actions[] = {TouchAction::OpenHome, TouchAction::OpenGame,
       TouchAction::OpenOverview, TouchAction::OpenSettings};
   const uint8_t selected = kind == ScreenKind::Home || kind == ScreenKind::ManaTap ? 0 : kind == ScreenKind::Status || kind == ScreenKind::Player ||
@@ -886,6 +901,8 @@ const char *actionName(TouchAction action) {
     case TouchAction::ManaAction: return "MANA_ACTION";
     case TouchAction::ManaQuit: return "MANA_QUIT";
     case TouchAction::OpenPlanes: return "OPEN_PLANES";
+    case TouchAction::OpenPlaneCard: return "OPEN_PLANE_CARD";
+    case TouchAction::PlaneCardBack: return "PLANE_CARD_BACK";
     case TouchAction::PlanarRoll: return "PLANAR_ROLL";
     case TouchAction::PlanarWalk: return "PLANAR_WALK";
     case TouchAction::PlanarResolve: return "PLANAR_RESOLVE";
@@ -980,6 +997,8 @@ bool navigate(TouchAction action) {
     case TouchAction::OverviewNext: overviewPage = overviewPage ? 0 : 1; return true;
     case TouchAction::OpenNewGame: openScreen = ScreenKind::NewGame; return true;
     case TouchAction::OpenPlanes: openScreen = ScreenKind::Planes; return true;
+    case TouchAction::OpenPlaneCard: openScreen = ScreenKind::PlaneCard; return true;
+    case TouchAction::PlaneCardBack: openScreen = ScreenKind::Planes; return true;
     case TouchAction::ConfirmNo: confirmAction = TouchAction::None; return true;
     case TouchAction::OpenQr: openScreen = ScreenKind::Qr; return true;
     case TouchAction::OpenTable: openScreen = ScreenKind::Table; return true;
@@ -1946,6 +1965,11 @@ void fillPlanes(AtlasScreen &screen, uint32_t nowMs) {
     if (const PlayerSeat *seat = table().game.playerByNumber(view.lastPlayer))
       playerName(*seat, profileIdForTableSeat(*seat, true), nowMs, out.roller);
   }
+  // Only the card view reads the card (from the microSD card, once per plane).
+  if (screen.kind == ScreenKind::PlaneCard && view.plane[0]) {
+    out.card = TurnHubCards::planeCard(view.plane);
+    if (out.card && out.card->art) out.art = planeArtPixels(view.plane);
+  }
 }
 
 void formatManaTap(AtlasScreen &screen) {
@@ -2197,7 +2221,8 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
     case ScreenKind::ManaTap: formatManaTap(screen); break;
     case ScreenKind::Confirm: formatConfirm(screen, nowMs); break;
     case ScreenKind::NewGame: formatNewGame(screen); break;
-    case ScreenKind::Planes: formatPlanes(screen); break;
+    case ScreenKind::Planes:
+    case ScreenKind::PlaneCard: formatPlanes(screen); break;
     case ScreenKind::Overview:
       formatStatus(screen,nowMs);
       snprintf(screen.title,sizeof(screen.title),"Table");

@@ -4,6 +4,7 @@
 // converts them to PNG when Pillow is available).
 
 #include <lvgl.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <string>
@@ -21,9 +22,9 @@ uint32_t nowMs = 0;
 
 void flush(lv_display_t *disp, const lv_area_t *area, uint8_t *pixels) {
   const auto *src = reinterpret_cast<const uint16_t *>(pixels);
-  const int w = lv_area_get_width(area);
+  const int w = lv_area_get_width(area), stride = lv_display_get_horizontal_resolution(disp);
   for (int y = area->y1; y <= area->y2; ++y)
-    for (int x = area->x1; x <= area->x2; ++x) frame[y * WIDTH + x] = src[(y - area->y1) * w + (x - area->x1)];
+    for (int x = area->x1; x <= area->x2; ++x) frame[y * stride + x] = src[(y - area->y1) * w + (x - area->x1)];
   lv_display_flush_ready(disp);
 }
 
@@ -32,7 +33,8 @@ void save(const std::string &name) {
   lv_refr_now(nullptr);
   const std::string path = "build/preview/" + name + ".ppm";
   FILE *f = fopen(path.c_str(), "wb");
-  fprintf(f, "P6\n%d %d\n255\n", WIDTH, HEIGHT);
+  fprintf(f, "P6\n%d %d\n255\n", static_cast<int>(lv_display_get_horizontal_resolution(nullptr)),
+          static_cast<int>(lv_display_get_vertical_resolution(nullptr)));
   for (uint16_t c : frame) {
     const uint8_t rgb[3] = {static_cast<uint8_t>((c >> 11 & 31) * 255 / 31),
         static_cast<uint8_t>((c >> 5 & 63) * 255 / 63), static_cast<uint8_t>((c & 31) * 255 / 31)};
@@ -335,6 +337,43 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     nowMs += 4000; lv_timer_handler();
     lv_obj_clean(lv_layer_top());
     g.planes = ScreenPlanes(); renderShell(g, style);
+  }
+  {
+    // The card view, landscape: made-up plane text over generated scenery
+    // (no real card art or text in the repo), then with no art yet, then the
+    // die rolling over it.
+    static std::vector<uint16_t> art(TurnHubCards::PLANE_ART_WIDTH * TurnHubCards::PLANE_ART_HEIGHT);
+    for (int y = 0; y < TurnHubCards::PLANE_ART_HEIGHT; ++y)
+      for (int x = 0; x < TurnHubCards::PLANE_ART_WIDTH; ++x) {
+        const int ridge = 150 + static_cast<int>(40 * sin(x / 37.0) + 18 * sin(x / 11.0));
+        int r, g, b;
+        if (y < ridge) { r = 40 + y / 3; g = 70 + y / 2; b = 140 + y / 3; }
+        else { r = 30 + (y - ridge) / 4; g = 50 + (x % 60) / 6; b = 60; }
+        art[y * TurnHubCards::PLANE_ART_WIDTH + x] = static_cast<uint16_t>((r & 0xF8) << 8 | (g & 0xFC) << 3 | b >> 3);
+      }
+    static TurnHubCards::PlaneCard card;
+    snprintf(card.id, sizeof(card.id), "00000000-0000-0000-0000-000000000001");
+    snprintf(card.type, sizeof(card.type), "Plane - Glasswing");
+    snprintf(card.artist, sizeof(card.artist), "A. Painter");
+    snprintf(card.text, sizeof(card.text), "Artifact creatures you control get +1/+1.\nAt the beginning of your upkeep, you may scry 1.");
+    snprintf(card.chaos, sizeof(card.chaos), "Whenever chaos ensues, each player creates a 1/1 colorless Thopter artifact creature token with flying.");
+    card.art = true;
+    AtlasScreen s = base("PLANES", "Planechase", "");
+    s.kind = ScreenKind::PlaneCard;
+    s.planes.on = s.planes.digital = true; s.planes.counters = 2; s.planes.roll = 2;
+    snprintf(s.planes.plane, sizeof(s.planes.plane), "Glasswing Spires");
+    s.planes.card = &card; s.planes.art = art.data();
+    lv_display_set_resolution(lv_display_get_default(), HEIGHT, WIDTH);
+    renderShell(s, style); save("plane-card" + suffix);
+    AtlasScreen bare = s; bare.planes.art = nullptr; bare.planes.counters = 0;
+    renderShell(bare, style); save("plane-card-no-art" + suffix);
+    s.planes.roll = 3; s.planes.face = 1; snprintf(s.planes.roller, sizeof(s.planes.roller), "Casey");
+    renderShell(s, style, true);
+    nowMs += 1420; lv_timer_handler(); save("plane-card-roll" + suffix);
+    nowMs += 4000; lv_timer_handler();
+    lv_obj_clean(lv_layer_top());
+    lv_display_set_resolution(lv_display_get_default(), WIDTH, HEIGHT);
+    s.planes = ScreenPlanes(); s.kind = ScreenKind::Status; renderShell(s, style);
   }
   {
     AtlasScreen s = base("QR", "Join this table", "Scan with a phone camera");

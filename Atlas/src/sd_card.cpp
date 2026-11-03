@@ -192,6 +192,13 @@ class LockedArchiveFiles final : public TurnHubHistory::ArchiveFiles {
     file.close();
     return ok;
   }
+  bool remove(const char *name) override {
+    if (!storeUsable()) return false;
+    CardLock lock;
+    if (!storeUsable()) return false;
+    const String file = path(name);
+    return !sdFileSystem.exists(file.c_str()) || sdFileSystem.remove(file.c_str());
+  }
 
  private:
   // The record store's folder (sdStore.begin in mountCard).

@@ -267,6 +267,28 @@ class AtlasTablet(
         } catch (e: CancellationException) { throw e } catch (_: Exception) { /* Next connection tries again. */ }
     }
 
+    /**
+     * Sends Atlas the card view's text and art for each catalog plane it lacks art for
+     * (after [syncPlanes]). One request per plane; stops at the first refusal (no microSD
+     * card, or the catalog changed) and tries again on the next connection.
+     */
+    suspend fun syncPlaneCards(cards: List<com.turnhub.android.data.PlaneInfo>, art: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray?) {
+        try {
+            val info = session.raw("GET", "/api/planes") ?: return
+            if (!info.ok) return
+            val withArt = org.json.JSONObject(info.body).optJSONArray("art")?.let { list -> (0 until list.length()).map { list.getString(it) }.toSet() }.orEmpty()
+            for (card in cards.take(192)) {
+                if (card.id in withArt) continue
+                val text = AtlasPlaneCards.text(card)
+                val jpeg = art(card)?.let { AtlasPlaneCards.artJpeg(it) }
+                val response = session.raw("POST", "/api/planes/card", listOf("id" to card.id, "type" to text.type,
+                    "artist" to text.artist, "text" to text.text, "chaos" to text.chaos,
+                    "art" to (jpeg?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) } ?: ""))) ?: return
+                if (!response.ok) return
+            }
+        } catch (e: CancellationException) { throw e } catch (_: Exception) { /* Next connection tries again. */ }
+    }
+
     // --- the table ----------------------------------------------------------------
 
     /** `pass`, `pause`, `concede`, `win`, `confirm`, `deny`, `starter`, `start`, `cancel-start`, `rematch` or `reset`. */

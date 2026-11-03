@@ -299,6 +299,7 @@ const Route ROUTES[] = {
   {"/api/control/commander-choice", HTTP_POST, handleCommanderChoice},
   {"/api/planes", HTTP_GET, handlePlanesCatalogInfo},
   {"/api/planes", HTTP_POST, handlePlanesCatalog},
+  {"/api/planes/card", HTTP_POST, handlePlaneCard},
   {"/api/profiles/commanders", HTTP_GET, handleSavedCommanders},
   // Tablet mode: one shared table screen acting for any seated player.
   {"/api/standalone/import", HTTP_POST, handleStandaloneImport},

@@ -244,7 +244,14 @@ loss condition; Commander damage totals alone do not trigger elimination.
   under it. Every roll Atlas accepts, from a Sigil, the app, a tablet or the
   Atlas screen, drops an animated planar die over whatever page is open; it
   lands on the face, then names it and who rolled (the Planes page says the
-  same in words). A restart never replays a roll.
+  same in words). A restart never replays a roll. With the digital deck,
+  Card turns the screen landscape and shows the face-up plane like the
+  physical card: the art edge to edge, the name, the rules text and the chaos
+  ability (marked with a burst and set apart) in a box along the bottom, the
+  counters, and the artist and Scryfall credit, in TurnHub's own frame. A tap
+  anywhere goes back; a roll drops the die over it too. The app sends each
+  plane's text and art to Atlas (`POST /api/planes/card`, `http-v1.md`); a
+  plane without them shows its name and a note.
 - **Who goes first:** any player can choose (`SelectStarter`); choosing the
   chosen player again clears it. With nobody chosen, Atlas picks a random
   player when the countdown ends, as the standalone app does (rematches too).

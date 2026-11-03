@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 namespace TurnHubStorage { class BlobStore; }
+namespace TurnHubHistory { class ArchiveFiles; }
 
 namespace TurnHubCards {
 
@@ -37,6 +38,44 @@ uint16_t planeCount();
 const Plane *plane(uint16_t index);
 const Plane *findPlane(const char *id);
 const char *planesVersion();
+
+// --- plane cards: text and art for the card view ---------------------------------
+//
+// The app sends each catalog plane's rules text, its chaos ability (apart,
+// as the card sets it off), type line and artist, and its art as a 480x320
+// baseline JPEG it cut from Scryfall's art crop. Kept on the microSD card as
+// "pc-<id>.txt" and "pc-<id>.jpg" in Atlas's folder; nothing without a card.
+
+constexpr size_t PLANE_TYPE_LENGTH = 47;
+constexpr size_t PLANE_ARTIST_LENGTH = 47;
+constexpr size_t PLANE_TEXT_LENGTH = 639;
+constexpr size_t PLANE_CHAOS_LENGTH = 319;
+constexpr uint16_t PLANE_ART_WIDTH = 480, PLANE_ART_HEIGHT = 320;
+constexpr size_t MAX_PLANE_ART_BYTES = 96 * 1024;
+
+struct PlaneCard {
+  char id[CARD_ID_LENGTH + 1] = "";
+  char type[PLANE_TYPE_LENGTH + 1] = "";
+  char artist[PLANE_ARTIST_LENGTH + 1] = "";
+  char text[PLANE_TEXT_LENGTH + 1] = "";
+  char chaos[PLANE_CHAOS_LENGTH + 1] = "";
+  bool art = false;  // Its JPEG is on the card.
+};
+
+// The files cards are kept in (the microSD card's) unless a test sets others.
+void setCardFilesForTests(TurnHubHistory::ArchiveFiles *files);
+// Saves one catalog plane's card (text printable ASCII; newlines allowed in
+// text). jpeg may be empty (text only). False for an unknown plane, bad
+// text, a JPEG that isn't one, or no card.
+bool savePlaneCard(const char *id, const String &type, const String &artist, const String &text, const String &chaos,
+    const uint8_t *jpeg, size_t jpegSize);
+// Whether Atlas has that plane's text (and art).
+bool hasPlaneCard(const char *id, bool &art);
+// The card for id, read from the card once and kept for the next call;
+// nullptr when it isn't saved. Application task only.
+const PlaneCard *planeCard(const char *id);
+// Reads up to capacity bytes of the plane's JPEG; size 0 without one.
+bool readPlaneArt(const char *id, uint8_t *out, size_t capacity, size_t &size);
 
 // --- saved commanders ----------------------------------------------------------
 
