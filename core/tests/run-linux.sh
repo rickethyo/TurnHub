@@ -9,3 +9,8 @@ mkdir -p "$out"
   "$root/core/src/turnhub_json.cpp" "$root/core/src/turnhub_core.cpp" "$root/core/tests/scenario_runner.cpp" \
   -o "$out/scenario_runner"
 "$out/scenario_runner" "$root/core/scenarios" "$root/protocol/examples"
+"${CXX:-g++}" -std=c++17 -Wall -Wextra -Werror -g -fsanitize=address,undefined -fno-sanitize-recover=all \
+  -I"$root/core/include" \
+  "$root/core/src/turnhub_json.cpp" "$root/core/src/turnhub_core.cpp" "$root/core/src/turnhub_offline.cpp" \
+  "$root/core/tests/offline_test.cpp" -o "$out/offline_test"
+"$out/offline_test"
