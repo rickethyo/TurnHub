@@ -489,6 +489,7 @@ class HomeViewModel(
         val failure: AtlasFailure? = null,
         val wifiPrompt: WifiPrompt? = null,
         val wifiOff: Boolean = false,
+        val homePairing: com.turnhub.android.data.SavedHomeAtlas? = null,
         val joiningSsid: String? = null,
         val signIn: SignInPrompt? = null,
         val accessibilityOpen: Boolean = false,
@@ -579,7 +580,8 @@ class HomeViewModel(
                 null
             },
             discovery = screen.discovery,
-            hasSavedTable = credentialStore.lastSsid() != null,
+            hasSavedTable = credentialStore.lastSsid() != null || homeLink?.hasSavedAtlas() == true,
+            homePairing = screen.homePairing,
             rejoining = screen.rejoining,
             // vaultVersion is part of `screen`, so a save or forget recomputes this.
             savedProfile = tableSummary?.atlasId?.let { id -> vault?.saved(id) },
@@ -1315,6 +1317,7 @@ class HomeViewModel(
     fun onSetUpNewTable() {
         automaticProbe = false
         local.update { it.copy(discovery = Discovery.Idle, endpointText = AtlasEndpoint.DEFAULT.baseUrl, failure = null) }
+        if (homeLink != null) { onConnectClicked(); return }
         joinThenConnect(
             AtlasEndpoint.DEFAULT,
             WifiCredentials(WifiCredentials.DEFAULT_ATLAS_SSID, WifiCredentials.DEFAULT_ATLAS_PASSPHRASE),
@@ -1325,11 +1328,12 @@ class HomeViewModel(
     private fun idle(): Boolean {
         val screen = local.value
         return repository.connectionState.value == AtlasConnectionState.DISCONNECTED &&
-            screen.joiningSsid == null && screen.wifiPrompt == null && !screen.wifiOff && !screen.rejoining
+            screen.joiningSsid == null && screen.wifiPrompt == null && screen.homePairing == null && !screen.wifiOff && !screen.rejoining
     }
 
     private suspend fun rejoinSavedTable() {
         if (!idle()) return
+        if (homeLink != null) { onConnectClicked(); return }
         val saved = credentialStore.lastSsid()?.let(credentialStore::load)
         if (saved == null) {
             // A phone that has never joined a table: the screen offers setup.
@@ -1409,7 +1413,8 @@ class HomeViewModel(
      */
     fun onConnectClicked() {
         automaticProbe = false
-        if (local.value.joiningSsid != null) return
+        if (local.value.joiningSsid != null || local.value.homePairing != null ||
+            (wifiJoinJob?.isActive == true && local.value.discovery == Discovery.Searching)) return
         val endpoint = AtlasEndpoint.parse(local.value.endpointText).getOrElse { error ->
             local.update {
                 it.copy(failure = (error as? AtlasException)?.failure ?: AtlasFailure.Unexpected(error.message))
@@ -1435,8 +1440,29 @@ class HomeViewModel(
             local.update { it.copy(discovery = Discovery.Searching) }
             val home = link.find()
             currentCoroutineContext().ensureActive()
+            val candidate = if (home == null) link.pairingCandidate() else null
+            currentCoroutineContext().ensureActive()
             local.update { it.copy(discovery = Discovery.Idle) }
-            if (home != null) connectRepository(home) else joinAtlasWifi(endpoint)
+            when {
+                home != null -> connectRepository(home)
+                candidate != null -> local.update { it.copy(homePairing = candidate) }
+                else -> joinAtlasWifi(endpoint)
+            }
+        }
+    }
+
+    fun onDismissHomePairing() {
+        local.update { it.copy(homePairing = null) }
+    }
+
+    fun onConfirmHomePairing() {
+        val candidate = local.value.homePairing ?: return
+        local.update { it.copy(homePairing = null, discovery = Discovery.Searching) }
+        wifiJoinJob = viewModelScope.launch {
+            val endpoint = homeLink?.confirmPairing(candidate)
+            local.update { it.copy(discovery = Discovery.Idle, failure = if (endpoint == null)
+                AtlasFailure.Rejected("Atlas could not be verified. Search again and compare the link code on Atlas.") else null) }
+            if (endpoint != null) connectRepository(endpoint)
         }
     }
 
@@ -1522,7 +1548,7 @@ class HomeViewModel(
         connectJob?.cancel()
         pendingEndpoint = null
         local.update {
-            it.copy(discovery = Discovery.Idle, joiningSsid = null, wifiPrompt = null, failure = null)
+            it.copy(discovery = Discovery.Idle, joiningSsid = null, wifiPrompt = null, homePairing = null, failure = null)
         }
         disconnectJob = viewModelScope.launch {
             repository.disconnect()

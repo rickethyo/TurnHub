@@ -19,12 +19,12 @@ sealed class AtlasFailure(val userMessage: String, val technicalDetail: String? 
     data object WifiOff : AtlasFailure("Wi-Fi is off. Turn on Wi-Fi to connect to Atlas.")
 
     class Timeout(technicalDetail: String? = null) : AtlasFailure(
-        "Atlas did not respond in time. Check that this phone is on the TurnHub-Atlas Wi-Fi.",
+        "Atlas did not respond in time. Check that this phone and Atlas are on the same home Wi-Fi, or join TurnHub-Atlas.",
         technicalDetail,
     )
 
     class Unreachable(technicalDetail: String?) : AtlasFailure(
-        "Could not reach Atlas. Check that this phone is on the TurnHub-Atlas Wi-Fi.",
+        "Could not reach Atlas. Check that this phone and Atlas are on the same home Wi-Fi, or join TurnHub-Atlas.",
         technicalDetail,
     )
 

@@ -17,8 +17,9 @@ own hotspot as the fallback and HTTPS for phones on the home network (plan:
   (30 s), doubling to `HOME_WIFI_REJOIN_MAX_MS` (5 min); a dropped connection
   retries after 10 s (`HomeWifiRejoin`). Each attempt gives up after
   `HOME_WIFI_JOIN_TIMEOUT_MS` (15 s).
-- **The hotspot stays up** (`WIFI_AP_STA`, owner decision 2026-11-03), so
-  phones, first setup and Sigil OTA keep using `TurnHub-Atlas` as before.
+- **Hotspot fallback.** With `TURNHUB_HOTSPOT_OFF=1`, Atlas disables its
+  hotspot while configured home Wi-Fi is connected; otherwise `TurnHub-Atlas`
+  remains available. A fresh app can link over home Wi-Fi as described below.
 - **One radio, one channel: the router's.** The hotspot, ESP-NOW and the home
   network share the ESP32's radio. While Atlas is on the home network they all
   run on the router's channel; the saved **table channel**
@@ -75,6 +76,15 @@ own hotspot as the fallback and HTTPS for phones on the home network (plan:
   Only then does it join the hotspot as before. A mismatched key fails the
   handshake and the app falls back; it never re-pins from the home network.
   Android's cleartext rule stays limited to 192.168.4.1.
+- **First-time home pairing.** On the current home Wi-Fi, **Find Atlas on
+  Wi-Fi**, Connect, Search again and new-table setup also discover an Atlas
+  when no trusted key is saved. NSD requires a valid ID, TLS flag and full key
+  fingerprint; pinned HTTPS must answer with that same ID. Discovery alone
+  saves no trust. The app asks the user to compare its 12-hex-digit code with
+  **App link** in the physical Atlas Settings before saving the full key and
+  connecting. Confirmation rechecks the pinned endpoint. Cancel saves nothing
+  and does not join a hotspot. An existing saved key is never replaced through
+  discovery. Background discovery only reconnects previously trusted tables.
 - **Sigils find Atlas on any channel** (`Sigil/include/channel_search.h`).
   A Sigil that has lost Atlas (`LINK_TIMEOUT_MS`), or is pairing with no
   answer, steps through channels 1-11, `CHANNEL_DWELL_MS` (300 ms) on each,
@@ -126,9 +136,10 @@ tested:
    Sigil latency).
 3. App: the pinned key learned over the hotspot, NSD discovery, and the
    order saved home address, then mDNS, then the hotspot (*done*, described
-   above). Still open: learning the pin from a QR on the Atlas screen for a
-   phone that has never been on the hotspot, and a clear "this isn't your
-   Atlas" message on a key mismatch.
+   above). First-time home pairing now uses discovery and a code comparison
+   on the physical Atlas screen; no hotspot visit is required. Still open:
+   an optional QR shortcut and a clear "this isn't your Atlas" message on
+   a saved-key mismatch.
 4. Fallback hardening: switching between home and hotspot mid-match, offline
    reconcile across both paths, router power-cycle board test.
 5. First-run setup offers home Wi-Fi; the manual and `http-v1.md` follow.

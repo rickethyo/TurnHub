@@ -171,6 +171,20 @@ fun HomeScreen(
     sharedGameCode: String? = null,
 ) {
     PresenceCodeDialog(admin, adminActions)
+    uiState.homePairing?.let { atlas ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = discoveryActions.onDismissHomePairing,
+            title = { Text("Link this Atlas?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Found ${atlas.atlasId} on your Wi-Fi. On Atlas, open Settings and find App link. Only continue if its code matches:")
+                    Text(atlas.linkCode, style = MaterialTheme.typography.headlineSmall)
+                }
+            },
+            confirmButton = { TextButton(onClick = discoveryActions.onConfirmHomePairing) { Text("Codes match · Link Atlas") } },
+            dismissButton = { TextButton(onClick = discoveryActions.onDismissHomePairing) { Text("Cancel") } },
+        )
+    }
     uiState.wifiPrompt?.let { prompt ->
         WifiPasswordDialog(prompt = prompt, onSubmit = onWifiPasswordSubmit, onUseCurrentWifi = onUseCurrentWifi, onDismiss = onWifiPromptDismiss)
     }
@@ -644,6 +658,8 @@ private fun ConnectionPill(uiState: HomeUiState) {
 data class DiscoveryActions(
     val onSearchAgain: () -> Unit = {},
     val onSetUpNewTable: () -> Unit = {},
+    val onConfirmHomePairing: () -> Unit = {},
+    val onDismissHomePairing: () -> Unit = {},
 )
 
 /** Explicit Atlas entry; automatic discovery leaves the local game on screen. */
@@ -665,13 +681,13 @@ private fun ConnectCard(
         uiState.joiningSsid != null -> "Joining your table" to
             "Joining ${uiState.joiningSsid}. If Android asks to connect, choose Connect."
         uiState.connectionState == AtlasConnectionState.CONNECTING -> "Joining your table" to "Connecting to Atlas…"
-        uiState.discovery == Discovery.Searching -> "Looking for your table" to "Rejoining your table's Wi-Fi…"
+        uiState.discovery == Discovery.Searching -> "Looking for your table" to "Looking for Atlas on your Wi-Fi…"
         uiState.discovery == Discovery.NotFound -> "Couldn't reach your table" to
             "Check that Atlas is switched on and close by. If it was factory reset, set it up again."
         uiState.connectionState == AtlasConnectionState.CONNECTED -> "Atlas connected" to "Sigils, shared profiles and table controls are ready."
         !uiState.hasSavedTable -> "Connect to Atlas" to
             "Add Sigils, shared profiles and connected play."
-        else -> "Join your table" to "TurnHub joins the Atlas Wi-Fi for you, then shows the live table."
+        else -> "Join your table" to "TurnHub looks on your home Wi-Fi first, then tries the Atlas hotspot."
     }
     BrassCard {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -694,8 +710,8 @@ private fun ConnectCard(
                 ToneButton("Set up a new table", discovery.onSetUpNewTable, Modifier.fillMaxWidth())
             }
             !uiState.hasSavedTable -> {
-                AccentButton("Set up a new table", discovery.onSetUpNewTable, Modifier.fillMaxWidth().heightIn(min = 56.dp))
-                ToneButton("Connect to a table", onConnectClick, Modifier.fillMaxWidth())
+                AccentButton("Find Atlas on Wi-Fi", onConnectClick, Modifier.fillMaxWidth().heightIn(min = 56.dp))
+                ToneButton("Set up a new table", discovery.onSetUpNewTable, Modifier.fillMaxWidth())
             }
             else -> AccentButton("Connect to Atlas", onConnectClick, Modifier.fillMaxWidth().heightIn(min = 56.dp))
         }

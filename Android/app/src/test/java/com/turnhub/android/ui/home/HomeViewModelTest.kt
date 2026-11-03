@@ -221,6 +221,41 @@ class HomeViewModelTest {
     // --- Wi-Fi switched off ---------------------------------------------------------
 
     @Test
+    fun `fresh setup finds home Atlas without joining its disabled hotspot`() = runTest {
+        val homeStore = com.turnhub.android.data.MemoryHomeAtlasStore()
+        val candidate = com.turnhub.android.data.SavedHomeAtlas("THA-025448410001", "192.168.1.40", 443, "a".repeat(64))
+        val home = com.turnhub.android.data.AtlasHomeLink(homeStore, info = { Fixtures.info() }, discoverNew = { candidate })
+        val vm = HomeViewModel({ repository }, link, store, playerSession, homeLink = home)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
+        vm.onSetUpNewTable()
+        assertEquals(candidate, vm.uiState.value.homePairing)
+        assertTrue(link.joins.isEmpty())
+        assertTrue(repository.connects.isEmpty())
+        assertNull(homeStore.last())
+        vm.onConfirmHomePairing()
+        assertEquals(listOf(candidate.endpoint), repository.connects)
+        assertEquals(candidate, homeStore.last())
+        assertTrue(vm.uiState.value.hasSavedTable)
+        assertTrue(link.joins.isEmpty())
+    }
+
+    @Test
+    fun `fresh search can be cancelled without trusting or joining a hotspot`() = runTest {
+        val homeStore = com.turnhub.android.data.MemoryHomeAtlasStore()
+        val candidate = com.turnhub.android.data.SavedHomeAtlas("THA-025448410001", "192.168.1.40", 443, "a".repeat(64))
+        val home = com.turnhub.android.data.AtlasHomeLink(homeStore, info = { Fixtures.info() }, discoverNew = { candidate })
+        val vm = HomeViewModel({ repository }, link, store, playerSession, homeLink = home)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
+        vm.onSearchAgain()
+        assertEquals(candidate, vm.uiState.value.homePairing)
+        vm.onDismissHomePairing()
+        assertNull(vm.uiState.value.homePairing)
+        assertNull(homeStore.last())
+        assertTrue(repository.connects.isEmpty())
+        assertTrue(link.joins.isEmpty())
+    }
+
+    @Test
     fun `connecting with wifi off asks to turn it on, then joins once it is on`() = runTest {
         link.wifiOn = false
         val viewModel = viewModel()

@@ -13,6 +13,8 @@ import kotlin.coroutines.resume
 /** Where the last Atlas answered on the home network, and the key it must present. */
 data class SavedHomeAtlas(val atlasId: String, val address: String, val port: Int, val pin: String) {
     val endpoint: AtlasEndpoint get() = AtlasEndpoint.home(address, port, pin)
+    /** Compare on Atlas itself before accepting a first home-network connection. */
+    val linkCode: String get() = pin.take(12).uppercase().chunked(4).joinToString("-")
 }
 
 interface HomeAtlasStore {
@@ -59,7 +61,24 @@ class AtlasHomeLink(
     private val info: suspend (AtlasEndpoint) -> AtlasInfo,
     /** Atlas's current home address advertising [pin], or null (mDNS). */
     private val discover: suspend (pin: String) -> Pair<String, Int>? = { null },
+    private val discoverNew: suspend () -> SavedHomeAtlas? = { null },
 ) {
+    fun hasSavedAtlas(): Boolean = store.last() != null
+
+    /** Discovery is not trust: nothing is saved until the user compares the physical code. */
+    suspend fun pairingCandidate(): SavedHomeAtlas? {
+        if (hasSavedAtlas()) return null
+        val candidate = discoverNew() ?: return null
+        return candidate.takeIf { answers(it) }
+    }
+
+    /** Never replace an existing trusted key with an advertisement from the LAN. */
+    suspend fun confirmPairing(candidate: SavedHomeAtlas): AtlasEndpoint? {
+        if (hasSavedAtlas() || !answers(candidate)) return null
+        store.save(candidate)
+        return candidate.endpoint
+    }
+
     /** Over the hotspot only: remember Atlas's home address and key. */
     suspend fun learn(endpoint: AtlasEndpoint) {
         if (endpoint != AtlasEndpoint.DEFAULT) return
@@ -80,7 +99,7 @@ class AtlasHomeLink(
 
     // The pin is checked in the handshake; the ID makes sure it is the same table.
     private suspend fun answers(saved: SavedHomeAtlas): Boolean =
-        runCatching { info(saved.endpoint).atlasId == saved.atlasId }.getOrDefault(false)
+        runCatching { info(saved.endpoint).atlasId.equals(saved.atlasId, ignoreCase = true) }.getOrDefault(false)
 
     private fun saved(atlasId: String, home: AtlasHomeAddress) =
         SavedHomeAtlas(atlasId, home.address, home.tlsPort, home.tlsPin)
@@ -90,7 +109,11 @@ class AtlasHomeLink(
 class NsdAtlasDiscovery(context: Context, private val timeoutMs: Long = 4_000) {
     private val nsd: NsdManager? = context.applicationContext.getSystemService(NsdManager::class.java)
 
-    suspend fun find(pin: String): Pair<String, Int>? {
+    suspend fun find(pin: String): Pair<String, Int>? = resolve(pin)?.let { it.address to it.port }
+
+    suspend fun findNew(): SavedHomeAtlas? = resolve(null)
+
+    private suspend fun resolve(pin: String?): SavedHomeAtlas? {
         val manager = nsd ?: return null
         return withTimeoutOrNull(timeoutMs) {
             suspendCancellableCoroutine { continuation ->
@@ -110,11 +133,16 @@ class NsdAtlasDiscovery(context: Context, private val timeoutMs: Long = 4_000) {
                             override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) = Unit
                             override fun onServiceResolved(info: NsdServiceInfo) {
                                 val fp = info.attributes["fp"]?.toString(Charsets.UTF_8)
+                                val id = info.attributes["id"]?.toString(Charsets.UTF_8)
+                                val tls = info.attributes["tls"]?.toString(Charsets.UTF_8)
                                 @Suppress("DEPRECATION")
                                 val host = info.host?.hostAddress
-                                if (fp == pin && host != null && continuation.isActive) {
+                                if (fp != null && fp.matches(Regex("[0-9a-fA-F]{64}")) &&
+                                    (pin == null || fp.equals(pin, ignoreCase = true)) && tls == "1" &&
+                                    id != null && id.matches(Regex("THA-[0-9a-fA-F]{12}")) &&
+                                    host != null && info.port in 1..65535 && continuation.isActive) {
                                     stop()
-                                    continuation.resume(host to info.port)
+                                    continuation.resume(SavedHomeAtlas(id.uppercase(), host, info.port, fp.lowercase()))
                                 }
                             }
                         })
