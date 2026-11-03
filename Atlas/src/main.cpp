@@ -676,21 +676,48 @@ void refreshSdLuxuryStore() {
   if (store && TurnHubCards::loadPlanes()) serialLog.printf("ATLAS|PLANES|LOADED|%u\n", TurnHubCards::planeCount());
 }
 
+// Bench diagnostics (off in normal builds): -DTURNHUB_LOOP_TIMING=1 logs any
+// loop() step that holds the loop for LOOP_STEP_WARN_MS or more, to find what
+// freezes the screen (ATLAS|LOOP|SLOW|<step>|<ms>).
+#ifndef TURNHUB_LOOP_TIMING
+#define TURNHUB_LOOP_TIMING 0
+#endif
+#if TURNHUB_LOOP_TIMING
+constexpr uint32_t LOOP_STEP_WARN_MS = 300;
+#define LOOP_STEP(call) do { const uint32_t stepStart_ = millis(); call; \
+    const uint32_t stepMs_ = millis() - stepStart_; \
+    if (stepMs_ >= LOOP_STEP_WARN_MS) serialLog.printf("ATLAS|LOOP|SLOW|%s|%lu\n", #call, static_cast<unsigned long>(stepMs_)); } while (0)
+#define LOOP_STEP_BEGIN() const uint32_t tablesStart_ = millis()
+#define LOOP_STEP_END(name) do { const uint32_t stepMs_ = millis() - tablesStart_; \
+    if (stepMs_ >= LOOP_STEP_WARN_MS) serialLog.printf("ATLAS|LOOP|SLOW|%s|%lu\n", name, static_cast<unsigned long>(stepMs_)); } while (0)
+#else
+#define LOOP_STEP(call) call
+#define LOOP_STEP_BEGIN() do {} while (0)
+#define LOOP_STEP_END(name) do {} while (0)
+#endif
+
 void loop() {
-  processSigilEvents();
-  serviceSigilUpdates(millis());
-  serviceHomeWifi(millis());
-  server.handleClient();
-  refreshSdLuxuryStore();
+#if TURNHUB_LOOP_TIMING
+  // Time outside loop() (between passes: Arduino's own work, other tasks).
+  static uint32_t lastPassEndMs = 0;
+  if (lastPassEndMs && millis() - lastPassEndMs >= LOOP_STEP_WARN_MS)
+    serialLog.printf("ATLAS|LOOP|SLOW|between|%lu\n", static_cast<unsigned long>(millis() - lastPassEndMs));
+#endif
+  LOOP_STEP(processSigilEvents());
+  LOOP_STEP(serviceSigilUpdates(millis()));
+  LOOP_STEP(serviceHomeWifi(millis()));
+  LOOP_STEP(server.handleClient());
+  LOOP_STEP(refreshSdLuxuryStore());
 
   const uint32_t nowMs = millis();
-  readSerialCommands(nowMs);
-  updatePairingWindow(nowMs);
-  updateBootButton(digitalRead(AtlasConfig::BOOT_BUTTON_PIN) == LOW, nowMs);
-  serviceAtlasDisplay(nowMs);
-  serviceFactoryReset(nowMs);
-  serviceAutoSleep(nowMs);
-  serviceSleep(nowMs);
+  LOOP_STEP(readSerialCommands(nowMs));
+  LOOP_STEP(updatePairingWindow(nowMs));
+  LOOP_STEP(updateBootButton(digitalRead(AtlasConfig::BOOT_BUTTON_PIN) == LOW, nowMs));
+  LOOP_STEP(serviceAtlasDisplay(nowMs));
+  LOOP_STEP(serviceFactoryReset(nowMs));
+  LOOP_STEP(serviceAutoSleep(nowMs));
+  LOOP_STEP(serviceSleep(nowMs));
+  LOOP_STEP_BEGIN();
   for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
     TableScope scope(t);
     updatePendingPass(nowMs);
@@ -703,16 +730,20 @@ void loop() {
         sigilsAtTable(t));
     refreshClientNames(nowMs);
   }
-  updateSigilAccessibility(nowMs);
-  audio.setSpeakerShared(atlasSpeakerShared());
-  audio.update(nowMs);
-  serviceAtlasSpeaker(nowMs);
-  serviceAtlasBattery(nowMs);
-  syncSigilMenus(nowMs);
-  syncProfilePickers(nowMs);
-  syncCommanderPickers(nowMs);
-  ota.update(nowMs);
-  logRuntimeHealth(nowMs);
+  LOOP_STEP_END("tables");
+  LOOP_STEP(updateSigilAccessibility(nowMs));
+  LOOP_STEP(audio.setSpeakerShared(atlasSpeakerShared()));
+  LOOP_STEP(audio.update(nowMs));
+  LOOP_STEP(serviceAtlasSpeaker(nowMs));
+  LOOP_STEP(serviceAtlasBattery(nowMs));
+  LOOP_STEP(syncSigilMenus(nowMs));
+  LOOP_STEP(syncProfilePickers(nowMs));
+  LOOP_STEP(syncCommanderPickers(nowMs));
+  LOOP_STEP(ota.update(nowMs));
+  LOOP_STEP(logRuntimeHealth(nowMs));
 
   delay(1);
+#if TURNHUB_LOOP_TIMING
+  lastPassEndMs = millis();
+#endif
 }

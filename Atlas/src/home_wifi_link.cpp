@@ -22,6 +22,7 @@
 #include <ESPmDNS.h>
 #include <WiFiClientSecure.h>
 #include <atomic>
+#include <esp_heap_caps.h>
 #include <esp_wifi.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -105,7 +106,14 @@ void fetchTask(void *) {
   // light the update notice, as a forged POST /api/updates/latest can, and
   // packages are still signature-checked before they install.
   client.setInsecure();
+  // Bounded at every step: WiFiClientSecure's handshake would otherwise wait
+  // up to 120 s (seen on the board 2026-11-03 while the screen stalled).
+  client.setHandshakeTimeout(TurnHub::HOME_WIFI_FETCH_TIMEOUT_MS / 1000);
+  serialLog.printf("ATLAS|HOME_WIFI|FEED|START|internal=%u|largest=%u\n",
+      static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)),
+      static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL)));
   HTTPClient http;
+  http.setConnectTimeout(5000);
   http.setTimeout(TurnHub::HOME_WIFI_FETCH_TIMEOUT_MS);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   bool ok = false;
@@ -115,7 +123,7 @@ void fetchTask(void *) {
       const String body = http.getString();
       ok = body.length() <= FEED_MAX_BYTES && TurnHub::parseReleaseFeed(body.c_str(), fetched);
     }
-    serialLog.printf("ATLAS|HOME_WIFI|FEED|%d\n", code);
+    serialLog.printf("ATLAS|HOME_WIFI|FEED|%d|%s\n", code, code < 0 ? http.errorToString(code).c_str() : "");
     http.end();
   }
   fetchOk = ok;
@@ -126,7 +134,8 @@ void fetchTask(void *) {
 void startFetch(uint32_t nowMs) {
   fetchDone = false;
   result = TurnHub::HomeWifiResult::Checking;
-  if (xTaskCreate(fetchTask, "home-wifi", 8192, nullptr, 1, nullptr) == pdPASS) {
+  // Core 0, away from loop() and the screen on core 1.
+  if (xTaskCreatePinnedToCore(fetchTask, "home-wifi", 8192, nullptr, 1, nullptr, 0) == pdPASS) {
     fetching = true;
     return;
   }
