@@ -51,7 +51,7 @@ own hotspot as the fallback and HTTPS for phones on the home network (plan:
   SubjectPublicKeyInfo (`/api/network` `home.tls.pin`, the serial line
   `ATLAS|HOME_TLS|READY|port=443|pin=...`, and mDNS `fp`) and accept that key
   on any address. TLS 1.2 (mbedTLS 2.28), with session tickets and a session
-  cache (both in Arduino-ESP32 2.0.17's mbedTLS). mbedTLS allocates from internal RAM there, about 35 KB per connection with its 16 KB record buffers. Each decrypted connection is piped over
+  cache (both in Arduino-ESP32 2.0.17's mbedTLS). That build's mbedTLS allocates from internal RAM by default (about 35 KB per connection with its 16 KB record buffers), which left the release-feed check about 28 KB and failed its handshake, so `startHomeTls()` points mbedTLS at PSRAM first, internal RAM only as a fallback, and logs `HOME_TLS|PSRAM` and `HOME_TLS|HEAP` with the internal free and largest block (*Needs verification* on the board). Each decrypted connection is piped over
   loopback to Atlas's own web server on port 80, so routes, sessions and
   permissions are the same code as on the hotspot; that server closes after
   each response, so resumption keeps repeat requests cheap. One connection is

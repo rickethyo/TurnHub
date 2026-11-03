@@ -12,6 +12,7 @@
 #include <atomic>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <esp_heap_caps.h>
 #include <lwip/sockets.h>
 
 #include <mbedtls/ctr_drbg.h>
@@ -19,6 +20,7 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/net_sockets.h>
 #include <mbedtls/pk.h>
+#include <mbedtls/platform.h>
 #include <mbedtls/sha256.h>
 #include <mbedtls/ssl.h>
 #include <mbedtls/x509_crt.h>
@@ -324,6 +326,9 @@ void serverTask(void *) {
   }
   running = true;
   serialLog.printf("ATLAS|HOME_TLS|READY|port=%u|pin=%s\n", static_cast<unsigned>(TurnHub::HOME_TLS_PORT), pin);
+  serialLog.printf("ATLAS|HOME_TLS|HEAP|internal=%u|largest=%u\n",
+      static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)),
+      static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL)));
   for (;;) {
     sockaddr_in from{};
     socklen_t fromLength = sizeof(from);
@@ -336,11 +341,34 @@ void serverTask(void *) {
   }
 }
 
+// The S3 build allocates mbedTLS from internal RAM (CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC),
+// so this server's sessions (16 KB record buffers each) and the release-feed
+// client left about 28 KB internal, too little for the feed's handshake
+// (2026-11-03: FEED|-1|connection refused at largest=12788). Atlas has 8 MB of
+// PSRAM: mbedTLS takes it first, and internal RAM only when PSRAM is full.
+// Every mbedTLS user (this server, WiFiClientSecure, the secure link) shares
+// the one allocator, and heap_caps_free releases either kind, so blocks made
+// before the switch still free correctly.
+void *mbedtlsCalloc(size_t count, size_t size) {
+  void *p = heap_caps_calloc(count, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  return p ? p : heap_caps_calloc(count, size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+}
+
+void usePsramForMbedtls() {
+  const unsigned internal = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  const unsigned largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  mbedtls_platform_set_calloc_free(mbedtlsCalloc, heap_caps_free);
+  serialLog.printf("ATLAS|HOME_TLS|PSRAM|internal=%u|largest=%u\n", internal, largest);
+}
+
 }  // namespace
 
 void startHomeTls() {
   bool expected = false;
   if (!started.compare_exchange_strong(expected, true)) return;
+  // Before the server's first allocation, and before the feed check (which
+  // only runs once home Wi-Fi has joined, after this).
+  usePsramForMbedtls();
   // Core 0, beside the Wi-Fi stack, so a handshake's key maths never holds up
   // loop() and the Sigils on core 1.
   if (xTaskCreatePinnedToCore(serverTask, "home-tls", 12288, nullptr, 1, nullptr, 0) != pdPASS) {
