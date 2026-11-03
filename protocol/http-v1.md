@@ -416,6 +416,38 @@ One shared screen at the table acting for every seat. Engineering record:
      `expectedRevision`).
 
 
+## Offline play (2026-11-03)
+
+When Atlas drops off mid-game, a phone keeps the game going on its own copy
+of the shared core and sends what it did once Atlas answers again (owner,
+2026-11-03). Engineering record: `Documentation/engineering/TABLE_AUTHORITY.md`.
+
+- `GET /api/v1/game` (the session's game, like `/api/v1/state`): `atlasId`,
+  `bootId`, `game`, `atlasMs` (Atlas's game clock now, the core's `nowMs`) and
+  `state` (the core's whole game, `toJson`). The app keeps the latest one while a
+  game runs.
+- `POST /api/v1/offline` (signed-in session): `device` (1 to 40 characters, the
+  phone's queue name), `baseBoot` (the `bootId` the copy came from), `base` (that
+  `state`, at most 16 KB), `nowMs` (now, on the copy's clock) and `entries`, a JSON
+  array of at most 512 `{"seq": 1, "atMs": ..., "action": {...}, "draws": [...]}`:
+  `seq` counts from 1 per device, `atMs` is the copy's `atlasMs` plus the phone's
+  time since it arrived, `action` is a core action (`applyAction`, no `nowMs`) and
+  `draws` the random draws it took. Atlas merges queues in `atMs` order (then
+  device, then `seq`; a repeated `seq` counts once), works turn timeouts out again
+  at their own deadlines and answers `{"ok":true,"mode","revision","outcomes":[{"device","seq","applied"}]}`
+  for this device's entries. `mode`:
+  - `replayed`: nothing moved on Atlas since the copy; replayed from it.
+  - `merged`: another phone from the same outage synced first and nothing else has
+    happened since; every queue so far is replayed together from the start.
+  - `restored`: Atlas restarted and restored this match and nobody has acted since;
+    the phone's copy (more complete than the restore) is the start, moved onto the
+    new boot's clock. The game continues running if it was.
+  - `late`: the game moved on here (a Sigil, another phone); each entry is applied
+    now, in the phone's order.
+  Starting, rematching, resetting or seating are refused (`applied: false`):
+  offline play ends with the match. 409 when the match has ended or changed (or its
+  players did), 400 for a malformed request, 401 without a session.
+
 ## Standalone tablet game import (2026-10-07)
 
 With no Atlas at the table, the Android app can run a standalone game itself

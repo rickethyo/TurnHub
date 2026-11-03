@@ -266,8 +266,12 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   markers ported), then the old engines and Invariant 1's wording go. Then implement
   the validated handoff, fenced phone authority, reconnect reconciliation and
   durable completion receipts in [Shared table authority](TABLE_AUTHORITY.md).
-  Unified lobby/table presentation is implemented; full offline hosting of an
-  Atlas game is not.
+  Unified lobby/table presentation is implemented. Offline play (2026-11-03,
+  [Shared table authority](TABLE_AUTHORITY.md#offline-play-owner-2026-11-03)):
+  phones keep an Atlas game going and Atlas merges their timestamped queues;
+  host-tested only. Open: play it on the boards (drop Atlas's power mid-game with
+  two phones, then a Wi-Fi drop with a Sigil pressing meanwhile); keep the queue
+  across an app restart; a rematch offline; Sigils during an outage.
   When Planechase reaches the core, the Atlas screen gets a Planes tab that,
   as in the app (2026-10-30), shows only while Planechase is on; the Atlas
   New game list then gains its Planechase toggle and the app's other modes.
