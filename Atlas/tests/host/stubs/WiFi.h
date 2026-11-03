@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 constexpr int WIFI_AP_STA=0;
+constexpr int WIFI_STA=1;
 struct WiFiStub {
   void mode(int) {}
   bool setSleep(bool) { return true; }
