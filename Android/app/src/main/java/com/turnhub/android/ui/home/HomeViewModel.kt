@@ -76,6 +76,8 @@ class HomeViewModel(
     /** App lock and automatic sign-in; null where the phone can't keep a profile (and in tests). */
     private val vault: com.turnhub.android.data.ProfileVault? = null,
     private val offlineQueues: com.turnhub.android.data.OfflineQueueStore = com.turnhub.android.data.MemoryOfflineQueueStore(),
+    /** Atlas on the home network over pinned HTTPS (HOME_WIFI.md); null in tests. */
+    private val homeLink: com.turnhub.android.data.AtlasHomeLink? = null,
 ) : ViewModel() {
 
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
@@ -1275,7 +1277,15 @@ class HomeViewModel(
         // Wi-Fi, request permission or replace local play during automatic discovery.
         discoveryJob = viewModelScope.launch {
             disconnectJob?.join()
-            if (idle() && credentialStore.lastSsid() != null) repository.connect(AtlasEndpoint.DEFAULT)
+            if (!idle()) return@launch
+            // Home Wi-Fi first: Atlas's own network is the fallback.
+            val home = homeLink?.find()
+            if (home != null && idle()) {
+                repository.connect(home)
+            } else if (idle() && credentialStore.lastSsid() != null) {
+                repository.connect(AtlasEndpoint.DEFAULT)
+                learnHome(AtlasEndpoint.DEFAULT)
+            }
         }
     }
 
@@ -1328,6 +1338,11 @@ class HomeViewModel(
         }
         if (!wifiLink.wifiEnabled()) return askToTurnOnWifi { onSearchAgain() }
         local.update { it.copy(discovery = Discovery.Searching, failure = null) }
+        homeLink?.find()?.let { home ->
+            local.update { it.copy(discovery = Discovery.Idle) }
+            connectRepository(home)
+            return
+        }
         val joined = quietJoin(AtlasEndpoint.DEFAULT, saved)
         local.update { it.copy(discovery = if (joined) Discovery.Idle else Discovery.NotFound) }
     }
@@ -1411,6 +1426,21 @@ class HomeViewModel(
             connectRepository(endpoint)
             return
         }
+        val link = homeLink
+        if (link == null) return joinAtlasWifi(endpoint)
+        wifiJoinJob?.cancel()
+        wifiJoinJob = viewModelScope.launch {
+            disconnectJob?.join()
+            // Home Wi-Fi first; Atlas's own network only if it doesn't answer there.
+            local.update { it.copy(discovery = Discovery.Searching) }
+            val home = link.find()
+            currentCoroutineContext().ensureActive()
+            local.update { it.copy(discovery = Discovery.Idle) }
+            if (home != null) connectRepository(home) else joinAtlasWifi(endpoint)
+        }
+    }
+
+    private fun joinAtlasWifi(endpoint: AtlasEndpoint) {
         val ssid = credentialStore.lastSsid() ?: WifiCredentials.DEFAULT_ATLAS_SSID
         val credentials = credentialStore.load(ssid)
             ?: WifiCredentials(ssid, WifiCredentials.DEFAULT_ATLAS_PASSPHRASE).takeIf {
@@ -1421,6 +1451,11 @@ class HomeViewModel(
         } else {
             joinThenConnect(endpoint, credentials)
         }
+    }
+
+    /** Over Atlas's own network: remember where it answers on the home network. */
+    private suspend fun learnHome(endpoint: AtlasEndpoint) {
+        if (repository.connectionState.value == AtlasConnectionState.CONNECTED) homeLink?.learn(endpoint)
     }
 
     /** The user entered Atlas Wi-Fi details in the prompt. */
@@ -1545,6 +1580,7 @@ class HomeViewModel(
         connectJob = viewModelScope.launch {
             disconnectJob?.join()
             repository.connect(endpoint)
+            learnHome(endpoint)
         }
     }
 
@@ -1571,13 +1607,14 @@ class HomeViewModel(
             updateCheckIntervalMs: Long = AtlasUpdateWatcher.RELEASE_INTERVAL_MS,
             vault: com.turnhub.android.data.ProfileVault? = null,
             offlineQueues: com.turnhub.android.data.OfflineQueueStore = com.turnhub.android.data.MemoryOfflineQueueStore(),
+            homeLink: com.turnhub.android.data.AtlasHomeLink? = null,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val releases = GitHubFirmwareReleases()
                 HomeViewModel(
                     repositoryFactory, wifiLink, credentialStore, playerSession, releases,
                     AtlasUpdateWatcher(playerSession, releases, updateCheckIntervalMs),
-                    vault, offlineQueues,
+                    vault, offlineQueues, homeLink,
                 )
             }
         }

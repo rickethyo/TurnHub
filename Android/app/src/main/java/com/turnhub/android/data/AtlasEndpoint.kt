@@ -4,24 +4,33 @@ import java.net.URI
 import java.net.URISyntaxException
 
 /**
- * Where to reach an Atlas: an `http://host[:port]` origin with no path.
+ * Where to reach an Atlas: an `http://host[:port]` origin with no path, or,
+ * on the home network, an `https://` origin whose key must match [tlsPin].
  *
  * This is chosen by the user (defaulting to [DEFAULT], Atlas's standalone
  * access-point address) and handed to [AtlasRepository.connect]; transports are
  * built for a given endpoint rather than owning one. Atlas serves plain HTTP on
- * its local network, so only `http` is accepted.
+ * its own network, so [parse] accepts only `http`; [home] builds the pinned
+ * HTTPS endpoint the app learned from Atlas (HOME_WIFI.md).
  */
 @ConsistentCopyVisibility
-data class AtlasEndpoint private constructor(val host: String, val port: Int?) {
+data class AtlasEndpoint private constructor(val host: String, val port: Int?, val tlsPin: String? = null) {
+
+    /** True for a home-network endpoint: HTTPS, trusted only with [tlsPin]. */
+    val secure: Boolean get() = tlsPin != null
 
     /** The origin requests are resolved against, e.g. `http://192.168.4.1`. */
-    val baseUrl: String = if (port == null) "http://$host" else "http://$host:$port"
+    val baseUrl: String = (if (tlsPin != null) "https://" else "http://") + host + (port?.let { ":$it" } ?: "")
 
     override fun toString(): String = baseUrl
 
     companion object {
         /** Atlas's standalone SoftAP address (Atlas/README.md). */
         val DEFAULT = AtlasEndpoint("192.168.4.1", null)
+
+        /** Atlas on the home network: HTTPS at [address], trusted only with [tlsPin]. */
+        fun home(address: String, port: Int, tlsPin: String): AtlasEndpoint =
+            AtlasEndpoint(address.lowercase(), port.takeIf { it != 443 }, tlsPin.lowercase())
 
         /**
          * Parses user input such as `192.168.4.1`, `http://192.168.4.1/` or

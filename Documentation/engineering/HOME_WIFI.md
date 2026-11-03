@@ -61,9 +61,20 @@ own hotspot as the fallback and HTTPS for phones on the home network (plan:
   board: handshake time, heap, and Sigil latency during handshakes.
 - **Found by name.** On joining, Atlas advertises mDNS `atlas-<mac>.local`
   with service `_turnhub-atlas._tcp` on port 443 (TXT `id=THA-<mac>`,
-  `api=1`, `tls=1`, and `fp=<pin>` once the key exists). The app does not use
-  the home network yet (slice 3): Android allows cleartext only to the
-  hotspot, and the owner chose to wait for HTTPS (2026-11-03).
+  `api=1`, `tls=1`, and `fp=<pin>` once the key exists).
+- **The app on the home network** (`AtlasHomeLink`, `PinnedTls`; slice 3).
+  `/api/v1/info` carries `home` {`address`, `tlsPort`, `tlsPin`} while Atlas
+  is connected with its key ready. The app remembers it (with the `atlasId`)
+  only when it read it over the hotspot (`http://192.168.4.1`), the network it
+  already trusts; never from the home network itself. On start-up, Search
+  again and Connect it first tries `https://<saved address>`, trusting only a
+  server key whose SPKI SHA-256 is the pin (a trust manager and a hostname
+  check by key, since the address changes) and only an `atlasId` that matches.
+  If that address doesn't answer, it looks for `_turnhub-atlas._tcp` by mDNS
+  (Android NSD, 4 s) with a matching `fp`, saves the new address and tries it.
+  Only then does it join the hotspot as before. A mismatched key fails the
+  handshake and the app falls back; it never re-pins from the home network.
+  Android's cleartext rule stays limited to 192.168.4.1.
 - **Sigils find Atlas on any channel** (`Sigil/include/channel_search.h`).
   A Sigil that has lost Atlas (`LINK_TIMEOUT_MS`), or is pairing with no
   answer, steps through channels 1-11, `CHANNEL_DWELL_MS` (300 ms) on each,
@@ -113,10 +124,11 @@ tested:
    bodies (plane cards) off single urlencoded form fields to raw or multipart
    and streaming them; the bench numbers (handshake time, poll latency, heap,
    Sigil latency).
-3. App: the pinned key (SPKI SHA-256) learned over the hotspot
-   (`/api/v1/info`) or the Atlas screen's QR; NSD discovery of
-   `_turnhub-atlas._tcp`; connection order cached home address, then mDNS,
-   then the hotspot. A key mismatch stops; it never re-pins silently.
+3. App: the pinned key learned over the hotspot, NSD discovery, and the
+   order saved home address, then mDNS, then the hotspot (*done*, described
+   above). Still open: learning the pin from a QR on the Atlas screen for a
+   phone that has never been on the hotspot, and a clear "this isn't your
+   Atlas" message on a key mismatch.
 4. Fallback hardening: switching between home and hotspot mid-match, offline
    reconcile across both paths, router power-cycle board test.
 5. First-run setup offers home Wi-Fi; the manual and `http-v1.md` follow.

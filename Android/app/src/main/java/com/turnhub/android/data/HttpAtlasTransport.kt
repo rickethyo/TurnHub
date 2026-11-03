@@ -45,12 +45,15 @@ fun interface HttpConnectionOpener {
  */
 class HttpAtlasTransport(
     private val endpoint: AtlasEndpoint,
-    private val opener: HttpConnectionOpener = HttpConnectionOpener.Default,
+    baseOpener: HttpConnectionOpener = HttpConnectionOpener.Default,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val connectTimeoutMs: Int = 3_000,
     private val readTimeoutMs: Int = 3_000,
     private val pollContext: () -> PollContext = { PollContext() },
 ) : AtlasTransport, AtlasSessionTransport {
+
+    // On the home network Atlas answers HTTPS, trusted only with its pin (PinnedTls).
+    private val opener: HttpConnectionOpener = endpoint.tlsPin?.let { PinnedTls.opener(baseOpener, it) } ?: baseOpener
 
     override suspend fun getInfo(): AtlasInfo {
         val response = request("GET", "/api/v1/info")

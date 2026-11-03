@@ -14,5 +14,10 @@
     "intentEnvelope": false,
     "events": false,
     "requestDeduplication": false
+  },
+  "home": {
+    "address": "192.168.1.40",
+    "tlsPort": 443,
+    "tlsPin": "5f1c0b2a9d7e4c3b8a6f0e1d2c3b4a59687766554433221100ffeeddccbbaa99"
   }
 }

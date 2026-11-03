@@ -6,6 +6,8 @@
 #include <vector>
 
 #include "firmware_version.h"
+#include "home_tls.h"
+#include "home_wifi.h"
 #include "protocol.h"
 #include "web_api_internal.h"
 #include "card_cache.h"
@@ -147,7 +149,20 @@ void handleInfo(WebServer &server) {
   json += "\",\"revision\":"; json += String(readClientRevision ? readClientRevision() : 0);
   json += ",\"capabilities\":{\"stateSnapshot\":";
   json += jsonBool(readClientState && readClientRevision);
-  json += ",\"sessionControls\":true,\"intentEnvelope\":false,\"events\":false,\"requestDeduplication\":false}}";
+  json += ",\"sessionControls\":true,\"intentEnvelope\":false,\"events\":false,\"requestDeduplication\":false}";
+  // Where phones reach Atlas on the home network over HTTPS (home_tls.h):
+  // the app learns the pin only from Atlas's own hotspot, then uses it.
+  const char *address = TurnHubAtlas::homeWifiAddress();
+  const char *pin = TurnHubAtlas::homeTlsPin();
+  json += ",\"home\":";
+  if (address[0] && pin[0]) {
+    json += "{\"address\":\""; json += address;
+    json += "\",\"tlsPort\":"; json += String(TurnHub::HOME_TLS_PORT);
+    json += ",\"tlsPin\":\""; json += pin; json += "\"}";
+  } else {
+    json += "null";
+  }
+  json += "}";
   sendJson(server, 200, json);
 }
 

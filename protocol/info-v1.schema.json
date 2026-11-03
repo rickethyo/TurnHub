@@ -76,6 +76,38 @@
           "type": "boolean"
         }
       }
+    },
+    "home": {
+      "description": "Where phones reach this Atlas on the home network over HTTPS (HOME_WIFI.md), or null when Atlas is not on one. Clients pin tlsPin (lower-case hex SHA-256 of the key's SubjectPublicKeyInfo) only when they read it over Atlas's own hotspot.",
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "address",
+            "tlsPort",
+            "tlsPin"
+          ],
+          "properties": {
+            "address": {
+              "type": "string",
+              "minLength": 7
+            },
+            "tlsPort": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "tlsPin": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      ]
     }
   }
 }

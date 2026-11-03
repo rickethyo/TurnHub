@@ -55,6 +55,7 @@ object AtlasWireParser {
                     events = capabilities.boolean("events"),
                     requestDeduplication = capabilities.boolean("requestDeduplication"),
                 ),
+                home = if (root.isAbsentOrNull("home")) null else parseHomeAddress(root.obj("home")),
             )
         }
     }
@@ -284,6 +285,15 @@ object AtlasWireParser {
         JSONObject(body.trim()).optString("error").takeIf { it.isNotBlank() }
     } catch (_: JSONException) {
         null
+    }
+
+    private val PIN_PATTERN = Regex("^[0-9a-f]{64}$")
+
+    private fun parseHomeAddress(home: JSONObject): AtlasHomeAddress {
+        val pin = home.string("tlsPin")
+        val port = home.int("tlsPort")
+        if (!PIN_PATTERN.matches(pin) || port !in 1..65535) throw JSONException("home: invalid tlsPin or tlsPort")
+        return AtlasHomeAddress(address = home.nonEmptyString("address"), tlsPort = port, tlsPin = pin)
     }
 
     private fun parseSettings(settings: JSONObject, profileKey: String) = TableSettings(

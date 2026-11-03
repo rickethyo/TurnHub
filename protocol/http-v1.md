@@ -22,6 +22,11 @@ does this: it tries a saved password, then this default, then prompts.
 1. `GET /api/v1/info` returns public device identity (`THA-` plus station MAC),
    firmware, HTTP API version `1`, logical protocol `0.1`, the Atlas-Sigil
    radio version (informational; 3 since 2026-09-30), boot ID, revision and capability flags. MAC identity is not authentication.
+   `home` (since 2026-11-03) is Atlas's address on the home network with its
+   HTTPS port and `tlsPin` (lower-case hex SHA-256 of the key's
+   SubjectPublicKeyInfo), or `null` when Atlas is not on one. Over HTTPS on the
+   home network the API is the same; clients trust exactly that key, learned
+   only over Atlas's own hotspot ([Home Wi-Fi](../Documentation/engineering/HOME_WIFI.md)).
    No Wi-Fi password, PIN, profile data or session token is included.
 2. `GET /api/v1/state` returns one main-loop snapshot conforming to
    [state-v0.1.schema.json](state-v0.1.schema.json). This is public table state,

@@ -31,4 +31,18 @@ data class AtlasInfo(
     /** Unsigned 32-bit Atlas revision, widened to [Long]. */
     val revision: Long,
     val capabilities: AtlasCapabilities,
+    /** Where Atlas answers on the home network over HTTPS, or null (`home`). */
+    val home: AtlasHomeAddress? = null,
+)
+
+/**
+ * `/api/v1/info` `home`: Atlas's address on the home network, its HTTPS port
+ * and [tlsPin], the lower-case hex SHA-256 of its key's SubjectPublicKeyInfo.
+ * The app trusts the pin only when read over Atlas's own hotspot
+ * (Documentation/engineering/HOME_WIFI.md).
+ */
+data class AtlasHomeAddress(
+    val address: String,
+    val tlsPort: Int,
+    val tlsPin: String,
 )

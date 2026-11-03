@@ -95,6 +95,11 @@ class MainActivity : ComponentActivity() {
             },
             vault = KeystoreProfileVault(applicationContext).takeIf { it.available },
             offlineQueues = com.turnhub.android.data.PreferencesOfflineQueueStore(applicationContext),
+            homeLink = com.turnhub.android.data.AtlasHomeLink(
+                com.turnhub.android.data.PreferencesHomeAtlasStore(applicationContext),
+                info = { endpoint -> HttpAtlasTransport(endpoint, wifiLink).getInfo() },
+                discover = com.turnhub.android.data.NsdAtlasDiscovery(applicationContext)::find,
+            ),
         )
     }
 

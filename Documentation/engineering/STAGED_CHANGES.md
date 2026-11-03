@@ -209,8 +209,9 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 - **Home Wi-Fi follow-ups** (owner, 2026-10-30 and 2026-11-03;
   [Home Wi-Fi](HOME_WIFI.md)): Atlas joins and stays on home Wi-Fi, following
   the router's channel, with the hotspot as fallback, and serves HTTPS there
-  with its own pinned key. Next: slices 3-6 of "Home Wi-Fi as primary" (app
-  pinning, discovery and fallback, setup), streaming large uploads; sync profiles and statistics over the home network (needs
+  with its own pinned key, and the app connects there first. Next: slices
+  4-6 of "Home Wi-Fi as primary" (mid-match fallback between home and
+  hotspot, setup, the QR pin), streaming large uploads; sync profiles and statistics over the home network (needs
   a sync service and its feature gate); check the feed's TLS certificate (a CA
   bundle in the Atlas image); acceptance on hardware: joining at start-up,
   rejoining after a router restart, Sigils following a router on another
