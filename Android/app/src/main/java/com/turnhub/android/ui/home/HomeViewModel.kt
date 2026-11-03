@@ -653,7 +653,7 @@ class HomeViewModel(
                         else {
                             pending.stop()
                             if (since == null && summary != null && pending.base.matches(summary) &&
-                                playerSession.state.value is PlayerSessionState.SignedIn && System.currentTimeMillis() >= retryAt) {
+                                repository.connectionState.value == AtlasConnectionState.CONNECTED && System.currentTimeMillis() >= retryAt) {
                                 val delivered = tablet.syncOffline(pending)
                                 if (delivered == true && pending.acknowledge()) {
                                     _offlineGame.value = null

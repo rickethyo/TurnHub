@@ -1,5 +1,7 @@
 package com.turnhub.android.data
 
+import com.turnhub.android.protocol.GameProfile
+
 import com.turnhub.android.protocol.AccessibilitySettings
 import com.turnhub.android.protocol.ControlResult
 import com.turnhub.android.protocol.GameSettingsInfo
@@ -35,6 +37,7 @@ private class TabletAtlas : AtlasSessionTransport {
         posts += path to f
         return when (path) {
             "/api/session/play" -> { if (failBootstrap) throw AtlasException(AtlasFailure.Timeout()); tablet = true; RawResponse(200, """{"ok":true,"token":"11111111111111111111111111111111"}""") }
+            "/api/v1/offline" -> RawResponse(200, """{"ok":true,"outcomes":[]}""")
             "/api/presence/request" -> RawResponse(200, """{"ok":true}""")
             "/api/presence/confirm" ->
                 if (f["code"] == "123456") { verified = true; RawResponse(200, """{"ok":true}""") }
@@ -346,6 +349,38 @@ class AtlasTabletTest {
         assertTrue(tablet.state.value.message!!.isError)
     }
 
+    @Test fun `native table requests carry the rendered match identity`() = runTest {
+        val atlas = TabletAtlas()
+        val (_, tablet) = signedIn(atlas)
+        tablet.inGame(1, "shown-match") { life(TabletSeat(9, 1), -2) }
+        assertEquals("shown-match", atlas.posts.last().second["expectedMatchId"])
+    }
+    @Test fun `fallback offline edits cannot cross a rematch with matching seats and elapsed time`() = runTest {
+        val atlas = TabletAtlas()
+        val (_, tablet) = signedIn(atlas)
+        tablet.queueOffline(change(-5).copy(matchId = "previous-match"))
+        tablet.replayOffline(running.copy(matchId = "next-match"), nowMs = 2_000)
+        assertTrue(atlas.posts.none { it.first == "/api/tablet/life" })
+        assertTrue(tablet.state.value.offline.isEmpty())
+    }
+
+    @Test fun `offline delivery can bootstrap account-free access after a restart`() = runTest {
+        val atlas = TabletAtlas()
+        val session = AtlasPlayerSession { atlas }
+        val tablet = AtlasTablet(session) { AtlasEndpoint.DEFAULT }
+        val game = com.turnhub.android.standalone.StandaloneGame().setFormat(GameProfile.MTG_COMMANDER)
+            .addPlayer("A").addPlayer("B").chooseStarter(0).start(1_000, "pending-match")
+        val state = com.turnhub.android.standalone.StandaloneTable.gameToJson(game).put("profile", game.profile.name)
+        val played = OfflineAtlasGame(OfflineBase("THA-TEST", Fixtures.BOOT_ID, 2, 1_000, 1_000, state), { 1_500L })
+        played.listen()
+        assertTrue(played.table.life(TabletSeat(8, 1), -1))
+        assertEquals(true, tablet.syncOffline(played))
+        val fields = atlas.posts.first { it.first == "/api/v1/offline" }.second
+        assertEquals("2", fields["expectedGame"])
+        assertEquals("pending-match", fields["expectedMatchId"])
+        assertTrue(atlas.posts.any { it.first == "/api/session/play" })
+    }
+
 }
 
 private class ArtworkAtlas : AtlasSessionTransport by TabletAtlas() {
@@ -385,20 +420,6 @@ class AvatarUploadTest {
         assertTrue(atlas.fields.none { it["action"] == "submit" })
         assertEquals(1, session.personalization.value!!.avatar)
         assertTrue(session.feedback.value!!.isError)
-    }
-    @Test fun `native table requests carry the rendered match identity`() = runTest {
-        val atlas = TabletAtlas()
-        val (_, tablet) = signedIn(atlas)
-        tablet.inGame(1, "shown-match") { life(TabletSeat(9, 1), -2) }
-        assertEquals("shown-match", atlas.posts.last().second["expectedMatchId"])
-    }
-    @Test fun `fallback offline edits cannot cross a rematch with matching seats and elapsed time`() = runTest {
-        val atlas = TabletAtlas()
-        val (_, tablet) = signedIn(atlas)
-        tablet.queueOffline(change(-5).copy(matchId = "previous-match"))
-        tablet.replayOffline(running.copy(matchId = "next-match"), nowMs = 2_000)
-        assertTrue(atlas.posts.none { it.first == "/api/tablet/life" })
-        assertTrue(tablet.state.value.offline.isEmpty())
     }
 
 }
