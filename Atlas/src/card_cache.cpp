@@ -239,10 +239,12 @@ bool parseStem(const char *name, uint32_t &key, bool &text) {
   return true;
 }
 
-void listed(const char *name, size_t size, void *) {
+// A JPEG is never written empty (text-only cards remove it), so a listed
+// file is present.
+void listed(const char *name, void *) {
   uint32_t key = 0;
   bool text = false;
-  if (parseStem(name, key, text)) noteFile(key, text, !text, text || size > 0);
+  if (parseStem(name, key, text)) noteFile(key, text, !text, true);
 }
 
 String planePath(const char *id, const char *ext) {
@@ -346,7 +348,7 @@ constexpr size_t LEGACY_NAME = 48;
 char (*legacyNames)[LEGACY_NAME] = nullptr;
 uint16_t legacyCount = 0, legacyNext = 0, legacyRemoved = 0;
 
-void listedLegacy(const char *name, size_t, void *) {
+void listedLegacy(const char *name, void *) {
   if (strncmp(name, "pc-", 3) || strlen(name) >= LEGACY_NAME || legacyCount >= LEGACY_CAPACITY) return;
   snprintf(legacyNames[legacyCount++], LEGACY_NAME, "%s", name);
 }

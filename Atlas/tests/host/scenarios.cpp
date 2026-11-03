@@ -5001,7 +5001,7 @@ struct MemoryArchive : TurnHubHistory::ArchiveFiles {
     for (const auto &f : files) {
       if (f.first.compare(0,prefix.size(),prefix)) continue;
       const std::string rest=f.first.substr(prefix.size());
-      if (rest.find('/')==std::string::npos) each(rest.c_str(),f.second.size(),context);
+      if (rest.find('/')==std::string::npos) each(rest.c_str(),context);
     }
     return true;
   }

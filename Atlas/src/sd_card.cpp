@@ -6,6 +6,7 @@
 #include <USB.h>
 #include <USBMSC.h>
 #include <esp32-hal-tinyusb.h>
+#include <dirent.h>
 #include <ff.h>
 #include <diskio_impl.h>
 #include <atomic>
@@ -29,6 +30,8 @@ namespace {
 using TurnHub::serialLog;
 
 fs::SDMMCFS &cardFs = SD_MMC;
+// Where the card's file system is mounted in the VFS (cardFs.begin).
+constexpr char CARD_MOUNT[] = "/sd";
 using TurnHubStorage::Status;
 
 // Adapts the Arduino SD library to the store's file-system interface.
@@ -201,28 +204,20 @@ class LockedArchiveFiles final : public TurnHubHistory::ArchiveFiles {
     const String file = path(name);
     return !sdFileSystem.exists(file.c_str()) || sdFileSystem.remove(file.c_str());
   }
-  // One directory pass under one lock: FatFs reads the folder's entries in
-  // order instead of searching it again for every name.
+  // One directory pass under one lock, with readdir on the VFS mount: FatFs
+  // reads the folder's entries in order and opens none of them (File's
+  // openNextFile opens each entry, which searches the folder again).
   bool list(const char *folder, EachFile each, void *context) override {
     if (!storeUsable()) return false;
     CardLock lock;
     if (!storeUsable()) return false;
-    String at = path(folder);
-    if (at.length() > 1 && at.endsWith("/")) at.remove(at.length() - 1);
-    File dir = cardFs.open(at.c_str());
-    if (!dir || !dir.isDirectory()) {
-      if (dir) dir.close();
-      return false;
-    }
-    for (File entry = dir.openNextFile(); entry; entry = dir.openNextFile()) {
-      if (!entry.isDirectory()) {
-        const char *name = entry.name();
-        const char *slash = strrchr(name, '/');
-        each(slash ? slash + 1 : name, entry.size(), context);
-      }
-      entry.close();
-    }
-    dir.close();
+    String at = String(CARD_MOUNT) + path(folder);
+    if (at.endsWith("/")) at.remove(at.length() - 1);
+    DIR *dir = opendir(at.c_str());
+    if (!dir) return false;
+    while (const dirent *entry = readdir(dir))
+      if (entry->d_type != DT_DIR) each(entry->d_name, context);
+    closedir(dir);
     return true;
   }
   bool makeFolder(const char *folder) override {
@@ -275,7 +270,7 @@ SdMountResult mountCard() {
   // At most 2 open files (was 4): each slot reserves a 4 KB sector cache
   // (CONFIG_FATFS_PER_FILE_CACHE), and every access runs under the card lock
   // with at most one file open (a wipe adds a directory, which takes no slot).
-  const bool begun = cardFs.begin("/sd", false, false, AtlasConfig::SD_MMC_KHZ, 2);
+  const bool begun = cardFs.begin(CARD_MOUNT, false, false, AtlasConfig::SD_MMC_KHZ, 2);
   if (!begun ||
       cardFs.cardType() == CARD_NONE) {
     cardFs.end();

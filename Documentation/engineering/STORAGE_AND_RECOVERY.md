@@ -136,9 +136,13 @@ recorded and the stats API reports `"detailed": false`.
   names beside the records) is removed one file per pass after each mount.
   Before this, each lookup in the crowded `/turnhub` folder took about 320 ms
   on the loop (the S3 bench, 10 MHz SDMMC) and a sync froze the screen for up
-  to 110 s; the worker logs `ATLAS|PLANES|INDEX` with the listing and lookup
-  times and `ATLAS|SD|USB_MSC|unsharedCalls` (the computer's sector calls while
-  the card isn't lent) to compare (*Needs verification* on the board).
+  to 110 s. The worker logs `ATLAS|PLANES|INDEX` (listing and lookup times)
+  and `ATLAS|SD|USB_MSC|unsharedCalls`. First bench boot (*Verified* on the
+  S3 Atlas, 2026-11-03): one lookup in the old folder took 78 ms; the 320 ms
+  was four opens per plane (exists and open, for the text and the art); the
+  USB drive made no sector calls while unshared; listing through Arduino's
+  `File::openNextFile` took 33 s for about 330 entries because it opens each,
+  so the listing uses `opendir`/`readdir` on the VFS mount instead.
 - **Factory reset** empties the card (`wipeSdCard()`); the portal stays in firmware,
   then erases NVS.
 
