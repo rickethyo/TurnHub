@@ -5025,6 +5025,7 @@ static void offlinePlay(const String &ana,const String &ben) {
   const String shared=responseField("token");
   assert(request("/api/v1/game",shared,{},HTTP_GET)==200);
   assert(sync(shared,"shared","",atlasMs,boot,base)==200);
+  assert(request("/api/tablet/life",shared,{{"module","8"},{"slot","1"},{"delta","-1"},{"expectedGame","1"},{"expectedMatchId","old-match"}})==409);
   assert(request("/api/session/game",shared,{{"game","2"}})==200);
   assert(request("/api/v1/game",shared,{{"game","2"}},HTTP_GET)==200);
   { bool ok=false; const auto state=turnhub::Json::parse(server.body,&ok); assert(ok && state.get("game").asInt()==2); }

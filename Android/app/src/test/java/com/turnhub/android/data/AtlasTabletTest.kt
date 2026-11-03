@@ -386,4 +386,19 @@ class AvatarUploadTest {
         assertEquals(1, session.personalization.value!!.avatar)
         assertTrue(session.feedback.value!!.isError)
     }
+    @Test fun `native table requests carry the rendered match identity`() = runTest {
+        val atlas = TabletAtlas()
+        val (_, tablet) = signedIn(atlas)
+        tablet.inGame(1, "shown-match") { life(TabletSeat(9, 1), -2) }
+        assertEquals("shown-match", atlas.posts.last().second["expectedMatchId"])
+    }
+    @Test fun `fallback offline edits cannot cross a rematch with matching seats and elapsed time`() = runTest {
+        val atlas = TabletAtlas()
+        val (_, tablet) = signedIn(atlas)
+        tablet.queueOffline(change(-5).copy(matchId = "previous-match"))
+        tablet.replayOffline(running.copy(matchId = "next-match"), nowMs = 2_000)
+        assertTrue(atlas.posts.none { it.first == "/api/tablet/life" })
+        assertTrue(tablet.state.value.offline.isEmpty())
+    }
+
 }

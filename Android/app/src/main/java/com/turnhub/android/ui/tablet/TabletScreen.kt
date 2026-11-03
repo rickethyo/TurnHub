@@ -113,7 +113,7 @@ fun TabletScreen(
         if (previousState in listOf(TableState.RUNNING, TableState.PAUSED) && summary?.state == TableState.LOBBY) onBackToSetup()
         previousState = summary?.state
     }
-    val scopedActions = actions.copy(run = { block -> actions.run { inGame(summary?.game ?: 1, block) } })
+    val scopedActions = actions.copy(run = { block -> actions.run { inGame(summary?.game ?: 1, summary?.matchId, block) } })
     val p = palette
     if (!embedded) {
         KeepScreenOn()

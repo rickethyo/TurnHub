@@ -94,7 +94,7 @@ class OfflineAtlasGame(
         val here = atlas.copy(startedAtMs = atlas.startedAtMs + offset, runningSinceMs = atlas.runningSinceMs?.let { it + offset })
         val current = restored?.getJSONObject("current")?.let { StandaloneTable.gameFromJson(it) } ?: here
         require(current.gameId == gameId)
-        StandaloneTable(MemoryStandaloneStore(current.copy(offlineRecorder = this), LocalLibrary()), wallClock = wallClock)
+        StandaloneTable(MemoryStandaloneStore(current, LocalLibrary()), wallClock = wallClock, offlineRecorder = this)
     }
 
     val queue: List<OfflineEntry> get() = synchronized(entries) { entries.toList() }

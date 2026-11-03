@@ -39,11 +39,12 @@ data class OfflineChange(
     val game: Int = 1,
     /** [SENDING] while on its way; then the revision it was applied against, kept until a newer snapshot carries it. */
     val sentAtRevision: Long? = null,
+    val matchId: String = "",
 ) {
     val isLife: Boolean get() = source == null
     val sent: Boolean get() = sentAtRevision != null && sentAtRevision != SENDING
     fun sameTarget(other: OfflineChange) =
-        game == other.game && bootId == other.bootId && participantId == other.participantId && source == other.source && commander == other.commander
+        game == other.game && bootId == other.bootId && matchId == other.matchId && participantId == other.participantId && source == other.source && commander == other.commander
 
     companion object {
         const val SENDING = -1L
@@ -100,8 +101,8 @@ class AtlasTablet(
     private var nextOfflineId = 1L
 
     /** Bind requests to the table rendered by the originating screen. */
-    suspend fun inGame(game: Int, block: suspend AtlasTablet.() -> Unit) =
-        kotlinx.coroutines.withContext(ExpectedGame(game)) { block() }
+    suspend fun inGame(game: Int, matchId: String? = null, block: suspend AtlasTablet.() -> Unit) =
+        kotlinx.coroutines.withContext(ExpectedGame(game, matchId)) { block() }
 
     fun offlineNotice(message: String) { _state.update { it.copy(message = ActionFeedback(message, true)) } }
     fun clearMessage() = _state.update { it.copy(message = null) }
@@ -453,7 +454,7 @@ class AtlasTablet(
         var refused = 0
         for (change in waiting) {
             val player = summary.players.firstOrNull { it.participantId == change.participantId }
-            val sameGame = playing && change.game == summary.game && change.bootId == summary.bootId && summary.gameElapsedMs >= change.gameElapsedMs
+            val sameGame = playing && change.game == summary.game && change.bootId == summary.bootId && (change.matchId.isEmpty() || change.matchId == summary.matchId) && summary.gameElapsedMs >= change.gameElapsedMs
             val source = change.source
             val sourceThere = source == null || summary.players.any { it.playerNumber == source }
             if (!sameGame || player == null || player.eliminated || !sourceThere) {
@@ -464,11 +465,11 @@ class AtlasTablet(
             val seat = TabletSeat(player.controller.id, player.slot)
             val age = listOf("queuedMs" to "${(nowMs - change.queuedAtMs).coerceIn(0, 86_400_000)}")
             val response = if (source == null) {
-                post("/api/tablet/life", seat.fields + ("delta" to "${change.delta}") + age)
+                post("/api/tablet/life", seat.fields + ("delta" to "${change.delta}") + age + listOf("expectedMatchId" to summary.matchId))
             } else {
                 post(
                     "/api/tablet/commander",
-                    seat.fields + listOf("source" to "$source", "commander" to "${change.commander}", "delta" to "${change.delta}") + age,
+                    seat.fields + listOf("source" to "$source", "commander" to "${change.commander}", "delta" to "${change.delta}") + age + listOf("expectedMatchId" to summary.matchId),
                 )
             }
             if (response?.ok == true) {
@@ -508,7 +509,7 @@ class AtlasTablet(
     suspend fun syncOffline(played: OfflineAtlasGame): Boolean? {
         if (played.queue.isEmpty()) return true
         val response = try {
-            kotlinx.coroutines.withContext(ExpectedGame(played.base.game)) { post("/api/v1/offline", played.syncFields()) }
+            kotlinx.coroutines.withContext(ExpectedGame(played.base.game, played.base.gameId)) { post("/api/v1/offline", played.syncFields()) }
         } catch (e: CancellationException) { throw e }
           catch (_: AtlasException) { null } ?: return null
         if (!response.ok) {
@@ -619,6 +620,6 @@ class AtlasTablet(
 }
 
 /** Per-coroutine presentation context; concurrent seat taps cannot overwrite it. */
-class ExpectedGame(val game: Int) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
+class ExpectedGame(val game: Int, val matchId: String? = null) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key : kotlin.coroutines.CoroutineContext.Key<ExpectedGame>
 }

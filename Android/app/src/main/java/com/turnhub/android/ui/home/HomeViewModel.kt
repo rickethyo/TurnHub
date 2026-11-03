@@ -674,6 +674,14 @@ class HomeViewModel(
         viewModelScope.launch {
             repository.tableSummary.collect { summary -> summary?.let { tablet.settleOffline(it.revision) } }
         }
+        // The bounded life/damage fallback still needs replay when no full-core base was available.
+        viewModelScope.launch {
+            repository.offlineSinceMs.collect { since ->
+                val summary = repository.tableSummary.value
+                if (since == null && summary != null && _offlineGame.value?.base?.matches(summary) != true)
+                    tablet.replayOffline(summary, com.turnhub.android.domain.TableClock.nowMs())
+            }
+        }
         // Profile choices are ephemeral and belong to exactly one Atlas/session.
         viewModelScope.launch {
             combine(repository.tableSummary.map { it?.atlasId }, playerSession.state.map { it is PlayerSessionState.SignedIn })
@@ -1175,7 +1183,7 @@ class HomeViewModel(
             if (!canAct()) return false
             var applied = false
             tablet.clearMessage()
-            tablet.inGame(game) { applied = block() }
+            tablet.inGame(game, summary()?.matchId) { applied = block() }
             return applied && tablet.state.value.message?.isError != true
         }
     }

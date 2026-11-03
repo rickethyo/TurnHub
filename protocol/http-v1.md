@@ -936,3 +936,9 @@ promote themselves to offline authorities.
 explicit Admin merge. Room members can follow these IDs without name matching
 or another PIN. Profile sync follows the existing `mergedInto`/`linkKey` response;
 no local histories or permissions are silently combined.
+
+Native shared writes also carry `expectedMatchId` from their rendered snapshot.
+Atlas checks it after selecting the venue and before dispatch, closing the gap
+where an in-flight request arrives just after a rematch. The bounded life/damage
+fallback retains this identity and still replays when no full offline core was
+available; it cannot merge or replay across individual matches.

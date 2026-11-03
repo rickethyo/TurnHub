@@ -168,6 +168,7 @@ struct TableHooks {
   uint8_t count = 1;
   int8_t (*profileTable)(const String &profileId) = nullptr;  // -1: not seated.
   uint8_t (*select)(uint8_t index) = nullptr;                 // Returns the previous one.
+  String (*matchId)() = nullptr;                             // Current scoped match UUID.
 };
 void configureTables(const TableHooks &hooks);
 

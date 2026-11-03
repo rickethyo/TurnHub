@@ -630,8 +630,10 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     private suspend fun rawRequest(method: String, path: String, fields: List<Pair<String, String>>): RawResponse? {
         val endpoint = endpoint ?: return null
         val token = token ?: return null
-        val game = kotlinx.coroutines.currentCoroutineContext()[ExpectedGame]?.game ?: (_state.value as? PlayerSessionState.SignedIn)?.info?.game ?: viewedGame
-        val scopedFields = if (method == "POST" && (path.startsWith("/api/tablet/") || path.startsWith("/api/control/") || path.startsWith("/api/game/") || path == "/api/table/reset" || path == "/api/accounts/moderate" || path == "/api/v1/offline")) fields + ("expectedGame" to "$game") else fields
+        val context = kotlinx.coroutines.currentCoroutineContext()[ExpectedGame]
+        val game = context?.game ?: (_state.value as? PlayerSessionState.SignedIn)?.info?.game ?: viewedGame
+        val matchFields = context?.matchId?.let { listOf("expectedMatchId" to it) }.orEmpty()
+        val scopedFields = if (method == "POST" && (path.startsWith("/api/tablet/") || path.startsWith("/api/control/") || path.startsWith("/api/game/") || path == "/api/table/reset" || path == "/api/accounts/moderate" || path == "/api/v1/offline")) fields + ("expectedGame" to "$game") + matchFields else fields
         val response = call { transports.create(endpoint).raw(method, if (method == "GET" && path == "/api/v1/game") "$path?game=$game" else path, token, scopedFields) }
         if (response.ok && method == "POST" && path == "/api/tablet/enable") {
             val replacement = org.json.JSONObject(response.body).optString("token")

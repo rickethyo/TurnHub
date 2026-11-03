@@ -410,6 +410,12 @@ class RouteTableHandler final : public RequestHandler {
       return true;
     }
     const uint8_t previous = tableHooks.select ? tableHooks.select(game) : 0;
+    if (server.hasArg("expectedMatchId") && (!tableHooks.matchId || server.arg("expectedMatchId") != tableHooks.matchId())) {
+      internal::sendError(server,409,"The match changed. Refresh the table before making another edit");
+      activeReceipt=-1;
+      if(tableHooks.select) tableHooks.select(previous);
+      return true;
+    }
     // Target the recurring phone workload. Administrative requests and log
     // downloads stay outside tracing so diagnostics don't trace themselves
     // or evict gameplay evidence with unrelated activity.
