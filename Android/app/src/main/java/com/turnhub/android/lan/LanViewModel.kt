@@ -242,6 +242,12 @@ internal class LanViewModel(
             if (!saved) _state.update { it.copy(message = "Room saved on this device. Atlas backup is waiting for its connection; tap Back up room to retry.") }
         }
     }
+    fun atTable(summary: com.turnhub.android.domain.TableSummary): Boolean {
+        val current = _state.value
+        return current.remote?.let { it.gameId == summary.bootId } ?: current.atlas?.let {
+            it.atlasId == summary.atlasId && it.bootId == summary.bootId && it.game == summary.game
+        } ?: false
+    }
     fun unsupportedAction() { _state.update { it.copy(message = "Use the host for this game setup or decision.") } }
     fun backupRoom() { hostRecord?.takeIf { it.optBoolean("atlas") }?.let(::mirrorRoom) }
     fun stopHosting() {

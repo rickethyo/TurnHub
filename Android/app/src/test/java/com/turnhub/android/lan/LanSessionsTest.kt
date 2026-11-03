@@ -19,7 +19,7 @@ class LanSessionsTest {
     }
 
     @Test fun `TCG players control only their own score and can poll the entire table with the same token`() {
-        listOf(GameProfile.MTG, GameProfile.MTG_COMMANDER, GameProfile.MTG_STAR_COMMANDER,
+        listOf(GameProfile.GENERIC, GameProfile.MTG, GameProfile.MTG_COMMANDER, GameProfile.MTG_STAR_COMMANDER,
             GameProfile.MTG_BAG_OF_DOOM, GameProfile.MTG_EMPEROR, GameProfile.YUGIOH, GameProfile.POKEMON, GameProfile.LORCANA).forEach { profile ->
             val f = Fixture(tcg(profile))
             val joined = f.join("player", 1)

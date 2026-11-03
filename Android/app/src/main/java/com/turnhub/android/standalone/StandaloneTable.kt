@@ -849,7 +849,7 @@ class StandaloneTable(
         if (!game.profile.deathMayDie) return applyTcgLanAction(game, index, action)
         if (action.source != 0) return false
         val valid = when (action.kind) {
-            "wounds" -> action.value in -100..100 && action.value != 0 && action.slot == 0
+            "wounds" -> action.value in -10..10 && action.value != 0 && action.slot == 0
             "stress", "fire", "insanity" -> action.value in listOf(-1, 1) && action.slot == 0
             "skill" -> action.value in 1..4 && action.slot in 1..com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILLS
             "take-turn", "eliminate" -> action.value == 0 && action.slot == 0
@@ -908,7 +908,7 @@ class StandaloneTable(
     /** Own-seat capability adapter; all gameplay transitions remain in StandaloneGame. */
     private fun applyTcgLanAction(game: StandaloneGame, index: Int, action: com.turnhub.android.lan.LanAction): Boolean {
         if (!(game.profile.magicRules || game.profile.pokemon || game.profile.lorcana ||
-                game.profile == GameProfile.YUGIOH)) return false
+                game.profile in setOf(GameProfile.YUGIOH, GameProfile.GENERIC))) return false
         val now = wallClock()
         val simple = action.value == 0 && action.slot == 0 && action.source == 0
         val next = when {
