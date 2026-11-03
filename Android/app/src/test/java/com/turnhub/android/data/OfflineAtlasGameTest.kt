@@ -28,7 +28,6 @@ class OfflineAtlasGameTest {
             .put("atlasMs", atlasStart + 10_000).put("state", state).toString()
     }
 
-    @After fun quiet() { NativeGameCore.recorder = null }
 
     @Test fun `the base gives the phone clock's offset from Atlas's`() {
         val base = OfflineBase.parse(body(), 1_800_000_000_000L)
@@ -75,4 +74,60 @@ class OfflineAtlasGameTest {
         played.table.life(TabletSeat(10, 1), -1)
         assertEquals(2, played.queue.size)
     }
+    @Test fun `offline journals survive process recreation with game state and stream identity`() = runTest {
+        var now = 1_800_000_000_000L
+        val store = MemoryOfflineQueueStore()
+        val first = OfflineAtlasGame(OfflineBase.parse(body(), now)!!, { now }, "persistent-phone", store::save)
+        assertTrue(first.save())
+        first.listen()
+        assertTrue(first.table.life(TabletSeat(8, 1), -3))
+        first.stop()
+        now += 2_000
+        val restored = OfflineAtlasGame.restore(store.load()!!, store::save, { now })
+        assertEquals("persistent-phone", restored.device)
+        assertEquals(37, restored.table.state.value.game.players[0].life)
+        assertEquals(1, restored.queue.size)
+        restored.listen()
+        assertTrue(restored.table.life(TabletSeat(8, 1), -2))
+        assertEquals(listOf(1L, 2L), restored.queue.map { it.seq })
+        assertEquals(35, restored.table.state.value.game.players[0].life)
+        assertTrue(restored.acknowledge())
+        assertNull(store.load())
+    }
+    @Test fun `two copies of the same match never record each other's actions`() = runTest {
+        val now = 1_800_000_000_000L
+        val base = OfflineBase.parse(body(), now)!!
+        val one = OfflineAtlasGame(base, { now }, "one")
+        val two = OfflineAtlasGame(base, { now }, "two")
+        one.listen(); two.listen()
+        one.table.life(TabletSeat(8, 1), -2)
+        assertEquals(1, one.queue.size)
+        assertTrue(two.queue.isEmpty())
+        two.table.life(TabletSeat(9, 1), -3)
+        assertEquals(1, one.queue.size)
+        assertEquals(1, two.queue.size)
+    }
+    @Test fun `failed journal writes do not apply unrecorded moves and stopped games stay frozen`() = runTest {
+        val now = 1_800_000_000_000L
+        val played = OfflineAtlasGame(OfflineBase.parse(body(), now)!!, { now }, persist = { false })
+        played.listen()
+        org.junit.Assert.assertFalse(played.table.life(TabletSeat(8, 1), -2))
+        assertEquals(40, played.table.state.value.game.players[0].life)
+        assertTrue(played.queue.isEmpty())
+        assertNotNull(played.problem.value)
+        played.stop()
+        org.junit.Assert.assertFalse(played.table.life(TabletSeat(8, 1), -1))
+    }
+    @Test fun `saved play matches one Atlas table and match across boot changes`() {
+        val base = OfflineBase.parse(body(), 1_800_000_000_000L)!!
+        val summary = com.turnhub.android.domain.TableSummaryMapper.map(com.turnhub.android.testing.Fixtures.info(),
+            com.turnhub.android.testing.Fixtures.state("running.response.json"))
+            .copy(atlasId = base.atlasId, game = base.game, matchId = base.gameId)
+        assertTrue(base.matches(summary))
+        assertTrue(base.matches(summary.copy(bootId = "rebooted")))
+        org.junit.Assert.assertFalse(base.matches(summary.copy(matchId = "next-game")))
+        org.junit.Assert.assertFalse(base.matches(summary.copy(game = 2)))
+        org.junit.Assert.assertFalse(base.matches(summary.copy(atlasId = "other")))
+    }
+
 }

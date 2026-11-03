@@ -22,16 +22,17 @@ internal object NativeGameCore {
      * random draws it took, so Atlas can replay it later. Turn timeouts are
      * left out: Atlas works them out again from the clock.
      */
-    @Volatile var recorder: OfflineRecorder? = null
 
     fun apply(game: StandaloneGame, action: JSONObject, random: Random = Random.Default): StandaloneGame {
-        val listening = recorder?.takeIf { it.gameId == game.gameId && action.optString("do") !in UNRECORDED }
+        if (game.offlineRecorder?.recording == false) return game
+        val listening = game.offlineRecorder?.takeIf { it.recording && it.gameId == game.gameId && action.optString("do") !in UNRECORDED }
         val draws = if (listening != null) RecordingRandom(random) else null
         val saved = StandaloneTable.gameToJson(game)
         val result = apply(JSONObject(saved.toString()).put("profile", game.profile.name), action, draws ?: random)
         if (result.getLong("revision") == game.revision) return game
-        listening?.record(JSONObject(action.toString()), draws?.draws.orEmpty())
-        return fromCore(result, saved)
+        val next = fromCore(result, saved).copy(offlineRecorder = game.offlineRecorder)
+        if (listening?.record(JSONObject(action.toString()), draws?.draws.orEmpty(), next) == false) return game
+        return next
     }
 
     /** A game from the core's state JSON ([base] supplies what only the app keeps). */
@@ -51,10 +52,11 @@ internal object NativeGameCore {
     }
 }
 
-/** Receives each action applied to one game while Atlas is offline ([NativeGameCore.recorder]). */
+/** Receives each action applied to one game while Atlas is offline (bound to that game instance). */
 interface OfflineRecorder {
     val gameId: String
-    fun record(action: JSONObject, draws: List<Int>)
+    val recording: Boolean
+    fun record(action: JSONObject, draws: List<Int>, next: StandaloneGame): Boolean
 }
 
 /** Passes draws through and keeps them, as the core's Random sees them (a coin is a draw of 2). */

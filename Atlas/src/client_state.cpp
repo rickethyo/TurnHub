@@ -164,6 +164,7 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   // Atlas identity and boot identity are generated hexadecimal identifiers.
   out = "{\"protocolVersion\":\"0.1\",\"atlasId\":\"";
   out += atlasId; out += "\",\"bootId\":\""; out += bootId;
+  out += "\",\"matchId\":\""; out += jsonEscape(game.core().gameId.c_str());
   out += "\",\"revision\":"; out += String(revision_);
   out += ",\"state\":\""; out += stateName(state_);
   out += "\",\"hostModuleId\":";

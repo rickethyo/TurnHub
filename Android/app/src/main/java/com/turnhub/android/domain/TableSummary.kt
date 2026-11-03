@@ -96,6 +96,8 @@ data class TableSummary(
     val turnOrderReversed: Boolean = false,
     /** Atlas's own `/api/v1/state` body (public table state) that a Play together hub relays to its guests. */
     val stateWire: String? = null,
+    /** Individual match UUID; a venue game number survives rematches. */
+    val matchId: String = "",
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding

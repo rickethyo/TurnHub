@@ -66,6 +66,7 @@ object AtlasWireParser {
             val profileKey = settings.string("profile")
             val stateKey = root.string("state")
             StateSnapshot(
+                matchId = root.optionalString("matchId").orEmpty(),
                 protocolVersion = root.string("protocolVersion"),
                 atlasId = root.nonEmptyString("atlasId"),
                 bootId = root.bootId("bootId"),
@@ -169,6 +170,7 @@ object AtlasWireParser {
                     profileId = profile.nonEmptyString("profileId"),
                     name = profile.string("name"),
                     hasPin = profile.boolean("hasPin"),
+                    aliases = profile.optJSONArray("aliases")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(),
                 )
             }
         }

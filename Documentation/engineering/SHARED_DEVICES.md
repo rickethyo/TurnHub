@@ -64,3 +64,17 @@ product IDs, price, purchase verification/restoration and distribution policy
 remain unimplemented. The proposed product model is one paid host with free
 guests, keeping solo games and tracking accessible. Do not show a purchase flow
 or describe this as a paid product until its entitlement implementation exists.
+
+## Compatibility with offline play and profile merges
+
+Atlas relay commands bind to public `matchId` as well as boot/venue identity.
+Room membership survives a rematch, while an old game's pending edit cannot act
+on the new one. The hub pauses guest editing while its offline queue reconciles;
+rejected Atlas counter requests are not acknowledged as successful guest edits.
+Offline journals belong to their game instance, persist on the phone until
+confirmed, and cannot capture a separate standalone game's actions.
+
+An explicit Admin profile merge publishes old IDs as aliases of the survivor.
+Room members follow those identities without name matching or new PIN entry;
+linked devices follow the authenticated profile-sync redirect. This does not
+merge device-local histories or grant account permissions.

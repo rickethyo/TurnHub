@@ -846,6 +846,11 @@
           "minimum": 0
         }
       }
+    },
+    "matchId": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Individual match UUID; empty before a match starts."
     }
   }
 }

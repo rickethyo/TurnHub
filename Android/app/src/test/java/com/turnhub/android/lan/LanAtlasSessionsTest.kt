@@ -127,4 +127,13 @@ class LanAtlasSessionsTest {
         g.table = null
         assertEquals("unavailable", g.handle(g.request("preview").put("key", "invitation-key")).getString("code"))
     }
+    @Test fun `a delayed room action cannot cross an Atlas rematch`() {
+        val f = Fixture()
+        val token = f.join().getString("token")
+        val delayed = f.action(token, "life", -2)
+        f.table = f.table!!.copy(matchId = "new-match", revision = 0)
+        assertEquals("stale", f.handle(delayed).getString("code"))
+        assertTrue(f.atlas.sent.isEmpty())
+    }
+
 }

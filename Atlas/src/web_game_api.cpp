@@ -184,7 +184,7 @@ void handleOfflineSync(WebServer &server) {
   request.atlasBoot = bootId;
   const String base = server.arg("base"), entries = server.arg("entries");
   bool baseOk = false, entriesOk = false;
-  const turnhub::Json baseJson = base.length() <= 16384 ? turnhub::Json::parse(base.c_str(), &baseOk) : turnhub::Json();
+  const turnhub::Json baseJson = base.length() <= 65536 ? turnhub::Json::parse(base.c_str(), &baseOk) : turnhub::Json();
   const turnhub::Json list = entries.length() <= 65536 ? turnhub::Json::parse(entries.c_str(), &entriesOk) : turnhub::Json();
   int64_t now = 0;
   if (request.device.length() < 1 || request.device.length() > 40 || request.baseBoot.length() > TOKEN_LENGTH ||

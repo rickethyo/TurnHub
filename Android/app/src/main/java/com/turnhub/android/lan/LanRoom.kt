@@ -15,6 +15,7 @@ internal class LanRoom(
     private val attach: suspend (JSONObject) -> String?,
     private val command: suspend (JSONObject, Int) -> JSONObject,
     private val now: () -> Long = { System.nanoTime() / 1_000_000 },
+    private val resolveIdentity: (String) -> String = { it },
 ) {
     data class RoomSeat(val identity: String, val number: Int, val name: String)
     private val epoch = randomLanSecret(16)
@@ -26,7 +27,7 @@ internal class LanRoom(
         val m = members.getJSONObject(i)
         LanGuest(m.text("token"), m.text("role"), seat(m), m.optString("name"), m.optBoolean("master"))
     }
-    private fun seat(m: JSONObject) = seats().firstOrNull { it.identity == m.optString("identity") }?.number ?: 0
+    private fun seat(m: JSONObject) = seats().firstOrNull { it.identity == resolveIdentity(m.optString("identity")) }?.number ?: 0
     private fun member(token: String) = (0 until members.length()).map { members.getJSONObject(it) }.firstOrNull { sameSecret(it.text("token"), token) }
     private fun persist() {
         val old = record.optLong("sequence")

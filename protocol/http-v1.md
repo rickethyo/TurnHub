@@ -906,3 +906,33 @@ The hub owns serialized membership writes and a monotonic room sequence; local
 saving precedes asynchronous mirroring. On resume it can recover a newer
 matching Atlas record. A failed mirror remains visible and retryable. Guests
 still connect to the Android hub, not this HTTP endpoint.
+
+### Offline play and persistent rooms
+
+Account-free game sessions may use `GET /api/v1/game` and `POST /api/v1/offline`.
+The fetch names its venue game; the POST supplies `expectedGame`, which rejects
+a changed followed table before dispatch. Public state includes `matchId` (the
+individual match, independent of the venue number and Atlas boot). Play Together
+commands include it so an old room command cannot cross a rematch.
+
+Offline action receipts survive intervening live actions for the current match
+and Atlas process. They hash the original base boot/revision, stream, sequence
+and immutable payload; duplicate queues return recorded outcomes without another
+mutation. Reusing an ID with changed contents is a conflict. The per-table bound
+is 1024 receipts, with no eviction; capacity rejection leaves the phone's saved
+queue available for review. These receipts are RAM-only on Atlas; they do not
+establish exactly-once reconciliation across Atlas power loss.
+
+The phone commits its pending queue and local game state before displaying an
+offline edit, retains the same stream/sequence across app recreation, and removes
+the queue only after confirmed Atlas acceptance and a successful local clear.
+Rejected or interrupted delivery retains the data. One pending outage is kept per
+device; a different Atlas/table/match cannot consume it. Local offline controls
+freeze during reconciliation, as do room guest edits for that match. Guests
+continue using the hub's Atlas relay when it is ready; they do not independently
+promote themselves to offline authorities.
+
+`GET /api/profiles` includes public `aliases` for identities redirected by an
+explicit Admin merge. Room members can follow these IDs without name matching
+or another PIN. Profile sync follows the existing `mergedInto`/`linkKey` response;
+no local histories or permissions are silently combined.

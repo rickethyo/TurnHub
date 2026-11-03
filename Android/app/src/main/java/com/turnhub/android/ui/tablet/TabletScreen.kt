@@ -120,6 +120,8 @@ fun TabletScreen(
         BackHandler(onBack = onClose)
     } else if (summary?.state == TableState.RUNNING) KeepScreenOn()
     tablet.pinPrompt?.let { prompt -> PinDialog(prompt.name, onSubmit = { pin -> scopedActions.run { seatSaved(prompt.profileId, prompt.name, pin) } }, onDismiss = scopedActions.onDismissPin) }
+    val pendingHere = offlineGame?.takeIf { summary != null && it.base.matches(summary) }
+    val reconciling = !offline && pendingHere != null
     val granted = summary != null
     AmbientBackground(reduceMotion, modifier.fillMaxSize(), quiet = true) {
     Column(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.safeDrawingPadding())) {
@@ -136,21 +138,23 @@ fun TabletScreen(
                     summary.state == TableState.LOBBY && setupOnly -> Lobby(summary, tablet, scopedActions, onClose, onEditBackground, canEditBackground,
                         enabled = granted && !offline && !switching, embedded = embedded, localProfiles = localProfiles,
                         access = {})
-                    offline && offlineGame != null -> {
+                    offline && pendingHere != null && pendingHere.base.bootId == summary.bootId -> {
                         if (!embedded) Immersive()
-                        OfflineTable(offlineGame, reduceMotion, onClose, phoneView = setupOnly)
+                        OfflineTable(pendingHere, reduceMotion, onClose, phoneView = setupOnly)
                     }
                     else -> {
                         if (!embedded) Immersive()
                         Column(Modifier.fillMaxSize()) {
                             Box(Modifier.weight(1f).fillMaxWidth()) {
-                                TabletTable(summary, tablet, { block -> if (granted && !switching) scopedActions.run { this.block() } },
+                                TabletTable(summary, tablet, { block -> if (granted && !switching && !reconciling) scopedActions.run { this.block() } },
                                     scopedActions.onDismissMessage, reduceMotion, onClose, offline,
-                                    readOnly = !granted || switching, phoneView = setupOnly)
+                                    readOnly = !granted || switching || reconciling, phoneView = setupOnly)
                             }
                         }
                     }
                 }
+                if (reconciling) Text("Offline moves are saved and waiting for Atlas to confirm. Controls resume after sync.",
+                    color = p.warn, modifier = Modifier.align(Alignment.TopCenter).padding(12.dp))
                 if (offline && summary != null) {
                     val playing = granted && summary.state != TableState.LOBBY
                     if (playing && offlineGame != null) OfflinePlayStrip(Modifier.align(Alignment.TopCenter))
@@ -171,6 +175,7 @@ fun TabletScreen(
 @Composable
 private fun OfflineTable(played: com.turnhub.android.data.OfflineAtlasGame, reduceMotion: Boolean, onClose: () -> Unit, phoneView: Boolean) {
     val state by played.table.state.collectAsState()
+    val problem by played.problem.collectAsState()
     // Turn timers run out here as they would on Atlas (Atlas works them out again itself).
     LaunchedEffect(played) {
         while (true) {
@@ -178,7 +183,10 @@ private fun OfflineTable(played: com.turnhub.android.data.OfflineAtlasGame, redu
             kotlinx.coroutines.delay(500)
         }
     }
-    LocalTable(state, played.table, reduceMotion, onClose, phoneView = phoneView)
+    Column {
+        problem?.let { Text(it, color = palette.warn, modifier = Modifier.padding(12.dp)) }
+        Box(Modifier.weight(1f)) { LocalTable(state, played.table, reduceMotion, onClose, phoneView = phoneView) }
+    }
 }
 
 @Composable

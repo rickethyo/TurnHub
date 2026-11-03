@@ -171,7 +171,7 @@ internal class LanViewModel(
                     val saved = store.write("host", next)
                     if (saved && fromAtlas) mirrorRoom(next)
                     saved
-                }, snapshot = ::snapshot, seats = {
+                }, snapshot = ::snapshot, resolveIdentity = { if (fromAtlas) atlasLink!!.resolveIdentity(it) else it }, seats = {
                     if (fromAtlas) atlasLink?.summary()?.takeIf { it.atlasId == record.optString("atlasId") }?.players.orEmpty().map {
                         LanRoom.RoomSeat(it.profileId ?: "participant:${it.participantId}", it.playerNumber, it.label)
                     } else {
@@ -245,7 +245,7 @@ internal class LanViewModel(
     fun atTable(summary: com.turnhub.android.domain.TableSummary): Boolean {
         val current = _state.value
         return current.remote?.let { it.gameId == summary.bootId } ?: current.atlas?.let {
-            it.atlasId == summary.atlasId && it.bootId == summary.bootId && it.game == summary.game
+            it.atlasId == summary.atlasId && it.bootId == summary.bootId && it.game == summary.game && it.matchId == summary.matchId
         } ?: false
     }
     fun unsupportedAction() { _state.update { it.copy(message = "Use the host for this game setup or decision.") } }
@@ -492,7 +492,7 @@ internal class LanViewModel(
             directory = if (reply.has("directory")) readDirectory(reply) else before.directory,
             remote = game?.takeIf { before.remote == null || it.gameId != before.remote.gameId || it.revision >= before.remote.revision } ?: before.remote,
             // A new Atlas boot starts its revisions again; within one, never step back.
-            atlas = atlas?.takeIf { before.atlas == null || it.bootId != before.atlas.bootId || it.game != before.atlas.game || it.revision >= before.atlas.revision } ?: before.atlas,
+            atlas = atlas?.takeIf { before.atlas == null || it.bootId != before.atlas.bootId || it.game != before.atlas.game || it.matchId != before.atlas.matchId || it.revision >= before.atlas.revision } ?: before.atlas,
             online = online,
             looks = if (reply.has("looks")) readLooks(reply) else before.looks,
             looksId = if (reply.has("looks")) reply.optString("looksId") else before.looksId,

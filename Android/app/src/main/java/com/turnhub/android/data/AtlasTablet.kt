@@ -103,6 +103,7 @@ class AtlasTablet(
     suspend fun inGame(game: Int, block: suspend AtlasTablet.() -> Unit) =
         kotlinx.coroutines.withContext(ExpectedGame(game)) { block() }
 
+    fun offlineNotice(message: String) { _state.update { it.copy(message = ActionFeedback(message, true)) } }
     fun clearMessage() = _state.update { it.copy(message = null) }
 
     fun dismissPin() = _state.update { it.copy(pinPrompt = null) }
@@ -506,9 +507,10 @@ class AtlasTablet(
      */
     suspend fun syncOffline(played: OfflineAtlasGame): Boolean? {
         if (played.queue.isEmpty()) return true
-        val response = kotlinx.coroutines.withContext(ExpectedGame(played.base.game)) {
-            post("/api/v1/offline", played.syncFields())
-        } ?: return null
+        val response = try {
+            kotlinx.coroutines.withContext(ExpectedGame(played.base.game)) { post("/api/v1/offline", played.syncFields()) }
+        } catch (e: CancellationException) { throw e }
+          catch (_: AtlasException) { null } ?: return null
         if (!response.ok) {
             fail(response, "Atlas couldn't take the moves made while it was offline.")
             return false

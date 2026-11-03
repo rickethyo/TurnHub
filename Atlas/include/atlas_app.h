@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 
 // Atlas application layer: the runtime objects, table-decision state and
 // helpers shared by the Intent handlers and the transport adapters.
@@ -168,6 +169,9 @@ struct GameTable {
   // phone's queue joins the same timeline rather than landing on top.
   struct OfflineMerge {
     bool open = false;
+    std::string receiptMatch;
+    struct Receipt { std::array<uint8_t,32> id{}, payload{}; bool applied=false; };
+    std::vector<Receipt> receipts;
     turnhub::Game base;
     String baseBoot;
     bool onThisClock = false;  // base runs on this boot's clock.
