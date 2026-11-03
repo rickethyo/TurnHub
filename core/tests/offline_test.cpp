@@ -130,9 +130,13 @@ void seatActionsActOnTheMergedGame() {
   seat.set("value", -2);
   Json wrong = seat;
   wrong.set("match", "other");
-  const auto out = turnhub::reconcile(base, {entry("a", 1, 1001000, seat), entry("a", 2, 1002000, wrong)}, 1003000, random);
+  Json rematch = act("rematch");
+  rematch.set("gameId", "m2");
+  const auto out = turnhub::reconcile(base, {entry("a", 1, 1001000, seat), entry("a", 2, 1002000, wrong),
+      entry("a", 3, 1002500, rematch)}, 1003000, random);
   check(out.outcomes[0].applied && out.game.players[0].life == 38, "seat life applied");
   check(!out.outcomes[1].applied, "another match refused");
+  check(!out.outcomes[2].applied && out.game.gameId == "m1", "a rematch waits for Atlas");
 }
 
 void rebaseMovesOnlyTheClock() {

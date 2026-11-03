@@ -604,6 +604,7 @@ class MainActivity : ComponentActivity() {
                                 close = homeViewModel::onSetupClosed,
                             ),
                             tablet = homeViewModel.tabletState.collectAsStateWithLifecycle().value,
+                            offlineGame = homeViewModel.offlineGame.collectAsStateWithLifecycle().value,
                             tabletActions = com.turnhub.android.ui.tablet.TabletActions(
                                 run = homeViewModel::onTablet,
                                 onDismissMessage = homeViewModel::onTabletMessageDismissed,

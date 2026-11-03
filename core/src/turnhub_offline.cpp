@@ -54,6 +54,14 @@ Reconciled reconcile(const Game &base, std::vector<OfflineEntry> entries, int64_
   for (const auto &entry : entries) {
     if (!seen.insert({entry.device, entry.seq}).second) continue;
     out.game = catchUp(out.game, entry.atMs, random);
+    // Offline play ends with the match: starting, resetting or leaving it
+    // waits for Atlas (its lobby and statistics own that step).
+    const std::string &kind = entry.action.get("do").asString();
+    if (kind == "start" || kind == "rematch" || kind == "seanModeRematch" || kind == "reset" || kind == "backToSetup" ||
+        kind == "addPlayer" || kind == "removePlayer" || kind == "clearPlayers") {
+      out.outcomes.push_back({entry.device, entry.seq, false});
+      continue;
+    }
     Json action = entry.action;
     action.set("nowMs", entry.atMs);
     // A seat action names the phone's own copy of the game; in the merged

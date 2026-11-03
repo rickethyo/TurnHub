@@ -424,6 +424,12 @@ class HomeViewModel(
     private val tablet = com.turnhub.android.data.AtlasTablet(playerSession) { repository.endpoint.value }
     val tabletState: StateFlow<com.turnhub.android.data.TabletState> = tablet.state
 
+    /** Atlas's whole game while one runs: the start of [offlineGame] if Atlas drops off. */
+    @Volatile private var offlineBase: com.turnhub.android.data.OfflineBase? = null
+    private val _offlineGame = MutableStateFlow<com.turnhub.android.data.OfflineAtlasGame?>(null)
+    /** The game going on on this device while Atlas is out of reach; null otherwise. */
+    val offlineGame: StateFlow<com.turnhub.android.data.OfflineAtlasGame?> = _offlineGame.asStateFlow()
+
     /**
      * First-run setup (Documentation/engineering/FIRST_RUN_SETUP.md): shown
      * instead of the table while Atlas reports its Welcome stage. Checked on
@@ -597,14 +603,43 @@ class HomeViewModel(
                 previous = state
             }
         }
-        // Tablet changes made while Atlas wasn't answering go to it as soon as
-        // it answers again; sent ones are forgotten once a snapshot carries them.
+        // Offline play (protocol/http-v1.md, "Offline play"): while a game runs,
+        // keep Atlas's whole game, so the table goes on here if Atlas drops off.
+        viewModelScope.launch {
+            repository.tableSummary
+                .map { it?.takeIf { s -> s.state == com.turnhub.android.protocol.TableState.RUNNING || s.state == com.turnhub.android.protocol.TableState.PAUSED } }
+                .distinctUntilChanged { a, b -> a?.atlasId == b?.atlasId && a?.bootId == b?.bootId && a?.game == b?.game && a?.revision == b?.revision }
+                .collectLatest { summary ->
+                    if (summary == null) { offlineBase = null; return@collectLatest }
+                    if (repository.offlineSinceMs.value != null) return@collectLatest
+                    tablet.fetchOfflineBase(summary.game, System.currentTimeMillis())
+                        ?.takeIf { it.atlasId == summary.atlasId && it.bootId == summary.bootId }
+                        ?.let { offlineBase = it }
+                }
+        }
+        // When Atlas stops answering mid-game, the game goes on here; when it
+        // answers again, what was played goes to it first. Tablet changes made
+        // while it wasn't answering follow; sent ones are forgotten once a
+        // snapshot carries them.
         viewModelScope.launch {
             var wasOffline = false
             repository.offlineSinceMs.collect { since ->
                 val summary = repository.tableSummary.value
-                if (wasOffline && since == null && summary != null) {
-                    tablet.replayOffline(summary, com.turnhub.android.domain.TableClock.nowMs())
+                if (since != null && _offlineGame.value == null) {
+                    offlineBase?.takeIf { base ->
+                        base.playing && summary != null && base.atlasId == summary.atlasId && base.bootId == summary.bootId && base.game == summary.game
+                    }?.let { base -> _offlineGame.value = com.turnhub.android.data.OfflineAtlasGame(base).also { it.listen() } }
+                }
+                if (wasOffline && since == null) {
+                    _offlineGame.value?.let { played ->
+                        played.stop()
+                        // Not delivered (the link dropped again): a few more tries, then let it go.
+                        var delivered = tablet.syncOffline(played)
+                        repeat(3) { if (delivered == null) { kotlinx.coroutines.delay(2_000); delivered = tablet.syncOffline(played) } }
+                        _offlineGame.value = null
+                        offlineBase = null
+                    }
+                    repository.tableSummary.value?.let { tablet.replayOffline(it, com.turnhub.android.domain.TableClock.nowMs()) }
                 }
                 wasOffline = since != null
             }

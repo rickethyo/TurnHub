@@ -41,7 +41,8 @@ struct Reconciled {
 // timeouts fall due between entries exactly as they would have live, and once
 // more at [untilMs], when the merged game catches up with now. [random]
 // supplies draws an entry didn't record. Seat actions are checked against the
-// merged game's revision, not the phone's local one.
+// merged game's revision, not the phone's local one. Offline play ends with
+// the match: start, rematch, reset, Back to setup and seating are refused.
 Reconciled reconcile(const Game &base, std::vector<OfflineEntry> entries, int64_t untilMs, Random &random);
 
 // The same game on a clock [deltaMs] later: absolute times move, elapsed

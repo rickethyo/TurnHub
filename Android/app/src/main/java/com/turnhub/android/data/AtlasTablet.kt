@@ -489,6 +489,42 @@ class AtlasTablet(
         }
     }
 
+    // --- offline play (protocol/http-v1.md, "Offline play") ----------------------
+
+    /** Atlas's whole game, to keep playing on if it drops off; null when it can't say. */
+    suspend fun fetchOfflineBase(game: Int, nowMs: Long): OfflineBase? = try {
+        kotlinx.coroutines.withContext(ExpectedGame(game)) { session.raw("GET", "/api/v1/game") }
+            ?.takeIf { it.ok }?.let { OfflineBase.parse(it.body, nowMs) }?.takeIf { it.game == game }
+    } catch (e: CancellationException) { throw e }
+    catch (_: AtlasException) { null }
+
+    /**
+     * Sends what [played] did while Atlas was away. Atlas replays it in time
+     * order with any other phone's queue; one note says if some of it no
+     * longer fit the game. False when Atlas refused it (the game had ended or
+     * changed), which is said too; null when it didn't arrive, to try again.
+     */
+    suspend fun syncOffline(played: OfflineAtlasGame): Boolean? {
+        if (played.queue.isEmpty()) return true
+        val response = kotlinx.coroutines.withContext(ExpectedGame(played.base.game)) {
+            post("/api/v1/offline", played.syncFields())
+        } ?: return null
+        if (!response.ok) {
+            fail(response, "Atlas couldn't take the moves made while it was offline.")
+            return false
+        }
+        val outcomes = json(response)?.optJSONArray("outcomes")
+        val refused = (0 until (outcomes?.length() ?: 0)).count { outcomes?.optJSONObject(it)?.optBoolean("applied") == false }
+        _state.update {
+            it.copy(message = if (refused == 0) null else ActionFeedback(
+                if (refused == 1) "1 move made while Atlas was offline no longer fit the game, so Atlas left it out."
+                else "$refused moves made while Atlas was offline no longer fit the game, so Atlas left them out.",
+                isError = true,
+            ))
+        }
+        return true
+    }
+
     /** Forgets sent changes once a snapshot newer than the one they were sent against arrives. */
     fun settleOffline(revision: Long) = _state.update { state ->
         if (state.offline.none { it.sent && it.sentAtRevision != revision }) state

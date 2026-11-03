@@ -140,6 +140,8 @@ fun HomeScreen(
     seatActions: SeatActions = SeatActions(),
     tablet: com.turnhub.android.data.TabletState = com.turnhub.android.data.TabletState(),
     tabletActions: com.turnhub.android.ui.tablet.TabletActions = com.turnhub.android.ui.tablet.TabletActions(),
+    /** Atlas dropped off mid-game: the game going on on this device. */
+    offlineGame: com.turnhub.android.data.OfflineAtlasGame? = null,
     onFollowGame: (Int) -> Unit = {},
     onAtlasOpened: () -> Unit = {},
     /**
@@ -254,6 +256,7 @@ fun HomeScreen(
             actions = tabletActions,
             reduceMotion = reduceMotion,
             offline = uiState.isOffline,
+            offlineGame = offlineGame,
             onFollowGame = onFollowGame,
             switching = uiState.player?.busy == true,
             onClose = {
@@ -399,7 +402,7 @@ fun HomeScreen(
                                 summary = summary, session = info, signedIn = uiState.player?.signedIn == true,
                                 tablet = tablet, actions = tabletActions, reduceMotion = reduceMotion,
                                 onClose = { tab = HomeTab.GAME }, onBackToSetup = { tab = HomeTab.GAME },
-                                offline = uiState.isOffline, switching = uiState.player?.busy == true,
+                                offline = uiState.isOffline, offlineGame = offlineGame, switching = uiState.player?.busy == true,
                                 onFollowGame = onFollowGame, embedded = true,
                                 setupOnly = shown == HomeTab.GAME, localProfiles = localState.library.players, onFullScreen = { showTablet = true },
                                 onEditBackground = if (localTable == null) null else { player ->
