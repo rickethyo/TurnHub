@@ -296,33 +296,40 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
         if (state.guests.isEmpty()) Text("No one has joined yet. Devices appear here as they join.", color = p.muted,
             style = MaterialTheme.typography.bodyMedium)
         state.guests.forEach { guest ->
-            if (host.atlas) {
-                val seat = atlas?.players?.firstOrNull { it.playerNumber == guest.player }
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.inset).padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    PlayerAvatar(seat?.label ?: "Table", guest.player, seat?.avatar, size = 40.dp)
-                    Text(if (guest.player == 0) "Table display" else seat?.label ?: guest.name ?: "Player", Modifier.weight(1f),
-                        color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Column {
-                    ToneButton(if (guest.master) "Remove game master" else "Make game master", { model.grantMaster(guest) })
-                    ToneButton("Disconnect", { model.revoke(guest) }, tone = Tone.BAD)
-                }
-                }
-                return@forEach
+            val atlasPlayer = atlas?.players?.firstOrNull { it.playerNumber == guest.player }
+            val localPlayer = local.players.getOrNull(guest.player - 1)
+            val person = (if (host.atlas) atlasPlayer?.label else localPlayer?.name)
+                ?: guest.name?.takeIf { it.isNotBlank() } ?: "Player"
+            val title = when (guest.role) {
+                "table" -> "Shared table controls"
+                "display" -> "Table display"
+                "planes" -> "Planes display"
+                "elder" -> "Elder One display"
+                else -> person
             }
-            val player = local.players.getOrNull(guest.player - 1)
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.inset).padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (guest.role == "planes") PlanesMark(40.dp) else if (guest.player == 0) ElderSigil(40.dp) else PlayerAvatar(player?.name ?: "?", guest.player, null, size = 40.dp)
-                Column(Modifier.weight(1f)) {
-                    Text(if (guest.role == "planes") "Planes display" else if (guest.player == 0) "Elder One display" else player?.let { if (local.profile.deathMayDie) it.investigator ?: it.name else it.name } ?: "Player",
-                        color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text(if (guest.role == "planes") "Shows the face-up plane and the die" else if (guest.player == 0) "Shows the track and stages" else player?.name ?: "", color = p.muted,
-                        style = MaterialTheme.typography.bodySmall)
+            val detail = when (guest.role) {
+                "table" -> "Normal gameplay controls for every player"
+                "display" -> "Read-only table view"
+                "planes" -> "Face-up plane and planar die"
+                "elder" -> "Track, ritual and stages"
+                else -> if (guest.player == 0) "Waiting for the next game" else "Personal player screen"
+            }
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.inset).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    when (guest.role) {
+                        "planes" -> PlanesMark(40.dp)
+                        "elder" -> ElderSigil(40.dp)
+                        else -> PlayerAvatar(person, guest.player, atlasPlayer?.avatar, size = 40.dp)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(title, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(if (guest.master) "Game master controls enabled" else detail, color = p.muted, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
-                Column {
-                    ToneButton(if (guest.master) "Remove game master" else "Make game master", { model.grantMaster(guest) })
-                    ToneButton("Disconnect", { model.revoke(guest) }, tone = Tone.BAD)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ToneButton(if (guest.master) "Remove game master" else "Make game master", { model.grantMaster(guest) }, Modifier.weight(1f))
+                    ToneButton("Disconnect", { model.revoke(guest) }, Modifier.weight(1f), tone = Tone.BAD)
                 }
             }
         }
