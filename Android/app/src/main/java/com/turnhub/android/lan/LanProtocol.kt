@@ -11,7 +11,7 @@ internal const val LAN_MAX_FRAME = 512 * 1024
 /**
  * Where a guest reaches a host and what it presents. [key] is the bearer secret: the
  * short join code in standard joining, or a long random key that only the QR carries in
- * QR-only joining. Never log it or keep it in saved state.
+ * QR-only joining. Never log it; persist only in the encrypted room store.
  */
 internal data class LanInvite(val address: String, val port: Int, val pin: String, val session: String, val key: String) {
     fun encode(kind: String = "join") = "turnhub://$kind/$LAN_VERSION/$address/$port/$pin/$session/$key"

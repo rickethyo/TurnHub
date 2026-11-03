@@ -289,6 +289,15 @@ class LanSessionsTest {
         assertTrue(changed.getJSONArray("looks").isNull(0))
     }
 
+    @Test fun `shared investigator panels can gather several wound taps into one change`() {
+        val f = Fixture()
+        val token = f.join().getString("token")
+        val before = f.table.state.value.game.players[0].life
+        assertEquals("ok", f.sessions.handle(f.action(token, "wounds", 2)).getString("code"))
+        assertEquals(before + 2, f.table.state.value.game.players[0].life)
+        assertEquals("rejected", f.sessions.handle(f.action(token, "wounds", 101)).getString("code"))
+    }
+
     @Test fun `invitation and session authentication gate every snapshot`() {
         val f = Fixture()
         val bad = f.sessions.handle(f.request("preview").put("key", "wrong"))

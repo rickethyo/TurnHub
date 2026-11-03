@@ -78,14 +78,14 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
     var confirmLeave by remember { mutableStateOf(false) }
     // An investigator device can look at the Elder One board and back; the session, its seat and
     // any pending retry stay as they are (owner, 2026-10-20).
-    var elderView by rememberSaveable { mutableStateOf(false) }
+    val elderView = state.view == "elder"
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { scanning = it }
     fun close() { if (!state.busy) { if (state.joined) confirmLeave = true else onClose() } }
     fun scan() {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) scanning = true
         else camera.launch(Manifest.permission.CAMERA)
     }
-    if (state.remote?.profile?.let { !it.deathMayDie } == true || state.atlas != null || state.remote != null && state.role in setOf("display", "table", "planes")) {
+    if (state.remote?.profile?.let { !it.deathMayDie } == true || state.atlas != null || state.remote != null && !elderView && (state.role in setOf("display", "table", "planes") || state.view == "table")) {
         SharedTcgRemote(state, model, reduceMotion) { model.leave(); onClose() }
         return
     }
@@ -146,9 +146,10 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
                     if (state.uncertain && !state.busy) Notice("The host hasn't confirmed your last action. Retry it to find out whether it was saved.", p.warn) {
                         ToneButton("Retry last action", { requestNetwork(model::retry) }, Modifier.fillMaxWidth(), tone = Tone.WARN, enabled = !state.busy)
                     }
-                    if (state.role != "elder") Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ViewChoice("My investigator", !elderView, Modifier.weight(1f)) { elderView = false }
-                        ViewChoice("Elder One · read only", elderView, Modifier.weight(1f)) { elderView = true }
+                    ToneButton("Table view", { model.chooseView("table") })
+                    if (state.role in setOf("player", "investigator")) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ViewChoice("My investigator", !elderView, Modifier.weight(1f)) { model.chooseView("personal") }
+                        ViewChoice("Elder One · read only", elderView, Modifier.weight(1f)) { model.chooseView("elder") }
                     }
                     if (state.role in setOf("elder", "display", "planes") || elderView) ElderOneDisplay(remote, reduceMotion) else InvestigatorRemote(state, model)
                 }

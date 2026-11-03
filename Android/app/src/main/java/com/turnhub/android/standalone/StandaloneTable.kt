@@ -333,13 +333,18 @@ class StandaloneTable(
             if (name.isNotBlank() && name.length <= StandaloneGame.MAX_NAME) resolved = resolved.copy(name = name, personalization = look,
                 lastActivityMs = offered.optLong("activity"))
         }
+        val original = offered?.optLong("createdAtMs") ?: 0
+        if (original > 0 && (resolved.createdAtMs == 0L || original < resolved.createdAtMs)) resolved = resolved.copy(createdAtMs = original)
         request.put("_profile", org.json.JSONObject().put("profileId", id).put("name", resolved.name)
             .put("look", resolved.personalization.toJson()).put("activity", resolved.lastActivityMs).put("createdAtMs", resolved.createdAtMs))
         val existing = before.library.players.any { it.profileId == id }
         val library = before.library.copy(players = if (existing) before.library.players.map { if (it.profileId == id) resolved else it } else before.library.players + resolved)
-        val game = if (before.game.state == TableState.LOBBY && before.game.players.none { it.localId == resolved.localId })
-            before.game.addPlayer(resolved.name, localId = resolved.localId) else before.game
-        if (!publish(before.copy(game = game, library = library), durable = true)) return null
+        val renamed = before.game.players.any { it.localId == resolved.localId && it.name != resolved.name }
+        val current = if (renamed) before.game.copy(players = before.game.players.map {
+            if (it.localId == resolved.localId) it.copy(name = resolved.name) else it }, revision = before.game.revision + 1) else before.game
+        val game = if (current.state == TableState.LOBBY && current.players.none { it.localId == resolved.localId })
+            current.addPlayer(resolved.name, localId = resolved.localId) else current
+        if (!publish(before.copy(game = game, library = library), durable = true)) { request.put("_attachError", "unavailable"); return null }
         return id
     }
 
@@ -844,7 +849,8 @@ class StandaloneTable(
         if (!game.profile.deathMayDie) return applyTcgLanAction(game, index, action)
         if (action.source != 0) return false
         val valid = when (action.kind) {
-            "wounds", "stress", "fire", "insanity" -> action.value in listOf(-1, 1) && action.slot == 0
+            "wounds" -> action.value in -100..100 && action.value != 0 && action.slot == 0
+            "stress", "fire", "insanity" -> action.value in listOf(-1, 1) && action.slot == 0
             "skill" -> action.value in 1..4 && action.slot in 1..com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILLS
             "take-turn", "eliminate" -> action.value == 0 && action.slot == 0
             "pass" -> action.value in 1..game.players.size && action.slot == 0
@@ -854,7 +860,7 @@ class StandaloneTable(
         if (!valid) return false
         val now = wallClock()
         val next = when (action.kind) {
-            "wounds" -> if (action.value in -1..1) game.changeLife(index, action.value, now) else game
+            "wounds" -> game.changeLife(index, action.value, now)
             "stress", "fire", "insanity" -> if (action.value in -1..1) game.changeCounter(index, action.kind, action.value, nowMs = now) else game
             "skill" -> game.changeCounter(index, StandaloneGame.SKILL_KIND, action.value, action.slot, now)
             "take-turn" -> game.changeCounter(index, StandaloneGame.TAKE_TURN_KIND, 1, nowMs = now)

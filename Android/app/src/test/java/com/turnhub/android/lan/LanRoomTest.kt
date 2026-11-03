@@ -1,6 +1,8 @@
 package com.turnhub.android.lan
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -15,13 +17,17 @@ class LanRoomTest {
         var revision = 0L
         var changes = 0
         var lastTarget = 0
+        var delayCommand = false
+        var delayAttach = false
         var writable = true
         var authorized = true
         val room = LanRoom(record, save = { if (writable) { record = JSONObject(it.toString()); true } else false },
             snapshot = { base("ok").put("code", "ok").put("match", match) }, seats = { roster },
-            profiles = { JSONArray() }, attach = { if (authorized && it.optString("pin") == "1234") it.optString("profileId") else null },
+            profiles = { JSONArray() }, attach = { if (delayAttach) kotlinx.coroutines.delay(10)
+                if (authorized && it.optString("pin") == "1234") it.optString("profileId") else null },
             command = { r, target ->
                 lastTarget = target
+                if (delayCommand) kotlinx.coroutines.delay(10)
                 if (r.text("match") != match || r.integer("revision") != revision) base("stale").put("code", "stale")
                 else { changes++; revision++; base("ok").put("code", "ok") }
             })
@@ -108,6 +114,27 @@ class LanRoomTest {
         val restored = Fixture(JSONObject(f.record.toString()))
         assertEquals("unauthorized", restored.room.handle(restored.poll(a.text("token"))).text("code"))
         assertEquals("ok", restored.room.handle(restored.poll(b.text("token"))).text("code"))
+    }
+    @Test fun `concurrent verified joins deduplicate identity and respect room capacity`() = runBlocking {
+        val f = Fixture()
+        f.delayAttach = true
+        val id = UUID.randomUUID().toString()
+        val repeated = listOf(async { f.join(id = id) }, async { f.join(id = id) }).awaitAll()
+        assertEquals(repeated[0].text("token"), repeated[1].text("token"))
+        assertEquals(1, f.room.guests.size)
+        repeat(14) { assertEquals("ok", f.join("display").text("code")) }
+        val last = listOf(async { f.join() }, async { f.join() }).awaitAll()
+        assertEquals(setOf("ok", "full"), last.map { it.text("code") }.toSet())
+        assertEquals(16, f.room.guests.size)
+    }
+    @Test fun `concurrent retries cannot apply the same Atlas-style command twice`() = runBlocking {
+        val f = Fixture()
+        val joined = f.join()
+        f.delayCommand = true
+        val action = f.action(joined)
+        val replies = listOf(async { f.room.handle(action) }, async { f.room.handle(action) }).awaitAll()
+        assertTrue(replies.all { it.text("code") == "ok" })
+        assertEquals(1, f.changes)
     }
     @Test fun `personal membership ignores a forged other-player target`() = runBlocking {
         val f = Fixture()

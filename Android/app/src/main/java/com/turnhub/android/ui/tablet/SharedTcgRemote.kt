@@ -52,7 +52,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     val displayOnly = state.role == "display"
     var tableView by rememberSaveable { mutableStateOf(state.view == "table" || displayOnly || state.role in setOf("table", "planes")) }
     // The Planes screen, from a seat or as the planes display (owner, 2026-10-20).
-    var planesChosen by rememberSaveable { mutableStateOf(state.view == "planes" || state.role == "planes") }
+    var planesChosen by rememberSaveable { mutableStateOf(state.view == "planes") }
     LaunchedEffect(tableView, planesChosen) { model.chooseView(if (planesChosen) "planes" else if (tableView) "table" else "personal") }
     val planesDisplay = state.role == "planes"
     val planesView = planesChosen && (device?.planechase?.enabled == true || state.atlas?.settings?.planechase == true)
@@ -125,6 +125,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
                 menu = false; tableView = false; planesChosen = false
             }, Modifier.weight(1f))
             ToneButton("Table", { menu = false; tableView = true; planesChosen = false }, Modifier.weight(1f))
+            if (summary.settings.profile.deathMayDie) ToneButton("Elder One", { model.chooseView("elder") }, Modifier.weight(1f))
             if (planar.enabled || summary.settings.planechase) ToneButton("Planes", {
                 menu = false; tableView = false; planesChosen = true
             }, Modifier.weight(1f))
@@ -132,6 +133,8 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
         }
         Text("${device?.let { sharedGameTitle(it) } ?: sharedGameTitle(summary.settings.profile)} · ${if (planesView) "Planes" else if (tableView || own == null) if (state.role == "table") "Shared table controls" else "Table · read only" else own.label} · ${if (!state.online) "Disconnected · last update" else if (state.busy) "Sending…" else "Connected"}",
             color = if (state.online) p.muted else p.warn, style = MaterialTheme.typography.labelLarge)
+        if (!tableView && !planesView && own != null && state.role in setOf("player", "investigator"))
+            GuestPauseButton(summary.state, state.online && !state.busy && !state.uncertain && !own.eliminated, model)
         state.message?.let { Text(it, color = p.warn) }
         when (summary.state) {
             TableState.LOBBY -> Text("Waiting for the host to start. Your seat stays connected.", color = p.text)

@@ -360,7 +360,9 @@ internal class LanViewModel(
                 joinRequest = null
                 generation++
                 _state.update { it.copy(remote = game, atlas = atlas, role = role, player = reply.optInt("player", player), preview = null,
-                    previewAtlas = null, online = true, busy = false, master = reply.optBoolean("master"), message = viewOnlyNote(reply)).withLooks(reply) }
+                    previewAtlas = null, online = true, busy = false, master = reply.optBoolean("master"),
+                    view = if (role == "planes") "planes" else if (role in setOf("display", "table")) "table" else if (role == "elder") "elder" else "personal",
+                    message = viewOnlyNote(reply)).withLooks(reply) }
                 val remembered = saveGuest()
                 startPolling(generation)
                 if (!remembered) _state.update { it.copy(message = "Joined, but this device couldn't save reconnect access. Keep the app open.") }
@@ -494,7 +496,7 @@ internal class LanViewModel(
                 "stale" -> "The table changed before this edit arrived. Review the latest values and try again."
                 "rejected" -> "That change isn't available in the current game state."
                 "unavailable" -> "The host is away or unable to save. Controls wait until it returns."
-                "interrupted" -> "The host restarted. Review the current values; your previous edit was not replayed."
+                "interrupted" -> "The host or connection restarted. Review the current values; your previous edit was not replayed."
                 "forbidden" -> "This view is read only. Game master permission is needed for that action."
                 "renew" -> "Connection renewed without signing in. The last edit was not applied; review it before trying again."
                 else -> "This session has ended or access was removed. Ask the host for a new invitation."
