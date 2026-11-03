@@ -86,7 +86,9 @@ by the LAN vocabulary stay on the host and are reported visibly.
 Local commands require the exact match/revision. Atlas commands require its
 boot/game context. A per-member immutable action-UUID receipt prevents duplicate
 deltas and rejects changed payloads; receipts are not evicted. After 2048 actions
-a member must renew by leaving/rejoining. A lost reply is retried only with its
+the member's command generation renews without PIN entry. The boundary edit is
+not applied and must be reviewed; old-generation commands cannot be replayed.
+A lost reply is retried only with its
 original UUID and payload.
 
 Each hub process creates a fresh command `epoch`. Room membership survives a

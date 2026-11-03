@@ -315,7 +315,7 @@ class StandaloneTable(
         if (player != null) {
             if (player.credential?.verifies(secret) == false) return null
         } else {
-            if (offered == null) return null
+            if (offered == null || offered.optString("profileId") != id) return null
             val name = offered.optString("name").trim()
             if (name.isBlank() || name.length > StandaloneGame.MAX_NAME) return null
             val credential = offered.optJSONObject("credential")?.let {

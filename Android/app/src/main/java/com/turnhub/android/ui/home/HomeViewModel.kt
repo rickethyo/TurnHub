@@ -1093,12 +1093,16 @@ class HomeViewModel(
         override fun summary() = repository.tableSummary.value
         override fun canAct() = playerSession.state.value is PlayerSessionState.SignedIn
         private var directoryAt = 0L
+        private var directoryAtlas = ""
         private var directory = org.json.JSONArray()
         override suspend fun roomProfiles(): org.json.JSONArray {
             val endpoint = repository.endpoint.value ?: return org.json.JSONArray()
             val now = android.os.SystemClock.elapsedRealtime()
+            val atlas = summary()?.atlasId.orEmpty()
+            if (directoryAtlas != atlas) { directory = org.json.JSONArray(); directoryAt = 0; directoryAtlas = atlas }
             if (now - directoryAt > 30_000 || directoryAt == 0L) {
-                directory = org.json.JSONArray(try { playerSession.profiles(endpoint) } catch (_: com.turnhub.android.data.AtlasException) { return directory }.map {
+                val profiles = try { playerSession.profiles(endpoint) } catch (_: com.turnhub.android.data.AtlasException) { return directory }
+                directory = org.json.JSONArray(profiles.map {
                     org.json.JSONObject().put("profileId", it.profileId).put("name", it.name).put("hasPin", it.hasPin)
                 })
                 directoryAt = now

@@ -392,6 +392,7 @@ private fun RoomPicker(state: LanUiState, model: LanViewModel, requestNetwork: (
     var local by remember { mutableStateOf<com.turnhub.android.standalone.SavedLocalPlayer?>(null) }
     var pin by remember { mutableStateOf("") }
     var newName by remember { mutableStateOf("") }
+    var sourcePin by remember { mutableStateOf("") }
     BrassCard {
         Eyebrow("Join the room")
         Text("Choose a screen or your profile. You stay connected between games.", color = p.text)
@@ -406,7 +407,7 @@ private fun RoomPicker(state: LanUiState, model: LanViewModel, requestNetwork: (
         Text("Your profiles on this device", color = p.muted)
         model.savedPlayers().forEach { player ->
             SeatRow({ PlayerAvatar(player.name, 1, null) }, player.name, "Bring your profile into this room", !state.busy) {
-                local = player; selected = null; pin = ""
+                local = player; selected = null; pin = ""; sourcePin = ""
             }
         }
         Text("Profiles at this table", color = p.muted)
@@ -417,13 +418,24 @@ private fun RoomPicker(state: LanUiState, model: LanViewModel, requestNetwork: (
         }
         if (selected != null || local != null) {
             Text("Join as ${selected?.name ?: local?.name}", color = p.text)
-            if (selected?.hasPin == true || local?.credential != null) {
+            if (local != null) {
+                Text("If this is already you at the table, link to that profile for this room. Existing histories stay separate.", color = p.muted)
+                state.directory.filter { it.id != local?.profileId }.forEach { profile ->
+                    ToneButton("Link to ${profile.name}", { selected = profile; pin = "" }, enabled = !state.busy)
+                }
+                if (selected != null) ToneButton("Use my original profile", { selected = null; pin = "" })
+            }
+            if (local?.credential != null && selected != null) {
+                OutlinedTextField(value = sourcePin, onValueChange = { sourcePin = it }, label = { Text("This device profile's PIN") },
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+            if (selected?.hasPin == true || local?.credential != null && selected == null) {
                 androidx.compose.material3.OutlinedTextField(value = pin, onValueChange = { pin = it }, label = { Text("Profile PIN or password") },
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), singleLine = true,
                     modifier = Modifier.fillMaxWidth())
             }
             AccentButton("Join with this profile", { requestNetwork {
-                model.join("player", 0, profileId = selected?.id, pin = pin, localId = local?.localId)
+                model.join("player", 0, profileId = selected?.id, pin = pin, localId = local?.localId, sourcePin = sourcePin.takeIf { selected != null && local != null })
             } }, Modifier.fillMaxWidth(), enabled = !state.busy)
         }
     }

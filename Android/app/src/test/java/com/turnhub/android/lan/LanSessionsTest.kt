@@ -293,7 +293,7 @@ class LanSessionsTest {
         val f = Fixture()
         val bad = f.sessions.handle(f.request("preview").put("key", "wrong"))
         assertEquals("unauthorized", bad.getString("code")); assertFalse(bad.has("game"))
-        assertEquals("invalid", f.sessions.handle(f.request("preview").put("v", 2).put("key", "invitation-key")).getString("code"))
+        assertEquals("invalid", f.sessions.handle(f.request("preview").put("v", LAN_VERSION + 1).put("key", "invitation-key")).getString("code"))
         assertEquals("invalid", f.sessions.handle(f.request("preview").put("session", "old").put("key", "invitation-key")).getString("code"))
         assertFalse(f.sessions.handle(f.request("poll").put("token", "unknown")).has("game"))
     }

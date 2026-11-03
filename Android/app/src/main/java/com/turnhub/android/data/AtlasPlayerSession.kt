@@ -141,7 +141,7 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         val secret = request.optString("pin")
         if (known?.hasPin == true && secret.isBlank()) return@call null
         val login = if (known != null) transport.login(id, secret) else {
-            if (offered == null) return@call null
+            if (offered == null || offered.optString("profileId") != id) return@call null
             val response = transport.raw("POST", "/api/profiles/register", pollContext(target).token,
                 listOf("profileId" to id, "name" to offered.getString("name"), "pin" to secret, "gameplayOnly" to "1"))
             if (!response.ok) return@call null
@@ -154,7 +154,7 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
                 if (!linked.ok) return@call null
                 val link = JSONObject(linked.body).put("atlasId", request.getString("_atlasId"))
                 request.put("_profileLink", link)
-                if (offered != null) {
+                if (offered != null && offered.optString("profileId") == id) {
                     val look = offered.optJSONObject("look")
                     val avatar = transport.getAvatars().firstOrNull { it.key == look?.optString("avatar") }?.id ?: 0
                     val sync = transport.raw("POST", "/api/profiles/sync", "", listOf("profileId" to id,

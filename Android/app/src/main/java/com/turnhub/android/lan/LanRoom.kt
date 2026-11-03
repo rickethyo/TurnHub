@@ -42,15 +42,21 @@ internal class LanRoom(
         try { persist() } catch (e: Exception) { m.put("master", old); throw e }
     }
     private fun reply(code: String) = JSONObject().put("v", LAN_VERSION).put("session", record.text("session")).put("code", code).put("epoch", epoch)
+    private fun memberEpoch(m: JSONObject) = "$epoch/${m.optLong("commandGeneration")}"
     private suspend fun frame(code: String, m: JSONObject? = null): JSONObject {
         val f = snapshot()
         if (f.optString("code") != "ok") return f.put("epoch", epoch)
         f.put("code", code).put("epoch", epoch)
         f.put("directory", profiles())
-        if (m != null) f.put("player", seat(m)).put("role", m.text("role")).put("master", m.optBoolean("master"))
+        if (m != null) f.put("player", seat(m)).put("role", m.text("role")).put("master", m.optBoolean("master")).put("epoch", memberEpoch(m))
         return f
     }
-    suspend fun handle(r: JSONObject): JSONObject = try {
+    suspend fun handle(r: JSONObject): JSONObject {
+        val result = dispatch(r)
+        if (result.has("looksId") && result.optString("looksId") == r.optString("looksId")) result.remove("looks")
+        return result
+    }
+    private suspend fun dispatch(r: JSONObject): JSONObject = try {
         require(r.integer("v") == LAN_VERSION.toLong() && r.text("session") == record.text("session"))
         when (r.text("op")) {
             "preview", "join" -> {
@@ -71,6 +77,7 @@ internal class LanRoom(
             }
         }
     } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+      catch (_: IllegalArgumentException) { reply("invalid") }
       catch (_: Exception) { reply("unavailable") }
 
     private suspend fun join(r: JSONObject): JSONObject {
@@ -84,8 +91,11 @@ internal class LanRoom(
             // PIN/profile authorization is performed once here, never on poll/reconnect.
             attach(r) ?: run { failures.addLast(now()); return reply("pin-required") }
         } else ""
+        val directory = profiles()
+        val name = (0 until directory.length()).map { directory.getJSONObject(it) }
+            .firstOrNull { it.optString("profileId") == identity }?.optString("name").orEmpty()
         val m = JSONObject().put("token", randomLanSecret()).put("joinId", id).put("role", role)
-            .put("identity", identity).put("name", seats().firstOrNull { it.identity == identity }?.name ?: r.optString("name"))
+            .put("identity", identity).put("name", seats().firstOrNull { it.identity == identity }?.name ?: name)
             .put("master", false)
         members.put(m)
         try { persist() } catch (e: Exception) { members.remove(members.length() - 1); throw e }
@@ -93,7 +103,7 @@ internal class LanRoom(
     }
     private suspend fun act(r: JSONObject, m: JSONObject): JSONObject {
         // A process restart loses in-memory receipts. Old commands must never be replayed.
-        if (r.optString("epoch") != epoch) return frame("interrupted", m)
+        if (r.optString("epoch") != memberEpoch(m)) return frame("interrupted", m)
         val kind = r.text("kind")
         val privileged = m.optBoolean("master")
         val table = m.text("role") == "table"
@@ -107,7 +117,13 @@ internal class LanRoom(
         val payload = listOf(r.text("match"), r.integer("revision"), kind, r.integer("value"), r.integer("slot"), r.optInt("source"), target).joinToString("|")
         val ledger = receipts.getOrPut(m.text("token")) { linkedMapOf() }
         ledger[id]?.let { return if (it.first == payload) frame(it.second.text("code"), m) else reply("invalid") }
-        if (ledger.size >= 2048) return frame("renew", m)
+        if (ledger.size >= 2048) {
+            val generation = m.optLong("commandGeneration")
+            m.put("commandGeneration", generation + 1)
+            try { persist() } catch (e: Exception) { m.put("commandGeneration", generation); throw e }
+            receipts.remove(m.text("token"))
+            return frame("renew", m)
+        }
         val result = command(r, target)
         val code = result.text("code")
         if (code != "unavailable") ledger[id] = payload to result

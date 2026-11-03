@@ -440,6 +440,9 @@ class MainActivity : ComponentActivity() {
                                 window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                             onDispose { window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
                         }
+                        LaunchedEffect(uiState.tableSummary?.atlasId, uiState.player?.signedIn) {
+                            if (uiState.player?.signedIn == true) lanViewModel.onAtlasAvailable()
+                        }
                         LaunchedEffect(standalone, localStats) {
                             homeViewModel.onPresentationForeground(!standalone && !localStats && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
                         }

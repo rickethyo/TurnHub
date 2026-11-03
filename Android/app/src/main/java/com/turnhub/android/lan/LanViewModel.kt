@@ -78,11 +78,15 @@ internal class LanViewModel(
     private var token: String? = null
     private var pending: JSONObject? = null
     private var joinRequest: JSONObject? = null
+    private var joinChoice = ""
     private var polling: Job? = null
     private var generation = 0
     private val exchange = Mutex()
     private val backupMutex = Mutex()
     private var commandEpoch = ""
+    private data class QueuedAction(val match: String, val epoch: String, val kind: String, val value: Int,
+        val slot: Int, val source: Int, val target: Int)
+    private val queued = ArrayDeque<QueuedAction>()
     private var restoreAttempted = false
 
     init {
@@ -228,7 +232,7 @@ internal class LanViewModel(
         viewModelScope.launch {
             val saved = backupMutex.withLock {
                 runCatching {
-                    store.read("ended")?.let { ended ->
+                    store.read("ended")?.takeIf { it.optString("atlasId") == copy.optString("atlasId") }?.let { ended ->
                         if (atlasLink?.endRoom(ended) == true) store.write("ended", null)
                         else return@runCatching false
                     }
@@ -241,10 +245,13 @@ internal class LanViewModel(
     fun unsupportedAction() { _state.update { it.copy(message = "Use the host for this game setup or decision.") } }
     fun backupRoom() { hostRecord?.takeIf { it.optBoolean("atlas") }?.let(::mirrorRoom) }
     fun stopHosting() {
+        if (hostRecord == null) { leave(); return }
         val old = hostRecord
+        if (old?.optBoolean("atlas") == true && !store.write("ended", old)) {
+            _state.update { it.copy(message = "Couldn't save room cleanup. Try ending the room again.") }; return
+        }
         if (!store.write("host", null)) { _state.update { it.copy(message = "Couldn't end the saved room. Try again.") }; return }
         if (old?.optBoolean("atlas") == true) {
-            store.write("ended", old)
             viewModelScope.launch { backupMutex.withLock {
                 if (runCatching { atlasLink?.endRoom(old) == true }.getOrDefault(false)) store.write("ended", null)
                 else _state.update { it.copy(message = "Room ended on this device. Reconnect to Atlas to finish clearing its backup.") }
@@ -254,12 +261,26 @@ internal class LanViewModel(
         advertiser?.close(); advertiser = null; server?.close(); server = null
         _state.update { it.copy(host = null, guests = emptyList(), resumable = false, message = "Room ended. The game is kept.") }
     }
-    fun revoke(guest: LanGuest) { runCatching { room?.revoke(guest.token) }; _state.update { it.copy(guests = room?.guests.orEmpty()) } }
-    fun grantMaster(guest: LanGuest) { runCatching { room?.grant(guest.token, !guest.master) }; _state.update { it.copy(guests = room?.guests.orEmpty()) } }
+    fun revoke(guest: LanGuest) {
+        val result = runCatching { room?.revoke(guest.token) }
+        _state.update { it.copy(guests = room?.guests.orEmpty(), message = if (result.isFailure) "Couldn't save device removal. Try again." else null) }
+    }
+    fun grantMaster(guest: LanGuest) {
+        val result = runCatching { room?.grant(guest.token, !guest.master) }
+        _state.update { it.copy(guests = room?.guests.orEmpty(), message = if (result.isFailure) "Couldn't save this permission. Try again." else null) }
+    }
+    fun onAtlasAvailable() {
+        if (hostRecord?.optBoolean("atlas") == true && hostRecord?.optString("atlasId") == atlasLink?.summary()?.atlasId) resumeRoom()
+        val ended = store.read("ended") ?: return
+        if (ended.optString("atlasId") == atlasLink?.summary()?.atlasId) viewModelScope.launch { backupMutex.withLock {
+            if (runCatching { atlasLink?.endRoom(ended) == true }.getOrDefault(false)) store.write("ended", null)
+        } }
+    }
 
     /** [text] is a typed join code, or the invitation text a QR scan read. */
     fun preview(text: String) {
         if (_state.value.busy || token != null || server != null) return
+        if (hostRecord != null) { _state.update { it.copy(message = "Resume or end your saved room before joining another.") }; return }
         val code = LanJoinCode.normalize(text)
         val scanned = if (code == null) runCatching { LanInvite.parse(text) }.getOrNull() else null
         if (code == null && scanned == null) { _state.update { it.copy(message = "Enter the host's join code, like abc-123.") }; return }
@@ -295,17 +316,20 @@ internal class LanViewModel(
         }
     }
 
-    fun join(role: String, player: Int, profileId: String? = null, pin: String = "", localId: String? = null) {
+    fun join(role: String, player: Int, profileId: String? = null, pin: String = "", localId: String? = null, sourcePin: String? = null) {
         val invitation = invite ?: return
         if (_state.value.busy || _state.value.preview == null && _state.value.previewAtlas == null) return
-        val body = joinRequest?.takeIf { it.optString("role") == role && it.optInt("player") == player }
-            ?: base(invitation, "join").put("key", invitation.key).put("role", role).put("player", player)
-                .put("joinId", UUID.randomUUID().toString()).also { joinRequest = it }
-        body.put("pin", pin)
-        if (profileId != null) body.put("profileId", profileId)
         val own = savedPlayers().firstOrNull { it.localId == localId }
+        val atlasId = _state.value.previewAtlas?.atlasId
+        val targetId = profileId ?: own?.links?.firstOrNull { it.atlasId == atlasId }?.profileId
+        val choice = listOf(role, player, targetId, localId).joinToString("|")
+        val body = joinRequest?.takeIf { joinChoice == choice }
+            ?: base(invitation, "join").put("key", invitation.key).put("role", role).put("player", player)
+                .put("joinId", UUID.randomUUID().toString()).also { joinRequest = it; joinChoice = choice }
+        body.put("pin", pin)
+        if (targetId != null) body.put("profileId", targetId)
         if (own != null) {
-            if (own.credential?.verifies(pin) == false) { _state.update { it.copy(message = "Enter your profile PIN.") }; return }
+            if (own.credential?.verifies(sourcePin ?: pin) == false) { _state.update { it.copy(message = "Enter your profile PIN.") }; return }
             body.put("profile", JSONObject().put("profileId", own.profileId).put("name", own.name)
                 .put("createdAtMs", own.createdAtMs).put("activity", own.lastActivityMs).put("look", own.personalization.toJson())
                 .put("credential", own.credential?.let { JSONObject().put("salt", it.salt).put("hash", it.hash) } ?: JSONObject.NULL))
@@ -373,7 +397,12 @@ internal class LanViewModel(
         val (match, revision) = state.remote?.let { it.gameId to it.revision }
             ?: state.atlas?.let { it.relayMatch() to it.revision } ?: return
         val invitation = invite ?: return
-        if (!state.online || state.busy || pending != null || state.role !in setOf("investigator", "player", "table") && !state.master) return
+        if (!state.online || state.role !in setOf("investigator", "player", "table") && !state.master) return
+        if (state.busy || pending != null) {
+            if (queued.size < 64) queued.addLast(QueuedAction(match, commandEpoch, kind, value, slot, source, target))
+            else _state.update { it.copy(message = "Too many changes are waiting. Review the table before another edit.") }
+            return
+        }
         pending = base(invitation, "command").put("token", token).put("actionId", UUID.randomUUID().toString())
             .put("epoch", commandEpoch).put("target", target.takeIf { it > 0 } ?: state.player).put("match", match).put("revision", revision).put("kind", kind).put("value", value).put("slot", slot).put("source", source).put("looksId", state.looksId)
         retry()
@@ -392,6 +421,7 @@ internal class LanViewModel(
                 if (reply.text("code") != "unavailable") pending = null
                 receive(reply)
                 _state.update { it.copy(busy = false, uncertain = pending != null) }
+                if (pending == null) drainActions()
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 if (epoch == generation) _state.update { it.copy(busy = false, online = false, uncertain = true,
@@ -400,9 +430,22 @@ internal class LanViewModel(
         }
     }
 
+    private fun drainActions() {
+        if (queued.isEmpty() || pending != null || _state.value.busy || !_state.value.online) return
+        val next = queued.removeFirst()
+        val current = _state.value.remote?.gameId ?: _state.value.atlas?.relayMatch()
+        if (current != next.match || commandEpoch != next.epoch) {
+            queued.clear()
+            _state.update { it.copy(message = "The game or host changed. Waiting edits were not replayed; review current values.") }
+            return
+        }
+        act(next.kind, next.value, next.slot, next.source, next.target)
+    }
     fun leave() {
-        val invitation = invite
-        val credential = token
+        queued.clear()
+        val saved = store.read("guest")
+        val invitation = invite ?: saved?.optString("invite")?.let { runCatching { LanInvite.parse(it) }.getOrNull() }
+        val credential = token ?: saved?.optString("token")
         generation++; polling?.cancel(); polling = null
         store.write("guest", null)
         token = null; pending = null; invite = null; joinRequest = null
@@ -417,7 +460,7 @@ internal class LanViewModel(
         if (reply.has("epoch")) commandEpoch = reply.text("epoch")
         if (code == "unauthorized" || code == "ended") {
             store.write("guest", null)
-            generation++; polling?.cancel(); token = null; pending = null
+            generation++; polling?.cancel(); token = null; pending = null; queued.clear()
             _state.value = LanUiState(message = "Room ended or this device was removed. Join with the room code again.")
             return
         }
@@ -430,14 +473,14 @@ internal class LanViewModel(
                 message = "Your player left the host's table. Choose a seat again.") }
             return
         }
-        val online = code in setOf("ok", "stale", "rejected", "view-only", "forbidden", "interrupted")
+        val online = code in setOf("ok", "stale", "rejected", "view-only", "forbidden", "interrupted", "renew")
         val game = if (reply.has("game")) readGame(reply) else null
         val atlas = if (reply.has("atlas")) runCatching { readAtlas(reply) }.getOrNull() else null
         _state.update { before -> before.copy(
             player = reply.optInt("player", before.player),
             role = reply.optString("role", before.role ?: "display"),
             master = reply.optBoolean("master", before.master),
-            reconnecting = false,
+            reconnecting = before.reconnecting && game == null && atlas == null,
             directory = if (reply.has("directory")) readDirectory(reply) else before.directory,
             remote = game?.takeIf { before.remote == null || it.gameId != before.remote.gameId || it.revision >= before.remote.revision } ?: before.remote,
             // A new Atlas boot starts its revisions again; within one, never step back.
@@ -453,7 +496,7 @@ internal class LanViewModel(
                 "unavailable" -> "The host is away or unable to save. Controls wait until it returns."
                 "interrupted" -> "The host restarted. Review the current values; your previous edit was not replayed."
                 "forbidden" -> "This view is read only. Game master permission is needed for that action."
-                "renew" -> "This connection has reached its action limit. Leave and rejoin the room."
+                "renew" -> "Connection renewed without signing in. The last edit was not applied; review it before trying again."
                 else -> "This session has ended or access was removed. Ask the host for a new invitation."
             },
         ) }

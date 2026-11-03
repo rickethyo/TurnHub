@@ -14,12 +14,14 @@ class LanRoomTest {
         var match = "first"
         var revision = 0L
         var changes = 0
+        var lastTarget = 0
         var writable = true
         var authorized = true
         val room = LanRoom(record, save = { if (writable) { record = JSONObject(it.toString()); true } else false },
             snapshot = { base("ok").put("code", "ok").put("match", match) }, seats = { roster },
             profiles = { JSONArray() }, attach = { if (authorized && it.optString("pin") == "1234") it.optString("profileId") else null },
-            command = { r, _ ->
+            command = { r, target ->
+                lastTarget = target
                 if (r.text("match") != match || r.integer("revision") != revision) base("stale").put("code", "stale")
                 else { changes++; revision++; base("ok").put("code", "ok") }
             })
@@ -106,6 +108,26 @@ class LanRoomTest {
         val restored = Fixture(JSONObject(f.record.toString()))
         assertEquals("unauthorized", restored.room.handle(restored.poll(a.text("token"))).text("code"))
         assertEquals("ok", restored.room.handle(restored.poll(b.text("token"))).text("code"))
+    }
+    @Test fun `personal membership ignores a forged other-player target`() = runBlocking {
+        val f = Fixture()
+        val joined = f.join()
+        assertEquals("ok", f.room.handle(f.action(joined, target = 2)).text("code"))
+        assertEquals(1, f.lastTarget)
+    }
+    @Test fun `command generation renews without another PIN and rejects old commands`() = runBlocking {
+        val f = Fixture()
+        val joined = f.join()
+        val first = f.action(joined)
+        assertEquals("ok", f.room.handle(first).text("code"))
+        repeat(2047) { assertEquals("ok", f.room.handle(f.action(joined)).text("code")) }
+        val renewal = f.room.handle(f.action(joined))
+        assertEquals("renew", renewal.text("code"))
+        assertEquals(2048, f.changes)
+        assertEquals("interrupted", f.room.handle(first).text("code"))
+        joined.put("epoch", renewal.text("epoch"))
+        f.authorized = false
+        assertEquals("ok", f.room.handle(f.action(joined)).text("code"))
     }
     @Test fun `retrying join id does not create another member`() = runBlocking {
         val f = Fixture()
