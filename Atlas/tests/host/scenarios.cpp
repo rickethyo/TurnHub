@@ -982,23 +982,14 @@ static void accountPermissionsAndModeration(){
   assert(request("/api/profiles/sync","",{{"profileId",oldId},{"linkKey",oldKey},{"now","1800000000000"},
       {"activity","1"},{"name","Phone copy"}})==409);
   assert(responseField("mergedInto")==keepId && TurnHubWebApi::internal::linkKeyValid(keepId,responseField("linkKey")));
-  // One person, one account (owner, 2026-10-30): same-name accounts link into
-  // the Admin's (else the oldest), which keeps both accounts' permissions.
+  // Equal public labels do not establish account identity.
   {
-    String plainId, adminTwinId, olderId;
-    registerPhone("Twin Ricky",plainId); registerPhone("twin ricky ",adminTwinId); registerPhone("Twin Ricky",olderId);
-    TurnHubProfiles::ProfileSync sync;
-    assert(TurnHubProfiles::loadSyncForProfile(olderId,sync)); sync.createdAtMs=1600000000000ULL;
-    assert(TurnHubProfiles::saveSyncForProfile(olderId,sync));
-    assert(request("/api/accounts/permissions",admin,{{"profileId",adminTwinId},{"permissions","2"}})==200);
-    TurnHubAccounts::Account account; assert(TurnHubAccounts::load(adminTwinId,account));
-    account.permissions|=TurnHubAccounts::Admin; assert(TurnHubAccounts::save(adminTwinId,account));
-    assert(TurnHubWebApi::linkSameNameAccounts()>=2);
-    assert(TurnHubProfiles::mergedProfileFor(plainId)==adminTwinId && TurnHubProfiles::mergedProfileFor(olderId)==adminTwinId);
-    TurnHubAccounts::Account kept; assert(TurnHubAccounts::load(adminTwinId,kept) && !kept.archived && (kept.permissions&TurnHubAccounts::Admin));
-    assert(TurnHubWebApi::linkSameNameAccounts()==0);
-    // The store is nearly full by the later scenarios: these three go again.
-    for (const String *id : {&plainId,&adminTwinId,&olderId}) ProfileFixture::profiles.erase(id->c_str());
+    String oneId, otherId;
+    registerPhone("Same name", oneId); registerPhone("Same name", otherId);
+    assert(oneId != otherId);
+    assert(TurnHubProfiles::mergedProfileFor(oneId) == oneId);
+    assert(TurnHubProfiles::mergedProfileFor(otherId) == otherId);
+    ProfileFixture::profiles.erase(oneId.c_str()); ProfileFixture::profiles.erase(otherId.c_str());
   }
   // A game imported under the old ID credits the profile it was merged into, once.
   {
@@ -6677,6 +6668,30 @@ static void deviceNavigation() {
   enterEmptyLobby();resetTouchControls();
 }
 
+static void persistentRoomBackup() {
+  enterEmptyLobby();
+  String id;
+  const String token=registerPhone("Room owner",id);
+  const String room="0123456789abcdef0123456789abcdef";
+  const String owner="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  const String record="{\"session\":\"room\",\"members\":[{\"role\":\"table\"}]}";
+  testBlobs.erase("room");
+  assert(request("/api/room","",{{"roomId",room},{"ownerKey",owner},{"record",record}})==401);
+  assert(request("/api/room",token,{{"roomId",room},{"ownerKey","bad"},{"record",record}})==400);
+  assert(request("/api/room",token,{{"roomId",room},{"ownerKey",owner},{"record",record}})==200);
+  // Each request opens a fresh store, as a reboot does; no RAM room session is required.
+  assert(request("/api/room",token,{{"roomId",room},{"ownerKey",owner}})==200);
+  assert(server.body==record);
+  assert(request("/api/room",token,{{"roomId",room},{"ownerKey",String("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")},{"record","{}"}})==409);
+  setError=ESP_ERR_NVS_INVALID_HANDLE;
+  assert(request("/api/room",token,{{"roomId",room},{"ownerKey",owner},{"record","{}"}})==503);
+  setError=ESP_OK;
+  assert(request("/api/room",token,{{"roomId",room},{"ownerKey",owner}})==200 && server.body==record);
+  assert(request("/api/room",token,{{"roomId",room},{"ownerKey",owner},{"end","1"}})==200);
+  assert(request("/api/room",token,{{"roomId",room},{"ownerKey",owner}})==404);
+  ProfileFixture::profiles.erase(id.c_str());
+}
+
 static void utcBookkeepingClock() {
   TurnHubClock::WallClock clock;
   constexpr uint64_t utc = 1700000000000ULL;
@@ -6719,6 +6734,7 @@ int main() {
   optionalStorage(); std::cout<<"PASS optional storage error policy\n";
   stackDiagnostics(); std::cout<<"PASS stack watermark semantics, warning rate limit, rollover and request tracing\n";
   virtualProfileFlow(); std::cout<<"PASS profile registration/login, phone-only game, companion sessions, authorization and throttling\n";
+  persistentRoomBackup(); std::cout<<"PASS persistent room backup: capability, restart, failed storage, end\n";
   nativeClientBoundary(); std::cout<<"PASS native snapshots, revisions, stale requests, PASS, Commander and reconnect\n";
   guestSigilsDoNotCreateAccounts(); std::cout<<"PASS guest Sigil joins, shared seats, polling and games create no accounts\n";
   physicalCompanionFlow(); std::cout<<"PASS mixed table, physical attachment, two phones and one Sigil, statistics once\n";

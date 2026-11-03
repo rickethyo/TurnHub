@@ -5,6 +5,8 @@
 #include <esp_system.h>
 #include <mbedtls/sha256.h>
 #include <stdlib.h>
+#include <memory>
+#include "nvs_blob_store.h"
 #include <string.h>
 
 #include "account_access.h"
@@ -537,6 +539,51 @@ void handleSessionPoll(WebServer &server) {
     return;
   }
   sendJson(server, 404, "{\"ok\":false,\"status\":\"expired\",\"error\":\"Claim expired or was already collected\"}");
+}
+
+// One bounded game-night room. Its owner capability never enters public state.
+void handleRoom(WebServer &server) {
+  if (!sessionForRequest(server)) { sendError(server,401,"Open game controls first"); return; }
+  const String id=server.arg("roomId"), owner=server.arg("ownerKey");
+  auto hex=[](const String &v,size_t n) {
+    if(v.length()!=n) return false;
+    for(size_t i=0;i<n;++i) if(!((v[i]>='0'&&v[i]<='9')||(v[i]>='a'&&v[i]<='f'))) return false;
+    return true;
+  };
+  if(!hex(id,32)||!hex(owner,64)) {sendError(server,400,"Invalid room capability");return;}
+  TurnHubStorage::NvsBlobStore store;
+  using TurnHubStorage::Status;
+  if(store.begin("th_room_v2")!=Status::Ok) {sendError(server,503,"Room storage unavailable");return;}
+  size_t size=0;
+  const auto status=store.read("room",nullptr,0,size);
+  std::unique_ptr<char[]> old;
+  if(status==Status::Ok) {
+    if(size<96 || size>8288) {sendError(server,503,"Room record unreadable");return;}
+    old.reset(new char[size+1]);
+    if(store.read("room",old.get(),size,size)!=Status::Ok) {sendError(server,503,"Room record unreadable");return;}
+    old[size]=0;
+    unsigned diff=0;
+    for(size_t i=0;i<32;++i) diff|=static_cast<unsigned char>(old[i]^id[i]);
+    for(size_t i=0;i<64;++i) diff|=static_cast<unsigned char>(old[32+i]^owner[i]);
+    if(diff) {sendError(server,409,"Another room is saved on this Atlas");return;}
+  } else if(status!=Status::NotFound) {sendError(server,503,"Room storage unavailable");return;}
+  if(server.arg("end")=="1") {
+    const auto removed=store.remove("room");
+    if(removed!=Status::Ok && removed!=Status::NotFound) {sendError(server,503,"Could not end room");return;}
+    sendJson(server,200,"{\"ok\":true}"); return;
+  }
+  if(!server.hasArg("record")) {
+    if(!old) {sendError(server,404,"No room saved");return;}
+    sendJson(server,200,String(old.get()+96)); return;
+  }
+  const String record=server.arg("record");
+  if(record.length()<2 || record.length()>8192 || record[0]!='{' || record[record.length()-1]!='}') {
+    sendError(server,400,"Room record too large or invalid");return;
+  }
+  const String data=id+owner+record;
+  if(old && size==data.length() && memcmp(old.get(),data.c_str(),size)==0) {sendJson(server,200,"{\"ok\":true}");return;}
+  if(store.write("room",data.c_str(),data.length())!=Status::Ok) {sendError(server,503,"Could not save room");return;}
+  sendJson(server,200,"{\"ok\":true}");
 }
 
 // profileId + PIN signs into a profile; module + slot + PIN signs into the

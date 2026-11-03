@@ -19,7 +19,7 @@ class LanSessionsTest {
     }
 
     @Test fun `TCG players control only their own score and can poll the entire table with the same token`() {
-        listOf(GameProfile.MTG, GameProfile.MTG_COMMANDER, GameProfile.MTG_STAR_COMMANDER,
+        listOf(GameProfile.GENERIC, GameProfile.MTG, GameProfile.MTG_COMMANDER, GameProfile.MTG_STAR_COMMANDER,
             GameProfile.MTG_BAG_OF_DOOM, GameProfile.MTG_EMPEROR, GameProfile.YUGIOH, GameProfile.POKEMON, GameProfile.LORCANA).forEach { profile ->
             val f = Fixture(tcg(profile))
             val joined = f.join("player", 1)
@@ -55,7 +55,7 @@ class LanSessionsTest {
         assertEquals("invalid", f.sessions.handle(f.action(token, "life").put("source", 1.5)).getString("code"))
         assertEquals(0, f.store.commits)
         assertEquals("invalid", Fixture().join("player").getString("code"))
-        assertEquals("ended", Fixture(tcg(GameProfile.GENERIC)).join("player").getString("code"))
+        assertEquals("ok", Fixture(tcg(GameProfile.GENERIC)).join("player").getString("code"))
     }
 
     @Test fun `Commander source slot and delta are bound to the receipt and own recipient`() {
@@ -289,11 +289,20 @@ class LanSessionsTest {
         assertTrue(changed.getJSONArray("looks").isNull(0))
     }
 
+    @Test fun `shared investigator panels can gather several wound taps into one change`() {
+        val f = Fixture()
+        val token = f.join().getString("token")
+        val before = f.table.state.value.game.players[0].life
+        assertEquals("ok", f.sessions.handle(f.action(token, "wounds", 2)).getString("code"))
+        assertEquals(before + 2, f.table.state.value.game.players[0].life)
+        assertEquals("rejected", f.sessions.handle(f.action(token, "wounds", 101)).getString("code"))
+    }
+
     @Test fun `invitation and session authentication gate every snapshot`() {
         val f = Fixture()
         val bad = f.sessions.handle(f.request("preview").put("key", "wrong"))
         assertEquals("unauthorized", bad.getString("code")); assertFalse(bad.has("game"))
-        assertEquals("invalid", f.sessions.handle(f.request("preview").put("v", 2).put("key", "invitation-key")).getString("code"))
+        assertEquals("invalid", f.sessions.handle(f.request("preview").put("v", LAN_VERSION + 1).put("key", "invitation-key")).getString("code"))
         assertEquals("invalid", f.sessions.handle(f.request("preview").put("session", "old").put("key", "invitation-key")).getString("code"))
         assertFalse(f.sessions.handle(f.request("poll").put("token", "unknown")).has("game"))
     }

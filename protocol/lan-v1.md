@@ -1,226 +1,124 @@
-# Phone-hosted shared game, version 1
+# Play Together LAN rooms, version 2
 
-Android's shared-device transport is independent of Atlas HTTP and ESP-NOW.
-Magic variants, Yu-Gi-Oh!, Pokémon, Lorcana and Death May Die have one standalone
-host, from the lobby on. TCG guests control one player and may inspect the full
-table read-only without changing their session. Death May Die guests display
-the Elder One board or control one investigator. Guests do not run a game engine,
-save a match/history, award statistics, or take over when the host disappears.
+The Android hub serves a persistent game-night room independently of the current
+match or game format. Guests send commands and render snapshots; the standalone
+hub or connected Atlas remains the game authority. There is no room host election
+or automatic change of game authority.
 
 ## Invitation and transport
 
-The host binds a TLS server to its current private Wi-Fi IPv4 address and an
-ephemeral TCP port. All devices must be on the same reachable Wi-Fi network;
-guest isolation can prevent connections. Internet is unnecessary. The host's
-join security setting chooses one way in:
+All devices need the same reachable Wi-Fi; internet is unnecessary. The hub binds
+a pinned TLS server to its current private IPv4 address and an ephemeral port.
+DNS-SD `_turnhub._tcp` advertises `v=2`, `s=<room ID>` and `p=<certificate SHA256>`;
+no invitation secret is advertised. This includes QR-only rooms so previously
+joined devices can rediscover a changed address/port using their saved room ID
+and certificate pin.
 
-- **Standard:** the host registers DNS-SD service `_turnhub._tcp` on the Wi-Fi
-  network with TXT `v=1`, `s=<session>` and `p=<SHA256-certificate-pin>`. The
-  key is the join code: three letters from `abcdefghjkmnpqrstuvwxyz`, a hyphen
-  and three digits (`abc-123`). Guests normalize typed codes, discover hosts
-  for about three seconds and send `preview` with the code to each; TXT data is
-  unauthenticated, so only the code grants access.
-- **QR only:** no announcement. An invitation, shown as a QR or copied
-  explicitly, has this grammar:
+Standard entry uses a code such as `abc-123`. QR-only entry uses a random 256-bit
+key. The invitation is
+`turnhub://join/2/<IPv4>/<port>/<certificate SHA256>/<room ID>/<key>`.
+For standard rooms the key may be the normalized join code. The room ID is
+32 lowercase hexadecimal characters; the certificate pin and random key are 64.
+Sharing the invitation authorizes entry without host approval. Ten incorrect
+keys or profile PIN attempts within a minute lock new entry for that minute.
+Never log invitations, reconnect tokens, PINs, link keys or room records.
 
-  `turnhub://join/1/<IPv4>/<port>/<SHA256-certificate-pin>/<session>/<key>`
+Each connection carries one request/reply: a four-byte big-endian length followed
+by strict UTF-8 JSON. Maximum frame size is 512 KiB and nesting is bounded at 32.
+The existing transport bounds, TLS verification and explicit Wi-Fi routing apply.
+Every envelope includes integer `v: 2` and string `session` (the room ID).
 
-The address is RFC 1918 or IPv4 link-local, port 1024–65535. Pin and key are
-64 lowercase hex characters; session is 32. Pinning authenticates the self-signed
-Android-keystore host certificate. TLS 1.2/1.3 encrypts invitations' subsequent
-use, snapshots and controls; cleartext Android policy is unchanged. Never log
-invitations or tokens. Treat copying/scanning an invitation as granting access
-to this table. Stopping hosting invalidates its credentials; a new host session
-creates a fresh code or invitation. Ten wrong keys within a minute return
-`locked` to every `preview`/`join` until the minute passes. The app does not register an external deep link.
+## Membership and identity
 
-Each TLS connection carries one request and response. Frames are a four-byte
-unsigned-compatible big-endian positive length, then UTF-8 JSON. Lengths outside
-1–524288 are rejected before allocation/dispatch. UTF-8 is strict, nesting is
-limited to 32 levels and lenient JSON token extensions are rejected before
-the platform parser runs. Client connect timeout is
-3 seconds; socket read/handshake timeout is 4 seconds. Server capacity is four
-active workers plus four waiting connections; excess connections close.
+| Operation | Fields | Authorization |
+| --- | --- | --- |
+| `preview` | `key` | Invitation |
+| `join` | `key`, UUID `joinId`, `role`, optional profile fields | Invitation plus initial profile proof |
+| `poll` | `token`, optional `looksId` | Saved room membership |
+| `command` | `token`, `epoch`, UUID `actionId`, `match`, `revision`, `kind`, `value`, `slot`, optional `source`, `target` | Membership and room capability |
+| `leave` | `token` | Membership; explicitly removes this device |
 
-Every envelope contains integer `v: 1` and the invitation's string `session`.
-Requests contain `op`. Responses contain `code`. Integers reject strings and
-fractions. A different session/version is invalid. This prototype's match
-projection uses the host's current standalone game JSON, without `localId` or
-`profileId`. The library, account credentials, links and history are never sent.
-Each snapshot carries `looksId`; when it differs from the `looksId` a `poll` or
-`command` supplied, it also carries `looks`: one entry per seat in player order,
-`null` or that seat's public color, avatar and panel background (the
-`LocalPersonalization` JSON without thumbnail or motion preference). Background
-and avatar images are included while all looks fit in 320 KiB; otherwise image
-backgrounds fall back to a gradient of the seat's color. Both apps must understand this protocol and its match projection;
-incompatible data stops joining rather than starting a local game.
+Roles are `player`, `investigator`, `display`, `table`, `planes` and `elder`.
+Public displays are read-only. `table` grants ordinary shared-seat gameplay with
+no personal account. Player/investigator membership binds to a stable profile
+ID, independently of seat number/name. Removing a participant from a game leaves
+the member connected with player 0, waiting for their next game. Multiple devices
+may control the same participant. Up to 16 device memberships are retained;
+idle/disconnected devices are not automatically removed.
 
-## Requests
+The directory contains public `profileId`, `name`, and `hasPin` only. A first
+profile link supplies `profileId` and its optional `pin`. An injected local
+`profile` carries its public ID, name, original creation time, activity timestamp,
+look and salted credential verifier; no other Atlas links, private history,
+permissions or device-admin designation travels. Protected profiles require
+verification on first link. Existing same-ID credentials are never replaced by
+an offered verifier. Equal names do not establish identity or merge accounts.
+A private join reply can contain the verified profile's `profileLink` and synced
+`profile`; these never enter the public snapshot or another member's polls.
 
-| Operation | Additional request fields | Capability |
-|---|---|---|
-| `preview` | `key` | Invitation: view the match before choosing a role |
-| `join` | `key`, `joinId`, `role`, `player` | Invitation: acquire a session |
-| `poll` | `token`, optional `looksId` | Authenticated guest: get latest snapshot |
-| `command` | `token`, `actionId`, `match`, `revision`, `kind`, `value`, `slot`, optional `source`, optional `looksId` | Player/investigator: request an own-seat edit |
-| `leave` | `token` | Release this guest session |
+A repeated `joinId` returns the saved member rather than seating a duplicate.
+Reopening/reconnecting uses its saved token, without PIN entry or host approval.
+The member's selected view is device-local saved state. Hosts can explicitly
+revoke devices or grant/revoke room game-master access. These grants do not
+confer Atlas Admin permissions or access to another profile's private statistics.
 
-`role` is `player` for a TCG seat, or `planes` with `player: 0` for a Magic
-table's Planes display; Death May Die accepts `elder` with `player: 0`,
-or `investigator` with a current one-based player number. The host rejects roles
-from another game family. It binds a player session to that player's name and
-renumbers it as lobby changes move the player; if the player is removed, the
-next authenticated request returns `released` once and the guest chooses again.
-A session lasts through the lobby, matches and rematches; commands apply only
-while a match is running or paused. Only one guest controls a given investigator; the host retains
-its controls. Up to 16 guests can join. Sessions idle for five minutes are
-released when processing a new join. A live guest polls once per second.
-Repeated `joinId` UUIDs return the same token for the same role/seat. A successful
-join returns `token`; authenticated snapshots return `game` and `claimed`
-(one-based investigator seats). The token, rather than any submitted player
-field, owns the investigator. Elder guests cannot submit commands; Planes
-display guests submit only the planar commands below.
+## State, controls and receipts
 
-Join, poll and command acknowledgements also return the session's current
-one-based `player`, so guest controls follow lobby reseating. A hosted format
-change ends the session; lobby/matches/rematches within the same format keep it.
-TCG table/personal navigation is local presentation state: it neither joins a
-second seat nor changes the token or poll loop. The table exposes no edit menus,
-score gestures, Pass button or actionable turn chips.
+Standalone snapshots carry the existing public `game` JSON and bounded public
+`looks`/`looksId`. Hidden planar deck order, Bag of Doom selection, local account
+handles and credentials are omitted. Atlas relay snapshots carry Atlas's public
+`/api/v1/state` body in `atlas`, with its names and age. The room also returns
+`epoch`, member `player`, `role`, `master` and the public directory.
 
-### TCG commands
+Public Table/Planes/Elder views are read-only unless granted game master access;
+a shared table controller can change ordinary seat gameplay. The server derives
+a personal command's seat from the saved profile ID and ignores a forged target.
+A shared controller/game master may name a current target. Planar actions require
+game master access. Format changes select the appropriate existing engine
+validator rather than carrying old game-specific seat capabilities forward.
 
-| `kind` | `value` | `slot` | `source` |
-|---|---|---|---|
-| `life` | Nonzero delta −10000…10000 (life, prizes or lore) | 0 | 0 |
-| `commander` | −1 or +1, damage received by the owned player | Commander 1 or 2 | One-based source player |
-| `poison`, `energy`, `experience`, `treasure`, `rad`, `commander-casts` | −1 or +1 | 0/1; commander casts may use 2 | 0 |
-| `city-blessing`, `initiative` | 0 or 1 | 0/1 | 0 |
-| `turn-action:<enum>`, `pokemon-condition:<enum>` | 0 or 1 | 0 | 0 |
-| `rad-resolve` | Nonlands milled, 0 up to the owned player's rad (only while their rad trigger is due) | 0 | 0 |
-| `pass`, `extend-turn`, `win`, `confirm`, `deny`, `concede`, `eliminate`, `monarch` | 0 | 0 | 0 |
+Existing local own-seat commands include life, counters, received Commander
+damage, pass, win/confirm/deny/concede/eliminate, pause and DMD investigator
+commands. Planar commands retain the `planar-` vocabulary; Atlas plane controls
+use bounded `planar-atlas:` actions. Setup and special table decisions unsupported
+by the LAN vocabulary stay on the host and are reported visibly.
 
-A guest's `win` opens a claim (`winClaim`, `winConfirmed` in the game JSON) that
-the other living players (other teams in Two-Headed Giant) answer one at a time
-in turn order after the claimant with `confirm` or `deny`, as Atlas asks for a
-Sigil's claim. A denial withdraws it; the last confirmation ends the match.
-Cooperative games and a table with nobody left to ask win at once.
+Local commands require the exact match/revision. Atlas commands require its
+boot/game context. A per-member immutable action-UUID receipt prevents duplicate
+deltas and rejects changed payloads; receipts are not evicted. After 2048 actions
+the member's command generation renews without PIN entry. The boundary edit is
+not applied and must be reviewed; old-generation commands cannot be replayed.
+A lost reply is retried only with its
+original UUID and payload.
 
-The existing standalone engine validates format, active turn/team, living seat,
-counter bounds, Commander allies and all outcomes. The authenticated player is
-always the recipient; `source` selects only whose Commander dealt damage. In
-Two-Headed Giant, life/poison apply to the team and either teammate may pass;
-other counters stay personal. Any seated player may send `pause` (below). Setup,
-reset/rematch, day/night, Planechase setup and Bag of Doom resolution remain host-only. Commander names and chosen art
-printings (public card IDs) are included in public snapshots, and so are
-Planechase's face-up cards, counters, roll costs and last roll (public Scryfall
-card IDs); account IDs, the planar deck's order and the host's deck choice stay
-private (`deck` is always empty).
-`source` defaults to 0 for existing DMD clients and is part of immutable receipts.
+Each hub process creates a fresh command `epoch`. Room membership survives a
+restart, but old-epoch commands receive `interrupted` without applying. This
+prevents replay when a game write succeeded just before the process lost its
+receipt. Players review current values before making a new edit. Reconnect does
+not replay commands automatically.
 
-### Planechase commands
+## Persistence and Atlas backup
 
-Any Magic seat or the Planes display may send these, as anyone at the host can
-press the Planes tab: each acts for the active player (their team in
-Two-Headed Giant), and the host's engine checks the planar turn, a running
-match and a pending phenomenon. The host rolls the die. They are `rejected`
-without Planechase on.
+The hub saves the room ID, invitation secret, owner capability and memberships
+in device-private AES-GCM ciphertext with an Android Keystore key. Guest devices
+save their token, invitation endpoint/pin and selected view similarly. Room
+preferences are excluded from OS backup/transfer. Explicit End room deletes the
+host record; Leave room deletes a guest's reconnect record. Closing the app does
+neither. Display-awake behavior and the existing five-minute background link hold
+remain; a closed standalone hub cannot serve until reopened.
 
-| `kind` | `value` | `slot` |
-|---|---|---|
-| `planar-roll` | 0 paid roll, 1 free roll for a card's effect | 0 |
-| `planar-walk`, `planar-chaos`, `planar-resolve`, `planar-bottom` | 0 | 0 |
-| `planar-reverse` | 1 reverse turn order, 0 back to clockwise | 0 |
-| `planar-counter` | −1 or +1 | 0 the table's own physical plane, else the one-based face-up card |
+An Atlas hub mirrors its saved room through capability-authenticated
+`POST /api/room` (see HTTP contract). Local saving precedes asynchronous Atlas
+backup; a failed backup is visible and retryable. One saved room is supported per
+Atlas. Atlas keeps running its game while the hub is unavailable; LAN guests wait
+for the same hub to return. A saved room is not an independent Atlas LAN server.
 
-### Death May Die commands
+## Verification
 
-| Command `kind` | `value` | `slot` |
-|---|---|---|
-| `wounds`, `stress`, `fire`, `insanity` | −1 or +1 | 0 |
-| `skill` | New level 1–4 | One-based skill slot |
-| `take-turn` | 0 (engine stages the investigator) | 0 |
-| `pass` | Explicit next player number | 0 |
-| `eliminate` | 0 | 0 |
-
-### Pause (every seated game)
-
-| `kind` | `value` | `slot` |
-|---|---|---|
-| `pause` | 1 pause, 0 resume | 0 |
-
-Any seated guest (not the Planes display) may pause or resume the whole table
-from their own phone. The value names the wanted state, so a second Pause from
-another phone, or a retried one, is `rejected` instead of resuming. The engine
-refuses it while a Bag of Doom draw or an elimination prompt is pending.
-
-Only the active investigator may pass; the existing cooperative-turn validator
-checks the recipient. Reference/card assignment edits remain on the host UI; a guest can explicitly
-confirm their own investigator’s death. Clients can read assigned cards (both relic faces),
-adjust markers/skill levels, stage their next turn and choose a pass recipient.
-All game rules and bounds are enforced by the existing standalone authority.
-Commands never start/reset/rematch a game or change the Elder One board.
-
-## Ordering, acknowledgement and failure
-
-Host UI and network requests serialize on the Android main dispatcher. Commands
-require the exact match ID and revision. The host runs the normal rule transition,
-saves the game and any resulting history in one synchronous storage transaction,
-then publishes and acknowledges it. Failure leaves the previous game published,
-blocks further writes and cannot return success. Completion uses the existing
-single host history/statistics pipeline.
-
-An `actionId` UUID identifies one immutable request payload within its guest
-session. Duplicate requests return the recorded result with a fresh snapshot;
-reusing an ID for a different payload fails. Each guest retains at most 2048
-receipts without eviction; at that limit it must leave and rejoin. Receipts,
-tokens and invitations are memory-only. A host process restart invalidates all
-sessions; clients cannot replay an uncertain action into a fresh session. The
-host's saved match/history survive under the existing persistence rules. This
-does not promise crash-safe distributed exactly-once statistics or host takeover.
-
-Clients keep one in-flight command, with no optimistic mutation. A lost reply
-keeps that exact request pending and disables other edits. Retry uses its same
-ID and base revision. Stale edits are rejected with the latest snapshot; the
-player reviews current values before submitting a new edit. Disconnection shows
-the last snapshot with controls disabled. Polling reconnects to the same session;
-revocation or process death requires joining again. No offline edits
-are queued. Leaving with an uncertain reply explicitly warns the player to
-check the host before entering a replacement edit.
-
-Codes: `ok`, `invalid`, `unauthorized`, `forbidden`, `claimed`, `full`, `stale`,
-`rejected`, `unavailable`, `renew`, `released`, `locked`, `ended` (the host left
-the hosted format). Unauthenticated errors carry no match
-data. When the host app cannot save, or has been in the background longer than
-its five-minute connection hold, it returns `unavailable`. Hosting keeps the
-screen awake; leaving the app starts a short foreground service that keeps
-answering guests during the hold. Switching back to it allows existing guests to reconnect. Changing
-Wi-Fi or a host process restart can require stopping/restarting sharing.
-
-## Relaying an Atlas game
-
-A device connected to an Atlas can share **Atlas's** game instead of its own
-(**Play together → Share Atlas game**, owner 2026-10-29), so the table's other
-phones join that hub over Wi-Fi rather than each polling Atlas. Invitations,
-TLS, join codes, lockout, tokens, receipts and the request set are the same;
-`LanAtlasSessions` answers them in place of `LanSessions`. Direct connections to
-Atlas remain supported (two table screens, say).
-
-- Snapshots carry `atlas` instead of `game`: `state` (Atlas's own public
-  `/api/v1/state` body, unchanged), `firmware`, the hub's `names`
-  (`module`, `slot`, `name`) and `ageMs` (how old the hub's copy is, at most
-  60 s). The guest parses `state` with the same parser as a direct connection and
-  runs its clocks from `now - ageMs`. They also carry `claimed` and `viewOnly`.
-- Roles: `player` with an Atlas player number, or `display` with `player: 0`
-  (a read-only screen of the whole table). Seats follow the player's name.
-- `match` is `atlasId/bootId/game`. Atlas orders every tap itself, so only a
-  different boot or game makes a command `stale`; `revision` is informational.
-- The hub forwards a player's command to Atlas through its own tablet grant, for
-  that player's seat only: `life`, `commander`, `pass`, `win`, `confirm`, `deny`,
-  `concede`, `monarch`, `eliminate`, `pause` (1 pauses, 0 resumes) and the
-  Magic counters. Anything else is `rejected`. Atlas decides each one; `ok` means
-  Atlas applied it. A tap Atlas never answered keeps no receipt, so its retry
-  reaches Atlas once.
-- A hub that isn't the Atlas table's tablet answers commands with `view-only`
-  and snapshots with `viewOnly: true`. Changing the hub's Atlas or game ends the
-  session (`ended`); Atlas not answering is `unavailable`.
+JVM room tests cover PIN-once membership, same-name identity separation, sitting
+out, cross-game continuity, shared controllers, public-view authorization,
+explicit grants, receipt deduplication, old-epoch rejection, write failure,
+revocation and repeated join IDs. Existing engine/transport suites still validate
+semantic actions and TLS. Atlas host scenarios cover capability checks, durable
+backup reads, failed writes and room deletion. Real device checks remain necessary
+for discovery, Wi-Fi isolation, process death, shared-panel layout and reconnect.

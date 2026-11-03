@@ -5,13 +5,13 @@ import java.net.URI
 import java.security.MessageDigest
 import java.security.SecureRandom
 
-internal const val LAN_VERSION = 1
+internal const val LAN_VERSION = 2
 internal const val LAN_MAX_FRAME = 512 * 1024
 
 /**
  * Where a guest reaches a host and what it presents. [key] is the bearer secret: the
  * short join code in standard joining, or a long random key that only the QR carries in
- * QR-only joining. Never log it or keep it in saved state.
+ * QR-only joining. Never log it; persist only in the encrypted room store.
  */
 internal data class LanInvite(val address: String, val port: Int, val pin: String, val session: String, val key: String) {
     fun encode(kind: String = "join") = "turnhub://$kind/$LAN_VERSION/$address/$port/$pin/$session/$key"
@@ -26,7 +26,7 @@ internal data class LanInvite(val address: String, val port: Int, val pin: Strin
             val p = uri.path.split('/').drop(1)
             require(p.size == 6 && p[0] == "$LAN_VERSION" && privateIpv4(p[1]))
             val port = p[2].toIntOrNull()?.takeIf { it in 1024..65535 } ?: error("Invalid port")
-            require(p[3].matches(Regex("[0-9a-f]{64}")) && p[4].matches(Regex("[0-9a-f]{32}")) && p[5].matches(Regex("[0-9a-f]{64}")))
+            require(p[3].matches(Regex("[0-9a-f]{64}")) && p[4].matches(Regex("[0-9a-f]{32}")) && (p[5].matches(Regex("[0-9a-f]{64}")) || kind == "join" && LanJoinCode.normalize(p[5]) == p[5]))
             return LanInvite(p[1], port, p[3], p[4], p[5])
         }
     }
@@ -76,9 +76,9 @@ internal const val PLANAR_KIND = "planar-"
 internal data class LanAction(val match: String, val revision: Long, val player: Int, val kind: String, val value: Int, val slot: Int, val source: Int = 0)
 
 internal val com.turnhub.android.protocol.GameProfile.lanSupported: Boolean
-    get() = deathMayDie || magicRules || this in listOf(com.turnhub.android.protocol.GameProfile.YUGIOH,
+    get() = deathMayDie || magicRules || this in listOf(com.turnhub.android.protocol.GameProfile.GENERIC, com.turnhub.android.protocol.GameProfile.YUGIOH,
         com.turnhub.android.protocol.GameProfile.POKEMON, com.turnhub.android.protocol.GameProfile.LORCANA)
 /** [name] keeps a player's seat when lobby changes move them to another number. */
-internal data class LanGuest(val token: String, val role: String, val player: Int, val name: String? = null) {
+internal data class LanGuest(val token: String, val role: String, val player: Int, val name: String? = null, val master: Boolean = false) {
     override fun toString() = "LanGuest($role, player=$player)"
 }

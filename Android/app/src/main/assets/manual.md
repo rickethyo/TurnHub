@@ -125,17 +125,17 @@ Phases of your turn is available in setup, on the active investigator and in Gam
 
 ### Play together on the same Wi-Fi
 
-One TurnHub device can host Magic (including Commander variants and Two-Headed Giant), Yu-Gi-Oh!, Pokémon, Lorcana or Death May Die. Other devices control their own player; Death May Die also offers the Elder One board. On the host, choose the game, then open Game > Play together > Host game; you can do this in the lobby. The host shows a join code like ABC-123 on Play together and at the top of the Game and Table tabs. It stays the same for the whole session, including rematches, until you stop sharing. Keep the host app open; it saves the game and its result. Atlas and internet access are not required.
+Open Game > Play together > Host game to open a game-night room. Share its join code or QR with your table. The room stays open through rematches and different game types. The host keeps its screen awake and saves the room; reopening the app resumes it. With Atlas, the hub also backs up room membership on Atlas. Without Atlas, the host saves and serves independently. Keep the host app open for live connections; closing it pauses guest access until it returns.
 
-On another device connected to the same Wi-Fi, choose Game > Play together, enter the join code and tap Find game. If the host turned on Guests must scan a QR code (Settings, or the Host card), it shows a QR code instead: tap Scan QR code. Under Choose your seat, choose your player (or Elder One display/investigator for Death May Die). Only one guest device can control each player. The host retains all controls. Share invitations only with your table.
+On the same Wi-Fi, open Game > Play together and enter the code or scan the QR. No host approval is needed. Choose a read-only Table or Planes display, account-free Shared table controls, or your profile. Bring a profile from your device, use an existing table profile, or join as a new player. A protected profile asks for its PIN on first linking; reconnects use saved room access. Players need not be preselected by the host, and sitting out a game does not remove room membership.
 
-For TCG games, your screen uses the same player panel and counter menu as the table. You can change your own life/score, counters and Commander damage received, pass your turn, use an earned extension, claim monarch, claim a win or concede. A win claim waits for the other players to confirm it one at a time, as on a Sigil; one denial cancels it. Your screen says whose answer it is waiting for, and tells you if it was denied. Panels show each player's color, picture, background and commander art as they appear on the host. Table · read only shows all players with editing disabled; My player returns to your controls without reconnecting or releasing your seat. Two-Headed Giant life and poison remain shared, and either teammate can pass. Setup, game-wide controls, Planechase and Bag of Doom decisions stay on the host.
+Personal screens control their own player. Table display shows everyone read-only. Shared table controls use facing-seat panels so everyone can change normal gameplay values on a central tablet without signing in. Public views stay read-only unless the host grants that device game master access. Setup and special game decisions outside the remote controls stay on the host. Profile IDs establish identity; matching names do not automatically merge profiles.
 
 The Elder One display follows the host’s track, ritual, stage, wounds, minions, episode monsters and episode tokens. Investigator devices show the investigator’s picture, skills and assigned cards, including both relic faces; the insanity card and relic each have their own color. My investigator and Elder One · read only switch between your controls and the Elder One board without leaving or reconnecting. Guests who join in the lobby wait there; their controls unlock when the game starts. Players can change wounds, stress, fire, insanity and skill levels, stage their next turn, choose a pass recipient, and confirm their investigator’s death. Card assignment and reference edits remain on the host.
 
-Connection loss keeps the last display and disables edits. If a reply is lost, use Retry last action; do not enter the change a second time. Returning to the host app allows guests to reconnect. If the host closes, changes Wi-Fi or restarts sharing, guests need the new code or QR. Guests never take over or save a duplicate match or statistics.
+Connection loss keeps the last display and disables edits while the device reconnects to the saved room. If a reply is lost, use Retry last action; do not enter the change twice. After a host restart, an old unconfirmed action is not replayed: review current values before a new edit. Guests never take over or save duplicate match statistics. Reopening the app remembers room access, profile and view without another PIN or host approval.
 
-Game > Play together on the host lists connected devices and lets you disconnect one or Stop sharing (tap it twice to confirm). Stopping sharing keeps the local game. Back to game leaves hosting active. Nearby devices permission is needed on Android 17 or later; camera permission is optional for scanning. Guest-isolated Wi-Fi can prevent devices from reaching each other.
+Game > Play together on the host lists member devices, with Disconnect and Make game master controls. End room explicitly removes room access while keeping the game. Back to game leaves hosting active. If Atlas backup fails, the room remains saved on the host and Back up room retries it. Nearby devices permission is needed on Android 17 or later; camera permission is optional for scanning. Guest-isolated Wi-Fi can prevent devices reaching each other.
 
 If the group has no central screen, the host can play from their own device too: in the game menu under Show on this device, choose Only and a player's name to show just their panel, or Whole table to go back. A win claimed from that view waits for the other players' confirmation, and the player who needs to answer appears on the host's screen until they do.
 
@@ -289,10 +289,6 @@ On the table, **Planar die** beside Pass rolls with a short animation. A blank k
 
 With physical cards, TurnHub rolls the die, counts the cost and tells you when to turn over the next plane. Rolls and deck moves wait while the game is paused.
 
-## Planechase on an Atlas
-
-In a game on an Atlas, the Planes tab shows the Atlas game's plane, and every roll drops an animated die on the Atlas screen. With the digital deck, the app sends Atlas each plane's art and text so the Atlas screen can show the face-up plane like the real card; **Send planes to Atlas** in the lobby resends them, and both screens show the progress. During the game, **On the Atlas screen** lets any player signed in at the table choose what Atlas shows: Game, Table, Planes or the plane's Card. Sigils and guests can't change it.
-
 # 7. Ending a Game
 
 The game ends when one player or team is left, when a win claim is confirmed, or with **End without a winner** (a draw). If nobody survives automatic elimination, it is a draw.
@@ -353,7 +349,7 @@ Signed in, you can join the table, choose to go first, pass, pause or resume, ch
 
 - **Personalization:** upload a player image to Atlas (it needs a microSD card in Atlas, and an Admin approves it unless approval is turned off).
 
-If Atlas stops answering, the app keeps the last known table under an **Offline: reconnecting to Atlas** banner and carries on when Atlas answers.
+If Atlas stops answering, the app keeps the last known table under an **Offline: reconnecting to Atlas** banner and carries on when Atlas answers. During a game, the game goes on in the app on the same rules: every move is saved for Atlas with its time and sent as soon as Atlas answers, together with what other phones played meanwhile. A move that no longer fits (say, a pass for a turn another phone had already passed) is left out, and the app says so. Starting a new game or a rematch waits for Atlas.
 
 ## Shared Tablet Mode
 

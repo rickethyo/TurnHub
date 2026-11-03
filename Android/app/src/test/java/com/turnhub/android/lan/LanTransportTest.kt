@@ -21,6 +21,8 @@ class LanTransportTest {
     @Test fun `invitation round trips and rejects public endpoints and malformed pins`() {
         val invite = LanInvite("192.168.1.5", 8443, "a".repeat(64), "b".repeat(32), "c".repeat(64))
         assertEquals(invite, LanInvite.parse(invite.encode()))
+        val standard = invite.copy(key = "abc-123")
+        assertEquals(standard, LanInvite.parse(standard.encode()))
         assertFalse(invite.toString().contains(invite.key))
         listOf("8.8.8.8", "localhost", "127.0.0.1", "192.168.001.5", "192.168.1.256").forEach {
             assertTrue(runCatching { LanInvite.parse(invite.copy(address = it).encode()) }.isFailure)
@@ -81,7 +83,7 @@ class LanTransportTest {
             val pin = MessageDigest.getInstance("SHA-256").digest(store.getCertificate("test").encoded).hex()
             val socket = context.serverSocketFactory.createServerSocket(0, 8, InetAddress.getLoopbackAddress())
             val handled = AtomicInteger()
-            LanServer(socket) { handled.incrementAndGet(); JSONObject().put("v", 1).put("session", "session").put("code", "ok") }.use { server ->
+            LanServer(socket) { handled.incrementAndGet(); JSONObject().put("v", LAN_VERSION).put("session", "session").put("code", "ok") }.use { server ->
                 val invite = LanInvite(InetAddress.getLoopbackAddress().hostAddress!!, server.port, pin, "session", "key")
                 assertEquals("ok", lanExchange(invite, JSONObject().put("op", "test")).getString("code"))
                 assertTrue(runCatching { lanExchange(invite.copy(pin = "0".repeat(64)), JSONObject()) }.isFailure)

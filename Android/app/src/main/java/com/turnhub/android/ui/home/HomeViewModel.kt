@@ -1091,7 +1091,46 @@ class HomeViewModel(
      */
     internal val lanAtlasLink = object : com.turnhub.android.lan.LanAtlasLink {
         override fun summary() = repository.tableSummary.value
-        override fun canAct() = (playerSession.state.value as? PlayerSessionState.SignedIn)?.info?.tablet == true
+        override fun canAct() = playerSession.state.value is PlayerSessionState.SignedIn
+        private var directoryAt = 0L
+        private var directoryAtlas = ""
+        private var directory = org.json.JSONArray()
+        override suspend fun roomProfiles(): org.json.JSONArray {
+            val endpoint = repository.endpoint.value ?: return org.json.JSONArray()
+            val now = android.os.SystemClock.elapsedRealtime()
+            val atlas = summary()?.atlasId.orEmpty()
+            if (directoryAtlas != atlas) { directory = org.json.JSONArray(); directoryAt = 0; directoryAtlas = atlas }
+            if (now - directoryAt > 30_000 || directoryAt == 0L) {
+                val profiles = try { playerSession.profiles(endpoint) } catch (_: com.turnhub.android.data.AtlasException) { return directory }
+                directory = org.json.JSONArray(profiles.map {
+                    org.json.JSONObject().put("profileId", it.profileId).put("name", it.name).put("hasPin", it.hasPin)
+                })
+                directoryAt = now
+            }
+            return directory
+        }
+        override suspend fun attachProfile(request: org.json.JSONObject): String? {
+            val endpoint = repository.endpoint.value ?: return null
+            request.put("_atlasId", summary()?.atlasId ?: return null)
+            val id = try { playerSession.attachRoomProfile(endpoint, request) } catch (_: com.turnhub.android.data.AtlasException) { null } ?: return null
+            directoryAt = 0
+            val summary = summary()
+            if (summary?.state == com.turnhub.android.protocol.TableState.LOBBY && summary.players.none { it.profileId == id }) {
+                tablet.inGame(summary.game) { seatSaved(id, request.optString("name")) }
+            }
+            return id
+        }
+        override suspend fun backupRoom(record: org.json.JSONObject): Boolean =
+            playerSession.raw("POST", "/api/room", listOf("roomId" to record.getString("session"),
+                "ownerKey" to record.getString("ownerKey"), "record" to record.toString()))?.ok == true
+        override suspend fun restoreRoom(record: org.json.JSONObject): org.json.JSONObject? {
+            val response = playerSession.raw("POST", "/api/room", listOf("roomId" to record.getString("session"),
+                "ownerKey" to record.getString("ownerKey"))) ?: return null
+            return if (response.ok) org.json.JSONObject(response.body) else null
+        }
+        override suspend fun endRoom(record: org.json.JSONObject): Boolean =
+            playerSession.raw("POST", "/api/room", listOf("roomId" to record.getString("session"),
+                "ownerKey" to record.getString("ownerKey"), "end" to "1"))?.ok == true
         override suspend fun act(game: Int, block: suspend com.turnhub.android.data.TableControls.() -> Boolean): Boolean {
             var applied = false
             tablet.inGame(game) { applied = block() }

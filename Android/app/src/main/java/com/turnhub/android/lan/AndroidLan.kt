@@ -69,7 +69,7 @@ internal data class LanHost(val address: String, val port: Int, val pin: String,
 
 /**
  * Announces a standard-joining host on the Wi-Fi so guests can find it with only its code.
- * The record names the session and certificate, never the code. QR-only hosts don't announce.
+ * The record names the room and certificate, never the code. QR-only rooms also announce for pinned reconnection.
  */
 internal class LanAdvertiser(context: Context, network: Network, port: Int, session: String, pin: String) : AutoCloseable {
     private val nsd = context.getSystemService(android.net.nsd.NsdManager::class.java)

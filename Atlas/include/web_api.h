@@ -209,7 +209,5 @@ bool physicalStatsVisible(const String &profileId);
 // says why not), and whether a name is already a profile's (ignoring case).
 bool checkTablePin(const String &profileId, const String &pin, String &message);
 bool profileNameTaken(const String &name);
-// Links live accounts that share a name into one (web_admin_api.cpp); returns how many merged.
-uint8_t linkSameNameAccounts();
 
 }  // namespace TurnHubWebApi

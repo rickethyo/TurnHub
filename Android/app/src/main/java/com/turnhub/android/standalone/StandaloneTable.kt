@@ -298,6 +298,56 @@ class StandaloneTable(
         val game = before.game.addPlayer(clean, localId = player.localId)
         publish(before.copy(game = game, library = before.library.copy(players = before.library.players + player)))
     }
+    /** Public room directory; credentials and history never leave through a snapshot. */
+    internal fun roomProfiles() = org.json.JSONArray(_state.value.library.players.map { p ->
+        org.json.JSONObject().put("profileId", p.profileId).put("name", p.name).put("hasPin", p.credential != null)
+    })
+
+    /** A first room link proves its PIN; subsequent connections use the room credential. */
+    internal fun attachRoomProfile(request: org.json.JSONObject): String? {
+        val before = _state.value
+        val offered = request.optJSONObject("profile")
+        if (offered != null && offered.toString().length > 128 * 1024) return null
+        val id = request.optString("profileId").ifBlank { offered?.optString("profileId").orEmpty() }
+        if (!LocalProfileIds.valid(id)) return null
+        var player = before.library.players.firstOrNull { it.profileId == id }
+        val secret = request.optString("pin")
+        if (player != null) {
+            if (player.credential?.verifies(secret) == false) return null
+        } else {
+            if (offered == null || offered.optString("profileId") != id) return null
+            val name = offered.optString("name").trim()
+            if (name.isBlank() || name.length > StandaloneGame.MAX_NAME) return null
+            val credential = offered.optJSONObject("credential")?.let {
+                LocalCredential(it.getString("salt"), it.getString("hash"))
+            }
+            if (credential != null && (credential.salt.length != 24 || credential.hash.length != 44 || !credential.verifies(secret))) return null
+            val look = offered.optJSONObject("look")?.let { LocalPersonalization.fromJson(it) } ?: LocalPersonalization()
+            player = SavedLocalPlayer(newId(), name, id, look, credential = credential,
+                createdAtMs = offered.optLong("createdAtMs").coerceAtLeast(0))
+        }
+        var resolved = player ?: return null
+        if (offered?.optString("profileId") == id && offered.optLong("activity") > resolved.lastActivityMs) {
+            val name = offered.optString("name").trim()
+            val look = offered.optJSONObject("look")?.let { LocalPersonalization.fromJson(it) } ?: resolved.personalization
+            if (name.isNotBlank() && name.length <= StandaloneGame.MAX_NAME) resolved = resolved.copy(name = name, personalization = look,
+                lastActivityMs = offered.optLong("activity"))
+        }
+        val original = offered?.optLong("createdAtMs") ?: 0
+        if (original > 0 && (resolved.createdAtMs == 0L || original < resolved.createdAtMs)) resolved = resolved.copy(createdAtMs = original)
+        request.put("_profile", org.json.JSONObject().put("profileId", id).put("name", resolved.name)
+            .put("look", resolved.personalization.toJson()).put("activity", resolved.lastActivityMs).put("createdAtMs", resolved.createdAtMs))
+        val existing = before.library.players.any { it.profileId == id }
+        val library = before.library.copy(players = if (existing) before.library.players.map { if (it.profileId == id) resolved else it } else before.library.players + resolved)
+        val renamed = before.game.players.any { it.localId == resolved.localId && it.name != resolved.name }
+        val current = if (renamed) before.game.copy(players = before.game.players.map {
+            if (it.localId == resolved.localId) it.copy(name = resolved.name) else it }, revision = before.game.revision + 1) else before.game
+        val game = if (current.state == TableState.LOBBY && current.players.none { it.localId == resolved.localId })
+            current.addPlayer(resolved.name, localId = resolved.localId) else current
+        if (!publish(before.copy(game = game, library = library), durable = true)) { request.put("_attachError", "unavailable"); return null }
+        return id
+    }
+
     fun selectPlayer(localId: String) {
         val player = _state.value.library.players.firstOrNull { it.localId == localId } ?: return
         edit { it.addPlayer(player.name, localId = player.localId) }
@@ -799,7 +849,8 @@ class StandaloneTable(
         if (!game.profile.deathMayDie) return applyTcgLanAction(game, index, action)
         if (action.source != 0) return false
         val valid = when (action.kind) {
-            "wounds", "stress", "fire", "insanity" -> action.value in listOf(-1, 1) && action.slot == 0
+            "wounds" -> action.value in -10..10 && action.value != 0 && action.slot == 0
+            "stress", "fire", "insanity" -> action.value in listOf(-1, 1) && action.slot == 0
             "skill" -> action.value in 1..4 && action.slot in 1..com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILLS
             "take-turn", "eliminate" -> action.value == 0 && action.slot == 0
             "pass" -> action.value in 1..game.players.size && action.slot == 0
@@ -809,7 +860,7 @@ class StandaloneTable(
         if (!valid) return false
         val now = wallClock()
         val next = when (action.kind) {
-            "wounds" -> if (action.value in -1..1) game.changeLife(index, action.value, now) else game
+            "wounds" -> game.changeLife(index, action.value, now)
             "stress", "fire", "insanity" -> if (action.value in -1..1) game.changeCounter(index, action.kind, action.value, nowMs = now) else game
             "skill" -> game.changeCounter(index, StandaloneGame.SKILL_KIND, action.value, action.slot, now)
             "take-turn" -> game.changeCounter(index, StandaloneGame.TAKE_TURN_KIND, 1, nowMs = now)
@@ -857,7 +908,7 @@ class StandaloneTable(
     /** Own-seat capability adapter; all gameplay transitions remain in StandaloneGame. */
     private fun applyTcgLanAction(game: StandaloneGame, index: Int, action: com.turnhub.android.lan.LanAction): Boolean {
         if (!(game.profile.magicRules || game.profile.pokemon || game.profile.lorcana ||
-                game.profile == GameProfile.YUGIOH)) return false
+                game.profile in setOf(GameProfile.YUGIOH, GameProfile.GENERIC))) return false
         val now = wallClock()
         val simple = action.value == 0 && action.slot == 0 && action.source == 0
         val next = when {

@@ -24,6 +24,12 @@ internal interface LanAtlasLink {
     fun summary(): TableSummary?
     /** This device is the Atlas table's tablet, so it may act for a guest's seat. */
     fun canAct(): Boolean
+    suspend fun roomProfiles(): JSONArray = JSONArray()
+    suspend fun attachProfile(request: JSONObject): String? = null
+    suspend fun backupRoom(record: JSONObject): Boolean = false
+    suspend fun endRoom(record: JSONObject): Boolean = false
+    suspend fun restoreRoom(record: JSONObject): JSONObject? = null
+
     /** Runs [block] against Atlas for [game]; true when Atlas applied it. */
     suspend fun act(game: Int, block: suspend TableControls.() -> Boolean): Boolean
 }
@@ -71,11 +77,14 @@ internal fun TableSummary.relayMatch() = "$atlasId/$bootId/$game"
  */
 internal fun atlasRelayAction(summary: TableSummary, player: Int, kind: String, value: Int, slot: Int, source: Int):
     (suspend TableControls.() -> Boolean)? {
-    val me = summary.players.firstOrNull { it.playerNumber == player } ?: return null
+    val me = summary.players.firstOrNull { it.playerNumber == if (kind.startsWith(PLANAR_KIND)) summary.activePlayerNumber else player } ?: return null
     if (summary.state != TableState.RUNNING && summary.state != TableState.PAUSED) return null
     val seat = TabletSeat(me.controller.id, me.slot)
     val simple = value == 0 && slot == 0 && source == 0
     return when {
+        kind.startsWith("planar-atlas:") && simple &&
+            kind.removePrefix("planar-atlas:").matches(Regex("(roll|effect):(blank|chaos|planeswalk)|(planeswalk|chaos|resolve)|counter:-?1")) ->
+            relay { control(seat, com.turnhub.android.data.PLANAR_PREFIX + kind.removePrefix("planar-atlas:")) }
         kind == "life" && slot == 0 && source == 0 && value != 0 && value in -10_000..10_000 -> relay { life(seat, value) }
         kind == "commander" && slot in 1..2 && summary.players.any { it.playerNumber == source } && value in listOf(-1, 1) ->
             relay { commander(seat, source, slot, value); true }
