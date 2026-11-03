@@ -30,7 +30,7 @@
 #include "../../../Sigil/include/received_packet.h"
 #include "../../../Sigil/include/display_name.h"
 
-namespace TurnHub { extern uint32_t fixturePairingWindowSaved; extern int fixtureSpeakerVolumeSaved; }
+namespace TurnHub { extern uint32_t fixturePairingWindowSaved; extern int fixtureSpeakerVolumeSaved; extern int fixturePowerSettingsSaved; }
 static TurnHubProtocol::TableDisplayPacket sentTableDisplays[8][2]{};
 bool TurnHub::SigilBus::sendTableDisplay(const TurnHubProtocol::TableDisplayPacket &p) {
   assert(TurnHubProtocol::validTableDisplay(p));
@@ -3001,6 +3001,7 @@ static void atlasScreens() {
   openMenuScreen(); tapButton(TouchAction::OpenDevice);
   assert(startsWith(currentScreen().detail,"TurnHub Atlas v"));
   // The speaker's volume is set at Atlas itself too, without an Admin sign-in.
+  tapButton(TouchAction::OpenPower);
   {
     const uint8_t before=audio.speakerVolume();
     tapButton(TouchAction::SpeakerVolume);
@@ -3009,6 +3010,7 @@ static void atlasScreens() {
         String("Volume: ")+TurnHub::speakerVolumeName(audio.speakerVolume()));
     while (audio.speakerVolume()!=before) tapButton(TouchAction::SpeakerVolume);
   }
+  tapButton(TouchAction::CloseScreen);
   fixtureBattery=TurnHub::BatteryReading();
   openMenuScreen(); tapButton(TouchAction::OpenQr); s=currentScreen();
   // The shipped default password is public, so its Wi-Fi code shows freely.
@@ -3728,6 +3730,26 @@ static void atlasSpeaker() {
   Intent forged; forged.type=IntentType::ConfigureSpeaker; forged.actor.origin=IntentOrigin::Browser;
   strncpy(forged.payload.moderatorId,playerId.c_str(),8); forged.payload.value=1;
   assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && audio.speakerVolume()==3);
+  // Screen and sleep over HTTP (power_settings.h): Admin only; indices
+  // checked; a storage failure changes nothing.
+  assert(request("/api/power",player,{},HTTP_GET)==403);
+  assert(request("/api/power",player,{{"autoSleep","2"}})==403);
+  powerSettings=TurnHub::PowerSettings(); powerSettings.screenOff=1; powerSettings.gameScreen=1; powerSettings.autoSleep=0;
+  assert(request("/api/power",admin,{},HTTP_GET)==200);
+  assert(server.body.find("\"autoSleep\":0")!=std::string::npos &&
+      server.body.find("\"screenOffChoices\":[\"Auto\",\"30 s\"")!=std::string::npos);
+  for (const char *bad : {"7","99","-1","x",""}) assert(request("/api/power",admin,{{"screenOff",bad}})==400);
+  assert(request("/api/power",admin,{{"gameScreen","3"}})==400 && powerSettings.gameScreen==1);
+  assert(request("/api/power",admin,{{"autoSleep","3"},{"gameScreen","2"}})==200);
+  assert(powerSettings.autoSleep==3 && powerSettings.gameScreen==2 && powerSettings.screenOff==1);
+  ProfileFixture::gameSettingsWritable=false;
+  assert(request("/api/power",admin,{{"autoSleep","1"}})==409 && powerSettings.autoSleep==3);
+  ProfileFixture::gameSettingsWritable=true;
+  Intent forgedPower; forgedPower.type=IntentType::ConfigurePower; forgedPower.actor.origin=IntentOrigin::Browser;
+  strncpy(forgedPower.payload.moderatorId,playerId.c_str(),8); forgedPower.payload.value=0;
+  assert(intents.dispatch(forgedPower).status==IntentStatus::Unauthorized && powerSettings.autoSleep==3);
+
+  powerSettings=TurnHub::PowerSettings(); TurnHub::fixturePowerSettingsSaved=-1;
 
   audio.setSpeaker(nullptr); audio.setSpeakerVolume(0); audio.clear(); enterEmptyLobby();
 }
@@ -4322,7 +4344,7 @@ static void autoSleepOnBattery() {
   resetPresence(); resetTouchControls();
   freshLobby(2); fixtureSleeps=0; fixtureOnBattery=false;
   fixtureBattery=TurnHub::BatteryReading(); fixtureBattery.present=true; fixtureBattery.percent=50;
-  const uint32_t idle=AtlasConfig::BATTERY_IDLE_SLEEP_MS;
+  const uint32_t idle=TurnHub::autoSleepIdleMs(powerSettings);
   serviceAutoSleep(testNow); testNow+=idle*2; serviceAutoSleep(testNow);
   assert(!sleepScheduled());
   // Unplugged: the idle count starts now, and any player action restarts it.
@@ -4359,6 +4381,49 @@ static void autoSleepOnBattery() {
   ++testNow; serviceAutoSleep(testNow); assert(sleepScheduled());
   serviceSleep(testNow+3000); assert(fixtureSleeps==3 && fixtureSleptEmpty);
   fixtureOnBattery=false; fixtureBattery=TurnHub::BatteryReading();
+  enterEmptyLobby(); resetTouchControls();
+}
+
+// Screen and sleep (owner 2026-11-03): chosen at the Atlas screen by anyone,
+// or by an Admin over HTTP; saved; Off stops idle sleep but not the empty cell.
+static void powerSettingsChoices() {
+  using namespace TurnHub;
+  PowerSettings s;  // Defaults keep the 2026-11-02 behavior.
+  assert(screenOffIdleMs(s,false,false)==120000 && screenOffIdleMs(s,true,false)==30000);
+  assert(screenOffIdleMs(s,false,true)==0 && screenOffIdleMs(s,true,true)==30000);
+  assert(autoSleepIdleMs(s)==5UL*60000UL);
+  s.gameScreen=1; assert(screenOffIdleMs(s,true,true)==0);
+  s.gameScreen=2; s.screenOff=4; assert(screenOffIdleMs(s,false,true)==300000);
+  s.screenOff=SCREEN_OFF_NEVER; assert(screenOffIdleMs(s,true,false)==0);
+  PowerSettings back; assert(unpackPowerSettings(packPowerSettings(s),back) && back==s);
+  assert(!unpackPowerSettings(7,back) && !unpackPowerSettings(3<<8,back) && !unpackPowerSettings(6<<16,back) &&
+      !unpackPowerSettings(-1,back) && !unpackPowerSettings(1<<24,back));
+
+  // The Atlas screen: Settings > Device > Sound, screen, sleep, each tap the next choice.
+  powerSettings=PowerSettings(); fixturePowerSettingsSaved=-1;
+  enterEmptyLobby(); resetTouchControls(); openMenuScreen(); tapButton(TouchAction::OpenDevice);
+  tapButton(TouchAction::OpenPower);
+  AtlasScreen screen=currentScreen();
+  assert(screen.kind==ScreenKind::Power);
+  assert(String(screenButton(screen,TouchAction::PowerScreenOff)->label)=="Screen off: Auto");
+  assert(String(screenButton(screen,TouchAction::PowerGameScreen)->label)=="Off in games: On battery");
+  assert(String(screenButton(screen,TouchAction::PowerAutoSleep)->label)=="Deep sleep: 5 min");
+  tapButton(TouchAction::PowerScreenOff); tapButton(TouchAction::PowerGameScreen);
+  for (int i=0;i<5;++i) tapButton(TouchAction::PowerAutoSleep);
+  assert(powerSettings.screenOff==1 && powerSettings.gameScreen==1 && powerSettings.autoSleep==0);
+  assert(fixturePowerSettingsSaved==packPowerSettings(powerSettings));
+  assert(String(screenButton(currentScreen(),TouchAction::PowerAutoSleep)->label)=="Deep sleep: Off");
+  for (const TouchButton &b : currentScreen().buttons) if (b.action!=TouchAction::None)
+    assert(b.w>=44 && b.h>=44 && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
+  tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Device);
+
+  // Off: idle never sleeps Atlas on the cell.
+  fixtureOnBattery=true; fixtureBattery=BatteryReading(); fixtureBattery.present=true; fixtureBattery.percent=50;
+  fixtureSleeps=0; serviceAutoSleep(testNow); testNow+=2UL*60UL*60000UL; serviceAutoSleep(testNow);
+  assert(!sleepScheduled());
+  fixtureOnBattery=false; fixtureBattery=BatteryReading(); serviceAutoSleep(testNow);
+
+  powerSettings=PowerSettings(); fixturePowerSettingsSaved=-1;
   enterEmptyLobby(); resetTouchControls();
 }
 
@@ -6604,6 +6669,7 @@ int main() {
   touchThemeChoices(); std::cout<<"PASS theme picker: four independent choices, selected state, targets, Back and no game mutation" << std::endl;
   touchDeviceSleep(); std::cout<<"PASS touchscreen Device screen: Sleep (a tap, between games, touchscreen only)" << std::endl;
   autoSleepOnBattery(); std::cout<<"PASS auto sleep on the cell: idle between games, empty at any time" << std::endl;
+  powerSettingsChoices(); std::cout<<"PASS screen and sleep settings: Atlas screen and Admin HTTP" << std::endl;
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   helloCapabilityLayout(); std::cout<<"PASS Hello capability layout and firmware version fields\n";
   firstRunSetup(); std::cout<<"PASS first-run setup: boot stage, Welcome and Skip, account, table code, private Wi-Fi password, finish, all set, Pair a Sigil\n";

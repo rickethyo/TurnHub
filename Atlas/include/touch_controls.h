@@ -95,6 +95,9 @@ enum class TouchAction : uint8_t {
   // ...and USB drive (a tap) lends the microSD card to a computer on USB-C,
   // or takes it back (sd_card.h).
   UsbDrive,
+  // Settings > Device > Sound, screen, sleep (with the volume): each tap moves its row to the next
+  // choice (ConfigurePower, power_settings.h).
+  OpenPower, PowerScreenOff, PowerGameScreen, PowerAutoSleep,
   // Settings > Home Wi-Fi: a tap turns the optional home network check-ins
   // on or off (home_wifi.h); the network itself is set in the portal or app.
   HomeWifi,
@@ -144,7 +147,7 @@ enum class TouchAction : uint8_t {
 // Confirm: the popup asking before a hazardous action.
 // NewGame: the lobby's game setup before Start game.
 // ManaTap: the mini game, opened from Home.
-enum class ScreenKind : uint8_t { Home, Overview, Status, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Themes, Seat, Name, Pin, Confirm, NewGame, ManaTap, Planes, PlaneCard };
+enum class ScreenKind : uint8_t { Home, Overview, Status, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Power, Themes, Seat, Name, Pin, Confirm, NewGame, ManaTap, Planes, PlaneCard };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;

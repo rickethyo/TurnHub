@@ -41,6 +41,7 @@
 #include "led_renderer.h"
 #include "lobby.h"
 #include "ota_manager.h"
+#include "power_settings.h"
 #include "protocol.h"
 #include "setup_stage.h"
 #include "sigil_bus.h"
@@ -98,6 +99,9 @@ extern bool gameSettingsAvailable;
 extern bool espNowReady;
 // Atlas's pairing window; admins choose it (pairing_settings.h).
 extern uint32_t pairingWindowMs;
+// Screen off and auto sleep (power_settings.h); changed only by
+// handleConfigurePowerIntent.
+extern TurnHub::PowerSettings powerSettings;
 // How far this Atlas is through first-run setup (setup_stage.h). Loaded at
 // boot by beginFirstRunSetup(); changed only by handleAdvanceSetupIntent.
 extern TurnHub::SetupStage setupStage;
@@ -304,6 +308,7 @@ IntentResult handleForgetPairingIntent(const Intent &intent, void *);
 IntentResult handlePairConfirmIntent(const Intent &intent, void *);
 IntentResult handleConfigurePairingIntent(const Intent &intent, void *);
 IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *);
+IntentResult handleConfigurePowerIntent(const Intent &intent, void *);
 IntentResult handleConfigureUploadApprovalIntent(const Intent &intent, void *);
 IntentResult handleConfigureTableCodeIntent(const Intent &intent, void *);
 IntentResult handleResetTableIntent(const Intent &intent, void *);
@@ -328,8 +333,8 @@ bool sleepScheduled();
 constexpr int32_t SLEEP_REASON_MENU = 0;
 constexpr int32_t SLEEP_REASON_IDLE = 1;
 constexpr int32_t SLEEP_REASON_EMPTY = 2;
-// On the cell only: dispatches Sleep after AtlasConfig::BATTERY_IDLE_SLEEP_MS
-// with no player action between games, or once the charge has read empty for
+// On the cell only: dispatches Sleep after the auto-sleep choice
+// (power_settings.h; Off never) with no player action between games, or once the charge has read empty for
 // BATTERY_EMPTY_CONFIRM_MS. Called from loop().
 void serviceAutoSleep(uint32_t nowMs);
 // A player did something (a non-System Intent, or a touch): restarts the idle

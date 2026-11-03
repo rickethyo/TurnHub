@@ -1187,6 +1187,29 @@ IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *) {
   return IntentResult::accept("Speaker volume saved");
 }
 
+// Payload: value = packed power choices (packPowerSettings). Like the
+// speaker volume, anyone at the Atlas screen may change them; remotely they
+// are Admin's.
+IntentResult handleConfigurePowerIntent(const Intent &intent, void *) {
+  if (intent.actor.origin != IntentOrigin::AtlasHardware && !adminIntent(intent)) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
+  }
+  TurnHub::PowerSettings settings;
+  if (!TurnHub::unpackPowerSettings(intent.payload.value, settings)) {
+    return IntentResult::reject(IntentStatus::Rejected, "Unknown screen or sleep choice");
+  }
+  if (TurnHub::savePowerSettings(settings) != TurnHubStorage::Status::Ok) {
+    return IntentResult::reject(IntentStatus::Rejected, "Screen and sleep settings could not be saved");
+  }
+  powerSettings = settings;
+  char line[96];
+  snprintf(line, sizeof(line), "ATLAS|POWER|SCREEN_OFF|%s|IN_GAMES|%s|AUTO_SLEEP|%s",
+      TurnHub::SCREEN_OFF_CHOICES[settings.screenOff], TurnHub::GAME_SCREEN_CHOICES[settings.gameScreen],
+      TurnHub::AUTO_SLEEP_CHOICES[settings.autoSleep]);
+  serialLog.println(line);
+  return IntentResult::accept("Screen and sleep saved");
+}
+
 // Payload: value = 1 to require a table presence code for protected device
 // actions, 0 to stop. Turning it off while it is on takes a code the Admin
 // actually entered, so a remote Admin cannot drop the extra step.
@@ -1499,7 +1522,13 @@ void serviceAutoSleep(uint32_t nowMs) {
   } else {
     emptySeen = emergencySeen = false;
   }
-  if (nowMs - lastActivityMs < AtlasConfig::BATTERY_IDLE_SLEEP_MS) return;
+  // Auto sleep off (power_settings.h): only the empty cell sleeps Atlas.
+  const uint32_t idleMs = TurnHub::autoSleepIdleMs(powerSettings);
+  if (idleMs == 0) {
+    lastActivityMs = nowMs;
+    return;
+  }
+  if (nowMs - lastActivityMs < idleMs) return;
   // A full idle wait again before the next try, whatever happens now.
   lastActivityMs = nowMs;
   if (pairingActive || !allTablesBetweenGames()) return;

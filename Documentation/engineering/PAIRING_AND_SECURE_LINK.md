@@ -97,8 +97,10 @@ and NeoPixels still draw a few mA, so this is not a battery "off".
 Sigil sleeps after 10 minutes with no key, joystick or Pair press outside a
 game (Ready, the lobby, game over), or after 3 minutes when Atlas is lost or
 the Sigil is unpaired; never mid-game, while pairing or during an update
-(`idle_sleep.h`). Atlas sleeps by itself only on its battery (HARDWARE.md,
-"Auto sleep on battery"); its Sigils then see Atlas lost and follow. The
+(`idle_sleep.h`). Atlas sleeps by itself only on its battery, after 5 minutes
+between games by default; Settings > Device > Sound, screen, sleep (or the app)
+sets 5 to 60 minutes or Off (`power_settings.h`, 2026-11-03). Its Sigils then
+see Atlas lost and follow. The
 Atlas-managed light sleep is in [Planned Designs](PLANNED_DESIGNS.md).
 
 ## The Secure Link

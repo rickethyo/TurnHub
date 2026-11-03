@@ -82,6 +82,7 @@ TableScope::~TableScope() { currentTable = previous_; }
 bool gameSettingsAvailable = true;
 bool espNowReady = false;
 uint32_t pairingWindowMs = TurnHub::DEFAULT_PAIRING_WINDOW_MS;
+TurnHub::PowerSettings powerSettings;
 TurnHub::SetupStage setupStage = TurnHub::SetupStage::Complete;
 
 namespace {
@@ -361,6 +362,7 @@ bool configureIntentHandlers() {
       {IntentType::PairConfirm, handlePairConfirmIntent},
       {IntentType::ConfigurePairing, handleConfigurePairingIntent},
       {IntentType::ConfigureSpeaker, handleConfigureSpeakerIntent},
+      {IntentType::ConfigurePower, handleConfigurePowerIntent},
       {IntentType::ConfigureUploadApproval, handleConfigureUploadApprovalIntent},
       {IntentType::ConfigureTableCode, handleConfigureTableCodeIntent},
       {IntentType::ResetTable, handleResetTableIntent},
@@ -611,6 +613,15 @@ void setup() {
       speakerStatus != TurnHubStorage::Status::NotFound) {
     speakerVolume = TurnHub::DEFAULT_SPEAKER_VOLUME;
     serialLog.println("ATLAS|SPEAKER|VOLUME|STORAGE_ERROR");
+  }
+  // Screen off and auto sleep; a missing or unreadable record keeps the
+  // defaults (power_settings.h).
+  TurnHub::PowerSettings power;
+  const auto powerStatus = TurnHub::loadPowerSettings(power);
+  if (powerStatus == TurnHubStorage::Status::Ok) {
+    powerSettings = power;
+  } else if (powerStatus != TurnHubStorage::Status::NotFound) {
+    serialLog.println("ATLAS|POWER|STORAGE_ERROR");
   }
   // The table code is an optional extra step; a missing or unreadable
   // setting keeps it off.

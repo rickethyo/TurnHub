@@ -388,6 +388,13 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   current and power-bank behavior (H03). Product transport, battery/charging
   and manufacturing choices remain in Production decisions below.
 
+- **Sigil screen-off choice** (Planned, owner 2026-11-03): Atlas's screen and
+  sleep settings (`power_settings.h`) don't reach Sigils, which keep a fixed
+  2 min screen off outside a match. Carry a screen-off choice to Sigils over
+  the radio (a `protocol.h` change, reflash both) or give the Sigil its own
+  Settings row. The phone app keeps the screen awake in tablet mode; a matching
+  choice there is the app's counterpart.
+
 - **Mana Tap champion on Atlas** (Planned, owner idea 2026-10-30): Atlas could
   show a "Mana Tap champ" line between games. Needs the Sigils to report best
   scores over the radio (a `protocol.h` change, so Atlas and Sigils reflash

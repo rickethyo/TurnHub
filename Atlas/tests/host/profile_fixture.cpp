@@ -6,6 +6,7 @@
 #include "account_access.h"
 #include "game_settings_store.h"
 #include "pairing_settings.h"
+#include "power_settings.h"
 #include "setup_stage.h"
 #include "speaker_settings.h"
 #include "table_code_setting.h"
@@ -43,6 +44,15 @@ TurnHubStorage::Status loadSpeakerVolume(uint8_t &volume) {
 TurnHubStorage::Status saveSpeakerVolume(uint8_t volume) {
   if (!ProfileFixture::gameSettingsWritable) return TurnHubStorage::Status::IoError;
   fixtureSpeakerVolumeSaved=volume;return TurnHubStorage::Status::Ok;
+}
+int fixturePowerSettingsSaved=-1;
+TurnHubStorage::Status loadPowerSettings(PowerSettings &settings) {
+  if (fixturePowerSettingsSaved<0) return TurnHubStorage::Status::NotFound;
+  return unpackPowerSettings(fixturePowerSettingsSaved,settings)?TurnHubStorage::Status::Ok:TurnHubStorage::Status::Corrupt;
+}
+TurnHubStorage::Status savePowerSettings(const PowerSettings &settings) {
+  if (!ProfileFixture::gameSettingsWritable) return TurnHubStorage::Status::IoError;
+  fixturePowerSettingsSaved=packPowerSettings(settings);return TurnHubStorage::Status::Ok;
 }
 TurnHubStorage::Status loadUploadApprovalRequired(bool &) { return TurnHubStorage::Status::NotFound; }
 TurnHubStorage::Status saveUploadApprovalRequired(bool) {

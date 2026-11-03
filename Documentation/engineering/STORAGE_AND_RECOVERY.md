@@ -53,6 +53,7 @@ prefix plus the profile ID.
 | Next-game settings (format, starting life, turn timer) | `gamecfg` | `game_settings_store.h` |
 | Pairing window | `pairwin` | `pairing_settings.h` |
 | Speaker volume | `spkvol` | `speaker_settings.h` |
+| Screen and sleep | `power` | `power_settings.h` |
 | First-run setup stage | `setup` | `setup_stage.h` |
 | Atlas Wi-Fi password | `atlas-net/ap-pass` | `web_admin_api.cpp` |
 | Home Wi-Fi on/off, network name and password ([Home Wi-Fi](HOME_WIFI.md)) | `atlas-net/home-on`, `home-ssid`, `home-pass` | `home_wifi_link.cpp` |

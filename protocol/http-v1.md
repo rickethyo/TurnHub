@@ -243,6 +243,13 @@ Session-token authenticated; other accounts get 403.
   "choicesMs":[15000,30000,60000]}`: Atlas's pairing window, the Sigil's fixed
   window and the allowed choices. `POST /api/pairing` with `windowMs` saves one
   of the choices (anything else: 409, nothing stored).
+- `GET /api/power` returns `{"screenOff":0,"screenOffChoices":["Auto","30 s",
+  ...],"gameScreen":0,"gameScreenChoices":["On battery","No","Yes"],
+  "autoSleep":1,"autoSleepChoices":["Off","5 min",...]}`: Atlas's screen-off
+  timer, whether the screen may go off during a match, and deep sleep on
+  battery, each an index into its labels. `POST /api/power` with any of
+  `screenOff`, `gameScreen`, `autoSleep` (indices; omitted fields keep their
+  value) saves them: 400 for an unknown index, 409 when saving fails.
 
 ## People: accounts, roles and moderation
 

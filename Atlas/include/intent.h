@@ -79,6 +79,9 @@ enum class IntentType : uint8_t {
   ConfigurePairing,
   // Admin: payload.value = Atlas speaker volume, 0 (off) to 3 (high).
   ConfigureSpeaker,
+  // At the Atlas screen, or Admin: payload.value = packed screen-off,
+  // screen-in-games and auto-sleep choices (power_settings.h).
+  ConfigurePower,
   // Admin verified at the table (presence code): return the table
   // to an empty lobby, ending a match in progress as a draw first.
   ResetTable,
@@ -301,6 +304,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::EndMatch: return "END_MATCH";
     case IntentType::ConfigurePairing: return "CONFIGURE_PAIRING";
     case IntentType::ConfigureSpeaker: return "CONFIGURE_SPEAKER";
+    case IntentType::ConfigurePower: return "CONFIGURE_POWER";
     case IntentType::ConfigureUploadApproval: return "CONFIGURE_UPLOAD_APPROVAL";
     case IntentType::ConfigureTableCode: return "CONFIGURE_TABLE_CODE";
     case IntentType::ResetTable: return "RESET_TABLE";

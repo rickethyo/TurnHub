@@ -271,7 +271,8 @@ ScreenKind baseScreen(uint32_t nowMs) {
   // once that player is out.
   PlayerSeat shown;
   if (openScreen == ScreenKind::Player && !currentShownSeat(shown)) openScreen = ScreenKind::Status;
-  if ((openScreen == ScreenKind::Menu || openScreen == ScreenKind::Device || openScreen == ScreenKind::Themes) && !menuAvailable()) {
+  if ((openScreen == ScreenKind::Menu || openScreen == ScreenKind::Device || openScreen == ScreenKind::Power ||
+       openScreen == ScreenKind::Themes) && !menuAvailable()) {
     openScreen = ScreenKind::Status;
   }
   const bool lobbyOnly = openScreen == ScreenKind::Seat || openScreen == ScreenKind::Name ||
@@ -324,11 +325,9 @@ void layoutMenu(AtlasScreen &screen) {
 // stand in for the BOOT button's held gestures.
 void layoutDevice(AtlasScreen &screen) {
   const bool usbWanted = sdCardUsbShareWanted();
-  static char volume[32];
-  snprintf(volume, sizeof(volume), "Volume: %s", TurnHub::speakerVolumeName(audio.speakerVolume()));
   ButtonSpec rows[5];
   uint8_t n = 0;
-  rows[n++] = {TouchAction::SpeakerVolume, volume, 0, 1};
+  rows[n++] = {TouchAction::OpenPower, "Sound, screen, sleep", 0, 1};
   rows[n++] = {TouchAction::UsbDrive, usbWanted ? "USB drive: on" : "USB drive: off", 0, 1};
   if (!matchInProgress()) rows[n++] = {TouchAction::SleepAtlas, "Sleep", 0, 1};
   if (table().hubState == HubState::Lobby) rows[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", ASK, 1};
@@ -337,6 +336,21 @@ void layoutDevice(AtlasScreen &screen) {
   for (uint8_t i = 0; i < screen.buttonCount; ++i) {
     if (screen.buttons[i].action == TouchAction::UsbDrive) screen.buttons[i].selected = usbWanted;
   }
+  const ButtonSpec back[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
+  addRow(screen, BUTTON_ROW_Y, back, 1);
+}
+
+// Settings > Device > Sound, screen, sleep: the speaker volume and the three
+// power rows, each tap the next choice, then Back to Device.
+void layoutPower(AtlasScreen &screen) {
+  static char volume[32], screenOff[32], inGames[32], autoSleep[32];
+  snprintf(volume, sizeof(volume), "Volume: %s", TurnHub::speakerVolumeName(audio.speakerVolume()));
+  snprintf(screenOff, sizeof(screenOff), "Screen off: %s", TurnHub::SCREEN_OFF_CHOICES[powerSettings.screenOff]);
+  snprintf(inGames, sizeof(inGames), "Off in games: %s", TurnHub::GAME_SCREEN_CHOICES[powerSettings.gameScreen]);
+  snprintf(autoSleep, sizeof(autoSleep), "Deep sleep: %s", TurnHub::AUTO_SLEEP_CHOICES[powerSettings.autoSleep]);
+  const ButtonSpec rows[] = {{TouchAction::SpeakerVolume, volume, 0, 1}, {TouchAction::PowerScreenOff, screenOff, 0, 1},
+      {TouchAction::PowerGameScreen, inGames, 0, 1}, {TouchAction::PowerAutoSleep, autoSleep, 0, 1}};
+  addList(screen, rows, 4);
   const ButtonSpec back[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
   addRow(screen, BUTTON_ROW_Y, back, 1);
 }
@@ -703,6 +717,7 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     case ScreenKind::Device:
       layoutDevice(screen);
       return;
+    case ScreenKind::Power: layoutPower(screen); return;
     case ScreenKind::Player:
       layoutPlayer(screen);
       return;
@@ -888,6 +903,10 @@ const char *actionName(TouchAction action) {
     case TouchAction::UnpairSigils: return "UNPAIR_SIGILS";
     case TouchAction::FactoryResetAtlas: return "FACTORY_RESET_ATLAS";
     case TouchAction::SleepAtlas: return "SLEEP_ATLAS";
+    case TouchAction::OpenPower: return "OPEN_POWER";
+    case TouchAction::PowerScreenOff: return "POWER_SCREEN_OFF";
+    case TouchAction::PowerGameScreen: return "POWER_GAME_SCREEN";
+    case TouchAction::PowerAutoSleep: return "POWER_AUTO_SLEEP";
     case TouchAction::OpenSeat: return "OPEN_SEAT";
     case TouchAction::SeatProfile: return "SEAT_PROFILE";
     case TouchAction::SeatMore: return "SEAT_MORE";
@@ -1045,6 +1064,7 @@ bool navigate(TouchAction action) {
       return true;
     }
     case TouchAction::OpenDevice: openScreen = ScreenKind::Device; return true;
+    case TouchAction::OpenPower: openScreen = ScreenKind::Power; return true;
     case TouchAction::OpenPlayer:
       openScreen = ScreenKind::Player;
       shownSeat = pressedSeat;
@@ -1080,6 +1100,10 @@ bool navigate(TouchAction action) {
       if (openScreen == ScreenKind::Name || openScreen == ScreenKind::Pin) {
         typedPin[0] = '\0';
         openSeatScreen(seatPage);
+        return true;
+      }
+      if (openScreen == ScreenKind::Power && menuAvailable()) {
+        openScreen = ScreenKind::Device;
         return true;
       }
       const bool fromMenuScreen = openScreen == ScreenKind::Qr || openScreen == ScreenKind::Device ||
@@ -1397,6 +1421,20 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       intent.actor.controllerId = seat.controllerId;
       intent.actor.slot = seat.slot;
       intent.payload.value = next;
+      result = intents.dispatch(intent);
+      break;
+    }
+    case TouchAction::PowerScreenOff:
+    case TouchAction::PowerGameScreen:
+    case TouchAction::PowerAutoSleep: {
+      TurnHub::PowerSettings next = powerSettings;
+      if (action == TouchAction::PowerScreenOff) next.screenOff = (next.screenOff + 1) % TurnHub::SCREEN_OFF_CHOICE_COUNT;
+      else if (action == TouchAction::PowerGameScreen) next.gameScreen = (next.gameScreen + 1) % TurnHub::GAME_SCREEN_CHOICE_COUNT;
+      else next.autoSleep = (next.autoSleep + 1) % TurnHub::AUTO_SLEEP_CHOICE_COUNT;
+      Intent intent;
+      intent.type = IntentType::ConfigurePower;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
+      intent.payload.value = TurnHub::packPowerSettings(next);
       result = intents.dispatch(intent);
       break;
     }
@@ -2256,6 +2294,11 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
       snprintf(screen.detail, sizeof(screen.detail), "Choose the look for this Atlas");
       break;
     case ScreenKind::Device: formatDevice(screen); break;
+    case ScreenKind::Power:
+      snprintf(screen.badge, sizeof(screen.badge), "POWER");
+      snprintf(screen.title, sizeof(screen.title), "Sound, screen, sleep");
+      snprintf(screen.detail, sizeof(screen.detail), "Deep sleep runs on battery only");
+      break;
     case ScreenKind::Player: formatPlayer(screen, nowMs); break;
     case ScreenKind::Setup: formatSetup(screen, nowMs); break;
     case ScreenKind::Seat:

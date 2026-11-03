@@ -808,9 +808,9 @@ There is no shut-down command. End or pause the game, disconnect Atlas's power, 
 
 Atlas's small battery keeps the game, radio and portal alive when USB is pulled; keep USB connected for normal play.
 
-- The screen turns off when nobody has touched it and nothing new has happened for a while: after two minutes on USB, between games only, or after 30 seconds on battery, even during a game. Atlas keeps running. A touch lights it again, and that first touch does not press anything; a turn passing or a phone joining lights it too.
+- The screen turns off when nobody has touched it and nothing new has happened for a while: by default after two minutes on USB, between games only, or after 30 seconds on battery, even during a game. Atlas keeps running. A touch lights it again, and that first touch does not press anything; a turn passing or a phone joining lights it too. Choose the timing under Settings > Device > Sound, screen, sleep on Atlas, or in the app’s Device Settings (Admin): Screen off (Auto, 30 s, 1, 2, 5 or 10 min, or Never) and Off in games (On battery, No or Yes).
 
-- Between games, five minutes without player activity on battery puts Atlas to sleep.
+- Between games on battery, Atlas goes into deep sleep after five minutes without player activity. Deep sleep (same place) can be set to 5, 10, 15, 30 or 60 minutes, or Off. A flat battery still puts Atlas to sleep, whatever the setting.
 
 - The header shows an estimated charge, and a lightning bolt on USB. Both are estimates, not measurements, and may be unavailable for about five seconds after start-up.
 

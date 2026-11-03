@@ -127,7 +127,7 @@ uint32_t lastTouchPollMs = 0;
 uint32_t lastScreenPollMs = 0;
 uint32_t lastTouchedAtMs = 0;
 bool touchLogged = false;
-// Screen off (AtlasConfig::SCREEN_OFF_IDLE_MS): the backlight only.
+// Screen off (power_settings.h): the backlight only.
 bool screenDark = false;
 bool swallowTouch = false;  // The touch that lit the screen, until released.
 uint32_t screenActiveAtMs = 0;
@@ -151,13 +151,13 @@ void lightScreen(uint32_t nowMs) {
 
 void serviceScreenOff(uint32_t nowMs) {
   if (screenDark || splashUp) return;
-  const bool battery = atlasOnBattery();
-  // On USB a running match keeps the clock in view.
-  if (!battery && !allTablesBetweenGames()) {
+  // Settings > Device > Sound, screen, sleep (power_settings.h); 0 keeps it on,
+  // by default during a match on USB so the clock stays in view.
+  const uint32_t idleMs = TurnHub::screenOffIdleMs(powerSettings, atlasOnBattery(), !allTablesBetweenGames());
+  if (idleMs == 0) {
     screenActiveAtMs = nowMs;
     return;
   }
-  const uint32_t idleMs = battery ? AtlasConfig::BATTERY_SCREEN_OFF_IDLE_MS : AtlasConfig::SCREEN_OFF_IDLE_MS;
   if (nowMs - screenActiveAtMs < idleMs) return;
   screenDark = true;
   tft.setBrightness(0);

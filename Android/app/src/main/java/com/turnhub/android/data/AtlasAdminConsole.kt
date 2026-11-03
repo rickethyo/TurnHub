@@ -94,6 +94,19 @@ data class AccountInfo(
 /** A Sigil waiting for an Admin to compare its pairing code (`pendingPairings` in `/api/devices`). */
 data class PendingPairing(val id: Int, val code: String, val secondsLeft: Int)
 
+/**
+ * Atlas screen and sleep (`/api/power`): each value is an index into its
+ * choice labels, which Atlas sends so the app shows them as they are.
+ */
+data class PowerSettings(
+    val screenOff: Int,
+    val screenOffChoices: List<String>,
+    val gameScreen: Int,
+    val gameScreenChoices: List<String>,
+    val autoSleep: Int,
+    val autoSleepChoices: List<String>,
+)
+
 data class ActivityEvent(val ageMs: Long, val kind: String, val message: String)
 
 /**
@@ -109,6 +122,7 @@ data class AdminState(
     val pairingWindowMs: Long? = null,
     val pairingChoicesMs: List<Long> = emptyList(),
     val speakerVolume: Int? = null,
+    val power: PowerSettings? = null,
     val accounts: List<AccountInfo> = emptyList(),
     /** Developer: the activity feed and raw JSON panels. */
     val activity: List<ActivityEvent> = emptyList(),
@@ -186,6 +200,20 @@ class AtlasAdminConsole(
                 }
             }
             get("/api/speaker")?.let { d -> _state.update { it.copy(speakerVolume = d.optInt("volume")) } }
+            get("/api/power")?.let { d ->
+                _state.update {
+                    it.copy(
+                        power = PowerSettings(
+                            screenOff = d.optInt("screenOff"),
+                            screenOffChoices = d.optJSONArray("screenOffChoices").strings(),
+                            gameScreen = d.optInt("gameScreen"),
+                            gameScreenChoices = d.optJSONArray("gameScreenChoices").strings(),
+                            autoSleep = d.optInt("autoSleep"),
+                            autoSleepChoices = d.optJSONArray("autoSleepChoices").strings(),
+                        ),
+                    )
+                }
+            }
         }
         if (admin || gameMaster) {
             get("/api/accounts")?.let { d ->
@@ -422,14 +450,25 @@ class AtlasAdminConsole(
     suspend fun saveSpeakerVolume(volume: Int) =
         post("/api/speaker", listOf("volume" to volume.toString()), success = "Speaker volume saved.")
 
-    /** The Table and Atlas card's one Save: pairing window, then speaker volume; stops at the first refusal. */
-    suspend fun saveTableSettings(pairingWindowMs: Long?, speakerVolume: Int?) {
+    /** The Table and Atlas card's one Save: pairing window, speaker volume, then screen and sleep; stops at the first refusal. */
+    suspend fun saveTableSettings(pairingWindowMs: Long?, speakerVolume: Int?, power: PowerSettings? = null) {
         if (pairingWindowMs != null) {
             val response = send("/api/pairing", listOf("windowMs" to pairingWindowMs.toString())) ?: return
             if (!response.ok) return finish(response, "")
         }
         if (speakerVolume != null) {
             val response = send("/api/speaker", listOf("volume" to speakerVolume.toString())) ?: return
+            if (!response.ok) return finish(response, "")
+        }
+        if (power != null) {
+            val response = send(
+                "/api/power",
+                listOf(
+                    "screenOff" to power.screenOff.toString(),
+                    "gameScreen" to power.gameScreen.toString(),
+                    "autoSleep" to power.autoSleep.toString(),
+                ),
+            ) ?: return
             if (!response.ok) return finish(response, "")
         }
         _state.update { it.copy(message = ActionFeedback("Atlas settings saved.", isError = false)) }
@@ -579,6 +618,9 @@ class AtlasAdminConsole(
 
     private fun JSONArray?.objects(): List<JSONObject> =
         if (this == null) emptyList() else List(length()) { optJSONObject(it) }.filterNotNull()
+
+    private fun JSONArray?.strings(): List<String> =
+        if (this == null) emptyList() else List(length()) { optString(it) }
 
     private fun JSONArray?.longs(): List<Long> =
         if (this == null) emptyList() else List(length()) { optLong(it) }

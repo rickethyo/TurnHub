@@ -249,7 +249,8 @@ TurnHubWebApi::PresenceHooks presenceHooks() {
 bool manageDevices(const String &actor, IntentType type, int32_t value, String &message) {
   if (actor.length() != 8 ||
       (type != IntentType::ForgetPairing && type != IntentType::ConfigurePairing &&
-       type != IntentType::ConfigureSpeaker && type != IntentType::ConfigureTableCode &&
+       type != IntentType::ConfigureSpeaker && type != IntentType::ConfigurePower &&
+       type != IntentType::ConfigureTableCode &&
        type != IntentType::ConfigureUploadApproval &&
        type != IntentType::ResetTable &&
        type != IntentType::FactoryReset && type != IntentType::PairConfirm && type != IntentType::UpdateSigil &&

@@ -311,6 +311,68 @@ void handleSaveSpeakerSettings(WebServer &server) {
   sendOkMessage(server, message);
 }
 
+namespace {
+void appendChoices(String &json, const char *key, uint8_t value, const char *const *choices, uint8_t count) {
+  json += '"'; json += key; json += "\":"; json += String(value);
+  json += ",\""; json += key; json += "Choices\":[";
+  for (uint8_t i = 0; i < count; ++i) {
+    if (i) json += ',';
+    json += '"'; json += choices[i]; json += '"';
+  }
+  json += ']';
+}
+// A form field holding a choice index, or -1 when missing or not a number.
+int formIndex(WebServer &server, const char *name) {
+  const String v = server.arg(name);
+  if (v.length() == 0 || v.length() > 2) return -1;
+  for (size_t i = 0; i < v.length(); ++i) if (v[i] < '0' || v[i] > '9') return -1;
+  return v.toInt();
+}
+}  // namespace
+
+// Screen and sleep (power_settings.h). Admin only remotely; each value is an
+// index into its Choices list, which the app shows as is.
+void handlePowerSettings(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  const TurnHub::PowerSettings &s = TurnHubAtlas::powerSettings;
+  String json = "{";
+  appendChoices(json, "screenOff", s.screenOff, TurnHub::SCREEN_OFF_CHOICES, TurnHub::SCREEN_OFF_CHOICE_COUNT);
+  json += ',';
+  appendChoices(json, "gameScreen", s.gameScreen, TurnHub::GAME_SCREEN_CHOICES, TurnHub::GAME_SCREEN_CHOICE_COUNT);
+  json += ',';
+  appendChoices(json, "autoSleep", s.autoSleep, TurnHub::AUTO_SLEEP_CHOICES, TurnHub::AUTO_SLEEP_CHOICE_COUNT);
+  json += '}';
+  sendJson(server, 200, json);
+}
+
+// Fields left out keep their saved choice.
+void handleSavePowerSettings(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  TurnHub::PowerSettings next = TurnHubAtlas::powerSettings;
+  const char *names[] = {"screenOff", "gameScreen", "autoSleep"};
+  uint8_t *fields[] = {&next.screenOff, &next.gameScreen, &next.autoSleep};
+  for (uint8_t i = 0; i < 3; ++i) {
+    if (!server.hasArg(names[i])) continue;
+    const int value = formIndex(server, names[i]);
+    if (value < 0 || value > 255) {
+      sendError(server, 400, String(names[i]) + " must be a choice index");
+      return;
+    }
+    *fields[i] = static_cast<uint8_t>(value);
+  }
+  if (!TurnHub::validPowerSettings(next)) {
+    sendError(server, 400, "Unknown screen or sleep choice");
+    return;
+  }
+  String message = "Device management unavailable";
+  if (!deviceHandler || !deviceHandler(sessionForRequest(server)->profileId,
+          TurnHub::IntentType::ConfigurePower, TurnHub::packPowerSettings(next), message)) {
+    sendError(server, 409, message);
+    return;
+  }
+  sendOkMessage(server, message);
+}
+
 void handleUploadApprovalSettings(WebServer &server) {
   if (!requirePermission(server, TurnHubAccounts::Admin)) return;
   sendJson(server, 200, String("{\"required\":") + jsonBool(TurnHubAtlas::uploadApprovalRequired) + "}");
