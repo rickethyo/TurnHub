@@ -253,40 +253,53 @@ class AtlasTablet(
      * Sends the app's downloaded planes for Atlas's digital Planechase deck when Atlas's
      * catalog differs (first connection, or after the app downloads newer planes).
      */
-    suspend fun syncPlanes(cards: List<com.turnhub.android.data.PlaneInfo>) {
+    suspend fun syncPlanes(cards: List<com.turnhub.android.data.PlaneInfo>, progress: (String) -> Unit = {}) {
         if (cards.isEmpty()) return
         val version = "${cards.size}-" + Integer.toHexString(cards.map { it.id }.sorted().hashCode())
         try {
             val info = session.raw("GET", "/api/planes") ?: return
             if (info.ok && org.json.JSONObject(info.body).optString("version") == version) return
+            progress("Sending ${minOf(cards.size, 192)} planes to Atlas…")
             val lines = cards.take(192).joinToString("\n") { card ->
                 val name = card.name.map { if (it.code in 32..126) it else '?' }.joinToString("").take(40)
                 "${card.id}\t$name\t${if (card.card.phenomenon) 1 else 0}"
             }
-            session.raw("POST", "/api/planes", listOf("version" to version, "planes" to lines))
-        } catch (e: CancellationException) { throw e } catch (_: Exception) { /* Next connection tries again. */ }
+            val sent = session.raw("POST", "/api/planes", listOf("version" to version, "planes" to lines))
+            progress(if (sent?.ok == true) "Atlas has the ${minOf(cards.size, 192)} planes." else "Atlas didn't take the planes. Try Send planes to Atlas.")
+        } catch (e: CancellationException) { throw e } catch (_: Exception) { progress("Couldn't reach Atlas to send the planes.") }
     }
 
     /**
      * Sends Atlas the card view's text and art for each catalog plane it lacks art for
-     * (after [syncPlanes]). One request per plane; stops at the first refusal (no microSD
-     * card, or the catalog changed) and tries again on the next connection.
+     * (after [syncPlanes]), or for every plane when [all] (the manual Send planes to Atlas).
+     * One request per plane, numbered so the Atlas screen shows the same progress; stops at
+     * the first refusal (no microSD card, or the catalog changed). [progress] gets each step
+     * in words for the app's screen.
      */
-    suspend fun syncPlaneCards(cards: List<com.turnhub.android.data.PlaneInfo>, art: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray?) {
+    suspend fun syncPlaneCards(cards: List<com.turnhub.android.data.PlaneInfo>, all: Boolean = false,
+        progress: (String) -> Unit = {}, art: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray?) {
         try {
-            val info = session.raw("GET", "/api/planes") ?: return
-            if (!info.ok) return
-            val withArt = org.json.JSONObject(info.body).optJSONArray("art")?.let { list -> (0 until list.length()).map { list.getString(it) }.toSet() }.orEmpty()
-            for (card in cards.take(192)) {
-                if (card.id in withArt) continue
+            val info = session.raw("GET", "/api/planes") ?: return progress("Couldn't reach Atlas to send the plane cards.")
+            if (!info.ok) return progress("Atlas didn't answer about its plane cards.")
+            val withArt = if (all) emptySet() else org.json.JSONObject(info.body).optJSONArray("art")
+                ?.let { list -> (0 until list.length()).map { list.getString(it) }.toSet() }.orEmpty()
+            val missing = cards.take(192).filter { it.id !in withArt }
+            if (missing.isEmpty()) return progress("Atlas has every plane's card.")
+            missing.forEachIndexed { i, card ->
+                progress("Sending plane cards to Atlas: ${i + 1} of ${missing.size}")
                 val text = AtlasPlaneCards.text(card)
                 val jpeg = art(card)?.let { AtlasPlaneCards.artJpeg(it) }
                 val response = session.raw("POST", "/api/planes/card", listOf("id" to card.id, "type" to text.type,
                     "artist" to text.artist, "text" to text.text, "chaos" to text.chaos,
-                    "art" to (jpeg?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) } ?: ""))) ?: return
-                if (!response.ok) return
+                    "art" to (jpeg?.let { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) } ?: ""),
+                    "index" to "${i + 1}", "total" to "${missing.size}"))
+                    ?: return progress("Lost Atlas after ${i} of ${missing.size} plane cards.")
+                if (!response.ok) return progress(
+                    runCatching { org.json.JSONObject(response.body).optString("error") }.getOrNull()?.takeIf { it.isNotBlank() }
+                        ?: "Atlas didn't keep the plane cards.")
             }
-        } catch (e: CancellationException) { throw e } catch (_: Exception) { /* Next connection tries again. */ }
+            progress("Sent ${missing.size} plane cards to Atlas.")
+        } catch (e: CancellationException) { throw e } catch (_: Exception) { progress("Couldn't finish sending the plane cards. Try again.") }
     }
 
     // --- the table ----------------------------------------------------------------

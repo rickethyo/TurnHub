@@ -47,6 +47,8 @@ uint8_t pressedArg = 0;
 uint32_t lastContactAtMs = 0;
 
 char noticeText[sizeof(AtlasScreen::notice)] = {};
+char syncText[sizeof(AtlasScreen::sync)] = {};
+uint32_t syncAtMs = 0;
 uint32_t noticeAtMs = 0;
 
 // Which screen is up, and the QR code chosen on the QR screen.
@@ -358,9 +360,12 @@ void layoutThemes(AtlasScreen &screen) {
 // In-game controls kept off the main row: Master pass (a stuck turn, running
 // games only) and End match, each confirmed in the popup; then Back.
 void layoutTable(AtlasScreen &screen) {
-  ButtonSpec rows[2];
+  ButtonSpec rows[3];
   uint8_t n = 0;
   if (table().hubState == HubState::Running) rows[n++] = {TouchAction::MasterPass, "Master pass", ASK, 1};
+  // As in the app: within the first three minutes, undo the start (nothing is recorded).
+  if (table().game.gameElapsedMs(millis()) <= TurnHub::UNDO_START_MS)
+    rows[n++] = {TouchAction::BackToSetup, "Back to setup", ASK, 1};
   rows[n++] = {TouchAction::EndMatch, "End match", ASK, 1};
   addList(screen, rows, n);
   const ButtonSpec back[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
@@ -484,6 +489,7 @@ const char *confirmLabel(TouchAction action) {
   switch (action) {
     case TouchAction::EndMatch: return "End match";
     case TouchAction::MasterPass: return "Pass turn";
+    case TouchAction::BackToSetup: return "Back to setup";
     case TouchAction::ClearLobby: return "Clear lobby";
     case TouchAction::ResetTable: return "Reset";
     case TouchAction::RemoveSeat: return "Remove";
@@ -741,13 +747,7 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     // Pass is a tap: it keeps its grace period, so the seat can still cancel.
     // The master pass and End match sit on the Actions screen.
     case HubState::Running: {
-      if (table().game.planar().enabled) {
-        // Weighted so each label fits on one line of the 320 px screen.
-        const ButtonSpec row[] = {{TouchAction::PassTurn, "Pass", 0, 7}, {TouchAction::Pause, "Pause", 0, 5},
-            {TouchAction::OpenPlanes, "Planes", 0, 6}, {TouchAction::OpenTable, "Actions", 0, 6}};
-        addRow(screen, BUTTON_ROW_Y, row, 4);
-        break;
-      }
+      // Planechase's Planes page is a tab of its own (layoutButtons).
       const ButtonSpec row[] = {{TouchAction::PassTurn, "Pass", 0, 3},
           {TouchAction::Pause, "Pause", 0, 2}, {TouchAction::OpenTable, "Actions", 0, 3}};
       addRow(screen, BUTTON_ROW_Y, row, 3);
@@ -778,14 +778,23 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
   if (kind == ScreenKind::Code || kind == ScreenKind::PairCode || kind == ScreenKind::Name ||
       kind == ScreenKind::Pin || kind == ScreenKind::Setup || kind == ScreenKind::Confirm ||
       kind == ScreenKind::PlaneCard) return;
+  // A Planechase match adds a Planes tab after Table, as the app does.
+  const bool planesTab = matchInProgress() && table().game.planar().enabled;
   const TouchAction actions[] = {TouchAction::OpenHome, TouchAction::OpenGame,
-      TouchAction::OpenOverview, TouchAction::OpenSettings};
+      TouchAction::OpenOverview, TouchAction::OpenPlanes, TouchAction::OpenSettings};
+  const char *labels[] = {TurnHubUi::pageTitle(TurnHubUi::Page::Home), TurnHubUi::pageTitle(TurnHubUi::Page::Game),
+      TurnHubUi::pageTitle(TurnHubUi::Page::Table), "Planes", TurnHubUi::pageTitle(TurnHubUi::Page::Settings)};
   const uint8_t selected = kind == ScreenKind::Home || kind == ScreenKind::ManaTap ? 0 : kind == ScreenKind::Status || kind == ScreenKind::Player ||
-      kind == ScreenKind::Table || kind == ScreenKind::Seat || kind == ScreenKind::NewGame || kind == ScreenKind::Planes ? 1
-      : kind == ScreenKind::Overview ? 2 : 3;
-  for (uint8_t i=0; i<TurnHubUi::PAGE_COUNT; ++i) {
-    addKey(screen,actions[i],TurnHubUi::pageTitle(static_cast<TurnHubUi::Page>(i)),i*80,432,80,48,0);
+      kind == ScreenKind::Table || kind == ScreenKind::Seat || kind == ScreenKind::NewGame || (!planesTab && kind == ScreenKind::Planes) ? 1
+      : kind == ScreenKind::Overview ? 2 : kind == ScreenKind::Planes ? 3 : 4;
+  const uint8_t count = planesTab ? 5 : 4;
+  const int16_t w = ATLAS_SCREEN_WIDTH / count;
+  uint8_t slot = 0;
+  for (uint8_t i = 0; i < 5; ++i) {
+    if (i == 3 && !planesTab) continue;
+    addKey(screen, actions[i], labels[i], slot * w, 432, slot + 1 == count ? ATLAS_SCREEN_WIDTH - slot * w : w, 48, 0);
     screen.buttons[screen.buttonCount-1].selected = i == selected;
+    ++slot;
   }
 }
 
@@ -836,6 +845,7 @@ const char *actionName(TouchAction action) {
     case TouchAction::ClearLobby: return "CLEAR_LOBBY";
     case TouchAction::OpenTable: return "OPEN_TABLE";
     case TouchAction::MasterPass: return "MASTER_PASS";
+    case TouchAction::BackToSetup: return "BACK_TO_SETUP";
     case TouchAction::Pause: return "PAUSE";
     case TouchAction::Resume: return "RESUME";
     case TouchAction::EndMatch: return "END_MATCH";
@@ -924,6 +934,7 @@ IntentType tableIntentType(TouchAction action) {
     case TouchAction::Pair: return IntentType::PairRequest;
     case TouchAction::EndMatch: return IntentType::EndMatch;
     case TouchAction::MasterPass: return IntentType::MasterPass;
+    case TouchAction::BackToSetup: return IntentType::BackToSetup;
     case TouchAction::StartGame: return IntentType::StartGame;
     case TouchAction::CancelStart: return IntentType::CancelStart;
     case TouchAction::Rematch: return IntentType::Rematch;
@@ -1227,6 +1238,7 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
     case TouchAction::Pair:
     case TouchAction::EndMatch:
     case TouchAction::MasterPass:
+    case TouchAction::BackToSetup:
     case TouchAction::StartGame:
     case TouchAction::CancelStart:
     case TouchAction::Rematch:
@@ -1239,7 +1251,7 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       // After a master pass, End match or Pair (from the Menu), show the
       // table what happened: the turn, the result or the pairing countdown.
       if (result.accepted() && (action == TouchAction::MasterPass || action == TouchAction::EndMatch ||
-          action == TouchAction::Pair)) {
+          action == TouchAction::BackToSetup || action == TouchAction::Pair)) {
         openScreen = ScreenKind::Status;
       }
       break;
@@ -2027,6 +2039,10 @@ void formatConfirm(AtlasScreen &screen, uint32_t nowMs) {
       snprintf(screen.title, sizeof(screen.title), "End the match?");
       snprintf(screen.detail, sizeof(screen.detail), "It ends for everyone as a draw.");
       break;
+    case TouchAction::BackToSetup:
+      snprintf(screen.title, sizeof(screen.title), "Back to setup?");
+      snprintf(screen.detail, sizeof(screen.detail), "Same players and settings; nothing saved.");
+      break;
     case TouchAction::MasterPass:
       if (turn[0]) snprintf(screen.title, sizeof(screen.title), "Pass for %s?", turn);
       else snprintf(screen.title, sizeof(screen.title), "Pass this turn?");
@@ -2247,6 +2263,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
     case ScreenKind::Pin: formatSeat(screen); break;
   }
   layoutButtons(screen, nowMs);
+  if (syncText[0] != '\0' && nowMs - syncAtMs < SYNC_TOAST_MS) snprintf(screen.sync, sizeof(screen.sync), "%s", syncText);
   if (noticeText[0] != '\0' && nowMs - noticeAtMs < TOUCH_NOTICE_MS) {
     snprintf(screen.notice, sizeof(screen.notice), "%s", noticeText);
   }
@@ -2298,7 +2315,13 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
   pressInside = false;
 }
 
+void showSyncStatus(uint32_t nowMs, const char *text) {
+  snprintf(syncText, sizeof(syncText), "%s", text ? text : "");
+  syncAtMs = nowMs;
+}
+
 void resetTouchControls(bool startAtHome) {
+  syncText[0] = '\0';
   touchDown = false;
   pressInside = false;
   pressedAction = TouchAction::None;

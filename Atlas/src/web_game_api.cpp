@@ -9,6 +9,7 @@
 #include "protocol.h"
 #include "web_api_internal.h"
 #include "card_cache.h"
+#include "touch_controls.h"
 #include "controller_profiles.h"
 #include "avatars.h"
 
@@ -576,7 +577,8 @@ bool decodeBase64(const String &in, std::vector<uint8_t> &out) {
 
 // POST (any signed-in browser or tablet): one catalog plane's card for the
 // Atlas card view: id, type, artist, text, chaos and art (a base64 480x320
-// baseline JPEG; optional). Kept on the microSD card.
+// baseline JPEG; optional). Kept on the microSD card. index and total
+// (optional) are where this card falls in the app's batch, for the screen.
 void handlePlaneCard(WebServer &server) {
   if (!requireSession(server)) return;
   std::vector<uint8_t> jpeg;
@@ -586,9 +588,16 @@ void handlePlaneCard(WebServer &server) {
   }
   if (!TurnHubCards::savePlaneCard(server.arg("id").c_str(), server.arg("type"), server.arg("artist"), server.arg("text"),
           server.arg("chaos"), jpeg.data(), jpeg.size())) {
+    TurnHubAtlas::showSyncStatus(millis(), "Couldn't save a plane card");
     sendError(server, 409, "Atlas couldn't keep that plane: it needs a catalog plane, plain text and a microSD card");
     return;
   }
+  const long index = server.arg("index").toInt(), total = server.arg("total").toInt();
+  char line[48];
+  if (total > 0 && index >= total) snprintf(line, sizeof(line), "All %ld plane cards saved", total);
+  else if (total > 0) snprintf(line, sizeof(line), "Plane cards: %ld of %ld", index, total);
+  else snprintf(line, sizeof(line), "Plane card saved");
+  TurnHubAtlas::showSyncStatus(millis(), line);
   sendJson(server, 200, String("{\"ok\":true,\"art\":") + jsonBool(!jpeg.empty()) + "}");
 }
 
@@ -599,6 +608,10 @@ void handlePlanesCatalog(WebServer &server) {
     sendError(server, 400, "Send the planes as id, name and phenomenon lines with a version");
     return;
   }
+  char line[48];
+  snprintf(line, sizeof(line), saved ? "Got %u planes from the app" : "%u planes, no microSD card",
+      static_cast<unsigned>(TurnHubCards::planeCount()));
+  TurnHubAtlas::showSyncStatus(millis(), line);
   sendJson(server, 200, String("{\"ok\":true,\"count\":") + String(TurnHubCards::planeCount()) +
       ",\"saved\":" + jsonBool(saved) + "}");
 }

@@ -66,6 +66,9 @@ enum class TouchAction : uint8_t {
   ClearLobby,
   // In a game: the Table screen and its master pass (a stuck turn).
   OpenTable, MasterPass,
+  // ...and, within the first three minutes, Back to setup (confirmed): the
+  // app's undo of the start, the same BackToSetup Intent.
+  BackToSetup,
   OpenPlayerControls, PlayerControlsBack, PlayerControlsPrev, PlayerControlsNext, ControlMinus, ControlPlus,
   // Presence code screen: cancel the code a phone asked for.
   CancelCode,
@@ -244,6 +247,7 @@ struct AtlasScreen {
   char title[32] = {};
   char detail[48] = {};
   char notice[48] = {};   // Action message; shown in place of detail while set.
+  char sync[48] = {};     // showSyncStatus's toast while it is up.
   bool sdMissing = false; // Header warning: "NO SD CARD".
   bool sdOnUsb = false;   // ...or "USB DRIVE" while a computer has the card.
   // Battery charge estimate (0-100), or -1 with no cell; the header shows it
@@ -321,7 +325,7 @@ inline bool sameGameClock(const AtlasScreen &a, const AtlasScreen &b) {
 
 inline bool sameHero(const AtlasScreen &a, const AtlasScreen &b) {
   return a.kind == b.kind && sameScreenText(a.title, b.title) && sameScreenText(a.detail, b.detail) &&
-      sameScreenText(a.notice, b.notice);
+      sameScreenText(a.notice, b.notice) && sameScreenText(a.sync, b.sync);
 }
 
 inline bool sameTimer(const AtlasScreen &a, const AtlasScreen &b) {
@@ -395,6 +399,12 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen);
 // dispatches Intents; audit_adapters.py checks it.
 void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y);
 
+
+// A message about data arriving from an app (the plane catalog, plane
+// cards...), shown over any screen as a toast for TOUCH_NOTICE_MS after the
+// latest one, so the table sees the update happen. Presentation only.
+constexpr uint32_t SYNC_TOAST_MS = TOUCH_NOTICE_MS;
+void showSyncStatus(uint32_t nowMs, const char *text);
 
 // Clears press, notice and screen state (tests, and boot).
 void resetTouchControls(bool startAtHome = false);

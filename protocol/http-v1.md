@@ -748,8 +748,10 @@ characters each), `text` (rules, up to 639, newlines allowed), `chaos` (the
 chaos ability, up to 319) and `art`: a base64 baseline JPEG, 480x320, at most
 96 KB, or empty for text only. Atlas keeps them on the microSD card
 (`pc-<id>.txt`, `pc-<id>.jpg`): 400 for bad base64, 409 for an unknown plane,
-bad text, a non-JPEG or no card. The app (tablet mode) sends every catalog
-plane Atlas lacks art for, after the catalog.
+bad text, a non-JPEG or no card. Optional `index` and `total` (this card's
+place in the app's batch) let the Atlas screen show the progress. The app
+(tablet mode) sends every catalog plane Atlas lacks art for after the
+catalog, or every plane from its Send planes to Atlas button.
 
 Saved commanders: up to six per profile on the microSD card (`d<profileId>`).
 `GET /api/profiles/commanders` (the session's own, or `?profileId=` from a

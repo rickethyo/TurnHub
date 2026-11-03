@@ -842,8 +842,10 @@ IntentResult handleResetIntent(const Intent &intent, void *) {
 // recorded; the observer's checkpoint then clears the recovery record.
 IntentResult handleBackToSetupIntent(const Intent &intent, void *) {
   IntentResult rejection;
-  if (!validTableActor(intent, rejection)) return rejection;
-  if (!seatedAtTable(intent.actor.controllerId)) {
+  // The Atlas screen is the table's own, like End match; anyone else must be seated.
+  const bool touchscreen = intent.actor.origin == IntentOrigin::AtlasHardware;
+  if (!touchscreen && !validTableActor(intent, rejection)) return rejection;
+  if (!touchscreen && !seatedAtTable(intent.actor.controllerId)) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Only a player at the table can go back to setup");
   }
   if (table().hubState != HubState::Running && table().hubState != HubState::Paused) {

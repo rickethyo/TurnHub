@@ -427,3 +427,81 @@ private fun PlanarCredit() {
         "are property of Wizards of the Coast. ©Wizards of the Coast LLC.",
         color = palette.faint, style = MaterialTheme.typography.bodySmall)
 }
+
+/**
+ * The Planes tab for a game on Atlas (Atlas counts, as everywhere): the face-up plane with
+ * its art and text from this phone's planes, the walks, chaos and the next roll's cost, and
+ * the active player's die, planeswalk and phenomenon buttons. In the lobby it says what
+ * Planechase will do and offers Send planes to Atlas.
+ */
+@Composable
+internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, actions: TabletActions, reduceMotion: Boolean, offline: Boolean) {
+    val p = palette
+    val context = LocalContext.current
+    val planes = summary.atlasPlanechase
+    val active = summary.players.firstOrNull { it.playerNumber == summary.activePlayerNumber }?.seat()
+    val anySeat = summary.anySeat()
+    val running = summary.state == TableState.RUNNING
+    fun send(seat: TabletSeat?, action: String) { seat?.let { s -> actions.run { control(s, action) } } }
+    var rolling by remember { mutableStateOf(false) }
+    Column(
+        Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        if (planes == null) {
+            BrassCard {
+                Text("Planechase", color = p.text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+                Text(if (summary.settings.planarDigital) "Atlas deals its digital deck when the game starts, from the planes this app sends it."
+                    else "Play with your own plane cards: Atlas rolls the die and counts chaos, planeswalks and the cost.", color = p.muted)
+                AtlasPlaneSync.status?.let { Text(it, color = p.text, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+                val known = PlaneLibrary.known(context)?.values?.toList().orEmpty()
+                if (known.isNotEmpty()) AccentButton(if (AtlasPlaneSync.running) "Sending planes…" else "Send planes to Atlas",
+                    { AtlasPlaneSync.send(actions, known, all = true) { PlaneLibrary.source(context).art(it) } },
+                    Modifier.fillMaxWidth(), enabled = !offline && !AtlasPlaneSync.running)
+                else Text("Download the planes from the Planes setup on this phone first.", color = p.faint)
+            }
+            PlanarCredit()
+            return@Column
+        }
+        planes.plane?.let { face ->
+            val info = PlaneLibrary.known(context)?.get(face.id)
+            PlaneCardView(info, PlanarCard(face.id, face.phenomenon), planes.counters,
+                chaosNow = planes.lastRoll?.face == "chaos", enabled = !offline && anySeat != null) { delta ->
+                send(anySeat, "${com.turnhub.android.data.PLANAR_PREFIX}counter:$delta")
+            }
+        } ?: BrassCard {
+            Text("Your own planes", color = p.text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+            Text("Planeswalk turns over the next plane of your planar deck.", color = p.muted)
+            PlaneCounters(planes.counters, !offline && anySeat != null) { send(anySeat, "${com.turnhub.android.data.PLANAR_PREFIX}counter:$it") }
+        }
+        BrassCard {
+            val last = planes.lastRoll?.let { roll ->
+                val who = summary.players.firstOrNull { it.playerNumber == roll.player }?.label ?: "Player ${roll.player}"
+                "Last roll: $who, ${roll.face}${if (roll.fromEffect) " (a card's roll)" else ""}."
+            }
+            Text("${planes.planeswalks} planeswalk${if (planes.planeswalks == 1) "" else "s"} · chaos ${planes.chaos} · " +
+                "next roll ${if (planes.rollCost == 0) "free" else "${planes.rollCost} mana"}" + if (planes.digital) " · ${planes.deckSize} left" else "",
+                color = p.text, style = MaterialTheme.typography.titleMedium)
+            last?.let { Text(it, color = p.muted, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+            val can = running && !offline && active != null
+            if (planes.plane?.phenomenon == true) AccentButton("Resolve the phenomenon",
+                { send(active, "${com.turnhub.android.data.PLANAR_PREFIX}resolve") }, Modifier.fillMaxWidth(), enabled = can)
+            else AccentButton("Roll the planar die", { rolling = true }, Modifier.fillMaxWidth(), enabled = can)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ToneButton("Planeswalk", { send(active, "${com.turnhub.android.data.PLANAR_PREFIX}planeswalk") }, Modifier.weight(1f), enabled = can)
+                ToneButton("Chaos ensues", { send(active, "${com.turnhub.android.data.PLANAR_PREFIX}chaos") }, Modifier.weight(1f), enabled = can)
+            }
+            ToneButton("Roll for a card (free)", {
+                val face = PlanarFace.roll(kotlin.random.Random.Default)
+                send(active, "${com.turnhub.android.data.PLANAR_PREFIX}effect:${face.wireValue}")
+            }, Modifier.fillMaxWidth(), enabled = can)
+            if (!running) Text("The active player rolls while the game runs.", color = p.faint, style = MaterialTheme.typography.bodySmall)
+        }
+        PlanarCredit()
+    }
+    if (rolling) PlanarRollDialog(reduceMotion, onRoll = {
+        val face = PlanarFace.roll(kotlin.random.Random.Default)
+        send(active, "${com.turnhub.android.data.PLANAR_PREFIX}roll:${face.wireValue}")
+        face
+    }, onFinish = { rolling = false })
+}

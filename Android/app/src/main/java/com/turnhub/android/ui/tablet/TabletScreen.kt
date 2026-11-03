@@ -292,10 +292,7 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
     LaunchedEffect(summary.atlasId, enabled, PlaneLibrary.cards) {
         val planes = PlaneLibrary.known(context)?.values?.toList().orEmpty()
         // ...then each plane's text and art for the Atlas card view.
-        if (enabled && planes.isNotEmpty()) actions.run {
-            syncPlanes(planes)
-            syncPlaneCards(planes) { PlaneLibrary.source(context).art(it) }
-        }
+        if (enabled && planes.isNotEmpty()) AtlasPlaneSync.send(actions, planes, all = false) { PlaneLibrary.source(context).art(it) }
     }
     // Each seated profile's saved commanders, quick to pick again (kept on Atlas's card).
     var savedCommanders by remember { mutableStateOf(emptyMap<String, List<Pair<String, String?>>>()) }
@@ -380,6 +377,14 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
                     if (PlaneLibrary.pool(context).isEmpty()) "Downloading the planes for Atlas…"
                     else "Atlas shuffles the ${PlaneLibrary.pool(context).size} planes this app sent it.",
                     color = p.muted, style = MaterialTheme.typography.bodySmall)
+                // What the sync is doing now, and a manual resend of every plane's text and art.
+                AtlasPlaneSync.status?.let { Text(it, color = p.text, style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite }) }
+                val planes = PlaneLibrary.known(context)?.values?.toList().orEmpty()
+                if (planes.isNotEmpty()) androidx.compose.material3.OutlinedButton(
+                    onClick = { AtlasPlaneSync.send(actions, planes, all = true) { PlaneLibrary.source(context).art(it) } },
+                    enabled = enabled && !AtlasPlaneSync.running,
+                ) { Text(if (AtlasPlaneSync.running) "Sending planes…" else "Send planes to Atlas") }
             }
         },
         feedback = {
@@ -417,4 +422,25 @@ private fun PinDialog(name: String, onSubmit: (String) -> Unit, onDismiss: () ->
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = p.text) } },
     )
+}
+
+/**
+ * The plane catalog and card sync to Atlas: one at a time, with its progress in words for
+ * the lobby (the Atlas screen shows the same as a toast).
+ */
+internal object AtlasPlaneSync {
+    var status by mutableStateOf<String?>(null)
+    var running by mutableStateOf(false)
+
+    fun send(actions: TabletActions, planes: List<com.turnhub.android.data.PlaneInfo>, all: Boolean,
+        art: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray?) {
+        if (running) return
+        running = true
+        actions.run {
+            try {
+                syncPlanes(planes) { status = it }
+                syncPlaneCards(planes, all, { status = it }, art)
+            } finally { running = false }
+        }
+    }
 }

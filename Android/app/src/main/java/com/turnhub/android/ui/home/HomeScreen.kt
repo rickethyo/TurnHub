@@ -217,8 +217,10 @@ fun HomeScreen(
         onOpenTablet = onPlayOnDevice,
         onEliminationRule = { field, value -> localTable?.changeEliminationRule(field, value) },
     )
-    // The Planes tab shows only while Planechase is on (Game setup's toggle turns it on).
-    val planes = localState.game.profile.magicRules && localState.game.planechase.enabled
+    // The Planes tab shows only while Planechase is on (Game setup's toggle turns it on),
+    // for this device's game or Atlas's.
+    val atlasPlanes = atlasGame && summary != null && summary.settings.profile.magicRules && summary.settings.planechase
+    val planes = if (atlasGame) atlasPlanes else localState.game.profile.magicRules && localState.game.planechase.enabled
     // Atlas doesn't run Death May Die, so the tab is for this device's own game only.
     val elderOne = localState.game.profile.deathMayDie && !atlasGame
     val tabs = HomeTab.entries.filter { (it != HomeTab.PLANES || planes) && (it != HomeTab.ELDER || elderOne) }
@@ -407,6 +409,8 @@ fun HomeScreen(
                             )
                         !setup.visible && shown == HomeTab.TABLE -> localTableContent({ tab = HomeTab.GAME }, { tab = HomeTab.PLANES })
                         !setup.visible && shown == HomeTab.HISTORY -> localHistoryContent()
+                        !setup.visible && shown == HomeTab.PLANES && atlasGame && summary != null ->
+                            com.turnhub.android.ui.tablet.AtlasPlanesTab(summary, tabletActions, reduceMotion, uiState.isOffline)
                         !setup.visible && shown == HomeTab.PLANES -> localPlanesContent()
                         !setup.visible && shown == HomeTab.ELDER -> localElderContent()
                         !setup.visible && shown == HomeTab.PLAYERS -> localPlayersContent()

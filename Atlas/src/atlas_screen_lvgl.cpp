@@ -235,6 +235,7 @@ const lv_image_dsc_t *actionIcon(TouchAction a) {
     case TouchAction::FactoryResetAtlas: return &th_icon_power_24;
     case TouchAction::UsbDrive: return &th_icon_download_24;
     case TouchAction::MasterPass: case TouchAction::PassTurn: return &th_icon_pass_24;
+    case TouchAction::BackToSetup: return &th_icon_refresh_24;
     case TouchAction::ThemeGraphite: case TouchAction::SleepAtlas: return &th_icon_moon_24;
     case TouchAction::ThemeDaylight: return &th_icon_sun_24;
     case TouchAction::ThemeBrass: case TouchAction::OpenThemes: return &th_icon_palette_24;
@@ -274,7 +275,7 @@ const lv_image_dsc_t *actionIcon(TouchAction a) {
 
 bool tabAction(const TouchButton &b) {
   return b.y >= ATLAS_SCREEN_HEIGHT - 48 && (b.action == TouchAction::OpenHome || b.action == TouchAction::OpenGame ||
-      b.action == TouchAction::OpenOverview || b.action == TouchAction::OpenSettings);
+      b.action == TouchAction::OpenOverview || b.action == TouchAction::OpenSettings || b.action == TouchAction::OpenPlanes);
 }
 
 bool keyAction(TouchAction a) {
@@ -1014,6 +1015,23 @@ void drawPlaneCard(lv_obj_t *root, const AtlasScreen &s) {
   lv_obj_set_style_border_color(frame, rgb(edge), 0);
 }
 
+// Data arriving from an app (showSyncStatus): a toast near the top, over
+// whatever is open, with the download mark and the words.
+void drawSyncToast(lv_obj_t *root, const AtlasScreen &s, int16_t width, int16_t y) {
+  if (!s.sync[0]) return;
+  const int16_t w = width - 24;
+  lv_obj_t *toast = box(root, 12, y, w, 44);
+  card(toast, pal().surface1, pal().accent, 22);
+  lv_obj_set_style_border_width(toast, 2, 0);
+  lift(toast);
+  lv_obj_t *chip = box(toast, 8, 7, 28, 28);
+  lv_obj_set_style_radius(chip, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(chip, rgb(pal().accent), 0);
+  icon(chip, &th_icon_download_24, 2, 2, pal().onAccent);
+  text(toast, s.sync, &th_semi_16, pal().text, 44, 11, w - 56);
+}
+
 void drawBody(lv_obj_t *root, const AtlasScreen &s) {
   if (s.showPlayerControls) {
     uint8_t ids[TurnHubUi::PLAYER_CONTROL_COUNT];
@@ -1491,6 +1509,7 @@ void renderAtlasScreen(const AtlasScreen &s, const ScreenStyle &chosen) {
   lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
   if (s.kind == ScreenKind::PlaneCard) {
     drawPlaneCard(root, s);
+    drawSyncToast(root, s, CW, 52);
     noteRoll(s);
     return;
   }
@@ -1504,6 +1523,7 @@ void renderAtlasScreen(const AtlasScreen &s, const ScreenStyle &chosen) {
     if (!tabAction(b) && !listRow(s, b)) drawButton(root, s, b);
   }
   drawTabBar(root, s);
+  drawSyncToast(root, s, W, SCREEN_HEADER_H + 4);
   // A new match starts without a banner; only a pass shows one.
   if (!s.showLife) bannerTurn = 0;
   noteTurn(s);

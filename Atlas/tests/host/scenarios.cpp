@@ -2775,7 +2775,7 @@ static void touchControls() {
 
   // End match asks in the popup first, and acts once on Confirm.
   tapButton(TouchAction::OpenTable); s=currentScreen();
-  assert(s.kind==ScreenKind::Table && String(s.badge)=="TABLE" && s.buttonCount==7 &&
+  assert(s.kind==ScreenKind::Table && String(s.badge)=="TABLE" && s.buttonCount==(screenButton(s,TouchAction::BackToSetup)?8:7) &&
       screenButton(s,TouchAction::MasterPass)->confirm &&
       screenButton(s,TouchAction::EndMatch)->confirm && screenButton(s,TouchAction::CloseScreen));
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
@@ -4760,6 +4760,11 @@ static void backToSetupAndShortGames() {
   assert(request("/api/control/back-to-setup",tokens[1])==200);
   assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==2 && !table().game.hasPlayers());
   assert(completedGames==baseGames && played(0)==0 && played(1)==0);
+  // The Atlas screen's Actions offers it too (confirmed), like the app.
+  start();
+  openTableScreen();
+  tapConfirmed(TouchAction::BackToSetup);
+  assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==2 && completedGames==baseGames);
   // Paused time doesn't count; past three minutes of play it is gone.
   start();
   assert(request("/api/control/pause",tokens[0])==200); testNow+=10*60000;
@@ -4767,6 +4772,7 @@ static void backToSetupAndShortGames() {
   assert(request("/api/tablet/control",tokens[0],{{"action","back-to-setup"}})!=200);  // Not a tablet.
   testNow+=UNDO_START_MS+1;
   assert(request("/api/control/back-to-setup",tokens[0])==409 && table().hubState==HubState::Running);
+  openTableScreen(); assert(!screenButton(currentScreen(),TouchAction::BackToSetup)); tapButton(TouchAction::CloseScreen);
   // A long game counts at once.
   assert(request("/api/control/concede",tokens[1])==200 && table().hubState==HubState::GameOver);
   assert(played(0)==1 && played(1)==1);
@@ -5417,6 +5423,11 @@ static void cardCacheOnAtlas() {
     assert(request("/api/planes/card",mine,{{"id","00000000-0000-0000-0000-000000000000"},{"text","x"},{"art",""}})==409);
     assert(request("/api/planes/card",mine,{{"id",id},{"text","x"},{"art","not base64!"}})==400);
     assert(request("/api/planes",mine,{},HTTP_GET)==200 && has((String("\"cards\":[\"")+id+"\"]").c_str()) && has((String("\"art\":[\"")+id+"\"]").c_str()));
+    assert(request("/api/planes/card",mine,{{"id",id},{"text","x"},{"art",""},{"index","3"},{"total","9"}})==200 &&
+        String(currentScreen().sync)=="Plane cards: 3 of 9");
+    assert(request("/api/planes/card",mine,{{"id",id},{"text","Made-up rules text.\nSecond line."},{"artist","A. Painter"},
+        {"type","Phenomenon"},{"art","/9j/2Q=="},{"index","9"},{"total","9"}})==200 && String(currentScreen().sync)=="All 9 plane cards saved");
+    testNow+=SYNC_TOAST_MS+1; assert(!currentScreen().sync[0]);
     tapButton(TouchAction::OpenPlaneCard);
     const AtlasScreen view=currentScreen();
     assert(view.kind==ScreenKind::PlaneCard && view.planes.card && String(view.planes.card->text)=="Made-up rules text.\nSecond line." &&

@@ -104,6 +104,13 @@ void renderShell(AtlasScreen &s,const ScreenStyle &style,bool keepBanner=false) 
     const TouchAction actions[]={TouchAction::OpenHome,TouchAction::OpenGame,TouchAction::OpenOverview,TouchAction::OpenSettings};
     const uint8_t selected=s.kind==ScreenKind::Home||s.kind==ScreenKind::ManaTap?0:s.kind==ScreenKind::Overview?2:
         s.kind==ScreenKind::Menu||s.kind==ScreenKind::Device||s.kind==ScreenKind::Themes?3:1;
+    if (s.planes.on) {
+      // A Planechase match: Home, Game, Table, Planes, Settings.
+      const TouchAction five[]={TouchAction::OpenHome,TouchAction::OpenGame,TouchAction::OpenOverview,TouchAction::OpenPlanes,TouchAction::OpenSettings};
+      const char *names[]={"Home","Game","Table","Planes","Settings"};
+      const uint8_t pick=s.kind==ScreenKind::Planes?3:selected==3?4:selected;
+      for(uint8_t i=0;i<5;++i) { auto &b=s.buttons[s.buttonCount++];b.action=five[i];b.label=names[i];b.x=i*64;b.y=432;b.w=64;b.h=48;b.selected=i==pick; }
+    } else
     for(uint8_t i=0;i<4;++i) { auto &b=s.buttons[s.buttonCount++];b.action=actions[i];b.label=TurnHubUi::pageTitle(static_cast<TurnHubUi::Page>(i));b.x=i*80;b.y=432;b.w=80;b.h=48;b.selected=i==selected; }
   }
   renderAtlasScreen(s,style);
@@ -203,6 +210,21 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     list(s, {{TouchAction::OpenSetup, "Setup"}, {TouchAction::Pair, "Pair a Sigil"}, {TouchAction::OpenQr, "QR codes"},
         {TouchAction::OpenThemes, "Theme: Graphite"}, {TouchAction::OpenDevice, "Device"}}, HEIGHT - 48 - 8);
     renderShell(s, style); save("menu" + suffix);
+  }
+  {
+    // Actions in a game's first three minutes: Back to setup, as in the app.
+    AtlasScreen s = base("PLAYING", "Actions", "For the whole table");
+    s.kind = ScreenKind::Table;
+    list(s, {{TouchAction::MasterPass, "Master pass"}, {TouchAction::BackToSetup, "Back to setup"}, {TouchAction::EndMatch, "End match"}});
+    for (uint8_t i = 0; i < s.buttonCount; ++i) s.buttons[i].confirm = true;
+    row(s, BUTTON_ROW_Y, {{TouchAction::CloseScreen, "Back"}});
+    renderShell(s, style); save("actions" + suffix);
+    // The app sending plane cards: a toast over the game.
+    AtlasScreen g = base("PLAYING", "Sam's turn", "Turn 3");
+    g.round = 3; players(g, 4, true);
+    row(g, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Pass"}, {TouchAction::Pause, "Pause"}, {TouchAction::OpenTable, "Actions"}}, {3, 2, 3});
+    snprintf(g.sync, sizeof(g.sync), "Plane cards: 12 of 86");
+    renderShell(g, style); save("sync-toast" + suffix);
   }
   {
     AtlasScreen s = base("DEVICE", "Atlas device", "Unpair and Factory reset ask first");
@@ -323,7 +345,7 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     // The die: Sam rolls planeswalk from a Sigil while the game shows.
     AtlasScreen g = base("PLAYING", "Sam's turn", "Turn 3");
     g.round = 3; players(g, 4, true);
-    row(g, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Pass"}, {TouchAction::Pause, "Pause"}, {TouchAction::OpenPlanes, "Planes"}, {TouchAction::OpenTable, "Actions"}}, {7, 5, 6, 6});
+    row(g, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Pass"}, {TouchAction::Pause, "Pause"}, {TouchAction::OpenTable, "Actions"}}, {3, 2, 3});
     g.planes.on = true; g.planes.roll = 0;
     renderShell(g, style);
     g.planes.roll = 1; g.planes.face = 2; g.planes.cost = 1;
