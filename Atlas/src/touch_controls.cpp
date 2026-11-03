@@ -26,6 +26,7 @@
 #include "serial_log.h"
 #include "sigil_update_service.h"
 #include "wifi_password_store.h"
+#include <WiFi.h>
 
 using TurnHub::serialLog;
 
@@ -2267,6 +2268,9 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen.batteryCharging = battery.present && battery.charging;
   screen.update = firmwareUpdateKind();
   screen.sigilsOnline = sigilBus.activeCount(nowMs);
+  screen.hotspotStations = static_cast<uint8_t>(WiFi.softAPgetStationNum());
+  screen.homeWifiOn = homeWifiEnabled() && homeWifiConfigured();
+  screen.homeWifiLinked = screen.homeWifiOn && homeWifiConnected();
   fillPlanes(screen, nowMs);
   switch (screen.kind) {
     case ScreenKind::Home:

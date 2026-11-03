@@ -370,6 +370,64 @@ int16_t drawBattery(lv_obj_t *bar, const AtlasScreen &s) {
   return static_cast<int16_t>(bodyW + nubW + 6 + labelW + 12);
 }
 
+// One link icon: a Wi-Fi fan (two arcs and a dot) or, for the Sigil radio,
+// three signal bars, with its letter beside it. Lit in its colour while the
+// link carries traffic, dim when idle, and slashed while it is still joining.
+int16_t drawLink(lv_obj_t *bar, int16_t right, const char *letter, uint32_t color, bool lit, bool slashed, bool bars) {
+  constexpr int16_t size = 16;
+  const int16_t letterW = static_cast<int16_t>(textWidth(letter, &th_eyebrow_13));
+  const int16_t x = right - size - 2 - letterW;
+  const int16_t y = (SCREEN_HEADER_H - size) / 2;
+  const uint32_t ink = lit ? color : pal().textTertiary;
+  if (bars) {
+    for (int i = 0; i < 3; ++i) {
+      const int16_t h = 5 + i * 4;
+      lv_obj_t *b = box(bar, x + 1 + i * 5, y + size - h, 3, h);
+      lv_obj_set_style_radius(b, 1, 0);
+      lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+      lv_obj_set_style_bg_color(b, rgb(ink), 0);
+    }
+  } else {
+    for (int i = 0; i < 2; ++i) {
+      const int16_t r = 7 + i * 5;
+      lv_obj_t *a = lv_arc_create(bar);
+      lv_obj_remove_style_all(a);
+      lv_obj_remove_flag(a, LV_OBJ_FLAG_CLICKABLE);
+      lv_obj_set_size(a, r * 2, r * 2);
+      lv_obj_set_pos(a, x + size / 2 - r, y + size - 1 - r);
+      lv_arc_set_bg_angles(a, 225, 315);
+      lv_obj_set_style_arc_width(a, 2, 0);
+      lv_obj_set_style_arc_rounded(a, true, 0);
+      lv_obj_set_style_arc_color(a, rgb(ink), 0);
+      lv_obj_set_style_arc_opa(a, LV_OPA_COVER, 0);
+    }
+    lv_obj_t *dot = box(bar, x + size / 2 - 2, y + size - 4, 4, 4);
+    lv_obj_set_style_radius(dot, 2, 0);
+    lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(dot, rgb(ink), 0);
+  }
+  if (slashed) {
+    static const lv_point_precise_t slash[] = {{0, 0}, {14, 14}};
+    lv_obj_t *line = lv_line_create(bar);
+    lv_obj_remove_style_all(line);
+    lv_line_set_points(line, slash, 2);
+    lv_obj_set_style_line_width(line, 2, 0);
+    lv_obj_set_style_line_rounded(line, true, 0);
+    lv_obj_set_style_line_color(line, rgb(pal().textSecondary), 0);
+    lv_obj_set_pos(line, x + 1, y + 1);
+  }
+  text(bar, letter, &th_eyebrow_13, ink, x + size + 2, 10, letterW + 2);
+  return static_cast<int16_t>(size + 2 + letterW + 8);
+}
+
+// The hotspot, home Wi-Fi and Sigil radio icons, right to left before the battery.
+int16_t drawLinks(lv_obj_t *bar, const AtlasScreen &s, int16_t right) {
+  int16_t used = drawLink(bar, right, "S", pal().turn, s.sigilsOnline > 0, false, true);
+  if (s.homeWifiOn) used += drawLink(bar, right - used, "H", pal().info, s.homeWifiLinked, !s.homeWifiLinked, false);
+  used += drawLink(bar, right - used, "A", pal().accent, s.hotspotStations > 0, false, false);
+  return used;
+}
+
 void headerRight(const AtlasScreen &s, char *right, size_t size);
 
 void drawHeader(lv_obj_t *root, const AtlasScreen &s) {
@@ -381,8 +439,9 @@ void drawHeader(lv_obj_t *root, const AtlasScreen &s) {
   char right[64];
   headerRight(s, right, sizeof(right));
   const int16_t battery = drawBattery(bar, s);
-  live.header = text(bar, right, &th_eyebrow_13, s.sdMissing ? pal().warning : pal().textSecondary, 110, 7, W - 124 - battery,
-       LV_TEXT_ALIGN_RIGHT);
+  const int16_t links = drawLinks(bar, s, W - 14 - battery);
+  live.header = text(bar, right, &th_eyebrow_13, s.sdMissing ? pal().warning : pal().textSecondary, 110, 7,
+       W - 124 - battery - links, LV_TEXT_ALIGN_RIGHT);
 }
 
 void headerRight(const AtlasScreen &s, char *right, size_t size) {

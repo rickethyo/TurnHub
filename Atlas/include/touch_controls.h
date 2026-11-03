@@ -260,6 +260,13 @@ struct AtlasScreen {
   bool batteryCharging = false;  // On USB: a lightning bolt over the cell icon.
   TurnHub::UpdateKind update = TurnHub::UpdateKind::None;  // Header pill: "Update available".
   uint8_t sigilsOnline = 0;
+  // Header link icons (owner, 2026-11-03), each a shape with its own colour
+  // and letter, so none relies on colour alone: the TurnHub hotspot (A, lit
+  // while a phone is on it), home Wi-Fi (H, slashed while joining, hidden
+  // when off) and the Sigil radio (S, lit while a Sigil is online).
+  uint8_t hotspotStations = 0;
+  bool homeWifiOn = false;
+  bool homeWifiLinked = false;
   // In a game: the round (the starter's turn opens each one; 0 between
   // games) and the match's running time ("42:10"), shown in the header.
   uint16_t round = 0;
@@ -319,6 +326,7 @@ inline bool sameHeader(const AtlasScreen &a, const AtlasScreen &b) {
       a.batteryPercent == b.batteryPercent && a.batteryLow == b.batteryLow &&
       a.batteryCharging == b.batteryCharging &&
       a.update == b.update && a.sigilsOnline == b.sigilsOnline &&
+      a.hotspotStations == b.hotspotStations && a.homeWifiOn == b.homeWifiOn && a.homeWifiLinked == b.homeWifiLinked &&
       a.round == b.round;
 }
 
