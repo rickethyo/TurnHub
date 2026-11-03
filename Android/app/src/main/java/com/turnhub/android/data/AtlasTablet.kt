@@ -269,7 +269,7 @@ class AtlasTablet(
             }
             val sent = session.raw("POST", "/api/planes", listOf("version" to version, "planes" to lines))
             progress(if (sent?.ok == true) "Atlas has the ${minOf(cards.size, 192)} planes." else "Atlas didn't take the planes. Try Send planes to Atlas.")
-        } catch (e: CancellationException) { throw e } catch (_: Exception) { progress("Couldn't reach Atlas to send the planes.") }
+        } catch (e: CancellationException) { throw e } catch (e: Exception) { android.util.Log.w("AtlasTablet", "Plane catalog sync failed", e); progress("Couldn't reach Atlas to send the planes.") }
     }
 
     /**
@@ -303,7 +303,7 @@ class AtlasTablet(
                         ?: "Atlas didn't keep the plane cards.")
             }
             progress("Sent ${missing.size} plane cards to Atlas.")
-        } catch (e: CancellationException) { throw e } catch (_: Exception) { progress("Couldn't finish sending the plane cards. Try again.") }
+        } catch (e: CancellationException) { throw e } catch (e: Exception) { android.util.Log.w("AtlasTablet", "Plane card sync failed", e); progress("Couldn't finish sending the plane cards. Try again.") }
     }
 
     /**

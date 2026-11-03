@@ -424,7 +424,9 @@ class HttpAtlasTransport(
         formBody: String? = null,
         rawBody: ByteArray? = null,
         contentType: String? = null,
-        readTimeout: Int = if (path == "/api/avatar/review" || path == "/api/session/avatar")
+        // Atlas checks or writes its microSD card for these, which can take longer than a state read.
+        readTimeout: Int = if (path == "/api/avatar/review" || path == "/api/session/avatar" ||
+            path == "/api/planes" || path == "/api/planes/card")
             maxOf(readTimeoutMs, ARTWORK_TIMEOUT_MS) else readTimeoutMs,
     ): Response = withContext(ioDispatcher) {
         val expectedGame = kotlinx.coroutines.currentCoroutineContext()[ExpectedGame]?.game
