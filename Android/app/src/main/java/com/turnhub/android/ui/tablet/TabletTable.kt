@@ -454,6 +454,7 @@ internal fun TabletTable(
         }
         val panel: @Composable (Int, Int, Modifier) -> Unit = { index, degrees, modifier ->
             val unit = units[index]
+            val sector = star && !list && !solo
             key(unit.key) {
                 val pending = unsent[unit.key] ?: 0
                 // An acknowledged change is dropped as soon as a newer snapshot arrives (which carries
@@ -461,7 +462,7 @@ internal fun TabletTable(
                 val inFlight = sent.filter { it.key == unit.key && !(it.acked && it.sentAtRevision != summary.revision) }
                 val life = (unit.lifeSeat.life ?: 0) + pending + inFlight.sumOf { it.delta } +
                     unit.members.sumOf { tablet.offlineLife(it.participantId) }
-                Box(modifier.padding(4.dp).then(
+                Box(modifier.then(if (sector) Modifier else Modifier.padding(4.dp)).then(
                     // List cards measure their own height; facing fixes both dimensions.
                     if (list) Modifier.rotate(turn.toFloat()) else Modifier.facing(publicPanelDegrees(upright, degrees, turn)),
                 ), propagateMinConstraints = list) {
@@ -496,6 +497,7 @@ internal fun TabletTable(
                         underHub = index in underHub,
                         controlsEnabled = !readOnly,
                         observerOnly = readOnly,
+                        sector = sector,
                     )
                 }
             }
@@ -540,7 +542,10 @@ internal fun TabletTable(
                     units.indices.forEach { panel(it, 0, Modifier.weight(1f).fillMaxWidth()) }
                 }
             } else if (star) {
-                StarTable(panel)
+                StarTable(panel, active = { index -> units[index].members.any { summary.hasTurn(it.playerNumber) } &&
+                    summary.state != TableState.GAME_OVER }, backdrop = { index, modifier ->
+                    StarSeatArtwork(units[index], modifier)
+                })
             } else if (landscape) {
                 Column(Modifier.fillMaxSize().padding(4.dp)) {
                     if (plan.far.isNotEmpty()) {
@@ -1029,6 +1034,7 @@ internal fun PlayerPanel(
     underHub: Boolean = false,
     controlsEnabled: Boolean = true,
     observerOnly: Boolean = false,
+    sector: Boolean = false,
 ) {
     val tracks = summary.settings.profile.deathMayDie
     val investigatorArt = rememberInvestigatorArt(unit.members.first().investigator.takeIf { tracks })
@@ -1056,7 +1062,7 @@ internal fun PlayerPanel(
         .takeIf { it.isNotEmpty() }?.joinToString(" & ")
     // The active panel's edge breathes slowly; steady when motion is reduced. The value is
     // read only while drawing, so the pulse redraws the edge without recomposing the panel.
-    val glow = if (active && !reduceMotion) {
+    val glow = if (active && !reduceMotion && !sector) {
         rememberInfiniteTransition(label = "turnGlow").animateFloat(
             .55f, 1f, infiniteRepeatable(tween(1_100), RepeatMode.Reverse), label = "glow",
         )
@@ -1077,10 +1083,10 @@ internal fun PlayerPanel(
     BoxWithConstraints(
         Modifier
             .then(if (tracks) Modifier.fillMaxWidth() else Modifier.fillMaxSize())
-            .clip(shape)
-            .background(p.surface)
+            .then(if (sector) Modifier else Modifier.clip(shape).background(p.surface))
             .then(
-                if (!active) Modifier.border(1.dp, p.line, shape)
+                if (sector) Modifier
+                else if (!active) Modifier.border(1.dp, p.line, shape)
                 else Modifier.drawWithContent {
                     drawContent()
                     val w = 4.dp.toPx()
@@ -1094,6 +1100,12 @@ internal fun PlayerPanel(
                 },
             ),
     ) {
+        if (sector) {
+            StarPlayerContent(unit, summary, life, onOpenMenu, onPlanarRoll, onBump, onControl, onTurnMark,
+                onRespond, offlineCommander, haptics, reduceMotion, controlsEnabled, observerOnly,
+                recentDelta, cards.firstOrNull())
+            return@BoxWithConstraints
+        }
         // Team panels share space; each player's chosen background gets an equal share.
         Row(Modifier.matchParentSize()) {
             unit.members.forEachIndexed { index, member ->
@@ -1283,6 +1295,89 @@ internal fun PlayerPanel(
     }
 }
 
+/** Each row is fitted at its own depth in the wedge rather than sharing one narrow rectangle. */
+@Composable
+private fun StarPlayerContent(unit: TableUnit, summary: TableSummary, life: Int, onMenu: () -> Unit,
+    onPlanarRoll: (() -> Unit)?, onBump: (Int) -> Unit, onControl: (TabletSeat, String) -> Unit,
+    onTurnMark: (TablePlayer, String, Int) -> Unit, onRespond: (TabletSeat, Long, Boolean) -> Unit,
+    offlineCommander: (Long, Int, Int) -> Int, haptics: TurnHubHaptics, reduceMotion: Boolean,
+    controlsEnabled: Boolean, observerOnly: Boolean, recentDelta: Int, art: TileArt?) {
+    val flow = requireNotNull(LocalStarSeatFlow.current)
+    val p = palette
+    val member = unit.members.first()
+    val active = summary.hasTurn(member.playerNumber) && summary.state != TableState.GAME_OVER
+    val (small, big) = lifeSteps(summary.settings.profile)
+    val damage = commanderDamageFacts(unit, summary, offlineCommander)
+    val counters = listOf(counterChips(member.counters, summary.initiativePlayerNumber == member.playerNumber,
+        true, summary.settings.poisonLimit))
+    val factSize = adaptiveFactTextSize(counters, damage, flow.facts.width.dp, flow.facts.height.dp, 18)
+    fun band(rect: StarBand) = Modifier.offset(rect.left.dp, rect.top.dp).size(rect.width.dp, rect.height.dp).clipToBounds()
+    Box(Modifier.fillMaxSize()) {
+        Box(band(flow.life)) {
+            if (controlsEnabled && !unit.out) Row(Modifier.fillMaxSize()) {
+                HoldHalf("−", stepLabel(summary.settings.profile, member.label, small, false), true,
+                    { onBump(-small) }, { onBump(-big) }, Alignment.CenterStart, Modifier.weight(1f).fillMaxHeight())
+                HoldHalf("+", stepLabel(summary.settings.profile, member.label, small, true), true,
+                    { onBump(small) }, { onBump(big) }, Alignment.CenterEnd, Modifier.weight(1f).fillMaxHeight())
+            }
+            Column(Modifier.align(Alignment.Center).alpha(if (unit.out) .45f else 1f),
+                horizontalAlignment = Alignment.CenterHorizontally) {
+                val status = if (unit.out) {
+                    val source = member.eliminatedBy?.let { n -> summary.players.firstOrNull { it.playerNumber == n }?.label }
+                    (if (member.conceded) "Conceded" else "Eliminated") + (source?.let { " · By $it" } ?: "")
+                } else if (active) "Turn" else null
+                if (status != null) Text(status, color = if (unit.out) p.bad else p.onActive,
+                    style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.background(if (unit.out) p.surface.copy(alpha = .9f) else p.active,
+                        RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 2.dp))
+                Box(Modifier.clearAndSetSemantics {
+                    contentDescription = scoreDescription(summary.settings.profile, member.label, life, summary.settings.startingLife)
+                    liveRegion = LiveRegionMode.Polite
+                }) {
+                    val size = minOf(flow.life.width * .52f, (flow.life.height - if (status != null) 28f else 4f) * .8f).coerceIn(24f, 150f)
+                    LifeNumber(life, size, reduceMotion)
+                    if (recentDelta != 0) Text((if (recentDelta > 0) "+" else "−") + kotlin.math.abs(recentDelta),
+                        color = if (recentDelta > 0) p.good else p.bad, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.TopEnd).background(p.surface, RoundedCornerShape(8.dp)))
+                }
+            }
+        }
+        Column(band(flow.facts).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            if (summary.monarchPlayerNumber == member.playerNumber) MonarchBadge(null, Modifier)
+            CommanderSummary(damage, factSize, art != null)
+            StarProgressLine(unit, summary, flow.facts.width.dp, wrap = true)
+            CounterChips(member.counters, summary.initiativePlayerNumber == member.playerNumber, true, summary.settings.poisonLimit,
+                compact = true, commanderRarity = art?.rarity, contentSize = factSize, artworkBackdrop = art != null)
+            if (member.demerits > 0) Text("Demerits · ${member.demerits}", color = p.text, style = MaterialTheme.typography.labelMedium)
+            art?.let { Text("Art: ${it.artist}", color = p.muted, style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.semantics { contentDescription = "${it.cardName} art by ${it.artist}, from ${it.source}" }) }
+        }
+        CurvedSeatHeading(member.label, member.namedCommander, band(flow.heading))
+        Row(band(flow.controls), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)) {
+            if (observerOnly) PublicPanelStats(unit, summary)
+            else {
+                MenuButton(member.label, true, onMenu)
+                if (active && !unit.out && controlsEnabled && summary.state == TableState.RUNNING) {
+                    HoldToPass(summary.pending.passPlayer != null, { onControl(member.seat(), "pass") }, haptics,
+                        Modifier.weight(1f), true, small = true) { color -> TurnClock(summary, color) }
+                    if (onPlanarRoll != null) PlanarDieButton(onPlanarRoll, true, label = "Die")
+                } else if (active) TurnClock(summary)
+            }
+        }
+        val left = maxOf(flow.life.left, flow.facts.left)
+        val right = minOf(flow.life.left + flow.life.width, flow.facts.left + flow.facts.width)
+        Box(Modifier.offset(left.dp, flow.life.top.dp).size((right - left).coerceAtLeast(1f).dp,
+            (flow.facts.top + flow.facts.height - flow.life.top).dp), contentAlignment = Alignment.Center) {
+            if (controlsEnabled) Prompt(unit, summary, onControl, onRespond, Modifier)
+            if (controlsEnabled && member.playerNumber in summary.radDuePlayerNumbers && summary.pending.winConfirmationPlayer == null &&
+                member.lifeRequest?.state != LifeRequestState.PENDING) RadPrompt(member, false,
+                { onTurnMark(member, StandaloneGame.RAD_KIND, it) }, Modifier)
+        }
+    }
+}
+
 /** A cooperative card grows with its counters and text, including wrapped rows and large type. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -1378,13 +1473,13 @@ private fun InvestigatorArtCredit(art: TileArt?) {
 }
 
 @Composable
-private fun PlanarDieButton(onRoll: () -> Unit, compact: Boolean, modifier: Modifier = Modifier) {
+private fun PlanarDieButton(onRoll: () -> Unit, compact: Boolean, modifier: Modifier = Modifier, label: String = "Planar die") {
     val p = palette
     val shape = RoundedCornerShape(14.dp)
-    Box(modifier.heightIn(min = 48.dp).clip(shape).background(p.activeSoft).border(1.dp, p.active, shape)
+    Box(modifier.widthIn(min = 48.dp).heightIn(min = 48.dp).clip(shape).background(p.activeSoft).border(1.dp, p.active, shape)
         .clickable(onClickLabel = "Roll the planar die", role = Role.Button, onClick = onRoll)
         .padding(horizontal = 8.dp, vertical = if (compact) 6.dp else 12.dp), contentAlignment = Alignment.Center) {
-        Text("Planar die", color = p.text, fontWeight = FontWeight.SemiBold, maxLines = 1,
+        Text(label, color = p.text, fontWeight = FontWeight.SemiBold, maxLines = 1,
             style = if (compact) MaterialTheme.typography.labelLarge else LocalTextStyle.current)
     }
 }
@@ -1515,6 +1610,7 @@ private fun HoldHalf(
 /** Hold to pass, so a brushed panel never ends a turn; while Atlas holds the pass, a tap keeps the turn. */
 @Composable
 private fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHaptics, modifier: Modifier, compact: Boolean = false,
+    small: Boolean = false,
     clock: @Composable (Color?) -> Unit = {}) {
     val p = palette
     val pass by rememberUpdatedState(onPass)
@@ -1554,7 +1650,7 @@ private fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHap
                     }
                 }
             }
-            .heightIn(min = 64.dp)
+            .heightIn(min = if (small) 48.dp else 64.dp)
             .padding(horizontal = 8.dp, vertical = if (compact) 6.dp else 12.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -1609,7 +1705,7 @@ private fun TurnClock(summary: TableSummary, foreground: Color? = null) {
 
 /** Star Commander: "Enemies out 1/2", with the enemies' names when the panel is wide enough. */
 @Composable
-private fun StarProgressLine(unit: TableUnit, summary: TableSummary, width: androidx.compose.ui.unit.Dp) {
+private fun StarProgressLine(unit: TableUnit, summary: TableSummary, width: androidx.compose.ui.unit.Dp, wrap: Boolean = false) {
     if (!summary.star) return
     val member = unit.members.first()
     val seats = summary.starSeats()
@@ -1617,10 +1713,10 @@ private fun StarProgressLine(unit: TableUnit, summary: TableSummary, width: andr
     val enemies = summary.starEnemies(member.playerNumber)
     val names = enemies.joinToString(", ") { it.label + if (it.eliminated) " (out)" else "" }
     Text(
-        starProgress(seats, seat) + if (width >= 260.dp) " · $names" else "",
+        starProgress(seats, seat) + if (width >= 260.dp || wrap) " · $names" else "",
         color = palette.muted,
         style = MaterialTheme.typography.labelMedium,
-        maxLines = 1,
+        maxLines = if (wrap) 3 else 1,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.padding(top = 2.dp),
     )

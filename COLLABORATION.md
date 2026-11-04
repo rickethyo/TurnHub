@@ -2031,3 +2031,112 @@ Android debug assembly and whitespace checks pass. Installed in place on the
 SM-T870 public display and inspected its HDMI/DeX output: +/- is absent on
 all five cards, including eliminated/conceded cards; turn clock and facts
 remain visible. No host update or gameplay commands. Continue PR #192.
+
+## Select public display content — 2026-11-03, Codex
+
+Owner requests Table/Planes selection in Display settings for the selected
+public screen. Baseline `004a9d1b`, clean codex/master, origin fetched. Scope:
+room-persisted per-public-device content selection, host-validated Planechase
+availability, authenticated remote presentation commands without gameplay
+privileges, and reactive public-screen navigation. Keep orientation, roles,
+seats and game state independent. Update host/client apps in place and verify
+target isolation, restart recovery, invalid requests and TV rendering.
+
+Validation: standard debug and Preview 1467 builds pass. All 19 focused
+room/orientation tests pass, including target isolation, idempotence, restart
+recovery, failed-save rollback, invalid values, Planechase gating and public
+self-navigation without gameplay grants. Docs links and whitespace pass.
+Installed standard builds on both Folds and both Samsung tablets, and Preview
+1467 on Pixel 9, Pixel 10 and S23; all seven in-place updates succeeded. Private
+pre-update snapshots retained. Host lobby/game identity and roster matched
+immediately before/after its update; the owner subsequently began the new Star
+Commander game. From the Fold's Display settings selected the Galaxy Tab S7,
+switched it to Planes and inspected the actual HDMI/DeX plane card. Restarted
+the public client, verified Planes remained selected and reconnected, then
+switched it back to Table and closed the dialog. No gameplay commands sent.
+Manual updated, rendered with Word, and edited page checked. Large system text
+and Atlas-relayed physical acceptance remain. Keep this separate from Claude's
+active phone-hosted Sigil PR #194 because the scopes and branches are independent.
+
+## Phone planar controls — 2026-11-03, Codex
+
+Owner reports missing planar die on the phone player card and inability to
+record a physical-die planeswalk, while host tablet works. Baseline `3635dcea`,
+clean codex/master, origin fetched; continue #195. Scope: expose active-card
+planar roll, allow living seated players/shared controllers through existing
+planar actions while keeping public screens read-only, and retain source-seat,
+match/receipt and host-engine checks. Check host/Atlas relay parity; build,
+test, install and inspect without rolling or planeswalking the live match.
+
+Validation: standard debug and Preview 1468 builds pass; all 62 focused room,
+local-session, Atlas-relay and planar-control tests pass. Tests cover the
+actual host-engine manual planeswalk and roll, exactly-once retry, stale
+match/invalid payload rejection, eliminated/offline/public-view restrictions,
+Atlas active-controller forwarding, and real phone-hosted Planechase settings
+in TableSummary. The phone card callback had been null, and Planes UI plus the
+room gate incorrectly required game-master access. Corrected those gates and
+preserved the originating member seat through the adapter. No rule changes.
+All seven in-place device updates succeeded. Private host snapshots show the
+same running game ID, revision and five-player roster immediately before and
+after installation. Inspected Michael's actual active phone card with Planar
+die visible; expanded Physical die & card effects on the Fold and verified
+Planeswalk and Chaos ensues are enabled for a seated non-master. No live roll,
+planeswalk or other gameplay command sent during validation. Restored the Fold
+to its player view. Docs links/whitespace pass; edited manual page rendered
+with Word and visually checked. Atlas-relayed physical interaction and large
+system text remain acceptance checks. Continue the related #195 follow-up.
+
+Phone planar roll turn gate — 2026-11-03, Codex, baseline `7f259ef0`:
+owner requires the phone roll control only on that player's active turn.
+Scope: separate die-roll availability from other manual planar actions,
+recheck originating seat/active team at the host for normal and effect rolls,
+and enforce the same rule for Atlas relay. Keep shared host/table controls
+acting for the active planar controller. Build/test/install with live game
+preserved and no test rolls. Continue #195.
+
+Validation: standard debug and Preview 1469 builds succeed; all 64 focused
+room/session/Atlas-relay/phone-control tests pass. UI and host distinguish die
+rolls from manual planar effects. Off-turn normal and effect rolls are rejected
+for a seated phone even with master access; active-team use remains valid.
+The local engine receives the originating roll seat instead of substituting
+the active index, and Atlas relay checks the originating active team. Tests
+also cover paused turns and Two-Headed Giant presentation permissions. All
+seven in-place updates succeeded. The host retained its same running game ID
+and five-player roster. Inspected the off-turn Fold's Planes button: Roll the
+planar die disabled; restored its player view. No live test rolls/gameplay
+commands. Docs links and whitespace pass; manual edited page rendered and
+visually checked. Continue #195; no firmware flash or release.
+
+## Star Commander table geometry — 2026-11-03, Codex
+
+Owner supplies portrait-tablet screenshot and requests substantial geometric
+layout improvement. Baseline `3328c682`, clean codex/master; origin fetched.
+Scope: replace fixed square/ellipse placement with five disjoint 72-degree
+seat sectors and fitted rotated rectangular cards, reserving the center menu
+and edge gutters. Preserve clockwise seating, seat-facing controls, artwork,
+readouts and all game behavior. Test rotated bounds/overlap/hub clearance over
+portrait/landscape/square sizes, compare real embedded/full-screen tablet
+layouts and install in place while retaining the match. Continue #195.
+
+Owner follow-ups: preserve the Game tab, fix active-seat overlap, let each
+text band follow the wedge width, and curve the names. Final layout uses
+full fitted artwork sectors plus separate life/facts/curved-heading/control
+bands. Native text-on-path uses the bundled Inter face, measures/wraps full
+names and retains ordinary accessibility labels. Life/counters remain straight.
+The temporary Game-tab regression was the star-style flag reaching the list
+renderer; star presentation is now restricted to the actual five-seat Table
+branch. Its original artwork-backed upright card is restored and inspected.
+
+Validation: standard debug and Preview 1470 builds pass. All 14 focused
+geometry/layout/damage-fact tests pass. Property checks cover rotated bounds,
+seat/menu separation, fitted band containment and no text/action overlap in
+portrait, landscape and square layouts; artwork covers over 85% of the table.
+Inspected the actual Samsung embedded and full-screen Table, curved headings,
+larger numbers, active Pass/Die controls and restored Game artwork. Checked
+landscape and restored free rotation/embedded Table. The tablet powered off
+at low battery during the work; owner reconnected it at its new debugging port.
+Verified the same running match and five-player roster after recovery. All
+seven final in-place installs succeeded. No gameplay commands sent. Manual
+edited page rendered with Word and checked; docs links/whitespace pass.
+Unusually long names and large system text still need physical acceptance.
+Continue #195 without merging Claude's active phone-hosted firmware work.

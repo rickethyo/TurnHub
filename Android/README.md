@@ -21,7 +21,10 @@ seats (placeholder seats fill a short roster; two when nobody is seated). It
 plays like the real table but lives only in memory, so nothing on it is saved.
 Full screen takes a started game over the whole screen. Star Commander games can
 use the setup's star as the table layout (a per-device switch in the lobby and
-in the table menu's Sound & display), with each panel facing its player. In any
+in the table menu's Sound & display), with each seat facing its player. Five
+fitted artwork wedges keep clear of the center menu. Player and commander names
+curve across each seat; life, counters and action buttons use separate widths
+that follow the available shape. The Game tab retains its upright player card. In any
 Commander mode a player can optionally name their commander in the lobby (Scryfall
 suggests card names as they type, and they can pick which printing's art); the
 name shows under theirs, on their commander-tax counter and in others' Commander
@@ -35,6 +38,9 @@ Commander mode is named as the commander; every other tile card is art only.
 **Display settings** opens from every player menu, the connected player's **Display**
 button, and the table menu's **Sound & display**. It names the screen being changed;
 **Choose another screen** selects a public display, host screen or named player's screen.
+For a public Table/Planes display, **Show on this screen** selects **Table** or
+**Planes**. Planes requires Planechase. Content choices survive room reconnects
+and host restart without changing gameplay permissions.
 Choose **All panels upright** for a TV/public display or **Face each player** for a
 central table. Any connected player can change this presentation setting without
 game-master permission, including after conceding. Only the selected device changes;
@@ -717,3 +723,8 @@ players it also offers On the Atlas screen, using the same screen picker and
 permissions as the Planes tab. Players is a single list with profile location
 labels; public gameplay identity can be used without copying private stats or
 credentials. Private statistics and administration still require the profile PIN.
+
+With Planechase enabled, connected phones show **Planar die** on the active
+player card. Rolls are enabled only on your active player/team turn. Living seated players may use the Planes controls without a game
+master grant. **Physical die & card effects** contains **Planeswalk** and
+**Chaos ensues** for physical rolls. Public displays remain read-only.

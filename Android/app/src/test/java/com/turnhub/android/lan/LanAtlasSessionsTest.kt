@@ -94,6 +94,25 @@ class LanAtlasSessionsTest {
         assertFalse(joined.has("game"))
     }
 
+    @Test fun `seated phone manual planeswalk and die face relay once for active player without a master grant`() {
+        val f = Fixture()
+        f.table = f.table!!.copy(settings = f.table!!.settings.copy(profile = com.turnhub.android.protocol.GameProfile.MTG_COMMANDER, planechase = true))
+        val token = f.join(player = 2).getString("token")
+        val active = f.table!!.players.first { it.playerNumber == f.table!!.activePlayerNumber }.let { TabletSeat(it.controller.id, it.slot) }
+        val walk = f.action(token, "planar-atlas:planeswalk")
+        assertEquals("ok", f.handle(walk).getString("code"))
+        assertEquals("ok", f.handle(walk).getString("code"))
+        val activeNumber = f.table!!.activePlayerNumber!!
+        val activeToken = if (activeNumber == 2) token else f.join(player = activeNumber).getString("token")
+        if (activeNumber != 2) assertEquals("rejected", f.handle(f.action(token, "planar-atlas:roll:chaos")).getString("code"))
+        assertEquals("ok", f.handle(f.action(activeToken, "planar-atlas:roll:chaos")).getString("code"))
+        assertEquals(listOf("control $active ${com.turnhub.android.data.PLANAR_PREFIX}planeswalk",
+            "control $active ${com.turnhub.android.data.PLANAR_PREFIX}roll:chaos"), f.atlas.sent)
+        assertEquals("rejected", f.handle(f.action(token, "planar-atlas:planeswalk", value = 1)).getString("code"))
+        f.table = f.table!!.copy(players = f.table!!.players.map { if (it.playerNumber == 2) it.copy(eliminated = true) else it })
+        assertEquals("rejected", f.handle(f.action(token, "planar-atlas:planeswalk")).getString("code"))
+    }
+
     @Test fun `a guest's taps go to Atlas for their own seat only`() {
         val f = Fixture()
         val token = f.join(player = 2).getString("token")

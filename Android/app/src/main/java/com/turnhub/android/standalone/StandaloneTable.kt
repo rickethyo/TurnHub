@@ -959,10 +959,12 @@ class StandaloneTable(
     private fun applyPlanarLanAction(game: StandaloneGame, action: com.turnhub.android.lan.LanAction): Boolean {
         val index = game.active
         if (!game.profile.magicRules || !game.planechase.enabled || index == null || action.source != 0) return false
+        if (action.player > 0 && game.players[action.player - 1].eliminated) return false
         val simple = action.value == 0 && action.slot == 0
         val next = when (action.kind) {
             "planar-roll" -> if (action.slot == 0 && action.value in 0..1)
-                game.rollPlanarDie(index, PlanarFace.roll(planarRandom), fromEffect = action.value == 1) else game
+                game.rollPlanarDie(if (action.player > 0) action.player - 1 else index,
+                    PlanarFace.roll(planarRandom), fromEffect = action.value == 1) else game
             "planar-walk" -> if (simple) game.planeswalk(index) else game
             "planar-resolve" -> if (simple) game.resolvePhenomenon(index) else game
             "planar-chaos" -> if (simple) game.chaosEnsues(index) else game

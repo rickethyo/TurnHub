@@ -98,8 +98,12 @@ handles and credentials are omitted. Atlas relay snapshots carry Atlas's public
 Public Table/Planes/Elder views are read-only unless granted game master access;
 a shared table controller can change ordinary seat gameplay. The server derives
 a personal command's seat from the saved profile ID and ignores a forged target.
-A shared controller/game master may name a current target. Planar actions require
-game master access. Format changes select the appropriate existing engine
+A shared controller/game master may name a current target. Planar actions allow living seated players and shared controllers while Planechase
+is enabled, acting for the active planar controller. Public views require a
+game-master grant for these gameplay changes. The host rechecks the originating
+seat and rejects eliminated players. Die rolls (including card-effect rolls)
+require the originating player to be on the active turn/team, even with a
+game-master grant. Shared host/table controls act for the active controller. Format changes select the appropriate existing engine
 validator rather than carrying old game-specific seat capabilities forward.
 
 Existing local own-seat commands include life, counters, received Commander
@@ -131,6 +135,20 @@ restart, but old-epoch commands receive `interrupted` without applying. This
 prevents replay when a game write succeeded just before the process lost its
 receipt. Players review current values before making a new edit. Reconnect does
 not replay commands automatically.
+
+### Public display content
+
+`presentation` accepts exactly one of `displayAllUpright` (boolean) or
+`displayView` (`table` or `planes`), with the same stable `displayTarget`.
+Content selection applies to member roles `display`, `table` and `planes`;
+`planes` requires Planechase on the authoritative game. Host and personal
+screens keep their normal navigation. Target rows include `view` for supported
+public screens, and each public member reply includes `displayView`.
+The room persists choices in `displayViews`, independently of orientation,
+and rolls back failed writes. An unchanged request is idempotent.
+Authenticated players/shared controllers and game masters may select public
+content; read-only Table/Planes members may select only their own content.
+This never changes membership role, seat, master grants or game state.
 
 ## Persistence and Atlas backup
 
