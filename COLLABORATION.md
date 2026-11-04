@@ -1997,3 +1997,12 @@ polling. No host install or gameplay commands. The manual was rendered with
 Word (LibreOffice unavailable), and its edited page was visually checked.
 Other formats, very large system text and dense team layouts remain physical
 acceptance checks. Changes remain on codex/master; no merge or release.
+
+Public-display correction (owner, 2026-11-03; Codex, baseline `543d9273`):
+the life +/- targets were disabled but still drawn on observer cards. Omit
+that gesture row entirely for read-only panels, retaining the live value,
+change feedback, artwork and statistics. Interactive panels keep their targets.
+Android debug assembly and whitespace checks pass. Installed in place on the
+SM-T870 public display and inspected its HDMI/DeX output: +/- is absent on
+all five cards, including eliminated/conceded cards; turn clock and facts
+remain visible. No host update or gameplay commands. Continue PR #192.

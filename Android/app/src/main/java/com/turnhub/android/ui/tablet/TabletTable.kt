@@ -1141,7 +1141,7 @@ internal fun PlayerPanel(
                     minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f,
                     (between - linesRoom) * .8f,
                 ).coerceIn(24f, 160f)
-                Row(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
+                if (!observerOnly) Row(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
                     HoldHalf("−", stepLabel(profile, name, small, adding = false), !out && controlsEnabled,
                         { onBump(-small) }, { onBump(-big) }, Alignment.CenterStart, Modifier.weight(1f).fillMaxHeight())
                     HoldHalf("+", stepLabel(profile, name, small, adding = true), !out && controlsEnabled,
