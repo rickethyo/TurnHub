@@ -2195,3 +2195,15 @@ PR #196.
 Validation: Atlas host suites (Linux, sanitizers), `audit_adapters.py`,
 `check_client_contract.py` and `pio run -e atlas-s3` pass; app unit tests
 519 pass, 2 skipped. Not yet played on the boards.
+
+## Accidental tracked files corrected — 2026-11-04, Codex
+
+Owner requests correction of accidental commit `3288a5ce`, carried into
+master by `a3f8c409`. Baseline `a3f8c409`; scope on `codex/master`: untrack
+exactly its 5,960 additions (six local DMD content/test files, 5,950 simulator
+build/dependency files and four generated previews), preserving local copies.
+Existing ignore rules already cover every path. No application, firmware,
+configuration or dependency changes. Validation: all 5,960 files remain
+byte-identical on disk (SHA-256 manifest outside Git); staged tree otherwise
+matches the accepted PR #196 tree `8e1abeec`. No build or device reflash is
+needed for this tracking-only correction. Keep history intact; no force push.
