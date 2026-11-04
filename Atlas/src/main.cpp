@@ -8,6 +8,7 @@
 #include <WiFi.h>
 
 #include "atlas_app.h"
+#include "hosted_game.h"
 #include "sigil_update_service.h"
 #include "sigil_menu.h"
 #include "profile_picker.h"
@@ -770,6 +771,15 @@ void loop() {
   LOOP_STEP(serviceAutoSleep(nowMs));
   LOOP_STEP(serviceSleep(nowMs));
   LOOP_STEP_BEGIN();
+  // Phone-hosted games: Game 1's Sigils follow the hub while it hosts; a
+  // change either way redraws them from scratch.
+  static bool sigilsHosted = false;
+  const bool hostedNow = TurnHubHosted::hostedTable().live(nowMs);
+  if (hostedNow != sigilsHosted) {
+    sigilsHosted = hostedNow;
+    leds.invalidateAll();
+    for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) invalidateSigilMenu(id);
+  }
   for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
     TableScope scope(t);
     updatePendingPass(nowMs);
@@ -777,7 +787,8 @@ void loop() {
     updateTurnTimerCues(nowMs);
     dispatchSystemIntent(IntentType::ExpireLifeChanges);
     updateGameRecoveryClock(nowMs);
-    leds.render(table().hubState, table().lobby, table().game, table().countdownStartedAtMs,
+    if (t == 0 && hostedNow) leds.renderHosted(TurnHubHosted::hostedTable().game(), nowMs, sigilsAtTable(t));
+    else leds.render(table().hubState, table().lobby, table().game, table().countdownStartedAtMs,
         table().eliminationTargetPlayer, table().game.nextWinConfirmationPlayerNumber(), nowMs,
         sigilsAtTable(t));
     refreshClientNames(nowMs);

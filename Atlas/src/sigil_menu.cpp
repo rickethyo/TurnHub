@@ -1,5 +1,6 @@
 // Sigil menus: action availability and MenuState2 transport. See sigil_menu.h.
 #include "sigil_menu.h"
+#include "hosted_sigils.h"
 
 #include "profile_picker.h"
 
@@ -71,6 +72,8 @@ bool canTakeOverPlayer(uint8_t sigilId) {
 }  // namespace
 
 MenuStateFields sigilMenuFor(uint8_t sigilId) {
+  // Phone-hosted games: the hub's game decides what this Sigil may do.
+  if (hostedForSigil(sigilId, millis())) return hostedSigilMenu(sigilId);
   TableScope scope(tableForController(sigilId));
   uint32_t actions = 0;
   const auto add = [&actions](SigilAction action) { actions |= TurnHubProtocol::sigilActionBit(action); };

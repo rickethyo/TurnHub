@@ -23,6 +23,7 @@
 #include "home_wifi.h"
 #include "home_tls.h"
 #include "hosted_game.h"
+#include "hosted_sigils.h"
 #include "optional_preferences.h"
 #include "profile_store.h"
 #include "sd_card.h"
@@ -594,8 +595,11 @@ void layoutPin(AtlasScreen &screen) {
 // are drawn as tiles, not buttons). In the lobby the whole chip opens the
 // player's screen; in a game its name band does, and the halves below change
 // life. Eliminated players' chips act on nothing.
+bool hostedShown(uint32_t nowMs);
+
 bool chipZone(const PlayerSeat &seat, TouchAction action, uint32_t nowMs, TouchButton &out) {
-  if (seat.controllerId == INVALID_ID || activeScreen(nowMs) != ScreenKind::Status) return false;
+  // A hosted game's tiles are the hub's players, not Atlas seats: they show only.
+  if (seat.controllerId == INVALID_ID || activeScreen(nowMs) != ScreenKind::Status || hostedShown(nowMs)) return false;
   PlayerSeat seats[MAX_SCREEN_PLAYERS];
   const uint8_t count = chipSeats(seats);
   for (uint8_t i = 0; i < count; ++i) {
@@ -642,7 +646,6 @@ bool chipAction(TouchAction action) {
 }
 
 // The buttons for the open screen and the table state.
-bool hostedShown(uint32_t nowMs);
 
 void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
   screen.buttonCount = 0;
@@ -759,8 +762,18 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     case ScreenKind::Status:
       break;
   }
-  // A hosted game's controls arrive with slice 3; until then it is read-only.
-  if (hostedShown(nowMs)) return;
+  // A hosted game: the table controls the hub's game offers, queued for the hub.
+  if (hostedShown(nowMs)) {
+    const HostedScreenActions offered = hostedScreenActions();
+    ButtonSpec row[2];
+    uint8_t n = 0;
+    if (offered.start) row[n++] = {TouchAction::StartGame, "Start game", 0, 3};
+    if (offered.pass) row[n++] = {TouchAction::PassTurn, "Pass", 0, 3};
+    if (offered.pause) row[n++] = {TouchAction::Pause, "Pause", 0, 2};
+    if (offered.resume) row[n++] = {TouchAction::Resume, "Resume", 0, 3};
+    if (n) addRow(screen, BUTTON_ROW_Y, row, n);
+    return;
+  }
 
   switch (table().hubState) {
     // Add player, Start (New game: the game's options, then Start game) and
@@ -1252,6 +1265,17 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
   }
   if (navigate(action)) {
     serialLog.print("ATLAS|TOUCH|");
+    serialLog.println(actionName(action));
+    return;
+  }
+  // A hosted game: the hub decides, so the tap only queues an input for it.
+  if (hostedShown(nowMs) && (action == TouchAction::StartGame || action == TouchAction::PassTurn ||
+      action == TouchAction::Pause || action == TouchAction::Resume)) {
+    const HostedScreenAction hosted = action == TouchAction::StartGame ? HostedScreenAction::Start
+        : action == TouchAction::PassTurn ? HostedScreenAction::Pass
+        : action == TouchAction::Pause ? HostedScreenAction::Pause : HostedScreenAction::Resume;
+    if (!queueHostedScreenAction(hosted)) showNotice(nowMs, "That is no longer available");
+    serialLog.print("ATLAS|TOUCH|HOSTED|");
     serialLog.println(actionName(action));
     return;
   }
@@ -1755,7 +1779,7 @@ void formatTurnClock(AtlasScreen &screen, uint32_t nowMs) {
   }
 }
 
-// Phone-hosted games (hosted_game.h): the hub's game, shown read-only for now.
+// Phone-hosted games (hosted_game.h): the hub's game; its controls queue inputs.
 bool hostedShown(uint32_t nowMs) {
   return tableIndex() == 0 && TurnHubHosted::hostedTable().live(nowMs);
 }

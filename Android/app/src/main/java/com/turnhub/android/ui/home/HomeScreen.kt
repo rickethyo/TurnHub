@@ -173,6 +173,9 @@ fun HomeScreen(
     /** Phone-hosted games: this phone's game shown on the connected Atlas. */
     hostedStatus: com.turnhub.android.data.HostedAtlasLink.Status = com.turnhub.android.data.HostedAtlasLink.Status.Off,
     onHostOnAtlas: ((Boolean) -> Unit)? = null,
+    /** Atlas kept the last hub's unfinished game: whose it was, while it is offered. */
+    hostedResumeHost: String? = null,
+    onResumeHosted: (Boolean) -> Unit = {},
 ) {
     PresenceCodeDialog(admin, adminActions)
     uiState.homePairing?.let { atlas ->
@@ -397,7 +400,12 @@ fun HomeScreen(
                         }) { Text(if (atlasGame) "Device game" else "Atlas game") }
                     }
                     // Phone-hosted: this phone runs the game, Atlas shows it (and its Sigils, later).
-                    if (onHostOnAtlas != null && !atlasGame && summary != null) {
+                    if (onHostOnAtlas != null && !atlasGame && summary != null && hostedResumeHost != null) {
+                        TextButton(onClick = { onResumeHosted(true) }) {
+                            Text("Resume " + (hostedResumeHost.takeIf { it.isNotBlank() }?.let { "$it's" } ?: "Atlas") + " game")
+                        }
+                        TextButton(onClick = { onResumeHosted(false) }) { Text("Show mine instead") }
+                    } else if (onHostOnAtlas != null && !atlasGame && summary != null) {
                         val hosting = hostedStatus == com.turnhub.android.data.HostedAtlasLink.Status.Hosting
                         TextButton(onClick = { onHostOnAtlas(!hosting) },
                             modifier = Modifier.semantics { stateDescription = if (hosting) "Showing on Atlas" else "Not on Atlas" }) {

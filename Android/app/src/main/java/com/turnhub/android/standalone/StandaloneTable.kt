@@ -856,6 +856,61 @@ class StandaloneTable(
     // --- plumbing -------------------------------------------------------------------
 
     /** LAN capabilities already select the seat. Freshness and mode are rechecked here. */
+    /**
+     * Resumes a phone-hosted game Atlas kept when its last hub went away
+     * (protocol/hosted-v1.md): only while this phone has no game under way, so
+     * it never replaces one. The game's players stay as that hub named them.
+     */
+    fun resumeHostedGame(json: JSONObject): Boolean {
+        val current = _state.value.game
+        val underway = setOf(TableState.STARTING, TableState.RUNNING, TableState.PAUSED)
+        if (_state.value.storageProblem != null || current.state in underway) return false
+        val game = runCatching { gameFromJson(json) }.getOrNull() ?: return false
+        if (game.gameId.isBlank() || game.state !in underway) return false
+        return publishGame(game.copy(offlineRecorder = offlineRecorder), durable = true)
+    }
+
+    /**
+     * Phone-hosted games (protocol/hosted-v1.md): an input from the Atlas this phone hosts on.
+     * Atlas only names the seat; this phone's rules decide. Player 0 is a table action:
+     * a Sigil joins or leaves setup (bound by localId "sigil:<id>:<slot>"), or starts the game.
+     */
+    internal fun applyHostedInput(player: Int, action: JSONObject): Boolean {
+        val game = _state.value.game
+        if (_state.value.storageProblem != null) return false
+        if (player == 0) {
+            val sigil = action.optInt("sigil", -1)
+            val slot = action.optInt("slot", -1)
+            if (game.state != TableState.LOBBY) return false
+            return when (action.optString("kind")) {
+                "sigil-join" -> {
+                    if (sigil !in 0..15 || slot !in 1..2) return false
+                    val id = "sigil:$sigil:$slot"
+                    if (game.players.any { it.localId == id }) return false
+                    val next = game.addPlayer("Sigil ${sigil + 1}" + if (slot == 2) " B" else "", localId = id, guest = true)
+                    next !== game && publishGame(next, durable = true)
+                }
+                "sigil-leave" -> {
+                    if (sigil !in 0..15 || slot !in 0..2) return false
+                    val prefix = if (slot == 0) "sigil:$sigil:" else "sigil:$sigil:$slot"
+                    var next = game
+                    while (true) {
+                        val index = next.players.indexOfFirst { it.localId?.let { id -> if (slot == 0) id.startsWith(prefix) else id == prefix } == true }
+                        if (index < 0) break
+                        val removed = next.removePlayer(index)
+                        if (removed.players.size >= next.players.size) break
+                        next = removed
+                    }
+                    next !== game && publishGame(next, durable = true)
+                }
+                "start" -> { if (game.players.size < 2) return false; start(); _state.value.game.state != TableState.LOBBY }
+                else -> false
+            }
+        }
+        return applyLanAction(com.turnhub.android.lan.LanAction(game.gameId, game.revision, player,
+            action.optString("kind"), action.optInt("value"), action.optInt("slot"), action.optInt("source")))
+    }
+
     internal fun applyLanAction(action: com.turnhub.android.lan.LanAction): Boolean {
         val game = _state.value.game
         val planar = action.kind.startsWith(com.turnhub.android.lan.PLANAR_KIND)

@@ -1,4 +1,4 @@
-# Phone-hosted games, v1 (slice 1)
+# Phone-hosted games, v1
 
 *Experimental.* Owner decision, 2026-11-04: the hub phone or tablet runs every
 game with the shared rules core (`core/`, the app's `NativeGameCore`), and
@@ -41,8 +41,24 @@ game is not valid. The hub re-sends its latest state every 10 s while nothing
 changes, which keeps the lease.
 
 `GET /api/hosted/state` (any session) answers
-`{"live": true, "host": "Ana", "game": {...}}`, or `"game": null` with no
-live hub.
+`{"live": true, "host": "Ana", "game": {...}, "resume": null}`, or
+`"game": null` with no live hub.
+
+## Resume and records
+
+When a hub releases the table or goes quiet in the middle of a game (started,
+not over), Atlas keeps that game in RAM. While no hub holds the table, `resume`
+carries it: `{"host": "Ana", "game": {...}}`. Another signed-in phone with no
+game under way may adopt it and host it. Any hub that pushes the same
+`gameId` (this phone, or the first one coming back) takes it off the offer. A
+finished game, setup or an Atlas restart leaves nothing to resume; the first
+hub still has its own copy.
+
+A hosted game is the hub's own local game, so its finished record reaches
+Atlas's history and statistics the way every local game does, through
+`POST /api/standalone/import` (`http-v1.md`), once per `recordId` (the
+`gameId`). That happens automatically while the hub is connected and signed in.
+Sigil guests are unlinked players.
 
 ## Inputs: Atlas's own controls
 
@@ -55,5 +71,34 @@ controls queued after `seq`, oldest first, at most 32:
 
 `player` is 1-based (0 for a table action). The hub applies each `id` once
 through its seat-action door, which checks the seat and turn as it does for a
-Play together guest. Slice 1 has no producers yet; Sigils (slice 2) and the
-Atlas screen (slice 3) add them.
+Play together guest. The hub polls about every 300 ms while it hosts.
+
+Seat actions use the Play together vocabulary (`lan-v1.md`):
+`{"kind": "pass" | "win" | "confirm" | "deny" | "life" | "pause", "value": n, "slot": 0, "source": 0}`
+(`pause` value 1 pauses, 0 resumes; `life` value is the signed change).
+Table actions (`player` 0) are applied in setup only:
+
+- `{"kind": "sigil-join", "sigil": id, "slot": 1|2}`: the hub seats a guest
+  bound to that Sigil seat;
+- `{"kind": "sigil-leave", "sigil": id, "slot": 0|1|2}`: removes that seat
+  (0: both of the Sigil's seats);
+- `{"kind": "start"}`: starts the game.
+
+## Sigils
+
+A hosted player is bound to a Sigil seat by its `localId`,
+`sigil:<sigilId>:<slot>` (slot 1 = seat A, 2 = seat B). The hub sets it; Atlas
+never edits the game. While a hub hosts Game 1, Atlas draws Game 1's Sigils
+from the hub's game (display, table roster and light cues), offers their menu
+from it (Join in setup; Pass and Claim win on their turn; Pause, Resume and
+life keys while playing; Confirm or Deny a win claim), and queues every choice
+and key as an input.
+
+## Atlas screen
+
+While a hub hosts Game 1, the Atlas game screen shows the hub's game and offers
+Start game (setup with two or more players, a `start` table action), Pass and
+Pause (a living player's turn) and Resume (paused with no open win claim). Each
+is queued for the active player, as the Atlas screen's own controls act for the
+active seat; its input ids start with `atlas-` (Sigils' with `sigil-`). The
+player tiles show only.
