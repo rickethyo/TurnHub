@@ -7,7 +7,7 @@ compiler="${CXX:-g++}"
 flags=(-std=c++17 -Wall -Wextra -mno-ms-bitfields -g -O1
        -fsanitize=address,undefined -fno-omit-frame-pointer)
 export UBSAN_OPTIONS="${UBSAN_OPTIONS:-halt_on_error=1:print_stacktrace=1}"
-includes=(-Istubs -I../../include -I../../../shared/include -I../../../core/include)
+includes=(-Istubs -I../../include -I../../../shared/include -I../../../shared/core/include)
 application_sources=(
   scenarios.cpp test_globals.cpp profile_fixture.cpp
   ../../src/app_context.cpp ../../src/device_intents.cpp ../../src/sigil_input.cpp ../../src/sigil_menu.cpp
@@ -18,7 +18,7 @@ application_sources=(
   ../../src/sigil_update_jobs.cpp ../../src/web_admin_api.cpp ../../src/profile_statistics.cpp
   ../../src/ota_manager.cpp ../../src/intent_dispatcher.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp
   ../../src/match_archive.cpp ../../src/hosted_game.cpp ../../src/hosted_sigils.cpp ../../src/web_hosted_api.cpp
-  ../../src/card_cache.cpp ../../../core/src/turnhub_json.cpp ../../../core/src/turnhub_core.cpp
+  ../../src/card_cache.cpp ../../../shared/core/src/turnhub_json.cpp ../../../shared/core/src/turnhub_core.cpp
 )
 
 mkdir -p build

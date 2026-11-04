@@ -100,7 +100,7 @@ Product direction (owner, 2026-10-13): the app is a full, general-purpose game a
 
 Since 2026-11-04 (owner decision, `protocol/hosted-v1.md`) the app's hub runs
 every game with the shared rules core (`NativeGameCore`, the NDK build of
-`core/`). Atlas is the table accessory: it shows the hub's game, relays its
+`shared/core/`). Atlas is the table accessory: it shows the hub's game, relays its
 Sigils' and touchscreen's inputs, and keeps profiles, statistics, records and
 settings.
 

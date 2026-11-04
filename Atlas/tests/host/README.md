@@ -38,7 +38,7 @@ With GCC/Clang on another host, from this directory:
 
 ```sh
 mkdir -p build
-c++ -std=c++17 -Wall -Wextra -Istubs -I../../include -I../../../shared/include -I../../../core/include scenarios.cpp test_globals.cpp profile_fixture.cpp \
+c++ -std=c++17 -Wall -Wextra -Istubs -I../../include -I../../../shared/include -I../../../shared/core/include scenarios.cpp test_globals.cpp profile_fixture.cpp \
     ../../src/app_context.cpp ../../src/device_intents.cpp ../../src/sigil_input.cpp ../../src/sigil_menu.cpp \
     ../../src/web_adapters.cpp ../../src/front_panel.cpp ../../src/touch_controls.cpp \
     ../../src/audio_controller.cpp ../../src/led_renderer.cpp \
@@ -47,7 +47,7 @@ c++ -std=c++17 -Wall -Wextra -Istubs -I../../include -I../../../shared/include -
     ../../src/sigil_update_jobs.cpp ../../src/web_admin_api.cpp ../../src/profile_statistics.cpp \
     ../../src/ota_manager.cpp ../../src/intent_dispatcher.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp \
     ../../src/match_archive.cpp ../../src/hosted_game.cpp ../../src/hosted_sigils.cpp ../../src/web_hosted_api.cpp \
-    ../../src/card_cache.cpp ../../../core/src/turnhub_json.cpp ../../../core/src/turnhub_core.cpp \
+    ../../src/card_cache.cpp ../../../shared/core/src/turnhub_json.cpp ../../../shared/core/src/turnhub_core.cpp \
     -o build/scenarios
 ./build/scenarios
 c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include -I../../../shared/include \
@@ -75,7 +75,7 @@ setup and permissions, game import and match history, room backup, pairing
 (code check, window, forget), the table code, first-run setup, factory reset,
 power, sleep, theme and speaker settings, battery, home Wi-Fi, the update
 notice, Sigil OTA service, artwork uploads, personalization, the card cache,
-Mana Tap and the serial log. The rules themselves are tested in `core/` and the
+Mana Tap and the serial log. The rules themselves are tested in `shared/core/` and the
 app, not here; Atlas has run no game since 2026-11-04.
 
 `python audit_adapters.py` checks that the transport/input adapters do not

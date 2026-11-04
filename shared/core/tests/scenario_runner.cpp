@@ -1,4 +1,4 @@
-// Replays the shared scenarios in core/scenarios/ against turnhub-core. The
+// Replays the shared scenarios in shared/core/scenarios/ against turnhub-core. The
 // app's JVM test (CoreScenarioTest.kt) replays the same files against the
 // Kotlin rules, so both engines answer every scenario the same way.
 
@@ -186,7 +186,7 @@ int csvChecks(const std::string &examples) {
 }  // namespace
 
 int main(int argc, char **argv) {
-  const std::string dir = argc > 1 ? argv[1] : "core/scenarios";
+  const std::string dir = argc > 1 ? argv[1] : "shared/core/scenarios";
   std::vector<std::string> files;
   if (DIR *d = opendir(dir.c_str())) {
     while (dirent *e = readdir(d)) {
@@ -197,7 +197,7 @@ int main(int argc, char **argv) {
   }
   std::sort(files.begin(), files.end());
   if (files.empty()) { std::printf("FAIL no scenarios in %s\n", dir.c_str()); return 1; }
-  int failures = parserChecks() + csvChecks(argc > 2 ? argv[2] : dir + "/../../protocol/examples");
+  int failures = parserChecks() + csvChecks(argc > 2 ? argv[2] : dir + "/../../../protocol/examples");
   for (const auto &f : files) failures += runFile(f);
   std::printf("%zu scenarios, %d failures\n", files.size(), failures);
   return failures ? 1 : 0;

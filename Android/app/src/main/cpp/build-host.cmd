@@ -1,7 +1,7 @@
 @echo off
 setlocal
 set "out=%~1"
-set "core=%~dp0..\..\..\..\..\core"
+set "core=%~dp0..\..\..\..\..\shared\core"
 set "vswhere=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "%vswhere%" exit /b 1
 for /f "usebackq tokens=*" %%i in (`"%vswhere%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "vs=%%i"

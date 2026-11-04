@@ -1,5 +1,5 @@
 // Offline play: several phones' queues merged and replayed on Atlas
-// (turnhub_offline.h). Run by core/tests/run-linux.sh.
+// (turnhub_offline.h). Run by shared/core/tests/run-linux.sh.
 
 #include <cstdio>
 #include <string>

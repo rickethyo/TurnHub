@@ -83,7 +83,7 @@ examples = sorted((PROTOCOL / "examples").glob("*.response.json"))
 for path in generated + examples:
     validate(path)
 
-# Match records the shared core scenarios expect (core/scenarios, "record").
+# Match records the shared core scenarios expect (shared/core/scenarios, "record").
 record_schema = json.loads((PROTOCOL / "game-record-v1.schema.json").read_text())
 records = [step["record"] for path in sorted((ROOT / "core" / "scenarios").glob("*.json"))
            for step in json.loads(path.read_text())["steps"] if step.get("record")]

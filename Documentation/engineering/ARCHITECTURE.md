@@ -8,7 +8,7 @@ the module map is in `CLAUDE.md` and `Atlas/include/atlas_app.h`.
 
 **The hub owns the game; Atlas owns hardware and records at rest** (owner,
 2026-11-04; Invariant 1). The hub is the phone or tablet that runs the game
-with the shared rules core (`core/`, through the NDK in the app). Guest
+with the shared rules core (`shared/core/`, through the NDK in the app). Guest
 phones, Sigils, the Atlas touchscreen and simulators capture input, send it to
 the hub and render the hub's state. If one disconnects, restarts or disagrees,
 the hub wins.
