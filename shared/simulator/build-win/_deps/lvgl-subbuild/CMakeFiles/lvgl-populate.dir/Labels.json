@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "D:/TurnHub/Include/shared/simulator/build-win/_deps/lvgl-subbuild/CMakeFiles/lvgl-populate"
+		},
+		{
+			"file" : "D:/TurnHub/Include/shared/simulator/build-win/_deps/lvgl-subbuild/CMakeFiles/lvgl-populate.rule"
+		},
+		{
+			"file" : "D:/TurnHub/Include/shared/simulator/build-win/_deps/lvgl-subbuild/CMakeFiles/lvgl-populate-complete.rule"
+		},
+		{
+			"file" : "D:/TurnHub/Include/shared/simulator/build-win/_deps/lvgl-subbuild/lvgl-populate-prefix/src/lvgl-populate-stamp/lvgl-populate-build.rule"
+		},
+		{
+			"file" : "D:/TurnHub/Include/shared/simulator/build-win/_deps/lvgl-subbuild/lvgl-populate-prefix/src/lvgl-populate-stamp/lvgl-populate-configure.rule"
+		},
+		{
+			"file" : "D:/TurnHub/Include/shared/simulator/build-win/_deps/lvgl-subbuild/lvgl-populate-prefix/src/lvgl-populate-stamp/lvgl-populate-download.rule"
+		},
+		{
+			"file" : "D:/TurnHub/Include/shared/simulator/build-win/_deps/lvgl-subbuild/lvgl-populate-prefix/src/lvgl-populate-stamp/lvgl-populate-install.rule"
+		},
+		{
+			"file" : "D:/TurnHub/Include/shared/simulator/build-win/_deps/lvgl-subbuild/lvgl-populate-prefix/src/lvgl-populate-stamp/lvgl-populate-mkdir.rule"
+		},
+		{
+			"file" : "D:/TurnHub/Include/shared/simulator/build-win/_deps/lvgl-subbuild/lvgl-populate-prefix/src/lvgl-populate-stamp/lvgl-populate-patch.rule"
+		},
+		{
+			"file" : "D:/TurnHub/Include/shared/simulator/build-win/_deps/lvgl-subbuild/lvgl-populate-prefix/src/lvgl-populate-stamp/lvgl-populate-test.rule"
+		},
+		{
+			"file" : "D:/TurnHub/Include/shared/simulator/build-win/_deps/lvgl-subbuild/lvgl-populate-prefix/src/lvgl-populate-stamp/lvgl-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"lvgl-populate"
+		],
+		"name" : "lvgl-populate"
+	}
+}

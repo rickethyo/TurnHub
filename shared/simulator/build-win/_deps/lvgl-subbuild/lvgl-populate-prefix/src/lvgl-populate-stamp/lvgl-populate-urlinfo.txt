@@ -1,0 +1,12 @@
+# This is a generated file and its contents are an internal implementation detail.
+# The download step will be re-executed if anything in this file changes.
+# No other meaning or use of this file is supported.
+
+method=url
+command=C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;D:/TurnHub/Include/shared/simulator/build-win/_deps/lvgl-subbuild/lvgl-populate-prefix/src/lvgl-populate-stamp/download-lvgl-populate.cmake;COMMAND;C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;D:/TurnHub/Include/shared/simulator/build-win/_deps/lvgl-subbuild/lvgl-populate-prefix/src/lvgl-populate-stamp/verify-lvgl-populate.cmake;COMMAND;C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;D:/TurnHub/Include/shared/simulator/build-win/_deps/lvgl-subbuild/lvgl-populate-prefix/src/lvgl-populate-stamp/extract-lvgl-populate.cmake
+source_dir=D:/TurnHub/Include/shared/simulator/build-win/_deps/lvgl-src
+work_dir=D:/TurnHub/Include/shared/simulator/build-win/_deps
+url(s)=https://codeload.github.com/lvgl/lvgl/tar.gz/c033a98afddd65aaafeebea625382a94020fe4a7
+hash=SHA256=9c6f8230d0b0e11141aad8f047af699322dbd3d37b2c41170b1526c12d5dfbb3
+      no_extract=
+
