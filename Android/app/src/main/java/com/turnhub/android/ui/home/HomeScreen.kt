@@ -552,6 +552,9 @@ private fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boole
                 val battery = uiState.tableSummary?.battery
                     ?.takeIf { uiState.connectionState == AtlasConnectionState.CONNECTED && !uiState.isOffline }
                 if (battery != null) AtlasBatteryGauge(battery)
+                uiState.tableSummary?.links
+                    ?.takeIf { uiState.connectionState == AtlasConnectionState.CONNECTED && !uiState.isOffline }
+                    ?.let { com.turnhub.android.ui.components.AtlasLinkIcons(it) }
             }
             if (p.ornament) {
                 Text("YOUR TABLE, YOUR TURN", color = p.muted, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp))

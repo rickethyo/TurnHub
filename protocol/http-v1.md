@@ -81,6 +81,11 @@ State carries `battery`: `{percent, low, charging}` for Atlas's own cell
 revision change. The Android app draws it as a header gauge;
 `GET /api/devices` also reports it under `atlas.battery` with `millivolts`.
 
+State also carries `links`: `{hotspot, home, sigils}` (Atlas 2026-11-03), the
+same links as the Atlas header's icons: its own hotspot is up, it is on the
+home network, and how many Sigils are online. Sampled like `battery`; the app
+draws the same icons beside its battery gauge.
+
 Controls dispatch through the same `IntentDispatcher` as Sigils and Atlas's
 button. PASS acceptance may arm **or cancel** the existing three-second grace
 period; it does not mean the next turn has started. State confirms the later commit.

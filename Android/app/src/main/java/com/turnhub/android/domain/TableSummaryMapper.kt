@@ -90,6 +90,7 @@ object TableSummaryMapper {
                 .sortedBy { it.controller.id },
             nudge = snapshot.nudge,
             battery = snapshot.battery,
+            links = snapshot.links,
             game = snapshot.game,
             games = snapshot.games,
             shortGameUncounted = snapshot.shortGameUncounted,

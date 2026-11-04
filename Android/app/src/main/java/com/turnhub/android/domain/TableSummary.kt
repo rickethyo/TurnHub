@@ -58,6 +58,8 @@ data class TableSummary(
     val nudge: Nudge? = null,
     /** Atlas's own battery, for the header gauge; null with no cell. */
     val battery: AtlasBattery? = null,
+    /** Atlas's hotspot, home Wi-Fi and Sigil links, for the header icons beside the gauge. */
+    val links: com.turnhub.android.protocol.AtlasLinks? = null,
     val monarchPlayerNumber: Int? = null,
     val initiativePlayerNumber: Int? = null,
     val game: Int = 1,

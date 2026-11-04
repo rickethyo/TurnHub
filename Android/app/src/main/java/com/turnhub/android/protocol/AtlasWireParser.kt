@@ -129,6 +129,11 @@ object AtlasWireParser {
                         charging = battery.boolean("charging"),
                     )
                 },
+                links = if (root.isAbsentOrNull("links")) null else root.obj("links").let { links ->
+                    val sigils = links.int("sigils")
+                    if (sigils !in 0..16) malformed("Sigils online $sigils is out of range")
+                    AtlasLinks(links.boolean("hotspot"), links.boolean("home"), sigils)
+                },
             )
         }
     }

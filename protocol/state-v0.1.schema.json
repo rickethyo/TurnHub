@@ -597,6 +597,17 @@
         }
       }
     },
+    "links": {
+      "description": "Atlas's links, as its header icons show them: its own hotspot is up, it is on the home network, and how many Sigils are online. Sampled like battery; absent from older firmware.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hotspot", "home", "sigils"],
+      "properties": {
+        "hotspot": {"type": "boolean"},
+        "home": {"type": "boolean"},
+        "sigils": {"type": "integer", "minimum": 0, "maximum": 16}
+      }
+    },
     "battery": {
       "description": "Atlas's own battery, estimated from the cell voltage: sampled like turnElapsedMs, so it may change without a revision change. null with no cell; absent from older firmware.",
       "type": [

@@ -63,5 +63,10 @@
     "percent": 82,
     "low": false,
     "charging": false
+  },
+  "links": {
+    "hotspot": false,
+    "home": true,
+    "sigils": 2
   }
 }
