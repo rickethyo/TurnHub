@@ -21,7 +21,10 @@ seats (placeholder seats fill a short roster; two when nobody is seated). It
 plays like the real table but lives only in memory, so nothing on it is saved.
 Full screen takes a started game over the whole screen. Star Commander games can
 use the setup's star as the table layout (a per-device switch in the lobby and
-in the table menu's Sound & display), with each panel facing its player. In any
+in the table menu's Sound & display), with each seat facing its player. Five
+fitted artwork wedges keep clear of the center menu. Player and commander names
+curve across each seat; life, counters and action buttons use separate widths
+that follow the available shape. The Game tab retains its upright player card. In any
 Commander mode a player can optionally name their commander in the lobby (Scryfall
 suggests card names as they type, and they can pick which printing's art); the
 name shows under theirs, on their commander-tax counter and in others' Commander

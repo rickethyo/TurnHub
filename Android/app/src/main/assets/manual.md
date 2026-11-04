@@ -167,7 +167,7 @@ Each of the five players has two allies, the players seated on either side, and 
 
 - You win when both of your enemies are out, however they went out. If one event takes out the enemies of two players, both win.
 
-- Each panel shows Enemies out 1/2. **Star layout** (in the lobby, or Sound & display in the table menu) seats the game in the star itself, each panel facing its player; it suits a tablet.
+- Each panel shows Enemies out 1/2. **Star layout** (in the lobby, or Sound & display in the table menu) seats the game in the star itself, each seat facing its player. Artwork fills five fitted wedges around a clear center menu. Player and commander names curve within each seat; life totals, counters and controls remain straight in separate fitted bands. The Game tab keeps its upright player card. This layout suits a tablet.
 
 - When the game ends, **Sean Mode** offers a rematch that reseats the same five players so your allies become your enemies.
 

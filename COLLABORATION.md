@@ -2106,3 +2106,37 @@ and five-player roster. Inspected the off-turn Fold's Planes button: Roll the
 planar die disabled; restored its player view. No live test rolls/gameplay
 commands. Docs links and whitespace pass; manual edited page rendered and
 visually checked. Continue #195; no firmware flash or release.
+
+## Star Commander table geometry — 2026-11-03, Codex
+
+Owner supplies portrait-tablet screenshot and requests substantial geometric
+layout improvement. Baseline `3328c682`, clean codex/master; origin fetched.
+Scope: replace fixed square/ellipse placement with five disjoint 72-degree
+seat sectors and fitted rotated rectangular cards, reserving the center menu
+and edge gutters. Preserve clockwise seating, seat-facing controls, artwork,
+readouts and all game behavior. Test rotated bounds/overlap/hub clearance over
+portrait/landscape/square sizes, compare real embedded/full-screen tablet
+layouts and install in place while retaining the match. Continue #195.
+
+Owner follow-ups: preserve the Game tab, fix active-seat overlap, let each
+text band follow the wedge width, and curve the names. Final layout uses
+full fitted artwork sectors plus separate life/facts/curved-heading/control
+bands. Native text-on-path uses the bundled Inter face, measures/wraps full
+names and retains ordinary accessibility labels. Life/counters remain straight.
+The temporary Game-tab regression was the star-style flag reaching the list
+renderer; star presentation is now restricted to the actual five-seat Table
+branch. Its original artwork-backed upright card is restored and inspected.
+
+Validation: standard debug and Preview 1470 builds pass. All 14 focused
+geometry/layout/damage-fact tests pass. Property checks cover rotated bounds,
+seat/menu separation, fitted band containment and no text/action overlap in
+portrait, landscape and square layouts; artwork covers over 85% of the table.
+Inspected the actual Samsung embedded and full-screen Table, curved headings,
+larger numbers, active Pass/Die controls and restored Game artwork. Checked
+landscape and restored free rotation/embedded Table. The tablet powered off
+at low battery during the work; owner reconnected it at its new debugging port.
+Verified the same running match and five-player roster after recovery. All
+seven final in-place installs succeeded. No gameplay commands sent. Manual
+edited page rendered with Word and checked; docs links/whitespace pass.
+Unusually long names and large system text still need physical acceptance.
+Continue #195 without merging Claude's active phone-hosted firmware work.
