@@ -1061,6 +1061,12 @@ internal fun PlayerPanel(
     val activeColor = if (emperorSeat != null && com.turnhub.android.domain.Emperor.isEmperor(emperorSeat)) p.emperorGold else p.active
     val panelDensity = androidx.compose.ui.platform.LocalDensity.current
     var headingHeight by remember(unit.key) { mutableStateOf(0.dp) }
+    var factsHeight by remember(unit.key) { mutableStateOf(0.dp) }
+    val damageFacts = commanderDamageFacts(unit, summary, offlineCommander)
+    val counterRows = if (summary.settings.profile.magicRules) unit.members.map { member ->
+        counterChips(member.counters, summary.initiativePlayerNumber == member.playerNumber,
+            summary.settings.profile.commanderRules, summary.settings.poisonLimit)
+    } else emptyList()
     androidx.compose.runtime.CompositionLocalProvider(com.turnhub.android.ui.theme.LocalTurnHubPalette provides p) {
     MaterialTheme(colorScheme = p.toColorScheme()) {
     BoxWithConstraints(
@@ -1118,13 +1124,13 @@ internal fun PlayerPanel(
                 // Room for the lines under the number, so a short panel shrinks the number instead of
                 // squashing those lines to slivers.
                 val demerits = unit.members.first().demerits
-                val linesBelow = (if (demerits > 0) 22f else 0f) + (if (summary.star || summary.emperor) 22f else 0f) + (if (cardGame) 20f else 0f) +
-                    (if (summary.settings.profile.magicRules) unit.members.count { m -> counterChips(m.counters, summary.initiativePlayerNumber == m.playerNumber,
-                        summary.settings.profile.commanderRules, summary.settings.poisonLimit).isNotEmpty() } * 30f else 0f) +
-                    (if (summary.settings.profile.commanderRules && unit.members.any { m -> m.commanderDamage.any { d -> d.damage.any { it > 0 } } }) 26f else 0f)
-                // The room those lines may need is kept from the start of the game, so the first counter or
-                // commander damage doesn't shrink or lift the number; only more than that grows the band.
-                val linesRoom = maxOf(linesBelow, (if (summary.star || summary.emperor) 22f else 0f) + (if (cardGame) 20f else 0f) +
+                val fixedFactsRoom = (if (demerits > 0) 22f else 0f) + (if (summary.star || summary.emperor) 22f else 0f) + (if (cardGame) 20f else 0f)
+                val factsWidth = (panelWidth - 32.dp).coerceAtLeast(1.dp)
+                val factsSize = adaptiveFactTextSize(counterRows, damageFacts, factsWidth,
+                    (between * .30f - fixedFactsRoom).coerceIn(24f, 140f).dp,
+                    (minOf(panelWidth.value, maxHeight.value) * .075f).toInt().coerceIn(12, 24))
+                // Keep a quiet minimum band, then reserve the actual wrapped facts rather than clipping them.
+                val linesRoom = maxOf(factsHeight.value, fixedFactsRoom +
                     (if (summary.settings.profile.magicRules) 30f else 0f) + (if (summary.settings.profile.commanderRules) 26f else 0f))
                 val lifeSize = minOf(
                     minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f,
@@ -1154,7 +1160,7 @@ internal fun PlayerPanel(
                     }
                 }
                 AdaptivePlayerHeading(unit.members, name, commanders, markers, nameMax, panelWidth, maxHeight,
-                    reserveCredit = cards.any { it != null },
+                    reserveCredit = cards.any { it != null }, artwork = hasArtwork,
                     modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 16.dp, vertical = 12.dp)
                         // Leave the same safe zone beside the table's center menu.
                         .then(if (underHub) Modifier.widthIn(max = (panelWidth / 2 - 62.dp).coerceAtLeast(64.dp)) else Modifier)
@@ -1168,16 +1174,15 @@ internal fun PlayerPanel(
 
                 Column(
                     Modifier.align(Alignment.Center).padding(top = headerRoom.dp, bottom = 8.dp + turnRoom.dp)
-                        .alpha(if (out) .45f else 1f)
-                        .clearAndSetSemantics {
-                            contentDescription = scoreDescription(profile, name, life, summary.settings.startingLife)
-                            liveRegion = LiveRegionMode.Polite
-                        },
+                        .alpha(if (out) .45f else 1f),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     // The running change floats as a pill over the number's top edge, so it never moves it.
                     val pill = if (recentDelta == 0) null else (if (recentDelta > 0) "+" else "−") + kotlin.math.abs(recentDelta)
-                    Box(contentAlignment = Alignment.Center) {
+                    Box(Modifier.clearAndSetSemantics {
+                        contentDescription = scoreDescription(profile, name, life, summary.settings.startingLife)
+                        liveRegion = LiveRegionMode.Polite
+                    }, contentAlignment = Alignment.Center) {
                         LifeNumber(life, lifeSize, reduceMotion)
                         if (pill != null) {
                             val tone = if (recentDelta > 0) p.good else p.bad
@@ -1190,13 +1195,13 @@ internal fun PlayerPanel(
                                     .padding(horizontal = 10.dp, vertical = 1.dp))
                         }
                     }
-                    // A fixed band under the number: lines appearing in it never move the number.
-                    Column(Modifier.height(linesRoom.dp).wrapContentHeight(Alignment.Top, unbounded = true),
+                    Column(Modifier.widthIn(max = factsWidth).height(linesRoom.dp).wrapContentHeight(Alignment.Top, unbounded = true)
+                        .onSizeChanged { factsHeight = with(panelDensity) { it.height.toDp() } },
                         horizontalAlignment = Alignment.CenterHorizontally) {
                         scoreCaption(profile, life, summary.settings.startingLife)?.let {
                             Text(it, color = p.muted, style = MaterialTheme.typography.labelLarge)
                         }
-                        CommanderSummary(unit, summary, offlineCommander)
+                        CommanderSummary(damageFacts, factsSize, hasArtwork)
                         if (demerits > 0) Text("Demerits · $demerits", color = p.text, style = MaterialTheme.typography.labelMedium)
                         StarProgressLine(unit, summary, panelWidth)
                         EmperorRangeLine(unit, summary, panelWidth)
@@ -1204,7 +1209,8 @@ internal fun PlayerPanel(
                             unit.members.forEach { member ->
                                 CounterChips(member.counters, summary.initiativePlayerNumber == member.playerNumber,
                                     summary.settings.profile.commanderRules, summary.settings.poisonLimit,
-                                    Modifier.padding(top = 4.dp), compact = true, commanderRarity = rememberCommanderArt(member.namedCommander, member.commanderArt)?.rarity)
+                                    Modifier.padding(top = 4.dp), compact = true, commanderRarity = rememberCommanderArt(member.namedCommander, member.commanderArt)?.rarity,
+                                    contentSize = factsSize, artworkBackdrop = hasArtwork)
                             }
                         }
                     }
@@ -1292,16 +1298,12 @@ private fun InvestigatorPanelContent(
     val active = summary.hasTurn(member.playerNumber) && summary.state != TableState.GAME_OVER
     val details: @Composable () -> Unit = {
       Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.fillMaxWidth()) {
-            member.avatar?.let { com.turnhub.android.ui.components.AvatarGlyph(it, p.text, 32.dp) }
-            Text(member.label, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            member.investigator?.let {
-                Text(it, color = p.muted, style = MaterialTheme.typography.labelMedium, fontStyle = FontStyle.Italic)
-            }
-            AdaptivePanelMarkers(buildList {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            AdaptivePlayerHeading(unit.members, member.label, member.investigator, buildList {
                 if (active) add(PanelMarker("Turn", p.active, p.onActive))
                 if (unit.out) add(PanelMarker(if (member.conceded) "Conceded" else "Eliminated", p.bad, p.surface))
-            })
+            }, nameMax = maxWidth, panelWidth = maxWidth, panelHeight = maxWidth,
+                reserveCredit = false, artwork = art != null)
         }
         InvestigatorTracks(unit, summary, wounds, onWound, onMark,
             Modifier.fillMaxWidth().alpha(if (unit.out) .45f else 1f)) { who, action -> onControl(who.seat(), action) }
@@ -1600,31 +1602,25 @@ private fun StarProgressLine(unit: TableUnit, summary: TableSummary, width: andr
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CommanderSummary(unit: TableUnit, summary: TableSummary, offlineCommander: (Long, Int, Int) -> Int) {
+private fun CommanderSummary(rows: List<CommanderDamageFact>, contentSize: androidx.compose.ui.unit.TextUnit, artwork: Boolean) {
     val p = palette
-    if (!summary.settings.profile.commanderRules) return
-    val rows = unit.members.flatMap { m ->
-        summary.players.filter { it.playerNumber != m.playerNumber }.map { source ->
-            val damage = m.commanderDamage.firstOrNull { it.sourcePlayer == source.playerNumber }?.damage.orEmpty()
-            source.playerNumber to (1..2).sumOf { c -> (damage.getOrNull(c - 1) ?: 0) + offlineCommander(m.participantId, source.playerNumber, c) }
-        }
-    }.filter { it.second > 0 }
     if (rows.isEmpty()) return
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        rows.forEach { (source, total) ->
-            val from = summary.players.firstOrNull { it.playerNumber == source }?.label ?: "P$source"
-            val lethal = total >= 21
-            // Tinted with the source seat's color, so damage is traced at a glance; the name still says who.
-            val tint = p.avatarColor(source)
-            Text(
-                "⚔ ${from.take(8)} $total",
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        rows.forEach { fact ->
+            val lethal = fact.total >= 21
+            val tint = p.avatarColor(fact.source)
+            val shape = RoundedCornerShape(8.dp)
+            Text(fact.text,
                 color = if (lethal) p.bad else p.text,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelMedium.copy(fontSize = contentSize, lineHeight = (contentSize.value * 1.2f).sp),
                 fontWeight = if (lethal) FontWeight.Bold else FontWeight.Medium,
                 modifier = Modifier
-                    .background(tint.copy(alpha = .35f), RoundedCornerShape(8.dp))
-                    .border(if (lethal) 2.dp else 1.dp, if (lethal) p.bad else tint, RoundedCornerShape(8.dp))
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                    .then(if (artwork) Modifier.background(p.surface.copy(alpha = .82f), shape) else Modifier)
+                    .background(tint.copy(alpha = .25f), shape)
+                    .border(if (lethal) 2.dp else 1.dp, if (lethal) p.bad else tint, shape)
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                    .semantics { contentDescription = "Commander damage from ${fact.name}: ${fact.total}" },
             )
         }
     }

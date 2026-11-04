@@ -695,6 +695,11 @@ Live status badges such as Turn and Conceded grow with the panel and the space
 left after measuring its name/subtitle. Crowded badges shrink or wrap beneath
 the name, and the life readout reserves room for the resulting heading. Their
 full text and Android's text scaling are retained.
+Player and commander names also fit the measured heading and wrap when needed.
+Counters and received Commander damage scale to the available facts band,
+including full damage-source names, with their actual wrapped height reserved
+beside the life readout. Local translucent backdrops sit behind names and chips;
+the artwork remains visible throughout the rest of the card.
 The Table tab is the live facing-seat layout. A compact wrapping row above the Game tab
 keeps the game selector and Play Together together. Game menu contains the
 Game card selector for personal/pass-and-play views. For eligible connected

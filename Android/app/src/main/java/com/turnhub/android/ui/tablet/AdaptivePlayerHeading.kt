@@ -13,7 +13,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,22 +27,40 @@ internal data class PanelMarker(val text: String, val background: Color, val col
 @Composable
 internal fun AdaptivePlayerHeading(
     members: List<TablePlayer>, name: String, subtitle: String?, markers: List<PanelMarker>,
-    nameMax: Dp, panelWidth: Dp, panelHeight: Dp, reserveCredit: Boolean, modifier: Modifier = Modifier,
+    nameMax: Dp, panelWidth: Dp, panelHeight: Dp, reserveCredit: Boolean, artwork: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val p = palette
     val measure = rememberTextMeasurer()
     val density = LocalDensity.current
-    val nameStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-    val subtitleStyle = MaterialTheme.typography.labelMedium.copy(fontStyle = FontStyle.Italic)
+    val nameBase = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+    val subtitleBase = MaterialTheme.typography.labelMedium.copy(fontStyle = FontStyle.Italic)
     val markerStyle = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val width = constraints.maxWidth
         val gap = with(density) { 8.dp.roundToPx() }
         val avatars = members.mapNotNull { it.avatar }
         val avatarWidth = avatars.size * with(density) { 40.dp.roundToPx() }
-        val naturalName = maxOf(measure.measure(name, nameStyle, softWrap = false).size.width,
-            subtitle?.let { measure.measure(it, subtitleStyle, softWrap = false).size.width } ?: 0)
-        val nameWidth = minOf(naturalName, with(density) { nameMax.roundToPx() }, (width - avatarWidth).coerceAtLeast(1))
+        val inset = if (artwork) gap else 0
+        val nameCap = minOf(with(density) { nameMax.roundToPx() }, (width - avatarWidth).coerceAtLeast(1))
+        val textCap = (nameCap - inset * 2).coerceAtLeast(1)
+        val scale = minOf(panelWidth.value, panelHeight.value)
+        val nameTarget = (scale * .09f).toInt().coerceIn(16, 28)
+        val nameSize = (nameTarget downTo 16).firstOrNull {
+            measure.measure(name, nameBase.copy(fontSize = it.sp), softWrap = false).size.width <= textCap
+        } ?: 16
+        val nameStyle = nameBase.copy(fontSize = nameSize.sp, lineHeight = (nameSize * 1.2f).sp)
+        val nameLayout = measure.measure(name, nameStyle, constraints = Constraints(maxWidth = textCap))
+        val headingBudget = with(density) { (panelHeight * .28f).coerceIn(48.dp, 110.dp).roundToPx() }
+        val subtitleTarget = (scale * .075f).toInt().coerceIn(12, 24)
+        val subtitleSize = (subtitleTarget downTo 12).firstOrNull { font ->
+            val height = subtitle?.let { measure.measure(it, subtitleBase.copy(fontSize = font.sp, lineHeight = (font * 1.2f).sp),
+                constraints = Constraints(maxWidth = textCap)).size.height } ?: 0
+            nameLayout.size.height + height + inset <= headingBudget
+        } ?: 12
+        val subtitleStyle = subtitleBase.copy(fontSize = subtitleSize.sp, lineHeight = (subtitleSize * 1.2f).sp)
+        val subtitleLayout = subtitle?.let { measure.measure(it, subtitleStyle, constraints = Constraints(maxWidth = textCap)) }
+        val nameWidth = (maxOf(nameLayout.size.width, subtitleLayout?.size?.width ?: 0) + inset * 2).coerceAtMost(nameCap)
         val remaining = (width - avatarWidth - nameWidth - gap).coerceAtLeast(0)
         val minMarkers = markers.sumOf {
             measure.measure(it.text, markerStyle.copy(fontSize = 12.sp), softWrap = false).size.width + 2 * gap
@@ -52,9 +70,11 @@ internal fun AdaptivePlayerHeading(
         val names: @Composable () -> Unit = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 avatars.forEach { AvatarGlyph(it, p.text, 32.dp) }
-                Column(Modifier.width(with(density) { nameWidth.toDp() })) {
-                    Text(name, color = p.text, style = nameStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    subtitle?.let { Text(it, color = p.muted, style = subtitleStyle, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                Column(Modifier.width(with(density) { nameWidth.toDp() })
+                    .background(if (artwork) p.surface.copy(alpha = .68f) else Color.Transparent, RoundedCornerShape(10.dp))
+                    .padding(horizontal = if (artwork) 8.dp else 0.dp, vertical = if (artwork) 4.dp else 0.dp)) {
+                    Text(name, color = p.text, style = nameStyle)
+                    subtitle?.let { Text(it, color = p.muted, style = subtitleStyle) }
                 }
             }
         }
