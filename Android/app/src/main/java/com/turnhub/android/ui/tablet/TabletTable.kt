@@ -629,7 +629,7 @@ internal fun TabletTable(
             summary.pending.winClaimPlayer == null && summary.pending.winConfirmationPlayer == null &&
             summary.pending.eliminationTargetPlayer == null) {
                 Overlay("Game menu", null, onDismiss = { menuOpen = false }) {
-                    if (phoneView && soloOffered) {
+                    if (phoneView) {
                         DisclosureCard("Game card · " + (selectedSolo?.let { key -> allUnits.first { it.key == key }.name }
                             ?: "Pass and play")) {
                             Column(Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState()),
@@ -703,14 +703,12 @@ internal fun TabletTable(
                         com.turnhub.android.ui.components.GameSoundControls()
                         PublicDisplayButton()
                         ToneButton("Turn panels around", { flipped = !flipped; menuOpen = false }, Modifier.fillMaxWidth())
-                        if (soloOffered) {
-                            Text("Show on this device", color = p.muted, style = MaterialTheme.typography.titleSmall)
-                            ToneButton(if (soloKey == null) "✓ Whole table" else "Whole table", { soloKey = null; menuOpen = false },
-                                Modifier.fillMaxWidth())
-                            allUnits.forEach { unit ->
-                                ToneButton(if (soloKey == unit.key) "✓ Only ${unit.name}" else "Only ${unit.name}",
-                                    { soloKey = unit.key; menuOpen = false }, Modifier.fillMaxWidth())
-                            }
+                        Text("Show on this device", color = p.muted, style = MaterialTheme.typography.titleSmall)
+                        ToneButton(if (soloKey == null) "✓ Whole table" else "Whole table", { soloKey = null; menuOpen = false },
+                            Modifier.fillMaxWidth())
+                        allUnits.forEach { unit ->
+                            ToneButton(if (soloKey == unit.key) "✓ Only ${unit.name}" else "Only ${unit.name}",
+                                { soloKey = unit.key; menuOpen = false }, Modifier.fillMaxWidth())
                         }
                         if (summary.settings.profile.starCommander) {
                             SetupSwitch("Star layout", STAR_LAYOUT_HINT, starLayout.on, true, starLayout.set)
