@@ -1,7 +1,5 @@
 package com.turnhub.android.lan
 
-import com.turnhub.android.domain.InvestigatorCard
-import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.standalone.*
@@ -87,21 +85,19 @@ class LanSessionsTest {
                 assertEquals(before.size, view.getJSONObject("game").getJSONArray("players").length())
             }
             assertEquals(1, f.store.commits)
-            assertEquals("invalid", f.join("elder", 0).getString("code"))
-            assertEquals("invalid", f.join("investigator", 2).getString("code"))
+            assertEquals("invalid", f.join("spectator", 0).getString("code"))
         }
     }
 
     @Test fun `TCG capabilities refuse host lifecycle rules and foreign profile commands`() {
         val f = Fixture(tcg(GameProfile.MTG_COMMANDER))
         val token = f.join("player").getString("token")
-        listOf("pause", "reset", "rematch", "draw", "start", "day", "skill", "wounds", "back-to-setup").forEach {
+        listOf("pause", "reset", "rematch", "draw", "start", "day", "back-to-setup").forEach {
             assertEquals(it, "rejected", f.sessions.handle(f.action(token, it, 0)).getString("code"))
         }
         assertEquals("rejected", f.sessions.handle(f.action(token, "life", 10_001)).getString("code"))
         assertEquals("invalid", f.sessions.handle(f.action(token, "life").put("source", 1.5)).getString("code"))
         assertEquals(0, f.store.commits)
-        assertEquals("invalid", Fixture().join("player").getString("code"))
         assertEquals("ok", Fixture(tcg(GameProfile.GENERIC)).join("player").getString("code"))
     }
 
@@ -178,13 +174,9 @@ class LanSessionsTest {
         assertEquals("ended", f.sessions.handle(f.request("poll").put("token", token)).getString("code"))
     }
 
-    private fun game(): StandaloneGame {
-        var g = StandaloneGame().setFormat(GameProfile.DEATH_MAY_DIE)
-            .addPlayer("A", localId = "private-a").addPlayer("B", localId = "private-b")
-        repeat(2) { i -> g = g.setInvestigator(i, "Investigator $i")
-            .setInvestigatorCard(i, InvestigatorCardSlot.SANITY_CONDITION, InvestigatorCard("Condition $i", "Resolve this card")) }
-        return g.setElderOne("Cthulhu").setEpisode("Episode").chooseStarter(0).start(1_000, "shared-match")
-    }
+    private fun game(): StandaloneGame = StandaloneGame().setFormat(GameProfile.MTG)
+        .addPlayer("A", localId = "private-a").addPlayer("B", localId = "private-b")
+        .chooseStarter(0).start(1_000, "shared-match")
     private class Store(game: StandaloneGame) : StandaloneStore {
         var saved = StandaloneTable.gameToJson(game).toString()
         var library = LocalLibrary().toJson().toString()
@@ -208,9 +200,9 @@ class LanSessionsTest {
         val sessions = LanSessions("session", "invitation-key", { table.state.value.game }, table::applyLanAction,
             unavailable = { unavailable || table.state.value.storageProblem != null }, now = { now }, looks = { looks })
         fun request(op: String) = JSONObject().put("v", LAN_VERSION).put("session", "session").put("op", op)
-        fun join(role: String = "investigator", player: Int = 1, id: String = UUID.randomUUID().toString()) =
+        fun join(role: String = "player", player: Int = 1, id: String = UUID.randomUUID().toString()) =
             sessions.handle(request("join").put("key", "invitation-key").put("role", role).put("player", player).put("joinId", id))
-        fun action(token: String, kind: String = "wounds", value: Int = 1, id: String = UUID.randomUUID().toString()) =
+        fun action(token: String, kind: String = "life", value: Int = 1, id: String = UUID.randomUUID().toString()) =
             request("command").put("token", token).put("match", table.state.value.game.gameId).put("revision", table.state.value.game.revision)
                 .put("kind", kind).put("value", value).put("slot", 0).put("actionId", id)
     }
@@ -258,12 +250,11 @@ class LanSessionsTest {
         assertEquals(1, f.table.state.value.game.planechase.chaos)
         assertEquals("ok", f.sessions.handle(f.action(display, "planar-roll", 0)).getString("code"))
         assertEquals(0, f.table.state.value.game.planechase.lastRoll?.player)
-        // Not without Planechase, and never in Death May Die or other games.
+        // Not without Planechase, and never in other games.
         assertEquals("invalid", Fixture(tcg(GameProfile.POKEMON)).join("planes", 0).getString("code"))
         val off = Fixture(tcg(GameProfile.MTG))
         val offDisplay = off.join("planes", 0).getString("token")
         assertEquals("rejected", off.sessions.handle(off.action(offDisplay, "planar-roll", 0)).getString("code"))
-        assertEquals("invalid", Fixture().join("planes", 0).getString("code"))
     }
 
     @Test fun `Bag of Doom guests' life loss makes the turn's owner safe and pauses only for the host's draw`() {
@@ -295,11 +286,6 @@ class LanSessionsTest {
         assertEquals("ok", f.sessions.handle(f.action(b, "pause", 0)).getString("code"))
         assertEquals(TableState.RUNNING, f.table.state.value.game.state)
         assertEquals("rejected", f.sessions.handle(f.action(a, "pause", 2)).getString("code"))
-        // Death May Die investigators have the same control.
-        val dmd = Fixture()
-        val investigator = dmd.join().getString("token")
-        assertEquals("ok", dmd.sessions.handle(dmd.action(investigator, "pause", 1)).getString("code"))
-        assertEquals(TableState.PAUSED, dmd.table.state.value.game.state)
     }
 
     @Test fun `a guest's win claim waits for the other players in turn order and a denial withdraws it`() {
@@ -356,15 +342,6 @@ class LanSessionsTest {
         assertTrue(changed.getJSONArray("looks").isNull(0))
     }
 
-    @Test fun `shared investigator panels can gather several wound taps into one change`() {
-        val f = Fixture()
-        val token = f.join().getString("token")
-        val before = f.table.state.value.game.players[0].life
-        assertEquals("ok", f.sessions.handle(f.action(token, "wounds", 2)).getString("code"))
-        assertEquals(before + 2, f.table.state.value.game.players[0].life)
-        assertEquals("rejected", f.sessions.handle(f.action(token, "wounds", 101)).getString("code"))
-    }
-
     @Test fun `invitation and session authentication gate every snapshot`() {
         val f = Fixture()
         val bad = f.sessions.handle(f.request("preview").put("key", "wrong"))
@@ -374,32 +351,27 @@ class LanSessionsTest {
         assertFalse(f.sessions.handle(f.request("poll").put("token", "unknown")).has("game"))
     }
 
-    @Test fun `public snapshots include current elder and cards without local identity or library`() {
+    @Test fun `public snapshots carry the game without local identity or library`() {
         val f = Fixture()
-        val reply = f.join("elder", 0)
+        val reply = f.join("planes", 0)
         val json = reply.getJSONObject("game")
-        assertEquals("Cthulhu", json.getJSONObject("elder").getString("elderOne"))
         assertFalse(reply.has("library"))
         assertFalse(json.toString().contains("private-a"))
         val decoded = StandaloneTable.gameFromJson(json)
-        assertEquals("Condition 0", decoded.players[0].dashboard.sanityCondition?.name)
         assertTrue(decoded.players.all { it.localId == null && it.profileId == null })
     }
 
-    @Test fun `display cannot mutate and investigator token cannot select another seat or table setting`() {
+    @Test fun `display cannot mutate and a player token cannot select another seat or table setting`() {
         val f = Fixture()
-        val display = f.join("elder", 0).getString("token")
+        val display = f.join("planes", 0).getString("token")
         assertEquals("forbidden", f.sessions.handle(f.action(display)).getString("code"))
         val own = f.join().getString("token")
         assertEquals("ok", f.sessions.handle(f.action(own).put("player", 2)).getString("code"))
-        assertEquals(listOf(1, 0), f.table.state.value.game.players.map { it.life })
+        assertEquals(listOf(21, 20), f.table.state.value.game.players.map { it.life })
         assertEquals(1, f.store.commits)
-        f.table.changeElder { it.advance(1) }
         val displayUpdate = f.sessions.handle(f.request("poll").put("token", display)).getJSONObject("game")
-        assertEquals(1, displayUpdate.getJSONArray("players").getJSONObject(0).getInt("life"))
-        assertEquals(2, displayUpdate.getJSONObject("elder").getInt("space"))
-        assertEquals("rejected", f.sessions.handle(f.action(own, "win")).getString("code"))
-        assertEquals("rejected", f.sessions.handle(f.action(own, "wounds", 20)).getString("code"))
+        assertEquals(21, displayUpdate.getJSONArray("players").getJSONObject(0).getInt("life"))
+        assertEquals("rejected", f.sessions.handle(f.action(own, "life", 10_001)).getString("code"))
     }
 
     @Test fun `lost join and command replies retry without stealing a second seat or applying twice`() {
@@ -411,12 +383,12 @@ class LanSessionsTest {
         val command = f.action(first)
         assertEquals("ok", f.sessions.handle(command).getString("code"))
         assertEquals("ok", f.sessions.handle(command).getString("code"))
-        assertEquals(1, f.table.state.value.game.players[0].life)
+        assertEquals(21, f.table.state.value.game.players[0].life)
         assertEquals(1, f.store.commits)
         assertEquals("invalid", f.sessions.handle(JSONObject(command.toString()).put("value", -1)).getString("code"))
     }
 
-    @Test fun `concurrent stale edits do not overwrite the host or another investigator`() {
+    @Test fun `concurrent stale edits do not overwrite the host or another player`() {
         val f = Fixture()
         val a = f.join().getString("token")
         val b = f.join(player = 2).getString("token")
@@ -424,7 +396,7 @@ class LanSessionsTest {
         assertEquals("ok", f.sessions.handle(f.action(a)).getString("code"))
         val reply = f.sessions.handle(stale)
         assertEquals("stale", reply.getString("code"))
-        assertEquals(listOf(1, 0), f.table.state.value.game.players.map { it.life })
+        assertEquals(listOf(21, 20), f.table.state.value.game.players.map { it.life })
         assertEquals(f.table.state.value.game.revision, reply.getJSONObject("game").getLong("revision"))
     }
 
@@ -435,7 +407,7 @@ class LanSessionsTest {
         f.store.fail = true
         val reply = f.sessions.handle(f.action(token))
         assertEquals("rejected", reply.getString("code"))
-        assertEquals(0, f.table.state.value.game.players[0].life)
+        assertEquals(20, f.table.state.value.game.players[0].life)
         assertEquals(before, f.store.saved)
         assertNotNull(f.table.state.value.storageProblem)
         assertEquals("unavailable", f.sessions.handle(f.request("poll").put("token", token)).getString("code"))
@@ -461,7 +433,7 @@ class LanSessionsTest {
         assertEquals("unauthorized", f.sessions.handle(f.request("poll").put("token", old)).getString("code"))
     }
 
-    @Test fun `a final remote death creates history once and retries cannot duplicate it`() {
+    @Test fun `a final remote elimination creates history once and retries cannot duplicate it`() {
         val f = Fixture()
         val token = f.join().getString("token")
         val command = f.action(token, "eliminate", 0)
@@ -481,27 +453,6 @@ class LanSessionsTest {
         assertEquals(0, f.store.commits)
     }
 
-    @Test fun `investigator markers skills and explicit turn handoff use the host engine`() {
-        val f = Fixture()
-        val a = f.join().getString("token")
-        val b = f.join(player = 2).getString("token")
-        listOf("stress", "fire", "insanity").forEach { kind ->
-            assertEquals("ok", f.sessions.handle(f.action(a, kind)).getString("code"))
-        }
-        assertEquals("ok", f.sessions.handle(f.action(a, "skill", 2).put("slot", 1)).getString("code"))
-        val player = f.table.state.value.game.players[0]
-        assertEquals(1, player.stress); assertEquals(1, player.dashboard.fire)
-        assertEquals(1, player.dashboard.insanity); assertEquals(2, player.dashboard.skillLevels[0])
-        assertEquals("ok", f.sessions.handle(f.action(b, "take-turn", 0)).getString("code"))
-        assertEquals(1, f.table.state.value.game.stagedNextTurn)
-        assertEquals("rejected", f.sessions.handle(f.action(b, "pass", 1)).getString("code"))
-        assertEquals("ok", f.sessions.handle(f.action(a, "pass", 2)).getString("code"))
-        assertEquals(1, f.table.state.value.game.active)
-        assertEquals("ok", f.sessions.handle(f.action(b, "pass", 1)).getString("code"))
-        assertEquals(0, f.table.state.value.game.active)
-        assertEquals(2, f.table.state.value.game.round)
-    }
-
     @Test fun `sharing lasts from the lobby through rematches and follows players by name`() {
         val f = Fixture()
         val token = f.join(player = 2).getString("token")
@@ -515,7 +466,7 @@ class LanSessionsTest {
         assertEquals(commits, f.store.commits)
         f.table.removePlayer(0)
         assertEquals(1, f.sessions.guests.single().player)
-        assertEquals("ok", f.join("elder", 0).getString("code"))
+        assertEquals("ok", f.join("planes", 0).getString("code"))
         f.table.removePlayer(0)
         assertEquals("released", f.sessions.handle(f.request("poll").put("token", token)).getString("code"))
         assertEquals("unauthorized", f.sessions.handle(f.request("poll").put("token", token)).getString("code"))

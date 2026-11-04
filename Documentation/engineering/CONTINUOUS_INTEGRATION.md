@@ -226,5 +226,3 @@ checks. The existing PlatformIO framework/toolchain/library cache is separate.
 The semi-retired desktop simulator runs only on manual workflow dispatch. Real
 Atlas/Sigil builds remain automatic, as do shared display font/icon digest checks.
 Board display assets and their generators live in `shared/display/`; simulator sources are in `shared/simulator/`.
-Death May Die's content is local-only (gitignored), so CI builds and tests the app with the
-empty `Android/app/src/dmdStub/` stand-in.

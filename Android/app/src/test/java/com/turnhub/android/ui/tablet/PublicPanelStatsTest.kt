@@ -34,12 +34,11 @@ class PublicPanelStatsTest {
     @Test fun `facts follow the format and do not fabricate missing prize or lore totals`() {
         val base = summary()
         fun facts(profile: GameProfile, life: Int?) = publicPanelFacts(
-            TableUnit("one", listOf(base.players.first().copy(life = life, turnsCompleted = 2, stress = 3))),
+            TableUnit("one", listOf(base.players.first().copy(life = life, turnsCompleted = 2))),
             base.copy(settings = base.settings.copy(profile = profile, startingLife = 20)))
         assertEquals(listOf("Turns completed 2", "Prizes left 3"), facts(GameProfile.POKEMON, 3))
         assertEquals(listOf("Turns completed 2", "Lore 12 / 20"), facts(GameProfile.LORCANA, 12))
         assertEquals(listOf("Turns completed 2"), facts(GameProfile.POKEMON, null))
-        assertEquals(listOf("Turns completed 2", "Stress 3"), facts(GameProfile.DEATH_MAY_DIE, 0))
         assertEquals(listOf("Turns completed 2"), facts(GameProfile.YUGIOH, 8000))
     }
 }

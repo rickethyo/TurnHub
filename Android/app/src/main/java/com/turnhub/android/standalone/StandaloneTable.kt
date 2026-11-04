@@ -550,43 +550,6 @@ class StandaloneTable(
     fun setTurnTimer(ms: Long) = edit { it.setTurnTimer(ms) }
     fun setTwoHeadedGiant(on: Boolean) = edit { it.setTwoHeadedGiant(on) }
     fun setHouseRules(on: Boolean) = edit { it.setHouseRules(on) }
-    /** Device-wide reference edits are separate from assigned match snapshots. */
-    fun saveInvestigatorReference(id: String, card: com.turnhub.android.domain.InvestigatorCard): Boolean {
-        val before = _state.value
-        val entry = com.turnhub.android.domain.InvestigatorCardCatalogue.find(id) ?: return false
-        val clean = card.normalized(entry.slot)?.takeIf { it.catalogueId == id } ?: return false
-        val library = before.library.withInvestigatorReference(id, clean)
-        if (library === before.library) return true
-        return publish(before.copy(library = library))
-    }
-
-    fun setUseRelics(on: Boolean) = edit { it.setUseRelics(on) }
-    /** Death May Die's Elder One tab ([com.turnhub.android.domain.ElderOneTrack]). */
-    fun setElderOne(name: String?) = edit { it.setElderOne(name) }
-    fun setEpisode(name: String?) = edit { it.setEpisode(name) }
-    fun changeElder(change: (com.turnhub.android.domain.ElderOneTrack) -> com.turnhub.android.domain.ElderOneTrack) =
-        edit { it.changeElder(wallClock(), change) }
-    fun killElderOne() = edit { it.killElderOne(wallClock()) }
-    fun nameEpisodeToken(name: String) = edit { it.nameEpisodeToken(name) }
-    fun removeEpisodeToken(index: Int) = edit { it.removeEpisodeToken(index) }
-    fun changeEpisodeToken(index: Int, delta: Int) = edit { it.changeEpisodeToken(index, delta) }
-    /** Places a figure and keeps its card's stats on this device for later games. */
-    fun addEnemy(card: com.turnhub.android.domain.EnemyCard): Boolean {
-        val before = _state.value
-        val clean = card.normalized() ?: return false
-        val game = before.game.addEnemy(clean)
-        if (game === before.game) return false
-        return publish(before.copy(game = game, library = before.library.withEnemy(clean)))
-    }
-    fun forgetEnemy(name: String) {
-        val before = _state.value
-        val library = before.library.withoutEnemy(name)
-        if (library !== before.library) publish(before.copy(library = library))
-    }
-    fun removeEnemy(index: Int) = edit { it.removeEnemy(index) }
-    fun woundEnemy(index: Int, delta: Int) = edit { it.woundEnemy(index, delta) }
-    fun setDrawTwoCards(on: Boolean) = edit { it.setDrawTwoCards(on) }
-    fun dealInvestigatorCards(index: Int, slot: com.turnhub.android.domain.InvestigatorCardSlot) = edit { it.dealInvestigatorCards(index, slot) }
     /** One settings update from the shared lobby, preserving unspecified fields. */
     fun configure(profile: GameProfile?, life: Int?, teams: Boolean?) = edit { game ->
         var next = profile?.let { game.setFormat(it) } ?: game
@@ -594,7 +557,7 @@ class StandaloneTable(
         life?.let { next = next.setStartingLife(it) }
         next
     }
-    fun start() = edit { if (planarSelectionReady(it)) it.copy(askEliminationSource = !it.profile.cooperative).start(wallClock(), newId(), planarDeck = planarDeck(it)) else it }
+    fun start() = edit { if (planarSelectionReady(it)) it.copy(askEliminationSource = true).start(wallClock(), newId(), planarDeck = planarDeck(it)) else it }
 
     // --- Planechase -----------------------------------------------------------------
 
@@ -794,12 +757,6 @@ class StandaloneTable(
         return _state.value.game !== before
     }
 
-    override suspend fun passTo(turn: com.turnhub.android.domain.CooperativeTurn, playerNumber: Int): Boolean {
-        val before = _state.value.game
-        edit { it.passTo(turn, playerNumber, wallClock()) }
-        return _state.value.game !== before
-    }
-
     override suspend fun life(seat: TabletSeat, delta: Int): Boolean {
         val before = _state.value.game
         edit { it.changeLife(StandaloneGame.indexOf(seat.moduleId), delta, wallClock()) }
@@ -822,16 +779,6 @@ class StandaloneTable(
             })
         } else before.library
         publish(before.copy(game = game, library = library), durable = true)
-    }
-    fun setInvestigator(index: Int, name: String?) { edit { it.setInvestigator(index, name) } }
-    fun setInvestigatorCard(index: Int, slot: com.turnhub.android.domain.InvestigatorCardSlot,
-        card: com.turnhub.android.domain.InvestigatorCard?) { edit { it.setInvestigatorCard(index, slot, card) } }
-    override suspend fun investigatorCard(seat: TabletSeat, slot: com.turnhub.android.domain.InvestigatorCardSlot,
-        card: com.turnhub.android.domain.InvestigatorCard?) {
-        setInvestigatorCard(StandaloneGame.indexOf(seat.moduleId), slot, card)
-    }
-    override suspend fun investigatorSkills(seat: TabletSeat, skills: List<com.turnhub.android.domain.InvestigatorSkill>) {
-        edit { it.setInvestigatorSkills(StandaloneGame.indexOf(seat.moduleId), skills) }
     }
     fun setZeroLifeElimination(enabled: Boolean) { edit { it.setAutoEliminateAtZeroLife(enabled, wallClock()) } }
 
@@ -916,30 +863,7 @@ class StandaloneTable(
             game.state !in listOf(TableState.RUNNING, TableState.PAUSED)) return false
         if (planar) return applyPlanarLanAction(game, action)
         val index = action.player - 1
-        if (!game.profile.deathMayDie) return applyTcgLanAction(game, index, action)
-        if (action.source != 0) return false
-        val valid = when (action.kind) {
-            "wounds" -> action.value in -10..10 && action.value != 0 && action.slot == 0
-            "stress", "fire", "insanity" -> action.value in listOf(-1, 1) && action.slot == 0
-            "skill" -> action.value in 1..4 && action.slot in 1..com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILLS
-            "take-turn", "eliminate" -> action.value == 0 && action.slot == 0
-            "pass" -> action.value in 1..game.players.size && action.slot == 0
-            "pause" -> action.value in 0..1 && action.slot == 0
-            else -> false
-        }
-        if (!valid) return false
-        val now = wallClock()
-        val next = when (action.kind) {
-            "wounds" -> game.changeLife(index, action.value, now)
-            "stress", "fire", "insanity" -> if (action.value in -1..1) game.changeCounter(index, action.kind, action.value, nowMs = now) else game
-            "skill" -> game.changeCounter(index, StandaloneGame.SKILL_KIND, action.value, action.slot, now)
-            "take-turn" -> game.changeCounter(index, StandaloneGame.TAKE_TURN_KIND, 1, nowMs = now)
-            "pass" -> if (game.active == index) game.cooperativeTurn()?.let { game.passTo(it, action.value, now) } ?: game else game
-            "eliminate" -> game.eliminate(index, now)
-            "pause" -> lanPause(game, action.value, now)
-            else -> game
-        }
-        return publishGame(next, durable = true)
+        return applyTcgLanAction(game, index, action)
     }
 
     /**
@@ -1081,78 +1005,6 @@ class StandaloneTable(
     }
 
     companion object {
-        internal fun enemyCardToJson(card: com.turnhub.android.domain.EnemyCard): JSONObject = JSONObject()
-            .put("name", card.name).put("health", card.health).put("dice", card.dice).put("group", card.group.name)
-            .apply { if (card.ability.isNotEmpty()) put("ability", card.ability) }
-
-        /** Null for anything out of range, so a bad record is dropped rather than shown. */
-        internal fun enemyCardFromJson(json: JSONObject): com.turnhub.android.domain.EnemyCard? = runCatching {
-            com.turnhub.android.domain.EnemyCard(json.getString("name"), json.getInt("health"), json.getInt("dice"),
-                com.turnhub.android.domain.EnemyGroup.valueOf(json.getString("group")), json.optString("ability")).normalized()
-        }.getOrNull()
-
-        private fun elderToJson(elder: com.turnhub.android.domain.ElderOneTrack): JSONObject = JSONObject().apply {
-            put("elderOne", elder.elderOne ?: JSONObject.NULL)
-            put("episode", elder.episode ?: JSONObject.NULL)
-            put("space", elder.space)
-            put("summoned", elder.summoned)
-            put("ritualDisrupted", elder.ritualDisrupted)
-            put("stage", elder.stage)
-            put("stageWounds", elder.stageWounds)
-            put("stageHealth", JSONObject().apply { elder.stageHealth.forEach { (stage, health) -> put("$stage", health) } })
-            put("symbols", elder.symbols)
-            put("tokens", JSONArray().apply { elder.tokens.forEach { put(JSONObject().put("name", it.name).put("count", it.count)) } })
-            put("enemies", JSONArray().apply { elder.enemies.forEach { put(enemyCardToJson(it.card).put("number", it.number).put("wounds", it.wounds)) } })
-        }
-
-        /** Out-of-range saved values fall back to a fresh track rather than an impossible one. */
-        private fun elderFromJson(json: JSONObject): com.turnhub.android.domain.ElderOneTrack {
-            val tokens = json.optJSONArray("tokens")
-            val named = (0 until (tokens?.length() ?: 0)).fold(com.turnhub.android.domain.ElderOneTrack()
-                .withElderOne(json.optStringOrNull("elderOne")).withEpisode(json.optStringOrNull("episode"))) { track, i ->
-                val token = tokens?.optJSONObject(i) ?: return@fold track
-                val withName = track.withToken(token.optString("name"))
-                if (withName === track) track else withName.token(withName.tokens.lastIndex, token.optInt("count"))
-            }
-            val figures = json.optJSONArray("enemies")
-            val fresh = (0 until (figures?.length() ?: 0)).fold(named) { t, i ->
-                val figure = figures?.optJSONObject(i) ?: return@fold t
-                val card = enemyCardFromJson(figure) ?: return@fold t
-                val number = figure.optInt("number", 1)
-                if (number !in 1..com.turnhub.android.domain.ElderOneTrack.MAX_ENEMIES || t.enemies.any { it.card.name.equals(card.name, ignoreCase = true) && it.number == number } ||
-                    t.enemies.size >= com.turnhub.android.domain.ElderOneTrack.MAX_ENEMIES) return@fold t
-                t.copy(enemies = t.enemies + com.turnhub.android.domain.EnemyFigure(card, number,
-                    figure.optInt("wounds").coerceIn(0, card.health)))
-            }
-            val track = com.turnhub.android.domain.ElderOneTrack
-            val space = json.optInt("space", track.START_SPACE)
-            val stage = json.optInt("stage", 1)
-            val summoned = json.optBoolean("summoned")
-            val health = json.optJSONObject("stageHealth")
-            if (space !in track.START_SPACE..track.LAST_SPACE || stage !in 1..track.FINAL_STAGE || summoned != (stage >= 2)) return fresh
-            return fresh.copy(
-                space = space,
-                summoned = summoned,
-                ritualDisrupted = json.optBoolean("ritualDisrupted") && summoned,
-                stage = stage,
-                stageWounds = json.optInt("stageWounds").coerceIn(0, track.MAX_WOUNDS),
-                stageHealth = health?.keys()?.asSequence()?.mapNotNull { key ->
-                    key.toIntOrNull()?.takeIf { it in 2..track.FINAL_STAGE }?.let { it to health.getInt(key) }
-                }?.filter { it.second in 1..track.MAX_WOUNDS }?.toMap().orEmpty(),
-                symbols = json.optInt("symbols").coerceIn(0, track.SYMBOLS_TO_ADVANCE - 1),
-            )
-        }
-
-        private fun investigatorCardToJson(card: com.turnhub.android.domain.InvestigatorCard?): Any =
-            card?.toJson() ?: JSONObject.NULL
-
-        private fun investigatorCardFromJson(json: JSONObject?, slot: com.turnhub.android.domain.InvestigatorCardSlot): com.turnhub.android.domain.InvestigatorCard? {
-            if (json == null) return null
-            val card = com.turnhub.android.domain.InvestigatorCard.fromJson(json, slot) ?: return null
-            return if (com.turnhub.android.domain.InvestigatorCardCatalogue.find(card.catalogueId)?.slot?.let { it != slot } == true)
-                card.copy(catalogueId = null) else card
-        }
-
         fun gameToJson(game: StandaloneGame): JSONObject = JSONObject().apply {
             put("gameId", game.gameId)
             put("state", game.state.name)
@@ -1181,8 +1033,6 @@ class StandaloneTable(
             put("timeoutHandled", game.timeoutHandled)
             put("twoHeadedGiant", game.twoHeadedGiant)
             put("houseRules", game.houseRules)
-            put("useRelics", game.useRelics)
-            put("drawTwoCards", game.drawTwoCards)
             put("startedAtMs", game.startedAtMs)
             put("elapsedMs", game.elapsedMs)
             put("runningSinceMs", game.runningSinceMs ?: JSONObject.NULL)
@@ -1192,10 +1042,6 @@ class StandaloneTable(
             put("doomBag", game.doomBag.toSavedJson())
             put("pokemonCheckup", JSONArray(game.pokemonCheckup))
             put("radDue", JSONArray(game.radDue))
-            put("acted", JSONArray(game.acted.sorted()))
-            put("round", game.round)
-            put("nextTurn", game.stagedNextTurn ?: JSONObject.NULL)
-            put("elder", elderToJson(game.elder))
             put("players", JSONArray().apply {
                 game.players.forEach { p ->
                     put(JSONObject().apply {
@@ -1225,23 +1071,6 @@ class StandaloneTable(
                         put("commander", p.commander ?: JSONObject.NULL)
                         put("commanderArt", p.commanderArt ?: JSONObject.NULL)
                         put("cardOnly", p.cardOnly)
-                        put("investigator", p.investigator ?: JSONObject.NULL)
-                        put("stress", p.stress)
-                        put("dashboard", JSONObject().apply {
-                            put("sanityCondition", investigatorCardToJson(p.dashboard.sanityCondition))
-                            put("relic", investigatorCardToJson(p.dashboard.relic))
-                            put("insanity", p.dashboard.insanity)
-                            put("fire", p.dashboard.fire)
-                            put("skillLevels", JSONArray(p.dashboard.skillLevels))
-                            put("cardOffers", JSONObject().apply {
-                                p.dashboard.cardOffers.forEach { (slot, ids) -> put(slot.name, JSONArray(ids)) }
-                            })
-                            put("skills", JSONArray().apply {
-                                p.dashboard.customSkills.forEach { skill ->
-                                    put(JSONObject().put("name", skill.name).put("levels", JSONArray(skill.levels)))
-                                }
-                            })
-                        })
                         put("turn", JSONObject()
                             .put("actions", JSONArray(p.turn.turnActions.map { it.name }))
                             .put("conditions", JSONArray(p.turn.conditions.map { it.name })))
@@ -1287,8 +1116,6 @@ class StandaloneTable(
                 timeoutHandled = json.optBoolean("timeoutHandled"),
                 twoHeadedGiant = json.optBoolean("twoHeadedGiant"),
                 houseRules = json.optBoolean("houseRules"),
-                useRelics = json.optBoolean("useRelics"),
-                drawTwoCards = json.optBoolean("drawTwoCards"),
                 startedAtMs = json.getLong("startedAtMs"),
                 elapsedMs = json.getLong("elapsedMs"),
                 runningSinceMs = json.optLongOrNull("runningSinceMs"),
@@ -1298,10 +1125,6 @@ class StandaloneTable(
                 planechase = json.optJSONObject("planechase")?.let { Planechase.fromJson(it) } ?: Planechase(),
                 pokemonCheckup = json.optJSONArray("pokemonCheckup")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(),
                 radDue = json.optIntList("radDue")?.filter { it in 0 until players.length() }?.distinct().orEmpty(),
-                acted = json.optIntList("acted")?.filter { it in 0 until players.length() }?.toSet().orEmpty(),
-                round = json.optInt("round", 1).coerceAtLeast(1),
-                nextTurn = json.optIntOrNull("nextTurn"),
-                elder = json.optJSONObject("elder")?.let(::elderFromJson) ?: com.turnhub.android.domain.ElderOneTrack(),
                 players = (0 until players.length()).map { i ->
                     val p = players.getJSONObject(i)
                     val damage = p.getJSONObject("commanderDamage")
@@ -1331,32 +1154,6 @@ class StandaloneTable(
                         commander = p.optStringOrNull("commander"),
                         commanderArt = p.optStringOrNull("commanderArt")?.takeIf { com.turnhub.android.data.TileCardGame.valid(it) },
                         cardOnly = p.optBoolean("cardOnly"),
-                        investigator = p.optStringOrNull("investigator"),
-                        stress = p.optInt("stress").coerceAtLeast(0),
-                        dashboard = p.optJSONObject("dashboard")?.let { d ->
-                            val skills = d.optJSONArray("skills")?.let { a ->
-                                if (a.length() !in 3..com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILLS) emptyList() else List(a.length()) { slot ->
-                                    val skill = a.optJSONObject(slot)
-                                    com.turnhub.android.domain.InvestigatorSkill(
-                                        skill?.optString("name").orEmpty().take(com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILL_NAME),
-                                        List(4) { level -> skill?.optJSONArray("levels")?.optString(level).orEmpty()
-                                            .take(com.turnhub.android.domain.InvestigatorDashboard.MAX_LEVEL_TEXT) })
-                                }.takeIf { list -> list.none { it.name.isBlank() } && list.map { it.name.lowercase(java.util.Locale.ROOT) }.distinct().size == list.size }.orEmpty()
-                            }.orEmpty()
-                            com.turnhub.android.domain.InvestigatorDashboard(
-                                insanity = d.optInt("insanity").coerceIn(0, com.turnhub.android.domain.InvestigatorDashboard.MAX_INSANITY),
-                                fire = d.optInt("fire").coerceIn(0, com.turnhub.android.domain.InvestigatorDashboard.MAX_FIRE),
-                                skillLevels = List(skills.size.coerceAtLeast(3)) { slot -> d.optJSONArray("skillLevels")?.optInt(slot, 1)?.coerceIn(1, 4) ?: 1 },
-                                customSkills = skills,
-                                cardOffers = com.turnhub.android.domain.InvestigatorCardSlot.entries.mapNotNull { slot ->
-                                    val a = d.optJSONObject("cardOffers")?.optJSONArray(slot.name)
-                                    val ids = if (a?.length() == 2) List(2) { a.optString(it) } else emptyList()
-                                    if (ids.distinct().size == 2 && ids.all { com.turnhub.android.domain.InvestigatorCardCatalogue.find(it)?.slot == slot })
-                                        slot to ids else null
-                                }.toMap(),
-                                sanityCondition = investigatorCardFromJson(d.optJSONObject("sanityCondition"), com.turnhub.android.domain.InvestigatorCardSlot.SANITY_CONDITION),
-                                relic = investigatorCardFromJson(d.optJSONObject("relic"), com.turnhub.android.domain.InvestigatorCardSlot.RELIC))
-                        } ?: com.turnhub.android.domain.InvestigatorDashboard(),
                         // Pokémon games saved before Lorcana kept this under "pokemon".
                         turn = (p.optJSONObject("turn") ?: p.optJSONObject("pokemon"))?.let { pk ->
                             fun <E : Enum<E>> names(key: String, values: List<E>): Set<E> = pk.optJSONArray(key)?.let { a ->

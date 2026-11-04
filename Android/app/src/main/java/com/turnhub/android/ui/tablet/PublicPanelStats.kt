@@ -11,7 +11,6 @@ internal fun publicPanelFacts(unit: TableUnit, summary: TableSummary): List<Stri
         profile.commanderRules -> add("Commander casts ${unit.members.sumOf { it.counters.commanderCasts.sum() }}")
         profile.pokemon -> unit.members.firstOrNull()?.life?.let { add("Prizes left $it") }
         profile.lorcana -> unit.members.firstOrNull()?.life?.let { add("Lore $it / ${summary.settings.startingLife}") }
-        profile.deathMayDie -> add("Stress ${unit.members.sumOf { it.stress }}")
     }
 }
 

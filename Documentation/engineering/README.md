@@ -22,7 +22,7 @@ Cross-agent discussion and project-wide handoffs live in [`COLLABORATION.md`](..
 | [Players and Accounts](PLAYERS_AND_ACCOUNTS.md) | Profiles, sign-in, joining from phones and Sigils, the picker, permissions, presence codes, moderation |
 | [Gameplay](GAMEPLAY.md) | Game profiles, turns, turn timer, life and approvals, Commander damage, light and sound cues |
 | [Shared table authority design](TABLE_AUTHORITY.md) | Common engine, phone takeover, Atlas preference and reconciliation plan |
-| [Shared devices](SHARED_DEVICES.md) | Phone-hosted Death May Die, same-network guest displays and investigator controls |
+| [Shared devices](SHARED_DEVICES.md) | Same-network guest displays and player controls for phone-hosted games |
 | [First-run Setup](FIRST_RUN_SETUP.md) | Guided setup of a new Atlas from the app or portal |
 | [Firmware Updates](FIRMWARE_UPDATES.md) | `.thfw` packages, signing, releases, Sigil OTA, update notices |
 | [Home Wi-Fi](HOME_WIFI.md) | Home Wi-Fi as Atlas's primary network (hotspot as fallback), the table channel, Sigils finding Atlas on any channel |

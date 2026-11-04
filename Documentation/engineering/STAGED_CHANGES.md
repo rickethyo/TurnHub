@@ -19,6 +19,23 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 
 ## Open work
 
+### Local-only content split (owner, 2026-11-04)
+
+One licensed board game moved out of TurnHub into a separate local-only app on
+the owner's PC; this repo no longer carries its code, docs or build hooks, and
+`tools/scripts/check_licensed_content.py` guards that in CI. *Planned*, on the
+owner's PC (Remote Control):
+
+1. Create the local app from the last commit that still had the mode
+   (`5159c9c`) plus the owner's local content backup, as its own git repo with
+   no remote and its own application ID and label, so it installs beside
+   TurnHub and TurnHub Preview.
+2. Copy the local-only ignore lines from `.gitignore` into the checkout's
+   `.git/info/exclude`, then remove them from `.gitignore` (and its allowlist
+   entry in the check) in a follow-up commit.
+3. Delete `Android/.kotlin` and `Android/app/build` once after pulling, or
+   stale classes linger.
+
 ### Phone-hosted games (owner, 2026-11-04)
 
 The hub phone or tablet runs every game with the shared core; Atlas shows it,

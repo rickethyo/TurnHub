@@ -28,12 +28,9 @@ import com.turnhub.android.standalone.StandaloneGame
 import com.turnhub.android.ui.components.*
 import com.turnhub.android.ui.theme.palette
 
-internal fun sharedGameTitle(game: StandaloneGame): String = if (game.profile.deathMayDie)
-    listOfNotNull(game.elder.elderOne ?: "Death May Die", game.elder.episode).joinToString(" · ")
-else sharedGameTitle(game.profile)
+internal fun sharedGameTitle(game: StandaloneGame): String = sharedGameTitle(game.profile)
 
 internal fun sharedGameTitle(profile: com.turnhub.android.protocol.GameProfile): String = when {
-    profile.deathMayDie -> "Death May Die"
     profile.starCommander -> "Star Commander"
     profile.bagOfDoom -> "Bag of Doom"
     profile.emperor -> profile.displayName()
@@ -134,13 +131,12 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     )
     Column(Modifier.fillMaxSize().background(p.bg).safeDrawingPadding().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (state.role in setOf("player", "investigator")) ToneButton("My player", {
+            if (state.role == "player") ToneButton("My player", {
                 menu = false; localTableView = false; localPlanesChosen = false
             }, Modifier.weight(1f))
             ToneButton("Table", { menu = false
                 if (publicScreen) model.setDisplayView(state.displayId, "table")
                 else { localTableView = true; localPlanesChosen = false } }, Modifier.weight(1f))
-            if (summary.settings.profile.deathMayDie) ToneButton("Elder One", { model.chooseView("elder") }, Modifier.weight(1f))
             if (planar.enabled || summary.settings.planechase) ToneButton("Planes", {
                 menu = false
                 if (publicScreen) model.setDisplayView(state.displayId, "planes")
@@ -151,9 +147,9 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
         Text("${device?.let { sharedGameTitle(it) } ?: sharedGameTitle(summary.settings.profile)} · ${if (planesView) "Planes" else if (tableView || own == null) if (state.role == "table") "Shared table controls" else "Table · read only" else own.label} · ${if (!state.online) "Disconnected · last update" else if (state.busy) "Sending…" else "Connected"}",
             color = if (state.online) p.muted else p.warn, style = MaterialTheme.typography.labelLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!tableView && !planesView && own != null && state.role in setOf("player", "investigator"))
+            if (!tableView && !planesView && own != null && state.role == "player")
                 GuestPauseButton(summary.state, state.online && !state.busy && !state.uncertain && !own.eliminated, model)
-            if (state.role in setOf("player", "investigator", "table") || state.master)
+            if (state.role in setOf("player", "table") || state.master)
                 ToneButton("Display", { displaySettings = true })
         }
         state.message?.let { Text(it, color = p.warn) }
@@ -233,8 +229,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
                                         } else null,
                                         onBump = { bump(it) }, onControl = { _, action -> act(action) },
                                         onTurnMark = { _, kind, value -> act(kind, value) },
-                                        onSkillLevel = { _, _, _ -> }, onEditSkills = { _, _ -> }, onInvestigatorCard = { _, _, _ -> },
-                                        investigatorFocused = false, onRespond = { _, _, _ -> }, offlineCommander = { _, _, _ -> 0 },
+                                        onRespond = { _, _, _ -> }, offlineCommander = { _, _, _ -> 0 },
                                         haptics = haptics, reduceMotion = reduceMotion, controlsEnabled = enabled && !tableView)
                                 }
                             }
@@ -249,8 +244,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
                         onCommander = { _, source, commander, delta -> act("commander", delta, commander, source) },
                         onCounter = { _, kind, value, slot -> act(kind, value,
                             if (kind.startsWith(StandaloneGame.ACTION_KIND) || kind.startsWith(StandaloneGame.CONDITION_KIND)) 0 else slot) },
-                        onLife = { _, delta -> act("life", delta) }, onEditSkills = { _, _ -> },
-                        onInvestigatorCard = { _, _, _ -> }, offlineCommander = { _, _, _ -> 0 }, controlsEnabled = enabled)
+                        onLife = { _, delta -> act("life", delta) }, offlineCommander = { _, _, _ -> 0 }, controlsEnabled = enabled)
                 }
             }
         }

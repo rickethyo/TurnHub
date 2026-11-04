@@ -201,14 +201,6 @@ fun LocalLibraryScreen(
                                 } }) { Text("Export all games (CSV)") }
                             }
                         }
-                        val elderOnes = state.library.elderOneRecord()
-                        if (elderOnes.isNotEmpty()) item(key = "elder-ones") {
-                            BrassCard {
-                                Text("Death May Die: against the Elder Ones", color = p.text, style = MaterialTheme.typography.titleMedium,
-                                    modifier = Modifier.semantics { heading() })
-                                elderOnes.forEach { Text("${it.elderOne}: ${it.won} won · ${it.lost} lost", color = p.text) }
-                            }
-                        }
                         if (state.library.history.isEmpty()) item(key = "no-games") {
                             BrassCard {
                                 Text("No games yet", color = p.text, style = MaterialTheme.typography.titleMedium)
@@ -228,7 +220,6 @@ fun LocalLibraryScreen(
                             BrassCard {
                                 val names = record.players.indices.filter(record::won).map { record.players[it].name }
                                 Text(when {
-                                    record.profile.deathMayDie -> if (record.winners.isEmpty()) "The investigators lost" else "The investigators won"
                                     names.isEmpty() -> "Draw / no winner"
                                     names.size == 1 -> "${names.single()} wins"
                                     else -> "${names.joinToString(" & ")} win"
@@ -237,7 +228,6 @@ fun LocalLibraryScreen(
                                     color = p.muted, style = MaterialTheme.typography.bodySmall)
                                 Text("${record.profile.displayName()}${if (record.twoHeadedGiant) " · Two-Headed Giant" else ""} · " +
                                     TableClock.format(record.durationMs), color = p.muted)
-                                record.storyLine?.let { Text(it, color = p.text, style = MaterialTheme.typography.bodyMedium) }
                                 Text(when (delivery.status) {
                                     DeliveryStatus.NEEDS_LINKING -> if (record.profile.atlasSupported) "Saved on this device"
                                         else "Saved on this device (Atlas doesn't import ${record.profile.displayName()} games yet)"
@@ -253,17 +243,15 @@ fun LocalLibraryScreen(
                                     val score = when {
                                         record.profile.pokemon -> "prizes left"
                                         record.profile.lorcana -> "lore"
-                                        record.profile.deathMayDie -> "wounds"
                                         else -> "life"
                                     }
                                     Text(when {
                                         record.profile.pokemon -> "${record.startingLife} Prize cards each"
                                         record.profile.lorcana -> "${record.startingLife} lore to win"
-                                        record.profile.deathMayDie -> if (record.winners.isEmpty()) "Co-op · the investigators lost" else "Co-op · the investigators won"
                                         else -> "${record.startingLife} starting life"
                                     }, color = p.muted)
                                     record.players.forEachIndexed { index, player ->
-                                        Text("${index + 1}. ${player.name}${player.investigator?.let { " ($it)" } ?: ""}: ${player.finalLife} $score · ${player.turnsCompleted} turns" +
+                                        Text("${index + 1}. ${player.name}: ${player.finalLife} $score · ${player.turnsCompleted} turns" +
                                             if (player.outOrder != null) (if (player.conceded) " · Conceded" else " · Eliminated") else "", color = p.text)
                                         if (player.selfEliminated) Text("Eliminated by self", color = p.muted)
                                         if (player.bagDrawn) Text("Drawn from the Bag of Doom", color = p.muted)

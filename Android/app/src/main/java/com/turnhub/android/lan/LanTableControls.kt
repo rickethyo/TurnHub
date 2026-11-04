@@ -20,19 +20,13 @@ internal class LanTableControls(
         act(kind, value, slot, source, player.playerNumber)
         return true
     }
-    override suspend fun life(seat: TabletSeat, delta: Int) = send(seat, if (summary.settings.profile.deathMayDie) "wounds" else "life", delta)
+    override suspend fun life(seat: TabletSeat, delta: Int) = send(seat, "life", delta)
     override suspend fun commander(seat: TabletSeat, source: Int, commander: Int, delta: Int) { send(seat, "commander", delta, commander, source) }
     override suspend fun counter(seat: TabletSeat, kind: String, value: Int, commander: Int) {
-        val skill = kind == com.turnhub.android.standalone.StandaloneGame.SKILL_KIND
-        val slot = if (summary.settings.profile.deathMayDie && !skill || kind.startsWith(com.turnhub.android.standalone.StandaloneGame.ACTION_KIND) ||
+        val slot = if (kind.startsWith(com.turnhub.android.standalone.StandaloneGame.ACTION_KIND) ||
             kind.startsWith(com.turnhub.android.standalone.StandaloneGame.CONDITION_KIND) || kind == com.turnhub.android.standalone.StandaloneGame.RAD_KIND) 0 else commander
-        send(seat, if (skill) "skill" else kind, value, slot)
+        send(seat, kind, value, slot)
     }
-    override suspend fun passTo(turn: com.turnhub.android.domain.CooperativeTurn, playerNumber: Int): Boolean {
-        act("pass", playerNumber, 0, 0, turn.playerNumber); return true
-    }
-    override suspend fun investigatorSkills(seat: TabletSeat, skills: List<com.turnhub.android.domain.InvestigatorSkill>) { refused() }
-    override suspend fun investigatorCard(seat: TabletSeat, slot: com.turnhub.android.domain.InvestigatorCardSlot, card: com.turnhub.android.domain.InvestigatorCard?) { refused() }
     override suspend fun control(seat: TabletSeat, action: String) = send(seat, action,
         if (action == "pause") if (summary.state == TableState.RUNNING) 1 else 0 else 0)
     override suspend fun eliminate(seat: TabletSeat, eliminatedBy: Int?) = send(seat, "eliminate")

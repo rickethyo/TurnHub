@@ -22,7 +22,6 @@ loss condition; Commander damage totals alone do not trigger elimination.
 | Yu-Gi-Oh! | 8000, counted in hundreds on every client |
 | Pokémon (phone only) | 6 Prize cards left; the app game only (below) |
 | Lorcana (phone only) | 0 lore, counting up to 20 to win; the app game only (below) |
-| Death May Die (phone only) | 0 wounds, counting up; cooperative, the app game only (below) |
 
 - **Official rules** (2026-10-14, owner request; host tests only, *needs a
   playtest*): Magic (20 life, 10 poison), Commander (40, 10), Two-Headed Giant
@@ -54,178 +53,22 @@ loss condition; Commander damage totals alone do not trigger elimination.
   from an empty deck taps that in their menu and leaves, and the last player
   left wins. The active panel has a "Card inked" reminder that resets on pass,
   and the starter's first turn says to skip the draw.
-- **Cthulhu: Death May Die** (2026-10-17, owner request; JVM tests only,
-  *needs a playtest*): phone-hosted, cooperative (`GameProfile.cooperative`).
-  There is no fixed turn order (owner): each panel says whether that player
-  has taken their turn this round. Tapping **Pass** opens **Pass to?**, listing
-  investigators still to go. Selecting one finishes the current turn and gives
-  them the next; Cancel or Back leaves the current turn in place. After the last
-  turn, every living investigator is offered as the next round's starter,
-  including the current player. **Take the next turn** stages one investigator
-  still to go as **Up next** without changing the active turn, clock or statistics.
-  The current player's Pass then counts their completed turn and hands off
-  directly, skipping the chooser. **Cancel next turn** clears the selection;
-  selecting another investigator replaces it. The selection survives pause and
-  recovery, and clears when consumed, when its investigator leaves or when the
-  game ends or returns to setup. Automatic passes also use the staged recipient.
-  With nobody staged, Pass opens the chooser. Once every living player has gone, the next round starts (the
-  round shows in the menu bar). The table is one upright list of player
-  panels under a slim menu bar (owner). The active investigator gets 70% of
-  the play area, with the others in a scrollable list below. Their menus retain
-  all counters and skill controls. The active card scrolls independently, grows
-  with wrapped controls, and puts abilities beside the counters on wide screens.
-  Each player can pick their
-  investigator in the lobby from every season and box (`domain/DeathMayDie.kt`,
-  from the community wiki; any name can be typed) and no two players share one.
-  Search matches investigator or known skill names. **Ability** filters six common
-  skills; the community index covers 94 roster entries (including the ten full
-  core summaries). Unindexed investigators are excluded by a skill filter, with
-  coverage stated in the picker. **Random investigator** samples available figures
-  within the search/filter, excludes other players' picks and opens a preview;
-  **Use investigator** commits it. Every row also opens this preview. Missing
-  signature effects remain explicit; a community-guide link supplies references.
-  Matching Wounds and Stress counters (owner, 2026-10-19): stress stops at 5
-  and wounds at 6, the death wound. The engine clamps both
-  (`DeathMayDie.MAX_STRESS`, `DEATH_WOUNDS`). The sixth wound shows a death
-  alert on the panel with an armed "died" button that sends the menu's
-  elimination, so nobody is knocked out by a mis-tap, and the
-  before-summoning loss rule still applies. A Fire counter (0 to 9,
-  `InvestigatorDashboard.fire`) sits beside them; while it holds tokens the
-  panel reminds the player to roll that many black dice at End of Turn, with a
-  button that discards them. **Rest: heal 3** (Safe space only) offers every
-  split of 3 between stress and wounds and sends ordinary −1 steps. Each Death
-  May Die game in History records its Elder One, episode and investigators, and
-  the Games list sums wins and losses by Elder One (`LocalLibrary.elderOneRecord`).
-  Each Insanity Threshold reached owes one skill level-up (rulebook p. 8;
-  `InvestigatorDashboard.pendingLevelUps`). While one is owed, the threshold
-  alert (host panel and investigator device) names the insanity card and shows a
-  **Resolve** button per skill that can rise; level chips appear only under
-  **Correct skill levels** (owner, 2026-10-20). The Elder One tab follows the
-  Story board's order: track, stages, then **Elder One minions** and **Episode
-  monsters** (`ElderOneTrack.enemies`, numbered figures with wounds out of
-  health) and episode tokens. No stat list is published, so an enemy card's
-  name, health and attack dice are typed once and kept on the device
-  (`LocalLibrary.enemies`); a rematch clears the map.
-  In the lobby each player row
-  keeps one height: the investigator button shows the chosen name, and the
-  two card buttons stay on one line. The player's-name field and saved-player
-  chips sit at the top of "At the table", so players added from them fill in
-  below and the picker never moves under a finger. A tile shows the investigator's
-  picture from the community wiki where it has one (Seasons 1 to 4 core
-  investigators; a dashboard's portrait is cropped out), and the Game tab
-  lists the players the same way.
-  Each dashboard saves its sanity loss (0–20) and three base skill levels (1–4), with up to five added skills.
-  Sanity loss stops at thresholds 4, 8, 12, 15, 18 and 19; bonus dice appear at
-  8, 15, 18 and 19. A threshold shows a bordered alert on the investigator's panel
-  that names the sanity condition, prints its rules and says to resolve it and
-  upgrade a skill; level choices remain manual for companions and corrections.
-  Reaching 20 does not automatically eliminate anyone: resolve the printed
-  dashboard and game conditions through the player's menu. The ten core-box
-  investigators have offline skill-effect summaries checked against their
-  dashboards. Indexed investigators also get the known common-skill summaries.
-  **Edit abilities** supplies or corrects names and four level effects. It can
-  add common presets (including Swiftness) or custom abilities, up to eight total,
-  and remove added abilities. New markers start at 1; move them manually for the
-  granting effect. Removing an extra preserves the other skills' levels. **Preview upgrades** shows
-  future effects without changing a marker. Higher-level effects add to
-  earlier effects unless they say instead. Edited ability text survives
-  rematches for the original three slots; acquired extras are cleared and markers
-  reset on returning to setup or starting a fresh match. **Phases of your turn**
-  opens from setup, the active investigator and Game menu without changing state.
-  It covers actions, Mythos, Discovery if safe or enemy attacks, and end checks in
-  printed order; physical-game exceptions apply. Start stays off (owner,
-  2026-10-19) until every player has chosen an **investigator** and has a **Sanity
-  condition** assigned; the setup hint names who still needs what
-  (`StandaloneGame.setupMissing`). **Use relics** is off by default; when
-  enabled in setup, every investigator also needs a **Relic**. Disabled relic
-  slots are hidden, and turning the option off clears relic assignments and offers.
-  The **Elder One** tab (owner, 2026-10-19; shown only while Death May Die is the
-  device game and the Game tab isn't showing Atlas, like Planes for Magic) records the Elder One and episode, chosen
-  from `DeathMayDieStory` (community wiki; any name can be typed) in setup or
-  during play, and follows the Story board (`domain/ElderOne.kt`, CMON rulebook):
-  a **Summoning symbols** count where the third advances the Elder One and empties
-  the count; the 8-space **Summoning track** (spaces 1 to 4 green, 5 to 7 red, 8
-  last) where entering space 5 summons it; **We disrupted the ritual**, which
-  summons it and makes it mortal; then Stage 2, 3 and Final, each with typed
-  printed health and a wound count (excess wounds don't carry over). The
-  Progression token reaching space 8 ends the game as a loss, and so does an
-  investigator lost while a chosen Elder One is still on the track; the
-  armed **We killed the Elder One** on the Final stage is a shared win. Moves
-  that end the game are armed (tap twice); corrections (back a space, undo
-  summon or disruption before wounds) are available. Card effects stay on the
-  physical cards. The tab opens on a header naming the Elder One and episode over a
-  summoning circle (green on the track, red once summoned, gold when banished),
-  then the track as a path with a sliding marker, three Summoning-symbol sigils, a
-  stage ladder and a wound ring; text carries every state, and Reduce motion
-  stills the animation. The menu bar and Game tab show the track space or stage.
-  Choices survive back-to-setup and rematch; progress resets.
-  **Draw two, pick one** is a separate setup-only house-rule switch, off by default,
-  applying to conditions and enabled relics. Each editor offers **Deal two in app**
-  (random without replacement from the current catalogue) or **Enter two physical
-  draws** (type both names, choose one and Save). App offers reserve both cards,
-  survive cancel/reopen and recovery, and cannot reroll by reopening. Manual and
-  catalogue assignment remain available for physical draws/corrections; no card
-  text or art coverage is implied by a random deal. Back-to-setup preserves offers;
-  rematch or changing investigator clears them. The house-rule switch persists.
-  The condition/relic editor offers a searchable community catalogue (35 condition
-  names, 20 relics), including known transformed relic names in search. All known
-  entries are available without collection filtering; coverage is incomplete and
-  **Use custom entry** supports other cards. Choosing an entry edits a draft;
-  **Save** assigns it, while Cancel/Back leaves the existing assignment unchanged.
-  Names and rules/notes remain editable on the active
-  card or in the player menu for corrections. A named condition appears in the insanity
-  threshold reminder. Card effects are resolved on the physical game. Both
-  slots persist in game recovery and stay with the investigator when seats swap.
-  Back-to-setup retains assignments and the relic option. **Set up rematch**
-  returns to the lobby with both slots empty and the relic option retained;
-  clocks start only after required cards are reassigned and Start is confirmed.
-  Names are bounded to 80 characters and rules/notes to 2,000. Choosing a
-  different investigator clears their dashboard, including both card slots.
-  **View card reference** opens verified community photographs for 18 catalogue
-  entries. Images may show paired cards or both relic faces; pinch/drag and
-  labeled Zoom in/Zoom out/Fit controls support reading them. References are
-  downloaded only when opened, cached on the device and credited to CMON and
-  BoardGameGeek. Failed downloads can be retried; missing images never block
-  assignment. Other entries link their community source and accept typed notes.
-  The catalogue includes original, unverified mechanical reminders for 20 of 35
-  conditions and both faces of 10 of 20 relics. Exact card prose and artwork are
-  not bundled. Missing/uncertain effects stay blank, labeled for card/scan review.
-  **Review condition & relic rules** in setup browses the full catalogue without
-  assigning a player. Correct the draft from a physical card (including relic flip
-  requirements), check each face independently, then **Save reference**. LocalLibrary
-  owns these device-wide references; they survive recovery/rematch and prefill
-  future choices. Existing match notes are independent and remain unchanged.
-  Match editors also support physical checks; **Fill missing rules from reference**
-  fills only blank fields. A content fingerprint binds each check to that card's
-  name and face text; edits invalidate the matching check, and blank text cannot
-  be checked. Source review never marks a physical check. Checking has no effect
-  on start readiness, markers, flips or printed effects. The complete physical-card review checklist is
-  local-only, with the rest of the CMON content. Recovery saves the selected catalogue
-  ID with each card; a renamed card becomes a custom entry, and unknown or
-  wrong-slot references are discarded without losing entered names/notes.
-  Everyone wins together ("We killed the Elder One") or loses together ("We
-  lost"); an investigator who falls with the Elder One on the board leaves and
-  the rest play on, and the game is lost when nobody is left.
 - **Game picker** (both lobbies): games are grouped as Magic: The Gathering,
-  More card games, Board games and Your own game, each a tile saying what the table counts
+  More card games and Your own game, each a tile saying what the table counts
   (`GamePicker`, `FORMATS` in `TableSetup.kt`). Atlas's lobby lists only the
   formats Atlas runs. The Magic format's tile is "Standard"; its game modes are
   Free-for-all and Two-Headed Giant, and Star Commander shows only under
   Commander (`GameMode.availableFor`).
 - **Guided setup** (owner, 2026-10-19, idea from a playtester; device game only,
   optional, *needs a playtest*): under the game choice, **Guided setup: pass the
-  device** goes round the seats. Death May Die opens on a Story step for the
-  whole table: the Elder One and episode (optional, the Elder One tab's picker).
-  Each player then gets a "Pass the device to" screen
-  (or Skip), then their own choices: Death May Die investigator, sanity
-  condition and enabled relic; other games tile card or commander. Saved
-  players also get tile color and photo. A confirm screen lists the story,
-  everyone's choices and what is still missing, with Edit for each, **Start the
+  device** goes round the seats. Each player gets a "Pass the device to" screen
+  (or Skip), then their own choices: tile card or commander. Saved
+  players also get tile color and photo. A confirm screen lists
+  everyone's choices, with Edit for each, **Start the
   game** (the normal Start path, so first-player choice and the setup gate
   still apply) and **Back to the setup menu**, which keeps every choice
   (`ui/tablet/GuidedSetup.kt`, using the lobby's `TableLobbyActions`). It fills
-  the screen edge to edge and shows each investigator's whole portrait; table
-  tiles crop art toward the top so faces show.
+  the screen edge to edge; table tiles crop art toward the top so faces show.
 - Custom starting life 0 to 99,999 (custom modes or house rules). Any
   seated player may change the next game's settings in the lobby
   (`ConfigureGame`); a running match keeps what it captured at start, and a
@@ -819,8 +662,7 @@ Reversed turn order: for cards that reverse it (a plane, for example), the
 game menu's **Turn order** card and the Planes tab's card tools switch turns
 to counterclockwise and back (owner, 2026-10-20). The centre disc shows
 **↺ Reversed** meanwhile; a Two-Headed Giant turn still goes to the next team.
-Each new game starts clockwise. Cooperative games choose who goes next, so
-they don't offer it. Joined devices reverse it with the planar command
+Each new game starts clockwise. Joined devices reverse it with the planar command
 `planar-reverse`.
 
 Rad counters (CR 727): when a turn begins, each player of that turn with rad

@@ -94,8 +94,6 @@ private enum class HomeTab(val label: String, @DrawableRes val icon: Int) {
     TABLE("Table", DesignTokens.Icons.table),
     /** Planechase for the device game; shown only while a Magic format is chosen. */
     PLANES("Planes", DesignTokens.Icons.cards),
-    /** Death May Die's Elder One, episode and Story board; shown only while that game is chosen. */
-    ELDER("Elder One", DesignTokens.Icons.eye),
     PLAYERS("Players", DesignTokens.Icons.users),
     HISTORY("History", DesignTokens.Icons.clock),
     MORE("More", DesignTokens.Icons.more),
@@ -151,8 +149,6 @@ fun HomeScreen(
     localHistoryContent: @Composable () -> Unit = {},
     /** The device game's Planechase setup and planes, in the Planes tab. */
     localPlanesContent: @Composable () -> Unit = {},
-    /** The device game's Elder One and Story board (Death May Die), in the Elder One tab. */
-    localElderContent: @Composable () -> Unit = {},
     atlasEnabled: Boolean = true,
     onAtlasEnabled: (Boolean) -> Unit = {},
     localState: com.turnhub.android.standalone.StandaloneState = com.turnhub.android.standalone.StandaloneState(),
@@ -220,11 +216,9 @@ fun HomeScreen(
     }
     // The Planes tab shows only while Planechase is on (Game setup's toggle turns it on).
     val planes = localState.game.profile.magicRules && localState.game.planechase.enabled
-    val elderOne = localState.game.profile.deathMayDie
-    val tabs = HomeTab.entries.filter { (it != HomeTab.PLANES || planes) && (it != HomeTab.ELDER || elderOne) }
-    // Leaving Magic or turning Planechase off hides the Planes tab (Death May Die the Elder One tab); whoever was on it goes back to Game.
+    val tabs = HomeTab.entries.filter { it != HomeTab.PLANES || planes }
+    // Leaving Magic or turning Planechase off hides the Planes tab; whoever was on it goes back to Game.
     androidx.compose.runtime.LaunchedEffect(planes) { if (!planes && tab == HomeTab.PLANES) tab = HomeTab.GAME }
-    androidx.compose.runtime.LaunchedEffect(elderOne) { if (!elderOne && tab == HomeTab.ELDER) tab = HomeTab.GAME }
     var showPeople by rememberSaveable { mutableStateOf(false) }
     val pageState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     androidx.activity.compose.BackHandler(enabled = tab != HomeTab.GAME && !setup.visible) {
@@ -256,7 +250,7 @@ fun HomeScreen(
 
     val playing = deviceSummary.state == TableState.RUNNING
     AmbientBackground(reduceMotion, modifier.fillMaxSize(), quiet = !setup.visible && tab != HomeTab.MORE &&
-        (playing || tab in listOf(HomeTab.TABLE, HomeTab.PLANES, HomeTab.ELDER))) {
+        (playing || tab in listOf(HomeTab.TABLE, HomeTab.PLANES))) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
@@ -370,7 +364,6 @@ fun HomeScreen(
                         !setup.visible && shown == HomeTab.TABLE -> localTableContent({ tab = HomeTab.GAME }, { tab = HomeTab.PLANES })
                         !setup.visible && shown == HomeTab.HISTORY -> localHistoryContent()
                         !setup.visible && shown == HomeTab.PLANES -> localPlanesContent()
-                        !setup.visible && shown == HomeTab.ELDER -> localElderContent()
                         !setup.visible && shown == HomeTab.PLAYERS -> localPlayersContent()
                         !setup.visible && shown == HomeTab.GAME -> localGameContent({ tab = HomeTab.TABLE }, { tab = HomeTab.PLANES }) {
                             Column(Modifier.widthIn(max = 720.dp).fillMaxSize().padding(4.dp)) {
@@ -436,7 +429,7 @@ fun HomeScreen(
                                     }
                                     com.turnhub.android.ui.components.AppVersionLabel(Modifier.fillMaxWidth())
                                 }
-                                HomeTab.HISTORY, HomeTab.TABLE, HomeTab.PLANES, HomeTab.ELDER -> Unit
+                                HomeTab.HISTORY, HomeTab.TABLE, HomeTab.PLANES -> Unit
                             }
                         }
                     }

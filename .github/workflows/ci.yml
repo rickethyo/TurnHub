@@ -115,6 +115,8 @@ jobs:
         run: python3 tools/scripts/test_sync_agent_branches.py
       - name: Documentation links and retired paths
         run: python3 tools/scripts/check_docs.py
+      - name: No local-only licensed content
+        run: python3 tools/scripts/check_licensed_content.py
       - name: Shared display assets match their sources
         run: |
           python3 shared/display/tools/generate_fonts.py --check

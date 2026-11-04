@@ -219,10 +219,6 @@ internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, st
 /** How the seat map is explained in both lobbies. */
 internal const val SEAT_MAP_HINT = "Drag a player onto another seat, or tap two seats, to swap them. Turns go clockwise in number order."
 
-/** A cooperative game's table is one upright list, and any player still to go may take the next turn. */
-internal const val COOP_MAP_HINT = "At the table, players are listed top to bottom in this order, all facing the same way. Tap two players to swap them. " +
-    "Turns can go in any order: Take the next turn marks a player as Up next until the current player passes."
-
 /** The seat map's explanation in Two-Headed Giant. */
 internal const val TEAM_MAP_HINT = "Each outlined panel is a team: players 1 and 2, then 3 and 4, and so on. " +
     "Teammates share one panel, life total and turn. Drag a player onto another seat to swap them, or tap two seats."
@@ -238,18 +234,13 @@ internal enum class GameFamily(val title: String) {
 /** One game in the picker; [detail] says what the table counts and who plays. */
 internal data class GameChoice(val profile: GameProfile, val label: String, val detail: String, val family: GameFamily)
 
-/**
- * Formats offered in the shared lobby, by family; Atlas runs those that are [GameProfile.atlasSupported].
- * Death May Die is offered only in debug (Preview) builds: CMON's licensing keeps it out of release builds.
- */
-internal val FORMATS = listOfNotNull(
+/** Formats offered in the shared lobby, by family; Atlas runs those that are [GameProfile.atlasSupported]. */
+internal val FORMATS = listOf(
     GameChoice(GameProfile.MTG_COMMANDER, "Commander", "40 life · 2+ players", GameFamily.MAGIC),
     GameChoice(GameProfile.MTG, "Magic · 20 life", "Any 20-life Magic format · 2+ players", GameFamily.MAGIC),
     GameChoice(GameProfile.YUGIOH, "Yu-Gi-Oh!", "8000 Life Points · 2 players", GameFamily.CARD_GAMES),
     GameChoice(GameProfile.POKEMON, "Pokémon", "6 Prize cards · 2 players", GameFamily.CARD_GAMES),
     GameChoice(GameProfile.LORCANA, "Lorcana", "Race to 20 lore · 2+ players", GameFamily.CARD_GAMES),
-    GameChoice(GameProfile.DEATH_MAY_DIE, "Death May Die", "Co-op · turns each round · investigators", GameFamily.BOARD_GAMES)
-        .takeIf { com.turnhub.android.BuildConfig.DEBUG },
     GameChoice(GameProfile.GENERIC, "Other", "Any life total and player count", GameFamily.CUSTOM),
 )
 

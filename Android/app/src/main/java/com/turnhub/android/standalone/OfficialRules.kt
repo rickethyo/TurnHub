@@ -120,17 +120,6 @@ fun officialRules(profile: GameProfile, teams: Boolean): OfficialRules? = when {
 /** The rules page for a mode: official rules, or what a custom mode changes. */
 fun modeRules(profile: GameProfile, teams: Boolean): ModeRules = officialRules(profile, teams)?.let { ModeRules(it.name, it) }
     ?: when {
-        profile.deathMayDie -> ModeRules("Cthulhu: Death May Die", null, listOf(
-            "A cooperative game: the investigators win or lose together.",
-            "Each investigator takes one turn a round, in whatever order the table likes. Take the next turn stages an investigator as Up next; their turn starts when the current player passes. With nobody staged, Pass asks who goes next.",
-            "The investigators win by killing the Elder One in its final stage.",
-            "If an investigator dies or goes insane before the Elder One is summoned, the game is lost. Once it is on the board, the others play on.",
-            "The game is also lost when the Summoning track reaches its last space, or when every investigator is dead or insane.",
-            "Each panel counts that player's wounds as a reminder; their dashboard decides when they die.",
-            "The Elder One tab follows the Story board: three Summoning symbols in the Mythos discards advance the Elder One, entering the first red space (space 5) or disrupting the ritual summons it, and the Progression token reaching space 8 loses the game.",
-            "Once the ritual is disrupted, wound the Elder One stage by stage. Excess wounds don't carry over, and defeating the Final stage wins.",
-            "With the Elder One chosen in that tab, an investigator lost while it is still on the Summoning track ends the game as a loss.",
-        ))
         profile.bagOfDoom -> ModeRules("Commander · Bag of Doom (custom)", null, listOf(
             "A custom Commander variant for five or more players, inspired by Game Knights' ten-player game. Start at 40 life; normal Commander rules apply.",
             "Everyone begins in the bag. When another player loses life on your turn, your name comes out, even if they paid that life themselves. Your own life loss does not save you.",

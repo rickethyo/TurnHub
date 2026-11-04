@@ -21,8 +21,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.domain.ControllerHandle
-import com.turnhub.android.domain.InvestigatorCard
-import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
@@ -69,13 +67,6 @@ internal data class TableLobbyActions(
     val commander: ((player: TablePlayer, name: String?, printing: String?, cardOnly: Boolean) -> Unit)? = null,
     /** A player's saved commanders (name, printing) to pick again; Atlas keeps them per profile. */
     val savedCommanders: (TablePlayer) -> List<Pair<String, String?>> = { emptyList() },
-    /** Death May Die: names (or clears, null) a player's investigator; null hides it. */
-    val investigator: ((player: TablePlayer, name: String?) -> Unit)? = null,
-    val dealInvestigatorCards: ((TablePlayer, InvestigatorCardSlot) -> Unit)? = null,
-    val investigatorCard: ((TablePlayer, InvestigatorCardSlot, InvestigatorCard?) -> Unit)? = null,
-    /** Death May Die: names (or clears, null) the Elder One and the episode; null hides them in guided setup. */
-    val elderOne: ((String?) -> Unit)? = null,
-    val episode: ((String?) -> Unit)? = null,
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -136,7 +127,7 @@ internal fun TableLobby(
             // The game folds to one tile once chosen; the mode stays one tap away.
             BrassCard {
                 Eyebrow("1. Game")
-                Text("${settings.startingLife} ${if (settings.profile.lorcana) "lore" else if (settings.profile.pokemon) "Prize cards" else if (settings.profile.deathMayDie) "wounds" else "starting life"} · " +
+                Text("${settings.startingLife} ${if (settings.profile.lorcana) "lore" else if (settings.profile.pokemon) "Prize cards" else "starting life"} · " +
                     (if (settings.turnTimerEnabled) "Turn timer on" else "No turn timer") +
                     (if (settings.profile.magicRules) " · ${GameMode.of(settings.profile, settings.twoHeadedGiant).label}" else "") +
                     (if (settings.houseRules) " · House rules" else ""), color = p.muted, style = MaterialTheme.typography.bodySmall)
@@ -189,9 +180,6 @@ internal fun TableLobby(
                     StarRelationsList(seats)
                     val starLayout = rememberStarLayout()
                     SetupSwitch("Star layout at the table", STAR_LAYOUT_HINT, starLayout.on, true, starLayout.set)
-                } else if (settings.profile.cooperative) {
-                    ListSeatMap(players.map { it.label }, players.map { it.investigator }, { a, b -> if (enabled) actions.swap(a, b) },
-                        backgrounds = players.map { it.tileBackground }, colors = players.map { it.color })
                 } else {
                     SeatMap(players.map { it.label }, { a, b -> if (enabled) actions.swap(a, b) },
                         backgrounds = players.map { it.tileBackground }, colors = players.map { it.color },
@@ -202,7 +190,6 @@ internal fun TableLobby(
                 Text(when {
                     settings.profile.starCommander -> STAR_MAP_HINT
                     settings.profile.emperor -> EMPEROR_MAP_HINT
-                    settings.profile.cooperative -> COOP_MAP_HINT
                     settings.twoHeadedGiant -> TEAM_MAP_HINT
                     else -> SEAT_MAP_HINT
                 }, color = p.muted, style = MaterialTheme.typography.bodySmall)
@@ -212,15 +199,6 @@ internal fun TableLobby(
                         { name, art, cardOnly -> save(player, name, art, cardOnly); namingCommander = null },
                         actions.savedCommanders(player)) { namingCommander = null } }
                 }
-                var choosingInvestigator by rememberSaveable { mutableStateOf<Int?>(null) }
-                players.firstOrNull { it.playerNumber == choosingInvestigator }?.let { player ->
-                    actions.investigator?.let { save ->
-                        val taken = players.filter { it.playerNumber != player.playerNumber }
-                            .mapNotNull { other -> other.investigator?.let { it to other.label } }.toMap()
-                        InvestigatorPickerDialog(player, taken, { name -> save(player, name); choosingInvestigator = null }) { choosingInvestigator = null }
-                    }
-                }
-                val investigators = settings.profile.deathMayDie && actions.investigator != null
                 players.forEach { player ->
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         // Top-aligned: the number sits beside the name, whatever the buttons under the name hold.
@@ -232,15 +210,7 @@ internal fun TableLobby(
                             Column(Modifier.weight(1f)) {
                                 Text(player.label, color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1,
                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                                // The usual next step for an empty seat is one tap away, outside the menu. The same
-                                // button then shows the chosen investigator, so choosing never moves the rows below.
-                                if (investigators) {
-                                    SeatShortcut(player.investigator ?: "+ Choose investigator",
-                                        player.investigator?.let { "${player.label}'s investigator: $it. Change investigator" }
-                                            ?: "Choose ${player.label}'s investigator", enabled) {
-                                        choosingInvestigator = player.playerNumber
-                                    }
-                                }
+                                // The usual next step for an empty seat is one tap away, outside the menu.
                                 if (actions.commander != null && settings.profile.commanderRules && player.commander == null) {
                                     SeatShortcut("+ Name commander", "Name ${player.label}'s commander", enabled) {
                                         namingCommander = player.playerNumber
@@ -271,8 +241,6 @@ internal fun TableLobby(
                                     })
                             }
                             val items = buildList<Pair<String, () -> Unit>> {
-                                if (investigators) add((if (player.investigator == null) "Choose investigator" else "Change investigator") to
-                                    { choosingInvestigator = player.playerNumber })
                                 if (actions.commander != null) add(when {
                                     player.commander == null -> if (settings.profile.commanderRules) "Name commander" else "Choose tile card"
                                     player.namedCommander != null -> "Change commander"
@@ -296,13 +264,6 @@ internal fun TableLobby(
                                 }
                             }
                         }
-                        if (investigators) actions.investigatorCard?.let { assign ->
-                            InvestigatorCards(player, summary.bootId, enabled, compact = true, references = summary.investigatorReferences, useRelics = summary.useRelics, drawTwo = summary.drawTwoCards,
-                                onDeal = actions.dealInvestigatorCards?.let { deal -> { slot -> deal(player, slot) } },
-                                reservedCardIds = summary.players.flatMap { p -> p.dashboard.cardOffers.values.flatten() +
-                                    InvestigatorCardSlot.entries.mapNotNull { p.dashboard.card(it)?.catalogueId } }.toSet(),
-                                onAssign = { slot, card -> assign(player, slot, card) })
-                        }
                     }
                 }
                 if (actions.chooseStarter != null && actions.startWith == null && players.size >= 2) Text(
@@ -312,7 +273,7 @@ internal fun TableLobby(
             }
             startHint?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
             var askingFirst by rememberSaveable { mutableStateOf(false) }
-            val startWith = actions.startWith?.takeIf { !settings.profile.cooperative }
+            val startWith = actions.startWith
             if (guided) GuidedSetupDialog(summary, actions, enabled && startReady, startHint,
                 onStart = { guided = false; if (startWith != null) askingFirst = true else actions.start() },
                 onClose = { guided = false })
@@ -336,16 +297,13 @@ internal fun TableLobby(
                 // Optional: the device goes round the table and each player makes their own choices.
                 if (phoneHosted && players.isNotEmpty()) {
                     ToneButton("Guided setup: pass the device", { guided = true }, Modifier.fillMaxWidth(), enabled = enabled)
-                    Text(if (settings.profile.deathMayDie) "Each player picks their investigator, sanity condition" +
-                        (if (summary.useRelics) " and relic" else "") + " in turn, then everyone confirms."
-                        else "Each player picks their own tile card and color in turn, then everyone confirms.",
+                    Text("Each player picks their own tile card and color in turn, then everyone confirms.",
                         color = p.faint, style = MaterialTheme.typography.bodySmall)
                 }
                 // Rules fold away behind a title that already says the usual answer.
                 val ruleSummary = listOfNotNull(
                     "Rules",
                     when {
-                        settings.profile.deathMayDie -> null
                         settings.profile.pokemon -> "${settings.startingLife} Prize cards"
                         settings.profile.lorcana -> "${settings.startingLife} lore to win"
                         else -> "${settings.startingLife} life"
@@ -356,7 +314,6 @@ internal fun TableLobby(
                 DisclosureCard(ruleSummary) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(when {
-                            settings.profile.cooperative -> "Co-op: everyone wins or loses together"
                             officialMode == null -> "Custom mode"
                             locked || official == null -> "Official ${officialMode.name} rules"
                             else -> "House rules"
@@ -364,8 +321,7 @@ internal fun TableLobby(
                         ModeRulesButton(settings.profile, settings.twoHeadedGiant)
                     }
                     var life by rememberSaveable(settings.startingLife) { mutableStateOf("${settings.startingLife}") }
-                    // Death May Die counts wounds up from 0: there is no starting number to set.
-                    if (!settings.profile.deathMayDie) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(life, { life = it.filter(Char::isDigit).take(5) },
                             label = { Text(when {
                                 settings.profile.pokemon -> "Prize cards"

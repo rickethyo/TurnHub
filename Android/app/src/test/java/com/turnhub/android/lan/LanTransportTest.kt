@@ -38,7 +38,7 @@ class LanTransportTest {
         LanServer(socket) { request -> handled.incrementAndGet(); request.put("reply", true) }.use { server ->
             Socket(InetAddress.getLoopbackAddress(), server.port).use { client ->
                 client.soTimeout = 2_000
-                LanFrames.write(client, JSONObject().put("unicode", "Elder One · é"))
+                LanFrames.write(client, JSONObject().put("unicode", "Planes · é"))
                 assertTrue(LanFrames.read(client).getBoolean("reply"))
             }
             Socket(InetAddress.getLoopbackAddress(), server.port).use { client ->

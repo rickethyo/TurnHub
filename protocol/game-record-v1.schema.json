@@ -31,8 +31,7 @@
         "mtg_commander_emperor",
         "yugioh",
         "pokemon",
-        "lorcana",
-        "death_may_die"
+        "lorcana"
       ]
     },
     "twoHeadedGiant": {
@@ -76,12 +75,6 @@
         "maximum": 9
       }
     },
-    "elderOne": {
-      "type": "string"
-    },
-    "episode": {
-      "type": "string"
-    },
     "players": {
       "type": "array",
       "minItems": 2,
@@ -113,10 +106,6 @@
               "null"
             ],
             "description": "The app's local account ID; null on Atlas and for guests."
-          },
-          "investigator": {
-            "type": "string",
-            "description": "Death May Die only."
           },
           "finalLife": {
             "type": "integer"

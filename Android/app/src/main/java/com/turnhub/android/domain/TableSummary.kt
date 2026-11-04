@@ -71,18 +71,6 @@ data class TableSummary(
     val pokemonCheckup: List<String> = emptyList(),
     /** Magic: players whose rad counters trigger this turn, until they resolve them. */
     val radDuePlayerNumbers: List<Int> = emptyList(),
-    /** Cooperative games (Death May Die, phone-hosted): the round being played; null otherwise. */
-    val round: Int? = null,
-    /** Phone-hosted Death May Die: the Elder One, episode and Story board; null otherwise. */
-    val elder: ElderOneTrack? = null,
-    /** Phone engine's eligible recipients after the active investigator finishes this turn. */
-    val passPlayerNumbers: List<Int> = emptyList(),
-    /** Phone engine's staged recipient; the current turn continues until Pass. */
-    val nextTurnPlayerNumber: Int? = null,
-    /** Phone-hosted Death May Die optional setup rule. */
-    val useRelics: Boolean = false,
-    val drawTwoCards: Boolean = false,
-    val investigatorReferences: Map<String, InvestigatorCard> = emptyMap(),
     /**
      * Magic: day and night (CR 726), set by hand. Null for other formats, and from
      * Atlas firmware older than 2026-10-28, which tracks neither it nor treasure and rad.
@@ -202,13 +190,6 @@ data class TablePlayer(
     val cardOnly: Boolean = false,
     /** Pokémon and Lorcana (phone-hosted games): this turn's actions; Pokémon's Special Conditions. */
     val turn: TurnStatus = TurnStatus(),
-    /** Death May Die (phone-hosted games): the investigator this player plays. */
-    val investigator: String? = null,
-    /** Death May Die: stress tokens (wounds are [life]). */
-    val stress: Int = 0,
-    val dashboard: InvestigatorDashboard = InvestigatorDashboard(),
-    /** Cooperative games: this player has taken their turn this round. */
-    val actedThisRound: Boolean = false,
 ) {
     /** The commander this player named, for labels and menus; null when the card is only tile art. */
     val namedCommander: String? get() = commander.takeUnless { cardOnly }

@@ -25,7 +25,7 @@ namespace turnhub {
 
 enum class Profile : uint8_t {
   Generic, Mtg, MtgCommander, MtgStarCommander, MtgBagOfDoom, MtgEmperor, MtgCommanderEmperor, Yugioh, Pokemon,
-  Lorcana, DeathMayDie,
+  Lorcana,
 };
 
 enum class TableState : uint8_t { Lobby, Starting, Running, Paused, GameOver };
@@ -41,8 +41,7 @@ struct ProfileRules {
   static bool magic(Profile p) { return p == Profile::Mtg || p == Profile::MtgEmperor || commander(p); }
   static bool emperor(Profile p) { return p == Profile::MtgEmperor || p == Profile::MtgCommanderEmperor; }
   static bool ownSeating(Profile p) { return p == Profile::MtgStarCommander || p == Profile::MtgBagOfDoom || emperor(p); }
-  static bool cooperative(Profile p) { return p == Profile::DeathMayDie; }
-  static bool countsLife(Profile p) { return p != Profile::Pokemon && p != Profile::Lorcana && p != Profile::DeathMayDie; }
+  static bool countsLife(Profile p) { return p != Profile::Pokemon && p != Profile::Lorcana; }
 };
 
 // Random draws come from the caller: the app and Atlas use a real generator,

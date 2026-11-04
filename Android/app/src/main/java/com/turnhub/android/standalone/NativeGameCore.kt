@@ -67,10 +67,10 @@ internal class RecordingRandom(private val inner: Random) : Random() {
     override fun nextBoolean(): Boolean = inner.nextBoolean().also { draws += if (it) 1 else 0 }
 }
 
-/** Local-only licensed-module rules remain separate; tests can replay the Kotlin oracle. */
+/** Every format runs on the shared core; tests can replay the Kotlin oracle. */
 internal object GameRuleRuntime {
     private val oracle = ThreadLocal.withInitial { java.lang.Boolean.getBoolean("turnhub.core.reference") }
-    fun shared(game: StandaloneGame): Boolean = !game.profile.deathMayDie && oracle.get() != true
+    fun shared(game: StandaloneGame): Boolean = oracle.get() != true
     fun <T> reference(block: () -> T): T {
         val before = oracle.get()
         oracle.set(true)

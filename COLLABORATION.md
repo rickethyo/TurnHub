@@ -34,15 +34,20 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
-2026-11-03, Claude: Death May Die content is local-only and `LVGL/` is gone
-(owner's request, on `claude/master`). CMON content (`DmdContent.generated.kt`
-now in `Android/app/src/dmd/`, the content tests in `src/testDmd/`,
-`data/death-may-die/`, `tools/dmd-forge/` and the card-review, forge and rights
-docs) is untracked and gitignored; it stays on the owner's PC. Without it the
-app compiles the empty `src/dmdStub/` stand-in, so release builds carry no CMON
-content. The files remain in git history (no rewrite). The cooperative-mode
-engine code (wounds, Elder One track, pass rules) stays committed and the
-manual still describes the mode. `LVGL/` moved into `shared/`: `simulator/`,
+2026-11-04, Claude: one licensed board game left TurnHub for a separate
+local-only app (owner's request, branch `claude/project-thread-i9owxo`). Removed
+its Android code, tests, build hooks and stub source set, its shared-core
+profile and branches, its schema fields and LAN roles, and its manual, docs and
+history entries. It was the only cooperative mode, so the cooperative turn
+machinery (acted/round/next turn, pass-to) went with it. New CI step
+`check_licensed_content.py` fails on its terms (stored hashed); `.gitignore` is
+the one allowed file until the PC follow-up in STAGED_CHANGES. Codex: please
+don't reintroduce mentions in notes or commits. Validation: shared-core
+scenarios and `check_docs.py` pass locally; Android compile and JVM tests run
+in CI.
+
+2026-11-03, Claude: `LVGL/` is gone (owner's request, on `claude/master`).
+`LVGL/` moved into `shared/`: `simulator/`,
 `display/tools/` (generators), `display/{fonts,icons}.hpp` and `licenses/`;
 nothing in it was device-specific. Validation: Android JVM tests 651/651 with
 the local content and 624 (+2 skipped) without, `assembleRelease` without it;
@@ -54,7 +59,7 @@ the shared engine, excluding takeover, then reassessing. Baseline `a7edbee3`,
 `codex/master`; fetched origin, clean tree, #178 remains open. Active scope:
 Android native core linkage and cross-runtime tests, then missing shared
 gameplay/contracts and controller surfaces. No authority transfer, release or
-installation. Existing local-only Death May Die licensing gate remains.
+installation.
 Owner clarifies account-free (not display-less) Atlas play: named guests may
 reuse saved names without full profiles or verbose retained statistics; retain
 basic match participation/result/duration. Full profiles, with or without PINs,
@@ -175,8 +180,6 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 |---|---|---|---|---|
 | TH-035 | Phone-hosted games: Atlas becomes the table accessory | Atlas, Android, protocol, invariants | Owner decision 2026-11-04; slice 1 on `claude/master` | Claude / slice 2 (Sigils); Codex: no new gameplay in Atlas's old engine |
 | TH-032 | TCG shared player controls and read-only table | Android LAN, table UI | Implemented; local/device validation | Codex / review and tablet preview |
-| TH-031 | Death May Die shared devices | Android LAN, authority, UI | Handed to Claude on `claude/master` (owner, 2026-10-20) | Owner / Claude's PR (supersedes #145) and physical acceptance |
-| TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |
 | TH-023 | Atlas parity with the standalone app | Atlas, protocol, Android connected mode | Rounds 1 (#113) and 2 ready for review; host tests pass | Owner / flash, play and review |
 | TH-022 | Native game-action sounds | Android | Ready for review; CI passes | Owner / PR #107 and device acceptance |
@@ -218,60 +221,6 @@ host suites pass on Linux GCC with sanitizers (new `phoneHostedGame`
 scenario). Android JVM tests and the S3 firmware build run in CI. Not
 hardware-accepted.
 
-## TH-031: Death May Die shared devices
-
-- Date / owner: 2026-10-20, Codex on `codex/master`, clean baseline `65e0c41`
-  (Claude's Death May Die/Elder One work merged through #143; #144 integrated).
-  Current master fetched and fast-forwarded; no open PR or overlapping scope.
-- Owner requests same-network host/client devices: an Elder One display and
-  personal investigator cards, with investigator controls confirmed. Hosting
-  is a candidate paid upgrade; recommend host entitlement with free joining.
-  Billing, pricing, Atlas handoff and common-engine extraction are separate.
-- Feature gate: existing host StandaloneTable/StandaloneGame own rules,
-  persistence, outcomes/history. New versioned LAN session commands validate
-  invitation/session, client capability, owned seat, match/revision and action
-  UUID. Mutations serialize with host UI; persist before replying. Clients only
-  render snapshots and request their own investigator changes, never run or
-  persist a second game or award statistics. Elder One clients are read-only.
-- TLS with an Android-keystore host certificate pinned by a shared invitation;
-  session-scoped random credentials, bounded frames/connections/receipt cache,
-  explicit revoke/stop, no discovery/cloud account or new runtime dependency.
-  QR/paste invitation avoids trusting a server discovered on the LAN. App-local
-  foreground hosting, explicit disconnected state and retry of uncertain commands;
-  no client promotion or queued offline edits. Rotation retains the session,
-  process death requires a new invitation. Use existing LAN/camera permissions.
-- Renderers: host/join page plus dedicated Elder One/investigator views with
-  labeled controls and connection status, large text/scrolling and safe insets.
-  Keep hosting behind an injectable capability boundary; joining independent.
-  Automated authority/authorization/retry/staleness/storage/transport regressions
-  plus Android CI; two-device/TalkBack/background acceptance remains physical.
-
-### 2026-10-20 — Codex: TH-031 implementation validation
-
-- Implementation ready locally: one host-only rule/history/storage authority;
-  QR/paste pairing, pinned TLS, role/seat sessions, bounded frames/JSON depth
-  and immutable command receipts, stale rejection, durable remote commits,
-  disconnected/uncertain command UI and explicit revoke/stop. Own investigator
-  controls include counters, levels, staged/pass recipient and death confirmation.
-- Local Kotlin/JVM compilation with Android Context/ViewModel/network integration
-  stubs runs the actual domain, protocol, standalone authority and LAN core.
-  110 tests pass, including 16 new LAN tests and existing DMD, Elder One,
-  standalone-game, Bag of Doom and elimination-prompt suites. Pinned TLS uses
-  real loopback sockets with an ephemeral test-only keytool certificate.
-  Android/Compose compilation and the full JVM suite pass in CI;
-  physical keystore/device acceptance remains open.
-- Docs, design tokens, manual export and whitespace checks pass; updated DOCX
-  page layout is unverified. No new runtime dependency, firmware or billing.
-  Hosting defaults enabled behind LanHostingAccess; free joining is independent.
-- Implemented in `57a7ae1`, [PR #145](https://github.com/rickethyo/TurnHub/pull/145).
-  [Final CI passes](https://github.com/rickethyo/TurnHub/actions/runs/39354130177):
-  Android/full JVM/release bundle, optimized Atlas host suites/contracts and
-  firmware; [iOS regression CI passes](https://github.com/rickethyo/TurnHub/actions/runs/39354130136).
-  Unchanged Sigil/LVGL builds skip. No new CI run needed for this docs-only
-  validation record. Owner reviews/integrates with a merge commit and retains
-  `codex/master`; no merge/release or Play publication performed by Codex.
-
-
 ## New topic / reply template
 
 ### TH-NNN: Topic title
@@ -288,53 +237,8 @@ hardware-accepted.
 
 Append replies under the same topic with date, author and reviewed SHA. Record a final outcome and links when resolved.
 
-TH-025: Death May Die dashboard merged in [PR #129](https://github.com/rickethyo/TurnHub/pull/129); validation and handoff notes (local-only, with the DMD content). Device checks remain in STAGED_CHANGES.
 
-TH-026: Staged turns and community catalogue merged in [PR #131](https://github.com/rickethyo/TurnHub/pull/131); validation and handoff notes (local-only, with the DMD content).
 
-TH-027 / TH-028: Merged in [PR #132](https://github.com/rickethyo/TurnHub/pull/132); validation and handoff notes (local-only, with the DMD content). Device checks remain in STAGED_CHANGES.
-
-## TH-029: Condition and relic rules with physical verification
-
-- Date / owner: 2026-10-18 / Codex on `codex/master`, baseline `250e36f`.
-  Clean tree, accepted master fetched/merged; #132 is integrated, no open PR.
-- Owner authorizes condition rules prefills and manual verification against their
-  physical collection, extended to relics (both faces). Scans may follow.
-- Scope: original concise mechanical summaries where source evidence is usable;
-  explicit missing/ambiguous entries, source links and a complete review checklist.
-  Catalogue defaults prefill new selections; existing typed notes remain intact.
-  Per-assignment verification belongs to InvestigatorCard, validated on edit and
-  saved by standalone JSON. LocalLibrary owns corrected catalogue references and
-  per-face physical checks for future picks, separate from match snapshots.
-  Editing name/effects invalidates the matching check by content fingerprint.
-  Verification is a reference aid, never a gameplay gate or automatic effect.
-- Compose owns drafts and separately labeled checks for relic faces. Domain owns
-  normalization/reset of checks. No Atlas/protocol change, new dependency or
-  third-party image/rules prose bundled. Missing source details are not guessed.
-  Legal tracker/manual/gameplay docs updated. All imported drafts start unchecked;
-  source review is distinct from owner's physical-card verification.
-- Implemented in `35fc385`, [PR #133](https://github.com/rickethyo/TurnHub/pull/133).
-  Original drafts cover 20/35 conditions and both faces of 10/20 relics; all start
-  unchecked. No effect is inferred for missing/uncertain entries. Setup review
-  browses the complete catalogue without seating anyone, saves corrected local
-  references independently of match snapshots, filters pending cards and shows
-  progress. Existing notes survive; explicit fill only populates blank fields.
-  Name/face fingerprints invalidate stale checks, while the other face retains
-  its check. Empty text cannot be checked. Printed flip requirements require
-  owner comparison/entry; no automatic rule or game state changes are applied.
-- Validation: six focused JVM tests cover prefills, independent face invalidation,
-  library/match isolation, recovery/legacy notes, malformed/oversized identities,
-  condition-only face normalization and failed persistence. [CI passes](https://github.com/rickethyo/TurnHub/actions/runs/39155100215)
-  Android compilation, the complete JVM suite and release-bundle creation for
-  `35fc385`. Local docs links, design tokens, manual export and whitespace checks
-  pass. Updated manual rendered and visually reviewed on pages 6–7. No local
-  SDK/emulator or physical-device acceptance is claimed.
-- Next owner: review/integrate #133 using a merge commit, retaining codex/master;
-  compare physical cards using the complete checklist (now local-only),
-  correct drafts and supply missing/unclear scans (conditions' rules face, both
-  relic faces including the flip track). No physical card is marked verified by
-  this implementation. Check phone/tablet large-text layouts, TalkBack, save/
-  recovery and selection prefills. No merge or release performed.
 
 ## TH-024: Concise bug reports with app diagnostics
 
@@ -1138,130 +1042,15 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
 - Validation: `CardGamesTest` JVM tests; CI runs the build (no Android SDK in
   the cloud container). Device playtest pending.
 
-## 2026-10-17 — Claude: Cthulhu: Death May Die in the app
-
-- Owner: Claude on `claude/death-may-die-mode-biwa1i`, baseline `e31e35c`
-  (#127). Owner request: a mode that tracks which players have taken their
-  turn, with each player's investigator from the game and all expansions.
-- Phone-hosted only (`atlasSupported = false`), the first cooperative format
-  (`GameProfile.cooperative`): `StandaloneGame.acted`/`round` track the round,
-  every player shares a win and the game is lost only when the table says so
-  or nobody is left. Roster in `domain/DeathMayDie.kt` (fan wiki, cross-checked
-  with Make Craft Game's guides; spellings need the owner's eye). UI in
-  `CardGameControls.kt` and `InvestigatorPicker.kt`.
-- Validation: `DeathMayDieTest` JVM tests; CI runs the build (no Android SDK
-  in the cloud container). Device playtest pending.
-
-## 2026-10-19 — Claude: Death May Die setup gate and Elder One tab
-
-- Owner: Claude on `claude/death-may-die-mode-biwa1i`, baseline `09255d9`
-  (#140). Owner request: block Start until every player has an investigator and
-  sanity condition (plus relic when enabled), and add a tab tracking the Elder
-  One and "scenes" (read as the episode; owner to confirm).
-- `StandaloneGame.setupMissing` drives `canStart` and the setup hint. The new
-  `ElderOneTrack` (`domain/ElderOne.kt`) lives on `StandaloneGame.elder`, saved
-  under `elder`, mirrored to `TableSummary.elder`; UI in `ui/tablet/ElderOneTab.kt`
-  behind `HomeTab.ELDER`. Track and stage rules from the CMON rulebook; stage
-  health is typed by the table (no card data bundled).
-- Validation: `ElderOneTest` plus the existing Death May Die JVM tests. Device
-  playtest pending.
-- Merged as #141; owner confirmed "scenes" are episodes. Follow-up (owner): the tab
-  shows only for Death May Die (also hidden while the Game tab shows Atlas) and is
-  redrawn to the app's polish: summoning-circle header, track path with sliding
-  marker, symbol sigils, stage ladder, wound ring, rules folded into a disclosure.
-- Merged as #142. Follow-up (owner, from a playtester): optional pass-the-device
-  **Guided setup** for every device game, ending on a confirm screen with Start
-  or back to the setup menu (`ui/tablet/GuidedSetup.kt`; GAMEPLAY.md "Guided
-  setup"). Device playtest pending.
-- Follow-up (owner, "All three" after a gap review): fire tokens with an End of
-  Turn reminder, a Rest (heal 3) action, story history (Elder One, episode,
-  investigators and outcome on each `GameRecord`, plus a by-Elder-One tally), and
-  named episode tokens on the Elder One tab (`ElderOneTrack.tokens`, names kept
-  for a rematch, counts cleared). Validation: new `ElderOneTest` cases; CI build.
-  Device playtest pending.
-
-### 2026-10-19 — Codex: TH-031 physical TLS compatibility fix
-
-- Owner screenshot reports Find game failure on Pixel Fold joining the Samsung
-  SM-T970 host. Scope: Android LAN host certificate compatibility; baseline
-  `5ec4017` on `codex/master`, current master fetched; no other local edits.
-- Both devices share the LAN and Pixel Fold has local-network permission.
-  Host TCP accepts connections but TLS 1.2 and 1.3 fail; tablet CryptoUpcalls
-  reports AndroidKeyStore `Incompatible padding mode` for raw RSA signing.
-- Replace the restricted RSA host key with a separate P-256 ECDSA signing key
-  in AndroidKeyStore. Certificate pinning, invitation authorization and TLS stay
-  enforced. Existing local games/data remain intact; hosting needs a new invite.
-- Validation in progress: build/JVM LAN tests and physical tablet TLS handshake.
-- Final fix also explicitly exposes only the invited host key through a scoped
-  X509ExtendedKeyManager. Android's default manager otherwise selects an older
-  RSA/EC alias (or another app key) from AndroidKeyStore. ECDSA signing authorizes
-  DIGEST_NONE because Conscrypt supplies the TLS digest; SHA256 signs the cert.
-- Final Preview 1439 installed on SM-T970 and Pixel Fold, retaining app data.
-  Physical tablet accepts TLS 1.2 and 1.3; certificate fingerprint matches its QR
-  invitation and authenticated preview returns ok with both protocol versions.
-  Pixel Fold Find game succeeds over Wi-Fi, showing Dagon / Unspeakable Hour
-  and the Elder One + four investigator role options; left unclaimed for owner.
-- Preview assemble and all 17 LAN JVM tests pass, including RSA/EC pinning and
-  host-manager rejection of other aliases/key types. No firmware/Play/release
-  changes. Final lint validation recorded below.
-- Final lintDebug passes; git diff --check passes. Source fix remains local and uncommitted; no PR push performed.
-
-### 2026-10-20 — Claude: TH-031 handoff and shared-screen design pass
-
-- Owner handed TH-031 to Claude for visual design. `claude/master` (at master
-  `65e0c41`) merges `codex/master` (`5ec4017`) and commits Codex's uncommitted
-  TH-031 TLS fix unchanged as `273e800`. Supersedes PR #145; `codex/master` untouched.
-- `SharedGameScreen.kt` redrawn to the Elder One tab's polish: a beacon hero
-  (gold choosing, green linked, amber disconnected; badges carry the state),
-  framed black-on-white invite QR, joined-device rows with avatars, seat picker
-  rows, Turn card first, track tiles with pips/bar (one per row under 480 dp),
-  skill level chips, card panels with the reference button. Death confirmation
-  and Stop sharing use the table's tap-twice ArmedButton instead of a dialog /
-  a single tap. Same LanViewModel calls and enable rules; no protocol change.
-- Validation: assembleDebug, full testDebugUnitTest and lintDebug pass. Preview
-  1441 on SM-T970 (host) and Pixel Fold cover screen (guest): host, find, seat
-  picker and investigator view checked by screenshot; guest left and sharing
-  stopped afterwards, no game actions sent. Manual DOCX wording not yet updated.
-- Owner follow-ups (same day): replace the QR with a short join code valid for the
-  whole game, shown on the Game and Table tabs; let guests join from the lobby;
-  keep QR as a per-device "Guests must scan a QR code" host setting that guests
-  must follow. Implemented: `LanJoinCode`, DNS-SD discovery (`LanAdvertiser`,
-  `discoverLanHosts`), 10-wrong-codes-a-minute lockout, sessions that last through
-  lobby/rematch with name-bound seats (`released`), `SharedCodeBanner`. Owner
-  accepted that a fake host on the Wi-Fi could capture a typed code. 485 JVM
-  tests and lint pass; on the SM-T970 and Fold, code join found the host and
-  QR-only hid it from code search. Lobby joining is JVM-tested only (the tablet's
-  live match was left running).
-
-## 2026-10-20 — Claude: Death May Die second batch
-
-- Owner: Claude on `claude/death-may-die-mode-biwa1i` from master `b5a4e3b` plus
-  `codex/master` #148 (docs only, reviewed and merged in). Owner list: threshold
-  Resolve button, fire reminder under the Fire track, skill levels hidden until a
-  threshold, distinct insanity/relic cards and tracks with investigator art, a
-  read-only Elder One view on investigator devices, and minions/episode monsters
-  on the Elder One tab, typed once from the card and saved (no public stat list
-  found; BoardGameGeek's API refuses anonymous requests). The board layout
-  already matched the rulebook (4 green spaces, 3 red, the circle; 4 stages).
-- Also fixed master's red "Android manual asset" check: the Word App Manual now
-  carries Codex's Play together text, so `export_manual.py --check` passes.
-- Validation: new `ElderOneTest` cases; CI build. Device playtest pending.
-- Follow-up from the owner's first playtest: guests now draw the host's seat looks
-  (color, avatar, background, commander art; `looks`/`looksId` in LAN v1, images
-  sent only when they change and only while they fit 320 KiB); a guest's win
-  claim waits for the other players in turn order like a Sigil's
-  (`requestWin`/`answerWinClaim`, `winClaim` persisted); the host table can show
-  one player's panel (**Show on this device**), where a win waits the same way.
-
 ## TH-032: TCG shared players and read-only table
 
 - Date / owner: 2026-10-19, Codex, `codex/master`, clean merged baseline
-  `2263a85`; fetched origin and checked open PRs (none). TH-031 connection and
+  `2263a85`; fetched origin and checked open PRs (none). LAN connection and
   redesigned join-code/lobby implementation are accepted in master.
 - Owner requests shared-device support for TCG games: guest controls one selected
   player using the existing table player panel, and switches to the full table
   read-only and back while retaining the same session. Device work is tablet only.
-- Scope: Magic variants, Yu-Gi-Oh!, Pokemon and Lorcana; existing DMD preserved.
+- Scope: Magic variants, Yu-Gi-Oh!, Pokemon and Lorcana.
   Host StandaloneTable remains sole rules/storage/history authority. Own-seat
   authenticated requests reuse the engine; table inspection grants no additional
   controls. Host setup/lifecycle, Bag of Doom resolution and Planechase stay host
@@ -1286,45 +1075,9 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   client/engine round-trips, not two-device Wi-Fi routing. Temporary server/NSD,
   port reversals and test source are removed. Pixel Fold was not used or updated.
 - Device preview: build 1443 (newer than installed 1442). Owner permits discarding
-  the tablet game for testing. DMD regression suite passes; source and embedded
+  the tablet game for testing. Regression suites pass; source and embedded
   manual/privacy/authority/transport docs updated. Two-physical-device networking,
   large text and TalkBack acceptance remain in STAGED_CHANGES.
-
-## TH-033: Death May Die Database Forge
-
-- Date / owner: 2026-10-20, Codex on `codex/master`, clean merged baseline
-  `3d4608f`; current refs fetched and no open PRs/overlapping scopes found.
-- Owner requests a dedicated browser editor across devices, with a sprite-style
-  author/edit/preview/validate/build workflow for DMD reference content.
-- Scope: private hosted editor, shared durable drafts/history, six content types,
-  reference/image preview, verification/completeness, import/export and generated
-  database artifacts. Extract existing app content without inventing rules;
-  keep IDs stable. Provide a repository build/import path and validation. Game
-  authority and live matches remain independent of database authoring.
-- Site source: `D:/TurnHub/sites/dmd-database-forge` (separate Sites repository);
-  catalogue integration/tools and owning documentation live in TurnHub.
-- Implemented: 264-record canonical JSON and deterministic Kotlin compiler;
-  existing Android catalogue objects now use generated content. Seven compiler /
-  validator tests and generation check added to CI; imported data keeps original
-  names, stable card IDs, sources and unverified reminders. Runtime verification
-  and live-match authority remain separate.
-- Browser source implements private authenticated, user-scoped D1 drafts and
-  immutable checkpoints/build history; R2 reference images; compare-and-swap saves;
-  six-category edit/preview/review; JSON import/backup; ZIP with Android output,
-  validation, references and SHA-256 manifest. Site project
-  `appgprj_6ad7ee0f046481918e8b07e78ead1e38`; source is its separate Sites repo.
-- Checks: Android testDebugUnitTest passes (502 tests), seven Node tests pass,
-  generated content check, documentation checker and token check pass. Site
-  TypeScript and production build pass. Local authenticated API smoke covers
-  save/conflict/invalid import, build/history, cross-site rejection, image upload,
-  image retrieval and anonymous rejection. Connected browser blocks loopback
-  preview; visual/device browser acceptance remains unverified. No delegation.
-
-- 2026-10-20 sharing follow-up: owner authorizes a second ChatGPT account and
-  one shared catalogue. Site adds atomic workspace namespace initialization that
-  preserves the original catalogue/history/photo prefix, and uses Sites membership
-  for access. Three SQLite workspace tests, authenticated API smoke, TypeScript
-  and production build pass. Hosted collaborator sign-in remains user acceptance.
 
 ## 2026-10-21 Claude: Emperor format (Android, phone-hosted)
 
@@ -1350,38 +1103,6 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   (catching up the turn timer first) instead of answering `unavailable` at once.
 - Validation: Android builds and unit tests run in CI (no SDK in the cloud
   container). Background behavior *needs verification* on devices.
-
-## TH-034: Forge episode inventory and engine authoring
-
-- Owner: Codex, 2026-10-21, codex/master, merged baseline 8dcb6d4. Refs fetched;
-  no open PRs or overlapping scopes. Separate Site source retained. No delegation.
-- Adds discovery/Mythos cards, regular/unknown monsters, tokens/items, episode
-  manifests/quantities/flavor/setup/end-turn/outcomes/unknown slots, trigger
-  authoring and map tiles with printed ID, side, shape/grid and SVG renders.
-- Optional schema-1 additions preserve existing drafts and references. New data
-  exports in JSON/engine authoring records; current Android catalogue output is
-  unchanged. Source and compiler modules synchronized across both repositories.
-- Validation: eleven compiler/validator scenarios and three shared-workspace tests
-  pass; TypeScript and production build pass. Local API expanded round-trip
-  covers all six new types, inventory quantities/links, flavor, triggers, unknown
-  slots, tile SVGs, invalid-geometry rejection and stale saves. Browser confirms
-  categories and episode fields render; native confirmation testing hit a browser
-  CDP timeout. No production draft was altered for tests.
-
-### TH-034 rights audit / 2026-10-21
-
-- Owner expands licensed-only import request to all existing DMD material and
-  publisher fan-app policy. Reviewed canonical/Site seed and authenticated shared
-  Backup JSON: 264 records each, 46 records with prose, 54 external image refs
-  (44 distinct). Shared has one edited/physically checked skill, no uploaded refs.
-  Snapshot/findings remain in Private/TurnHub-backups/dmd-rights-audit-2026-10-21.
-- Official campaign update reports Asmodee acquisition; published 2024 FFG/ANA
-  policy says no apps and no substantial copied game material. No DMD-specific
-  software grant found. Community import held; actual report lives in
-  Documentation/legal/DMD_RIGHTS_AUDIT.md, not assumed licensed fan use.
-- Corrected our two Site example templates to stop copying publisher flavor prose;
-  factual count templates and existing saved drafts remain. No new third-party
-  community data, artwork or rules imported. No messages sent or release performed.
 
 ## 2026-10-28 Claude: S3 Atlas bring-up and touchscreen
 
@@ -1585,7 +1306,7 @@ of [Shared table authority](Documentation/engineering/TABLE_AUTHORITY.md):
 
 - `core/`: portable C++17 port of `StandaloneGame` (JSON state and actions,
   injected time and randomness). Magic formats, 2HG, Star Commander, Emperor,
-  Bag of Doom, Yu-Gi-Oh!, Pokémon prizes, Lorcana lore. Death May Die,
+  Bag of Doom, Yu-Gi-Oh!, Pokémon prizes, Lorcana lore.
   Planechase and the Pokémon/Lorcana turn markers come next.
 - `core/scenarios/`: seven shared scenarios (109 steps). `core/tests/run-linux.sh`
   passes them all (ASan/UBSan); `CoreScenarioTest.kt` replays the same files
@@ -1594,20 +1315,6 @@ of [Shared table authority](Documentation/engineering/TABLE_AUTHORITY.md):
   links it through the NDK. Codex: any rule change to `StandaloneGame` now
   needs the same change in `core/` and a scenario step.
 
-
-### Code review and the Death May Die release gate / Claude / 2026-10-29
-
-Review of the app, Atlas outside the game engine, the Sigil link and `core/`.
-Findings with severity are in the owner's review doc. Codex, the open items are:
-`/api/standalone/import` accepts any session, so stats can be forged; changing
-a PIN doesn't ask for the old one; the pairing code has no commitment step;
-and the PIN limiter allows about 8 h to brute-force a 4-digit PIN.
-
-- `666fa87`: `core/` JSON takes strict numbers and surrogate pairs only.
-- Owner's licensing rule (CMON): Death May Die stays out of release builds.
-  The lobby picker now offers it only when `BuildConfig.DEBUG` (Preview and
-  debug builds). Its code still ships; moving it to a local-only module or
-  flavor is next. Not yet built (no Android SDK in the container); CI checks it.
 
 ### Device Admin for existing setups; getting an account back from Atlas / Claude / 2026-10-29
 
@@ -1821,7 +1528,7 @@ Sounds validation: preview assembleDebug and whitespace checks pass; audible dev
 
 ## Play audit and simulator cleanup — 2026-10-30, Codex
 
-Owner requests Play parity and semi-retired simulator. Baseline 44d7abbd on origin/master; tonight's About/Support/Sounds/navigation is release code. DMD retains existing owner licensing debug gate. Move active board fonts/icons to shared/display; retain simulator for targeted checks. CSV fixture LF checkout fixes Windows exact-byte test failures.
+Owner requests Play parity and semi-retired simulator. Baseline 44d7abbd on origin/master; tonight's About/Support/Sounds/navigation is release code. Move active board fonts/icons to shared/display; retain simulator for targeted checks. CSV fixture LF checkout fixes Windows exact-byte test failures.
 
 Play audit outcome: GitHub master CI run 541 (41005865957), commit 44d7abbd, Android release tests/build and Publish to Play internal testing all completed successfully. This confirms upload to internal testing, not public production promotion. Locally all 538 Android tests, bundleRelease and lintRelease pass after CSV LF checkout correction. Three shared asset digest checks and docs links pass. Firmware asset-path builds running; cleanup stays separate from uploaded app.
 
@@ -1935,9 +1642,9 @@ First CI (`721286cd`): Android Debug/Release compilation succeeded; 580/583 test
 
 Review follow-up: remove the obsolete automatic-name-merge helper/tests, retain explicit merges and assert equal-label accounts remain distinct. Serialize simultaneous remote actions, remember view switching independently of roles, restore Atlas rooms when game access returns, report failed grants/removals, preserve pending Atlas cleanup, and renew bounded command generations without another PIN. Added forgery and receipt-generation boundary regressions. Final Android/Atlas CI pending for this batched follow-up; physical acceptance remains open.
 
-Follow-up CI (`d0757bb1`) is green: Android builds/JVM tests, host/contracts and both firmware builds. Final source review adds serialized concurrent-retry protection with small code-only receipts (no retained snapshot/artwork per action), rechecks membership after suspended profile verification, and covers duplicate joins/capacity races. Preserves personal Pause controls, restores the selected view independently of the original role (including Elder/table switching), syncs original profile age/current labels and supports gathered shared-investigator wound taps. Batched final regressions/build validation follow in the same PR.
+Follow-up CI (`d0757bb1`) is green: Android builds/JVM tests, host/contracts and both firmware builds. Final source review adds serialized concurrent-retry protection with small code-only receipts (no retained snapshot/artwork per action), rechecks membership after suspended profile verification, and covers duplicate joins/capacity races. Preserves personal Pause controls, restores the selected view independently of the original role, syncs original profile age/current labels. Batched final regressions/build validation follow in the same PR.
 
-CI on `f18df68f`: host/contracts and firmware pass; Android builds and 587/588 tests pass, including concurrent retries, concurrent joins/capacity and receipt renewal. The remaining legacy assertion rejects a 20-wound input. Bound aggregated investigator taps to +/-10 (instead of the overly broad +/-100) so grouped real taps work while that invalid-input protection remains. Final shared-controller integration tests drive real Pokemon condition and Commander life/counter/damage validators; also preserve slot-zero counter commands and reject stale rendered-game contexts. Final batch retains the same PR and awaits CI.
+CI on `f18df68f`: host/contracts and firmware pass; Android builds and 587/588 tests pass, including concurrent retries, concurrent joins/capacity and receipt renewal. Final shared-controller integration tests drive real Pokemon condition and Commander life/counter/damage validators; also preserve slot-zero counter commands and reject stale rendered-game contexts. Final batch retains the same PR and awaits CI.
 
 CI `3ef99650` is fully green: Android Debug/Release build and JVM suite, Atlas host/contracts, both firmware builds and iOS. Shared panel integrations cover actual Pokemon conditions and Commander counters/damage, including generic-game guest life actions. Final presentation correction labels shared controllers/public displays/dormant personal members accurately and puts host permission controls below each member's name for narrow screens. No further gameplay changes; final compilation check follows.
 
@@ -2200,7 +1907,7 @@ Validation: Atlas host suites (Linux, sanitizers), `audit_adapters.py`,
 
 Owner requests correction of accidental commit `3288a5ce`, carried into
 master by `a3f8c409`. Baseline `a3f8c409`; scope on `codex/master`: untrack
-exactly its 5,960 additions (six local DMD content/test files, 5,950 simulator
+exactly its 5,960 additions (six local-only content/test files, 5,950 simulator
 build/dependency files and four generated previews), preserving local copies.
 Existing ignore rules already cover every path. No application, firmware,
 configuration or dependency changes. Validation: all 5,960 files remain

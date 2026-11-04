@@ -1,7 +1,7 @@
 // turnhub-core rules: a line-by-line port of the app's StandaloneGame.kt
 // (Magic formats, Two-Headed Giant, Star Commander, Emperor, Bag of Doom,
-// Yu-Gi-Oh!, Pokémon prizes and Lorcana lore). Death May Die, Planechase and
-// the Pokémon/Lorcana turn markers follow in later steps. Keep each rule in
+// Yu-Gi-Oh!, Pokémon prizes and Lorcana lore). Planechase and the
+// Pokémon/Lorcana turn markers follow in later steps. Keep each rule in
 // the same order as the Kotlin so the shared scenarios agree.
 
 #include "turnhub_core.h"
@@ -18,7 +18,6 @@ namespace {
 constexpr int SOLO_POISON = 10;
 constexpr int TEAM_POISON = 15;
 constexpr int COMMANDER_DAMAGE_LOSS = 21;
-constexpr int DMD_DEATH_WOUNDS = 6;
 constexpr int64_t TIMER_MIN_MS = 15000, TIMER_MAX_MS = 3600000;
 constexpr int STAR_PLAYERS = 5;
 constexpr int EMPEROR_PLAYERS = 6;
@@ -196,7 +195,6 @@ std::vector<int> Game::mates(int index) const {
 bool Game::canStart() const {
   const int n = static_cast<int>(players.size());
   const auto locked = houseRules ? std::nullopt : officialRules(profile, twoHeadedGiant);
-  if (profile == Profile::DeathMayDie) return false;  // Investigators arrive with Death May Die's port.
   if (profile == Profile::MtgBagOfDoom) return n >= 5 && !twoHeadedGiant;
   if (profile == Profile::MtgStarCommander) return n == STAR_PLAYERS;
   if (ProfileRules::emperor(profile)) return n == EMPEROR_PLAYERS;
@@ -213,7 +211,6 @@ int Game::defaultLife(Profile p, bool teams) {
     case Profile::Yugioh: return 8000;
     case Profile::Pokemon: return 6;
     case Profile::Lorcana: return 20;
-    case Profile::DeathMayDie: return 1;
     default: return 20;
   }
 }
@@ -407,7 +404,7 @@ Game Game::start(int64_t nowMs, const std::string &id, Random &random, const Jso
   g.gameId = id;
   g.askEliminationSource = askEliminationSource || profile == Profile::MtgBagOfDoom;
   g.state = TableState::Running;
-  const bool upward = profile == Profile::Lorcana || profile == Profile::DeathMayDie;
+  const bool upward = profile == Profile::Lorcana;
   for (auto &p : g.players) p = freshPlayer(p, upward ? 0 : startingLife);
   g.planechase = planechase.get("enabled").asBool() && magic() ? dealtPlanechase(planechase, planarDeck) : clearedPlanechase(planechase);
   g.doomBag = profile == Profile::MtgBagOfDoom ? doom::start(first + 1, (1u << n) - 1, n) : DoomBag();
@@ -593,14 +590,6 @@ Game Game::changeLife(int index, int delta, int64_t nowMs) const {
     g = g.bump();
     return prizes == 0 ? g.finish({index}, nowMs) : g;
   }
-  // Death May Die counts wounds up from 0 to the sixth, which kills.
-  if (profile == Profile::DeathMayDie) {
-    const int wounds = clampInt(static_cast<int64_t>(player.life) + delta, 0, DMD_DEATH_WOUNDS);
-    if (wounds == player.life) return *this;
-    Game g = *this;
-    g.players[index].life = wounds;
-    return g.bump();
-  }
   // Lorcana counts lore up: reaching the goal wins at once.
   if (profile == Profile::Lorcana) {
     const int lore = clampInt(static_cast<int64_t>(player.life) + delta, 0, MAX_LIFE);
@@ -648,7 +637,7 @@ Game Game::setDayNight(DayNight next) const {
 }
 
 Game Game::setTurnOrderReversed(bool on) const {
-  if (!playing() || ProfileRules::cooperative(profile) || on == turnOrderReversed) return *this;
+  if (!playing() || on == turnOrderReversed) return *this;
   Game g = *this;
   g.turnOrderReversed = on;
   return g.bump();
@@ -687,7 +676,6 @@ Game Game::changeCounter(int index, const std::string &kind, int value, int comm
     if (value == 1) target->insert(key); else target->erase(key);
     return g.players[index] == players[index] ? *this : g.bump();
   }
-  if (profile == Profile::DeathMayDie) return *this;
   const Player &player = players[index];
   if (!playing() || player.eliminated || !magic()) return *this;
   if (kind == "rad-resolve") return resolveRad(index, value, nowMs);
@@ -825,7 +813,7 @@ Game Game::resolveEliminationRules(int64_t nowMs) const {
     if (!contains(targets, static_cast<int>(i))) continue;
     Player &p = g.players[i];
     p.eliminated = true; p.conceded = false; p.outOrder = ++out;
-    p.eliminationPending = askEliminationSource && !ProfileRules::cooperative(profile);
+    p.eliminationPending = askEliminationSource;
   }
   g = g.passStatuses(targets).bump().doomLeft();
   bool pending = false;
@@ -871,7 +859,6 @@ Game Game::requestWin(int index, int64_t nowMs) const {
   bool pending = doomBag.pending;
   for (const auto &p : players) pending = pending || p.eliminationPending;
   if (!playing() || players[index].eliminated || openWinClaim() || pending) return *this;
-  if (ProfileRules::cooperative(profile)) return claimWin(index, nowMs);
   Game asked = *this;
   asked.winClaim = index;
   asked.winConfirmed.clear();
@@ -898,9 +885,8 @@ Game Game::claimWin(int index, int64_t nowMs) const {
   for (const auto &p : players) pending = pending || p.eliminationPending;
   if (!playing() || players[index].eliminated || pending) return *this;
   std::vector<int> won;
-  if (ProfileRules::cooperative(profile)) for (int i = 0; i < n; ++i) won.push_back(i);
   // CR 809.5a: the team wins together, its fallen generals too.
-  else if (ProfileRules::emperor(profile) && n == EMPEROR_PLAYERS) won = emperorTeamSeats(emperorTeam(index));
+  if (ProfileRules::emperor(profile) && n == EMPEROR_PLAYERS) won = emperorTeamSeats(emperorTeam(index));
   else won = {index};
   return finish(won, nowMs);
 }
@@ -944,7 +930,6 @@ std::optional<std::vector<int>> Game::decided() const {
     out.push_back(players[i].eliminated);
     if (!players[i].eliminated) standing.push_back(static_cast<int>(i));
   }
-  if (ProfileRules::cooperative(profile)) return standing.empty() ? std::optional<std::vector<int>>(std::vector<int>{}) : std::nullopt;
   if (profile == Profile::MtgStarCommander && players.size() == STAR_PLAYERS) {
     const auto w = starWinners(out);
     if (!w.empty() || standing.empty()) return w;
@@ -1073,7 +1058,6 @@ const ProfileNameEntry PROFILE_NAMES[] = {
     {Profile::MtgStarCommander, "MTG_STAR_COMMANDER"}, {Profile::MtgBagOfDoom, "MTG_BAG_OF_DOOM"},
     {Profile::MtgEmperor, "MTG_EMPEROR"}, {Profile::MtgCommanderEmperor, "MTG_COMMANDER_EMPEROR"},
     {Profile::Yugioh, "YUGIOH"}, {Profile::Pokemon, "POKEMON"}, {Profile::Lorcana, "LORCANA"},
-    {Profile::DeathMayDie, "DEATH_MAY_DIE"},
 };
 const char *const STATE_NAMES[] = {"LOBBY", "STARTING", "RUNNING", "PAUSED", "GAME_OVER"};
 const char *const DAY_NIGHT_NAMES[] = {"NEITHER", "DAY", "NIGHT"};
@@ -1617,8 +1601,8 @@ Game gameFromJson(const Json &j) {
 
 Game applySeatAction(const Game &game, const SeatAction &a, int64_t now, Random *random) {
   const int n = static_cast<int>(game.players.size());
-  // Planechase and Death May Die seats arrive with their ports.
-  if (a.kind.rfind("planar-", 0) == 0 || game.profile == Profile::DeathMayDie) return game;
+  // Planechase seats arrive with their port.
+  if (a.kind.rfind("planar-", 0) == 0) return game;
   if (game.gameId != a.match || game.revision != a.revision || a.player < 1 || a.player > n ||
       (game.state != TableState::Running && game.state != TableState::Paused)) return game;
   const bool cards = ProfileRules::magic(game.profile) || game.profile == Profile::Pokemon ||

@@ -1,6 +1,5 @@
 package com.turnhub.android.data
 
-import com.turnhub.android.domain.InvestigatorCardCatalogue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
@@ -48,33 +47,6 @@ class ScryfallCommanderArtTest {
         val service = ScryfallCommanderArt(folder.root, "TurnHub/test", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
         assertNull(service.art("Atraxa", TileCardGame.NO_ART))
         assertTrue(web.asked.isEmpty())
-    }
-
-    @Test fun `community reference images are cached across service restarts without fetching other cards`() = runBlocking {
-        // The card ids come from Death May Die's local-only catalogue (src/dmd); skip without it.
-        assumeTrue(InvestigatorCardCatalogue.all.isNotEmpty())
-        val web = FakeWeb { Reply(200, jpeg) }
-        val service = ScryfallCommanderArt(folder.root, "TurnHub/test", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
-        assertNull(service.investigatorCard("https://untrusted.example"))
-        assertTrue(web.asked.isEmpty())
-        assertArrayEquals(jpeg, service.investigatorCard("7194667"))
-        assertArrayEquals(jpeg, service.investigatorCard("7194667"))
-        val reopened = ScryfallCommanderArt(folder.root, "TurnHub/test", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
-        assertArrayEquals(jpeg, reopened.investigatorCard("7194667"))
-        assertEquals(1, web.asked.size)
-        assertEquals("cf.geekdo-images.com", URL(web.asked.single()).host)
-    }
-
-    @Test fun `failed community image downloads can be retried and do not cache an error page`() = runBlocking {
-        // The card ids come from Death May Die's local-only catalogue (src/dmd); skip without it.
-        assumeTrue(InvestigatorCardCatalogue.all.isNotEmpty())
-        var available = false
-        val web = FakeWeb { if (available) Reply(200, jpeg) else Reply(503, "try later".toByteArray()) }
-        val service = ScryfallCommanderArt(folder.root, "TurnHub/test", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
-        assertNull(service.investigatorCard("7194667"))
-        available = true
-        assertArrayEquals(jpeg, service.investigatorCard("7194667"))
-        assertEquals(2, web.asked.size)
     }
 
     @Test fun `finds the art crop, credits the artist and asks only once`() = runBlocking {

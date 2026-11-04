@@ -39,7 +39,7 @@ class SharedPlanarControlsTest {
         assertFalse(sharedPlanarEnabled(state.copy(uncertain = true), summary))
         assertFalse(sharedPlanarEnabled(state, summary.copy(players = summary.players.map { it.copy(eliminated = true) })))
         assertFalse(sharedPlanarEnabled(state, summary.copy(settings = summary.settings.copy(planechase = false))))
-        for (role in listOf("display", "planes", "elder")) assertFalse(sharedPlanarEnabled(state.copy(role = role), summary))
+        for (role in listOf("display", "planes")) assertFalse(sharedPlanarEnabled(state.copy(role = role), summary))
         assertTrue(sharedPlanarEnabled(state.copy(role = "table", player = 0), summary))
         assertTrue(sharedPlanarEnabled(state.copy(role = "planes", master = true), summary))
     }

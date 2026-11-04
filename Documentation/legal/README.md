@@ -10,8 +10,6 @@ It exists to make later legal review easier and to prevent provenance/licensing 
 - [IP Hygiene Rules](IP_HYGIENE.md) - engineering rules for adding libraries, copied/reference material, creative assets, and compatibility references.
 - [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md) - repository-level human-readable notice index intended to evolve toward the notice package used for releases.
 
-- Death May Die rights audit: local-only on the owner's PC with the rest of the CMON content (CMON licensing keeps it off GitHub and out of released builds).
-
 ## Maintenance rule
 
 Update these records in the same development cycle that introduces a new third-party dependency, asset, reference implementation, trademark reference, or licensing obligation.
