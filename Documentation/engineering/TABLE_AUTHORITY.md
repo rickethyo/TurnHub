@@ -9,7 +9,7 @@ Their text is in git history before this change.
 ## Who owns what
 
 - **The hub** is the phone or tablet that runs the game with the shared rules
-  core ([`core/`](../../core/README.md), through the NDK in the app). It owns
+  core ([`shared/core/`](../../shared/core/README.md), through the NDK in the app). It owns
   the whole match: roster and seats, turns and timers, life and counters,
   eliminations, winners and the finished record. It saves the game on the
   device like any local game.

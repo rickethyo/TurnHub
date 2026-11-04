@@ -370,6 +370,6 @@ Documentation/engineering/DEATH_MAY_DIE_CARD_REVIEW.md
 Documentation/engineering/DMD_DATABASE_FORGE.md
 Documentation/legal/DMD_RIGHTS_AUDIT.md
 Documentation/legal/dmd-catalogue-rights-inventory.json
-core/local/
+shared/core/local/
 Documentation/engineering/history/*death-may-die*.md
 Documentation/engineering/history/*dmd*.md

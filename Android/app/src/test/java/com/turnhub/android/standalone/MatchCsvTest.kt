@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class MatchCsvTest {
-    /** The shared fixture: the core's recordCsvRows gives this exact text too (core/tests). */
+    /** The shared fixture: the core's recordCsvRows gives this exact text too (shared/core/tests). */
     @Test fun `a match record gives the same CSV as the shared core`() {
         val record = Fixtures.json("match-record.json")
         assertEquals(Fixtures.text("match-record.csv"), MatchCsv.HEADER + MatchCsv.rows(record))

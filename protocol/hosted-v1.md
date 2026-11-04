@@ -1,7 +1,7 @@
 # Phone-hosted games, v1
 
 *Experimental.* Owner decision, 2026-11-04: the hub phone or tablet runs every
-game with the shared rules core (`core/`, the app's `NativeGameCore`), and
+game with the shared rules core (`shared/core/`, the app's `NativeGameCore`), and
 Atlas becomes the table accessory that shows it, drives the Sigils and keeps
 records. Plan and later slices: `Documentation/engineering/STAGED_CHANGES.md`
 ("Phone-hosted games").

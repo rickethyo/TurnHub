@@ -90,7 +90,7 @@ android {
         // BuildConfig.DEBUG keeps Death May Die out of release (Play) builds.
         buildConfig = true
     }
-    sourceSets.getByName("androidTest").assets.srcDir(rootProject.file("../core/scenarios"))
+    sourceSets.getByName("androidTest").assets.srcDir(rootProject.file("../shared/core/scenarios"))
     // Death May Die's CMON content is local-only (gitignored src/dmd, src/testDmd).
     // Without it, an empty committed stand-in (src/dmdStub) keeps the build working.
     sourceSets.getByName("main").kotlin.srcDir(if (hasDmdContent) "src/dmd/java" else "src/dmdStub/java")
@@ -101,7 +101,7 @@ android {
 val hostWindows = System.getProperty("os.name").startsWith("Windows")
 val hostCoreLibrary = layout.buildDirectory.file("native-host/" + System.mapLibraryName("turnhub_game"))
 val hostGameCore = tasks.register<Exec>("buildHostGameCore") {
-    val core = rootProject.file("../core")
+    val core = rootProject.file("../shared/core")
     val bridge = file("src/main/cpp/game_jni.cpp")
     val hostScript = file("src/main/cpp/build-host.cmd")
     val output = hostCoreLibrary.get().asFile
@@ -120,7 +120,7 @@ val hostGameCore = tasks.register<Exec>("buildHostGameCore") {
 tasks.withType<Test>().configureEach {
     dependsOn(hostGameCore)
     inputs.file(hostCoreLibrary)
-    inputs.dir(rootProject.file("../core/scenarios"))
+    inputs.dir(rootProject.file("../shared/core/scenarios"))
     systemProperty("turnhub.core.library", hostCoreLibrary.get().asFile.absolutePath)
     systemProperty("turnhub.core.reference", providers.gradleProperty("turnhub.referenceRules").orNull == "true")
     jvmArgs("--enable-native-access=ALL-UNNAMED")

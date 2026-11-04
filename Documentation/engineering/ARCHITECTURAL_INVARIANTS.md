@@ -8,7 +8,7 @@ These are hard design rules for TurnHub. They are not suggestions. A proposed im
 sole authority for game and table state".*
 
 One device runs each game: the **hub**, a phone or tablet that runs the shared
-rules core (`core/`, through the NDK on Android). Only the hub may create,
+rules core (`shared/core/`, through the NDK on Android). Only the hub may create,
 validate, mutate, persist or resolve that game's state:
 
 - Player list, seats and turn order.

@@ -12,18 +12,18 @@ import java.io.File
 import kotlin.random.Random
 
 /**
- * Replays the shared scenarios in the repository's `core/scenarios/` against
+ * Replays the shared scenarios in the repository's `shared/core/scenarios/` against
  * [StandaloneGame]. turnhub-core (the C++ port of these rules) replays the same
- * files in `core/tests/`, so the app and Atlas answer every scenario alike.
+ * files in `shared/core/tests/`, so the app and Atlas answer every scenario alike.
  * [coreJson] writes the game with the field names the core prints.
  */
 class CoreScenarioTest {
 
     private val scenarios: File by lazy {
         generateSequence(File(System.getProperty("user.dir")!!).absoluteFile) { it.parentFile }
-            .map { File(it, "core/scenarios") }
+            .map { File(it, "shared/core/scenarios") }
             .firstOrNull { it.isDirectory }
-            ?: error("core/scenarios not found above ${System.getProperty("user.dir")}")
+            ?: error("shared/core/scenarios not found above ${System.getProperty("user.dir")}")
     }
 
     /** Hands out a step's "random" list in order. */
@@ -101,7 +101,7 @@ class CoreScenarioTest {
         return failures
     }
 
-    /** The action vocabulary of core/README.md, mapped to the Kotlin rules. */
+    /** The action vocabulary of shared/core/README.md, mapped to the Kotlin rules. */
     private fun apply(g: StandaloneGame, a: JSONObject, random: Random): StandaloneGame {
         val now = a.optLong("nowMs")
         fun i(key: String) = a.getInt(key)

@@ -4,8 +4,8 @@ One set of game rules for every TurnHub device. *Experimental* (2026-10-29):
 The phone or tablet hub runs every game on this core through the NDK (`Android/app/src/main/cpp/game_jni.cpp`, `NativeGameCore`)
 for every mode but the local-only Death May Die. The Kotlin rules stay as the
 test oracle (`-Pturnhub.referenceRules=true`). Host scenarios check both. The
-plan and its phases are in [Shared table authority](../Documentation/engineering/TABLE_AUTHORITY.md)
-and [Staged changes](../Documentation/engineering/STAGED_CHANGES.md).
+plan and its phases are in [Shared table authority](../../Documentation/engineering/TABLE_AUTHORITY.md)
+and [Staged changes](../../Documentation/engineering/STAGED_CHANGES.md).
 
 The reference is the app's on-device game, `StandaloneGame.kt`. This is its
 port to portable C++17 (no Arduino, no Android, no third-party library), so
@@ -40,13 +40,13 @@ and commander selection.
 
 Death May Die can't ship in a released version (licensing, owner
 2026-10-29). Its rules will live in a separate local-only module,
-`core/local/death-may-die/`, compiled only with `TURNHUB_LOCAL_DMD` for local
+`shared/core/local/death-may-die/`, compiled only with `TURNHUB_LOCAL_DMD` for local
 and preview builds, never in release firmware or Play builds. Keep its rules,
 names and data out of the main core.
 
 ## Actions
 
-Atlas links the core as a PlatformIO library (`lib_deps = symlink://../core`,
+Atlas links the core as a PlatformIO library (`lib_deps = symlink://../shared/core`,
 built with gnu++17).
 
 Each action is a JSON object whose `do` is the Kotlin method name, with its
@@ -65,7 +65,7 @@ used), `expect` (dotted paths into the state, e.g. `players.0.life`),
 `unchanged: true` (the action must not apply) and an optional `timer` check.
 The same files run against:
 
-- the core: `bash core/tests/run-linux.sh` (GCC, ASan and UBSan; CI's host
+- the core: `bash shared/core/tests/run-linux.sh` (GCC, ASan and UBSan; CI's host
   tests job), and
 - the Kotlin rules: `CoreScenarioTest` in the app's JVM unit tests.
 

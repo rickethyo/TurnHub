@@ -2,7 +2,7 @@
 
 The rules the hub runs during a match, and how they reach players as light,
 sound and text. Since 2026-11-04 the hub phone or tablet runs every game with
-the shared rules core (`core/`, the app's `NativeGameCore`); Atlas shows it
+the shared rules core (`shared/core/`, the app's `NativeGameCore`); Atlas shows it
 and relays its Sigils' input ([hosted-v1.md](../../protocol/hosted-v1.md)).
 Where this page names an Atlas route, Intent or checkpoint, that is history:
 Atlas's own engine was removed then, and its Sigil pickers, life approvals and

@@ -2207,3 +2207,28 @@ configuration or dependency changes. Validation: all 5,960 files remain
 byte-identical on disk (SHA-256 manifest outside Git); staged tree otherwise
 matches the accepted PR #196 tree `8e1abeec`. No build or device reflash is
 needed for this tracking-only correction. Keep history intact; no force push.
+
+## Shared rules directory cleanup — 2026-11-04, Codex
+
+Owner approves moving the portable rules library from `core/` into
+`shared/core/`. Baseline `2f928906`, clean `codex/master` synchronized with
+accepted master (PR #197 merged). Scope: move the library and its local build
+folder intact; update Android NDK/JVM/scenario paths, Atlas PlatformIO and
+host runners, CI path filtering, ignore rules and current documentation.
+Retain all rules and fixtures unchanged; leave the iOS Swift package in place.
+Validate native core scenarios, Android JNI/unit/build paths, Atlas host tests
+and firmware compilation, plus documentation links and path references.
+
+Validation: Android debug and androidTest APK builds pass with all four NDK
+ABIs and the Windows JNI library using the new paths. CoreScenarioTest and
+MatchCsvTest: four tests pass against native rules; the two CoreScenarioTest
+tests also pass with referenceRules=true. All 11 scenario assets are packaged
+in the androidTest APK. Core offline replay suite passes with MSVC. Atlas S3
+firmware builds successfully with the relocated PlatformIO library. All 23
+tracked library files moved; rules implementation and scenario files are
+unchanged. CI classifier checks cover core source/scenarios, simulator and
+shared protocol paths; docs links, shell syntax, stale-path scan and whitespace
+checks pass. Full Atlas host suites unavailable locally: bundled MinGW lacks
+C++17 optional, and MSVC cannot compile existing GNU packed attributes/POSIX
+headers. Linux sanitizer/core/Atlas suites remain for PR CI. No device flash
+or release is needed for this directory-only change.

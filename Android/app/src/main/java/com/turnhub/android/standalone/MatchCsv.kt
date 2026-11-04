@@ -4,7 +4,7 @@ import org.json.JSONObject
 
 /**
  * Match records as CSV, one row per player per game: the same text as the
- * shared core's `recordCsvRows` (core/src/turnhub_core.cpp), so the app and
+ * shared core's `recordCsvRows` (shared/core/src/turnhub_core.cpp), so the app and
  * Atlas export identical files. Both are checked against
  * protocol/examples/match-record.csv.
  */

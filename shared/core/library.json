@@ -1,7 +1,7 @@
 {
   "name": "turnhub-core",
   "version": "0.1.0",
-  "description": "TurnHub's shared game rules (portable C++17). Atlas links it with lib_deps = symlink://../core.",
+  "description": "TurnHub's shared game rules (portable C++17). Atlas links it with lib_deps = symlink://../shared/core.",
   "frameworks": "*",
   "platforms": "*",
   "build": {

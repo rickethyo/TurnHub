@@ -3,13 +3,13 @@
 // turnhub-core: the one set of game rules for TurnHub. The Android app's
 // on-device game (StandaloneGame.kt) is the reference; this is its port, so
 // Atlas, the app (through the NDK) and later iOS run the same rules. See
-// core/README.md and plans/atlas-one-game-path.md.
+// shared/core/README.md and plans/atlas-one-game-path.md.
 //
 // A Game is a value. Every rule takes the current game and returns the next
 // one, or the same one (revision unchanged) when it doesn't apply. Time is
 // passed in (wall clock ms) and so are random draws (Random), which keeps the
 // rules deterministic and replayable from the shared scenarios in
-// core/scenarios/.
+// shared/core/scenarios/.
 
 #include <array>
 #include <cstdint>

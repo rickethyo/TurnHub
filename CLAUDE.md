@@ -30,7 +30,7 @@ TurnHub is a local-first tabletop game-management system (turn timer, lobby, lif
 | `Sigil/` | Touchscreen-only player controller: one build, `sigil`, runs LVGL on the E32R28T touch board, with secure ESP-NOW, pairing and speaker cues. No LED, joystick or headless target; Gen 1 display firmware stays on `legacy/gen1`. | PlatformIO, Arduino ESP32, C++ |
 | `Android/` | Native client over HTTP (`HttpAtlasRepository`, polling `/api/v1/state`): live table, player controls, first-run setup, firmware updates | Gradle, Kotlin |
 | `iOS/` | SwiftUI iPhone/iPad foundation; local `TurnHubCore` package; see `iOS/README.md` and `Documentation/engineering/IOS_DEVELOPMENT.md` | Xcode 16+, Swift 6, SwiftPM |
-| `core/` | Experimental shared rules core: the app's `StandaloneGame` rules ported to portable C++17, JSON in and out, checked by shared scenarios against both; Atlas links it as a PlatformIO library (the Atlas build is gnu++17); see `core/README.md` | C++17 |
+| `shared/core/` | Experimental shared rules core: the app's `StandaloneGame` rules ported to portable C++17, JSON in and out, checked by shared scenarios against both; Atlas links it as a PlatformIO library (the Atlas build is gnu++17); see `shared/core/README.md` | C++17 |
 | `shared/include/` | Firmware headers shared by Atlas and Sigil (currently `protocol.h`, the ESP-NOW radio contract) | C++ |
 | `shared/display/` | Generated LVGL fonts and icons both firmwares draw with, and their generators in `shared/display/tools/` | Python, pinned lv_font_conv |
 | `shared/simulator/` | Semi-retired desktop Atlas/Sigil presentation simulator; never a second production game authority. LVGL/SDL notices in `shared/licenses/` | CMake, pinned LVGL/SDL, C++17; see `shared/simulator/README.md` |
@@ -75,7 +75,7 @@ python Atlas/tests/host/check_client_contract.py   # after the host suite: valid
 There is no per-test filter. To run one group, build the single executable (the command lines are in `tests/host/README.md`).
 - **Adding a new `src/*.cpp` to Atlas:** add it to the source lists in `run.cmd`, `run-gcc.ps1` and the README command lines too. Those lists also carry the `shared/include` path. The exception is firmware-only code that needs a hardware library: `atlas_board_none.cpp`, `atlas_battery_s3.cpp`, `atlas_display_s3.cpp` and `atlas_screen_lvgl.cpp` (the board boundary in `atlas_board.h`, `atlas_display.h`, `atlas_battery.h` and `atlas_speaker.h`; battery logic is the header-only `battery_gauge.h`), `sd_card.cpp` (Arduino SD_MMC), `factory_reset.cpp` (NVS erase + restart), `home_wifi_link.cpp` (home Wi-Fi radio work), `home_tls_server.cpp` (HTTPS on the home network) and `secure_link_backend.cpp` (mbedTLS) are left out, and `test_globals.cpp` stubs them.
 - **Python and `pio`:** PlatformIO's `%USERPROFILE%\.platformio\penv\Scripts` is on the user PATH ahead of the Microsoft Store stub, so shells resolve `python` and `pio` there; use the full path if a shell doesn't. That interpreter runs both `.py` checks with the standard library only.
-- **Packed-struct flag:** the GCC runners use `-mno-ms-bitfields` to preserve the packed radio packet layout. Keep it. They build C++17 like the firmware and MSVC, since Atlas links the shared core (`-I../../../core/include`).
+- **Packed-struct flag:** the GCC runners use `-mno-ms-bitfields` to preserve the packed radio packet layout. Keep it. They build C++17 like the firmware and MSVC, since Atlas links the shared core (`-I../../../shared/core/include`).
 
 ### Sigil firmware (run from `Sigil/`)
 ```
