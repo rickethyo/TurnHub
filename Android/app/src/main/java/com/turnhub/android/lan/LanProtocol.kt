@@ -91,3 +91,12 @@ internal val com.turnhub.android.protocol.GameProfile.lanSupported: Boolean
 internal data class LanGuest(val token: String, val role: String, val player: Int, val name: String? = null, val master: Boolean = false) {
     override fun toString() = "LanGuest($role, player=$player)"
 }
+
+/** Friendly labels for connected hardware whose Android model string is a product code. */
+internal fun friendlyDisplayDevice(model: String): String = when {
+    model.startsWith("SM-T970") || model.startsWith("SM-T975") -> "Galaxy Tab S7+"
+    model.startsWith("SM-T870") || model.startsWith("SM-T875") -> "Galaxy Tab S7"
+    model.startsWith("SM-S911") -> "Galaxy S23"
+    model.isBlank() -> "Connected device"
+    else -> model
+}

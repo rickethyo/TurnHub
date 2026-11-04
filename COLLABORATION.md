@@ -1970,3 +1970,39 @@ Validation: main debug and Preview 1461 builds pass; docs links and whitespace c
 Owner extends responsive sizing to player/commander names, commander damage and counters, keeping art behind the needed text. Baseline `6d2e5d44`, clean `codex/master`, fetched origin; continue open #191. Scope: fit name/subtitle text to measured header width and a bounded heading budget without manual name truncation; scale visible counter/damage chips using available panel width/height, measure the resulting facts band for life-number spacing, and add only localized translucent text/chip backdrops so artwork remains visible elsewhere. Preserve existing counter semantics, source identity, icon/rarity and TalkBack descriptions. Build, inspect actual tablet layouts and update connected apps while preserving the game/room. No game, authority, firmware or release change.
 
 Validation: standard debug and Preview 1462 builds pass, along with two focused commander-damage display tests covering full source names, both commander slots, pending offline damage, separate team recipients and non-Commander filtering. Docs links and whitespace checks pass. Inspected the Samsung host's actual embedded and full-screen five-player table: full long commander names wrap, names/statuses remain separate, enlarged counter and commander-damage chips fit below the life readout, and localized backdrops leave surrounding artwork visible. Saved a private preferences snapshot before updating; verified the same game ID, RUNNING state and five-player roster, Room Hosting and six listed member devices, then restored full-screen table mode. Installed standard builds on both Samsung tablets and both Folds, plus Preview 1462 on Pixel 10, Pixel 9 and Galaxy S23; all seven in-place installs succeeded. No gameplay commands sent. Large system text, dense multi-counter/team layouts, co-op and phone-specific visual acceptance remain open. No merge, firmware flash or Play publication.
+
+
+## Public-display upright orientation — 2026-11-03, Codex
+
+Owner requests Display all upright for a wall-mounted public screen, controllable from any player screen; clarifies only the selected display should change. Baseline `a3731bb6`, clean `codex/master`, origin fetched/master already merged; continue #191. Scope: persisted per-target-screen presentation choices, authenticated player/table control without game-master grants, independent orientation snapshots, local fallback when unshared. Preserve seating and game state, support Android standalone and Atlas-relayed public displays. Build, exercise authorization/recovery and target isolation, inspect hardware and update connected apps while preserving host game/room.
+
+Owner follow-up: finish the public display on `codex/master` and install it.
+Codex owns the read-only player-panel footer: replace Pass/More with Active
+turn timing, completed turns and a small format-specific fact from the host
+snapshot. Baseline remains `a3731bb6` with the upright-display work preserved;
+origin/master was synchronized after committing the slice (#191 had merged).
+Claude's phone-hosted game work is out
+of scope. No gameplay commands, host update, merge or release.
+
+Validation for the public-display follow-up: standard Android debug APK builds;
+19 focused tests pass (15 room, 1 orientation, 3 panel statistics), including
+target isolation/recovery, paused/ended/eliminated turns, team turn counts and
+format filtering. Documentation links and whitespace checks pass. Installed
+in place on Samsung SM-T870 public-display client and inspected its actual
+HDMI/DeX TV output: Active turn plus clock replaces Pass; More is absent;
+completed turns and commander casts fit all five upright panels. It reconnects
+to the existing running match. Client standalone data and UI preferences are
+byte-for-byte unchanged; reconnect credentials are refreshed by normal room
+polling. No host install or gameplay commands. The manual was rendered with
+Word (LibreOffice unavailable), and its edited page was visually checked.
+Other formats, very large system text and dense team layouts remain physical
+acceptance checks. Changes remain on codex/master; no merge or release.
+
+Public-display correction (owner, 2026-11-03; Codex, baseline `543d9273`):
+the life +/- targets were disabled but still drawn on observer cards. Omit
+that gesture row entirely for read-only panels, retaining the live value,
+change feedback, artwork and statistics. Interactive panels keep their targets.
+Android debug assembly and whitespace checks pass. Installed in place on the
+SM-T870 public display and inspected its HDMI/DeX output: +/- is absent on
+all five cards, including eliminated/conceded cards; turn clock and facts
+remain visible. No host update or gameplay commands. Continue PR #192.

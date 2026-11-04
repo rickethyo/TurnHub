@@ -32,6 +32,16 @@ Pokémon (TCGdex), Lorcana (Lorcast, AVIF so Android 12+) or Yu-Gi-Oh!
 (YGOPRODeck), typed or **Random card** (`TileCardGame`, `data/TileCards.kt`;
 saved as a prefixed id in `commanderArt`). Only a Magic card typed in a
 Commander mode is named as the commander; every other tile card is art only.
+**Display settings** opens from every player menu, the connected player's **Display**
+button, and the table menu's **Sound & display**. It names the screen being changed;
+**Choose another screen** selects a public display, host screen or named player's screen.
+Choose **All panels upright** for a TV/public display or **Face each player** for a
+central table. Any connected player can change this presentation setting without
+game-master permission, including after conceding. Only the selected device changes;
+other screens retain their orientation. Choices survive room reconnects and host
+restart. Without a room, the setting affects and saves only this device. It applies
+to the app's public table for both device-hosted and Atlas-relayed games.
+
 When the device game is a Magic format, its setup has a Planechase
 switch and a Planes tab runs Planechase. Choose all planes, a release collection
 (including Anthology), or browse cards and save a named custom deck. Search,
@@ -78,7 +88,7 @@ labels, with brief flavor text in introductions and empty states.
 
 The Android app is a controller and presentation client. It is not a second TurnHub game engine, with one exception: the standalone tablet game below.
 
-Product direction (owner, 2026-10-13): the app is a full, general-purpose game app on its own; a physical Atlas unlocks extras (Sigils, a phone for every player, shared profiles and table-wide statistics, the Atlas screen and speaker, administration). TCG games (Magic variants, Yu-Gi-Oh!, Pokémon and Lorcana) support a phone host and same-network player clients; Death May Die also supports Elder One displays and investigator clients ([shared devices](../Documentation/engineering/SHARED_DEVICES.md)). TCG players switch between their own controls and a read-only full table without reconnecting. Both modes use the same navigation and shared table presentation. The standalone game is therefore a supported engine for games with no Atlas, but it still never merges into, copies or changes a game Atlas runs.
+Product direction (owner, 2026-10-13): the app is a full, general-purpose game app on its own; a physical Atlas unlocks extras (Sigils, a phone for every player, shared profiles and table-wide statistics, the Atlas screen and speaker, administration). TCG games (Magic variants, Yu-Gi-Oh!, Pokémon and Lorcana) support a phone host and same-network player clients; Death May Die also supports Elder One displays and investigator clients ([shared devices](../Documentation/engineering/SHARED_DEVICES.md)). TCG players switch between their own controls and a read-only full table without reconnecting. Read-only player panels show Active turn with its clock (Turn paused while paused), completed turns and a format-specific fact such as commander casts, prizes left, lore or stress instead of Pass and More. Both modes use the same navigation and shared table presentation. The standalone game is therefore a supported engine for games with no Atlas, but it still never merges into, copies or changes a game Atlas runs.
 
 ## Hard architecture rule
 

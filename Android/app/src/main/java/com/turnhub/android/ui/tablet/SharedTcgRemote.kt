@@ -58,6 +58,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     val planesView = planesChosen && (device?.planechase?.enabled == true || state.atlas?.settings?.planechase == true)
     var menu by rememberSaveable { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
+    var displaySettings by remember { mutableStateOf(false) }
     var confirmElimination by remember { mutableStateOf(false) }
     val partners = remember { mutableStateListOf<Int>() }
     val haptics = rememberHaptics()
@@ -133,8 +134,12 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
         }
         Text("${device?.let { sharedGameTitle(it) } ?: sharedGameTitle(summary.settings.profile)} · ${if (planesView) "Planes" else if (tableView || own == null) if (state.role == "table") "Shared table controls" else "Table · read only" else own.label} · ${if (!state.online) "Disconnected · last update" else if (state.busy) "Sending…" else "Connected"}",
             color = if (state.online) p.muted else p.warn, style = MaterialTheme.typography.labelLarge)
-        if (!tableView && !planesView && own != null && state.role in setOf("player", "investigator"))
-            GuestPauseButton(summary.state, state.online && !state.busy && !state.uncertain && !own.eliminated, model)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (!tableView && !planesView && own != null && state.role in setOf("player", "investigator"))
+                GuestPauseButton(summary.state, state.online && !state.busy && !state.uncertain && !own.eliminated, model)
+            if (state.role in setOf("player", "investigator", "table") || state.master)
+                ToneButton("Display", { displaySettings = true })
+        }
         state.message?.let { Text(it, color = p.warn) }
         when (summary.state) {
             TableState.LOBBY -> Text("Waiting for the host to start. Your seat stays connected.", color = p.text)
@@ -240,6 +245,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             }
         }
     }
+    if (displaySettings) PublicDisplayDialog { displaySettings = false }
     if (confirmLeave) AlertDialog(onDismissRequest = { confirmLeave = false }, title = { Text("Leave shared game?") },
         text = { Text(if (state.uncertain) "The last reply is unknown. Check the host before entering that change again."
             else "Your seat is released. The game stays on the host.") },

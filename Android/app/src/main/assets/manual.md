@@ -129,7 +129,9 @@ Open Game > Play together > Host game to open a game-night room. Share its join 
 
 On the same Wi-Fi, open Game > Play together and enter the code or scan the QR. No host approval is needed. Choose a read-only Table or Planes display, account-free Shared table controls, or your profile. Bring a profile from your device, use an existing table profile, or join as a new player. A protected profile asks for its PIN on first linking; reconnects use saved room access. Players need not be preselected by the host, and sitting out a game does not remove room membership.
 
-Personal screens control their own player. Table display shows everyone read-only. Shared table controls use facing-seat panels so everyone can change normal gameplay values on a central tablet without signing in. Public views stay read-only unless the host grants that device game master access. Setup and special game decisions outside the remote controls stay on the host. Profile IDs establish identity; matching names do not automatically merge profiles.
+Personal screens control their own player. Table display shows everyone read-only. Read-only player panels show Active turn with its clock (Turn paused while paused), completed turns and a format-specific fact such as commander casts, prizes left, lore or stress instead of Pass and More. Shared table controls use facing-seat panels so everyone can change normal gameplay values on a central tablet without signing in. Public views stay read-only unless the host grants that device game master access. Setup and special game decisions outside the remote controls stay on the host. Profile IDs establish identity; matching names do not automatically merge profiles.
+
+Display settings: open Display on a connected player screen, or Display settings in any player menu or the table menu > Sound & display. The heading names the screen being changed. Choose another screen selects a Public table display, Host screen or named player screen, with friendly device names underneath. Choose All panels upright for a TV or wall display, or Face each player for a screen in the middle of the table. Only the selected device changes. Any connected player can change this setting without game master permission, including after conceding. The room saves each display choice across reconnects and host restart. Outside a room, it changes only this device.
 
 The Elder One display follows the host’s track, ritual, stage, wounds, minions, episode monsters and episode tokens. Investigator devices show the investigator’s picture, skills and assigned cards, including both relic faces; the insanity card and relic each have their own color. My investigator and Elder One · read only switch between your controls and the Elder One board without leaving or reconnecting. Guests who join in the lobby wait there; their controls unlock when the game starts. Players can change wounds, stress, fire, insanity and skill levels, stage their next turn, choose a pass recipient, and confirm their investigator’s death. Card assignment and reference edits remain on the host.
 
@@ -235,7 +237,7 @@ The control in the middle of the table opens the game menu. During the first thr
 
 - **Seating & alliances:** the star, in Star Commander. Tap a player to highlight their allies and enemies.
 
-- **Sound & display:** game sounds, volume, **Turn panels around** and, in Star Commander, Star layout.
+- **Sound & display:** game sounds, volume, **Turn panels around** and, in Star Commander, Star layout. Display settings is also available here and in each player menu.
 
 - **Help & app:** report a bug, or **Back to the app** to leave the full-screen table without ending the game.
 
