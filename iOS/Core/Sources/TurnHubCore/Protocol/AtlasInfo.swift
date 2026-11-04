@@ -31,7 +31,7 @@ public enum AtlasCompatibilityError: Error, Equatable, Sendable {
 
 public enum AtlasCompatibility {
     public static let apiVersion = "1"
-    public static let protocolVersion = "0.1"
+    public static let protocolVersion = "1"
 
     /// Decode and validate before exposing a successful connection to the UI.
     public static func decodeInfo(_ data: Data) throws -> AtlasInfo {
