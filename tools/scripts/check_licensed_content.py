@@ -19,6 +19,7 @@ import hashlib
 import re
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 SALT = "turnhub-licensed:"
@@ -77,6 +78,14 @@ def main() -> int:
             continue
         path = root / name
         if not path.is_file() or path.stat().st_size > MAX_BYTES:
+            continue
+        if name.endswith(".docx"):
+            # The manuals: check each paragraph's text, runs joined.
+            with zipfile.ZipFile(path) as docx:
+                xml = docx.read("word/document.xml").decode("utf-8", "replace")
+            text = "\n".join(re.sub(r"<[^>]+>", "", p) for p in re.findall(r"<w:p[ >].*?</w:p>", xml, re.S))
+            if any(hits(line) for line in text.splitlines()):
+                bad.append(f"{name}: text")
             continue
         data = path.read_bytes()
         if b"\0" in data:
