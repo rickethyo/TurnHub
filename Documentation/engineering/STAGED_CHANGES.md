@@ -207,7 +207,7 @@ the hub. Contract: `protocol/hosted-v1.md`. Slices, each a flash-and-test round:
 
 - **Physical card review:** owner will compare all conditions and both relic
   faces with their collection, correct drafts and supply missing/unclear scans.
-  All checks remain pending in the [card review sheet](DEATH_MAY_DIE_CARD_REVIEW.md).
+  All checks remain pending in the card review sheet (local-only, off GitHub).
   Source photos/automated tests are not physical-card verification.
 
 ### Statistics and history
@@ -440,7 +440,7 @@ the hub. Contract: `protocol/hosted-v1.md`. Slices, each a flash-and-test round:
   board drivers, production Intent/snapshot bindings, SD JPEG loading and S3
   OTA. The Atlas is portrait (320 × 480) since 2026-10-28: re-lay the LVGL
   simulator's Atlas screens for it before binding them. [Hardware plan](hardware/ESP32_S3_REFRESH.md),
-  [LVGL migration](LVGL_MIGRATION.md) and [desktop foundation](../../LVGL/README.md)
+  [LVGL migration](LVGL_MIGRATION.md) and [desktop foundation](../../shared/simulator/README.md)
   own details; the simulator is not physical acceptance. *Experimental*
   (2026-10-28): `env:sigil` runs the Sigil firmware on the old
   E32R28T Atlas board with an LVGL Sigil screen and the five keys as

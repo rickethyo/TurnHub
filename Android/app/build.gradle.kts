@@ -7,6 +7,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val hasDmdContent = file("src/dmd/java/com/turnhub/android/domain/DmdContent.generated.kt").isFile
+
 android {
     namespace = "com.turnhub.android"
     // applicationId is frozen: the Google Play listing uses it (Android/README.md).
@@ -89,6 +91,10 @@ android {
         buildConfig = true
     }
     sourceSets.getByName("androidTest").assets.srcDir(rootProject.file("../core/scenarios"))
+    // Death May Die's CMON content is local-only (gitignored src/dmd, src/testDmd).
+    // Without it, an empty committed stand-in (src/dmdStub) keeps the build working.
+    sourceSets.getByName("main").kotlin.srcDir(if (hasDmdContent) "src/dmd/java" else "src/dmdStub/java")
+    if (file("src/testDmd/java").isDirectory) sourceSets.getByName("test").kotlin.srcDir("src/testDmd/java")
 }
 
 // Run JVM behavior tests through the very same JNI bridge on the build host.

@@ -27,12 +27,13 @@ TurnHub is a local-first tabletop game-management system (turn timer, lobby, lif
 | Dir | What | Toolchain |
 |---|---|---|
 | `Atlas/` | ESP32 table controller: **the authoritative game engine**, Wi-Fi AP, web portal and HTTP API, ESP-NOW radio to Sigils, NVS persistence | PlatformIO, Arduino ESP32, C++ |
-| `LVGL/` | Isolated experimental desktop Atlas/Sigil presentation simulator; never a second production game authority | CMake, pinned LVGL/SDL, C++17; see `LVGL/README.md` |
 | `Sigil/` | Touchscreen-only player controller: one build, `sigil`, runs LVGL on the E32R28T touch board, with secure ESP-NOW, pairing and speaker cues. No LED, joystick or headless target; Gen 1 display firmware stays on `legacy/gen1`. | PlatformIO, Arduino ESP32, C++ |
 | `Android/` | Native client over HTTP (`HttpAtlasRepository`, polling `/api/v1/state`): live table, player controls, first-run setup, firmware updates | Gradle, Kotlin |
 | `iOS/` | SwiftUI iPhone/iPad foundation; local `TurnHubCore` package; see `iOS/README.md` and `Documentation/engineering/IOS_DEVELOPMENT.md` | Xcode 16+, Swift 6, SwiftPM |
 | `core/` | Experimental shared rules core: the app's `StandaloneGame` rules ported to portable C++17, JSON in and out, checked by shared scenarios against both; Atlas links it as a PlatformIO library (the Atlas build is gnu++17); see `core/README.md` | C++17 |
 | `shared/include/` | Firmware headers shared by Atlas and Sigil (currently `protocol.h`, the ESP-NOW radio contract) | C++ |
+| `shared/display/` | Generated LVGL fonts and icons both firmwares draw with, and their generators in `shared/display/tools/` | Python, pinned lv_font_conv |
+| `shared/simulator/` | Semi-retired desktop Atlas/Sigil presentation simulator; never a second production game authority. LVGL/SDL notices in `shared/licenses/` | CMake, pinned LVGL/SDL, C++17; see `shared/simulator/README.md` |
 | `protocol/` | Transport-neutral client contract: JSON schemas, `http-v1.md`, example responses | — |
 | `design/` | V1 design system shared by the portal and Android: `tokens.json` (themes, type, motion), the icon set, Inter and Cinzel fonts, web components and the style guide. `python3 design/build_tokens.py` regenerates `design/dist/` and Android's `DesignTokens.kt` and `ic_th_*` drawables (CI runs `--check`); see `design/README.md` | Python (stdlib) |
 | `Documentation/engineering/` | The durable engineering record: design decisions, invariants, staged work, verification backlog | — |
@@ -131,6 +132,8 @@ durable completion receipts and replay-safe persistence exist. See
 `STORAGE_AND_RECOVERY.md` and `STAGED_CHANGES.md` in the engineering docs.
 
 **No compatibility before release:** every Atlas and Sigil is a prototype the owner reflashes together. Backward compatibility (older protocol versions, older firmware, OTA upgrade paths) applies only once hardware is released, and saved data (profiles, stats, pairings) needs no migrations until the owner says TurnHub is saving live stats: a changed layout means a factory reset. Remove code that only served retired devices or formats rather than keeping fallbacks.
+
+**Death May Die is local-only:** CMON licensing keeps it out of released builds and off GitHub. Its content (`Android/app/src/dmd/`, `Android/app/src/testDmd/`, `data/death-may-die/`, `tools/dmd-forge/` and the DMD review/rights docs) is gitignored and lives only on the owner's PC; without it the app compiles the empty `Android/app/src/dmdStub/` stand-in. Never commit those paths. After adding or removing them, delete `Android/.kotlin` and `Android/app/build` (long paths: `rd /s /q \\?\<path>`), or stale classes linger.
 
 **Radio contract:** `shared/include/protocol.h` is the single source for Atlas and Sigil (both `platformio.ini` files and the host test runners add `-I../shared/include`). Put any value both firmwares must agree on there, e.g. `PAIRING_WINDOW_MS` (60 s, the minimum on every device) or the Hello capability bits (only what varies between Sigils, none today; Atlas assumes the rest and reads the byte through `helloCapabilities()`). Never recreate per-project copies (Invariant 4). Changing it means reflashing both device types. The packet structs are packed, and host tests check their sizes (7-byte control, 156-byte display).
 

@@ -193,8 +193,8 @@ loss condition; Commander damage totals alone do not trigger elimination.
   fills only blank fields. A content fingerprint binds each check to that card's
   name and face text; edits invalidate the matching check, and blank text cannot
   be checked. Source review never marks a physical check. Checking has no effect
-  on start readiness, markers, flips or printed effects. See the complete
-  [physical-card review checklist](DEATH_MAY_DIE_CARD_REVIEW.md). Recovery saves the selected catalogue
+  on start readiness, markers, flips or printed effects. The complete physical-card review checklist is
+  local-only, with the rest of the CMON content. Recovery saves the selected catalogue
   ID with each card; a renamed card becomes a custom entry, and unknown or
   wrong-slot references are discarded without losing entered names/notes.
   Everyone wins together ("We killed the Elder One") or loses together ("We

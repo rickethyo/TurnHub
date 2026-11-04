@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 import zlib
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 
 def decode_bmp(path):
     data = path.read_bytes()

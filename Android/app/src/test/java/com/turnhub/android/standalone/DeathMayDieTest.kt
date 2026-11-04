@@ -323,14 +323,4 @@ class DeathMayDieTest {
         // A rematch starts everyone fresh.
         assertEquals(0, stressed.claimWin(0, 1_000).rematch(2_000, "e", First).players[0].stress)
     }
-
-    @Test fun `the roster lists every box once with no repeated names`() {
-        assertEquals(DeathMayDie.all.size, DeathMayDie.all.distinct().size)
-        assertEquals("Season 1 (core box)", DeathMayDie.boxOf("Rasputin"))
-        assertTrue(DeathMayDie.boxes.all { it.investigators.isNotEmpty() })
-        assertTrue(DeathMayDie.all.all { it.length <= StandaloneGame.MAX_NAME })
-        // Pictures only for investigators on the roster, from the wiki's image host.
-        assertTrue(DeathMayDie.artUrl("Rasputin")!!.startsWith("https://static.wikia.nocookie.net/cthulhu-death-may-die/images/"))
-        assertNull(DeathMayDie.artUrl("Nikola Tesla"))
-    }
 }

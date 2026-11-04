@@ -1,5 +1,9 @@
 # TurnHub LVGL desktop simulator (semi-retired)
 
+Lives in `shared/simulator/` since 2026-11-03 (it was the top-level `LVGL/` folder).
+Font/icon generators are in `shared/display/tools/` and third-party notices in
+`shared/licenses/`.
+
 **Semi-retired:** real Atlas and Sigil boards are the primary validation targets.
 Keep the simulator for targeted checks; routine UI/layout refreshes are deferred.
 Firmware fonts and icons live in `shared/display/` and remain actively maintained.
@@ -9,9 +13,9 @@ and Sigil **240×320 portrait**. The S3 Atlas firmware switched to 320×480
 portrait on 2026-10-28 (owner's call), so the simulator's Atlas layout needs a
 portrait pass before it is bound (STAGED_CHANGES "S3 boards").
 The live Atlas/DevKit Sigil renderers, game engine, protocols, PlatformIO and OTA
-are unchanged. Architecture: [LVGL migration](../Documentation/engineering/LVGL_MIGRATION.md).
-Hardware and purchasing: [S3 plan](../Documentation/engineering/hardware/ESP32_S3_REFRESH.md)
-and [BOM](../Documentation/engineering/hardware/PROTOTYPE_BOM.md).
+are unchanged. Architecture: [LVGL migration](../../Documentation/engineering/LVGL_MIGRATION.md).
+Hardware and purchasing: [S3 plan](../../Documentation/engineering/hardware/ESP32_S3_REFRESH.md)
+and [BOM](../../Documentation/engineering/hardware/PROTOTYPE_BOM.md).
 
 ## Build (Linux)
 
@@ -30,10 +34,10 @@ On Debian/Ubuntu, install the compiler/build and X11 development prerequisites
 ```sh
 sudo apt-get install build-essential cmake ninja-build libx11-dev libxext-dev \
   libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxinerama-dev
-cmake -S LVGL -B LVGL/build -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build LVGL/build --parallel 4
-LVGL/build/bin/turnhub_sim --device atlas
-LVGL/build/bin/turnhub_sim --device sigil --zoom 2
+cmake -S shared/simulator -B shared/simulator/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build shared/simulator/build --parallel 4
+shared/simulator/build/bin/turnhub_sim --device atlas
+shared/simulator/build/bin/turnhub_sim --device sigil --zoom 2
 ```
 
 Run from the repository root. A desktop session/display is needed for visible
@@ -44,9 +48,9 @@ No phone, hardware board, network server or audio device is required.
 An optional installed-SDL route requires exactly **2.32.4** headers/libraries:
 
 ```sh
-cmake -S LVGL -B LVGL/build-system -G Ninja -DTURNHUB_SYSTEM_SDL=ON \
+cmake -S shared/simulator -B shared/simulator/build-system -G Ninja -DTURNHUB_SYSTEM_SDL=ON \
   -DSDL2_DIR=/path/to/SDL2/cmake -DCMAKE_BUILD_TYPE=Debug
-cmake --build LVGL/build-system --parallel 4
+cmake --build shared/simulator/build-system --parallel 4
 ```
 
 CMake's `FETCHCONTENT_SOURCE_DIR_LVGL` / `FETCHCONTENT_SOURCE_DIR_SDL2` options
@@ -67,10 +71,10 @@ From an **x64 Native Tools Command Prompt for VS 2022** (or after running
 `vcvars64.bat`), at the repository root:
 
 ```powershell
-cmake -S LVGL -B LVGL/build-win -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build LVGL/build-win --parallel 4
-.\LVGL\build-win\bin\turnhub_sim.exe --device sigil --zoom 2
-ctest --test-dir LVGL/build-win --output-on-failure
+cmake -S shared/simulator -B shared/simulator/build-win -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build shared/simulator/build-win --parallel 4
+.\shared\simulator\build-win\bin\turnhub_sim.exe --device sigil --zoom 2
+ctest --test-dir shared/simulator/build-win --output-on-failure
 ```
 
 MSVC builds LVGL as a DLL because 9.3's global-data exports require it, so SDL
@@ -108,16 +112,16 @@ edits are bounded visual fixture edits; there are no rules, statistics, profile
 persistence or transport in `Fixtures`. Pausing freezes its countdown.
 
 ```sh
-LVGL/build/bin/turnhub_sim --device atlas --theme brass --scenario 2
-LVGL/build/bin/turnhub_sim --device sigil --screen pairing
-LVGL/build/bin/turnhub_sim --help
+shared/simulator/build/bin/turnhub_sim --device atlas --theme brass --scenario 2
+shared/simulator/build/bin/turnhub_sim --device sigil --screen pairing
+shared/simulator/build/bin/turnhub_sim --help
 ```
 
 ## Checks and captures
 
 ```sh
-ctest --test-dir LVGL/build --output-on-failure
-python3 LVGL/tools/generate_fonts.py --check
+ctest --test-dir shared/simulator/build --output-on-failure
+python3 shared/display/tools/generate_fonts.py --check
 python3 design/build_tokens.py --check
 python3 design/build_avatar_masks.py --check
 python3 Atlas/tests/host/audit_adapters.py
@@ -132,21 +136,21 @@ hardware or game-engine acceptance. Capture validation separately launches the
 SDL X11 backend on a virtual display when a physical desktop is unavailable:
 
 ```sh
-mkdir -p LVGL/previews
-LVGL/build/bin/turnhub_sim --device atlas --capture LVGL/previews/atlas.bmp
-LVGL/build/bin/turnhub_sim --device sigil --capture LVGL/previews/sigil.bmp
+mkdir -p shared/simulator/previews
+shared/simulator/build/bin/turnhub_sim --device atlas --capture shared/simulator/previews/atlas.bmp
+shared/simulator/build/bin/turnhub_sim --device sigil --capture shared/simulator/previews/sigil.bmp
 # Headless X11 example, requires xvfb + xauth:
-xvfb-run -a LVGL/build/bin/turnhub_sim --device sigil --capture LVGL/previews/sigil.bmp
+xvfb-run -a shared/simulator/build/bin/turnhub_sim --device sigil --capture shared/simulator/previews/sigil.bmp
 # Pure headless launch (not evidence of a visible window):
-SDL_VIDEODRIVER=dummy LVGL/build/bin/turnhub_sim --device atlas --frames 40
+SDL_VIDEODRIVER=dummy shared/simulator/build/bin/turnhub_sim --device atlas --frames 40
 ```
 
 A standard-library capture matrix validates all four themes on both profiles,
 plus pairing, paused and game-over scenes (14 captures):
 
 ```sh
-python3 LVGL/tests/capture_matrix.py --executable LVGL/build/bin/turnhub_sim \
-  --output LVGL/previews/matrix --driver x11
+python3 shared/simulator/tests/capture_matrix.py --executable shared/simulator/build/bin/turnhub_sim \
+  --output shared/simulator/previews/matrix --driver x11
 ```
 
 It needs a working `DISPLAY` for X11; `--driver dummy` validates software rendering
@@ -157,9 +161,9 @@ check, not a golden-image or OCR accessibility test.
 Optional GCC/Clang lifetime checks (development only):
 
 ```sh
-cmake -S LVGL -B LVGL/build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DTURNHUB_SANITIZERS=ON
-cmake --build LVGL/build-asan --parallel 4
-ctest --test-dir LVGL/build-asan --output-on-failure
+cmake -S shared/simulator -B shared/simulator/build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DTURNHUB_SANITIZERS=ON
+cmake --build shared/simulator/build-asan --parallel 4
+ctest --test-dir shared/simulator/build-asan --output-on-failure
 ```
 
 Atlas opens on a springboard-style home screen (glossy app icons, a dock, a now-playing card); icons
@@ -188,9 +192,9 @@ history. The launcher does not require an image conversion package.
 | `src/sdl_input.cpp` | Keyboard adapter; queues events, LVGL calls stay on main thread |
 | `src/main.cpp` | SDL display/pointer bootstrap, event loop, CLI, integration self-tests, capture |
 | `src/assets.cpp` | Existing TurnHub 64px alpha presets via replaceable asset provider |
-| `../shared/display/th_*.c` | Generated Inter/Cinzel glyphs, tabular digit advances, checked source/output digests |
-| `../shared/display/th_{eyebrow,semi,bold,num}_*.c` | Semibold/bold Inter at the app's weights; `tools/generate_display_fonts.py` (headless browser canvas from the checked-in variable font; `--check` is stdlib) |
-| `../shared/display/th_icons.c` | `design/icons` rasterized to 24/40 px A8 masks, tinted per theme at runtime; `tools/generate_icons.py` (headless Edge/Chrome; `--check` is stdlib) |
+| `../display/th_*.c` | Generated Inter/Cinzel glyphs, tabular digit advances, checked source/output digests |
+| `../display/th_{eyebrow,semi,bold,num}_*.c` | Semibold/bold Inter at the app's weights; `shared/display/tools/generate_display_fonts.py` (headless browser canvas from the checked-in variable font; `--check` is stdlib) |
+| `../display/th_icons.c` | `design/icons` rasterized to 24/40 px A8 masks, tinted per theme at runtime; `shared/display/tools/generate_icons.py` (headless Edge/Chrome; `--check` is stdlib) |
 | `lv_conf.h` | Desktop LVGL configuration only; software rendering and development assertions |
 
 `Ui` consumes `SnapshotSource` and emits `ActionSink::request`. The fixture object
@@ -208,9 +212,9 @@ storage remain the only connected profile/artwork store. See migration doc for
 Regenerate fonts only when changing source/specification:
 
 ```sh
-npm ci --prefix LVGL/tools --ignore-scripts --no-audit --no-fund
-python3 LVGL/tools/generate_fonts.py
-python3 LVGL/tools/generate_fonts.py --check
+npm ci --prefix shared/display/tools --ignore-scripts --no-audit --no-fund
+python3 shared/display/tools/generate_fonts.py
+python3 shared/display/tools/generate_fonts.py --check
 ```
 
 Node 18+ and Python 3.9+ suffice; converter **lv_font_conv 1.5.3** is pinned by
@@ -237,7 +241,7 @@ No production renderer is replaced. Follow hardware verification before GPIO bin
   `UBSAN_OPTIONS=halt_on_error=1`); leak detection was not tested.
 - X11 SDL rendering under Xvfb: 14 captures passed exact dimensions, token palette
   background, nonblank and distinct-scene checks; selected captures visually reviewed.
-  [Committed previews](../Documentation/engineering/history/2026-10-11-lvgl-previews/README.md).
+  [Committed previews](../../Documentation/engineering/history/2026-10-11-lvgl-previews/README.md).
 - Windows 11, MSVC 17.14 Release with source SDL (2026-10-13): build clean at `/W4`
   for TurnHub sources, both CTest suites passed under the dummy driver, both
   `--self-test` runs passed and Atlas/Sigil captures rendered in real windows.
