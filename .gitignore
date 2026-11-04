@@ -359,16 +359,5 @@ Atlas/web/dist/
 # Board setup output: this PC's boards (tools/setup-boards.cmd)
 tools/boards.local.md
 
-# Local-only licensed content: never commit (CLAUDE.md). Kept here until the
-# owner's checkout excludes it locally; see STAGED_CHANGES.md "Local-only content split".
-Android/app/src/dmd/
-Android/app/src/testDmd/
-data/death-may-die/
-tools/dmd-forge/
-Documentation/engineering/DEATH_MAY_DIE_CARD_REVIEW.md
-Documentation/engineering/DMD_DATABASE_FORGE.md
-Documentation/legal/DMD_RIGHTS_AUDIT.md
-Documentation/legal/dmd-catalogue-rights-inventory.json
+# Local-only scratch for the shared rules core
 shared/core/local/
-Documentation/engineering/history/*death-may-die*.md
-Documentation/engineering/history/*dmd*.md

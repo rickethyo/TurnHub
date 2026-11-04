@@ -30,9 +30,7 @@ TERMS = {
 }
 # First words of the multi-word terms: only these start a joined check.
 PREFIXES = {"a55fe638f1cd9e5b", "89fa3418e6ca7179"}
-# .gitignore still lists the local-only paths, so a checkout that has them on disk
-# can't commit them by accident. See STAGED_CHANGES.md ("Local-only content split").
-ALLOWED = {".gitignore"}
+ALLOWED: set[str] = set()
 MAX_BYTES = 4 * 1024 * 1024
 
 WORD = re.compile(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|[0-9]+")
