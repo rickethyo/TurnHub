@@ -24,6 +24,7 @@ class LanRoomTest {
         var planesAvailable = true
         var planarPlayerAllowed = true
         var planarRollAllowed = true
+        var rollFace = "blank"
         var alias: Pair<String, String>? = null
         val room = LanRoom(record, planesAvailable = { planesAvailable }, planarPlayerAllowed = { planarPlayerAllowed }, planarRollAllowed = { planarRollAllowed }, save = { if (writable) { record = JSONObject(it.toString()); true } else false },
             resolveIdentity = { id -> if (id == alias?.first) alias!!.second else id },
@@ -34,7 +35,10 @@ class LanRoomTest {
                 lastTarget = target
                 if (delayCommand) kotlinx.coroutines.delay(10)
                 if (r.text("match") != match || r.integer("revision") != revision) base("stale").put("code", "stale")
-                else { changes++; revision++; base("ok").put("code", "ok") }
+                else { changes++; revision++; base("ok").put("code", "ok").also {
+                    if (r.optString("kind") == "planar-roll") it.put("game", JSONObject().put("planechase",
+                        JSONObject().put("lastRoll", JSONObject().put("face", rollFace))))
+                } }
             })
         fun base(op: String) = JSONObject().put("v", LAN_VERSION).put("session", "room").put("op", op)
         suspend fun join(role: String = "player", profile: String = "PROFILE1", pin: String = "1234", id: String = UUID.randomUUID().toString()) =
@@ -186,6 +190,20 @@ class LanRoomTest {
         f.planesAvailable = true
         val table = f.join("table")
         assertEquals("ok", f.room.handle(f.action(table, "planar-roll")).text("code"))
+    }
+
+    @Test fun `roll retry returns its original face after another roll and a turn change without applying twice`() = runBlocking {
+        val f = Fixture()
+        val player = f.join()
+        f.rollFace = "chaos"
+        val first = f.action(player, "planar-roll")
+        assertEquals("chaos", f.room.handle(first).getJSONObject("rollResult").text("face"))
+        f.rollFace = "blank"
+        assertEquals("blank", f.room.handle(f.action(player, "planar-roll")).getJSONObject("rollResult").text("face"))
+        f.planarRollAllowed = false
+        assertEquals("chaos", f.room.handle(first).getJSONObject("rollResult").text("face"))
+        assertEquals(2, f.changes)
+        assertEquals("invalid", f.room.handle(JSONObject(first.toString()).put("value", 1)).text("code"))
     }
 
     @Test fun `phone rolls require current turn even with a master grant while manual effects remain available`() = runBlocking {

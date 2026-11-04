@@ -2140,3 +2140,14 @@ seven final in-place installs succeeded. No gameplay commands sent. Manual
 edited page rendered with Word and checked; docs links/whitespace pass.
 Unusually long names and large system text still need physical acceptance.
 Continue #195 without merging Claude's active phone-hosted firmware work.
+
+## Confirmed phone planar roll feedback — 2026-11-03, Codex
+
+Owner reports no visible animation/result after Planar die on the phone card.
+Baseline `95119221`, clean codex/master; origin fetched. Scope: immediate
+rolling feedback followed by the matching host-confirmed result, persistent
+readable result/effect text, reduced-motion presentation, and explicit
+rejected/unknown/retry states. Retain the original action UUID on retries and
+capture the original die face in the room receipt so a later roll cannot be
+mistaken for this one. Unify personal card/Planes feedback for phone-hosted
+and Atlas-relayed clients; keep active-turn gates and no live test rolls.

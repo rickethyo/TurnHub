@@ -23,7 +23,8 @@ internal class LanRoom(
     data class RoomSeat(val identity: String, val number: Int, val name: String)
     private val epoch = randomLanSecret(16)
     private val members = record.optJSONArray("members") ?: JSONArray().also { record.put("members", it) }
-    private val receipts = mutableMapOf<String, LinkedHashMap<String, Pair<String, String>>>()
+    private data class Receipt(val payload: String, val code: String, val roll: JSONObject?)
+    private val receipts = mutableMapOf<String, LinkedHashMap<String, Receipt>>()
     private val commandLock = Mutex()
     private val failures = ArrayDeque<Long>()
     val guests: List<LanGuest> get() = (0 until members.length()).map { i ->
@@ -199,16 +200,16 @@ internal class LanRoom(
         val table = m.text("role") == "table"
         val own = seat(m)
         val target = if (table || privileged) r.optInt("target", own) else own
+        val id = r.text("actionId").also { require(it.matches(Regex("[0-9a-f-]{36}"))) }
+        val payload = listOf(r.text("match"), r.integer("revision"), kind, r.integer("value"), r.integer("slot"), r.optInt("source"), target).joinToString("|")
+        val ledger = receipts.getOrPut(m.text("token")) { linkedMapOf() }
+        ledger[id]?.let { return if (it.payload == payload) frame(it.code, m).put("rollResult", it.roll) else reply("invalid") }
         if (kind.startsWith(PLANAR_KIND)) {
             if (m.text("role") == "player" && isPlanarRollKind(kind) && !planarRollAllowed(own)) return frame("forbidden", m)
             if (!privileged && !(planesAvailable() && (table ||
                     m.text("role") == "player" && own > 0 && planarPlayerAllowed(own)))) return frame("forbidden", m)
         } else if (target <= 0 || !table && !privileged && m.text("role") !in setOf("player", "investigator")) return frame("forbidden", m)
         if (seats().none { it.number == target } && !kind.startsWith(PLANAR_KIND)) return frame("stale", m)
-        val id = r.text("actionId").also { require(it.matches(Regex("[0-9a-f-]{36}"))) }
-        val payload = listOf(r.text("match"), r.integer("revision"), kind, r.integer("value"), r.integer("slot"), r.optInt("source"), target).joinToString("|")
-        val ledger = receipts.getOrPut(m.text("token")) { linkedMapOf() }
-        ledger[id]?.let { return if (it.first == payload) frame(it.second, m) else reply("invalid") }
         if (ledger.size >= 2048) {
             val generation = m.optLong("commandGeneration")
             m.put("commandGeneration", generation + 1)
@@ -218,7 +219,8 @@ internal class LanRoom(
         }
         val result = command(r, target)
         val code = result.text("code")
-        if (code != "unavailable") ledger[id] = payload to code
-        return frame(code, m)
+        val roll = recordedPlanarRoll(kind, result)
+        if (code != "unavailable") ledger[id] = Receipt(payload, code, roll)
+        return frame(code, m).put("rollResult", roll)
     }
 }

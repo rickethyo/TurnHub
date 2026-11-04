@@ -112,9 +112,15 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     // Planar buttons act for the active player on the host, from any seat or the display.
     val planarEnabled = sharedPlanarEnabled(state, summary)
     val planarRollEnabled = sharedPlanarRollEnabled(state, summary)
-    var atlasRolling by remember { mutableStateOf(false) }
+    var rollRequestId by rememberSaveable { mutableStateOf<String?>(null) }
+    var rollBlocked by remember { mutableStateOf(false) }
+    fun beginRoll(fromEffect: Boolean) {
+        val id = model.beginPlanarRoll(fromEffect)
+        if (id != null) { rollRequestId = id; rollBlocked = false }
+        else if (rollRequestId == null) rollBlocked = true
+    }
     val planarControls = PlanarControls(
-        roll = { if (planarRollEnabled) model.act("planar-roll", if (it) 1 else 0) },
+        roll = { if (planarRollEnabled) beginRoll(it) },
         planeswalk = { if (planarEnabled) model.act("planar-walk") },
         resolvePhenomenon = { if (planarEnabled) model.act("planar-resolve") },
         chaosEnsues = { if (planarEnabled) model.act("planar-chaos") },
@@ -204,7 +210,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             }
         } else if (planesView) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             if (state.atlas != null) AtlasPlanesTab(summary, TabletActions(), reduceMotion, offline = !state.online,
-                readOnly = !planarEnabled, rollEnabled = planarRollEnabled,
+                readOnly = !planarEnabled, rollEnabled = planarRollEnabled, onRoomRoll = ::beginRoll,
                 onRoomControl = { seat, action -> model.act("planar-atlas:" + action.removePrefix(com.turnhub.android.data.PLANAR_PREFIX),
                     target = summary.players.firstOrNull { it.controller.id == seat.moduleId && it.slot == seat.slot }?.playerNumber ?: 0) },
                 // The same Atlas screen picker as the player's own phone, relayed by the hub for this
@@ -233,7 +239,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
                                         onOpenMenu = { if (enabled && !tableView) menu = true },
                                         onPlanarRoll = if (planarRollEnabled && !tableView && summary.state == TableState.RUNNING &&
                                             device?.planechase?.phenomenonPending != true && summary.atlasPlanechase?.plane?.phenomenon != true) {
-                                            { if (state.atlas != null) atlasRolling = true else planarControls.roll(false) }
+                                            { beginRoll(false) }
                                         } else null,
                                         onBump = { bump(it) }, onControl = { _, action -> act(action) },
                                         onTurnMark = { _, kind, value -> act(kind, value) },
@@ -259,12 +265,16 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             }
         }
     }
-    LaunchedEffect(planarRollEnabled) { if (!planarRollEnabled) atlasRolling = false }
-    if (atlasRolling) PlanarRollDialog(reduceMotion, onRoll = {
-        val face = com.turnhub.android.standalone.PlanarFace.roll(kotlin.random.Random.Default)
-        if (planarRollEnabled) model.act("planar-atlas:roll:${face.wireValue}")
-        face
-    }, onFinish = { atlasRolling = false })
+    val feedbackId = rollRequestId ?: "blocked".takeIf { rollBlocked }
+    if (feedbackId != null) RemotePlanarRollDialog(feedbackId,
+        if (rollBlocked) com.turnhub.android.lan.PlanarRollFeedback(feedbackId, "blocked") else state.planarRollFeedback,
+        reduceMotion, canRetry = !state.busy && state.uncertain,
+        physical = device?.planechase?.physical == true || state.atlas?.atlasPlanechase?.digital == false,
+        onRetry = model::retry, onClose = { rollRequestId = null; rollBlocked = false }, onShowPlanes = {
+            rollRequestId = null; rollBlocked = false
+            if (publicScreen) model.setDisplayView(state.displayId, "planes")
+            else { localTableView = false; localPlanesChosen = true }
+        })
     if (displaySettings) PublicDisplayDialog { displaySettings = false }
     if (confirmLeave) AlertDialog(onDismissRequest = { confirmLeave = false }, title = { Text("Leave shared game?") },
         text = { Text(if (state.uncertain) "The last reply is unknown. Check the host before entering that change again."
@@ -299,10 +309,7 @@ internal fun GuestPauseButton(state: TableState, enabled: Boolean, model: LanVie
 
 /** Presentation permission; the host rechecks the actor, game and planar rules. */
 internal fun sharedPlanarEnabled(state: LanUiState, summary: TableSummary): Boolean =
-    state.online && !state.busy && !state.uncertain && summary.settings.planechase &&
-        summary.settings.profile.magicRules && (state.master || state.role == "table" ||
-            state.role == "player" && summary.players.any { it.playerNumber == state.player && !it.eliminated })
+    com.turnhub.android.lan.planarActionsAllowed(state, summary)
 
 internal fun sharedPlanarRollEnabled(state: LanUiState, summary: TableSummary): Boolean =
-    sharedPlanarEnabled(state, summary) && summary.state == TableState.RUNNING &&
-        (if (state.role == "player") summary.hasTurn(state.player) else state.master || state.role == "table")
+    com.turnhub.android.lan.planarRollAllowed(state, summary)

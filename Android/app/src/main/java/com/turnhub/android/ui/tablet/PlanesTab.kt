@@ -445,7 +445,7 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
     screenSeat: TabletSeat? = null, readOnly: Boolean = false,
     onRoomControl: ((TabletSeat, String) -> Unit)? = null,
     /** Play together: the guest's Atlas screen choice goes through the hub instead of [actions]. */
-    onScreenView: ((String) -> Unit)? = null, screenEnabled: Boolean = !readOnly, rollEnabled: Boolean = !readOnly) {
+    onScreenView: ((String) -> Unit)? = null, screenEnabled: Boolean = !readOnly, rollEnabled: Boolean = !readOnly, onRoomRoll: ((Boolean) -> Unit)? = null) {
     val p = palette
     val context = LocalContext.current
     val planes = summary.atlasPlanechase
@@ -496,14 +496,16 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
             val can = running && !offline && !readOnly && active != null
             if (planes.plane?.phenomenon == true) AccentButton("Resolve the phenomenon",
                 { send(active, "${com.turnhub.android.data.PLANAR_PREFIX}resolve") }, Modifier.fillMaxWidth(), enabled = can)
-            else AccentButton("Roll the planar die", { rolling = true }, Modifier.fillMaxWidth(), enabled = can && rollEnabled)
+            else AccentButton("Roll the planar die", { if (onRoomRoll != null) onRoomRoll(false) else rolling = true }, Modifier.fillMaxWidth(), enabled = can && rollEnabled)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ToneButton("Planeswalk", { send(active, "${com.turnhub.android.data.PLANAR_PREFIX}planeswalk") }, Modifier.weight(1f), enabled = can)
                 ToneButton("Chaos ensues", { send(active, "${com.turnhub.android.data.PLANAR_PREFIX}chaos") }, Modifier.weight(1f), enabled = can)
             }
             ToneButton("Roll for a card (free)", {
-                val face = PlanarFace.roll(kotlin.random.Random.Default)
-                send(active, "${com.turnhub.android.data.PLANAR_PREFIX}effect:${face.wireValue}")
+                if (onRoomRoll != null) onRoomRoll(true) else {
+                    val face = PlanarFace.roll(kotlin.random.Random.Default)
+                    send(active, "${com.turnhub.android.data.PLANAR_PREFIX}effect:${face.wireValue}")
+                }
             }, Modifier.fillMaxWidth(), enabled = can && rollEnabled)
             if (!running) Text("The active player rolls while the game runs.", color = p.faint, style = MaterialTheme.typography.bodySmall)
         }

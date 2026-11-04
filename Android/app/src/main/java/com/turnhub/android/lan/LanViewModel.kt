@@ -56,6 +56,7 @@ internal data class LanUiState(
     val displayId: String = "host",
     val displayTargets: List<RoomDisplay> = emptyList(),
     val displayView: String? = null,
+    val planarRollFeedback: PlanarRollFeedback? = null,
     /** The Atlas game a hub relays, in place of [preview] or [remote] (Atlas decides it, not the hub). */
     val previewAtlas: com.turnhub.android.domain.TableSummary? = null,
     val atlas: com.turnhub.android.domain.TableSummary? = null,
@@ -459,7 +460,21 @@ internal class LanViewModel(
         }
     }
 
-    fun act(kind: String, value: Int = 0, slot: Int = 0, source: Int = 0, target: Int = 0) {
+    fun beginPlanarRoll(fromEffect: Boolean = false): String? {
+        val current = _state.value
+        val summary = current.atlas ?: current.remote?.toSummary(System.currentTimeMillis(), com.turnhub.android.domain.TableClock.nowMs()) ?: return null
+        if (!planarRollAllowed(current, summary) || pending != null || invite == null) return null
+        val id = UUID.randomUUID().toString()
+        val kind = if (current.atlas != null) {
+            val face = com.turnhub.android.standalone.PlanarFace.roll(kotlin.random.Random.Default)
+            "planar-atlas:${if (fromEffect) "effect" else "roll"}:${face.wireValue}"
+        } else "planar-roll"
+        _state.update { it.copy(planarRollFeedback = PlanarRollFeedback(id, "pending")) }
+        act(kind, if (current.atlas == null && fromEffect) 1 else 0, actionId = id)
+        return id
+    }
+
+    fun act(kind: String, value: Int = 0, slot: Int = 0, source: Int = 0, target: Int = 0, actionId: String? = null) {
         val state = _state.value
         val (match, revision) = state.remote?.let { it.gameId to it.revision }
             ?: state.atlas?.let { it.relayMatch() to it.revision } ?: return
@@ -470,7 +485,7 @@ internal class LanViewModel(
             else _state.update { it.copy(message = "Too many changes are waiting. Review the table before another edit.") }
             return
         }
-        pending = base(invitation, "command").put("token", token).put("actionId", UUID.randomUUID().toString())
+        pending = base(invitation, "command").put("token", token).put("actionId", actionId ?: UUID.randomUUID().toString())
             .put("epoch", commandEpoch).put("target", target.takeIf { it > 0 } ?: state.player).put("match", match).put("revision", revision).put("kind", kind).put("value", value).put("slot", slot).put("source", source).put("looksId", state.looksId)
         retry()
     }
@@ -494,17 +509,22 @@ internal class LanViewModel(
         if (_state.value.busy) return
         val epoch = generation
         _state.update { it.copy(busy = true, uncertain = true, message = null) }
+        if (isPlanarRollKind(body.optString("kind"))) _state.update { it.copy(planarRollFeedback = PlanarRollFeedback(body.text("actionId"), "pending")) }
         viewModelScope.launch {
             try {
                 val reply = request(invitation, body)
                 if (epoch != generation) return@launch
                 if (reply.text("code") != "unavailable") pending = null
                 receive(reply)
+                if (isPlanarRollKind(body.optString("kind"))) _state.update {
+                    it.copy(planarRollFeedback = confirmedPlanarFeedback(body.text("actionId"), reply))
+                }
                 _state.update { it.copy(busy = false, uncertain = pending != null) }
                 if (pending == null) drainActions()
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 if (epoch == generation) _state.update { it.copy(busy = false, online = false, uncertain = true,
+                    planarRollFeedback = if (isPlanarRollKind(body.optString("kind"))) PlanarRollFeedback(body.text("actionId"), "uncertain") else it.planarRollFeedback,
                     message = "The reply was lost. Retry the same action to find out whether the host saved it.") }
             }
         }
