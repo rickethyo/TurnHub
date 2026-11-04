@@ -1386,7 +1386,7 @@ data class StandaloneGame(
             state = state,
             settings = TableSettings(profile, startingLife, autoEliminateAtZeroLife = autoEliminateAtZeroLife,
                 autoEliminateAtPoisonLimit = autoEliminateAtPoisonLimit, autoEliminateAtCommanderDamage = autoEliminateAtCommanderDamage, poisonLimit = poisonLimit,
-                turnTimerMs = turnTimerMs, twoHeadedGiant = twoHeadedGiant, houseRules = houseRules),
+                turnTimerMs = turnTimerMs, twoHeadedGiant = twoHeadedGiant, houseRules = houseRules, planechase = planechase.enabled),
             host = null,
             starterPlayerNumber = starter?.plus(1),
             activePlayerNumber = active?.plus(1),

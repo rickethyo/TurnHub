@@ -17,6 +17,7 @@ internal class LanRoom(
     private val now: () -> Long = { System.nanoTime() / 1_000_000 },
     private val resolveIdentity: (String) -> String = { it },
     private val planesAvailable: () -> Boolean = { false },
+    private val planarPlayerAllowed: (Int) -> Boolean = { false },
 ) {
     data class RoomSeat(val identity: String, val number: Int, val name: String)
     private val epoch = randomLanSecret(16)
@@ -198,7 +199,8 @@ internal class LanRoom(
         val own = seat(m)
         val target = if (table || privileged) r.optInt("target", own) else own
         if (kind.startsWith(PLANAR_KIND)) {
-            if (!privileged) return frame("forbidden", m)
+            if (!privileged && !(planesAvailable() && (table ||
+                    m.text("role") == "player" && own > 0 && planarPlayerAllowed(own)))) return frame("forbidden", m)
         } else if (target <= 0 || !table && !privileged && m.text("role") !in setOf("player", "investigator")) return frame("forbidden", m)
         if (seats().none { it.number == target } && !kind.startsWith(PLANAR_KIND)) return frame("stale", m)
         val id = r.text("actionId").also { require(it.matches(Regex("[0-9a-f-]{36}"))) }

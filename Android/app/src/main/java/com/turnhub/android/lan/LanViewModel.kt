@@ -182,7 +182,11 @@ internal class LanViewModel(
                     val saved = store.write("host", next)
                     if (saved && fromAtlas) mirrorRoom(next)
                     saved
-                }, planesAvailable = { if (fromAtlas) atlasLink?.summary()?.settings?.planechase == true else table.state.value.game.planechase.enabled }, snapshot = ::snapshot, resolveIdentity = { if (fromAtlas) atlasLink!!.resolveIdentity(it) else it }, seats = {
+                }, planesAvailable = { if (fromAtlas) atlasLink?.summary()?.settings?.planechase == true else table.state.value.game.planechase.enabled },
+                    planarPlayerAllowed = { player ->
+                        if (fromAtlas) atlasLink?.summary()?.players?.any { it.playerNumber == player && !it.eliminated } == true
+                        else table.state.value.game.players.getOrNull(player - 1)?.eliminated == false
+                    }, snapshot = ::snapshot, resolveIdentity = { if (fromAtlas) atlasLink!!.resolveIdentity(it) else it }, seats = {
                     if (fromAtlas) atlasLink?.summary()?.takeIf { it.atlasId == record.optString("atlasId") }?.players.orEmpty().map {
                         LanRoom.RoomSeat(it.profileId ?: "participant:${it.participantId}", it.playerNumber, it.label)
                     } else {
@@ -197,8 +201,8 @@ internal class LanViewModel(
                     command = { request, player ->
                         // Reuse the existing validators against the current seat, never a remembered name.
                         val death = !fromAtlas && table.state.value.game.profile.deathMayDie
-                        val role = if (!fromAtlas && request.text("kind").startsWith(PLANAR_KIND)) "planes" else if (death) "investigator" else "player"
-                        val actingPlayer = if (fromAtlas && request.text("kind").startsWith(PLANAR_KIND)) atlasLink?.summary()?.activePlayerNumber ?: player else player
+                        val role = if (!fromAtlas && player <= 0 && request.text("kind").startsWith(PLANAR_KIND)) "planes" else if (death) "investigator" else "player"
+                        val actingPlayer = if (fromAtlas && player <= 0 && request.text("kind").startsWith(PLANAR_KIND)) atlasLink?.summary()?.activePlayerNumber ?: player else player
                         val join = baseRequest("join").put("role", role).put("player", if (role == "planes") 0 else actingPlayer).put("joinId", UUID.randomUUID().toString())
                         val local = if (fromAtlas) null else localCore()
                         val atlas = if (fromAtlas) atlasCore() else null

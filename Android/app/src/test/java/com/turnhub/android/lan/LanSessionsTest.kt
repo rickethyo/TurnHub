@@ -215,6 +215,23 @@ class LanSessionsTest {
                 .put("kind", kind).put("value", value).put("slot", 0).put("actionId", id)
     }
 
+    @Test fun `phone manual planeswalk and roll use real engine once with freshness and argument checks`() {
+        val deck = listOf(PlanarCard("plane-a"), PlanarCard("plane-b"), PlanarCard("plane-c"))
+        val f = Fixture(StandaloneGame().setFormat(GameProfile.MTG_COMMANDER).setPlanechase(true)
+            .addPlayer("A").addPlayer("B").chooseStarter(0).start(1_000, "shared-match", planarDeck = deck))
+        val token = f.join("player", 1).getString("token")
+        val walk = f.action(token, "planar-walk", 0)
+        assertEquals("ok", f.sessions.handle(walk).getString("code"))
+        assertEquals("plane-b", f.table.state.value.game.planechase.faceUp.single().id)
+        assertEquals("ok", f.sessions.handle(walk).getString("code"))
+        assertEquals("plane-b", f.table.state.value.game.planechase.faceUp.single().id)
+        assertEquals("stale", f.sessions.handle(f.action(token, "planar-walk", 0).put("match", "old")).getString("code"))
+        assertEquals("rejected", f.sessions.handle(f.action(token, "planar-walk", 1)).getString("code"))
+        assertEquals("rejected", f.sessions.handle(f.action(token, "planar-roll", 0).put("source", 2)).getString("code"))
+        assertEquals("ok", f.sessions.handle(f.action(token, "planar-roll", 0)).getString("code"))
+        assertNotNull(f.table.state.value.game.planechase.lastRoll)
+    }
+
     @Test fun `a planes display and the seats run the host's planes without seeing its deck`() {
         val deck = listOf(PlanarCard("plane-a"), PlanarCard("plane-b"), PlanarCard("plane-c"))
         val f = Fixture(StandaloneGame().setFormat(GameProfile.MTG_COMMANDER).setPlanechase(true)

@@ -98,8 +98,10 @@ handles and credentials are omitted. Atlas relay snapshots carry Atlas's public
 Public Table/Planes/Elder views are read-only unless granted game master access;
 a shared table controller can change ordinary seat gameplay. The server derives
 a personal command's seat from the saved profile ID and ignores a forged target.
-A shared controller/game master may name a current target. Planar actions require
-game master access. Format changes select the appropriate existing engine
+A shared controller/game master may name a current target. Planar actions allow living seated players and shared controllers while Planechase
+is enabled, acting for the active planar controller. Public views require a
+game-master grant for these gameplay changes. The host rechecks the originating
+seat and rejects eliminated players. Format changes select the appropriate existing engine
 validator rather than carrying old game-specific seat capabilities forward.
 
 Existing local own-seat commands include life, counters, received Commander

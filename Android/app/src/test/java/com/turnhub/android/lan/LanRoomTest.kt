@@ -22,8 +22,9 @@ class LanRoomTest {
         var writable = true
         var authorized = true
         var planesAvailable = true
+        var planarPlayerAllowed = true
         var alias: Pair<String, String>? = null
-        val room = LanRoom(record, planesAvailable = { planesAvailable }, save = { if (writable) { record = JSONObject(it.toString()); true } else false },
+        val room = LanRoom(record, planesAvailable = { planesAvailable }, planarPlayerAllowed = { planarPlayerAllowed }, save = { if (writable) { record = JSONObject(it.toString()); true } else false },
             resolveIdentity = { id -> if (id == alias?.first) alias!!.second else id },
             snapshot = { base("ok").put("code", "ok").put("match", match) }, seats = { roster },
             profiles = { JSONArray() }, attach = { if (delayAttach) kotlinx.coroutines.delay(10)
@@ -167,6 +168,25 @@ class LanRoomTest {
         assertEquals("ok", f.room.handle(f.action(joined, target = 2)).text("code"))
         assertEquals(1, f.changes)
     }
+    @Test fun `living phone players can record planar actions with receipts but public views cannot`() = runBlocking {
+        val f = Fixture()
+        val player = f.join()
+        val action = f.action(player, "planar-walk")
+        assertEquals("ok", f.room.handle(action).text("code"))
+        assertEquals("ok", f.room.handle(action).text("code"))
+        assertEquals(1, f.changes)
+        assertEquals(1, f.lastTarget)
+        assertFalse(f.room.guests.single().master)
+        f.planarPlayerAllowed = false
+        assertEquals("forbidden", f.room.handle(f.action(player, "planar-roll")).text("code"))
+        f.planarPlayerAllowed = true
+        f.planesAvailable = false
+        assertEquals("forbidden", f.room.handle(f.action(player, "planar-roll")).text("code"))
+        f.planesAvailable = true
+        val table = f.join("table")
+        assertEquals("ok", f.room.handle(f.action(table, "planar-roll")).text("code"))
+    }
+
     @Test fun `public views and planes are read only until explicitly granted`() = runBlocking {
         val f = Fixture()
         for (role in listOf("display", "planes", "elder")) {

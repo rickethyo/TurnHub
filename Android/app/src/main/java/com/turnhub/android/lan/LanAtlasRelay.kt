@@ -82,6 +82,8 @@ internal fun TableSummary.relayMatch() = "$atlasId/$bootId/$game/$matchId"
  */
 internal fun atlasRelayAction(summary: TableSummary, player: Int, kind: String, value: Int, slot: Int, source: Int):
     (suspend TableControls.() -> Boolean)? {
+    if (kind.startsWith(PLANAR_KIND) && (!summary.settings.planechase || !summary.settings.profile.magicRules ||
+            summary.players.none { it.playerNumber == player && !it.eliminated })) return null
     val me = summary.players.firstOrNull { it.playerNumber == if (kind.startsWith(PLANAR_KIND)) summary.activePlayerNumber else player } ?: return null
     if (summary.state != TableState.RUNNING && summary.state != TableState.PAUSED) return null
     val seat = TabletSeat(me.controller.id, me.slot)

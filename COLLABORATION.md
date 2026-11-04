@@ -2057,3 +2057,31 @@ switched it back to Table and closed the dialog. No gameplay commands sent.
 Manual updated, rendered with Word, and edited page checked. Large system text
 and Atlas-relayed physical acceptance remain. Keep this separate from Claude's
 active phone-hosted Sigil PR #194 because the scopes and branches are independent.
+
+## Phone planar controls — 2026-11-03, Codex
+
+Owner reports missing planar die on the phone player card and inability to
+record a physical-die planeswalk, while host tablet works. Baseline `3635dcea`,
+clean codex/master, origin fetched; continue #195. Scope: expose active-card
+planar roll, allow living seated players/shared controllers through existing
+planar actions while keeping public screens read-only, and retain source-seat,
+match/receipt and host-engine checks. Check host/Atlas relay parity; build,
+test, install and inspect without rolling or planeswalking the live match.
+
+Validation: standard debug and Preview 1468 builds pass; all 62 focused room,
+local-session, Atlas-relay and planar-control tests pass. Tests cover the
+actual host-engine manual planeswalk and roll, exactly-once retry, stale
+match/invalid payload rejection, eliminated/offline/public-view restrictions,
+Atlas active-controller forwarding, and real phone-hosted Planechase settings
+in TableSummary. The phone card callback had been null, and Planes UI plus the
+room gate incorrectly required game-master access. Corrected those gates and
+preserved the originating member seat through the adapter. No rule changes.
+All seven in-place device updates succeeded. Private host snapshots show the
+same running game ID, revision and five-player roster immediately before and
+after installation. Inspected Michael's actual active phone card with Planar
+die visible; expanded Physical die & card effects on the Fold and verified
+Planeswalk and Chaos ensues are enabled for a seated non-master. No live roll,
+planeswalk or other gameplay command sent during validation. Restored the Fold
+to its player view. Docs links/whitespace pass; edited manual page rendered
+with Word and visually checked. Atlas-relayed physical interaction and large
+system text remain acceptance checks. Continue the related #195 follow-up.

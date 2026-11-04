@@ -361,7 +361,8 @@ private fun PlanarPlay(game: StandaloneGame, controls: PlanarControls, cards: Ma
         }
     }
 
-    DisclosureCard("When a card says so") {
+    DisclosureCard("Physical die & card effects") {
+        Text("Rolled your own planar die? Choose Planeswalk or Chaos ensues to record its effect.", color = p.muted)
         ToneButton("Roll for a card (free)", { controls.roll(true) }, Modifier.fillMaxWidth(),
             enabled = running && !planar.phenomenonPending)
         ToneButton("Planeswalk", controls.planeswalk, Modifier.fillMaxWidth(), enabled = running)

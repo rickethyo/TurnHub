@@ -285,9 +285,9 @@ The game keeps its deck when you close and reopen the app, and a rematch reshuff
 
 ## During the Game
 
-The Planes tab shows the face-up plane. The planar die button rolls for the player whose turn it is and shows what the next roll costs; the cost goes back to {0} when the turn passes. **Planeswalk** turns over the next plane. A phenomenon waits until you tap **Done: planeswalk away**. On chaos, the plane's chaos ability is highlighted.
+The Planes tab shows the face-up plane. The planar die button rolls for the player whose turn it is and shows what the next roll costs; the cost goes back to {0} when the turn passes. **Planeswalk** turns over the next plane. A phenomenon waits until you tap **Done: planeswalk away**. On chaos, the plane's chaos ability is highlighted. On a connected phone, Planar die appears beside Pass on your active player card. Living seated players can use the Planes controls without game-master access; they apply to the active planar controller. After rolling a physical die, open Physical die & card effects and choose Planeswalk or Chaos ensues. Public read-only displays still need a game-master grant to change gameplay.
 
-On the table, **Planar die** beside Pass rolls with a short animation. A blank keeps you on the table; chaos or planeswalk opens Planes with the effect highlighted. **Counters on this plane** and the buttons under **When a card says so** cover cards that roll the die, planeswalk, cause chaos or move the top card.
+On the table, **Planar die** beside Pass rolls with a short animation. A blank keeps you on the table; chaos or planeswalk opens Planes with the effect highlighted. **Counters on this plane** and the buttons under **Physical die & card effects** cover cards that roll the die, planeswalk, cause chaos or move the top card.
 
 With physical cards, TurnHub rolls the die, counts the cost and tells you when to turn over the next plane. Rolls and deck moves wait while the game is paused.
 
