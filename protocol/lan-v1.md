@@ -101,7 +101,9 @@ a personal command's seat from the saved profile ID and ignores a forged target.
 A shared controller/game master may name a current target. Planar actions allow living seated players and shared controllers while Planechase
 is enabled, acting for the active planar controller. Public views require a
 game-master grant for these gameplay changes. The host rechecks the originating
-seat and rejects eliminated players. Format changes select the appropriate existing engine
+seat and rejects eliminated players. Die rolls (including card-effect rolls)
+require the originating player to be on the active turn/team, even with a
+game-master grant. Shared host/table controls act for the active controller. Format changes select the appropriate existing engine
 validator rather than carrying old game-specific seat capabilities forward.
 
 Existing local own-seat commands include life, counters, received Commander

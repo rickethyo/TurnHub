@@ -102,7 +102,10 @@ class LanAtlasSessionsTest {
         val walk = f.action(token, "planar-atlas:planeswalk")
         assertEquals("ok", f.handle(walk).getString("code"))
         assertEquals("ok", f.handle(walk).getString("code"))
-        assertEquals("ok", f.handle(f.action(token, "planar-atlas:roll:chaos")).getString("code"))
+        val activeNumber = f.table!!.activePlayerNumber!!
+        val activeToken = if (activeNumber == 2) token else f.join(player = activeNumber).getString("token")
+        if (activeNumber != 2) assertEquals("rejected", f.handle(f.action(token, "planar-atlas:roll:chaos")).getString("code"))
+        assertEquals("ok", f.handle(f.action(activeToken, "planar-atlas:roll:chaos")).getString("code"))
         assertEquals(listOf("control $active ${com.turnhub.android.data.PLANAR_PREFIX}planeswalk",
             "control $active ${com.turnhub.android.data.PLANAR_PREFIX}roll:chaos"), f.atlas.sent)
         assertEquals("rejected", f.handle(f.action(token, "planar-atlas:planeswalk", value = 1)).getString("code"))

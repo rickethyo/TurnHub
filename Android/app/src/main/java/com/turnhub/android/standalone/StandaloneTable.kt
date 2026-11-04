@@ -908,7 +908,8 @@ class StandaloneTable(
         val simple = action.value == 0 && action.slot == 0
         val next = when (action.kind) {
             "planar-roll" -> if (action.slot == 0 && action.value in 0..1)
-                game.rollPlanarDie(index, PlanarFace.roll(planarRandom), fromEffect = action.value == 1) else game
+                game.rollPlanarDie(if (action.player > 0) action.player - 1 else index,
+                    PlanarFace.roll(planarRandom), fromEffect = action.value == 1) else game
             "planar-walk" -> if (simple) game.planeswalk(index) else game
             "planar-resolve" -> if (simple) game.resolvePhenomenon(index) else game
             "planar-chaos" -> if (simple) game.chaosEnsues(index) else game

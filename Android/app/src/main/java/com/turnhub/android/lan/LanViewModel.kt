@@ -186,6 +186,10 @@ internal class LanViewModel(
                     planarPlayerAllowed = { player ->
                         if (fromAtlas) atlasLink?.summary()?.players?.any { it.playerNumber == player && !it.eliminated } == true
                         else table.state.value.game.players.getOrNull(player - 1)?.eliminated == false
+                    }, planarRollAllowed = { player ->
+                        if (fromAtlas) atlasLink?.summary()?.let { it.state == com.turnhub.android.protocol.TableState.RUNNING && it.hasTurn(player) } == true
+                        else table.state.value.game.let { game -> game.state == com.turnhub.android.protocol.TableState.RUNNING &&
+                            game.active?.let { player - 1 in game.mates(it) } == true }
                     }, snapshot = ::snapshot, resolveIdentity = { if (fromAtlas) atlasLink!!.resolveIdentity(it) else it }, seats = {
                     if (fromAtlas) atlasLink?.summary()?.takeIf { it.atlasId == record.optString("atlasId") }?.players.orEmpty().map {
                         LanRoom.RoomSeat(it.profileId ?: "participant:${it.participantId}", it.playerNumber, it.label)

@@ -23,8 +23,9 @@ class LanRoomTest {
         var authorized = true
         var planesAvailable = true
         var planarPlayerAllowed = true
+        var planarRollAllowed = true
         var alias: Pair<String, String>? = null
-        val room = LanRoom(record, planesAvailable = { planesAvailable }, planarPlayerAllowed = { planarPlayerAllowed }, save = { if (writable) { record = JSONObject(it.toString()); true } else false },
+        val room = LanRoom(record, planesAvailable = { planesAvailable }, planarPlayerAllowed = { planarPlayerAllowed }, planarRollAllowed = { planarRollAllowed }, save = { if (writable) { record = JSONObject(it.toString()); true } else false },
             resolveIdentity = { id -> if (id == alias?.first) alias!!.second else id },
             snapshot = { base("ok").put("code", "ok").put("match", match) }, seats = { roster },
             profiles = { JSONArray() }, attach = { if (delayAttach) kotlinx.coroutines.delay(10)
@@ -185,6 +186,20 @@ class LanRoomTest {
         f.planesAvailable = true
         val table = f.join("table")
         assertEquals("ok", f.room.handle(f.action(table, "planar-roll")).text("code"))
+    }
+
+    @Test fun `phone rolls require current turn even with a master grant while manual effects remain available`() = runBlocking {
+        val f = Fixture()
+        val player = f.join()
+        f.planarRollAllowed = false
+        for (kind in listOf("planar-roll", "planar-atlas:roll:blank", "planar-atlas:effect:chaos")) {
+            assertEquals("forbidden", f.room.handle(f.action(player, kind)).text("code"))
+        }
+        f.room.grant(player.text("token"), true)
+        assertEquals("forbidden", f.room.handle(f.action(player, "planar-roll")).text("code"))
+        assertEquals("ok", f.room.handle(f.action(player, "planar-walk")).text("code"))
+        f.planarRollAllowed = true
+        assertEquals("ok", f.room.handle(f.action(player, "planar-roll")).text("code"))
     }
 
     @Test fun `public views and planes are read only until explicitly granted`() = runBlocking {

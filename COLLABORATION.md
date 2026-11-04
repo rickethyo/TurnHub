@@ -2085,3 +2085,24 @@ planeswalk or other gameplay command sent during validation. Restored the Fold
 to its player view. Docs links/whitespace pass; edited manual page rendered
 with Word and visually checked. Atlas-relayed physical interaction and large
 system text remain acceptance checks. Continue the related #195 follow-up.
+
+Phone planar roll turn gate — 2026-11-03, Codex, baseline `7f259ef0`:
+owner requires the phone roll control only on that player's active turn.
+Scope: separate die-roll availability from other manual planar actions,
+recheck originating seat/active team at the host for normal and effect rolls,
+and enforce the same rule for Atlas relay. Keep shared host/table controls
+acting for the active planar controller. Build/test/install with live game
+preserved and no test rolls. Continue #195.
+
+Validation: standard debug and Preview 1469 builds succeed; all 64 focused
+room/session/Atlas-relay/phone-control tests pass. UI and host distinguish die
+rolls from manual planar effects. Off-turn normal and effect rolls are rejected
+for a seated phone even with master access; active-team use remains valid.
+The local engine receives the originating roll seat instead of substituting
+the active index, and Atlas relay checks the originating active team. Tests
+also cover paused turns and Two-Headed Giant presentation permissions. All
+seven in-place updates succeeded. The host retained its same running game ID
+and five-player roster. Inspected the off-turn Fold's Planes button: Roll the
+planar die disabled; restored its player view. No live test rolls/gameplay
+commands. Docs links and whitespace pass; manual edited page rendered and
+visually checked. Continue #195; no firmware flash or release.

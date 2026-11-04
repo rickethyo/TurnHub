@@ -244,6 +244,7 @@ internal class PlanarControls(
     /** Planes that reverse turn order (owner, 2026-10-20). */
     val reverseTurnOrder: (on: Boolean) -> Unit,
     val enabled: Boolean = true,
+    val rollEnabled: Boolean = enabled,
 ) {
     companion object {
         fun of(table: StandaloneTable) = PlanarControls({ table.rollPlanarDie(fromEffect = it) }, table::planeswalk,
@@ -357,14 +358,14 @@ private fun PlanarPlay(game: StandaloneGame, controls: PlanarControls, cards: Ma
             AccentButton("Done: planeswalk away", controls.resolvePhenomenon, Modifier.fillMaxWidth(), enabled = running)
         } else {
             val cost = game.active?.let { planar.cost(it) } ?: 0
-            AccentButton("Roll the planar die: {$cost}", { controls.roll(false) }, Modifier.fillMaxWidth(), enabled = running)
+            AccentButton("Roll the planar die: {$cost}", { controls.roll(false) }, Modifier.fillMaxWidth(), enabled = running && controls.rollEnabled)
         }
     }
 
     DisclosureCard("Physical die & card effects") {
         Text("Rolled your own planar die? Choose Planeswalk or Chaos ensues to record its effect.", color = p.muted)
         ToneButton("Roll for a card (free)", { controls.roll(true) }, Modifier.fillMaxWidth(),
-            enabled = running && !planar.phenomenonPending)
+            enabled = running && controls.rollEnabled && !planar.phenomenonPending)
         ToneButton("Planeswalk", controls.planeswalk, Modifier.fillMaxWidth(), enabled = running)
         ToneButton("Chaos ensues", controls.chaosEnsues, Modifier.fillMaxWidth(), enabled = running && !planar.phenomenonPending)
         ToneButton(if (game.turnOrderReversed) "↻ Turn order back to clockwise" else "↺ Reverse turn order",
@@ -444,7 +445,7 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
     screenSeat: TabletSeat? = null, readOnly: Boolean = false,
     onRoomControl: ((TabletSeat, String) -> Unit)? = null,
     /** Play together: the guest's Atlas screen choice goes through the hub instead of [actions]. */
-    onScreenView: ((String) -> Unit)? = null, screenEnabled: Boolean = !readOnly) {
+    onScreenView: ((String) -> Unit)? = null, screenEnabled: Boolean = !readOnly, rollEnabled: Boolean = !readOnly) {
     val p = palette
     val context = LocalContext.current
     val planes = summary.atlasPlanechase
@@ -495,7 +496,7 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
             val can = running && !offline && !readOnly && active != null
             if (planes.plane?.phenomenon == true) AccentButton("Resolve the phenomenon",
                 { send(active, "${com.turnhub.android.data.PLANAR_PREFIX}resolve") }, Modifier.fillMaxWidth(), enabled = can)
-            else AccentButton("Roll the planar die", { rolling = true }, Modifier.fillMaxWidth(), enabled = can)
+            else AccentButton("Roll the planar die", { rolling = true }, Modifier.fillMaxWidth(), enabled = can && rollEnabled)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ToneButton("Planeswalk", { send(active, "${com.turnhub.android.data.PLANAR_PREFIX}planeswalk") }, Modifier.weight(1f), enabled = can)
                 ToneButton("Chaos ensues", { send(active, "${com.turnhub.android.data.PLANAR_PREFIX}chaos") }, Modifier.weight(1f), enabled = can)
@@ -503,7 +504,7 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
             ToneButton("Roll for a card (free)", {
                 val face = PlanarFace.roll(kotlin.random.Random.Default)
                 send(active, "${com.turnhub.android.data.PLANAR_PREFIX}effect:${face.wireValue}")
-            }, Modifier.fillMaxWidth(), enabled = can)
+            }, Modifier.fillMaxWidth(), enabled = can && rollEnabled)
             if (!running) Text("The active player rolls while the game runs.", color = p.faint, style = MaterialTheme.typography.bodySmall)
         }
         if (running && screenSeat != null) AtlasScreenPicker(screenSeat, actions, cardView = planes.digital && planes.plane != null,
@@ -512,7 +513,7 @@ internal fun AtlasPlanesTab(summary: com.turnhub.android.domain.TableSummary, ac
     }
     if (rolling) PlanarRollDialog(reduceMotion, onRoll = {
         val face = PlanarFace.roll(kotlin.random.Random.Default)
-        send(active, "${com.turnhub.android.data.PLANAR_PREFIX}roll:${face.wireValue}")
+        if (rollEnabled) send(active, "${com.turnhub.android.data.PLANAR_PREFIX}roll:${face.wireValue}")
         face
     }, onFinish = { rolling = false })
 }

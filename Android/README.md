@@ -722,6 +722,6 @@ labels; public gameplay identity can be used without copying private stats or
 credentials. Private statistics and administration still require the profile PIN.
 
 With Planechase enabled, connected phones show **Planar die** on the active
-player card. Living seated players may use the Planes controls without a game
+player card. Rolls are enabled only on your active player/team turn. Living seated players may use the Planes controls without a game
 master grant. **Physical die & card effects** contains **Planeswalk** and
 **Chaos ensues** for physical rolls. Public displays remain read-only.

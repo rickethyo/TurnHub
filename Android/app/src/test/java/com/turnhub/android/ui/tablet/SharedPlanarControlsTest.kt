@@ -8,6 +8,20 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SharedPlanarControlsTest {
+    @Test fun `roll button follows active turn and team even for a seated master`() {
+        val base = TableSummaryMapper.map(Fixtures.info(), Fixtures.state("running.response.json"), receivedAtMs = 1000)
+        val summary = base.copy(activePlayerNumber = base.players.first().playerNumber,
+            settings = base.settings.copy(profile = GameProfile.MTG_COMMANDER, planechase = true))
+        val state = LanUiState(role = "player", player = summary.players.first().playerNumber, online = true)
+        assertTrue(sharedPlanarRollEnabled(state, summary))
+        val other = state.copy(player = summary.players[1].playerNumber)
+        assertFalse(sharedPlanarRollEnabled(other, summary))
+        assertFalse(sharedPlanarRollEnabled(other.copy(master = true), summary))
+        assertTrue(sharedPlanarEnabled(other, summary))
+        assertFalse(sharedPlanarRollEnabled(state, summary.copy(state = com.turnhub.android.protocol.TableState.PAUSED)))
+        assertTrue(sharedPlanarRollEnabled(other, summary.copy(players = summary.players.map { it.copy(team = 1) })))
+        assertTrue(sharedPlanarRollEnabled(state.copy(role = "table", player = 0), summary))
+    }
     @Test fun `phone hosted snapshot carries its actual Planechase setting`() {
         val game = com.turnhub.android.standalone.StandaloneGame().setFormat(GameProfile.MTG_COMMANDER)
             .setPlanechase(true).addPlayer("A").addPlayer("B")

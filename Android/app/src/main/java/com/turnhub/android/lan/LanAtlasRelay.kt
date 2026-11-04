@@ -84,6 +84,7 @@ internal fun atlasRelayAction(summary: TableSummary, player: Int, kind: String, 
     (suspend TableControls.() -> Boolean)? {
     if (kind.startsWith(PLANAR_KIND) && (!summary.settings.planechase || !summary.settings.profile.magicRules ||
             summary.players.none { it.playerNumber == player && !it.eliminated })) return null
+    if (isPlanarRollKind(kind) && (summary.state != TableState.RUNNING || !summary.hasTurn(player))) return null
     val me = summary.players.firstOrNull { it.playerNumber == if (kind.startsWith(PLANAR_KIND)) summary.activePlayerNumber else player } ?: return null
     if (summary.state != TableState.RUNNING && summary.state != TableState.PAUSED) return null
     val seat = TabletSeat(me.controller.id, me.slot)

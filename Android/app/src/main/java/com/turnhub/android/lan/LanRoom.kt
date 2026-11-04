@@ -18,6 +18,7 @@ internal class LanRoom(
     private val resolveIdentity: (String) -> String = { it },
     private val planesAvailable: () -> Boolean = { false },
     private val planarPlayerAllowed: (Int) -> Boolean = { false },
+    private val planarRollAllowed: (Int) -> Boolean = { false },
 ) {
     data class RoomSeat(val identity: String, val number: Int, val name: String)
     private val epoch = randomLanSecret(16)
@@ -199,6 +200,7 @@ internal class LanRoom(
         val own = seat(m)
         val target = if (table || privileged) r.optInt("target", own) else own
         if (kind.startsWith(PLANAR_KIND)) {
+            if (m.text("role") == "player" && isPlanarRollKind(kind) && !planarRollAllowed(own)) return frame("forbidden", m)
             if (!privileged && !(planesAvailable() && (table ||
                     m.text("role") == "player" && own > 0 && planarPlayerAllowed(own)))) return frame("forbidden", m)
         } else if (target <= 0 || !table && !privileged && m.text("role") !in setOf("player", "investigator")) return frame("forbidden", m)
