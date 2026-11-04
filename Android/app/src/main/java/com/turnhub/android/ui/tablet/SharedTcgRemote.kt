@@ -48,11 +48,14 @@ internal fun sharedGameTitle(profile: com.turnhub.android.protocol.GameProfile):
 internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotion: Boolean, onLeave: () -> Unit) {
     val device = state.remote
     val p = palette
-    // A table display joins with no seat: it only ever shows the whole table.
+    // Public displays stay unseated; their saved presentation selects Table or Planes.
     val displayOnly = state.role == "display"
-    var tableView by rememberSaveable { mutableStateOf(state.view == "table" || displayOnly || state.role in setOf("table", "planes")) }
+    var localTableView by rememberSaveable { mutableStateOf(state.view == "table" || displayOnly || state.role in setOf("table", "planes")) }
     // The Planes screen, from a seat or as the planes display (owner, 2026-10-20).
-    var planesChosen by rememberSaveable { mutableStateOf(state.view == "planes") }
+    var localPlanesChosen by rememberSaveable { mutableStateOf(state.view == "planes") }
+    val publicScreen = state.role in setOf("display", "table", "planes") && state.displayView != null
+    val planesChosen = if (publicScreen) state.displayView == "planes" else localPlanesChosen
+    val tableView = if (publicScreen) !planesChosen else localTableView
     LaunchedEffect(tableView, planesChosen) { model.chooseView(if (planesChosen) "planes" else if (tableView) "table" else "personal") }
     val planesDisplay = state.role == "planes"
     val planesView = planesChosen && (device?.planechase?.enabled == true || state.atlas?.settings?.planechase == true)
@@ -100,7 +103,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     }
     // Navigation changes only this composable; token, polling and pending commands stay in the model.
     BackHandler {
-        when { menu -> menu = false; planesView && !planesDisplay -> planesChosen = false; tableView -> tableView = false; else -> confirmLeave = true }
+        when { menu -> menu = false; publicScreen -> confirmLeave = true; planesView && !planesDisplay -> localPlanesChosen = false; tableView -> localTableView = false; else -> confirmLeave = true }
     }
     fun act(kind: String, value: Int = 0, slot: Int = 0, source: Int = 0) {
         if (!tableView && !planesView && enabled) model.act(kind, value, slot, source)
@@ -123,12 +126,16 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     Column(Modifier.fillMaxSize().background(p.bg).safeDrawingPadding().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.role in setOf("player", "investigator")) ToneButton("My player", {
-                menu = false; tableView = false; planesChosen = false
+                menu = false; localTableView = false; localPlanesChosen = false
             }, Modifier.weight(1f))
-            ToneButton("Table", { menu = false; tableView = true; planesChosen = false }, Modifier.weight(1f))
+            ToneButton("Table", { menu = false
+                if (publicScreen) model.setDisplayView(state.displayId, "table")
+                else { localTableView = true; localPlanesChosen = false } }, Modifier.weight(1f))
             if (summary.settings.profile.deathMayDie) ToneButton("Elder One", { model.chooseView("elder") }, Modifier.weight(1f))
             if (planar.enabled || summary.settings.planechase) ToneButton("Planes", {
-                menu = false; tableView = false; planesChosen = true
+                menu = false
+                if (publicScreen) model.setDisplayView(state.displayId, "planes")
+                else { localTableView = false; localPlanesChosen = true }
             }, Modifier.weight(1f))
             ToneButton("Leave", { confirmLeave = true })
         }

@@ -35,6 +35,9 @@ Commander mode is named as the commander; every other tile card is art only.
 **Display settings** opens from every player menu, the connected player's **Display**
 button, and the table menu's **Sound & display**. It names the screen being changed;
 **Choose another screen** selects a public display, host screen or named player's screen.
+For a public Table/Planes display, **Show on this screen** selects **Table** or
+**Planes**. Planes requires Planechase. Content choices survive room reconnects
+and host restart without changing gameplay permissions.
 Choose **All panels upright** for a TV/public display or **Face each player** for a
 central table. Any connected player can change this presentation setting without
 game-master permission, including after conceding. Only the selected device changes;

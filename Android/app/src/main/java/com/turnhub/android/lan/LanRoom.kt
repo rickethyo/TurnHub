@@ -16,6 +16,7 @@ internal class LanRoom(
     private val command: suspend (JSONObject, Int) -> JSONObject,
     private val now: () -> Long = { System.nanoTime() / 1_000_000 },
     private val resolveIdentity: (String) -> String = { it },
+    private val planesAvailable: () -> Boolean = { false },
 ) {
     data class RoomSeat(val identity: String, val number: Int, val name: String)
     private val epoch = randomLanSecret(16)
@@ -35,6 +36,23 @@ internal class LanRoom(
         if (!save(record)) { record.put("sequence", old); error("Room could not be saved") }
     }
     private val orientations = record.optJSONObject("displayOrientations") ?: JSONObject().also { record.put("displayOrientations", it) }
+    private val views = record.optJSONObject("displayViews") ?: JSONObject().also { record.put("displayViews", it) }
+    private fun displayMember(target: String) = (0 until members.length()).map { members.getJSONObject(it) }
+        .firstOrNull { it.text("joinId") == target && it.text("role") in setOf("display", "table", "planes") }
+    fun displayView(target: String): String? = displayMember(target)?.let {
+        views.optString(target, if (it.text("role") == "planes") "planes" else "table")
+    }
+    fun setDisplayView(target: String, view: String) {
+        require(displayMember(target) != null && view in setOf("table", "planes"))
+        require(view != "planes" || planesAvailable())
+        if (displayView(target) == view) return
+        val old = views.opt(target)
+        views.put(target, view)
+        try { persist() } catch (e: Exception) {
+            if (old == null) views.remove(target) else views.put(target, old)
+            throw e
+        }
+    }
     fun displayAllUpright(target: String): Boolean = orientations.optBoolean(target)
     fun displayTargets(): JSONArray = JSONArray().put(JSONObject().put("id", "host")
         .put("name", "Host screen").put("detail", friendlyDisplayDevice(record.optString("hostDeviceName")))
@@ -52,6 +70,7 @@ internal class LanRoom(
             targets.put(JSONObject().put("id", id).put("name", name)
                 .put("detail", friendlyDisplayDevice(m.optString("deviceName")))
                 .put("public", role in setOf("display", "table", "planes", "elder"))
+                .put("view", displayView(id))
                 .put("upright", displayAllUpright(id)))
         }
     }
@@ -82,6 +101,7 @@ internal class LanRoom(
         f.put("directory", profiles()).put("displayTargets", displayTargets())
             .put("displayId", m?.text("joinId") ?: "host")
             .put("displayAllUpright", displayAllUpright(m?.text("joinId") ?: "host"))
+            .put("displayView", displayView(m?.text("joinId") ?: "host"))
         if (m != null) f.put("player", seat(m)).put("role", m.text("role")).put("master", m.optBoolean("master")).put("epoch", memberEpoch(m))
         return f
     }
@@ -115,10 +135,19 @@ internal class LanRoom(
                     }
                     "presentation" -> commandLock.withLock {
                         if (member(m.text("token")) == null) reply("unauthorized")
-                        else if (m.text("role") !in setOf("player", "investigator", "table") && !m.optBoolean("master")) frame("forbidden", m)
+                        else if (m.text("role") !in setOf("player", "investigator", "table") && !m.optBoolean("master") &&
+                            !(r.has("displayView") && !r.has("displayAllUpright") && r.optString("displayTarget") == m.text("joinId") &&
+                                m.text("role") in setOf("display", "planes"))) frame("forbidden", m)
                         else {
-                            val upright = r.get("displayAllUpright").also { require(it is Boolean) } as Boolean
-                            setDisplayAllUpright(r.text("displayTarget"), upright)
+                            require(r.has("displayView") != r.has("displayAllUpright"))
+                            if (r.has("displayView")) {
+                                val view = r.get("displayView").also { require(it is String) } as String
+                                setDisplayView(r.text("displayTarget"), view)
+                            }
+                            else {
+                                val upright = r.get("displayAllUpright").also { require(it is Boolean) } as Boolean
+                                setDisplayAllUpright(r.text("displayTarget"), upright)
+                            }
                             frame("ok", m)
                         }
                     }

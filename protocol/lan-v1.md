@@ -132,6 +132,20 @@ prevents replay when a game write succeeded just before the process lost its
 receipt. Players review current values before making a new edit. Reconnect does
 not replay commands automatically.
 
+### Public display content
+
+`presentation` accepts exactly one of `displayAllUpright` (boolean) or
+`displayView` (`table` or `planes`), with the same stable `displayTarget`.
+Content selection applies to member roles `display`, `table` and `planes`;
+`planes` requires Planechase on the authoritative game. Host and personal
+screens keep their normal navigation. Target rows include `view` for supported
+public screens, and each public member reply includes `displayView`.
+The room persists choices in `displayViews`, independently of orientation,
+and rolls back failed writes. An unchanged request is idempotent.
+Authenticated players/shared controllers and game masters may select public
+content; read-only Table/Planes members may select only their own content.
+This never changes membership role, seat, master grants or game state.
+
 ## Persistence and Atlas backup
 
 The hub saves the room ID, invitation secret, owner capability and memberships

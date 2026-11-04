@@ -21,8 +21,9 @@ class LanRoomTest {
         var delayAttach = false
         var writable = true
         var authorized = true
+        var planesAvailable = true
         var alias: Pair<String, String>? = null
-        val room = LanRoom(record, save = { if (writable) { record = JSONObject(it.toString()); true } else false },
+        val room = LanRoom(record, planesAvailable = { planesAvailable }, save = { if (writable) { record = JSONObject(it.toString()); true } else false },
             resolveIdentity = { id -> if (id == alias?.first) alias!!.second else id },
             snapshot = { base("ok").put("code", "ok").put("match", match) }, seats = { roster },
             profiles = { JSONArray() }, attach = { if (delayAttach) kotlinx.coroutines.delay(10)
@@ -74,6 +75,68 @@ class LanRoomTest {
         f.writable = true
         assertEquals("ok", f.room.handle(presentation(player, target, false)).text("code"))
         assertFalse(f.room.displayAllUpright(target))
+    }
+
+    @Test fun `selected public content survives restart without changing seats roles or other screens`() = runBlocking {
+        val f = Fixture()
+        val player = f.join()
+        val screen = f.join("display")
+        val other = f.join("planes")
+        val target = screen.text("displayId")
+        fun change(view: String) = f.base("presentation").put("token", player.text("token"))
+            .put("displayTarget", target).put("displayView", view)
+        assertEquals("table", screen.text("displayView"))
+        assertEquals("ok", f.room.handle(change("planes")).text("code"))
+        assertEquals("planes", f.room.handle(f.poll(screen.text("token"))).text("displayView"))
+        assertEquals("planes", f.room.handle(f.poll(other.text("token"))).text("displayView"))
+        val sequence = f.record.getLong("sequence")
+        assertEquals("ok", f.room.handle(change("planes")).text("code"))
+        assertEquals(sequence, f.record.getLong("sequence"))
+        val restored = Fixture(JSONObject(f.record.toString()))
+        assertEquals("planes", restored.room.handle(restored.poll(screen.text("token"))).text("displayView"))
+        assertEquals("ok", f.room.handle(change("table")).text("code"))
+        assertEquals("planes", f.room.displayView(other.text("displayId")))
+        assertEquals(0, f.changes)
+        assertFalse(f.room.guests.any { it.master })
+        assertEquals("display", f.room.guests[1].role)
+        assertFalse(f.room.displayAllUpright(target))
+    }
+
+    @Test fun `public content validates availability target value and durable write`() = runBlocking {
+        val f = Fixture()
+        val player = f.join()
+        val screen = f.join("display")
+        val target = screen.text("displayId")
+        fun change(id: String = target, view: String = "planes") = f.base("presentation")
+            .put("token", player.text("token")).put("displayTarget", id).put("displayView", view)
+        assertEquals("invalid", f.room.handle(change(view = "personal")).text("code"))
+        assertEquals("invalid", f.room.handle(change().put("displayView", 1)).text("code"))
+        assertEquals("invalid", f.room.handle(change(id = "missing")).text("code"))
+        assertEquals("invalid", f.room.handle(change(id = player.text("displayId"))).text("code"))
+        assertEquals("invalid", f.room.handle(change().put("displayAllUpright", true)).text("code"))
+        f.planesAvailable = false
+        assertEquals("invalid", f.room.handle(change()).text("code"))
+        f.planesAvailable = true
+        f.writable = false
+        assertEquals("unavailable", f.room.handle(change()).text("code"))
+        assertEquals("table", f.room.displayView(target))
+        f.writable = true
+        assertEquals("ok", f.room.handle(change()).text("code"))
+        f.planesAvailable = false
+        assertEquals("ok", f.room.handle(change(view = "table")).text("code"))
+    }
+
+    @Test fun `spectator can switch itself but never another display or its orientation`() = runBlocking {
+        val f = Fixture()
+        val screen = f.join("display")
+        val other = f.join("planes")
+        fun change(target: String) = f.base("presentation").put("token", screen.text("token"))
+            .put("displayTarget", target).put("displayView", "planes")
+        assertEquals("ok", f.room.handle(change(screen.text("displayId"))).text("code"))
+        assertEquals("forbidden", f.room.handle(change(other.text("displayId"))).text("code"))
+        assertEquals("forbidden", f.room.handle(change(screen.text("displayId")).put("displayAllUpright", true)).text("code"))
+        assertEquals("unauthorized", f.room.handle(change(screen.text("displayId")).put("token", "bad")).text("code"))
+        assertEquals("forbidden", f.room.handle(f.action(screen)).text("code"))
     }
 
     @Test fun `PIN is needed on first link but never on reconnect`() = runBlocking {

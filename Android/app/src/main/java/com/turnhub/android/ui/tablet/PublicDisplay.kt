@@ -23,7 +23,8 @@ import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.theme.palette
 
 internal data class PublicDisplayChoice(val upright: Boolean, val enabled: Boolean, val id: String,
-    val targets: List<RoomDisplay>, val set: (String, Boolean) -> Unit)
+    val targets: List<RoomDisplay>, val planesAvailable: Boolean = false,
+    val setView: (String, String) -> Unit = { _, _ -> }, val set: (String, Boolean) -> Unit)
 internal val LocalPublicDisplay = staticCompositionLocalOf {
     PublicDisplayChoice(false, false, "local", emptyList()) { _, _ -> }
 }
@@ -39,7 +40,10 @@ internal fun PublicDisplayScope(state: LanUiState, model: LanViewModel, content:
         (state.role in setOf("player", "investigator", "table") || state.master)
     val id = if (shared) state.displayId else "local"
     val choice = PublicDisplayChoice(if (shared) state.displayAllUpright else local, enabled, id,
-        if (shared) state.displayTargets else listOf(RoomDisplay(id, "This screen", local))) { target, value ->
+        if (shared) state.displayTargets else listOf(RoomDisplay(id, "This screen", local)),
+        planesAvailable = state.remote?.planechase?.enabled == true || state.atlas?.settings?.planechase == true ||
+            (state.host != null && model.hostPlanesAvailable()),
+        setView = model::setDisplayView) { target, value ->
         if (shared) model.setDisplayAllUpright(target, value)
         else { local = value; prefs.edit().putBoolean("display_all_upright", value).apply() }
     }
@@ -73,8 +77,18 @@ internal fun PublicDisplayDialog(onClose: () -> Unit) {
                         .filter { it.isNotBlank() }.joinToString(" · "), color = p.muted)
                 }
                 if (choice.targets.size > 1) ToneButton("Choose another screen", { picking = true }, Modifier.fillMaxWidth())
-                Text("Panel direction", color = p.muted, style = MaterialTheme.typography.labelLarge)
                 val enabled = choice.enabled && selected != null
+                if (selected?.view != null) {
+                    Text("Show on this screen", color = p.muted, style = MaterialTheme.typography.labelLarge)
+                    DisplayDirection("Table", "Player cards and turn timing", selected.view == "table", enabled) {
+                        choice.setView(selected.id, "table")
+                    }
+                    DisplayDirection("Planes", if (choice.planesAvailable) "The current plane and planar details" else "Enable Planechase in game setup",
+                        selected.view == "planes", enabled && choice.planesAvailable) {
+                        choice.setView(selected.id, "planes")
+                    }
+                }
+                Text("Table panel direction", color = p.muted, style = MaterialTheme.typography.labelLarge)
                 DisplayDirection("All panels upright", "For a TV or wall display", selected?.upright == true, enabled) {
                     selected?.let { choice.set(it.id, true) }
                 }

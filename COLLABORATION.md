@@ -2031,3 +2031,29 @@ Android debug assembly and whitespace checks pass. Installed in place on the
 SM-T870 public display and inspected its HDMI/DeX output: +/- is absent on
 all five cards, including eliminated/conceded cards; turn clock and facts
 remain visible. No host update or gameplay commands. Continue PR #192.
+
+## Select public display content — 2026-11-03, Codex
+
+Owner requests Table/Planes selection in Display settings for the selected
+public screen. Baseline `004a9d1b`, clean codex/master, origin fetched. Scope:
+room-persisted per-public-device content selection, host-validated Planechase
+availability, authenticated remote presentation commands without gameplay
+privileges, and reactive public-screen navigation. Keep orientation, roles,
+seats and game state independent. Update host/client apps in place and verify
+target isolation, restart recovery, invalid requests and TV rendering.
+
+Validation: standard debug and Preview 1467 builds pass. All 19 focused
+room/orientation tests pass, including target isolation, idempotence, restart
+recovery, failed-save rollback, invalid values, Planechase gating and public
+self-navigation without gameplay grants. Docs links and whitespace pass.
+Installed standard builds on both Folds and both Samsung tablets, and Preview
+1467 on Pixel 9, Pixel 10 and S23; all seven in-place updates succeeded. Private
+pre-update snapshots retained. Host lobby/game identity and roster matched
+immediately before/after its update; the owner subsequently began the new Star
+Commander game. From the Fold's Display settings selected the Galaxy Tab S7,
+switched it to Planes and inspected the actual HDMI/DeX plane card. Restarted
+the public client, verified Planes remained selected and reconnected, then
+switched it back to Table and closed the dialog. No gameplay commands sent.
+Manual updated, rendered with Word, and edited page checked. Large system text
+and Atlas-relayed physical acceptance remain. Keep this separate from Claude's
+active phone-hosted Sigil PR #194 because the scopes and branches are independent.
