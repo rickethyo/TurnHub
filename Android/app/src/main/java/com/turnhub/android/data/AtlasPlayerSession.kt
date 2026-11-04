@@ -1,13 +1,11 @@
 package com.turnhub.android.data
 
 import com.turnhub.android.protocol.AccessibilitySettings
-import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.LedStyle
 import com.turnhub.android.protocol.ProfileSummary
 import com.turnhub.android.protocol.SessionInfo
 import kotlinx.coroutines.CancellationException
 import org.json.JSONObject
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,7 +16,7 @@ import kotlinx.coroutines.sync.withLock
 sealed interface PlayerSessionState {
     data object SignedOut : PlayerSessionState
 
-    /** [info] is Atlas's latest resolution of the session (seat, player, host, active). */
+    /** [info] is Atlas's latest reading of the session (profile and permissions). */
     data class SignedIn(val profileId: String, val name: String?, val info: SessionInfo?) : PlayerSessionState
 }
 
@@ -33,20 +31,13 @@ data class ProfileChoices(
     val hideStatsWithoutAuthentication: Boolean?,
 )
 
-/** A Link phone seat claim: [seat] names it ("Sigil 2 seat A"); [waiting] while Atlas waits for the press. */
-data class SeatClaim(val seat: String, val message: String, val waiting: Boolean, val isError: Boolean)
-
 /** The outcome of the last action, phrased for the player. */
 data class ActionFeedback(val message: String, val isError: Boolean)
 
 /**
- * Lets this phone act as a player through Atlas's session routes: sign in to a
- * profile with its PIN, join the table, and send PASS / pause-resume.
- *
- * Atlas stays authoritative: it resolves the player from the session, applies
- * its own rules and the app only learns the result from the next state
- * snapshot. Controls carry the snapshot's revision and boot ID, so a tap made
- * against stale state is refused (CONFLICT) instead of applied. A control that
+ * This phone's account on Atlas through its session routes: sign in to a
+ * profile with its PIN, then read and change that profile's records and
+ * settings. Games run on the phone; Atlas keeps the accounts. An action that
  * times out is reported, never replayed (protocol/http-v1.md). Actions are
  * serialized; a tap while another action is in flight is ignored.
  *
@@ -64,10 +55,6 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     private val _feedback = MutableStateFlow<ActionFeedback?>(null)
     val feedback: StateFlow<ActionFeedback?> = _feedback.asStateFlow()
 
-    /** The next match's setup, read only while this session is the table host. */
-    private val _gameSettings = MutableStateFlow<GameSettingsInfo?>(null)
-    val gameSettings: StateFlow<GameSettingsInfo?> = _gameSettings.asStateFlow()
-
     /** The signed-in player's Sigil accessibility preferences, once read with [loadAccessibility]. */
     private val _accessibility = MutableStateFlow<AccessibilitySettings?>(null)
     val accessibility: StateFlow<AccessibilitySettings?> = _accessibility.asStateFlow()
@@ -79,39 +66,6 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     private val mutex = Mutex()
     @Volatile private var endpoint: AtlasEndpoint? = null
     @Volatile private var token: String? = null
-    @Volatile private var viewedGame = 1
-
-    fun pollContext(requestEndpoint: AtlasEndpoint): PollContext =
-        PollContext(if (endpoint == requestEndpoint) token.orEmpty() else "", viewedGame)
-
-    /** Atlas validates a personal move; tablet sessions move without moving players. */
-    suspend fun followGame(game: Int): Boolean {
-        if (game !in 1..255 || _claim.value?.waiting == true || !mutex.tryLock()) return false
-        try {
-            _busy.value = true
-            val endpoint = endpoint
-            val token = token
-            if (endpoint != null && token != null) {
-                val response = call { transports.create(endpoint).raw("POST", "/api/session/game", token, listOf("game" to "$game")) }
-                if (!response.ok) {
-                    _feedback.value = ActionFeedback(com.turnhub.android.protocol.AtlasWireParser.errorMessage(response.body) ?: "Could not switch games.", true)
-                    return false
-                }
-            }
-            viewedGame = game
-            _gameSettings.value = null
-            _claim.value = null
-            refreshLocked()
-            _feedback.value = ActionFeedback("Following Game $game.", false)
-            return true
-        } catch (e: AtlasException) {
-            _feedback.value = ActionFeedback(e.failure.userMessage, true)
-            return false
-        } finally {
-            _busy.value = false
-            mutex.unlock()
-        }
-    }
 
     /** Public profile list for the sign-in picker. Throws [AtlasException]. */
     suspend fun profiles(endpoint: AtlasEndpoint): List<ProfileSummary> =
@@ -142,7 +96,7 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         if (known?.hasPin == true && secret.isBlank()) return@call null
         val login = if (known != null) transport.login(id, secret) else {
             if (offered == null || offered.optString("profileId") != id) return@call null
-            val response = transport.raw("POST", "/api/profiles/register", pollContext(target).token,
+            val response = transport.raw("POST", "/api/profiles/register", "",
                 listOf("profileId" to id, "name" to offered.getString("name"), "pin" to secret, "gameplayOnly" to "1"))
             if (!response.ok) return@call null
             if (secret.isBlank()) null else com.turnhub.android.protocol.AtlasWireParser.parseLogin(response.body)
@@ -189,26 +143,6 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         LocalAccountTransfer(transports.create(endpoint)).restore(profileId, secret)
     }
 
-    private var gameClientKey = java.util.UUID.randomUUID().toString()
-
-    constructor(transports: AtlasSessionTransportFactory, stableGameClientKey: String) : this(transports) {
-        gameClientKey = java.util.UUID.fromString(stableGameClientKey).toString()
-    }
-
-    /** Silent restricted access for ordinary table play; never replaces a personal session. */
-    suspend fun ensureGameAccess(target: AtlasEndpoint) = mutex.withLock {
-        if (endpoint == target && token != null) return@withLock
-        val transport = transports.create(target)
-        val response = call { transport.raw("POST", "/api/session/play", "", listOf("clientKey" to gameClientKey, "game" to "${kotlinx.coroutines.currentCoroutineContext()[ExpectedGame]?.game ?: viewedGame}")) }
-        if (!response.ok) throw AtlasException(AtlasFailure.Rejected(if (response.code == 404) "Update Atlas firmware to use automatic game controls." else "Atlas could not open game controls."))
-        val issued = org.json.JSONObject(response.body).optString("token")
-        if (issued.length != 32) throw AtlasException(AtlasFailure.Malformed("Missing game access token"))
-        endpoint = target
-        token = issued
-        _state.value = PlayerSessionState.SignedIn("", "Game controls", null)
-        refreshLocked()
-    }
-
     /** Signs in; throws [AtlasException] with Atlas's reason (e.g. wrong PIN, throttled). */
     suspend fun signIn(endpoint: AtlasEndpoint, profile: ProfileSummary, pin: String) {
         mutex.withLock {
@@ -221,10 +155,8 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
             }
             this.endpoint = endpoint
             token = login.token
-            viewedGame = info?.game ?: viewedGame
             _feedback.value = null
             _state.value = PlayerSessionState.SignedIn(login.profileId, info?.name ?: profile.name, info)
-            refreshGameSettings(transport, login.token, info)
         }
     }
 
@@ -240,93 +172,9 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
             }
             this.endpoint = endpoint
             token = login.token
-            viewedGame = info?.game ?: viewedGame
             _feedback.value = null
             _state.value = PlayerSessionState.SignedIn(login.profileId, info?.name ?: name, info)
         }
-    }
-
-    /** The Link phone seat claim in progress or just finished, if any. */
-    private val _claim = MutableStateFlow<SeatClaim?>(null)
-    val claim: StateFlow<SeatClaim?> = _claim.asStateFlow()
-
-    /**
-     * Claims a physical Sigil seat, as the portal's "Use this seat": Atlas asks
-     * the Sigil, and pressing Link phone there proves the player is at it.
-     * Signed out, that signs this phone in to the seat's profile (only one
-     * without a PIN); signed in, it attaches the Sigil seat to this profile.
-     * Polls `/api/session/poll` until Atlas approves, refuses or expires it.
-     */
-    suspend fun claimSeat(endpoint: AtlasEndpoint, moduleId: Int, slot: Int, seatName: String) {
-        if (_claim.value?.waiting == true) return
-        val transport = transports.create(endpoint)
-        val requester = token.takeIf { this.endpoint == endpoint }.orEmpty()
-        fun done(message: String, isError: Boolean) {
-            _claim.value = SeatClaim(seatName, message, waiting = false, isError = isError)
-        }
-        _claim.value = SeatClaim(seatName, "Asking $seatName…", waiting = true, isError = false)
-        try {
-            val request = call {
-                transport.raw("POST", "/api/session/request", requester, listOf("module" to "$moduleId", "slot" to "$slot"))
-            }
-            val body = jsonOrNull(request.body)
-            val requestId = body?.optString("requestId").orEmpty()
-            if (!request.ok || requestId.isEmpty()) {
-                return done(body?.optString("error")?.ifBlank { null } ?: "Atlas refused that seat.", isError = true)
-            }
-            val expiresMs = body?.optLong("expiresMs", 30_000L) ?: 30_000L
-            _claim.value = SeatClaim(
-                seatName,
-                "On $seatName, choose Link phone within ${expiresMs / 1000} seconds.",
-                waiting = true,
-                isError = false,
-            )
-            // The portal polls about twice a second; a little slack past expiry catches a late press.
-            repeat(((expiresMs + 3_000L) / CLAIM_POLL_MS).toInt()) {
-                delay(CLAIM_POLL_MS)
-                val poll = try {
-                    call { transport.raw("GET", "/api/session/poll?id=$requestId", "") }
-                } catch (_: AtlasException) {
-                    return@repeat // One lost poll isn't the end; keep asking until the deadline.
-                }
-                val d = jsonOrNull(poll.body)
-                if (!poll.ok) {
-                    return done(d?.optString("error")?.ifBlank { null } ?: "The request expired. Try again.", isError = true)
-                }
-                if (d?.optString("status") != "approved") return@repeat
-                val newToken = d.optString("token").orEmpty()
-                if (newToken.isEmpty()) return done("Atlas approved the seat but sent no sign-in.", isError = true)
-                mutex.withLock {
-                    val info = call { transport.me(newToken) }
-                    val profileId = info.profileId
-                    if (profileId.isEmpty()) {
-                        return done("That seat has no profile to sign in to.", isError = true)
-                    }
-                    this.endpoint = endpoint
-                    token = newToken
-                    _feedback.value = null
-                    _state.value = PlayerSessionState.SignedIn(profileId, info.name, info)
-                    refreshGameSettings(transport, newToken, info)
-                }
-                return done("Linked. This phone now controls $seatName.", isError = false)
-            }
-            done("Nobody chose Link phone in time. Try again.", isError = true)
-        } catch (e: AtlasException) {
-            done(e.failure.userMessage, isError = true)
-        } finally {
-            // Cancelled mid-wait (the screen went away): don't leave a claim spinning.
-            if (_claim.value?.waiting == true) _claim.value = null
-        }
-    }
-
-    fun clearClaim() {
-        if (_claim.value?.waiting != true) _claim.value = null
-    }
-
-    private fun jsonOrNull(body: String): org.json.JSONObject? = try {
-        org.json.JSONObject(body)
-    } catch (_: org.json.JSONException) {
-        null
     }
 
     /** `GET /api/setup`; no sign-in needed. Throws [AtlasException]. */
@@ -346,51 +194,11 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     }
 
     /** Re-reads `/api/session/me` (after state changes). Quietly signs out if Atlas dropped the session. */
-    suspend fun refresh(refreshSettings: Boolean = true) {
+    suspend fun refresh() {
         if (mutex.isLocked) return
-        mutex.withLock { refreshLocked(refreshSettings) }
+        mutex.withLock { refreshLocked() }
     }
 
-    suspend fun join() = act {
-        val message = transports.create(it.first).join(it.second)
-        ActionFeedback(message ?: "Joined the table.", isError = false)
-    }
-
-    suspend fun control(action: ControlAction, expectedRevision: Long?, expectedBootId: String?) = act {
-        val result = transports.create(it.first).control(it.second, action, expectedRevision, expectedBootId)
-        when {
-            result.ok -> ActionFeedback(result.message ?: "Done.", isError = false)
-            result.status == "CONFLICT" ->
-                ActionFeedback("The table changed before Atlas got that. Check it and try again.", isError = true)
-            else -> ActionFeedback(result.message ?: "Atlas refused that.", isError = true)
-        }
-    }
-
-    /**
-     * A counter or game control with form fields (life, life requests,
-     * Commander damage). Atlas resolves the player from the session.
-     */
-    suspend fun counter(path: String, fields: List<Pair<String, String>>, success: String) = act {
-        val result = transports.create(it.first).postControl(it.second, path, fields)
-        when {
-            result.ok -> ActionFeedback(result.message ?: success, isError = false)
-            else -> ActionFeedback(result.message ?: "Atlas refused that.", isError = true)
-        }
-    }
-
-    /** Any seated player, in the lobby; null fields keep Atlas's values. */
-    suspend fun saveGameSettings(
-        gameProfile: String?,
-        startingLife: Int?,
-        turnTimerMs: Long?,
-        twoHeadedGiant: Boolean? = null,
-        autoEliminateAtZeroLife: Boolean? = null,
-        houseRules: Boolean? = null,
-    ) = act {
-        val message = transports.create(it.first)
-            .saveGameSettings(it.second, gameProfile, startingLife, turnTimerMs, twoHeadedGiant, autoEliminateAtZeroLife, houseRules)
-        ActionFeedback(message ?: "Game settings saved on Atlas.", isError = false)
-    }
 
     /** A new display name and/or PIN for the signed-in profile. */
     suspend fun saveProfile(name: String?, pin: String?, currentPin: String? = null) = act {
@@ -579,12 +387,6 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         ActionFeedback("Saved. Your Sigil and the table update within a few seconds.", isError = false)
     }
 
-    /** Host only, in the lobby: Atlas validates and stores it for the next match. */
-    suspend fun setTurnTimer(turnTimerMs: Long) = act {
-        val message = transports.create(it.first).setTurnTimer(it.second, turnTimerMs)
-        ActionFeedback(message ?: "Turn timer saved on Atlas.", isError = false)
-    }
-
     /** Reads the profile's Sigil accessibility preferences from Atlas into [accessibility]. */
     suspend fun loadAccessibility() = act {
         _accessibility.value = transports.create(it.first).getAccessibility(it.second)
@@ -623,9 +425,7 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     }
 
     suspend fun raw(method: String, path: String, fields: List<Pair<String, String>> = emptyList()): RawResponse? =
-        if (method == "POST" && (path == "/api/tablet/enable" || path == "/api/tablet/disable"))
-            mutex.withLock { rawRequest(method, path, fields) }
-        else rawRequest(method, path, fields)
+        rawRequest(method, path, fields)
 
     /** [AtlasTransport.rawText] for a signed-in session; null when signed out. */
     suspend fun rawText(path: String, fields: List<Pair<String, String>>, body: String): RawResponse? {
@@ -642,21 +442,7 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     private suspend fun rawRequest(method: String, path: String, fields: List<Pair<String, String>>): RawResponse? {
         val endpoint = endpoint ?: return null
         val token = token ?: return null
-        val context = kotlinx.coroutines.currentCoroutineContext()[ExpectedGame]
-        val game = context?.game ?: (_state.value as? PlayerSessionState.SignedIn)?.info?.game ?: viewedGame
-        val matchFields = context?.matchId?.let { listOf("expectedMatchId" to it) }.orEmpty()
-        val scopedFields = if (method == "POST" && (path.startsWith("/api/tablet/") || path.startsWith("/api/control/") || path.startsWith("/api/game/") || path == "/api/table/reset" || path == "/api/accounts/moderate" || path == "/api/v1/offline")) fields + ("expectedGame" to "$game") + matchFields else fields
-        val response = call { transports.create(endpoint).raw(method, if (method == "GET" && path == "/api/v1/game") "$path?game=$game" else path, token, scopedFields) }
-        if (response.ok && method == "POST" && path == "/api/tablet/enable") {
-            val replacement = org.json.JSONObject(response.body).optString("token")
-            if (replacement.length != 32) throw AtlasException(AtlasFailure.Malformed("Missing tablet credential"))
-            clear()
-            this.endpoint = endpoint
-            this.token = replacement
-            _state.value = PlayerSessionState.SignedIn("", "Shared tablet", null)
-            refreshLocked()
-        }
-        if (response.ok && method == "POST" && path == "/api/tablet/disable") clear()
+        val response = call { transports.create(endpoint).raw(method, path, token, fields) }
         if (response.code == 401) {
             clear()
             _feedback.value = ActionFeedback(AtlasFailure.SessionExpired.userMessage, isError = true)
@@ -694,12 +480,10 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     private fun clear() {
         endpoint = null
         token = null
-        _gameSettings.value = null
         _accessibility.value = null
         _personalization.value = null
         _choices.value = null
         _stats.value = null
-        if (_claim.value?.waiting != true) _claim.value = null
         _state.value = PlayerSessionState.SignedOut
     }
 
@@ -731,40 +515,20 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         }
     }
 
-    private suspend fun refreshLocked(refreshSettings: Boolean = true) {
+    private suspend fun refreshLocked() {
         val endpoint = endpoint ?: return
         val token = token ?: return
         val signedIn = _state.value as? PlayerSessionState.SignedIn ?: return
         try {
             val transport = transports.create(endpoint)
             val info = call { transport.me(token) }
-            viewedGame = info.game
             _state.value = signedIn.copy(name = info.name ?: signedIn.name, info = info)
-            if (refreshSettings || signedIn.info?.host != info.host || signedIn.info?.participating != info.participating ||
-                signedIn.info?.game != info.game) refreshGameSettings(transport, token, info)
         } catch (e: AtlasException) {
             if (e.failure == AtlasFailure.SessionExpired) {
                 clear()
                 _feedback.value = ActionFeedback(e.failure.userMessage, isError = true)
             }
             // Other failures: keep the last known info; the state poll reports connectivity.
-        }
-    }
-
-    /**
-     * Settings only feed the next-game editor (any seated player; Atlas still
-     * reports it as `host`), so a failed read just hides it. An
-     * ended session is reported by the next `/api/session/me`, not from here.
-     */
-    private suspend fun refreshGameSettings(transport: AtlasSessionTransport, token: String, info: SessionInfo?) {
-        _gameSettings.value = if (info?.host == true && info.participating) {
-            try {
-                call { transport.getGameSettings(token) }
-            } catch (_: AtlasException) {
-                null
-            }
-        } else {
-            null
         }
     }
 

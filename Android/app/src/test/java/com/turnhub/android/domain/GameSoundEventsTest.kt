@@ -11,7 +11,7 @@ import kotlin.random.Random
 class GameSoundEventsTest {
     private val firstSeat = object : Random() { override fun nextBits(bitCount: Int) = 0 }
     private fun lobby() = StandaloneGame().addPlayer("Ana").addPlayer("Ben")
-    private fun connected() = TableSummaryMapper.map(Fixtures.info(), Fixtures.state("running.response.json"), receivedAtMs = 50_000)
+    private fun connected() = com.turnhub.android.testing.TableFixtures.running(receivedAtMs = 50_000)
     private fun GameSoundEvents.game(game: StandaloneGame, enabled: Boolean = true) =
         observe(GameSoundSnapshot.from(game.toSummary(1_000, 0)), enabled)
     private fun GameSoundEvents.table(table: TableSummary, enabled: Boolean = true) =

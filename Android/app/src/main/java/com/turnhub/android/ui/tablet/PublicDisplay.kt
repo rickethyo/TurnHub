@@ -41,7 +41,7 @@ internal fun PublicDisplayScope(state: LanUiState, model: LanViewModel, content:
     val id = if (shared) state.displayId else "local"
     val choice = PublicDisplayChoice(if (shared) state.displayAllUpright else local, enabled, id,
         if (shared) state.displayTargets else listOf(RoomDisplay(id, "This screen", local)),
-        planesAvailable = state.remote?.planechase?.enabled == true || state.atlas?.settings?.planechase == true ||
+        planesAvailable = state.remote?.planechase?.enabled == true ||
             (state.host != null && model.hostPlanesAvailable()),
         setView = model::setDisplayView) { target, value ->
         if (shared) model.setDisplayAllUpright(target, value)

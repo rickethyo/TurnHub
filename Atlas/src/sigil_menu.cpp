@@ -46,7 +46,7 @@ MenuCache menus[MAX_PHYSICAL_SIGILS];
 constexpr SigilAction DEFAULT_ORDER[] = {
     SigilAction::ConfirmWin, SigilAction::Pass, SigilAction::Eliminate, SigilAction::Join,
     SigilAction::StartGame, SigilAction::Rematch, SigilAction::Resume, SigilAction::CancelPass,
-    SigilAction::CancelStart, SigilAction::LinkPhone, SigilAction::CycleStarter,
+    SigilAction::CancelStart, SigilAction::CycleStarter,
     SigilAction::BeginElimination};
 
 // Seat colors come from profile records (Jewel color, avatar). Looking them up

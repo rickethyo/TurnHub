@@ -87,14 +87,14 @@ class HttpAtlasTransportTest {
     @Test
     fun `reads info and state from a live server`() = runBlocking {
         routes["/api/v1/info"] = Triple(200, Fixtures.text("info.response.json"), 0)
-        routes["/api/v1/state"] = Triple(200, Fixtures.text("commander.response.json"), 0)
+        routes["/api/v1/state"] = Triple(200, Fixtures.text("state-hosted.response.json"), 0)
 
         val info = transport().getInfo()
         val state = transport().getState()
 
         assertEquals("THA-025448410001", info.atlasId)
-        assertEquals(13L, state.revision)
-        assertEquals(2, state.players.size)
+        assertEquals(7L, state.revision)
+        assertEquals(4, state.hub?.players)
     }
 
     @Test
@@ -137,33 +137,6 @@ class HttpAtlasTransportTest {
     }
 
     @Test
-    fun `reads game settings and sends only the turn timer`() = runBlocking {
-        routes["/api/game/settings"] = Triple(
-            200,
-            """{"gameProfile":"generic","startingLife":40,"turnTimerMs":60000,"turnTimer":{"presetsMs":[0,60000],""" +
-                """"minMs":15000,"maxMs":3600000,"warningMs":10000,"longTurnMs":300000},"available":true,"canEdit":true}""",
-            0,
-        )
-        assertEquals(60_000L, transport().getGameSettings("secret").settings.turnTimerMs)
-
-        routes["/api/game/settings"] = Triple(200, """{"ok":true}""", 0)
-        transport().setTurnTimer("secret", 120_000)
-
-        assertEquals(
-            listOf("GET /api/game/settings secret", "POST /api/game/settings secret turnTimerMs=120000"),
-            received,
-        )
-    }
-
-    @Test
-    fun `a refused turn timer carries Atlas's reason`() {
-        routes["/api/game/settings"] = Triple(409, """{"error":"Only the table host can change game settings in the lobby"}""", 0)
-        val failure = failureOf { transport().setTurnTimer("secret", 60_000) }
-        assertTrue(failure is AtlasFailure.Rejected)
-        assertTrue(failure.userMessage.contains("table host"))
-    }
-
-    @Test
     fun `reads and saves Sigil accessibility for the session`() = runBlocking {
         routes["/api/session/accessibility"] = Triple(200, Fixtures.text("accessibility.response.json"), 0)
         assertEquals(3000, transport().getAccessibility("secret").longPressMs)
@@ -181,36 +154,9 @@ class HttpAtlasTransportTest {
 
     @Test
     fun `a stalled Atlas times out`() {
-        routes["/api/v1/state"] = Triple(200, Fixtures.text("running.response.json"), 1_500)
+        routes["/api/v1/state"] = Triple(200, Fixtures.text("state-hosted.response.json"), 1_500)
         val failure = failureOf { transport(readTimeoutMs = 200).getState() }
         assertTrue(failure is AtlasFailure.Timeout)
         assertTrue(failure.technicalDetail!!.startsWith("SocketTimeoutException"))
     }
-    @Test
-    fun `state and seats follow the current session and viewing context`() = runBlocking {
-        routes["/api/v1/state"] = Triple(200, Fixtures.text("running.response.json"), 0)
-        routes["/api/seats"] = Triple(200, "{\"seats\":[]}", 0)
-        var context = PollContext("FIRST", 1)
-        val transport = HttpAtlasTransport(
-            endpoint = AtlasEndpoint.parse("http://127.0.0.1:${server.address.port}").getOrThrow(),
-            pollContext = { context },
-        )
-        transport.getState()
-        context = PollContext("SECOND", 2)
-        transport.getSeats()
-        assertTrue(received.any { it == "GET /api/v1/state FIRST" })
-        assertTrue(received.any { it == "GET /api/seats SECOND" })
-        assertTrue(!context.toString().contains("SECOND"))
-        assertEquals(listOf("game=1", "game=2"), queries)
-    }
-
-    @Test
-    fun `typed controls carry the originating screen game`() = runBlocking {
-        routes["/api/control/pass"] = Triple(200, "{\"ok\":true,\"status\":\"ACCEPTED\"}", 0)
-        kotlinx.coroutines.withContext(ExpectedGame(2)) {
-            transport().control("TOKEN", ControlAction.PASS, null, null)
-        }
-        assertTrue(received.last().endsWith("expectedGame=2"))
-    }
-
 }

@@ -1,7 +1,7 @@
 #pragma once
 
 // Sigil menus: which actions each Sigil may offer right now (the hub phone's
-// game, hosted_sigils.cpp, plus Link phone) and the MenuState2 transport.
+// game, hosted_sigils.cpp) and the MenuState2 transport.
 // Presentation only: each choice is queued for the hub, which decides.
 
 #include <Arduino.h>

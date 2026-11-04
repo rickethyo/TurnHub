@@ -1,14 +1,14 @@
 package com.turnhub.android.protocol
 
 /**
- * Mirrors the response of `GET /api/v1/state` (protocol/state-v0.1.schema.json):
- * one authoritative Atlas snapshot.
+ * Mirrors the response of `GET /api/v1/state` (protocol/atlas-state-v1.schema.json):
+ * what an Atlas accessory says about itself. The phone hub runs every game
+ * (protocol/hosted-v1.md); Atlas reports only which phone holds the table, its
+ * battery and its links.
  *
- * Identity is the triple ([atlasId], [bootId], [revision]). [revision] versions
- * the gameplay projection; the sampled clock fields ([sampledAtMs],
- * [gameElapsedMs], [turnElapsedMs], [PendingDecisions.passGraceRemainingMs])
- * may change while [revision] stays the same. All `*Ms` values are Atlas uptime
- * milliseconds that wrap at 32 bits and are only comparable within one boot.
+ * Identity is the triple ([atlasId], [bootId], [revision]); [revision] moves when
+ * the [hub] summary changes. [battery] and [links] are sampled and may change
+ * while it stays the same.
  */
 data class StateSnapshot(
     val protocolVersion: String,
@@ -16,48 +16,24 @@ data class StateSnapshot(
     val bootId: String,
     /** Unsigned 32-bit. */
     val revision: Long,
-    val state: TableState,
-    /** Controller handle of the table host, if any. */
-    val hostModuleId: Int?,
-    val starterPlayer: Int?,
-    val activePlayer: Int?,
-    val winnerPlayer: Int?,
-    val settings: TableSettings,
-    val doomBag: DoomBag? = null,
-    /** Planechase with the players' own plane cards; null when off. */
-    val planechase: AtlasPlanechase? = null,
-    val sampledAtMs: Long,
-    val gameElapsedMs: Long,
-    val turnElapsedMs: Long,
-    val turnTimer: TurnTimer,
-    val pending: PendingDecisions,
-    val players: List<Player>,
-    /** The last nudge since Atlas booted, or null. */
-    val nudge: Nudge? = null,
-    /** Atlas's own battery; null with no cell or from older firmware. Sampled, not versioned. */
+    /** The phone that holds the table's lease, or null. */
+    val hub: AtlasHub? = null,
+    /** Atlas's own battery; null with no cell. Sampled, not versioned. */
     val battery: AtlasBattery? = null,
-    /** Atlas's links, as its header icons show them; null from older firmware. Sampled, not versioned. */
+    /** Atlas's links, as its header icons show them. Sampled, not versioned. */
     val links: AtlasLinks? = null,
-    val monarchPlayer: Int? = null,
-    val initiativePlayer: Int? = null,
-    /** Magic: `NEITHER`, `DAY` or `NIGHT` (CR 726); null for other formats and older firmware. */
-    val dayNight: String? = null,
-    /** Turns go counterclockwise until a player sets them back. */
-    val turnOrderReversed: Boolean = false,
-    val game: Int = 1,
-    val games: List<VenueGame> = emptyList(),
-    /** Game over within a minute and not counted yet (`count-game`); absent from older firmware. */
-    val shortGameUncounted: Boolean = false,
-    /** Every winner, first = [winnerPlayer]; several share a Star Commander victory. */
-    val winnerPlayers: List<Int> = listOfNotNull(winnerPlayer),
-    /** The response body this was parsed from, kept so a Play together hub can relay it as is. */
-    val wire: String? = null,
-    /** Individual match UUID; a venue game number survives rematches. */
-    val matchId: String = "",
+)
+
+/** The phone hub holding an Atlas's table: its name and the game it shows there. */
+data class AtlasHub(
+    val name: String,
+    val gameId: String,
+    val state: TableState,
+    val players: Int,
 )
 
 /**
- * Mirrors `battery` in protocol/state-v0.1.schema.json: Atlas's cell, estimated
+ * Mirrors `battery` in protocol/atlas-state-v1.schema.json: Atlas's cell, estimated
  * from its voltage. [low] is at or below 15 %; while [charging] (on USB) the
  * percent counts up.
  */
@@ -68,7 +44,7 @@ data class AtlasBattery(
 )
 
 /**
- * Mirrors `links` in protocol/state-v0.1.schema.json: Atlas's own hotspot is
+ * Mirrors `links` in protocol/atlas-state-v1.schema.json: Atlas's own hotspot is
  * up, it is on the home network, and how many Sigils are online.
  */
 data class AtlasLinks(
@@ -78,24 +54,19 @@ data class AtlasLinks(
 )
 
 /**
- * Mirrors `nudge` in protocol/state-v0.1.schema.json: a player prodding the
- * active player (POST /api/control/nudge). [seq] grows with every nudge since
- * boot, so a client alerts [toPlayer] once per new [seq].
+ * A player prodding the active player in a hub's game. [seq] grows with every
+ * nudge, so a client alerts [toPlayer] once per new [seq].
  */
 data class Nudge(
     /** Unsigned 32-bit. */
     val seq: Long,
     val fromPlayer: Int,
     val toPlayer: Int,
-    /** Age when [StateSnapshot.sampledAtMs] was taken. */
+    /** Age when the game's state was sampled. */
     val ageMs: Long,
 )
 
-/**
- * Mirrors the `pending` object in protocol/state-v0.1.schema.json: decisions
- * Atlas is waiting on. Every field is optional in the schema; absent player
- * fields mean "none" and an absent grace time means zero.
- */
+/** Decisions the game is waiting on; null player fields mean "none". */
 data class PendingDecisions(
     val passPlayer: Int?,
     val passGraceRemainingMs: Long,
@@ -104,5 +75,5 @@ data class PendingDecisions(
     val eliminationTargetPlayer: Int?,
 )
 
-/** Read-only venue overview supplied by Atlas. Game numbers are 1-based. */
+/** One game of a venue overview. Game numbers are 1-based. */
 data class VenueGame(val game: Int, val state: TableState, val players: Int)

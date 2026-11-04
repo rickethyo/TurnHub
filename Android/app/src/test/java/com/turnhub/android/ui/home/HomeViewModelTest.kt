@@ -10,7 +10,6 @@ import com.turnhub.android.data.AtlasPlayerSession
 import com.turnhub.android.data.AtlasRepository
 import com.turnhub.android.data.AtlasSessionTransport
 import com.turnhub.android.data.AtlasWifiLink
-import com.turnhub.android.data.ControlAction
 import com.turnhub.android.data.WifiCredentialStore
 import com.turnhub.android.data.WifiCredentials
 import com.turnhub.android.data.WifiJoinResult
@@ -19,13 +18,9 @@ import com.turnhub.android.domain.TableSummaryMapper
 import com.turnhub.android.testing.Fixtures
 import com.turnhub.android.protocol.AtlasConnectionState
 import com.turnhub.android.data.AtlasException
-import com.turnhub.android.protocol.ControlResult
-import com.turnhub.android.protocol.GameProfile
-import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.LoginResult
 import com.turnhub.android.protocol.ProfileSummary
 import com.turnhub.android.protocol.SessionInfo
-import com.turnhub.android.protocol.TableSettings
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -107,21 +102,8 @@ private class MemoryCredentialStore : WifiCredentialStore {
 /** Records every request so tests can prove each tap sends exactly one. */
 private class FakeSessionTransport : AtlasSessionTransport {
     var signedProfileId = "p1"
-    var gameSettingsReads = 0
     val actualImports = mutableListOf<List<Pair<String, String>>>()
     val calls = mutableListOf<String>()
-    var participating = false
-    var host = true
-    var controlResult: (ControlAction) -> ControlResult = { ControlResult(true, "ACCEPTED", "OK", null, null) }
-    var controlFailure: AtlasException? = null
-    val settings = GameSettingsInfo(
-        settings = TableSettings(GameProfile.GENERIC, 40, 0),
-        available = true,
-        canEdit = true,
-        turnTimerPresetsMs = listOf(0, 60_000, 120_000, 180_000, 300_000),
-        turnTimerMinMs = 15_000,
-        turnTimerMaxMs = 3_600_000,
-    )
 
     var profileChoices = listOf(ProfileSummary("p1", "Ricky", hasPin = true))
     var profilesGate: CompletableDeferred<Unit>? = null
@@ -147,27 +129,7 @@ private class FakeSessionTransport : AtlasSessionTransport {
         return LoginResult("token", "p2")
     }
     override suspend fun me(token: String): SessionInfo =
-        SessionInfo(signedProfileId, "Ricky", 8, 1, if (participating) 1 else 0, participating, host, false, false)
-    override suspend fun join(token: String): String? {
-        calls += "join"
-        participating = true
-        return "Ready at the table"
-    }
-    override suspend fun control(
-        token: String,
-        action: ControlAction,
-        expectedRevision: Long?,
-        expectedBootId: String?,
-    ): ControlResult {
-        calls += "$action rev=$expectedRevision boot=$expectedBootId"
-        controlFailure?.let { throw it }
-        return controlResult(action)
-    }
-    override suspend fun getGameSettings(token: String): GameSettingsInfo { gameSettingsReads++; return settings }
-    override suspend fun setTurnTimer(token: String, turnTimerMs: Long): String? {
-        calls += "timer $turnTimerMs"
-        return null
-    }
+        SessionInfo(signedProfileId, "Ricky")
     var accessibility = AtlasWireParser.parseAccessibility(Fixtures.text("accessibility.response.json"))
     var accessibilityFailure: AtlasException? = null
     override suspend fun getAccessibility(token: String): AccessibilitySettings {
@@ -632,7 +594,7 @@ class HomeViewModelTest {
 
     @Test
     fun `old or unknown Atlas firmware cannot enable explicit local import`() = runTest {
-        val viewModel = connectedViewModel(table("lobby.response.json", 1).copy(firmwareVersion = "0.7.1-dev"))
+        val viewModel = connectedViewModel(table("state-idle.response.json", 1).copy(firmwareVersion = "0.7.1-dev"))
         viewModel.signIn()
         for (version in listOf("0.7.1-dev", "unknown")) {
             repository.tableSummary.value = repository.tableSummary.value!!.copy(firmwareVersion = version)
@@ -645,7 +607,7 @@ class HomeViewModelTest {
 
     @Test
     fun `changing Atlas discards in-flight local import choices`() = runTest {
-        val viewModel = connectedViewModel(table("lobby.response.json", 1).copy(firmwareVersion = "0.7.2-dev"))
+        val viewModel = connectedViewModel(table("state-idle.response.json", 1).copy(firmwareVersion = "0.7.2-dev"))
         viewModel.signIn()
         val gate = CompletableDeferred<Unit>()
         sessionTransport.profilesGate = gate
@@ -659,7 +621,7 @@ class HomeViewModelTest {
 
     @Test
     fun `device play cancels delivery and leaves the mapped match pending`() = runTest {
-        val viewModel = connectedViewModel(table("lobby.response.json", 1).copy(firmwareVersion = "0.7.2-dev"))
+        val viewModel = connectedViewModel(table("state-idle.response.json", 1).copy(firmwareVersion = "0.7.2-dev"))
         viewModel.signIn()
         sessionTransport.profileChoices = listOf(ProfileSummary("p1", "Ana", true), ProfileSummary("p2", "Ben", true))
         viewModel.onLoadLocalImportProfiles()
@@ -706,7 +668,7 @@ class HomeViewModelTest {
         local.addPlayer("A"); local.addPlayer("B"); local.start()
         local.control(com.turnhub.android.data.TabletSeat(8, 1), "win")
         val players = local.state.value.library.players
-        val summary = table("running.response.json", 2).copy(firmwareVersion = "0.7.15-dev")
+        val summary = table("state-hosted.response.json", 2).copy(firmwareVersion = "0.7.15-dev")
         local.linkAccount(players[0].localId, summary.atlasId, "AABBCCDD")
         local.linkAccount(players[1].localId, summary.atlasId, "11223344")
         sessionTransport.signedProfileId = "AABBCCDD"
@@ -722,24 +684,7 @@ class HomeViewModelTest {
         assertEquals(listOf(record), local.state.value.library.history)
     }
 
-    @Test
-    fun `life changes refresh session authority without repeatedly fetching unchanged game settings`() = runTest {
-        sessionTransport.participating = true
-        val initial = seatedLobby(2)
-        val viewModel = connectedViewModel(initial)
-        viewModel.signIn()
-        val reads = sessionTransport.gameSettingsReads
-        repository.tableSummary.value = initial.copy(revision = 3, players = initial.players.map { it.copy(life = 39) })
-        assertEquals(reads, sessionTransport.gameSettingsReads)
-        repository.tableSummary.value = initial.copy(revision = 4, settings = initial.settings.copy(startingLife = 30))
-        assertEquals(reads + 1, sessionTransport.gameSettingsReads)
-    }
-
-    /** Player 1 (handle 8, this phone) seated in the lobby. */
-    private fun seatedLobby(revision: Long) = table("running.response.json", revision) {
-        put("state", "LOBBY")
-        put("activePlayer", org.json.JSONObject.NULL)
-    }
+    private fun seatedLobby(revision: Long) = table("state-idle.response.json", revision)
 
     private fun TestScope.connectedViewModel(summary: TableSummary): HomeViewModel {
         val viewModel = viewModel()
@@ -781,7 +726,7 @@ class HomeViewModelTest {
 
     @Test
     fun `a profile can play without entering or saving a PIN`() = runTest {
-        val viewModel = lockedViewModel(FakeVault(), table("lobby.response.json", 1))
+        val viewModel = lockedViewModel(FakeVault(), table("state-idle.response.json", 1))
         viewModel.onPlayFromPhoneClicked()
         viewModel.onSignInSubmitted(viewModel.uiState.value.signIn!!.profiles.single(), "", remember = true)
         assertNull(viewModel.uiState.value.signIn)
@@ -792,7 +737,7 @@ class HomeViewModelTest {
     @Test
     fun `remembering a profile waits for Atlas and the phone's lock`() = runTest {
         val vault = FakeVault()
-        val summary = table("lobby.response.json", 1)
+        val summary = table("state-idle.response.json", 1)
         val viewModel = lockedViewModel(vault, summary)
         assertNull(viewModel.appLock.value)
 
@@ -815,7 +760,7 @@ class HomeViewModelTest {
     @Test
     fun `a new player creates an account from the sign-in sheet`() = runTest {
         val vault = FakeVault()
-        val summary = table("lobby.response.json", 1)
+        val summary = table("state-idle.response.json", 1)
         val viewModel = lockedViewModel(vault, summary)
 
         viewModel.onPlayFromPhoneClicked()
@@ -838,7 +783,7 @@ class HomeViewModelTest {
 
     @Test
     fun `Atlas refusing a new account keeps the sheet open with its reason`() = runTest {
-        val viewModel = connectedViewModel(table("lobby.response.json", 1))
+        val viewModel = connectedViewModel(table("state-idle.response.json", 1))
         sessionTransport.registerFailure = AtlasException(AtlasFailure.Rejected("Could not create profile; storage may be full"))
 
         viewModel.onPlayFromPhoneClicked()
@@ -853,7 +798,7 @@ class HomeViewModelTest {
     @Test
     fun `a saved profile signs in after the phone's lock, once per Atlas boot`() = runTest {
         val vault = FakeVault()
-        val summary = table("lobby.response.json", 1)
+        val summary = table("state-idle.response.json", 1)
         vault.save(com.turnhub.android.data.SavedProfile(summary.atlasId, "p1", "Ricky"), "1234")
         val viewModel = lockedViewModel(vault, summary)
 
@@ -865,14 +810,14 @@ class HomeViewModelTest {
 
         // Signing out by hand is respected for the rest of this boot.
         viewModel.onSignOutClicked()
-        repository.tableSummary.value = table("lobby.response.json", 2)
+        repository.tableSummary.value = table("state-idle.response.json", 2)
         assertNull(viewModel.appLock.value)
     }
 
     @Test
     fun `cancelling the phone's lock leaves the player signed out`() = runTest {
         val vault = FakeVault()
-        val summary = table("lobby.response.json", 1)
+        val summary = table("state-idle.response.json", 1)
         vault.save(com.turnhub.android.data.SavedProfile(summary.atlasId, "p1", "Ricky"), "1234")
         val viewModel = lockedViewModel(vault, summary)
 
@@ -884,8 +829,8 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `phone player signs in, joins, passes, pauses and signs out`() = runTest {
-        val viewModel = connectedViewModel(table("lobby.response.json", 1))
+    fun `phone player signs in and signs out`() = runTest {
+        val viewModel = connectedViewModel(table("state-idle.response.json", 1))
 
         viewModel.onPlayFromPhoneClicked()
         val prompt = viewModel.uiState.value.signIn!!
@@ -895,73 +840,11 @@ class HomeViewModelTest {
 
         viewModel.onSignInSubmitted(prompt.profiles.single(), "1234")
         assertNull(viewModel.uiState.value.signIn)
-        assertTrue(viewModel.uiState.value.player!!.canJoin)
-
-        viewModel.onJoinClicked()
-        repository.tableSummary.value = seatedLobby(2)
-        assertEquals(false, viewModel.uiState.value.player!!.canJoin)
-
-        // Atlas starts the game with this phone's player active.
-        repository.tableSummary.value = table("running.response.json", 4)
-        val running = viewModel.uiState.value.player!!
-        assertTrue(running.canPass && running.canPauseResume)
-
-        viewModel.onPassClicked()
-        viewModel.onPauseResumeClicked()
+        assertTrue(viewModel.uiState.value.player!!.signedIn)
         viewModel.onSignOutClicked()
 
-        assertEquals(
-            listOf(
-                "login p1",
-                "join",
-                "PASS rev=4 boot=${Fixtures.BOOT_ID}",
-                "PAUSE_RESUME rev=4 boot=${Fixtures.BOOT_ID}",
-                "logout",
-            ),
-            sessionTransport.calls,
-        )
+        assertEquals(listOf("login p1", "logout"), sessionTransport.calls)
         assertEquals(false, viewModel.uiState.value.player!!.signedIn)
-    }
-
-    @Test
-    fun `a stale tap is reported, not retried`() = runTest {
-        sessionTransport.participating = true
-        sessionTransport.controlResult = { ControlResult(false, "CONFLICT", "Stale revision", 9, Fixtures.BOOT_ID) }
-        val viewModel = connectedViewModel(table("running.response.json", 4))
-        viewModel.signIn()
-
-        viewModel.onPassClicked()
-
-        assertEquals(1, sessionTransport.calls.count { it.startsWith("PASS") })
-        val feedback = viewModel.uiState.value.player!!.feedback!!
-        assertTrue(feedback.isError && feedback.message.contains("table changed"))
-    }
-
-    @Test
-    fun `an ambiguous timeout is never replayed`() = runTest {
-        sessionTransport.participating = true
-        sessionTransport.controlFailure = AtlasException(AtlasFailure.Timeout("SocketTimeoutException"))
-        val viewModel = connectedViewModel(table("running.response.json", 4))
-        viewModel.signIn()
-
-        viewModel.onPassClicked()
-
-        assertEquals(1, sessionTransport.calls.count { it.startsWith("PASS") })
-        assertTrue(viewModel.uiState.value.player!!.feedback!!.message.contains("didn't confirm"))
-    }
-
-    @Test
-    fun `the host sets the turn timer in the lobby`() = runTest {
-        sessionTransport.participating = true
-        val viewModel = connectedViewModel(seatedLobby(2))
-        viewModel.signIn()
-
-        val editor = viewModel.uiState.value.player!!.timerEditor!!
-        assertEquals(listOf(0L, 60_000L, 120_000L, 180_000L, 300_000L), editor.presetsMs)
-        viewModel.onTurnTimerChosen(120_000)
-
-        assertEquals("timer 120000", sessionTransport.calls.last())
-        assertEquals("Turn timer saved on Atlas.", viewModel.uiState.value.player!!.feedback!!.message)
     }
 
     @Test
@@ -1007,23 +890,12 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `non-hosts get no timer editor`() = runTest {
-        sessionTransport.participating = true
-        sessionTransport.host = false
-        val viewModel = connectedViewModel(seatedLobby(2))
-        viewModel.signIn()
-
-        assertNull(viewModel.uiState.value.player!!.timerEditor)
-    }
-
-    @Test
     fun `a new Atlas boot drops the session`() = runTest {
-        sessionTransport.participating = true
-        val viewModel = connectedViewModel(table("running.response.json", 4))
+        val viewModel = connectedViewModel(table("state-hosted.response.json", 4))
         viewModel.signIn()
         assertTrue(viewModel.uiState.value.player!!.signedIn)
 
-        repository.tableSummary.value = table("running.response.json", 1).copy(bootId = Fixtures.OTHER_BOOT_ID)
+        repository.tableSummary.value = table("state-hosted.response.json", 1).copy(bootId = Fixtures.OTHER_BOOT_ID)
 
         assertEquals(false, viewModel.uiState.value.player!!.signedIn)
     }

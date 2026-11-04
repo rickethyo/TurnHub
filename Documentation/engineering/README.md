@@ -14,7 +14,7 @@ Cross-agent discussion and project-wide handoffs live in [`COLLABORATION.md`](..
 
 | Document | Covers |
 |---|---|
-| [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) | Rules every change preserves: Atlas authority, one handler per action, the feature gate, accessibility |
+| [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) | Rules every change preserves: the hub owns the game, one handler per action, the feature gate, accessibility |
 | [Architecture](ARCHITECTURE.md) | Ownership, the Intent pipeline and the full Intent catalog |
 | [Storage and Recovery](STORAGE_AND_RECOVERY.md) | Identities, every NVS and SD record, the microSD card, match recovery, completion ordering |
 | [Radio Protocol](RADIO_PROTOCOL.md) | ESP-NOW packets, capability bits, menus, lights, Atlas lost |
@@ -35,7 +35,7 @@ Cross-agent discussion and project-wide handoffs live in [`COLLABORATION.md`](..
 | [Hardware](HARDWARE.md) | Atlas and Sigil boards, pins, the touchscreen, displays, controls, identifying and flashing boards |
 | [Accessibility](ACCESSIBILITY.md) | Requirements and the implemented accessibility settings |
 | [Continuous Integration](CONTINUOUS_INTEGRATION.md) | GitHub Actions checks, artifacts and local equivalents |
-| [Planned Designs](PLANNED_DESIGNS.md) | Designs for features not built yet: venue model, Sigil sleep, front LED strip, shared SD cards |
+| [Planned Designs](PLANNED_DESIGNS.md) | Designs for features not built yet: Planechase on Atlas, Sigil sleep, front LED strip, shared SD cards |
 
 Elsewhere: the HTTP client contract is [`protocol/http-v1.md`](../../protocol/http-v1.md);
 the LVGL desktop simulator is [`shared/simulator/README.md`](../../shared/simulator/README.md); the

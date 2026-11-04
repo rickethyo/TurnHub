@@ -123,14 +123,13 @@ private fun ProfileCard(uiState: HomeUiState, session: PlayerSessionState.Signed
     var name by rememberSaveable(session.profileId) { mutableStateOf(session.name.orEmpty()) }
     var pin by rememberSaveable { mutableStateOf("") }
     var currentPin by rememberSaveable { mutableStateOf("") }
-    val me = uiState.me()
     BrassCard {
         Eyebrow("My account")
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             val icon = if (uiState.personalization?.avatar == 128)
                 com.turnhub.android.protocol.AvatarIcon(128, "custom", "Uploaded player image", emptyList(), uiState.personalization.customImage)
-            else uiState.avatars.firstOrNull { it.id == uiState.personalization?.avatar } ?: me?.avatar
-            PlayerAvatar(session.name ?: "?", me?.playerNumber ?: 0, icon, size = 56.dp)
+            else uiState.avatars.firstOrNull { it.id == uiState.personalization?.avatar }
+            PlayerAvatar(session.name ?: "?", 0, icon, size = 56.dp)
             Column(Modifier.weight(1f)) {
                 Text(session.name ?: "Unnamed profile", color = p.text, style = MaterialTheme.typography.titleLarge)
                 Text("Profile ${session.profileId}", color = p.faint, style = MaterialTheme.typography.bodySmall)

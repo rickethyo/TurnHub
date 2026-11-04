@@ -63,13 +63,11 @@ prefix plus the profile ID.
 | Sigil pairings | `th_pair/s0`-`s7` | `sigil_bus.cpp` |
 | Battery estimator history (Gen 1 only, `legacy/gen1`) | `battery/gauge` + deep-sleep RTC checkpoint; [format/policy](BATTERY_GAUGE.md) | `atlas_battery.cpp` |
 | Display theme and inversion | `display/theme`, `display/inverted` | `atlas_board_none.cpp` |
-| Interrupted-match recovery record | `th_game_v1/checkpoint` | `game_recovery*.cpp` |
 | Detailed statistics, Jewel color, avatar selection | card: `s`, `k`, `v` + id | `profile_store.cpp` via `sdBlobStore()` |
 
-**RAM only:** browser sessions, table participation, seat bindings (released
-when a seat leaves, at Reset, and on restart; kept through Game Over so
-Sigils can name the winner; a seated Sigil that reboots keeps them), life
-approvals, Commander undo receipts, presence verification, update jobs.
+**RAM only:** sessions, the hosted lease, the hub's latest state and its
+resume offer, seat bindings, presence verification, update jobs. The hub
+keeps its own copy of the game.
 
 **On the Sigil:** `th_pair/atlas` (Atlas MAC, slot, pair key). Applied
 settings (hold times, light style) are RAM only and resent by Atlas.
@@ -146,41 +144,19 @@ recorded and the stats API reports `"detailed": false`.
 - **Factory reset** empties the card (`wipeSdCard()`); the portal stays in firmware,
   then erases NVS.
 
-## Interrupted-match recovery
+## Interrupted games and the statistics limit
 
-Atlas saves a compact, versioned checkpoint (`th_game_v1/checkpoint`) after
-each accepted Intent that changes recoverable state, not on timer ticks. It
-holds players and seats (including A/B order on a shared Sigil), turn,
-life, Commander damage, settings, the turn timer, the match record ID and
-player names. Recovery preserves the identity and labels used by history and
-CSV export. Checkpoint schema 10 requires a prototype reset for older saved
-matches; unsupported records are preserved and never overwritten.
+Atlas runs no game since 2026-11-04, so it keeps no recovery record: the hub
+saves its own game (Android: the local game in `turnhub_standalone`), and a
+game left when a hub drops is offered to another phone from RAM until Atlas
+restarts ([hosted-v1.md](../../protocol/hosted-v1.md#resume-and-records)).
 
-- At boot a valid unfinished record restores the match **paused**, so
-  power-off time is never charged to a player. Discard is the 5 s End match
-  hold.
-- Sessions, life approvals, menus and other adapter state are never restored;
-  phones sign in again and controllers reattach to their participants.
-- Partner commanders are not saved separately: recorded commander-2 damage
-  turns them back on.
-- Corrupt, unsupported or ambiguous records fail safe: profiles and
-  statistics stay, and Atlas starts a fresh lobby.
-
-## Completion ordering and the statistics limit
-
-The engine's game-completed event calls `profile_stats_bridge.cpp` once per
-match, whatever the ending path. The bridge must **commit the finished-match
-checkpoint before** incrementing any profile statistics. A failed or uncertain
-checkpoint write skips statistics and logs
-`ATLAS|PROFILE_STATS|SKIPPED_CHECKPOINT|<status>`. Restoring a finished record
-never replays completion. A match under a minute of play commits its checkpoint and
-logs `SHORT_GAME_HELD`; its statistics wait for `CountShortGame` (GAMEPLAY.md)
-in the same boot, and a restored finished record can no longer be counted.
-
-This closed the power-cut double count (2026-09-26), but a cut **after** the
-checkpoint and during profile writes can still leave missing or partial
-results. Do not claim crash-safe, exactly-once statistics until durable
-MatchIds, completion receipts and replay-safe writes exist (staged in
+A finished game's statistics reach Atlas through the game import
+(`standalone_import.cpp`), once per record ID: Atlas saves hashed (record,
+profile) receipts (NVS `sgimport`, the last 128) before any statistics, so a
+power cut can lose one game's statistics but does not count a replay twice
+while its receipts remain. Do not claim crash-safe, exactly-once statistics
+until durable completion receipts and replay-safe writes exist (staged in
 [Staged Changes](STAGED_CHANGES.md)). Host fault injection covers the
 boundaries; it does not prove ESP32 flash or FAT behavior.
 
@@ -250,34 +226,11 @@ backup is normal on a first write and must not emit a filesystem error. Cleanup
 failure after publication still leaves the new committed record readable.
 
 
-Match recovery is checkpoint schema 10. Elimination attribution: each player adds one byte for
-the credited opponent's player number (zero means unknown). Attribution is
-validated with the saved player list and restored paused. Detailed profile stats
-schema 4 is 88 bytes; core NVS stats schema 3 is 28 bytes, including lifetime and
-last-game elimination counts. Statistics layouts require a prototype factory
-reset; unreadable records are preserved rather than migrated or overwritten.
+Detailed profile stats schema 4 is 88 bytes; core NVS stats schema 3 is 28
+bytes, including lifetime and last-game elimination counts. Statistics layouts
+require a prototype factory reset; unreadable records are preserved rather
+than migrated or overwritten.
 
-
-Bag of Doom adds a 22-byte header: two 16-bit masks (at-risk and drawn, each stored as a 32-bit word),
-boundary, warmup, pending flag, pending turn owner, sealed selection and last
-drawn player (one byte each), then cycle and last-check (32-bit each). The
-maximum checkpoint is 3,770 bytes (118-byte header, per-player 100 bytes plus
-8 per opponent, CRC-32). Validation requires living membership, a valid
-boundary, a paused pending check, and uncredited/non-conceding drawn players.
-A selection must be in the pending bag. Outside this variant the bag is empty.
-The private selection is committed before resolution; recovering it never
-chooses another name. Profile statistics layouts do not change for this mode.
-Android commits a phone-hosted draw's complete snapshot synchronously before
-publishing its result; other local edits retain the normal save path.
-
-
-Explicit elimination attribution uses the existing exit byte: bit 0 eliminated,
-bit 1 conceded, bit 2 Self, bit 3 attribution pending. The profile byte reserves
-bit 0x20 for `askEliminationSource`. Record capacity remains 3,062 bytes. A pending
-source requires a paused unfinished interactive match and an eliminated,
-uncredited, non-conceding, non-bag victim. Self is mutually exclusive with
-pending/credited/conceded/bag exits. Team members share these flags and source.
-A pending match may have one or zero survivors; the final answer completes it.
-Completion persistence and statistics run only after all pending answers clear.
-Android persists the same flags/policy with the game and Self in history/imports;
-no new statistics layout is needed because Self has zero opponent credit.
+Android commits a hub's Bag of Doom draw's complete snapshot synchronously
+before publishing its result, and saves elimination sources (including Self
+and pending answers) with the game and in history and imports.

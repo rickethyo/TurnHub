@@ -37,7 +37,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.turnhub.android.data.TabletState
 import com.turnhub.android.domain.TableClock
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.standalone.StandaloneGame
@@ -135,9 +134,7 @@ internal fun LocalTable(state: StandaloneState, table: StandaloneTable, reduceMo
             { rollGame = table.state.value.game; rolling = true }
         } else null,
         summary = summary,
-        tablet = TabletState(),
         controls = { block -> scope.launch { table.block() } },
-        onDismissMessage = {},
         // Only the players at this table: a saved player who isn't playing doesn't slow everyone else's table.
         reduceMotion = effectiveReduceMotion,
         onClose = onClose,
@@ -226,7 +223,7 @@ fun EmbeddedTable(
 internal fun TablePreview(summary: TableSummary, reduceMotion: Boolean, card: @Composable ColumnScope.() -> Unit) {
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().clearAndSetSemantics { contentDescription = "Table preview" }) {
-            TabletTable(summary, TabletState(), controls = {}, onDismissMessage = {}, reduceMotion = reduceMotion,
+            TabletTable(summary, controls = {}, reduceMotion = reduceMotion,
                 onClose = {}, standalone = true)
         }
         // Over the table, so its seats never see a touch.

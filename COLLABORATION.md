@@ -2166,3 +2166,32 @@ rejected/unknown/retry states. Retain the original action UUID on retries and
 capture the original die face in the room receipt so a later roll cannot be
 mistaken for this one. Unify personal card/Planes feedback for phone-hosted
 and Atlas-relayed clients; keep active-turn gates and no live test rolls.
+
+## Phone-hosted slices 5 and 6: Atlas's engine removed — 2026-11-04, Claude
+
+Owner chose "Delete it all in one go" for the last two slices of the
+phone-hosted direction (plan `phone-hosted-game.md`). Branch `claude/master`,
+PR #196.
+
+- **Atlas:** `GameEngine`, `Lobby`, the gameplay/table/moderation Intent
+  handlers, the game HTTP routes (`/api/control/*`, `/api/tablet/*`,
+  `/api/game/*`, `/api/v1/game`, `/api/v1/offline`, `/api/atlas/screen`,
+  `/api/session/play|join|game|request|poll`), the two-table venue model, the
+  offline merge and the recovery record are gone. Device work stays in
+  `device_intents.cpp`; games arrive only through `/api/hosted/*`.
+  `/api/v1/state` is now `atlas-state-v1` (hub, battery, links) and
+  `/api/session/me` returns only identity, permissions, PIN and policy.
+- **App:** the Atlas-run Game tab, seat claims, offline queues, venue
+  selector, Atlas Planes tab and moderation UI are gone; the Game tab shows
+  the hub's own game, and the lock-screen turn comes from the LAN room.
+- **Docs:** Invariant 1 now reads "the hub that runs the core owns the game;
+  Atlas owns hardware and records at rest". `TABLE_AUTHORITY.md` was
+  rewritten; the venue model was removed from `PLANNED_DESIGNS.md`.
+- **Left for later** (listed in `STAGED_CHANGES.md`): unbound game Intents in
+  `intent.h` and the Sigil's Link phone action; no app client for
+  `/api/planes*` and `/api/room`; unused account fields; dead app plumbing;
+  the `protocol.h` comment (another thread's file).
+
+Validation: Atlas host suites (Linux, sanitizers), `audit_adapters.py`,
+`check_client_contract.py` and `pio run -e atlas-s3` pass; app unit tests
+519 pass, 2 skipped. Not yet played on the boards.

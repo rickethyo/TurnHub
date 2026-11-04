@@ -4,7 +4,6 @@ import com.turnhub.android.protocol.AtlasConnectionState.CONNECTED
 import com.turnhub.android.protocol.AtlasConnectionState.CONNECTING
 import com.turnhub.android.protocol.AtlasConnectionState.DISCONNECTED
 import com.turnhub.android.protocol.AtlasInfo
-import com.turnhub.android.protocol.SeatEntry
 import com.turnhub.android.protocol.StateSnapshot
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.testing.Fixtures
@@ -26,12 +25,9 @@ import org.junit.Test
 /** A scripted [AtlasTransport]: each call runs the current handler, which may throw. */
 private class FakeAtlasTransport : AtlasTransport {
     var info: suspend () -> AtlasInfo = { Fixtures.info() }
-    var state: suspend () -> StateSnapshot = { Fixtures.state("running.response.json") }
-    var seats: suspend () -> List<SeatEntry> = { emptyList() }
-    override var contextKey: String = ""
+    var state: suspend () -> StateSnapshot = { Fixtures.state("state-hosted.response.json") }
     var infoCalls = 0
     var stateCalls = 0
-    var seatCalls = 0
 
     override suspend fun getInfo(): AtlasInfo {
         infoCalls++
@@ -41,11 +37,6 @@ private class FakeAtlasTransport : AtlasTransport {
     override suspend fun getState(): StateSnapshot {
         stateCalls++
         return state()
-    }
-
-    override suspend fun getSeats(): List<SeatEntry> {
-        seatCalls++
-        return seats()
     }
 }
 
@@ -61,7 +52,6 @@ class HttpAtlasRepositoryTest {
         scope = scope,
         pollIntervalMs = 1_000,
         maxConsecutivePollFailures = 3,
-        nameRefreshPolls = 5,
     )
 
     private fun TestScope.advance(ms: Long) {
@@ -87,33 +77,9 @@ class HttpAtlasRepositoryTest {
         val initial = transport.stateCalls
         advance(30_000)
         assertEquals(6, transport.stateCalls - initial)
-        assertEquals(2, transport.seatCalls) // Metadata refresh is bounded separately.
         repository.setPresentationForeground(true)
         advance(6_000)
         assertEquals(initial + 13, transport.stateCalls) // Immediate refresh, then one per second.
-    }
-
-    @Test
-    fun `a changed participant refreshes metadata immediately even without a new revision`() = runTest {
-        val repository = repository()
-        repository.connect(AtlasEndpoint.DEFAULT)
-        val sameRevision = Fixtures.state("running.response.json")
-        transport.state = { sameRevision.copy(players = sameRevision.players.mapIndexed { i, p ->
-            if (i == 0) p.copy(participantId = p.participantId + 1) else p }) }
-        advance(1_000)
-        assertEquals(2, transport.seatCalls)
-    }
-
-    @Test
-    fun `explicit personalization changes refresh the cache immediately at the same revision`() = runTest {
-        transport.seats = { listOf(SeatEntry(8, 1, 1, "Before")) }
-        val repository = repository()
-        repository.connect(AtlasEndpoint.DEFAULT)
-        transport.seats = { listOf(SeatEntry(8, 1, 1, "After")) }
-        repository.invalidatePresentationMetadata()
-        runCurrent()
-        assertEquals(2, transport.seatCalls)
-        assertEquals("After", repository.tableSummary.value!!.players[0].label)
     }
 
     @Test
@@ -129,7 +95,7 @@ class HttpAtlasRepositoryTest {
         val summary = repository.tableSummary.value!!
         assertEquals("THA-025448410001", summary.atlasId)
         assertEquals("0.6.0-dev", summary.firmwareVersion)
-        assertEquals(4L, summary.revision)
+        assertEquals(7L, summary.revision)
         assertNull(repository.failure.value)
     }
 
@@ -145,7 +111,7 @@ class HttpAtlasRepositoryTest {
         assertEquals(1, transport.infoCalls)
         assertNull(repository.tableSummary.value)
 
-        stateGate.complete(Fixtures.state("running.response.json"))
+        stateGate.complete(Fixtures.state("state-hosted.response.json"))
         connecting.join()
         assertEquals(CONNECTED, repository.connectionState.value)
     }
@@ -202,13 +168,13 @@ class HttpAtlasRepositoryTest {
         val repository = repository()
         repository.connect(AtlasEndpoint.DEFAULT)
 
-        transport.state = { Fixtures.state("reconnected.response.json") }
+        transport.state = { Fixtures.state("state-hosted.response.json") { put("revision", 9) } }
         advance(999)
         assertEquals(1, transport.stateCalls)
         advance(1)
         assertEquals(2, transport.stateCalls)
-        assertEquals(6L, repository.tableSummary.value!!.revision)
-        assertEquals(2, repository.tableSummary.value!!.activePlayerNumber)
+        assertEquals(9L, repository.tableSummary.value!!.revision)
+        assertEquals("Kitchen tablet", repository.tableSummary.value!!.hub?.name)
 
         advance(3_000)
         assertEquals(5, transport.stateCalls)
@@ -216,16 +182,16 @@ class HttpAtlasRepositoryTest {
     }
 
     @Test
-    fun `same revision still refreshes sampled clocks`() = runTest {
+    fun `same revision still refreshes sampled battery and links`() = runTest {
         val repository = repository()
         repository.connect(AtlasEndpoint.DEFAULT)
 
-        transport.state = { Fixtures.state("running.response.json") { put("turnElapsedMs", 1_100) } }
+        transport.state = { Fixtures.state("state-hosted.response.json") { getJSONObject("battery").put("percent", 50) } }
         advance(1_000)
 
         val summary = repository.tableSummary.value!!
-        assertEquals(4L, summary.revision)
-        assertEquals(1_100L, summary.turnElapsedMs)
+        assertEquals(7L, summary.revision)
+        assertEquals(50, summary.battery?.percent)
     }
 
     @Test
@@ -272,12 +238,12 @@ class HttpAtlasRepositoryTest {
         assertEquals(2, transport.stateCalls)
 
         repository.disconnect()
-        transport.state = { Fixtures.state("reconnected.response.json") }
+        transport.state = { Fixtures.state("state-hosted.response.json") { put("revision", 9) } }
         repository.connect(AtlasEndpoint.DEFAULT)
 
         assertEquals(2, transport.infoCalls)
         assertEquals(3, transport.stateCalls)
-        assertEquals(6L, repository.tableSummary.value!!.revision)
+        assertEquals(9L, repository.tableSummary.value!!.revision)
 
         advance(3_000)
         // One loop only: three polls in three seconds, not six.
@@ -289,15 +255,16 @@ class HttpAtlasRepositoryTest {
     fun `changed boot ID rebuilds from fresh info and state`() = runTest {
         val repository = repository()
         repository.connect(AtlasEndpoint.DEFAULT)
-        assertEquals(4L, repository.tableSummary.value!!.revision)
+        assertEquals(7L, repository.tableSummary.value!!.revision)
 
         // Atlas rebooted (e.g. OTA to new firmware) and recovered the match paused.
         transport.info = {
             Fixtures.info { put("bootId", Fixtures.OTHER_BOOT_ID).put("firmwareVersion", "0.6.1-dev") }
         }
         transport.state = {
-            Fixtures.state("running.response.json") {
-                put("bootId", Fixtures.OTHER_BOOT_ID).put("revision", 0).put("state", "PAUSED")
+            Fixtures.state("state-hosted.response.json") {
+                put("bootId", Fixtures.OTHER_BOOT_ID).put("revision", 0)
+                getJSONObject("hub").put("state", "PAUSED")
             }
         }
         advance(1_000)
@@ -308,20 +275,20 @@ class HttpAtlasRepositoryTest {
         assertEquals(Fixtures.OTHER_BOOT_ID, summary.bootId)
         assertEquals(0L, summary.revision) // Lower revision accepted in the new epoch.
         assertEquals("0.6.1-dev", summary.firmwareVersion)
-        assertEquals(TableState.PAUSED, summary.state)
+        assertEquals(TableState.PAUSED, summary.hub?.state)
     }
 
     @Test
     fun `revision going backwards in the same boot also rebuilds`() = runTest {
         val repository = repository()
-        transport.state = { Fixtures.state("reconnected.response.json") }
+        transport.state = { Fixtures.state("state-hosted.response.json") { put("revision", 9) } }
         repository.connect(AtlasEndpoint.DEFAULT)
 
-        transport.state = { Fixtures.state("running.response.json") }
+        transport.state = { Fixtures.state("state-hosted.response.json") }
         advance(1_000)
 
         assertEquals(2, transport.infoCalls)
-        assertEquals(4L, repository.tableSummary.value!!.revision)
+        assertEquals(7L, repository.tableSummary.value!!.revision)
     }
 
     @Test
@@ -330,7 +297,7 @@ class HttpAtlasRepositoryTest {
         repository.connect(AtlasEndpoint.DEFAULT)
 
         transport.info = { Fixtures.info { put("atlasId", "THA-AAAAAAAAAAAA") } }
-        transport.state = { Fixtures.state("lobby.response.json") { put("atlasId", "THA-AAAAAAAAAAAA") } }
+        transport.state = { Fixtures.state("state-idle.response.json") { put("atlasId", "THA-AAAAAAAAAAAA") } }
         advance(1_000)
 
         val summary = repository.tableSummary.value!!
@@ -350,10 +317,10 @@ class HttpAtlasRepositoryTest {
         assertSame(timeout, repository.failure.value)
         assertNotNull(repository.tableSummary.value)
 
-        transport.state = { Fixtures.state("reconnected.response.json") }
+        transport.state = { Fixtures.state("state-hosted.response.json") { put("revision", 9) } }
         advance(1_000)
         assertNull(repository.failure.value)
-        assertEquals(6L, repository.tableSummary.value!!.revision)
+        assertEquals(9L, repository.tableSummary.value!!.revision)
     }
 
     @Test
@@ -381,12 +348,12 @@ class HttpAtlasRepositoryTest {
         assertSame(lastKnown, repository.tableSummary.value)
 
         // The same boot answers again: back online with fresh state.
-        transport.state = { Fixtures.state("reconnected.response.json") }
+        transport.state = { Fixtures.state("state-hosted.response.json") { put("revision", 9) } }
         advance(2_000)
         assertEquals(CONNECTED, repository.connectionState.value)
         assertNull(repository.offlineSinceMs.value)
         assertNull(repository.failure.value)
-        assertEquals(6L, repository.tableSummary.value!!.revision)
+        assertEquals(9L, repository.tableSummary.value!!.revision)
     }
 
     @Test
@@ -399,7 +366,7 @@ class HttpAtlasRepositoryTest {
         assertNotNull(repository.offlineSinceMs.value)
 
         transport.info = { Fixtures.info { put("bootId", Fixtures.OTHER_BOOT_ID) } }
-        transport.state = { Fixtures.state("running.response.json") { put("bootId", Fixtures.OTHER_BOOT_ID) } }
+        transport.state = { Fixtures.state("state-hosted.response.json") { put("bootId", Fixtures.OTHER_BOOT_ID) } }
         advance(2_000)
         assertEquals(CONNECTED, repository.connectionState.value)
         assertNull(repository.offlineSinceMs.value)
@@ -432,7 +399,7 @@ class HttpAtlasRepositoryTest {
         assertSame(timeout, repository.failure.value)
         assertNotNull(repository.tableSummary.value)
 
-        transport.state = { Fixtures.state("reconnected.response.json") }
+        transport.state = { Fixtures.state("state-hosted.response.json") { put("revision", 9) } }
         advance(1_000)
         assertNull(repository.failure.value)
 
@@ -451,7 +418,7 @@ class HttpAtlasRepositoryTest {
         transport.info = { Fixtures.info { put("bootId", infoBoot) } }
         transport.state = {
             infoBoot = Fixtures.OTHER_BOOT_ID // Atlas restarts after answering info.
-            Fixtures.state("running.response.json") { put("bootId", Fixtures.OTHER_BOOT_ID) }
+            Fixtures.state("state-hosted.response.json") { put("bootId", Fixtures.OTHER_BOOT_ID) }
         }
         val repository = repository()
 
@@ -460,62 +427,6 @@ class HttpAtlasRepositoryTest {
         assertEquals(CONNECTED, repository.connectionState.value)
         assertEquals(2, transport.infoCalls)
         assertEquals(Fixtures.OTHER_BOOT_ID, repository.tableSummary.value!!.bootId)
-    }
-
-    @Test
-    fun `players are named from seats by handle and slot`() = runTest {
-        transport.seats = { listOf(SeatEntry(moduleId = 8, slot = 1, playerNumber = 1, name = "Ricky")) }
-        val repository = repository()
-
-        repository.connect(AtlasEndpoint.DEFAULT)
-
-        val players = repository.tableSummary.value!!.players
-        assertEquals(listOf("Ricky", "Player 2"), players.map { it.label })
-        assertEquals(listOf(true, false), players.map { it.hasName })
-    }
-
-    @Test
-    fun `a failing seats request never breaks the connection`() = runTest {
-        transport.seats = { fail(timeout) }
-        val repository = repository()
-
-        repository.connect(AtlasEndpoint.DEFAULT)
-        advance(3_000)
-
-        assertEquals(CONNECTED, repository.connectionState.value)
-        assertNull(repository.failure.value)
-        assertEquals(listOf("Player 1", "Player 2"), repository.tableSummary.value!!.players.map { it.label })
-    }
-
-    @Test
-    fun `names are kept when a later seats refresh fails`() = runTest {
-        transport.seats = { listOf(SeatEntry(8, 1, 1, "Ricky")) }
-        val repository = repository()
-        repository.connect(AtlasEndpoint.DEFAULT)
-
-        transport.seats = { fail(timeout) }
-        transport.state = { Fixtures.state("reconnected.response.json") } // Revision change forces a refresh.
-        advance(1_000)
-
-        assertEquals("Ricky", repository.tableSummary.value!!.players[0].label)
-    }
-
-    @Test
-    fun `gameplay revisions do not refresh metadata but periodic refresh still does`() = runTest {
-        val repository = repository()
-        repository.connect(AtlasEndpoint.DEFAULT)
-        assertEquals(1, transport.seatCalls)
-
-        advance(4_000) // Same revision: four polls, no refresh yet.
-        assertEquals(1, transport.seatCalls)
-        advance(1_000) // Fifth poll refreshes.
-        assertEquals(2, transport.seatCalls)
-
-        transport.state = { Fixtures.state("reconnected.response.json") }
-        advance(1_000) // Same roster, despite the game revision change.
-        assertEquals(2, transport.seatCalls)
-        advance(4_000)
-        assertEquals(3, transport.seatCalls)
     }
 
     @Test
@@ -545,32 +456,4 @@ class HttpAtlasRepositoryTest {
 
         assertEquals(1, transport.stateCalls)
     }
-    @Test
-    fun `switching games discards names even with the same revision and handles`() = runTest {
-        transport.seats = { listOf(SeatEntry(8, 1, 1, "Game one")) }
-        val repository = repository()
-        repository.connect(AtlasEndpoint.DEFAULT)
-        transport.contextKey = "game-two"
-        transport.state = { Fixtures.state("running.response.json") { put("game", 2) } }
-        transport.seats = { listOf(SeatEntry(8, 1, 1, "Game two")) }
-        advance(1_000)
-        assertEquals(2, repository.tableSummary.value!!.game)
-        assertEquals("Game two", repository.tableSummary.value!!.players.first().label)
-        assertEquals(2, transport.infoCalls)
-    }
-
-    @Test
-    fun `context changes during a poll do not publish the mixed snapshot`() = runTest {
-        val repository = repository()
-        repository.connect(AtlasEndpoint.DEFAULT)
-        val previous = repository.tableSummary.value
-        transport.state = {
-            transport.contextKey = "changed"
-            Fixtures.state("running.response.json") { put("game", 2) }
-        }
-        transport.seats = { transport.contextKey += "again"; emptyList() }
-        advance(1_000)
-        assertEquals(previous, repository.tableSummary.value)
-    }
-
 }

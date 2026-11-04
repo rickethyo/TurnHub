@@ -1,10 +1,8 @@
 package com.turnhub.android.data
 
-import com.turnhub.android.domain.SeatKey
 import com.turnhub.android.domain.TableClock
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.domain.TableSummaryMapper
-import com.turnhub.android.protocol.AvatarIcon
 import com.turnhub.android.protocol.AtlasConnectionState
 import com.turnhub.android.protocol.AtlasInfo
 import com.turnhub.android.protocol.StateSnapshot
@@ -21,7 +19,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Live, read-only view of one Atlas over its HTTP API.
+ * Live, read-only view of one Atlas over its HTTP API: its identity, battery,
+ * links and the phone hub holding its table (protocol/atlas-state-v1.schema.json).
  *
  * Connection flow: `GET /api/v1/info` -> compatibility check ->
  * `GET /api/v1/state` -> map -> CONNECTED -> poll state every [pollIntervalMs].
@@ -29,7 +28,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * Reconnect rules follow protocol/http-v1.md, keyed on (atlasId, bootId,
  * revision):
  * - Every snapshot replaces the summary whole, even at the same revision,
- *   because Atlas's sampled clocks move without a revision change.
+ *   because Atlas's sampled battery and links move without a revision change.
  * - A changed atlasId (different Atlas), changed bootId (Atlas restarted) or a
  *   lower revision (including wrap) discards the cached view and rebuilds from
  *   a fresh info + state handshake. Nothing is merged across epochs.
@@ -52,8 +51,6 @@ class HttpAtlasRepository(
     private val maxConsecutivePollFailures: Int = 3,
     /** Poll spacing while Atlas isn't answering. */
     private val offlinePollIntervalMs: Long = 2_000,
-    /** Upper bound on polls between `/api/seats` name refreshes. */
-    private val nameRefreshPolls: Int = 30,
     private val backgroundPollIntervalMs: Long = 5_000,
     /** Local monotonic clock (ms), stamped on each summary so the UI can tick between polls. */
     private val clock: () -> Long = TableClock::nowMs,
@@ -68,9 +65,7 @@ class HttpAtlasRepository(
     @Volatile private var holding = false
     @Volatile private var presentationForeground = true
     private val refreshRequests = Channel<Unit>(Channel.CONFLATED)
-    @Volatile private var metadataInvalidated = false
     override fun invalidatePresentationMetadata() {
-        metadataInvalidated = true
         refreshRequests.trySend(Unit)
     }
     override fun setPresentationForeground(visible: Boolean) {
@@ -96,12 +91,6 @@ class HttpAtlasRepository(
     private class Live(
         val info: AtlasInfo,
         val summary: TableSummary,
-        val names: Map<SeatKey, String>,
-        val pollsSinceNames: Int,
-        val seatAvatars: Map<SeatKey, Int> = emptyMap(),
-        val avatarIcons: Map<Int, AvatarIcon> = emptyMap(),
-        val contextKey: String = "",
-        val membership: List<String> = emptyList(),
     )
 
     override suspend fun connect(endpoint: AtlasEndpoint) {
@@ -110,7 +99,6 @@ class HttpAtlasRepository(
             if (_connectionState.value != AtlasConnectionState.DISCONNECTED) return
             val connection = ++generation
             while (refreshRequests.tryReceive().isSuccess) { /* No refresh from an old connection. */ }
-            artworkCache.clear()
             _endpoint.value = endpoint
             _failure.value = null
             _tableSummary.value = null
@@ -185,113 +173,36 @@ class HttpAtlasRepository(
         }
     }
 
-    private val artworkCache = linkedMapOf<String, ByteArray>()
-
     private suspend fun refresh(transport: AtlasTransport, live: Live): Live {
         val snapshot = call { transport.getState() }
         AtlasCompatibility.requireCompatible(snapshot)
         val current = live.summary
-        val sameEpoch = snapshot.atlasId == current.atlasId && snapshot.bootId == current.bootId &&
-            snapshot.game == current.game && transport.contextKey == live.contextKey
+        val sameEpoch = snapshot.atlasId == current.atlasId && snapshot.bootId == current.bootId
         if (!sameEpoch || snapshot.revision < current.revision) {
             // Different Atlas, new boot, or revision went backwards: start over.
             return handshake(transport)
         }
-        // Presentation has no revision yet: roster changes and explicit local
-        // edits refresh immediately, with a periodic bound for other clients.
-        val explicitlyInvalidated = metadataInvalidated
-        metadataInvalidated = false
-        val refreshNames = explicitlyInvalidated || membership(snapshot) != live.membership ||
-            live.pollsSinceNames + 1 >= nameRefreshPolls
-        val seats = if (refreshNames) fetchSeats(transport) else null
-        val names = seats?.first ?: live.names
-        val avatars = seats?.second ?: live.seatAvatars
-        return Live(
-            info = live.info,
-            summary = map(live.info, snapshot, names, avatars, live.avatarIcons + seats?.third.orEmpty()),
-            names = names,
-            pollsSinceNames = if (seats != null) 0 else live.pollsSinceNames + 1,
-            seatAvatars = avatars,
-            avatarIcons = live.avatarIcons.filterKeys { it > 0 } + (seats?.third ?: live.avatarIcons.filterKeys { it < 0 }),
-            contextKey = live.contextKey,
-            membership = membership(snapshot),
-        ).also { requireContext(transport, live.contextKey) }
+        return Live(live.info, map(live.info, snapshot))
     }
 
-    /** info -> compatibility -> state (+ names), retried once if Atlas restarted in between. */
+    /** info -> compatibility -> state, retried once if Atlas restarted in between. */
     private suspend fun handshake(transport: AtlasTransport): Live {
         repeat(2) {
-            val contextKey = transport.contextKey
             val info = call { transport.getInfo() }
             AtlasCompatibility.requireCompatible(info)
             try { call { transport.syncWallClock(System.currentTimeMillis()) } }
             catch (e: CancellationException) { throw e }
-            catch (_: AtlasException) { /* Bookkeeping time is optional on older Atlas firmware. */ }
+            catch (_: AtlasException) { /* Bookkeeping time is optional. */ }
             val snapshot: StateSnapshot = call { transport.getState() }
             AtlasCompatibility.requireCompatible(snapshot)
             if (snapshot.atlasId == info.atlasId && snapshot.bootId == info.bootId) {
-                val seats = fetchSeats(transport)
-                val names = seats?.first.orEmpty()
-                val avatars = seats?.second.orEmpty()
-                val icons = fetchAvatarIcons(transport) + seats?.third.orEmpty()
-                return Live(info, map(info, snapshot, names, avatars, icons), names, pollsSinceNames = 0,
-                    seatAvatars = avatars, avatarIcons = icons, contextKey = contextKey,
-                    membership = membership(snapshot)).also { requireContext(transport, contextKey) }
+                return Live(info, map(info, snapshot))
             }
         }
         throw AtlasException(AtlasFailure.Malformed("Atlas identity changed while connecting; try again"))
     }
 
-    private fun requireContext(transport: AtlasTransport, key: String) {
-        if (transport.contextKey != key) throw AtlasException(AtlasFailure.Rejected("Table selection changed; refreshing."))
-    }
-
-    private fun membership(snapshot: StateSnapshot) = snapshot.players.map {
-        "${it.moduleId}/${it.slot}/${it.participantId}/${it.profileId}/${it.displayName}"
-    }
-
-    /** Seat names and avatars are presentation only: any failure keeps what we have. */
-    private suspend fun fetchSeats(transport: AtlasTransport): Triple<Map<SeatKey, String>, Map<SeatKey, Int>, Map<Int, AvatarIcon>>? = try {
-        val seats = transport.getSeats()
-        val names = seats.mapNotNull { seat -> seat.name?.let { SeatKey(seat.moduleId, seat.slot) to it } }.toMap()
-        val icons = mutableMapOf<Int, AvatarIcon>()
-        val avatars = seats.filter { it.avatar > 0 || it.customAvatar.isNotBlank() }.associate { seat ->
-            val id = if (seat.customAvatar.isBlank()) seat.avatar else -(seat.moduleId * 2 + seat.slot + 1)
-            if (id < 0) {
-                val cacheKey = transport.contextKey + ":" + seat.customAvatar
-                val bytes = artworkCache[cacheKey] ?: try {
-                    transport.getAvatarImage(seat.customAvatar).also {
-                        if (artworkCache.size >= 32) artworkCache.remove(artworkCache.keys.first())
-                        artworkCache[cacheKey] = it
-                    }
-                } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
-                icons[id] = AvatarIcon(id, "custom", "Uploaded player image", emptyList(), bytes)
-            }
-            SeatKey(seat.moduleId, seat.slot) to id
-        }
-        Triple(names, avatars, icons)
-    } catch (e: CancellationException) {
-        throw e
-    } catch (_: Exception) {
-        null
-    }
-
-    /** The preset icons; fetched once per connection, and optional. */
-    private suspend fun fetchAvatarIcons(transport: AtlasTransport): Map<Int, AvatarIcon> = try {
-        transport.getAvatars().associateBy { it.id }
-    } catch (e: CancellationException) {
-        throw e
-    } catch (_: Exception) {
-        emptyMap()
-    }
-
-    private fun map(
-        info: AtlasInfo,
-        snapshot: StateSnapshot,
-        names: Map<SeatKey, String>,
-        avatars: Map<SeatKey, Int> = emptyMap(),
-        icons: Map<Int, AvatarIcon> = emptyMap(),
-    ) = TableSummaryMapper.map(info, snapshot, names, receivedAtMs = clock(), seatAvatars = avatars, avatarIcons = icons)
+    private fun map(info: AtlasInfo, snapshot: StateSnapshot) = TableSummaryMapper.map(info, snapshot, receivedAtMs = clock())
 
     /**
      * Normalizes anything thrown below this repository into [AtlasException],

@@ -42,7 +42,7 @@ internal fun sharedGameTitle(profile: com.turnhub.android.protocol.GameProfile):
 
 /**
  * The same panels and player menu as the table, backed only by the host snapshot: the
- * host's own game, or the Atlas game it relays (where Atlas decides each tap).
+ * host's own game.
  */
 @Composable
 internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotion: Boolean, onLeave: () -> Unit) {
@@ -58,14 +58,14 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     val tableView = if (publicScreen) !planesChosen else localTableView
     LaunchedEffect(tableView, planesChosen) { model.chooseView(if (planesChosen) "planes" else if (tableView) "table" else "personal") }
     val planesDisplay = state.role == "planes"
-    val planesView = planesChosen && (device?.planechase?.enabled == true || state.atlas?.settings?.planechase == true)
+    val planesView = planesChosen && (device?.planechase?.enabled == true)
     var menu by rememberSaveable { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
     var displaySettings by remember { mutableStateOf(false) }
     var confirmElimination by remember { mutableStateOf(false) }
     val partners = remember { mutableStateListOf<Int>() }
     val haptics = rememberHaptics()
-    val summary = state.atlas ?: device?.toSummary(System.currentTimeMillis(), TableClock.nowMs())?.withLooks(state.looks) ?: return
+    val summary = device?.toSummary(System.currentTimeMillis(), TableClock.nowMs())?.withLooks(state.looks) ?: return
     val own = summary.players.firstOrNull { it.playerNumber == state.player }
     // Either teammate may pass. Keep the full host summary for the table and
     // show the claimed teammate as the personal panel's actor during their turn.
@@ -94,7 +94,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             // Wait out another command still in flight, then send the whole change once.
             while (latest.busy) delay(100)
             val total = unsent
-            val revision = latest.remote?.revision ?: latest.atlas?.revision ?: return@launch
+            val revision = latest.remote?.revision ?: return@launch
             unsent = 0
             if (total == 0 || !latest.online) return@launch
             sending = total to revision
@@ -203,23 +203,13 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             val controls = com.turnhub.android.lan.LanTableControls(model, summary)
             val scope = rememberCoroutineScope()
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                TabletTable(summary, com.turnhub.android.data.TabletState(),
-                    controls = { block -> scope.launch { controls.block() } }, onDismissMessage = {},
+                TabletTable(summary,
+                    controls = { block -> scope.launch { controls.block() } },
                     reduceMotion = reduceMotion, onClose = onLeave,
                     readOnly = !state.online || state.busy || state.uncertain || state.role != "table" && !state.master)
             }
         } else if (planesView) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-            if (state.atlas != null) AtlasPlanesTab(summary, TabletActions(), reduceMotion, offline = !state.online,
-                readOnly = !planarEnabled, rollEnabled = planarRollEnabled, onRoomRoll = ::beginRoll,
-                onRoomControl = { seat, action -> model.act("planar-atlas:" + action.removePrefix(com.turnhub.android.data.PLANAR_PREFIX),
-                    target = summary.players.firstOrNull { it.controller.id == seat.moduleId && it.slot == seat.slot }?.playerNumber ?: 0) },
-                // The same Atlas screen picker as the player's own phone, relayed by the hub for this
-                // guest's seat (owner, 2026-11-03): signed-in players only, never a Sigil or a guest.
-                screenSeat = own?.takeIf { it.profileId != null && it.controller.kind == com.turnhub.android.domain.ControllerHandle.Kind.VIRTUAL }
-                    ?.let { com.turnhub.android.data.TabletSeat(it.controller.id, it.slot) },
-                onScreenView = { view -> model.act(com.turnhub.android.lan.ATLAS_SCREEN_KIND + view) },
-                screenEnabled = !state.busy && !state.uncertain)
-            else device?.let { SharedPlanes(it, planarControls) }
+            device?.let { SharedPlanes(it, planarControls) }
         } else {
             val visible = if (tableView) tableUnits(summary) else listOfNotNull(own?.let { TableUnit("own", listOf(it)) })
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
@@ -238,7 +228,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
                                         (unit.lifeSeat.life ?: 0) + if (tableView) 0 else unsent + inFlight,
                                         onOpenMenu = { if (enabled && !tableView) menu = true },
                                         onPlanarRoll = if (planarRollEnabled && !tableView && summary.state == TableState.RUNNING &&
-                                            device?.planechase?.phenomenonPending != true && summary.atlasPlanechase?.plane?.phenomenon != true) {
+                                            device?.planechase?.phenomenonPending != true) {
                                             { beginRoll(false) }
                                         } else null,
                                         onBump = { bump(it) }, onControl = { _, action -> act(action) },
@@ -269,7 +259,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     if (feedbackId != null) RemotePlanarRollDialog(feedbackId,
         if (rollBlocked) com.turnhub.android.lan.PlanarRollFeedback(feedbackId, "blocked") else state.planarRollFeedback,
         reduceMotion, canRetry = !state.busy && state.uncertain,
-        physical = device?.planechase?.physical == true || state.atlas?.atlasPlanechase?.digital == false,
+        physical = device?.planechase?.physical == true,
         onRetry = model::retry, onClose = { rollRequestId = null; rollBlocked = false }, onShowPlanes = {
             rollRequestId = null; rollBlocked = false
             if (publicScreen) model.setDisplayView(state.displayId, "planes")

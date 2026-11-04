@@ -172,7 +172,7 @@ bool parseBoundedNumber(const String &text, int32_t min, int32_t max, int32_t &v
 bool parseLifeInteger(const String &text, int32_t &value, bool negativeAllowed);
 // {"ok":true} or 409 with the seat callback's message.
 // A session control for a seat already authorized: optional expectedRevision,
-// then the control callback; answers like /api/control/*.
+// then the control callback.
 
 // --- Administration (web_admin_api.cpp) ---------------------------------------------
 

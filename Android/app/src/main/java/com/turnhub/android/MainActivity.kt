@@ -33,13 +33,14 @@ import com.turnhub.android.data.KeystoreProfileVault
 import com.turnhub.android.data.TurnNotifier
 import com.turnhub.android.ui.home.AppLockRequest
 import com.turnhub.android.data.UpdateNotifier
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import com.turnhub.android.data.AtlasLinkHoldService
 import com.turnhub.android.data.AtlasPlayerSession
 import com.turnhub.android.data.AtlasUpdateWatcher
 import com.turnhub.android.protocol.AtlasConnectionState
 import com.turnhub.android.ui.home.AccountActions
-import com.turnhub.android.ui.home.GameActions
 import com.turnhub.android.ui.theme.TurnHubThemeChoice
 import com.turnhub.android.data.AtlasSessionTransportFactory
 import com.turnhub.android.data.AtlasTransportFactory
@@ -74,13 +75,9 @@ class MainActivity : ComponentActivity() {
         // (falling back to a manually joined Wi-Fi when it holds no network).
         val wifiLink = TargetedAtlasWifiLink(applicationContext)
         val sessionTransports = AtlasSessionTransportFactory { endpoint -> HttpAtlasTransport(endpoint, wifiLink) }
-        // Stable across app restarts, excluded from device backups. This is game access only.
-        val gameClientFile = java.io.File(applicationContext.noBackupFilesDir, "atlas-game-client")
-        val gameClientKey = runCatching { java.util.UUID.fromString(gameClientFile.readText()).toString() }.getOrNull()
-            ?: java.util.UUID.randomUUID().toString().also { key -> runCatching { gameClientFile.writeText(key) } }
-        val playerSession = AtlasPlayerSession(sessionTransports, gameClientKey)
+        val playerSession = AtlasPlayerSession(sessionTransports)
         val transports = AtlasTransportFactory { endpoint ->
-            HttpAtlasTransport(endpoint, wifiLink, pollContext = { playerSession.pollContext(endpoint) })
+            HttpAtlasTransport(endpoint, wifiLink)
         }
         HomeViewModel.factory(
             repositoryFactory = { scope -> HttpAtlasRepository(transports, scope) },
@@ -94,7 +91,6 @@ class MainActivity : ComponentActivity() {
                 AtlasUpdateWatcher.RELEASE_INTERVAL_MS
             },
             vault = KeystoreProfileVault(applicationContext).takeIf { it.available },
-            offlineQueues = com.turnhub.android.data.PreferencesOfflineQueueStore(applicationContext),
             homeLink = com.turnhub.android.data.AtlasHomeLink(
                 com.turnhub.android.data.PreferencesHomeAtlasStore(applicationContext),
                 info = { endpoint -> HttpAtlasTransport(endpoint, wifiLink).getInfo() },
@@ -115,8 +111,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val lanViewModel: com.turnhub.android.lan.LanViewModel by viewModels {
-        viewModelFactory { initializer { com.turnhub.android.lan.LanViewModel(applicationContext, standaloneViewModel.table,
-            atlasLink = homeViewModel.lanAtlasLink) } }
+        viewModelFactory { initializer { com.turnhub.android.lan.LanViewModel(applicationContext, standaloneViewModel.table) } }
     }
     private var sharedGameOpen by mutableStateOf(false)
     private var pendingSharedAction: (() -> Unit)? = null
@@ -339,6 +334,14 @@ class MainActivity : ComponentActivity() {
 
     private val turnNotifier by lazy { TurnNotifier(applicationContext) }
 
+    /** The lock-screen turn clock for this phone's seat in a shared game it joined. */
+    private fun liveTurn(state: com.turnhub.android.lan.LanUiState): com.turnhub.android.domain.LiveTurn? {
+        val game = state.remote ?: return null
+        val now = com.turnhub.android.domain.TableClock.nowMs()
+        return com.turnhub.android.domain.LiveTurn.from(game.toSummary(System.currentTimeMillis(), now),
+            state.player.takeIf { it > 0 }, now, System.currentTimeMillis())
+    }
+
     override fun onStart() {
         super.onStart()
         lanViewModel.setForeground(true)
@@ -350,7 +353,7 @@ class MainActivity : ComponentActivity() {
         super.onStop()
         if (!isChangingConfigurations) lanViewModel.setForeground(false)
         homeViewModel.onPresentationForeground(false)
-        if (!isChangingConfigurations) turnNotifier.show(homeViewModel.liveTurn.value)
+        if (!isChangingConfigurations) turnNotifier.show(liveTurn(lanViewModel.state.value))
     }
 
     override fun onResume() {
@@ -426,7 +429,7 @@ class MainActivity : ComponentActivity() {
         // The lock-screen turn clock: only while the app is out of sight (the
         // screen itself shows the turn otherwise). Runs until the Activity ends.
         lifecycleScope.launch {
-            homeViewModel.liveTurn.collect { turn ->
+            lanViewModel.state.map(::liveTurn).distinctUntilChanged().collect { turn ->
                 if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) turnNotifier.show(turn)
             }
         }
@@ -449,9 +452,6 @@ class MainActivity : ComponentActivity() {
                                 window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                             onDispose { window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
                         }
-                        LaunchedEffect(uiState.tableSummary?.atlasId, uiState.player?.signedIn) {
-                            if (uiState.player?.signedIn == true) lanViewModel.onAtlasAvailable()
-                        }
                         LaunchedEffect(standalone, localStats) {
                             homeViewModel.onPresentationForeground(!standalone && !localStats && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
                         }
@@ -462,7 +462,7 @@ class MainActivity : ComponentActivity() {
                         val shellState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
                         if (sharedGameOpen || lanState.joined) {
                             com.turnhub.android.ui.tablet.SharedGameScreen(lanState, localState.game, lanViewModel,
-                                ::requestSharedNetwork, reduceMotion, onClose = { sharedGameOpen = false }, atlas = uiState.tableSummary)
+                                ::requestSharedNetwork, reduceMotion, onClose = { sharedGameOpen = false })
                         } else if (localStats) {
                             com.turnhub.android.ui.tablet.StatsScreen(localState, onClose = { localStats = false },
                                 onShareStats = ::shareStats)
@@ -485,8 +485,6 @@ class MainActivity : ComponentActivity() {
                             onHostOnAtlas = homeViewModel::onHostOnAtlas,
                             hostedResumeHost = homeViewModel.hostedResume.collectAsStateWithLifecycle().value?.host,
                             onResumeHosted = homeViewModel::onResumeHosted,
-                            onFollowGame = homeViewModel::onFollowGame,
-                            onAtlasOpened = homeViewModel::onAtlasOpened,
                             atlasEnabled = atlasEnabled,
                             onAtlasEnabled = ::chooseAtlasEnabled,
                             onPlayOnDevice = ::playOnDevice,
@@ -557,22 +555,6 @@ class MainActivity : ComponentActivity() {
                                 onConfirmHomePairing = homeViewModel::onConfirmHomePairing,
                                 onDismissHomePairing = homeViewModel::onDismissHomePairing,
                             ),
-                            gameActions = GameActions(
-                                onControl = homeViewModel::onControl,
-                                onJoin = homeViewModel::onJoinClicked,
-                                onPlayFromPhone = homeViewModel::onPlayFromPhoneClicked,
-                                onChangeMyLife = homeViewModel::onChangeMyLife,
-                                onRequestLife = homeViewModel::onRequestLife,
-                                onRespondLife = homeViewModel::onRespondLife,
-                                onCommanderDamage = homeViewModel::onCommanderDamage,
-                                onPlayerCounter = homeViewModel::onPlayerCounter,
-                                onEliminationRule = homeViewModel::onEliminationRule,
-                                onDoom = homeViewModel::onDoom,
-                                onEliminate = homeViewModel::onEliminate,
-                                onResolveElimination = homeViewModel::onResolveElimination,
-                                onSaveGameSettings = homeViewModel::onSaveGameSettings,
-                                onSetZeroLifeElimination = homeViewModel::onSetZeroLifeElimination,
-                            ),
                             accountActions = AccountActions(
                                 onPlayFromPhone = homeViewModel::onPlayFromPhoneClicked,
                                 onSaveName = homeViewModel::onSaveName,
@@ -610,25 +592,10 @@ class MainActivity : ComponentActivity() {
                             setup = homeViewModel.setupState.collectAsStateWithLifecycle().value,
                             updatesAvailable = homeViewModel.updatesAvailable.collectAsStateWithLifecycle().value,
                             onOpenUpdates = homeViewModel::onUpdatesOpened,
-                            seatClaim = homeViewModel.seatClaim.collectAsStateWithLifecycle().value,
-                            seatActions = com.turnhub.android.ui.home.SeatActions(
-                                onClaim = homeViewModel::onClaimSeat,
-                                onDismiss = homeViewModel::onSeatClaimDismissed,
-                                onRefresh = { homeViewModel.onPlayersRefresh() },
-                            ),
                             setupActions = com.turnhub.android.ui.setup.SetupActions(
                                 run = homeViewModel::onSetup,
                                 dismiss = homeViewModel::onSetupDismissed,
                                 close = homeViewModel::onSetupClosed,
-                            ),
-                            tablet = homeViewModel.tabletState.collectAsStateWithLifecycle().value,
-                            offlineGame = homeViewModel.offlineGame.collectAsStateWithLifecycle().value,
-                            tabletActions = com.turnhub.android.ui.tablet.TabletActions(
-                                run = homeViewModel::onTablet,
-                                onDismissMessage = homeViewModel::onTabletMessageDismissed,
-                                onDismissPin = homeViewModel::onTabletPinDismissed,
-                                onDismissCode = homeViewModel::onTabletCodeDismissed,
-                                onSignIn = homeViewModel::onPlayFromPhoneClicked,
                             ),
                         ) }
                     }

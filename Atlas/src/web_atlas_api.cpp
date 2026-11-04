@@ -179,12 +179,8 @@ void handlePlaneCard(WebServer &server) {
   }
 }
 
-// GET (any signed-in browser or app) or POST view=game|table|planes|card:
-// what the Atlas screen shows during Game 1's match. Any signed-in player
-// seated in that game may set it from a phone (owner, 2026-11-02): the app
-// names the seat it acts for (module, slot) as with /api/tablet/*, and a
-// browser uses its own seat. Sigil seats and guests (no profile) can't.
-// Answers the open view and the views available now.
+// POST plain=<plane lines>&version=: the app's plane catalog, for the Atlas
+// screen's plane card in the hub's Planechase game.
 void handlePlanesCatalog(WebServer &server) {
   if (!requireSession(server)) return;
   // In RAM at once; the SD worker writes the records (queued).

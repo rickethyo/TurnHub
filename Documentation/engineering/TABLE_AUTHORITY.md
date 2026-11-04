@@ -1,239 +1,44 @@
-# Shared game engine and table authority
+# Game authority: the hub runs every game
 
-Status: design requested by the owner, 2026-10-13. The app must contain the
-same game engine and hosting abilities as Atlas, prefer Atlas when connected,
-and continue the match when Atlas drops off. Offline play with timestamped
-queues is implemented (2026-11-03, below, *Experimental*: host-tested, not yet
-played on the boards); fenced authority transfer is not.
+Status: owner decision, 2026-11-04 (*Experimental*: host-tested, not yet
+played on the boards). It supersedes the 2026-10-13 design for Atlas-hosted
+games with a fenced handoff to a phone, and the 2026-11-03 offline play that
+merged phone queues back into Atlas's game; both left with Atlas's engine.
+Their text is in git history before this change.
 
-## Offline play (owner, 2026-11-03)
+## Who owns what
 
-The owner's direction: when Atlas disconnects during a game, the game continues
-on the phones, and every action is saved for Atlas with its time relative to the
-last known Atlas time. This replaces the single designated recovery phone below
-for now: every phone showing the table keeps going on its own copy.
+- **The hub** is the phone or tablet that runs the game with the shared rules
+  core ([`core/`](../../core/README.md), through the NDK in the app). It owns
+  the whole match: roster and seats, turns and timers, life and counters,
+  eliminations, winners and the finished record. It saves the game on the
+  device like any local game.
+- **Atlas** is the table accessory. It holds the table lease, shows the hub's
+  state on its screen and Sigils, queues their inputs for the hub, and keeps
+  profiles, statistics, match history and settings. It decides nothing about
+  a game. Contract: [hosted-v1.md](../../protocol/hosted-v1.md).
+- **Guest phones** join the hub's room ([Shared devices](SHARED_DEVICES.md))
+  and send inputs to it; they never become another authority.
 
-- **Copy:** while a game runs, the app keeps `GET /api/v1/game` (the core's whole
-  game and Atlas's game clock `atlasMs`), refetched when the state's revision
-  changes (`HomeViewModel`, `OfflineBase`).
-- **Playing on:** when Atlas stops answering, the Table screen switches to that
-  game on the phone (`OfflineAtlasGame`: an in-memory `StandaloneTable` on the
-  shared core, moved onto the phone's clock). `NativeGameCore.recorder` queues
-  each applied core action with `atMs` = the copy's `atlasMs` + the phone's time
-  since, plus the random draws it took. Turn timeouts are not queued; Atlas works
-  them out again. A strip says the game goes on and moves are saved.
-- **Reconnect:** before anything else the app sends the queue
-  (`POST /api/v1/offline`, protocol/http-v1.md "Offline play"), then any older
-  life/Commander queue, then follows Atlas again.
-- **Merging (core `turnhub::reconcile`, Atlas `SyncOffline`):** queues are sorted
-  by `atMs`, device, `seq` and replayed through the same rules; an entry the merged
-  game refuses (a pass for a turn that already moved on) is dropped and reported to
-  its phone. Several phones from one outage join one timeline while nothing else
-  changes the game (`GameTable::offline`); after a restart Atlas starts from the
-  phone's copy when nobody has acted on the restored match. Otherwise entries apply
-  on top, now. This deliberately chooses by timestamp (owner's decision), unlike
-  the fenced review below.
-- **Limits:** the match ends offline play (start, rematch, reset, Back to setup and
-  seating wait for Atlas); the queue lives in memory, so closing the app during an
-  outage loses it; Sigils keep their last screen (no radio path to a phone); a
-  phone must be signed in to Atlas to keep a copy and to send it; any signed-in
-  session can send a copy after a restart (trusted like tablet mode).
+There is no phone-less play with Atlas: without a hub, Atlas shows its idle
+screen.
 
-## Current foundation
+## When something drops
 
-Death May Die can use one Android standalone host with same-network guest
-displays/investigator controls ([Shared devices](SHARED_DEVICES.md)). Those
-guests have no engine or takeover rights. This does not implement Atlas handoff
-or the portable shared engine described below.
-
-Android's two table entry points share `TableLobby`, `TableLobbyActions`,
-`TabletTable` and the live `TableControls` interface. Local and connected
-adapters supply the same presentation model and action vocabulary. Authentication,
-Sigil management, profile selection and storage remain authority-specific.
-Local backgrounds are player-owned presentation, independent of match state.
-The Android Game tab opens the shared lobby for either authority. The Atlas
-Table tab stays embedded in the shell, like the device table; full-screen is
-an explicit action. Atlas sign-in/table-control access is inline with the
-actual lobby or live table. Before access is granted the live snapshot is
-read-only, including touch, keyboard and accessibility actions. A shared table
-can focus one player's panel regardless of authority.
-Finished tables offer the same result-image sharing action. A connected
-caption uses the reported winners, life and turns; it does not fabricate a
-local match record or export missing record fields as CSV.
-
-The rules have one C++ implementation and the app's Kotlin reference. Slice 1
-below has started (owner, 2026-10-29: "one game path"): [`core/`](../../core/README.md)
-is the portable C++17 port of Android's `StandaloneGame` (*Experimental*: Magic
-formats, Two-Headed Giant, Star Commander, Emperor, Bag of Doom, Yu-Gi-Oh!,
-Pokémon prizes and Lorcana lore). Since 2026-10-30 (Atlas 0.7.19) Atlas plays on
-it: `GameEngine` is a layer over `turnhub::Game` that keeps only Atlas-only
-table features (life-change approvals, Commander hit receipts, the win claim's
-pause, Sigil elimination attribution). Since 2026-10-30 the app links it too, through the NDK (JNI over UTF-8 JSON, the caller supplying every random draw), for every mode but the local-only Death May Die; the Kotlin rules remain the scenario oracle. Shared JSON scenarios in
-`core/scenarios/` run against both the core and the Kotlin rules in CI. Connected play still uses Atlas as its sole
-authority. Disconnection queues life and Commander-damage edits; other game
-actions wait. Local matches stay separate from connected matches. Sharing UI
-does not implement complete rule parity or live authority transfer.
-
-## Target boundaries and feature gate
-
-| Concern | Owner and boundary |
-| --- | --- |
-| Rules | One portable engine shared by Atlas and native apps |
-| Match state | Exactly one authority for each match and authority epoch |
-| Connected preference | Atlas takes authority after accepting the current checkpoint and handoff |
-| Offline successor | One designated host phone, granted recovery rights before disconnection |
-| Actions | Same validated semantic commands through `TableControls` and an authority coordinator |
-| Validation | Common rule validators; adapter authentication and host-capability checks |
-| Persistence | Current host owns checkpoints and command journal; host phone keeps acknowledged recovery checkpoints |
-| Rendering | Shared lobby and table consume the same summary and never choose outcomes |
-| Contract | New versioned checkpoint, command acknowledgement, delegation and handoff protocol; current HTTP snapshots are insufficient |
-| Dependencies | Existing C++ source plus Android NDK/JNI and future iOS C interface; no proposed third-party runtime library |
-| Accessibility | Text host/reconnect status, unchanged controls, no essential animation or timing gesture; conflict review has labeled choices |
-
-Extract the actual C++ rules into a transport-free `shared/game` core, rather
-than maintaining two algorithms. Include lobby ordering, modes, counters,
-turn/pass timing, life approvals, pending win decisions, eligibility and
-completion. Isolate Arduino types, global application state, identity lookup,
-hardware, storage and callback side effects behind adapters. Supply explicit
-clock values and random input so identical checkpoints and commands produce
-identical results on every platform. Existing firmware host tests provide a
-starting point, not proof that the current engine can be linked unchanged.
-
-Android wraps this core through JNI; iOS can use a C ABI. Native packaging,
-ABI coverage, licensing records and CI builds must be added with that slice.
-The Kotlin standalone engine is replaced only after the shared core passes its
-existing behavior tests and the connected engine's decision/authorization cases.
-
-## Match identity and recoverable state
-
-A global match UUID survives every transfer. Participant UUIDs identify players
-independently of seat number, controller handle, phone or Atlas; verified Atlas
-profile links authorize optional statistics attribution. Names never merge
-identities. Recovery checkpoints contain:
-
-- Engine/schema version, match UUID, participant identities, complete roster,
-  turn order, game settings and mode.
-- Life, all counters/status holders, Commander damage, team relationships,
-  elimination/concession state, winner sets and per-player timing statistics.
-- Lifecycle, logical game time, active/starter player, clock anchors and all
-  pending decisions with IDs and remaining deadlines.
-- Authority epoch/host ID, latest committed command sequence/hash and completion
-  receipt. Credentials and UI artwork are outside the checkpoint.
-
-Each command has a stable UUID, match UUID, epoch, actor/participant UUID and
-expected base sequence. The host persists its effect before acknowledgement;
-retrying that UUID returns the same outcome. The phone durably stores the
-checkpoint/journal and the bounds of recovery rights before enabling takeover.
-Unacknowledged actions stay visibly uncertain and retain their UUIDs.
-
-## Authority and connectivity
-
-The shared `AuthorityCoordinator` routes commands to the current host. With no
-Atlas, the app runs the common engine and owns all match abilities. When Atlas
-connects, the screen remains on the same match while host negotiation occurs.
-An empty compatible Atlas can adopt that match, including elapsed clocks and
-pending decisions, without resetting it. An Atlas running another match must
-offer a match choice; connecting cannot overwrite either game. Incompatible
-engine versions leave the current host in charge and explain the issue.
-
-An Atlas-hosted match explicitly designates one recovery phone. Personal-player
-phones and a second shared screen cannot promote themselves. Delegation must
-fence Atlas as well as grant the phone rights: losing HTTP polling alone never
-proves Atlas has stopped accepting Sigil or other-phone actions.
-
-The delegation protocol needs a bounded lease with monotonically increasing
-epochs. Atlas rejects game commands and suspends engine deadlines once its
-lease expires; Sigils retain their presentation until a host is available.
-The recovery phone may promote only after the conservative expiry bound of
-every potentially accepted renewal has passed. Lease proposals, acknowledgement
-IDs and maximum expiry bounds must be durable on the phone before they can
-extend Atlas's lease. Late renewals cannot resurrect an expired epoch.
-The implementation must specify and test monotonic-clock drift bounds,
-request-age limits and ambiguous/lost renewal replies. If safe expiry cannot
-be established, pause pending handoff rather than run two authorities.
-
-After promotion the phone restores its last committed checkpoint, advances
-the epoch, and handles all game actions locally. Logical elapsed time and
-pending-decision deadlines advance consistently with the common engine;
-handoff itself does not count as a turn or restart a timer. Process recreation
-restores paused until persisted ownership and clock continuity are established.
-An Atlas reboot restores its delegated match suspended and cannot reclaim
-authority merely by creating a new boot ID.
-
-While disconnected, Atlas hardware and other phones may be unreachable. Full
-phone authority means complete game decisions on that phone, not a promise
-that Sigils can communicate with it without a new transport.
-
-## Reconnection and preference for Atlas
-
-1. Detect the returning Atlas and temporarily stop accepting new game commands.
-   The UI says the table is reconnecting; both copies remain durable.
-2. Authenticate recovery rights and compare match UUID, engine version,
-   authority epochs, committed command IDs and checkpoint ancestry.
-3. For a single linear history, transfer the phone's offline suffix/full
-   checkpoint to Atlas. Deduplicate uncertain commands by UUID. Preserve clocks,
-   player identities and pending decisions; do not replay completed turns.
-4. Atlas validates and durably accepts the checkpoint under a newer epoch,
-   returning its sequence/hash and a fresh delegation grant. The phone stores
-   that acceptance before demoting its local engine and resuming remote routing.
-5. If the acknowledgement is lost, query/retry the same transfer ID. Neither
-   host resumes on an ambiguous result. Atlas becomes preferred authority once
-   the accepted handoff is established, not by discarding the offline game.
-
-Atlas can have accepted commands after the phone's last received checkpoint
-but before its lease expired. Those commands must be retained for reconciliation.
-If histories diverge, automatically accept only a validated single lineage
-or commands the common engine proves can be replayed without altering either
-accepted outcome. Conflicting turns, decisions, eliminations or results pause
-for explicit table review showing both branches. Never choose by wall-clock
-timestamp, add life deltas blindly, or silently overwrite the phone's progress.
-Independent matches never reconcile just because they share players.
+- **Atlas drops:** the hub's game keeps going on the hub. Sigils keep their
+  last screen until Atlas is back.
+- **The hub drops:** its lease lapses after 30 s and Atlas keeps the game in
+  RAM as a resume offer. Another signed-in phone with no game under way may
+  adopt it; the first hub coming back with the same `gameId` takes it off the
+  offer. An Atlas restart drops the offer; the hub still has its own copy.
 
 ## Completion and statistics
 
-Persist a completion receipt keyed by match UUID/completion ID before crediting
-statistics. Hosts must share the same final result hash and reconcile receipts
-before issuing further statistics writes. Completion handlers cannot fire again
-on restore, replay or authority transfer. Pending/rejected deliveries keep local
-history. Atlas's current 64-receipt import window and checkpoint/statistics ordering
-do not provide this guarantee; durable receipts and replay-safe statistics must
-land before automatic cross-host completion is enabled.
+The hub reports each finished game through the game import, once per record
+ID (`POST /api/standalone/import`). Atlas saves hashed (record, profile)
+receipts before any statistics ([Storage and Recovery](STORAGE_AND_RECOVERY.md)).
+Durable completion receipts across power loss remain staged work.
 
-## Implementation slices and acceptance
+## Remaining slices
 
-1. Shared engine extraction, explicit clocks/randomness, portable checkpoints
-   and command/result fixtures. Run the same scenarios against Atlas and Android;
-   include every mode, pending decision, invalid actor and all timer boundaries.
-2. Replace Android's local rules with the common engine; keep the unified UI
-   and current connected authority behavior. Verify native ABIs and Android
-   rotation/process recreation/storage failure.
-3. Versioned handoff/delegation endpoints and persisted coordinator. Verify
-   local-to-empty-Atlas adoption, unrelated match choice and version mismatch.
-4. Fenced takeover and reconnect. Fault-inject dropped/duplicated/reordered
-   commands, delayed renewals, lost handoff acknowledgements, Atlas reboot,
-   phone death, reconnect flapping, two potential hosts and concurrent Sigil
-   actions. Assert at most one accepting host per epoch.
-5. Durable completion receipts and reconciliation review. Verify finishing
-   offline, retrying after power loss and reclaiming authority never credit a
-   match twice. Record real phone/Atlas/Sigil and TalkBack/text-scale acceptance.
-
-The authority invariant and client/persistence contracts change together with
-the handoff implementation. Until then, the current sole-Atlas rule remains
-the connected runtime contract.
-
-### Offline journal recovery and room compatibility
-
-The Android offline journal is device-private durable state, excluded from OS
-backup/transfer. It saves the full pending game and queue before showing each
-recorded edit. Failed writes refuse that edit; failed or rejected delivery keeps
-the journal. App recreation restores the original stream ID and sequence numbers.
-A journal is bound to Atlas ID, venue and match UUID, not to a reused seat/name.
-Only confirmed delivery and successful journal removal end reconciliation.
-
-Atlas retains bounded immutable replay receipts for its current process/match,
-including after intervening live actions. This prevents a lost reply from replaying
-all deltas in a new merge window. The existing best-effort cross-boot timestamp
-policy remains: receipts are not yet durable across Atlas power loss. The durable
-completion/authority guarantees described elsewhere in this reference remain
-separate work. Room guests wait for the hub's reconciliation; persistent membership
-does not itself grant offline takeover or expose the hidden full-core checkpoint.
+Tracked in [Staged Changes](STAGED_CHANGES.md) ("Phone-hosted games").

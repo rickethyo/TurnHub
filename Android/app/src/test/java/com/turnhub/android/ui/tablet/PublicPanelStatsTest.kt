@@ -9,7 +9,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PublicPanelStatsTest {
-    private fun summary() = TableSummaryMapper.map(Fixtures.info(), Fixtures.state("running.response.json"), receivedAtMs = 1_000)
+    private fun summary() = com.turnhub.android.testing.TableFixtures.running(receivedAtMs = 1_000)
 
     @Test fun `only the active living panel identifies a turn and pause remains explicit`() {
         val base = summary()

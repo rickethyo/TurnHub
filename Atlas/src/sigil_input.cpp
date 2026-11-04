@@ -1,7 +1,7 @@
 // Physical Sigil adapter. Translates ESP-NOW events: Hello and update status
 // refresh Atlas's view of the Sigil; while a hub phone hosts the game, menu
-// choices and life keys are queued for it (hosted_sigils.cpp); with no hub,
-// the menu offers Link phone only. The adapter never mutates device state
+// choices and life keys are queued for it (hosted_sigils.cpp); with no hub
+// there is no game to act on. The adapter never mutates device state
 // directly; audit_adapters.py enforces that.
 #include "atlas_app.h"
 #include "sigil_update_service.h"

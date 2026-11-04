@@ -217,7 +217,7 @@ struct ScreenPlayer {
 // set on every screen, so the display rolls its planar die over whatever is
 // open whenever any player rolls (a Sigil, the app, a tablet or this screen);
 // the rest is the Planes screen's plane card. Faces: 0 blank, 1 chaos,
-// 2 planeswalk, as in GameEngine::PlanarView.
+// 2 planeswalk, as in the hub's game (hosted-v1.md).
 constexpr uint8_t SCREEN_PLANE_NAME_LENGTH = 40;
 struct ScreenPlanes {
   bool on = false;

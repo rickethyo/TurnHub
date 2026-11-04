@@ -19,11 +19,10 @@ class PlanarRollFeedbackTest {
         assertNull(confirmedPlanarFeedback("two", JSONObject().put("code", "ok").put("rollResult", JSONObject().put("face", "six"))).face)
     }
 
-    @Test fun `phone host records real face and Atlas records only accepted submitted face`() {
+    @Test fun `phone host records the real face of an accepted roll`() {
         val local = JSONObject().put("code", "ok").put("game", JSONObject().put("planechase",
             JSONObject().put("lastRoll", JSONObject().put("face", "planeswalk"))))
         assertEquals("planeswalk", recordedPlanarRoll("planar-roll", local)?.text("face"))
-        assertEquals("chaos", recordedPlanarRoll("planar-atlas:roll:chaos", JSONObject().put("code", "ok"))?.text("face"))
         assertNull(recordedPlanarRoll("planar-roll", JSONObject(local.toString()).put("code", "stale")))
         assertNull(recordedPlanarRoll("life", local))
     }

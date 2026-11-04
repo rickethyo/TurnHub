@@ -69,29 +69,12 @@ def check(value, schema):
 def validate(path):
     value = json.loads(path.read_text())
     schema_name = ("info-v1" if "deviceType" in value else
-                   "atlas-state-v1" if "hub" in value and "players" not in value else
-                   "accessibility-v1" if "ledStyle" in value else
-                   "control-result-v1" if "ok" in value else "state-v0.1")
+                   "atlas-state-v1" if "links" in value else "accessibility-v1")
     check(value, json.loads((PROTOCOL / (schema_name + ".schema.json")).read_text()))
-    if schema_name == "state-v0.1":
-        numbers = [player["playerNumber"] for player in value["players"]]
-        assert len(numbers) == len(set(numbers))
-        for field in ["activePlayer", "starterPlayer", "winnerPlayer"]:
-            assert value[field] is None or value[field] in numbers
-        for player in value["players"]:
-            assert all(d["sourcePlayer"] in numbers for d in player["commanderDamage"])
-        winners = value["winnerPlayers"]
-        assert winners == sorted(set(winners)) and all(w in numbers for w in winners)
-        assert (value["winnerPlayer"] is None) == (not winners)
-        assert value["winnerPlayer"] is None or value["winnerPlayer"] in winners
-        assert not winners or value["state"] == "GAME_OVER"
-    elif schema_name == "accessibility-v1":
+    if schema_name == "accessibility-v1":
         limits = value["limits"]
         assert value["winHoldMs"] >= value["longPressMs"] + limits["minGapMs"]
         assert value["longPressMs"] % limits["stepMs"] == 0 == value["winHoldMs"] % limits["stepMs"]
-    elif schema_name == "control-result-v1":
-        assert value["ok"] == (value["status"] == "ACCEPTED")
-        assert ("message" if value["ok"] else "error") in value
 
 
 generated = sorted((Path(__file__).parent / "build").glob("client-*.json"))

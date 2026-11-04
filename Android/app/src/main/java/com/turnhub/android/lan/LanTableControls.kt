@@ -41,7 +41,5 @@ internal class LanTableControls(
     override suspend fun setEliminationRule(seat: TabletSeat, field: String, value: Int) { refused() }
     override suspend fun setAutoEliminateAtZeroLife(seat: TabletSeat, enabled: Boolean) { refused() }
     override suspend fun respondLife(seat: TabletSeat, requestId: Long, accept: Boolean) { refused() }
-    override fun queueOffline(change: OfflineChange) { refused() }
-    override fun refuseOffline() { refused() }
     override suspend fun disable() { disconnect() }
 }

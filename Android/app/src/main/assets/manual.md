@@ -6,7 +6,7 @@
 
 TurnHub keeps track of the bookkeeping at a tabletop game: whose turn it is, life totals, Commander damage, counters, the turn timer and who won. The TurnHub app runs a whole game on one Android phone or tablet, with saved players, personalization and detailed history. No Atlas, account, internet connection or permission is needed to play.
 
-An Atlas (the TurnHub table controller) adds what one device cannot: a phone for every player, physical Sigil controllers, the Atlas screen and speaker, and shared accounts and statistics for the table. This manual covers the app and the Atlas administration portal. Atlas and the Sigils have their own manual, the **TurnHub Hardware Manual**, which the app carries after this one.
+An Atlas (the TurnHub table controller) adds what one device cannot: physical Sigil controllers, the Atlas screen and speaker, and shared accounts and statistics for the table. This manual covers the app and the Atlas administration portal. Atlas and the Sigils have their own manual, the TurnHub Hardware Manual, which the app carries after this one.
 
 **Prototype Notice**
 TurnHub is a prototype. Screens, controls and names may change before the final version.
@@ -327,43 +327,33 @@ The current game, players, personalization and history survive closing the app, 
 
 # 10. Playing with an Atlas
 
-An Atlas lets every player use their own phone, adds Sigils and the Atlas screen, and keeps shared accounts and statistics for its table. The Atlas runs that game and decides every result; the app shows its state and sends your requests. A game on this device and a game on Atlas stay separate: nothing in one changes the other.
+An Atlas adds Sigils, the Atlas screen and speaker, and shared accounts and statistics for its table. The game always runs on a phone or tablet, the game's hub: with an Atlas connected, the hub shows its game on the Atlas screen and the Sigils, and takes their presses as moves. Atlas keeps the records.
 
 ## Connecting
 
 Open **Settings > Atlas connection** and choose **Connect**. The app joins the Atlas's Wi-Fi network (TurnHub-Atlas) by itself: it tries a saved password, then the default TurnHub-Setup, and asks only if neither works. Allow **Nearby devices** when Android asks; without it Android blocks the connection. A new Atlas shows **Welcome to TurnHub**; tap **Set up a new table** in the app and follow the steps (the Hardware Manual describes them).
 
-Atlas discovery stays on in the background and reconnects to a known Atlas when the phone is on its network. Turning it off disconnects. **Game** is one tab whichever runs the game. With an Atlas connected it shows the Atlas table's game, unless this device already has a game under way; a line at the top says where you are playing and, while setting up (or when the other has a game going), offers to switch. Players adds Table and Me sections.
+Atlas discovery stays on in the background and reconnects to a known Atlas when the phone is on its network. Turning it off disconnects. **Game** always shows this device's own game. Players adds Table and Me sections.
 
 ## Your Atlas Account
 
 Sign in with your Atlas account's PIN or password, or choose **New here? Create an account**. An account made without a PIN, for example on a shared tablet, asks for one the first time it signs in on a phone.
 
-Signed in, you can join the table, choose to go first, pass, pause or resume, change life and Commander damage, claim or answer a win, and concede. Atlas keeps the turn clock.
-
-- **Life changes for another player** need their approval. If they don't answer, the change is accepted after 15 seconds (30 or 60 if they chose longer).
-
-- **Win claims** are confirmed by the other players one at a time; one denial cancels the claim.
-
-- **Nudge:** any player whose turn it is not can nudge the active player, once every 30 seconds. Their phone shows who nudged them and vibrates, and their Sigil plays a sound.
+Signed in, this phone can host its game on Atlas (below). Your Atlas account also keeps:
 
 - **Sigil accessibility:** your Sigil sound, light style, hold times and the time you have to answer life changes. They are saved with your Atlas account and follow you to any Sigil.
 
 - **Personalization:** upload a player image to Atlas (it needs a microSD card in Atlas, and an Admin approves it unless approval is turned off).
 
-If Atlas stops answering, the app keeps the last known table under an **Offline: reconnecting to Atlas** banner and carries on when Atlas answers. During a game, the game goes on in the app on the same rules: every move is saved for Atlas with its time and sent as soon as Atlas answers, together with what other phones played meanwhile. A move that no longer fits (say, a pass for a turn another phone had already passed) is left out, and the app says so. Starting a new game or a rematch waits for Atlas.
+If Atlas stops answering, the app keeps your game going: it is this device's game. The Atlas connection shows **Offline: reconnecting to Atlas** and carries on when Atlas answers.
 
-## Shared Tablet Mode
+## Your Game on the Atlas
 
-Open Game and add players; no sign-in, profile-login or table-control enable step is needed. Game shows the same upright player controls whether Atlas or this device runs the game, including Pass. Table shows the live facing-seat layout. Players is one list labelled This device, Atlas, or both. Private statistics and administration still require the profile PIN.
+A connected, signed-in phone shows its game on Atlas by itself; **Show on Atlas** in Game does it by hand, and Stop gives the table back. One phone hosts at a time: if another phone has the table, Game says **Atlas busy**.
 
-Seat players with **Add**: type a name to create an Atlas account with no PIN, or pick a saved player, who types their PIN unless they allowed Sigil and tablet use without one. Seating, First?, Clear all and the panels work as in section 4 and 5. Players seated by the tablet can also use their own Sigil or phone.
+While the hub is setting up, a Sigil joins from its menu and takes a seat in the hub's game. The Sigils and the Atlas screen show the game, and their presses (such as pass, pause and life changes) go to the hub, which decides them. Other phones join through Play Together.
 
-If Atlas stops answering, the panels keep taking life and Commander damage and send them when Atlas answers. Passing, pausing, conceding and win claims wait for Atlas. **Leave tablet mode** signs the shared account out.
-
-## Two Games on One Atlas
-
-An Atlas can run Game 1 and Game 2 at once. The **Game on this Atlas** selector chooses which one you join. A player is in one game at a time, and you can't switch during a game you are playing in.
+If the hub stops hosting or drops off in the middle of a game, Atlas keeps that game until it restarts. Another signed-in phone with no game under way that taps **Show on Atlas** is offered **Resume** that host's game, or **Show mine instead**. A finished hosted game is added to the players' Atlas statistics like any local game.
 
 ## Bringing Local Players and Games to Atlas
 
@@ -377,13 +367,13 @@ Once a player in a finished local game is linked to an account on that Atlas, th
 
 ## Roles on an Atlas
 
-An Admin can assign Admin, Game Master and Developer roles. Enter your profile PIN for private statistics or privileged administration. A profile can be chosen and used for gameplay without its PIN. Atlas continues validating every game action.
+An Admin can assign Admin, Game Master and Developer roles. Enter your profile PIN for private statistics or privileged administration. A profile can be chosen and used for gameplay without its PIN.
 
 Some features need a newer Atlas than the current prototype: Star Commander, official rules and House rules, and creating an account on Atlas from a local player. The Hardware Manual lists them.
 
 # 11. Administering an Atlas
 
-An Admin manages an Atlas from **Settings** in the app or from the administration portal in a browser. Play, tablet mode, personal settings and statistics are in the app; the portal is for setup, maintenance and recovery.
+An Admin manages an Atlas from **Settings** in the app or from the administration portal in a browser. Play, personal settings and statistics are in the app; the portal is for setup, maintenance and recovery.
 
 To open the portal, join the Atlas's Wi-Fi and go to http://192.168.4.1/portal, then sign in as an Admin. It works without a microSD card.
 
@@ -447,15 +437,11 @@ Check that Atlas is on and the phone is nearby, and that the app has the Nearby 
 
 ## The App Says Offline: Reconnecting to Atlas
 
-Atlas has stopped answering. Check that it is on and in range; the app rejoins by itself.
+Atlas has stopped answering. Your game carries on in the app. Check that Atlas is on and in range; the app rejoins by itself.
 
 ## A Local Game Is Missing From Atlas Statistics
 
 Connect and sign in, then open History. Games whose players are all linked to accounts on that Atlas import by themselves; match the others by hand.
-
-## Tablet Mode Asks for a Code Every Time
-
-Profile PINs protect private statistics and administrative access. They are not required for adding profiles, joining a game or operating gameplay controls.
 
 # 14. Prototype Limitations
 
@@ -884,9 +870,9 @@ New TurnHub hardware is in development on the ESP32-S3:
 
 - **A new Atlas:** almost entirely capacitive touch, with at most one physical button, and a richer, animated table screen.
 
-- **The touchscreen Atlas and Sigil open on Home, with Game, Table and Settings navigation. Game holds the player controls on a Sigil and the host controls on Atlas. Table shows everyone read only. On the Sigil, tap minus or plus beside the life total, or More for player actions and Counters & status. Its paged controls include poison, energy, experience, treasure, rad, city’s blessing, monarch and initiative. Commander also shows casts, the next tax and partner commanders. Atlas validates every change. Device settings are on the Settings tab; choose profiles from the full-width name rows. Settings includes theme, touch calibration, Unpair and Factory reset. The Sigil stays awake while powered, with no Sleep option; between games its screen turns off after two minutes without a touch, and a touch lights it again without pressing anything. Its BOOT button still provides pairing, unpair and factory reset. On the new hardware nothing is held: a tap does it, and actions that are hard to undo (Claim win, Concede, Remove, Clear, Reset, Master pass, End match, Unpair and Factory reset) ask Cancel or confirm in a popup. Each action has one place: Atlas Settings is one list (Pair a Sigil, QR codes, Theme, Device), Start in the lobby opens New game with the app's options (game, mode, starting life, turn timer, House rules), and the Planes tab appears only when Planechase is on.**
+- **The touchscreen Atlas and Sigil open on Home, with Game, Table and Settings navigation. On the new hardware the game runs on a phone or tablet, the game's hub: Atlas shows the hub's game on its screen and Sigils, sends their presses to the hub, which decides them, and keeps accounts and statistics (see the App Manual, "Your Game on the Atlas"). Table shows everyone read only. Device settings are on the Settings tab: theme, touch calibration, Unpair and Factory reset. The Sigil stays awake while powered, with no Sleep option; between games its screen turns off after two minutes without a touch, and a touch lights it again without pressing anything. Its BOOT button still provides pairing, unpair and factory reset. On the new hardware nothing is held: a tap does it, and actions that are hard to undo ask Cancel or confirm in a popup.**
 
-Newer Atlas firmware already adds Star Commander, official rules with House rules, a random starter when nobody is chosen, Back to setup during the first three minutes, not counting very short games, and creating an Atlas account from a player saved in the app. They need the new Atlas; the current prototype boards keep the behavior in this manual. This manual will be revised when the new hardware arrives.
+The current prototype boards keep the behavior in this manual: they run the game themselves, with their Sigils and screen. The newest app no longer plays a game these boards run; it plays its own game, which the new Atlas shows. This manual will be revised when the new hardware arrives.
 
 Please report anything unexpected with the bug button in the app: what you were doing, which player was active, which Sigil was involved, what you expected and what happened.
 

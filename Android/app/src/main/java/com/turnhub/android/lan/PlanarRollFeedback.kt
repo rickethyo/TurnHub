@@ -17,8 +17,7 @@ internal fun planarRollAllowed(state: LanUiState, summary: com.turnhub.android.d
 /** Capture the accepted action's result, not whichever roll a later snapshot happens to show. */
 internal fun recordedPlanarRoll(kind: String, result: JSONObject): JSONObject? {
     if (result.optString("code") != "ok" || !isPlanarRollKind(kind)) return null
-    val face = if (kind == "planar-roll") result.optJSONObject("game")?.optJSONObject("planechase")
-        ?.optJSONObject("lastRoll")?.optString("face") else kind.substringAfterLast(':')
+    val face = result.optJSONObject("game")?.optJSONObject("planechase")?.optJSONObject("lastRoll")?.optString("face")
     return PlanarFace.fromWire(face.orEmpty())?.let { JSONObject().put("face", it.wireValue) }
 }
 

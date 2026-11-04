@@ -1,0 +1,13 @@
+{
+  "protocolVersion": "1",
+  "atlasId": "THA-025448410001",
+  "bootId": "0123456789ABCDEF0123456789ABCDEF",
+  "revision": 1,
+  "hub": null,
+  "battery": null,
+  "links": {
+    "hotspot": true,
+    "home": false,
+    "sigils": 0
+  }
+}
