@@ -10,6 +10,7 @@
 #include "player_controls_model.h"
 
 #include <stdio.h>
+#include <algorithm>
 #include <string.h>
 
 #include "account_access.h"
@@ -21,6 +22,7 @@
 #include "firmware_version.h"
 #include "home_wifi.h"
 #include "home_tls.h"
+#include "hosted_game.h"
 #include "optional_preferences.h"
 #include "profile_store.h"
 #include "sd_card.h"
@@ -640,6 +642,8 @@ bool chipAction(TouchAction action) {
 }
 
 // The buttons for the open screen and the table state.
+bool hostedShown(uint32_t nowMs);
+
 void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
   screen.buttonCount = 0;
   switch (activeScreen(nowMs)) {
@@ -755,6 +759,8 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     case ScreenKind::Status:
       break;
   }
+  // A hosted game's controls arrive with slice 3; until then it is read-only.
+  if (hostedShown(nowMs)) return;
 
   switch (table().hubState) {
     // Add player, Start (New game: the game's options, then Start game) and
@@ -1749,6 +1755,49 @@ void formatTurnClock(AtlasScreen &screen, uint32_t nowMs) {
   }
 }
 
+// Phone-hosted games (hosted_game.h): the hub's game, shown read-only for now.
+bool hostedShown(uint32_t nowMs) {
+  return tableIndex() == 0 && TurnHubHosted::hostedTable().live(nowMs);
+}
+
+void formatHosted(AtlasScreen &screen, uint32_t nowMs) {
+  const TurnHubHosted::HostedTable &hosted = TurnHubHosted::hostedTable();
+  const turnhub::Game &game = hosted.game();
+  const bool inGame = game.state != turnhub::TableState::Lobby;
+  screen.showLife = inGame;
+  for (size_t i = 0; i < game.players.size() && screen.playerCount < MAX_SCREEN_PLAYERS; ++i) {
+    const turnhub::Player &player = game.players[i];
+    ScreenPlayer &chip = screen.players[screen.playerCount++];
+    chip.number = static_cast<uint8_t>(i + 1);
+    snprintf(chip.name, sizeof(chip.name), "%s", player.name.c_str());
+    chip.life = player.life;
+    if (inGame && game.active && *game.active == static_cast<int>(i)) chip.flags |= CHIP_ACTIVE;
+    if (player.eliminated) chip.flags |= CHIP_OUT;
+    if (game.state == turnhub::TableState::GameOver &&
+        ((game.winner && *game.winner == static_cast<int>(i)) ||
+         std::find(game.winners.begin(), game.winners.end(), static_cast<int>(i)) != game.winners.end())) {
+      chip.flags |= CHIP_WINNER;
+    }
+  }
+  const char *badge = "LOBBY";
+  switch (game.state) {
+    case turnhub::TableState::Lobby: badge = "LOBBY"; break;
+    case turnhub::TableState::Starting: badge = "STARTING"; break;
+    case turnhub::TableState::Running: badge = "PLAYING"; break;
+    case turnhub::TableState::Paused: badge = "PAUSED"; break;
+    case turnhub::TableState::GameOver: badge = "GAME OVER"; break;
+  }
+  snprintf(screen.badge, sizeof(screen.badge), "%s", badge);
+  if (inGame && game.active && *game.active >= 0 && *game.active < static_cast<int>(game.players.size()) &&
+      game.state != turnhub::TableState::GameOver) {
+    snprintf(screen.title, sizeof(screen.title), "%.24s's turn", game.players[*game.active].name.c_str());
+  } else {
+    snprintf(screen.title, sizeof(screen.title), "%s", game.state == turnhub::TableState::GameOver ? "Game over" : "Game setup");
+  }
+  snprintf(screen.detail, sizeof(screen.detail), "Hosted by %.36s", hosted.lease().name.c_str());
+  (void)nowMs;
+}
+
 void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
   addPlayers(screen, nowMs);
   formatTurnClock(screen, nowMs);
@@ -2295,7 +2344,10 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
       snprintf(screen.title,sizeof(screen.title),"Table");
       snprintf(screen.detail,sizeof(screen.detail),"Read only / %s",overviewPage ? "players 9-16" : "players 1-8");
       break;
-    case ScreenKind::Status: formatStatus(screen, nowMs); break;
+    case ScreenKind::Status:
+      if (hostedShown(nowMs)) formatHosted(screen, nowMs);
+      else formatStatus(screen, nowMs);
+      break;
     case ScreenKind::Qr: formatQr(screen, nowMs); break;
     case ScreenKind::Code: formatCode(screen, nowMs); break;
     case ScreenKind::PairCode: formatPairCode(screen, nowMs); break;

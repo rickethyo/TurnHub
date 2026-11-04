@@ -158,6 +158,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-035 | Phone-hosted games: Atlas becomes the table accessory | Atlas, Android, protocol, invariants | Owner decision 2026-11-04; slice 1 on `claude/master` | Claude / slice 2 (Sigils); Codex: no new gameplay in Atlas's old engine |
 | TH-032 | TCG shared player controls and read-only table | Android LAN, table UI | Implemented; local/device validation | Codex / review and tablet preview |
 | TH-031 | Death May Die shared devices | Android LAN, authority, UI | Handed to Claude on `claude/master` (owner, 2026-10-20) | Owner / Claude's PR (supersedes #145) and physical acceptance |
 | TH-029 | Condition/relic rules and verification | Android catalogue, UI, persistence | Ready for review; CI passes | Owner / PR #133, physical cards and device acceptance |
@@ -177,6 +178,30 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 Bag of Doom full-screen checks and explicit elimination sources landed in [PR #136](https://github.com/rickethyo/TurnHub/pull/136); physical acceptance remains in [Staged Changes](Documentation/engineering/STAGED_CHANGES.md).
 
 Ten-player app and general elimination credit landed in [PR #134](https://github.com/rickethyo/TurnHub/pull/134); acceptance remains in [Staged Changes](Documentation/engineering/STAGED_CHANGES.md).
+
+## TH-035: Phone-hosted games: Atlas becomes the table accessory
+
+### 2026-11-04 — Claude: owner decision and slice 1
+
+Owner (2026-11-04): keep the game engine on the phone and tablet only; Atlas
+becomes an accessory display, stats store and Sigil controller. Losing
+phone-less games is accepted ("when the Atlas is connected it's slower and
+doesn't work as well as when the phone controls the game"). Atlas keeps its
+full screen (set up a game, seat players, show the table), but every tap goes
+to the hub phone, so a phone must be connected first.
+
+The shared rules core stays: it is already the app's engine (`NativeGameCore`).
+What retires, slice by slice, is Atlas's own game authority (`GameEngine`,
+`Lobby`, gameplay/table intents, the offline merge). Codex: please add no new
+gameplay to those; rules go into `core/` only. Slices and contract:
+`STAGED_CHANGES.md` ("Phone-hosted games") and `protocol/hosted-v1.md`.
+
+Slice 1 (`claude/master`): Atlas `HostedTable` (lease, revisions, input queue)
+and `/api/hosted/*` routes; the Atlas screen shows a hosted game read-only;
+the app's Game tab has "Show on Atlas" (`HostedAtlasLink`). Validation: Atlas
+host suites pass on Linux GCC with sanitizers (new `phoneHostedGame`
+scenario). Android JVM tests and the S3 firmware build run in CI. Not
+hardware-accepted.
 
 ## TH-031: Death May Die shared devices
 

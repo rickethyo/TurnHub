@@ -86,6 +86,22 @@ class HomeViewModel(
      * Local game/library owner. Atlas delivery requires an explicit per-match
      * mapping; connected profiles never become local identity by name.
      */
+    /** Phone-hosted games (protocol/hosted-v1.md): this phone's game shown on Atlas. */
+    private val hostedLink = com.turnhub.android.data.HostedAtlasLink({ method, path, fields -> playerSession.raw(method, path, fields) })
+    val hostedStatus: StateFlow<com.turnhub.android.data.HostedAtlasLink.Status> = hostedLink.status
+    private var hostedJob: Job? = null
+
+    /** Start or stop showing this phone's game on the connected Atlas. The phone keeps running it. */
+    fun onHostOnAtlas(on: Boolean) {
+        hostedJob?.cancel()
+        hostedJob = null
+        val table = standalone ?: return
+        if (!on) return
+        hostedJob = viewModelScope.launch {
+            hostedLink.host(table.state.map { hostedGameJson(it.game) })
+        }
+    }
+
     private var standaloneObserver: Job? = null
     var standalone: com.turnhub.android.standalone.StandaloneTable? = null
         set(value) {
@@ -1564,6 +1580,8 @@ class HomeViewModel(
         local.update {
             it.copy(discovery = Discovery.Idle, joiningSsid = null, wifiPrompt = null, homePairing = null, failure = null)
         }
+        hostedJob?.cancel()
+        hostedJob = null
         disconnectJob = viewModelScope.launch {
             repository.disconnect()
             wifiLink.release()
@@ -1661,3 +1679,6 @@ class HomeViewModel(
     }
 }
 
+/** The core's game JSON, as the shared rules core reads it (NativeGameCore). */
+internal fun hostedGameJson(game: com.turnhub.android.standalone.StandaloneGame): org.json.JSONObject =
+    com.turnhub.android.standalone.StandaloneTable.gameToJson(game).put("profile", game.profile.name)

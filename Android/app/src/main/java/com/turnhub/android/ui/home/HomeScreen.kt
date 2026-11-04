@@ -64,6 +64,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -169,6 +170,9 @@ fun HomeScreen(
     onOpenSharedGame: (() -> Unit)? = null,
     sharedGameHosting: Boolean = false,
     sharedGameCode: String? = null,
+    /** Phone-hosted games: this phone's game shown on the connected Atlas. */
+    hostedStatus: com.turnhub.android.data.HostedAtlasLink.Status = com.turnhub.android.data.HostedAtlasLink.Status.Off,
+    onHostOnAtlas: ((Boolean) -> Unit)? = null,
 ) {
     PresenceCodeDialog(admin, adminActions)
     uiState.homePairing?.let { atlas ->
@@ -391,6 +395,19 @@ fun HomeScreen(
                             chosenSource = if (atlasGame) GameSource.DEVICE else GameSource.ATLAS
                             if (!atlasGame) onAtlasOpened()
                         }) { Text(if (atlasGame) "Device game" else "Atlas game") }
+                    }
+                    // Phone-hosted: this phone runs the game, Atlas shows it (and its Sigils, later).
+                    if (onHostOnAtlas != null && !atlasGame && summary != null) {
+                        val hosting = hostedStatus == com.turnhub.android.data.HostedAtlasLink.Status.Hosting
+                        TextButton(onClick = { onHostOnAtlas(!hosting) },
+                            modifier = Modifier.semantics { stateDescription = if (hosting) "Showing on Atlas" else "Not on Atlas" }) {
+                            Text(when (val status = hostedStatus) {
+                                com.turnhub.android.data.HostedAtlasLink.Status.Hosting -> "On Atlas · Stop"
+                                is com.turnhub.android.data.HostedAtlasLink.Status.Busy -> "Atlas busy" + (status.host?.let { " · $it" } ?: "")
+                                is com.turnhub.android.data.HostedAtlasLink.Status.Failed -> "Show on Atlas · Retry"
+                                com.turnhub.android.data.HostedAtlasLink.Status.Off -> "Show on Atlas"
+                            })
+                        }
                     }
                     if (onOpenSharedGame != null) TextButton(onClick = onOpenSharedGame) {
                         Text(when {
