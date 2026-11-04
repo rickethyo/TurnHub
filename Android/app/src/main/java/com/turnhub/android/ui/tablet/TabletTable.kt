@@ -130,6 +130,7 @@ import com.turnhub.android.ui.components.rememberHaptics
 import com.turnhub.android.ui.components.rememberNowMs
 import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.ui.theme.palette
+import com.turnhub.android.ui.theme.toColorScheme
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -1023,11 +1024,19 @@ internal fun PlayerPanel(
     underHub: Boolean = false,
     controlsEnabled: Boolean = true,
 ) {
-    val p = palette
     val tracks = summary.settings.profile.deathMayDie
     val investigatorArt = rememberInvestigatorArt(unit.members.first().investigator.takeIf { tracks })
     val investigatorCard = if (tracks) rememberCommanderArt(unit.members.first().commander, unit.members.first().commanderArt) else null
     val dashboardArt = investigatorArt ?: investigatorCard
+    val cards = unit.members.map { member ->
+        if (tracks) dashboardArt else rememberCommanderArt(member.commander, member.commanderArt)
+    }
+    val hasArtwork = cards.any { it != null } || unit.members.any {
+        it.tileBackground.style == com.turnhub.android.domain.TileBackgroundStyle.IMAGE && it.tileBackground.image != null
+    }
+    // Artwork needs the same dark scrim and light controls in every shell theme;
+    // tinting it with Daylight's surface turns the entire image milky white.
+    val p = if (hasArtwork && !palette.dark) com.turnhub.android.ui.theme.TurnHubPalette.Graphite else palette
     val shape = RoundedCornerShape(22.dp)
     val hue = unit.members.first().color?.let { Color(android.graphics.Color.parseColor(it)) }
         ?: p.avatarColor(unit.members.first().playerNumber)
@@ -1049,6 +1058,8 @@ internal fun PlayerPanel(
     // An emperor's turn edge is gold (owner, 2026-10-21); generals keep the usual colour.
     val emperorSeat = (unit.members.first().playerNumber - 1).takeIf { summary.emperor }
     val activeColor = if (emperorSeat != null && com.turnhub.android.domain.Emperor.isEmperor(emperorSeat)) p.emperorGold else p.active
+    androidx.compose.runtime.CompositionLocalProvider(com.turnhub.android.ui.theme.LocalTurnHubPalette provides p) {
+    MaterialTheme(colorScheme = p.toColorScheme()) {
     BoxWithConstraints(
         Modifier
             .then(if (tracks) Modifier.fillMaxWidth() else Modifier.fillMaxSize())
@@ -1071,12 +1082,11 @@ internal fun PlayerPanel(
     ) {
         // Team panels share space; each player's chosen background gets an equal share.
         Row(Modifier.matchParentSize()) {
-            unit.members.forEach { member ->
+            unit.members.forEachIndexed { index, member ->
                 // Death May Die: the investigator's picture, when there is one, before any tile card.
-                val card = if (tracks) dashboardArt else rememberCommanderArt(member.commander, member.commanderArt)
                 PlayerTileBackground(member.tileBackground,
                     com.turnhub.android.ui.components.playerColor(member.color, p.avatarColor(member.playerNumber)),
-                    Modifier.weight(1f).fillMaxHeight(), art = card, showCredit = !tracks)
+                    Modifier.weight(1f).fillMaxHeight(), art = cards[index], showCredit = !tracks)
             }
         }
         if (tracks) {
@@ -1259,6 +1269,8 @@ internal fun PlayerPanel(
             RadPrompt(member, unit.members.size > 1, { nonlands -> onTurnMark(member, StandaloneGame.RAD_KIND, nonlands) },
                 Modifier.align(Alignment.BottomCenter))
         }
+    }
+    }
     }
 }
 

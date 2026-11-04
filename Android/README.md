@@ -686,8 +686,12 @@ Atlas firmware includes the complete admin portal and its maintenance/Developer
 assets. The update assistant lists only Atlas and Sigils, never queries portal
 installation or card status, and ignores retired `portal` release entries.
 
-Connected and device games share the Game tab's upright player panels. The Table
-tab is the live facing-seat layout. A compact wrapping row above the Game tab
+Connected and device games share the Game tab's upright player panels. The
+Table view and personal phone controls use the same live player-card renderer.
+Cards with loaded commander/investigator art or a custom image use dark artwork
+contrast and light lettering in every app theme, so Daylight does not whiten
+the image. The surrounding shell and cards without images keep the chosen theme.
+The Table tab is the live facing-seat layout. A compact wrapping row above the Game tab
 keeps the game selector and Play Together together. Game menu contains the
 Game card selector for personal/pass-and-play views. For eligible connected
 players it also offers On the Atlas screen, using the same screen picker and
