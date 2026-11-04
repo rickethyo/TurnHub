@@ -16,6 +16,31 @@ import org.junit.Test
 import java.util.UUID
 
 class LanAtlasSessionsTest {
+    @Test fun `everyone counter controls relay once with validated payloads and the authenticated seat`() {
+        val f = Fixture()
+        f.table = f.table!!.copy(settings = f.table!!.settings.copy(profile = com.turnhub.android.protocol.GameProfile.MTG_COMMANDER))
+        val token = f.join(player = 2).getString("token")
+        val seat = f.table!!.players.first { it.playerNumber == 2 }.let { TabletSeat(it.controller.id, it.slot) }
+        val request = f.action(token, "everyone:rad:1").put("player", 1)
+        assertEquals("ok", f.handle(request).getString("code"))
+        assertEquals("ok", f.handle(request).getString("code"))
+        assertEquals(listOf("control $seat everyone:rad:1"), f.atlas.sent)
+        com.turnhub.android.standalone.StandaloneGame.EVERYONE_COUNTERS.forEach { kind ->
+            assertEquals("ok", f.handle(f.action(token, "everyone:$kind:-1")).getString("code"))
+        }
+        val sent = f.atlas.sent.size
+        listOf("everyone:rad:2", "everyone:rad:0", "everyone:commander-casts:1").forEach {
+            assertEquals("rejected", f.handle(f.action(token, it)).getString("code"))
+        }
+        listOf("slot", "source", "value").forEach {
+            assertEquals("rejected", f.handle(f.action(token, "everyone:rad:1").put(it, 1)).getString("code"))
+        }
+        assertEquals(sent, f.atlas.sent.size)
+        assertEquals("stale", f.handle(f.action(token, "everyone:rad:1").put("match", "old-game")).getString("code"))
+        val display = f.join(role = "display", player = 0).getString("token")
+        assertEquals("forbidden", f.handle(f.action(display, "everyone:rad:1")).getString("code"))
+    }
+
     private fun summary(name: String = "running.response.json"): TableSummary {
         val wire = Fixtures.text(name)
         return TableSummaryMapper.map(Fixtures.info(), Fixtures.state(name).copy(wire = wire), receivedAtMs = 1_000)

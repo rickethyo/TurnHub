@@ -929,7 +929,10 @@ class StandaloneTable(
                 game.profile in setOf(GameProfile.YUGIOH, GameProfile.GENERIC))) return false
         val now = wallClock()
         val simple = action.value == 0 && action.slot == 0 && action.source == 0
+        val everyone = com.turnhub.android.lan.everyoneCounterAction(action.kind, action.value, action.slot, action.source)
         val next = when {
+            everyone != null && game.profile.magicRules && !game.players[index].eliminated ->
+                game.changeCounterForEveryone(everyone.first, everyone.second, now)
             action.kind == "life" && action.slot == 0 && action.source == 0 && action.value != 0 && action.value in -10_000..10_000 ->
                 game.changeLife(index, action.value, now)
             action.kind == "commander" && action.slot in 1..2 && action.source in 1..game.players.size && action.value in listOf(-1, 1) ->

@@ -86,7 +86,9 @@ internal fun atlasRelayAction(summary: TableSummary, player: Int, kind: String, 
     if (summary.state != TableState.RUNNING && summary.state != TableState.PAUSED) return null
     val seat = TabletSeat(me.controller.id, me.slot)
     val simple = value == 0 && slot == 0 && source == 0
+    val everyone = everyoneCounterAction(kind, value, slot, source)
     return when {
+        everyone != null && summary.settings.profile.magicRules && !me.eliminated -> relay { control(seat, kind) }
         kind.startsWith("planar-atlas:") && simple &&
             kind.removePrefix("planar-atlas:").matches(Regex("(roll|effect):(blank|chaos|planeswalk)|(planeswalk|chaos|resolve)|counter:-?1")) ->
             relay { control(seat, com.turnhub.android.data.PLANAR_PREFIX + kind.removePrefix("planar-atlas:")) }
