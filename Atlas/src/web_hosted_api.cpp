@@ -80,6 +80,18 @@ void handleHostedState(WebServer &server) {
   json += hosted.lease().held ? String("\"") + jsonEscape(hosted.lease().name.c_str()) + "\"" : String("null");
   json += ",\"game\":";
   json += hosted.live(now) ? hosted.stateJson().c_str() : "null";
+  // With no hub: the last hub's unfinished game, for this phone to resume.
+  const std::string resume = hosted.resumeJson(now);
+  json += ",\"resume\":";
+  if (resume.empty()) {
+    json += "null";
+  } else {
+    json += "{\"host\":\"";
+    json += jsonEscape(hosted.resumeHost(now).c_str());
+    json += "\",\"game\":";
+    json += resume.c_str();
+    json += "}";
+  }
   json += "}";
   sendJson(server, 200, json);
 }

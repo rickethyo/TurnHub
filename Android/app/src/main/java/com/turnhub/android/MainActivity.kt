@@ -483,6 +483,8 @@ class MainActivity : ComponentActivity() {
                             sharedGameCode = lanState.host?.code,
                             hostedStatus = homeViewModel.hostedStatus.collectAsStateWithLifecycle().value,
                             onHostOnAtlas = homeViewModel::onHostOnAtlas,
+                            hostedResumeHost = homeViewModel.hostedResume.collectAsStateWithLifecycle().value?.host,
+                            onResumeHosted = homeViewModel::onResumeHosted,
                             onFollowGame = homeViewModel::onFollowGame,
                             onAtlasOpened = homeViewModel::onAtlasOpened,
                             atlasEnabled = atlasEnabled,

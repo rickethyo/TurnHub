@@ -13,15 +13,20 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HostedAtlasLinkTest {
-    private val calls = mutableListOf<String>()
+    private val allCalls = mutableListOf<String>()
+    /** The pushes and lease calls; input polls are checked on their own. */
+    private val calls get() = allCalls.filter { it.startsWith("POST") }
+    private var queued = "{\"inputs\":[],\"last\":0}"
     private var claimCode = 200
     private var stateCode = 200
+    private var watched = "{\"live\":false,\"host\":null,\"game\":null,\"resume\":null}"
 
     private val link = HostedAtlasLink({ method, path, fields ->
-        calls += "$method $path" + (fields.firstOrNull { it.first == "state" }?.let { " " + JSONObject(it.second).getLong("revision") } ?: "")
+        allCalls += "$method $path" + (fields.firstOrNull { it.first == "state" }?.let { " " + JSONObject(it.second).getLong("revision") } ?: "")
         when (path) {
             "/api/hosted/claim" -> RawResponse(claimCode, if (claimCode == 409) "{\"ok\":false,\"host\":\"Ana\"}" else "{\"ok\":true}")
-            "/api/hosted/state" -> RawResponse(stateCode, "{\"ok\":true}")
+            "/api/hosted/state" -> if (method == "GET") RawResponse(200, watched) else RawResponse(stateCode, "{\"ok\":true}")
+            "/api/hosted/inputs" -> RawResponse(200, queued)
             else -> RawResponse(200, "{\"ok\":true}")
         }
     }, renewMs = 10_000)
@@ -66,5 +71,30 @@ class HostedAtlasLinkTest {
         job.cancel()
         runCurrent()
         assertTrue(calls.none { it.endsWith("release") })
+    }
+
+    @Test
+    fun `atlas inputs reach the rules once each`() = runTest {
+        val applied = mutableListOf<HostedAtlasLink.Input>()
+        val job = launch { link.host(MutableStateFlow(game(1))) { applied += it } }
+        runCurrent()
+        queued = "{\"inputs\":[{\"seq\":1,\"id\":\"a\",\"player\":2,\"action\":{\"kind\":\"pass\"}}],\"last\":1}"
+        advanceTimeBy(301)
+        advanceTimeBy(301)  // Polled again: the same input is not applied twice.
+        assertEquals(1, applied.size)
+        assertEquals(2, applied[0].player)
+        assertEquals("pass", applied[0].action.getString("kind"))
+        assertTrue(allCalls.any { it == "GET /api/hosted/inputs" })
+        job.cancel()
+    }
+
+    @Test
+    fun `offers the last hub's unfinished game to resume`() = runTest {
+        assertEquals(null, link.resumable())
+        watched = "{\"live\":false,\"host\":null,\"game\":null,\"resume\":{\"host\":\"Ana\",\"game\":{\"gameId\":\"g7\",\"revision\":5}}}"
+        val resume = link.resumable()!!
+        assertEquals("Ana", resume.host)
+        assertEquals("g7", resume.game.getString("gameId"))
+        assertEquals(listOf("GET /api/hosted/state", "GET /api/hosted/state"), allCalls)
     }
 }
