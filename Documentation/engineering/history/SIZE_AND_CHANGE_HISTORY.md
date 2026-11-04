@@ -1116,3 +1116,13 @@ All prototype boards need the paired USB update. No new dependency or persistenc
 layout. Verified local release builds: Atlas RAM 119,232 bytes / flash 1,796,517;
 Sigil RAM 53,872 / flash 1,203,693. USB image verification and reconnect pass;
 physical interaction acceptance remains open.
+
+## 2026-11-04: Atlas 0.7.23-dev without its game engine
+
+Phone-hosted slices 5 and 6 (PR #196): the hub phone or tablet runs every
+game; Atlas's `GameEngine`, `Lobby`, game Intent handlers, game HTTP routes,
+two-table venue model, offline merge and recovery record are removed, and the
+app's Atlas-run game screens with them. `/api/v1/state` becomes
+`atlas-state-v1`. No radio packet change, no new dependency or persistence
+layout. Local build: Atlas RAM 103,932 bytes / flash 1,787,589 (27.3%). Host
+suites pass; hardware acceptance pending.

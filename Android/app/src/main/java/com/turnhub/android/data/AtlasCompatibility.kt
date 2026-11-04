@@ -14,7 +14,8 @@ import com.turnhub.android.protocol.StateSnapshot
  */
 object AtlasCompatibility {
     const val API_VERSION = "1"
-    const val PROTOCOL_VERSION = "0.1"
+    /** 1: Atlas is an accessory to a phone hub (protocol/atlas-state-v1.schema.json). */
+    const val PROTOCOL_VERSION = "1"
 
     fun requireCompatible(info: AtlasInfo) {
         if (info.apiVersion != API_VERSION) {

@@ -1,6 +1,6 @@
 // Atlas entry point: defines the runtime objects, binds one handler per
-// IntentType, brings up Wi-Fi/ESP-NOW/HTTP, restores an interrupted match and
-// runs the cooperative main loop. The handlers and adapters themselves live in
+// IntentType, brings up Wi-Fi/ESP-NOW/HTTP and runs the cooperative main
+// loop. Games run on the hub phone (hosted_game.h). The handlers and adapters themselves live in
 // the modules listed in atlas_app.h.
 
 #include <Arduino.h>
@@ -9,10 +9,9 @@
 
 #include "atlas_app.h"
 #include "hosted_game.h"
+#include "json_text.h"
 #include "sigil_update_service.h"
 #include "sigil_menu.h"
-#include "profile_picker.h"
-#include "commander_picker.h"
 #include "touch_controls.h"
 #include "atlas_board.h"
 #include "atlas_battery.h"
@@ -21,8 +20,6 @@
 #include "config.h"
 #include "firmware_version.h"
 #include "firmware_package.h"
-#include "game_recovery.h"
-#include "game_settings_store.h"
 #include "pairing_settings.h"
 #include "runtime_diagnostics.h"
 #include "http_diagnostics.h"
@@ -62,26 +59,6 @@ AudioController audio(sigilBus);
 TurnHub::ToneOutput *hardwareTestSpeaker = nullptr;
 OtaManager ota(server, otaAllowed);
 
-GameTable tables[MAX_GAME_TABLES];
-static_assert(MAX_GAME_TABLES <= TurnHub::GAME_RECOVERY_SLOTS, "every game table needs a recovery record");
-
-namespace {
-uint8_t currentTable = 0;
-}  // namespace
-
-GameTable &table() { return tables[currentTable]; }
-uint8_t tableIndex() { return currentTable; }
-
-uint8_t selectTable(uint8_t index) {
-  const uint8_t previous = currentTable;
-  if (index < MAX_GAME_TABLES) currentTable = index;
-  return previous;
-}
-
-TableScope::TableScope(uint8_t index) : previous_(selectTable(index)) {}
-TableScope::~TableScope() { currentTable = previous_; }
-
-bool gameSettingsAvailable = true;
 bool espNowReady = false;
 uint32_t pairingWindowMs = TurnHub::DEFAULT_PAIRING_WINDOW_MS;
 TurnHub::PowerSettings powerSettings;
@@ -91,40 +68,12 @@ namespace {
 // The SD card generation the luxury store was last pointed for.
 uint32_t luxuryStoreGeneration = 0;
 
-// Polling cadence for the elapsed-clock recovery checkpoint (see below).
-constexpr uint32_t RECOVERY_POLL_INTERVAL_MS = 1000;
-uint32_t lastRecoveryPollMs[MAX_GAME_TABLES] = {};
-
-// Catches the "periodically checkpoint elapsed clocks" requirement for a long
-// turn with no dispatched intents in between: GameRecovery::save() only
-// writes when >=60s have passed since the last save of a running match, so
-// polling this once a second is cheap (no encode-vs-previous work happens
-// between checkpoints) and never spams NVS.
-void updateGameRecoveryClock(uint32_t nowMs) {
-  uint32_t &lastPollMs = lastRecoveryPollMs[tableIndex()];
-  if (nowMs - lastPollMs < RECOVERY_POLL_INTERVAL_MS) return;
-  lastPollMs = nowMs;
-  TurnHub::checkpointGame(table().game, nowMs);
-}
-
 // Heap and Wi-Fi client figures, logged periodically and whenever the phone
 // count changes, so a crash under load leaves a trail in the serial log, the
 // RAM log download and the SD diagnostics log (playtest 2026-09-29, item 1).
 constexpr uint32_t HEAP_LOG_INTERVAL_MS = 60000;
 uint32_t lastHeapLogMs = 0;
 int lastStationCount = -1;
-
-// Names in /api/v1/state are re-read when a seat's occupant changes; this
-// also picks up a rename (profile page, Sigil picker) within a few seconds.
-constexpr uint32_t CLIENT_NAME_REFRESH_MS = 5000;
-uint32_t lastClientNameRefreshMs[MAX_GAME_TABLES] = {};
-
-void refreshClientNames(uint32_t nowMs) {
-  uint32_t &lastRefreshMs = lastClientNameRefreshMs[tableIndex()];
-  if (nowMs - lastRefreshMs < CLIENT_NAME_REFRESH_MS) return;
-  lastRefreshMs = nowMs;
-  table().clientState.refreshNames();
-}
 
 void logRuntimeHealth(uint32_t nowMs) {
   const int stations = WiFi.softAPgetStationNum();
@@ -175,83 +124,65 @@ void serveDeveloperJson(const String &json) {
   }
 }
 
-// Restores an interrupted match, if any, before the portal/radio boundary
-// opens. A reboot always finds Atlas in an empty Lobby unless a valid,
-// unfinished checkpoint says otherwise; any storage problem fails safe to
-// that same empty Lobby rather than risking ambiguous game state. Existing
-// profiles/statistics are untouched either way -- this only concerns the
-// small active-match cache.
-void restoreInterruptedMatch() {
-  using TurnHubStorage::Status;
-  const auto recoveryStatus =
-      TurnHub::beginGameRecovery(table().game, table().lobby, millis(), tableIndex());
-  if (recoveryStatus == Status::Ok && table().game.hasPlayers()) {
-    // A restored match is always paused (never running) and never charges
-    // downtime -- GameEngine::restoreCheckpoint() already rebased the
-    // elapsed clocks into this boot's millis() domain. The existing
-    // Pause/Resume controls (physical and browser) are the "Resume" side of
-    // recovery. There is deliberately no "Discard" affordance yet -- see the
-    // STAGED_CHANGES note on interrupted-match recovery.
-    table().hubState = table().game.gameOver() ? HubState::GameOver : HubState::Paused;
-    // A short match may have been counted before the restart; never twice.
-    table().shortGameCounted = table().game.gameOver();
-    leds.invalidateAll();
-    serialLog.print("ATLAS|RECOVERY|OUTCOME|RESTORED|STATE|");
-    serialLog.println(stateName(table().hubState));
-  } else if (recoveryStatus == Status::NotFound) {
-    serialLog.println("ATLAS|RECOVERY|OUTCOME|NO_SAVED_MATCH");
-  } else if (recoveryStatus == Status::Ok) {
-    // A valid record was found and decoded, but it held no active match
-    // (e.g. checkpointed while Atlas was sitting in an empty Lobby).
-    serialLog.println("ATLAS|RECOVERY|OUTCOME|EMPTY_RECORD");
-  } else {
-    serialLog.print("ATLAS|RECOVERY|OUTCOME|FAILSAFE|");
-    serialLog.println(TurnHub::storageStatusName(recoveryStatus));
-  }
-  observeClientState();
-}
-
 }  // namespace
 
-// --- Client state projection ----------------------------------------------------
+// --- /api/v1/state -------------------------------------------------------------
 
-void observeClientState() {
-  TurnHub::ClientPending pending;
-  pending.passPlayer = table().pendingPass.active ? table().pendingPass.seat.playerNumber : 0;
-  pending.passStartedMs = table().pendingPass.active ? table().pendingPass.requestedAtMs : 0;
-  pending.countdownStartedMs = table().hubState == HubState::Starting ? table().countdownStartedAtMs : 0;
-  pending.eliminationTarget = table().eliminationTargetPlayer;
-  pending.nudgeSeq = table().nudgeState.seq;
-  pending.nudgeFrom = table().nudgeState.fromPlayer;
-  pending.nudgeTo = table().nudgeState.toPlayer;
-  pending.nudgeAtMs = table().nudgeState.atMs;
-  pending.shortGameUncounted = shortGameUncounted();
-  table().clientState.observe(table().hubState, table().lobby, table().game, table().nextGameSettings, pending);
+namespace {
+// Atlas's own state: the hub that holds the table and its game's outline.
+// The revision moves when that outline changes; the battery and links are
+// sampled (no revision change).
+struct HubSummary {
+  std::string name, gameId;
+  turnhub::TableState state = turnhub::TableState::Lobby;
+  size_t players = 0;
+  bool held = false;
+  bool operator!=(const HubSummary &o) const {
+    return held != o.held || name != o.name || gameId != o.gameId || state != o.state || players != o.players;
+  }
+};
+HubSummary lastHub;
+uint32_t stateRevision = 1;
+
+HubSummary hubSummary(uint32_t nowMs) {
+  HubSummary hub;
+  const TurnHubHosted::HostedTable &hosted = TurnHubHosted::hostedTable();
+  if (!hosted.live(nowMs)) return hub;
+  hub.held = true;
+  hub.name = hosted.lease().name;
+  hub.gameId = hosted.game().gameId;
+  hub.state = hosted.game().state;
+  hub.players = hosted.game().players.size();
+  return hub;
 }
+}  // namespace
 
 uint32_t clientRevision() {
-  observeClientState();
-  return table().clientState.revision();
+  const HubSummary now = hubSummary(millis());
+  if (now != lastHub) {
+    lastHub = now;
+    ++stateRevision;
+  }
+  return stateRevision;
 }
 
 String clientSnapshot(const String &atlasId, const char *bootId) {
-  observeClientState();
-  String json = table().clientState.json(atlasId, bootId, table().game, millis(), PASS_GRACE_MS);
-  // Venue tables: which game this is, and a line on each game for a switch.
-  if (json.length() == 0 || json[json.length() - 1] != '}') return json;
-  json.remove(json.length() - 1);
-  json += ",\"game\":"; json += String(tableIndex() + 1);
-  json += ",\"games\":[";
-  for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
-    const GameTable &at = tables[t];
-    if (t) json += ',';
-    json += "{\"game\":"; json += String(t + 1);
-    json += ",\"state\":\""; json += stateName(at.hubState);
-    json += "\",\"players\":";
-    json += String(at.game.hasPlayers() ? at.game.playerCount() : at.lobby.playerCount());
+  const uint32_t revision = clientRevision();
+  String json;
+  json.reserve(384);
+  json = "{\"protocolVersion\":\"1\",\"atlasId\":\"";
+  json += atlasId; json += "\",\"bootId\":\""; json += bootId;
+  json += "\",\"revision\":"; json += String(revision);
+  json += ",\"hub\":";
+  if (!lastHub.held) {
+    json += "null";
+  } else {
+    json += "{\"name\":\""; json += TurnHub::jsonEscape(lastHub.name.c_str());
+    json += "\",\"gameId\":\""; json += TurnHub::jsonEscape(lastHub.gameId.c_str());
+    json += "\",\"state\":\""; json += turnhub::stateName(lastHub.state);
+    json += "\",\"players\":"; json += String(static_cast<unsigned>(lastHub.players));
     json += '}';
   }
-  json += ']';
   // Atlas's battery, sampled like the clocks (no revision change); null with
   // no cell. The app's header gauge draws it.
   const TurnHub::BatteryReading &battery = atlasBattery();
@@ -273,39 +204,10 @@ String clientSnapshot(const String &atlasId, const char *bootId) {
   return json;
 }
 
-// Application domain phase: settle automatic loss outcomes before projecting or saving.
-void finalizeGameRules(const Intent &intent) {
-  if (intent.type == IntentType::ExpireLifeChanges && !table().clientState.expirationDue(millis())) return;
-  if (table().eliminationTargetPlayer) return;
-  if (!table().game.resolveEliminationRules(millis())) return;
-  clearPendingPass("AUTO_ELIMINATION");
-  const uint16_t out = table().game.lastAutoEliminations();
-  for (uint8_t i=0;i<table().game.playerCount();++i)
-    if (out & (1u << i)) audio.playerEliminated(table().game.playerAt(i)->controllerId);
-  leds.invalidateAll();
-  if (table().game.gameOver()) finishGameState();
-  else if (table().game.paused()) table().hubState = HubState::Paused;
-}
-
 // Dispatcher observer: runs after every Intent, accepted or not.
 void observeIntent(const Intent &intent) {
-  // The loop dispatches expiry every frame. Its no-op path must not rebuild
-  // the complete Commander matrix or re-encode the recovery checkpoint (the
-  // once-a-second updateGameRecoveryClock poll still runs). The client
-  // projection still holds the old requests here, so expirationDue() says
-  // whether this tick just settled one. Other completed handlers are
-  // infrequent.
-  if (intent.type == IntentType::ExpireLifeChanges && !table().clientState.expirationDue(millis())) return;
   // Anything a player does keeps Atlas from sleeping on the cell.
   if (intent.actor.origin != IntentOrigin::System) noteAtlasActivity(millis());
-  observeClientState();
-  // Persist a checkpoint after every dispatched intent. GameRecovery::save()
-  // only actually touches NVS when the encoded game state changed or the
-  // periodic clock checkpoint is due, so this is cheap to call unconditionally
-  // -- including after a rejected intent, where nothing changed and it is a
-  // no-op. This is the "after accepted semantic transitions" hook the
-  // interrupted-match recovery design calls for.
-  TurnHub::checkpointGame(table().game, millis());
 }
 
 // --- Intent bindings ---------------------------------------------------------------
@@ -317,55 +219,7 @@ bool configureIntentHandlers() {
     IntentType type;
     IntentDispatcher::Handler handler;
   } bindings[] = {
-      {IntentType::Moderate, handleModerateIntent},
-      {IntentType::ConfigureGame, handleGameSettingsIntent},
-      {IntentType::ChangeLife, handleChangeLifeIntent},
-      {IntentType::Pass, handlePassIntent},
-      {IntentType::Pause, handlePauseIntent},
-      {IntentType::Resume, handleResumeIntent},
-      {IntentType::Concede, handleConcedeIntent},
-      {IntentType::EliminateSeat, handleEliminateSeatIntent},
-      {IntentType::DoomBag, handleDoomBagIntent},
-      {IntentType::ResolveElimination, handleResolveEliminationIntent},
-      {IntentType::ClaimMonarch, handleClaimMonarchIntent},
-      {IntentType::TogglePause, handleTogglePauseIntent},
-      {IntentType::ClaimWin, handleClaimWinIntent},
-      {IntentType::ConfirmWin, handleConfirmWinIntent},
-      {IntentType::DenyWin, handleDenyWinIntent},
-      {IntentType::SelectStarter, handleSelectStarterIntent},
-      {IntentType::Join, handleSeatMembershipIntent},
-      {IntentType::Leave, handleSeatMembershipIntent},
-      {IntentType::JoinProfile, handleProfileParticipationIntent},
-      {IntentType::LeaveProfile, handleProfileParticipationIntent},
-      {IntentType::BindProfile, handleProfileParticipationIntent},
-      {IntentType::PickProfile, handleProfileParticipationIntent},
-      {IntentType::ArmStart, handleStartIntent},
-      {IntentType::StartGame, handleStartIntent},
-      {IntentType::CancelStart, handleCancelStartIntent},
-      {IntentType::CompleteStart, handleCompleteStartIntent},
-      {IntentType::Rematch, handleResetIntent},
-      {IntentType::ResetGame, handleResetIntent},
-      {IntentType::BackToSetup, handleBackToSetupIntent},
-      {IntentType::CountShortGame, handleCountShortGameIntent},
-      {IntentType::PlanarAction, handlePlanarIntent},
-      {IntentType::SyncOffline, handleSyncOfflineIntent},
-      {IntentType::SetCommander, handleSetCommanderIntent},
-      {IntentType::BeginElimination, handleEliminationIntent},
-      {IntentType::CycleElimination, handleEliminationIntent},
-      {IntentType::CancelElimination, handleEliminationIntent},
-      {IntentType::Eliminate, handleEliminationIntent},
-      {IntentType::CancelPass, handleCancelPassIntent},
-      {IntentType::CommitPass, handleCommitPassIntent},
       {IntentType::PairRequest, handlePairRequestIntent},
-      {IntentType::RequestLifeChange, handleCounterIntent},
-      {IntentType::RespondLifeChange, handleCounterIntent},
-      {IntentType::ExpireLifeChanges, handleExpireLifeChangesIntent},
-      {IntentType::ChangeCounter, handleCounterIntent},
-      {IntentType::RecordCommanderHit, handleCounterIntent},
-      {IntentType::UndoCommanderHit, handleCounterIntent},
-      {IntentType::SetPartner, handleCounterIntent},
-      {IntentType::EndMatch, handleEndMatchIntent},
-      {IntentType::MasterPass, handleMasterPassIntent},
       {IntentType::ForgetPairing, handleForgetPairingIntent},
       {IntentType::PairConfirm, handlePairConfirmIntent},
       {IntentType::ConfigurePairing, handleConfigurePairingIntent},
@@ -376,11 +230,6 @@ bool configureIntentHandlers() {
       {IntentType::ResetTable, handleResetTableIntent},
       {IntentType::FactoryReset, handleFactoryResetIntent},
       {IntentType::UpdateSigil, handleUpdateSigilIntent},
-      {IntentType::MoveSeat, handleMoveSeatIntent},
-      {IntentType::SetSeatSide, handleSetSeatSideIntent},
-      {IntentType::RemoveSeat, handleRemoveSeatIntent},
-      {IntentType::ChooseTable, handleChooseTableIntent},
-      {IntentType::NudgePlayer, handleNudgeIntent},
       {IntentType::AdvanceSetup, handleAdvanceSetupIntent},
       {IntentType::Sleep, handleSleepIntent},
   };
@@ -392,7 +241,6 @@ bool configureIntentHandlers() {
     serialLog.println(bound ? "|BOUND" : "|BIND_FAILED");
     allBound = bound && allBound;
   }
-  intents.setRuleFinalizer(finalizeGameRules);
   return allBound;
 }
 
@@ -401,30 +249,8 @@ bool configureIntentHandlers() {
 // Compact status for the diagnostics page. Clients use /api/v1/state.
 void handleStatus() {
   TurnHub::HttpRequestTrace trace("/api/status");
-  TableScope scope(TurnHubWebApi::requestGame(server));
-  PlayerSeat selected;
-  const uint8_t starter = table().lobby.selectedStarter(selected)
-      ? selected.playerNumber
-      : (table().game.hasPlayers() ? table().game.starterPlayerNumber() : 0);
-  const uint8_t active = (table().hubState == HubState::Running || table().hubState == HubState::Paused)
-      ? table().game.activePlayerNumber()
-      : 0;
-  const uint8_t players = table().game.hasPlayers() ? table().game.playerCount() : table().lobby.playerCount();
-  const bool otaStateAllowed = allTablesBetweenGames();
   const uint32_t nowMs = millis();
-  // Venue tables: a line on each game, for the portal's game switch.
-  char games[48 * MAX_GAME_TABLES];
-  size_t used = 0;
-  for (uint8_t t = 0; t < MAX_GAME_TABLES && used < sizeof(games); ++t) {
-    const GameTable &at = tables[t];
-    used += snprintf(games + used, sizeof(games) - used, "%s{\"game\":%u,\"state\":\"%s\",\"players\":%u}",
-        t ? "," : "", static_cast<unsigned>(t + 1), stateName(at.hubState),
-        static_cast<unsigned>(at.game.hasPlayers() ? at.game.playerCount() : at.lobby.playerCount()));
-  }
-  const uint32_t passElapsed = table().pendingPass.active ? nowMs - table().pendingPass.requestedAtMs : 0;
-  const uint32_t passGraceRemainingMs = table().pendingPass.active && passElapsed < PASS_GRACE_MS
-      ? PASS_GRACE_MS - passElapsed
-      : 0;
+  const HubSummary hub = hubSummary(nowMs);
 
   // HTTP is serialized on loopTask. No worker/callback uses this workspace,
   // and WebServer::send consumes it before the next request can enter.
@@ -432,41 +258,20 @@ void handleStatus() {
   const int length = snprintf(
       json,
       sizeof(json),
-      "{\"presenceActive\":%s,\"presenceCodeShown\":%s,\"sigils\":%u,\"players\":%u,"
-      "\"state\":\"%s\",\"starter\":%u,"
-      "\"active\":%u,\"winner\":%u,\"eliminationTarget\":%u,"
-      "\"winConfirm\":%u,\"passPending\":%u,\"passGraceMs\":%lu,"
-      "\"nudgeSeq\":%lu,\"nudgeFrom\":%u,\"nudgeTo\":%u,\"nudgeAgeMs\":%lu,"
-      "\"turnTimerMs\":%lu,\"turnElapsedMs\":%lu,\"turnRemainingMs\":%lu,\"timerPhase\":\"%s\","
-      "\"espNow\":%s,\"firmware\":\"%s\","
-      "\"build\":\"%s %s\",\"otaStateAllowed\":%s,\"game\":%u,\"games\":[%s]}",
+      "{\"presenceActive\":%s,\"presenceCodeShown\":%s,\"sigils\":%u,\"hub\":%s,"
+      "\"state\":\"%s\",\"players\":%u,\"espNow\":%s,\"firmware\":\"%s\","
+      "\"build\":\"%s %s\",\"otaStateAllowed\":%s}",
       anyPresenceActive(nowMs) ? "true" : "false",
       pendingPresenceCode(nowMs) != nullptr ? "true" : "false",
       static_cast<unsigned>(sigilBus.activeCount(nowMs)),
-      static_cast<unsigned>(players),
-      stateName(table().hubState),
-      static_cast<unsigned>(starter),
-      static_cast<unsigned>(active),
-      static_cast<unsigned>(table().game.winnerPlayerNumber()),
-      static_cast<unsigned>(table().eliminationTargetPlayer),
-      static_cast<unsigned>(table().game.nextWinConfirmationPlayerNumber()),
-      static_cast<unsigned>(table().pendingPass.active ? table().pendingPass.seat.playerNumber : 0),
-      static_cast<unsigned long>(passGraceRemainingMs),
-      static_cast<unsigned long>(table().nudgeState.seq),
-      static_cast<unsigned>(table().nudgeState.fromPlayer),
-      static_cast<unsigned>(table().nudgeState.toPlayer),
-      static_cast<unsigned long>(table().nudgeState.seq ? nowMs - table().nudgeState.atMs : 0),
-      static_cast<unsigned long>(table().game.hasPlayers() ? table().game.turnTimerMs() : table().nextGameSettings.turnTimerMs),
-      static_cast<unsigned long>(table().game.currentTurnElapsedMs(nowMs)),
-      static_cast<unsigned long>(table().game.turnRemainingMs(nowMs)),
-      TurnHub::turnTimerPhaseName(table().game.turnTimerPhase(nowMs)),
+      hub.held ? "true" : "false",
+      turnhub::stateName(hub.state),
+      static_cast<unsigned>(hub.players),
       espNowReady ? "true" : "false",
       TurnHubFirmware::VERSION,
       TurnHubFirmware::BUILD_DATE,
       TurnHubFirmware::BUILD_TIME,
-      otaStateAllowed ? "true" : "false",
-      static_cast<unsigned>(tableIndex() + 1),
-      games);
+      betweenGames(nowMs) ? "true" : "false");
 
   server.sendHeader("Cache-Control", "no-store");
   if (length < 0 || static_cast<size_t>(length) >= sizeof(json)) {
@@ -606,25 +411,10 @@ void setup() {
   TurnHubProfiles::begin();
 
   configureIntentHandlers();
-  sigilBus.setSeatedQuery([](uint8_t id) {
-    const GameTable &at = tables[tableForController(id)];
-    return at.lobby.isJoined(id) || at.game.controllerInGame(id);
-  });
+  sigilBus.setSeatedQuery([](uint8_t id) { return sigilInGame(id, millis()); });
   intents.setObserver(observeIntent);
-  for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
-    TableScope scope(t);
-    table().clientState.setNameLookup(displayNameForTableSeat);
-    table().clientState.setCommanderLookup(commanderForTableSeat);
-    observeClientState();
-    restoreInterruptedMatch();
-  }
-  logHeapStep("PROFILES_AND_RECOVERY");
+  logHeapStep("PROFILES");
 
-  const auto settingsStatus = TurnHub::loadGameSettings(tables[0].nextGameSettings);
-  for (GameTable &other : tables) other.nextGameSettings = tables[0].nextGameSettings;
-  gameSettingsAvailable = settingsStatus == TurnHubStorage::Status::Ok ||
-      settingsStatus == TurnHubStorage::Status::NotFound;
-  if (!gameSettingsAvailable) serialLog.println("ATLAS|GAME_SETTINGS|STORAGE_ERROR");
   // A missing or unreadable setting keeps the 60-second default (and minimum).
   const auto pairingStatus = TurnHub::loadPairingWindow(pairingWindowMs);
   if (pairingStatus != TurnHubStorage::Status::Ok &&
@@ -771,37 +561,22 @@ void loop() {
   LOOP_STEP(serviceAutoSleep(nowMs));
   LOOP_STEP(serviceSleep(nowMs));
   LOOP_STEP_BEGIN();
-  // Phone-hosted games: Game 1's Sigils follow the hub while it hosts; a
-  // change either way redraws them from scratch.
+  // The Sigils follow the hub's game; with no hub they show nobody seated.
+  // A change either way redraws them from scratch.
   static bool sigilsHosted = false;
+  static const turnhub::Game noGame;
   const bool hostedNow = TurnHubHosted::hostedTable().live(nowMs);
   if (hostedNow != sigilsHosted) {
     sigilsHosted = hostedNow;
     leds.invalidateAll();
     for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) invalidateSigilMenu(id);
   }
-  for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
-    TableScope scope(t);
-    updatePendingPass(nowMs);
-    updateCountdown(nowMs);
-    updateTurnTimerCues(nowMs);
-    dispatchSystemIntent(IntentType::ExpireLifeChanges);
-    updateGameRecoveryClock(nowMs);
-    if (t == 0 && hostedNow) leds.renderHosted(TurnHubHosted::hostedTable().game(), nowMs, sigilsAtTable(t));
-    else leds.render(table().hubState, table().lobby, table().game, table().countdownStartedAtMs,
-        table().eliminationTargetPlayer, table().game.nextWinConfirmationPlayerNumber(), nowMs,
-        sigilsAtTable(t));
-    refreshClientNames(nowMs);
-  }
-  LOOP_STEP_END("tables");
-  LOOP_STEP(updateSigilAccessibility(nowMs));
-  LOOP_STEP(audio.setSpeakerShared(atlasSpeakerShared()));
+  leds.renderHosted(hostedNow ? TurnHubHosted::hostedTable().game() : noGame, nowMs);
+  LOOP_STEP_END("sigils");
   LOOP_STEP(audio.update(nowMs));
   LOOP_STEP(serviceAtlasSpeaker(nowMs));
   LOOP_STEP(serviceAtlasBattery(nowMs));
   LOOP_STEP(syncSigilMenus(nowMs));
-  LOOP_STEP(syncProfilePickers(nowMs));
-  LOOP_STEP(syncCommanderPickers(nowMs));
   LOOP_STEP(ota.update(nowMs));
   LOOP_STEP(logRuntimeHealth(nowMs));
 

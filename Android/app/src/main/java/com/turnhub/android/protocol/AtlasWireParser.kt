@@ -27,7 +27,6 @@ object AtlasWireParser {
 
     private const val UINT32_MAX = 4_294_967_295L
     private val BOOT_ID = Regex("^[0-9A-F]{32}$")
-    private val DAY_NIGHT_WIRE = setOf("NEITHER", "DAY", "NIGHT")
 
     fun parseInfo(body: String): AtlasInfo {
         val root = parseObject(body) { AtlasWireException.NotTurnHub("Response is not TurnHub JSON") }
@@ -63,64 +62,22 @@ object AtlasWireParser {
     fun parseState(body: String): StateSnapshot {
         val root = parseObject(body) { AtlasWireException.Malformed("State response is not JSON") }
         return wrap {
-            val settings = root.obj("settings")
-            val profileKey = settings.string("profile")
-            val stateKey = root.string("state")
             StateSnapshot(
-                matchId = root.optionalString("matchId").orEmpty(),
                 protocolVersion = root.string("protocolVersion"),
                 atlasId = root.nonEmptyString("atlasId"),
                 bootId = root.bootId("bootId"),
                 revision = root.uint32("revision"),
-                state = TableState.fromWire(stateKey) ?: malformed("Unknown table state '$stateKey'"),
-                hostModuleId = root.optionalInt("hostModuleId"),
-                starterPlayer = root.optionalInt("starterPlayer"),
-                activePlayer = root.optionalInt("activePlayer"),
-                winnerPlayer = root.optionalInt("winnerPlayer"),
-                // Every winner (shared Star Commander victories). Older firmware omits
-                // it: the single winnerPlayer, if any, is the whole list.
-                winnerPlayers = if (root.isAbsentOrNull("winnerPlayers")) {
-                    listOfNotNull(root.optionalInt("winnerPlayer"))
-                } else {
-                    root.array("winnerPlayers").let { array -> List(array.length()) { array.intAt(it, "winnerPlayers") } }
-                        .also { if (it.size > 16 || it.distinct().size != it.size || it.any { n -> n !in 1..255 }) malformed("Invalid winnerPlayers") }
-                },
-                monarchPlayer = root.optionalInt("monarchPlayer"),
-                initiativePlayer = root.optionalInt("initiativePlayer"),
-                dayNight = root.optionalString("dayNight")?.also { if (it !in DAY_NIGHT_WIRE) malformed("Unknown day/night '$it'") },
-                turnOrderReversed = root.optionalBoolean("turnOrderReversed"),
-                settings = parseSettings(settings, profileKey),
-                doomBag = if (root.isAbsentOrNull("doomBag")) null else parseDoomBag(root.obj("doomBag")),
-                planechase = if (root.isAbsentOrNull("planechase")) null else parsePlanechase(root.obj("planechase")),
-                sampledAtMs = root.uint32("sampledAtMs"),
-                gameElapsedMs = root.uint32("gameElapsedMs"),
-                turnElapsedMs = root.uint32("turnElapsedMs"),
-                turnTimer = parseTurnTimer(root.obj("turnTimer")),
-                pending = parsePending(root.obj("pending")),
-                players = root.array("players").objects().map(::parsePlayer),
-                nudge = if (root.isNull("nudge")) {
-                    root.require("nudge") // Required, but may be null.
-                    null
-                } else {
-                    val nudge = root.obj("nudge")
-                    Nudge(
-                        seq = nudge.uint32("seq"),
-                        fromPlayer = nudge.int("fromPlayer"),
-                        toPlayer = nudge.int("toPlayer"),
-                        ageMs = nudge.uint32("ageMs"),
+                hub = if (root.require("hub") == JSONObject.NULL) null else root.obj("hub").let { hub ->
+                    val players = hub.int("players")
+                    if (players !in 0..255) malformed("Hub players $players is out of range")
+                    AtlasHub(
+                        name = hub.string("name"),
+                        gameId = hub.string("gameId"),
+                        state = TableState.fromWire(hub.string("state")) ?: malformed("Unknown hub state"),
+                        players = players,
                     )
                 },
-                shortGameUncounted = root.optionalBoolean("shortGameUncounted"),
-                game = if (root.isAbsentOrNull("game")) 1 else root.int("game").also {
-                    if (it !in 1..255) malformed("Invalid game number")
-                },
-                games = if (root.isAbsentOrNull("games")) emptyList() else root.array("games").objects().map {
-                    val game = it.int("game")
-                    val players = it.int("players")
-                    if (game !in 1..255 || players !in 0..16) malformed("Invalid venue game")
-                    VenueGame(game, TableState.fromWire(it.string("state")) ?: malformed("Unknown venue state"), players)
-                }.also { if (it.map { game -> game.game }.distinct().size != it.size) malformed("Duplicate venue game") },
-                battery = if (root.isAbsentOrNull("battery")) null else root.obj("battery").let { battery ->
+                battery = if (root.require("battery") == JSONObject.NULL) null else root.obj("battery").let { battery ->
                     val percent = battery.int("percent")
                     if (percent !in 0..100) malformed("Battery percent $percent is out of range")
                     AtlasBattery(
@@ -129,7 +86,7 @@ object AtlasWireParser {
                         charging = battery.boolean("charging"),
                     )
                 },
-                links = if (root.isAbsentOrNull("links")) null else root.obj("links").let { links ->
+                links = root.obj("links").let { links ->
                     val sigils = links.int("sigils")
                     if (sigils !in 0..16) malformed("Sigils online $sigils is out of range")
                     AtlasLinks(links.boolean("hotspot"), links.boolean("home"), sigils)
@@ -138,24 +95,6 @@ object AtlasWireParser {
         }
     }
 
-    /** `GET /api/seats`: names per seat. Blank names are reported as null. */
-    fun parseSeats(body: String): List<SeatEntry> {
-        val root = parseObject(body) { AtlasWireException.Malformed("Seats response is not JSON") }
-        return wrap {
-            root.array("seats").objects().map { seat ->
-                SeatEntry(
-                    moduleId = seat.int("module"),
-                    slot = seat.int("slot"),
-                    playerNumber = seat.int("player"),
-                    name = seat.optionalString("name")?.trim()?.takeIf { it.isNotEmpty() },
-                    avatar = seat.optionalInt("avatar") ?: 0,
-                    customAvatar = seat.optionalString("customAvatar") ?: "",
-                )
-            }
-        }
-    }
-
-    /** `GET /api/avatars`: the preset icons. Malformed entries are skipped. */
     fun parseAvatars(body: String): List<AvatarIcon> {
         val root = parseObject(body) { AtlasWireException.Malformed("Avatars response is not JSON") }
         return wrap {
@@ -193,55 +132,11 @@ object AtlasWireParser {
             SessionInfo(
                 profileId = root.string("profileId"),
                 name = root.optionalString("name")?.trim()?.takeIf { it.isNotEmpty() },
-                moduleId = root.int("module"),
-                slot = root.int("slot"),
-                playerNumber = root.int("player"),
-                participating = root.boolean("participating"),
-                host = root.boolean("host"),
-                active = root.boolean("active"),
-                eliminated = root.boolean("eliminated"),
                 permissions = root.int("permissions"),
-                tablet = root.optionalBoolean("tablet"),
-                game = if (root.isAbsentOrNull("game")) 1 else root.int("game"),
             )
         }
     }
 
-    /** `GET /api/game/settings`. */
-    fun parseGameSettings(body: String): GameSettingsInfo {
-        val root = parseObject(body) { AtlasWireException.Malformed("Game settings response is not JSON") }
-        return wrap {
-            val timer = root.obj("turnTimer")
-            GameSettingsInfo(
-                settings = TableSettings(
-                    profile = root.string("gameProfile").let {
-                        GameProfile.fromWire(it) ?: malformed("Unknown game profile '$it'")
-                    },
-                    startingLife = root.int("startingLife"),
-                    turnTimerMs = root.uint32("turnTimerMs"),
-                    twoHeadedGiant = root.optionalBoolean("twoHeadedGiant"),
-                    houseRules = root.optionalBoolean("houseRules"),
-                    planechase = root.optionalBoolean("planechase"),
-                    planarDigital = root.optionalString("planarDeck") == "digital",
-                    autoEliminateAtZeroLife = if (root.has("autoEliminateAtZeroLife")) root.boolean("autoEliminateAtZeroLife") else false,
-                    autoEliminateAtPoisonLimit = root.optionalBoolean("autoEliminateAtPoisonLimit"),
-                    autoEliminateAtCommanderDamage = root.optionalBoolean("autoEliminateAtCommanderDamage"),
-                    poisonLimit = if (root.has("poisonLimit")) root.int("poisonLimit").also {
-                        if (it !in 1..1_000_000) malformed("Invalid poison limit")
-                    } else if (root.optionalBoolean("twoHeadedGiant")) 15 else 10,
-                ),
-                available = root.boolean("available"),
-                canEdit = root.boolean("canEdit"),
-                turnTimerPresetsMs = timer.array("presetsMs").let { presets ->
-                    List(presets.length()) { index -> wholeNumber(presets.get(index), "presetsMs[$index]") }
-                },
-                turnTimerMinMs = timer.uint32("minMs"),
-                turnTimerMaxMs = timer.uint32("maxMs"),
-            )
-        }
-    }
-
-    /** `GET/POST /api/session/accessibility`. */
     fun parseAccessibility(body: String): AccessibilitySettings {
         val root = parseObject(body) { AtlasWireException.Malformed("Accessibility response is not JSON") }
         return wrap {
@@ -271,21 +166,6 @@ object AtlasWireParser {
         }
     }
 
-    /** Control results and plain `{"ok":..,"error":..}` bodies; lenient because error shapes vary. */
-    fun parseControlResult(body: String): ControlResult {
-        val root = parseObject(body) { AtlasWireException.Malformed("Control response is not JSON") }
-        return wrap {
-            ControlResult(
-                ok = root.optBoolean("ok", false),
-                status = root.optionalString("status"),
-                message = root.optionalString("message") ?: root.optionalString("error"),
-                revision = if (root.isAbsentOrNull("revision")) null else root.uint32("revision"),
-                bootId = root.optionalString("bootId"),
-            )
-        }
-    }
-
-    /** The `error` text of an Atlas error body, if it has one. */
     fun errorMessage(body: String): String? = try {
         JSONObject(body.trim()).optString("error").takeIf { it.isNotBlank() }
     } catch (_: JSONException) {
@@ -299,137 +179,6 @@ object AtlasWireParser {
         val port = home.int("tlsPort")
         if (!PIN_PATTERN.matches(pin) || port !in 1..65535) throw JSONException("home: invalid tlsPin or tlsPort")
         return AtlasHomeAddress(address = home.nonEmptyString("address"), tlsPort = port, tlsPin = pin)
-    }
-
-    private fun parseSettings(settings: JSONObject, profileKey: String) = TableSettings(
-        profile = GameProfile.fromWire(profileKey) ?: malformed("Unknown game profile '$profileKey'"),
-        startingLife = settings.int("startingLife"),
-        turnTimerMs = settings.uint32("turnTimerMs"),
-        twoHeadedGiant = settings.optionalBoolean("twoHeadedGiant"),
-        houseRules = settings.optionalBoolean("houseRules"),
-        planechase = settings.optionalBoolean("planechase"),
-        planarDigital = settings.optionalString("planarDeck") == "digital",
-        autoEliminateAtZeroLife = if (settings.has("autoEliminateAtZeroLife")) settings.boolean("autoEliminateAtZeroLife") else false,
-        autoEliminateAtPoisonLimit = settings.optionalBoolean("autoEliminateAtPoisonLimit"),
-        autoEliminateAtCommanderDamage = settings.optionalBoolean("autoEliminateAtCommanderDamage"),
-        poisonLimit = if (settings.has("poisonLimit")) settings.int("poisonLimit").also {
-            if (it !in 1..1_000_000) malformed("Invalid poison limit")
-        } else if (settings.optionalBoolean("twoHeadedGiant")) 15 else 10,
-    )
-
-    private fun parsePlayerCounters(c: JSONObject): PlayerCounters {
-        fun count(key: String): Int = c.int(key).also { if (it !in 0..1_000_000) malformed("Invalid $key counter") }
-        val casts = c.array("commanderCasts")
-        if (casts.length() != 2) malformed("commanderCasts must have two entries")
-        return PlayerCounters(count("poison"), count("energy"), count("experience"),
-            List(2) { casts.intAt(it, "commanderCasts").also { value -> if (value !in 0..1_000_000) malformed("Invalid cast count") } },
-            c.boolean("cityBlessing"),
-            if (c.has("treasure")) count("treasure") else 0, if (c.has("rad")) count("rad") else 0)
-    }
-
-    private fun parseTurnTimer(timer: JSONObject): TurnTimer {
-        val phaseKey = timer.string("phase")
-        timer.require("remainingMs") // Required, but may be null.
-        return TurnTimer(
-            phase = TurnTimerPhase.fromWire(phaseKey) ?: malformed("Unknown turn timer phase '$phaseKey'"),
-            remainingMs = if (timer.isNull("remainingMs")) null else timer.uint32("remainingMs"),
-        )
-    }
-
-    private fun parsePending(pending: JSONObject) = PendingDecisions(
-        passPlayer = pending.optionalInt("passPlayer"),
-        passGraceRemainingMs = if (pending.isAbsentOrNull("passGraceRemainingMs")) 0L
-        else pending.uint32("passGraceRemainingMs"),
-        winClaimPlayer = pending.optionalInt("winClaimPlayer"),
-        winConfirmationPlayer = pending.optionalInt("winConfirmationPlayer"),
-        eliminationTargetPlayer = pending.optionalInt("eliminationTargetPlayer"),
-    )
-
-    private fun parsePlanechase(j: JSONObject): AtlasPlanechase = AtlasPlanechase(
-        digital = j.string("source") == "digital",
-        plane = if (j.isAbsentOrNull("plane")) null else j.obj("plane").let { c ->
-            AtlasPlanechase.Plane(c.string("id").also { if (it.length != 36) malformed("Invalid plane id") },
-                c.optionalString("name"), c.boolean("phenomenon"))
-        },
-        deckSize = if (j.has("deckSize")) j.int("deckSize").also { if (it < 0) malformed("Invalid deck size") } else 0,
-        planeswalks = j.int("planeswalks").also { if (it < 0) malformed("Invalid planeswalks") },
-        chaos = j.int("chaos").also { if (it < 0) malformed("Invalid chaos") },
-        counters = j.int("counters").also { if (it !in 0..999) malformed("Invalid plane counters") },
-        rollCost = j.int("rollCost").also { if (it < 0) malformed("Invalid planar die cost") },
-        lastRoll = if (j.isAbsentOrNull("lastRoll")) null else j.obj("lastRoll").let { r ->
-            AtlasPlanechase.Roll(
-                number = r.int("number").also { if (it < 1) malformed("Invalid roll number") },
-                player = r.int("player").also { if (it !in 1..16) malformed("Invalid roll player") },
-                face = r.string("face").also { if (it !in listOf("blank", "chaos", "planeswalk")) malformed("Unknown planar face '$it'") },
-                cost = r.int("cost").also { if (it < 0) malformed("Invalid roll cost") },
-                fromEffect = r.boolean("fromEffect"),
-            )
-        },
-    ).also { if (j.string("source") !in listOf("physical", "digital")) malformed("Unknown planar deck source") }
-
-    private fun parseDoomBag(j: JSONObject): DoomBag = DoomBag(
-        drawn = j.int("drawn").also { if (it !in 0..65535) malformed("Invalid bag eliminations") },
-        atRisk = j.int("atRisk").also { if (it !in 0..65535) malformed("Invalid bag mask") },
-        boundary = j.int("boundary").also { if (it !in 0..16) malformed("Invalid bag boundary") },
-        warmup = j.int("warmup").also { if (it !in 0..4) malformed("Invalid bag warmup") },
-        cycle = j.uint32("cycle").also { if (it == 0L) malformed("Invalid bag cycle") }, pending = j.boolean("pending"),
-        pendingTurn = j.int("pendingTurn").also { if (it !in 0..16) malformed("Invalid bag turn") },
-        sealed = j.boolean("sealed"),
-        lastDraw = j.int("lastDraw").also { if (it !in 0..16) malformed("Invalid bag result") },
-        lastCheck = j.uint32("lastCheck"),
-    )
-
-    private fun parsePlayer(player: JSONObject) = Player(
-        commander = if (player.isAbsentOrNull("commander")) null else player.obj("commander").string("name")
-            .also { if (it.isEmpty() || it.length > 80) malformed("Invalid commander") },
-        commanderArt = if (player.isAbsentOrNull("commander")) null else player.obj("commander").optionalString("art"),
-        playerNumber = player.int("playerNumber"),
-        moduleId = player.int("moduleId"),
-        slot = player.int("slot"),
-        team = player.optionalInt("team"),
-        participantId = player.uint32("participantId"),
-        profileId = player.optionalString("profileId"),
-        displayName = player.optionalString("displayName"),
-        eliminated = player.boolean("eliminated"),
-        conceded = player.optionalBoolean("conceded"),
-        selfEliminated = player.optionalBoolean("selfEliminated"),
-        eliminationPending = player.optionalBoolean("eliminationPending"),
-        eliminatedBy = player.optionalInt("eliminatedBy").also { source ->
-            if (source != null && (source !in 1..16 || source == player.int("playerNumber") ||
-                !player.boolean("eliminated") || player.optionalBoolean("conceded"))) malformed("Invalid elimination credit")
-        },
-        counters = if (player.isAbsentOrNull("counters")) PlayerCounters() else parsePlayerCounters(player.obj("counters")),
-        radDue = player.optionalBoolean("radDue"),
-        life = player.nullableInt("life"),
-        turnsCompleted = player.uint32("turnsCompleted"),
-        commanderDamage = player.array("commanderDamage").objects().map { entry ->
-            val damage = entry.array("damage")
-            if (damage.length() != 2) malformed("commanderDamage.damage must have two entries")
-            CommanderDamage(
-                sourcePlayer = entry.int("sourcePlayer"),
-                damage = List(2) { index -> damage.intAt(index, "damage") },
-            )
-        },
-        lifeRequest = if (player.isNull("lifeRequest")) {
-            player.require("lifeRequest") // Required, but may be null.
-            null
-        } else {
-            val request = player.obj("lifeRequest")
-            val stateKey = request.string("state")
-            LifeRequest(
-                id = request.uint32("id"),
-                actor = request.int("actor"),
-                target = request.int("target"),
-                delta = request.int("delta"),
-                state = LifeRequestState.fromWire(stateKey)
-                    ?: malformed("Unknown life request state '$stateKey'"),
-                requestedAtMs = request.uint32("requestedAtMs"),
-                windowMs = request.int("windowMs").toLong(),
-            )
-        },
-    ).also { parsed ->
-        if ((parsed.selfEliminated || parsed.eliminationPending) && (!parsed.eliminated || parsed.conceded || parsed.eliminatedBy != null) ||
-            (parsed.selfEliminated && parsed.eliminationPending)) malformed("Invalid elimination attribution")
     }
 
     // --- strict field helpers -------------------------------------------------

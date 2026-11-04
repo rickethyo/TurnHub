@@ -1,16 +1,18 @@
 package com.turnhub.android.data
 
+/** A seat at the table: its controller handle and slot. */
+data class TabletSeat(val moduleId: Int, val slot: Int)
+
+/** Planechase actions through [TableControls.control]. */
+const val PLANAR_PREFIX = "planar:"
+
 /**
- * What the tablet table screen sends for a seat. [AtlasTablet] sends each to
- * Atlas, which decides it; [com.turnhub.android.standalone.StandaloneTable]
- * applies it to the app's own standalone game when no Atlas is at the table.
+ * What the table screen sends for a seat:
+ * [com.turnhub.android.standalone.StandaloneTable] applies it to this device's
+ * game, and a Play together guest's [com.turnhub.android.lan.LanTableControls]
+ * sends it to the hub, whose rules decide.
  */
 interface TableControls {
-    /**
-     * What the Atlas screen shows during the match (`game`, `table`, `planes` or `card`),
-     * for a signed-in player's [seat]; Atlas checks the seat. Only Atlas games have one.
-     */
-    suspend fun showOnAtlas(seat: TabletSeat, view: String): Boolean = false
     /** `pass`, `pause`, `concede`, `win`, `confirm`, `deny`, `rematch` or `reset` (Atlas also takes the lobby ones). */
     suspend fun control(seat: TabletSeat, action: String): Boolean
     /** Remove this seat, optionally crediting another player number (null = unknown). */
@@ -47,12 +49,6 @@ interface TableControls {
 
     /** Answers a phone's request to change this seat's life. */
     suspend fun respondLife(seat: TabletSeat, requestId: Long, accept: Boolean)
-
-    /** Keeps a change for Atlas while it isn't answering. */
-    fun queueOffline(change: OfflineChange)
-
-    /** Refuses an action that waits for Atlas while it isn't answering. */
-    fun refuseOffline()
 
     /** Stops acting for the table. */
     suspend fun disable()

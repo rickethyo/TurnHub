@@ -63,13 +63,9 @@ import com.turnhub.android.ui.theme.palette
 
 private val ROLES = listOf(
     Triple(AccountPermission.ADMIN, "Admin", "Device settings, Wi-Fi, updates and people."),
-    Triple(AccountPermission.GAME_MASTER, "Game Master", "Moderates players at the table."),
+    Triple(AccountPermission.GAME_MASTER, "Game Master", "Sees the people list and reviews player images."),
     Triple(AccountPermission.DEVELOPER, "Developer", "The diagnostics page and the Atlas log."),
 
-)
-private val GM_POWERS = listOf(
-    Triple(AccountPermission.GM_RESET_CONNECTIONS, "Reset connections", "Can sign a player out everywhere until they sign in again."),
-    Triple(AccountPermission.GM_REMOVE_FROM_GAME, "Remove from game", "Can take a player out of the game."),
 )
 private const val MODERATION_BITS = 8 or 16
 
@@ -162,11 +158,6 @@ private fun PersonSheet(
     val name = account.displayName()
     var confirm by remember { mutableStateOf<Confirmation?>(null) }
 
-    fun applyModeration(action: String, done: String) = actions.run {
-        moderate(account.profileId, action, done)
-        refresh(admin = isAdmin, gameMaster = true)
-    }
-
     fun saveRoles(bits: Int) {
         val clean = if (bits and AccountPermission.GAME_MASTER.bit == 0) bits and MODERATION_BITS.inv() else bits
         val save = {
@@ -239,58 +230,6 @@ private fun PersonSheet(
                 }
             }
 
-            if (isGm && live && account.atTable) {
-                val noPin = if (!account.hasPin) "Needs a PIN or password on their account first." else null
-                GroupedList(header = "At the table", footer = "Pass works only while it is their turn.") {
-                    actionRow(
-                        R.drawable.ic_th_pass, "Pass their turn", "Ends their turn now, without the pass grace period.",
-                        blockedBy = null, danger = false,
-                    ) {
-                        confirm = Confirmation("Pass $name's turn?", "Their turn ends now and the next player starts.", "Pass turn") {
-                            applyModeration("pass", "Passed $name's turn.")
-                        }
-                    }
-                    if (info.has(AccountPermission.GM_RESET_CONNECTIONS)) {
-                        actionRow(
-                            R.drawable.ic_th_refresh, "Reset connections",
-                            "Signs them out everywhere and pauses their Sigil until they sign in again. Their seat and life stay.",
-                            blockedBy = if (account.reconnectRequired) "Waiting for them to sign in again." else noPin, danger = false,
-                        ) {
-                            confirm = Confirmation(
-                                "Reset $name's connections?",
-                                "Every phone they use is signed out and their Sigil pauses until they sign in again with their PIN. " +
-                                    "Their seat and life total stay.",
-                                "Reset connections",
-                            ) { applyModeration("reset", "$name must sign in again.") }
-                        }
-                    }
-                    if (info.has(AccountPermission.GM_REMOVE_FROM_GAME)) {
-                        actionRow(
-                            R.drawable.ic_th_close, "Remove from game", "Takes them out of this game. In a match it counts as a concession.",
-                            blockedBy = noPin, danger = true,
-                        ) {
-                            confirm = Confirmation(
-                                "Remove $name from the game?",
-                                "They leave the table and are signed out everywhere. In a match this counts as a concession.",
-                                "Remove",
-                            ) { applyModeration("remove", "$name was removed from the game.") }
-                        }
-                    }
-                }
-            }
-
-            if (isGm && live) {
-                GroupedList(header = "Nudges") {
-                    switchRow(
-                        "Can send nudges", "Turn off to stop this account from nudging other players.",
-                        checked = !account.nudgeMuted, enabled = !admin.busy, nested = false,
-                    ) { on ->
-                        if (on) applyModeration("unmute", "$name can send nudges again.")
-                        else applyModeration("mute", "$name can no longer send nudges.")
-                    }
-                }
-            }
-
             if (isAdmin && live) {
                 val locked = !account.hasPin && account.permissions == 0
                 GroupedList(
@@ -304,16 +243,6 @@ private fun PersonSheet(
                             label, if (fixed) "The initial Admin always keeps this role." else text,
                             checked = account.has(permission), enabled = !fixed && !locked && !admin.busy, nested = false,
                         ) { on -> saveRoles(if (on) account.permissions or permission.bit else account.permissions and permission.bit.inv()) }
-                        if (permission == AccountPermission.GAME_MASTER) {
-                            GM_POWERS.forEach { (power, powerLabel, powerText) ->
-                                switchRow(
-                                    powerLabel, powerText,
-                                    checked = account.has(power),
-                                    enabled = !locked && !admin.busy && account.has(AccountPermission.GAME_MASTER),
-                                    nested = true,
-                                ) { on -> saveRoles(if (on) account.permissions or power.bit else account.permissions and power.bit.inv()) }
-                            }
-                        }
                     }
                 }
             }

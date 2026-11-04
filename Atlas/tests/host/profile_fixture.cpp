@@ -4,19 +4,12 @@
 #include <cstring>
 #include "profile_fixture.h"
 #include "account_access.h"
-#include "game_settings_store.h"
 #include "pairing_settings.h"
 #include "power_settings.h"
 #include "setup_stage.h"
 #include "speaker_settings.h"
 #include "table_code_setting.h"
 namespace TurnHub {
-GameSettings fixtureSettings;
-TurnHubStorage::Status loadGameSettings(GameSettings &value) {value=fixtureSettings;return TurnHubStorage::Status::Ok;}
-TurnHubStorage::Status saveGameSettings(const GameSettings &value) {
-  if (!ProfileFixture::gameSettingsWritable) return TurnHubStorage::Status::IoError;
-  fixtureSettings=value;return TurnHubStorage::Status::Ok;
-}
 uint32_t fixturePairingWindowSaved=0;
 TurnHubStorage::Status loadPairingWindow(uint32_t &windowMs) {
   if (!fixturePairingWindowSaved) return TurnHubStorage::Status::NotFound;

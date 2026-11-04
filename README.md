@@ -28,7 +28,7 @@ branch from `legacy/gen1` and open the PR against it. The two never merge.
 |---|---|
 | [`Atlas/`](Atlas/README.md) | ESP32 table controller: game engine, Wi-Fi AP, web portal and HTTP API, ESP-NOW radio, NVS and optional microSD storage |
 | [`Sigil/`](Sigil/platformio.ini) | Touchscreen player controller: LVGL touch buttons, secure radio, pairing and speaker; one build, on the E32R28T board until the S3 Sigil |
-| [`LVGL/`](LVGL/README.md) | Semi-retired desktop simulator; real Atlas/Sigil hardware is primary |
+| [`shared/simulator/`](shared/simulator/README.md) | Semi-retired desktop simulator; real Atlas/Sigil hardware is primary |
 | [`Android/`](Android/README.md) | Native client: table view, player controls, guided setup and firmware updates |
 | [`iOS/`](iOS/README.md) | SwiftUI iPhone/iPad foundation, core package and staged development plan; gameplay not yet implemented |
 | [`protocol/`](protocol/README.md) | Client contract: JSON schemas, [`http-v1.md`](protocol/http-v1.md), example responses |

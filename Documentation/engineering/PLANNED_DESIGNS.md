@@ -72,26 +72,10 @@ supported.
 - **House rules** unlock smaller decks, more phenomena, free rolls and Un-
   cards.
 
-**Atlas parity.** `PlanarState` in `GameEngine`, one per `GameTable`.
-
-- **Intents:**
-  - `ConfigurePlanechase`
-  - `RollPlanarDie`
-  - `Planeswalk`
-  - `ChaosEnsues`
-  - `ResolvePlanarCard`
-  - `ChangePlaneCounter`
-  - `PlanarDeckTool`
-  - `SetPlaneAutomation`
-  - `UndoPlaneEffect`
-- **State:** a `planechase` object in `/api/v1/state`, with form controls
-  under `/api/control/planar-*`.
-- **Checkpoint:** a schema bump; no migration.
-- **Randomness:** Fisher-Yates shuffles and a uniform die from `esp_random`,
-  injected so tests can script them.
-- **Tests:** the host suite runs the shared scenarios.
-- **Card names:** Atlas stores card IDs and names only; full text and art
-  stay on phones.
+**Atlas parity.** Since 2026-11-04 the hub runs Planechase in the shared core
+like every rule; Atlas only shows the face-up plane from the hub's state, with
+art from its plane card cache (`/api/planes/card`). Full text and art stay on
+phones otherwise.
 
 **Two screens.** The plane screen is a separate LVGL view (`PlaneView`) built
 from the same snapshot as the table view. Both send Intents to the one engine.
@@ -124,61 +108,6 @@ now; the card is not taken over) or **Merge in** (it becomes this Atlas's
 data and card). Still to design: the same profile on both, whose PIN wins,
 which statistics merge, and where game-night results are written. No
 statistics rollback to NVS.
-
-## Venue model: several games on one Atlas (*Planned*)
-
-A venue Atlas runs more than one game at once. Profiles, statistics, pairing
-and the portal stay shared; each game has its own lobby, engine and table
-decisions. Owner decisions (2026-09-29):
-
-- **Atlas speaker:** muted while more than one game is running. Cues then play
-  only on Sigil buzzers and in browsers. With one game it behaves as today.
-- **Atlas touchscreen:** shows one game at a time, with a "Game 1", "Game 2",
-  ... selector. The selection is presentation state (Invariant 6), not a table
-  decision.
-
-Steps:
-
-1. **Done 2026-09-29 (host-tested, firmware builds):** `GameTable` in
-   `atlas_app.h` groups one game's `Lobby`, `GameEngine`, `ClientState` and
-   table decisions.
-2. **Done 2026-10-07 (*Experimental*, host-tested; Atlas 0.7.0, Sigil
-   0.9.13, portal pack 1.3.0): two tables.** Defaults chosen: Game 1 and
-   Game 2; everyone starts in Game 1.
-   - *State owner:* each `GameTable`, plus `sigilTable[]` (the game an
-     unseated Sigil goes to, RAM) and each web session's `table` (the game a
-     phone follows, RAM). Next-game settings are per table; the last saved
-     ones are both tables' settings after a boot.
-   - *Routing:* code reaches its game through `table()`, set by a
-     `TableScope`. Sigil handlers scope to `tableForController` (the table
-     whose lobby or game holds the Sigil, else its chosen one); HTTP routes
-     and `/api/status` scope to `TurnHubWebApi::requestGame` (a tablet's
-     chosen game, else the profile's game, else the followed game, else
-     `?game=N` without a session); `loop()` ticks each table. Controller IDs
-     stay global, so a Sigil (with its seat B), a phone controller and a
-     profile each sit at one table at a time.
-   - *Intent:* `ChooseTable` (a Sigil's menu item "Switch game",
-     `SigilAction::SwitchTable`): offered outside that Sigil's game; it leaves
-     its lobby first. Phones switch with `POST /api/session/game`, which
-     leaves a lobby through the usual LeaveProfile Intent and refuses a
-     profile in a game.
-   - *Device-wide gates:* OTA, Sigil updates, Atlas factory reset, sleep and
-     setup need both games between games; forgetting or factory-resetting a
-     Sigil refuses one seated at either table. Pairing follows Game 1, the
-     game the Atlas screen shows. Resetting a game frees only its own
-     controllers.
-   - *Persistence:* each table has its own recovery record in `th_game_v1`
-     (`checkpoint`, `checkpoint2`), both restored paused at boot; the
-     checkpoint-before-statistics order holds per table.
-   - *Contract:* `/api/v1/state` and `/api/status` add `game` and `games`;
-     `revision` is one counter for both games ([HTTP v1](../../protocol/http-v1.md)).
-   - *Clients:* the portal shows a Game 1 / Game 2 switch; Sigils show
-     "Switch game". *Speaker:* quiet while both games are in progress.
-   - *Accessibility:* the switch names each game and its state in words.
-3. Atlas touchscreen game selector (presentation state, Invariant 6), so the
-   screen, pairing and turn order can serve Game 2; the tablet page's switch.
-4. Android app game switch; then update the user manual (V0.12 section 19
-   describes round one).
 
 ## Sigil sleep (*Planned*)
 

@@ -1,6 +1,7 @@
 package com.turnhub.android.domain
 
-import com.turnhub.android.testing.Fixtures
+import com.turnhub.android.protocol.TableState
+import com.turnhub.android.testing.TableFixtures
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -9,16 +10,12 @@ import org.junit.Test
 
 class LiveTurnTest {
 
-    private fun summary(state: String = "RUNNING", edit: org.json.JSONObject.() -> Unit = {}) =
-        TableSummaryMapper.map(
-            Fixtures.info(),
-            Fixtures.state("running.response.json") { put("state", state); edit() },
-            receivedAtMs = 50_000,
-        )
+    private fun summary(state: String = "RUNNING", edit: TableSummary.() -> TableSummary = { this }) =
+        TableFixtures.running(state = TableState.valueOf(state)).edit()
 
     @Test
     fun `the turn clock is pinned to wall time`() {
-        val running = summary { put("turnElapsedMs", 4_000) }
+        val running = summary { copy(turnElapsedMs = 4_000) }
 
         val mine = LiveTurn.from(running, myNumber = 1, nowMs = 51_000, wallNowMs = 1_000_000)!!
         assertTrue(mine.mine)
@@ -44,11 +41,11 @@ class LiveTurnTest {
 
     @Test
     fun `poll-to-poll drift is the same moment, a new turn is not`() {
-        val a = LiveTurn.from(summary { put("turnElapsedMs", 4_000) }, 1, 50_000, 1_000_000)!!
-        val drift = LiveTurn.from(summary { put("turnElapsedMs", 5_000) }, 1, 50_000, 1_001_300)!!
+        val a = LiveTurn.from(summary { copy(turnElapsedMs = 4_000) }, 1, 50_000, 1_000_000)!!
+        val drift = LiveTurn.from(summary { copy(turnElapsedMs = 5_000) }, 1, 50_000, 1_001_300)!!
         assertTrue(drift.sameMoment(a))
 
-        val next = LiveTurn.from(summary { put("activePlayer", 2) }, 1, 50_000, 1_000_000)!!
+        val next = LiveTurn.from(summary { copy(activePlayerNumber = 2) }, 1, 50_000, 1_000_000)!!
         assertFalse(next.sameMoment(a))
     }
 }

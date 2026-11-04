@@ -98,24 +98,17 @@ Product direction (owner, 2026-10-13): the app is a full, general-purpose game a
 
 ## Hard architecture rule
 
-The app may:
+Since 2026-11-04 (owner decision, `protocol/hosted-v1.md`) the app's hub runs
+every game with the shared rules core (`NativeGameCore`, the NDK build of
+`core/`). Atlas is the table accessory: it shows the hub's game, relays its
+Sigils' and touchscreen's inputs, and keeps profiles, statistics, records and
+settings.
 
-- Discover or connect to an Atlas.
-- Authenticate a player/session.
-- Request a current state snapshot.
-- Render authoritative Atlas state.
-- Send semantic Intents.
-- Receive state/events.
-- Cache user preferences and non-authoritative profile conveniences locally.
-- Recover from connection loss by resynchronizing with Atlas.
-
-The app must not:
-
-- Advance turns locally as authoritative state.
-- Decide whether a concession, win claim, pause, or life change is legal.
-- Become authoritative for life totals, active player, timers, winner, or elimination state.
-- Reimplement gameplay rules that already belong to Atlas.
-- Depend directly on ESP32 C++ implementation details.
+The hub may advance turns, decide legality and own life, timers, winners and
+eliminations, always through the shared core. Guest phones and Atlas must not:
+they send inputs to the hub and render its state. No screen reimplements a
+rule outside the core, and nothing depends on ESP32 C++ implementation
+details.
 
 ### Game-action sounds
 
@@ -148,7 +141,7 @@ attach a file and explicitly submit. Google Forms collects the signed-in email;
 there is no automatic submission, new permission or developer credential in the
 app. Question IDs in `BugReportLink.kt` must stay aligned with the owned form.
 
-### The one exception: the standalone tablet game
+### Local games
 
 Fresh launches open the shared Game tab; rotation restores the open screen.
 Saved local games remain available through Table, and starting a game opens
@@ -158,7 +151,7 @@ local-network permission already exist. It never joins Wi-Fi, prompts for
 permission, requests biometric sign-in or takes over navigation. Connect, retry
 and setup in Settings > Atlas connection can join Wi-Fi and request permission.
 Turning discovery off disconnects Atlas. Opening a local table keeps an existing
-Atlas connection available; the two games remain independent.
+Atlas connection available, and the game can be hosted on it.
 
 Players and History are available without Atlas. Accounts have independent UUID
 history keys and random eight-hex public IDs compatible with Atlas. Optional
@@ -239,13 +232,10 @@ allies. Player cards remain available while paused; the central hub displays
 **Paused**, and the Game menu provides Resume.
 
 History > Statistics shows per-player statistics derived from
-local records (went first, eliminations, concessions, turn and game times). It is a separate
-game, never a copy of or a change to a game Atlas is running, so nothing is
-merged back live. The rules above apply in full whenever Atlas is present.
+local records (went first, eliminations, concessions, turn and game times).
 
-- The table screen is tablet mode's (`ui/tablet/TabletTable.kt`); it sends
-  the same seat actions through `data/TableControls`, which
-  `StandaloneTable` applies locally instead of `AtlasTablet` sending them.
+- The table screen is `ui/tablet/TabletTable.kt`; it sends seat actions
+  through `data/TableControls`, which `StandaloneTable` applies locally.
 - Adding a typed name creates a reusable player with a local UUID. Selecting a
   saved player reuses that identity. Same-name players stay distinct and short ID
   labels distinguish them. Reset/rematch preserves IDs; records snapshot names.
@@ -359,7 +349,7 @@ Android/
 ```
 
 `protocol/` holds Kotlin wire models that mirror the JSON shapes in `/protocol`
-(`state-v0.1.schema.json`, `info-v1.schema.json`) -- not the ESP32 C++ types,
+(`atlas-state-v1.schema.json`, `info-v1.schema.json`) -- not the ESP32 C++ types,
 and not a claim that the wire format is frozen. Unsigned 32-bit Atlas values
 (revision, participant IDs, turn counts, `*Ms` clocks) are `Long`. `domain/`
 holds UI-oriented models that combine more than one wire response
@@ -446,7 +436,7 @@ updates on Atlas and the Sigils.
    Anything that restarts Atlas from the app (setup's Finish and updates,
    Settings > Wi-Fi password, factory reset) saves the password Atlas comes
    back with and rejoins by itself.
-2. `GET /api/v1/info` must be a TurnHub Atlas with API `1`, protocol `0.1`
+2. `GET /api/v1/info` must be a TurnHub Atlas with API `1`, protocol `1`
    and state snapshots; anything else fails with a clear message.
 3. `GET /api/v1/state` is mapped into the Home screen; only then is the app
    CONNECTED. State is then polled about once per second.
@@ -458,17 +448,8 @@ updates on Atlas and the Sigils.
    reconnecting" banner and its age, rejoins Atlas's Wi-Fi if Android dropped
    it, and polls every 2 s until Atlas answers; the epoch rules above then
    apply, so a restarted Atlas is rebuilt from a fresh handshake and its
-   sessions reset. Disconnect stops polling and clears state.
-   During a game, tablet mode keeps working offline for life and Commander
-   damage only: each change is kept per participant with when it was tapped
-   (`AtlasTablet.queueOffline`), shown on the panels, and sent once Atlas
-   answers again through the usual tablet routes with `queuedMs`, where
-   Atlas's rules decide it. Changes from before an Atlas restart, from an
-   earlier game, or for a player no longer in it are dropped, as is any Atlas
-   refuses, with one note; a clean replay is silent. Passing, pausing,
-   conceding, win claims, answers, seating and settings are refused offline,
-   since they depend on Atlas's live clock and turn. A match Atlas recovered after a reboot is simply shown
-   as `PAUSED`.
+   sessions reset. Disconnect stops polling and clears state. A hosted game
+   keeps running on the hub while Atlas is away.
 
 V1 redesign, phases 5 and 6 (2026-10-02, *Implemented*, built by CI; not yet
 checked on a phone):
@@ -522,26 +503,18 @@ Native player experience (original parity pass: 2026-09-26):
   `ui/theme/Palette.kt`) are chosen in My Account and saved on the phone only; the
   device's raised-contrast setting still forces High contrast. A Reduce motion
   switch stops the turning gear and dial sweeps.
-- Native tabs: **Game** (the brass turn dial, my seat with every
-  session controls: join, I go first, start, cancel
-  countdown, pass/cancel pass, pause/resume, claim, confirm or deny a win,
-  concede, leave, rematch, reset; life tiles for every player with my -5/-1/
-  +1/+5 and custom changes, tap-to-request changes to other players, the
-  incoming life-request banner with its 15 s countdown, Commander damage, game
-  setup and table facts), **Players** (roster and seated Sigils) and **My
-  Account** (name, PIN, avatar, Sigil light color, Sigil accessibility,
-  appearance, connection).
-- All of it goes through the same routes as the portal (`/api/control/*`,
-  `/api/control/life*`, `/api/control/commander`, `/api/game/settings`,
-  `/api/session/profile`, `/api/session/personalization`); Atlas validates
-  every request.
+- Native tabs: **Game** (the hub's own game on this device), **Players**
+  (roster and seated Sigils) and **My Account** (name, PIN, avatar, Sigil
+  light color, Sigil accessibility, appearance, connection). Account changes
+  go through `/api/session/profile` and `/api/session/personalization`; Atlas
+  validates every request. Atlas-run game controls were removed on 2026-11-04.
 - **Settings** (Admin or Game Master accounts) and **Dev** (Developer
   accounts) tabs appear from `/api/session/me`'s `permissions`:
   verify at the table (the six-digit code from the Atlas screen; a request
   Atlas answers `403 presenceRequired` asks for the code and retries once),
   Wi-Fi password, paired Sigils (rename, forget, factory reset), pairing
   window, speaker volume, Return to lobby, Atlas factory reset, account
-  permissions and archiving, Game Master moderation, first-Admin setup, and
+  permissions and archiving, first-Admin setup, and
   the Developer activity feed, raw status/devices/seats/diagnostics JSON and
   a shareable serial log (`AtlasAdminConsole`). Firmware updates run from
   first-run setup and the **Update now** card ([Sigil OTA](../Documentation/engineering/FIRMWARE_UPDATES.md)).
@@ -676,55 +649,9 @@ Outgoing-stage controls are disabled while the next stage is shown. These
 presentation paths still send existing Atlas actions and require physical
 app-lock, haptics, motion and assistive checks before device acceptance.
 
-### App-first play cutover (2026-10-10)
+### Phone-hosted games (2026-11-04)
 
-Atlas 0.7.7 (with the embedded admin portal) retires browser gameplay and browser tablet/statistics.
-Android polls state and seats with the current session token, or `?game=N` while
-signed out. It parses Atlas’s existing `game`/`games` fields and offers the venue
-selector in personal and shared-tablet views. Atlas validates switching; personal
-players cannot leave an active game, and tablet switches leave their players in
-place. Game changes rebuild name/avatar presentation and reset staged controls;
-responses from changed polling contexts never publish. Tablet queued edits are
-scoped by game, boot and participant. `expectedGame` protects raw table actions
-from a session switch racing a queued request. No new gameplay owner or dependency.
-
-The reachable Game setup now accepts custom 15–3600-second timers, saved explicitly.
-Normal signed-in players can refresh paired Sigils and request attachment of an
-empty seat A in the lobby, confirmed with Link phone. Atlas still rejects occupied
-or unavailable seats. The Players invitation QR installs the app; joining Atlas
-Wi-Fi and choosing Connect remain explicit steps. There is no password in the QR.
-
-Native vibration preferences and a background win-decision notification remain
-planned. Foreground game-action sounds, existing native haptics, turn notifications and
-text decision controls remain; device acceptance is tracked in STAGED_CHANGES.
-
-Atlas firmware includes the complete admin portal and its maintenance/Developer
-assets. The update assistant lists only Atlas and Sigils, never queries portal
-installation or card status, and ignores retired `portal` release entries.
-
-Connected and device games share the Game tab's upright player panels. The
-Table view and personal phone controls use the same live player-card renderer.
-Cards with loaded commander/investigator art or a custom image use dark artwork
-contrast and light lettering in every app theme, so Daylight does not whiten
-the image. The surrounding shell and cards without images keep the chosen theme.
-Live status badges such as Turn and Conceded grow with the panel and the space
-left after measuring its name/subtitle. Crowded badges shrink or wrap beneath
-the name, and the life readout reserves room for the resulting heading. Their
-full text and Android's text scaling are retained.
-Player and commander names also fit the measured heading and wrap when needed.
-Counters and received Commander damage scale to the available facts band,
-including full damage-source names, with their actual wrapped height reserved
-beside the life readout. Local translucent backdrops sit behind names and chips;
-the artwork remains visible throughout the rest of the card.
-The Table tab is the live facing-seat layout. A compact wrapping row above the Game tab
-keeps the game selector and Play Together together. Game menu contains the
-Game card selector for personal/pass-and-play views. For eligible connected
-players it also offers On the Atlas screen, using the same screen picker and
-permissions as the Planes tab. Players is a single list with profile location
-labels; public gameplay identity can be used without copying private stats or
-credentials. Private statistics and administration still require the profile PIN.
-
-With Planechase enabled, connected phones show **Planar die** on the active
-player card. Rolls are enabled only on your active player/team turn. Living seated players may use the Planes controls without a game
-master grant. **Physical die & card effects** contains **Planeswalk** and
-**Chaos ensues** for physical rolls. Public displays remain read-only.
+Atlas runs no game; the app's Atlas-run Game tab, seat claims, offline
+queues, venue selector and Atlas plane screens were removed. The hub's game
+reaches Atlas through `/api/hosted/*` (`protocol/hosted-v1.md`), and its
+finished record through the game import.

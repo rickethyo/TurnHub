@@ -1,7 +1,13 @@
 # Gameplay: Turns, Life, Commander and Cues
 
-The rules Atlas runs during a match, and how they reach players as light,
-sound and text. TurnHub tracks life and outcomes. Automatic elimination at zero
+The rules the hub runs during a match, and how they reach players as light,
+sound and text. Since 2026-11-04 the hub phone or tablet runs every game with
+the shared rules core (`core/`, the app's `NativeGameCore`); Atlas shows it
+and relays its Sigils' input ([hosted-v1.md](../../protocol/hosted-v1.md)).
+Where this page names an Atlas route, Intent or checkpoint, that is history:
+Atlas's own engine was removed then, and its Sigil pickers, life approvals and
+Commander hit receipts went with it (`STAGED_CHANGES.md`, "Phone-hosted
+games", lists what hosted Sigils do yet). TurnHub tracks life and outcomes. Automatic elimination at zero
 or negative life is on by default and may be disabled when cards change the
 loss condition; Commander damage totals alone do not trigger elimination.
 
@@ -193,8 +199,8 @@ loss condition; Commander damage totals alone do not trigger elimination.
   fills only blank fields. A content fingerprint binds each check to that card's
   name and face text; edits invalidate the matching check, and blank text cannot
   be checked. Source review never marks a physical check. Checking has no effect
-  on start readiness, markers, flips or printed effects. See the complete
-  [physical-card review checklist](DEATH_MAY_DIE_CARD_REVIEW.md). Recovery saves the selected catalogue
+  on start readiness, markers, flips or printed effects. The complete physical-card review checklist is
+  local-only, with the rest of the CMON content. Recovery saves the selected catalogue
   ID with each card; a renamed card becomes a custom entry, and unknown or
   wrong-slot references are discarded without losing entered names/notes.
   Everyone wins together ("We killed the Elder One") or loses together ("We
@@ -358,7 +364,7 @@ option for the Magic and Commander profiles (`GameSettings::twoHeadedGiant`,
   even table of at least 4 (`validTeamTable`). Teammates may share one Sigil
   (seats A and B) or use separate Sigils or phones.
 - **One turn per team.** `activePlayer` is one teammate; both have the turn
-  (`GameEngine::hasTurn`), either may pass, claim the win or cancel the
+  (`turnhub::Game::hasTurn`), either may pass, claim the win or cancel the
   team's pending pass, and the pass goes to the next team. A team turn counts
   for both teammates' turn statistics. Both teammates' Sigils show the turn
   and hear its cues.
@@ -396,7 +402,7 @@ option for the Magic and Commander profiles (`GameSettings::twoHeadedGiant`,
 uses normal Commander life, damage, counters and last-player-standing victory.
 Start with at least five players and no teams; the standalone app supports ten.
 The Game mode selector offers it under Commander. Its bag state belongs to
-GameEngine on Atlas and StandaloneGame on a phone-hosted table.
+the hub's game.
 
 - Every living player begins in the bag. An actual negative life change to
   another living player makes the current turn's owner safe, including life
@@ -681,8 +687,6 @@ and caching, with no new dependency; browsing can download uncached preview art.
   paused, except during a table decision or after elimination. Zero or less
   eliminates immediately, inside the same change, when `autoEliminateAtZeroLife`
   is enabled (default true). Life changes never write flash (only the checkpoint).
-- HTTP: `POST /api/control/life` (own life), `/life/request`,
-  `/life/respond`, `GET /api/game/counters`.
 
 ## Commander damage
 
@@ -696,7 +700,6 @@ and caching, with no new dependency; browsing can download uncached preview art.
   (`SetPartner`); damage entered for commander 2 from a phone turns them on
   too, and once commander 2 has dealt damage they stay on. Rematch and reset
   clear them.
-- **From a phone:** `POST /api/control/commander` (`ChangeCounter`).
 - **From a Sigil** (Menu > Cmd damage, both displays): Atlas runs the entry
   pages (`commander_picker.cpp`, `CommanderFlow`/`CommanderKey`). Choose the
   attacker with Left/Right (the list skips the receiver and eliminated
@@ -784,11 +787,8 @@ only if nobody is left. A pending win claim blocks new claims. Pause and recover
 match or return to lobby clears it. TurnHub tracks the declaration; players
 resolve the card’s combat and draw rules themselves.
 
-Atlas owns this singleton in GameEngine. Authenticated seat controls converge
-on ClaimMonarch; the domain rejects other formats, players out of the game,
-and inactive matches. The state projection exposes nullable `monarchPlayer`,
-and checkpoints preserve it. Android standalone maintains and recovers
-the equivalent singleton for its separate local game. No radio change.
+The hub's game keeps this singleton; it rejects other formats, players out of
+the game and inactive matches.
 
 ## Magic counters, commander tax and statuses
 
@@ -806,13 +806,7 @@ Treasure and rad counters per player and the table's day or night (CR 726)
 are set from the game menu and shown on the centre disc. The phone can't see
 spells cast, so the table switches day and night by hand; once set it never
 returns to neither, apart from a correction. A player knocked out is the
-existing elimination, with its "Eliminated by" source. Atlas runs them too
-since 2026-10-28 (*host tests only, needs a playtest*): `GameEngine` keeps
-them with the rad trigger and reversed turns, through ChangeCounter
-(`treasure`, `rad`, `rad-resolve`, `day-night`, `turn-order`, `everyone` in
-`protocol/http-v1.md`), the state (`dayNight`, `turnOrderReversed`, `radDue`)
-and checkpoint schema 9, so connected play shows them all. On Atlas reversed
-turns are a Magic-format action.
+existing elimination, with its "Eliminated by" source.
 
 Everyone's counters (owner, 2026-10-27): for cards that give every player a
 counter, the **Everyone's counters** rows in a player's counters card (the
@@ -851,16 +845,7 @@ Poison/Commander losses use the elimination reason, not concession. The relevant
 rule should be disabled before a card changes that loss condition. All these
 settings remain reachable during pause.
 
-Connected counters use the existing ChangeCounter intent with CounterKind,
-validated by GameEngine and the living-seat/table-decision handler. Settings use
-ConfigureGame; the common post-intent rule finalizer resolves automatic losses
-before projecting/checkpointing. Settings schema 3 and checkpoint schema 8
-persist rules, counters and initiative. The HTTP state is a read model; no
-radio change. Native connected clients require Atlas for the new actions while
-disconnected (they do not replay status/counter changes). Standalone games own
-and persist their equivalent local state. New matches reset counters/status;
-match settings carry forward. Elimination clears initiative; city’s blessing
-and numerical counters remain as the last values on an eliminated player.
+Counters and settings are the hub's; automatic losses resolve inside the same change.
 
 ### Commander counter presentation
 

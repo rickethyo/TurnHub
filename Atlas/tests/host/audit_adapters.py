@@ -13,20 +13,10 @@ SRC = Path(__file__).resolve().parents[2] / "src"
 
 # Adapter functions, grouped by the module that must define them.
 ADAPTERS = {
-    "sigil_input.cpp": ["passFromMenu",
-                        "processSigilEvents", "respondToWinClaim", "dispatchPauseOrResume",
-                        "connectionBlocked", "handleSelectAction",
-                        "handleLifeAdjust", "handleLifeResponse", "handlePlayerControl"],
-    "web_adapters.cpp": ["handleWebControl", "handleProfileControl", "configureGame",
-                         "changeLife", "changeCounter", "moderateAccount", "manageDevices",
-                         "dispatchBrowserSeatIntent"],
+    "sigil_input.cpp": ["processSigilEvents", "handleIdleSelectAction"],
+    "web_adapters.cpp": ["manageDevices"],
     "touch_controls.cpp": ["updateTouchControls", "dispatchTouchAction"],
     "front_panel.cpp": ["updateBootButton"],
-    "profile_picker.cpp": ["openProfilePicker", "handlePickerKey", "syncProfilePickers",
-                           "chooseItem", "confirmChoice", "finish"],
-    "commander_picker.cpp": ["openCommanderPicker", "handleCommanderKey", "syncCommanderPickers", "apply"],
-    "gameplay_intents.cpp": ["updatePendingPass"],
-    "table_intents.cpp": ["updateCountdown"],
 }
 
 FORBIDDEN = [

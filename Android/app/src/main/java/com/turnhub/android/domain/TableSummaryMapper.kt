@@ -1,100 +1,47 @@
 package com.turnhub.android.domain
 
-import com.turnhub.android.protocol.AvatarIcon
 import com.turnhub.android.protocol.AtlasInfo
+import com.turnhub.android.protocol.GameProfile
+import com.turnhub.android.protocol.PendingDecisions
 import com.turnhub.android.protocol.StateSnapshot
+import com.turnhub.android.protocol.TableSettings
+import com.turnhub.android.protocol.TableState
+import com.turnhub.android.protocol.TurnTimer
+import com.turnhub.android.protocol.TurnTimerPhase
 
 /**
- * Builds a [TableSummary] from one `/api/v1/info` response and one
- * `/api/v1/state` snapshot of the same Atlas boot, plus optional seat names
- * from `/api/seats`. Pure translation: no game rules, no values invented beyond
- * neutral labels for unnamed players.
+ * Builds the connected Atlas's [TableSummary] from one `/api/v1/info` response
+ * and one `/api/v1/state` snapshot of the same boot. Atlas runs no game (the
+ * phone hub does, protocol/hosted-v1.md), so the summary carries Atlas's
+ * identity, battery, links and the hub holding its table, never players.
  */
 object TableSummaryMapper {
 
-    fun map(
-        info: AtlasInfo,
-        snapshot: StateSnapshot,
-        seatNames: Map<SeatKey, String> = emptyMap(),
-        receivedAtMs: Long = 0,
-        seatAvatars: Map<SeatKey, Int> = emptyMap(),
-        avatarIcons: Map<Int, AvatarIcon> = emptyMap(),
-    ): TableSummary {
+    fun map(info: AtlasInfo, snapshot: StateSnapshot, receivedAtMs: Long = 0): TableSummary {
         require(info.atlasId == snapshot.atlasId && info.bootId == snapshot.bootId) {
             "Info and state must come from the same Atlas boot"
-        }
-        val players = snapshot.players.map { player ->
-            val name = player.displayName?.takeIf { it.isNotBlank() }
-                ?: seatNames[SeatKey(player.moduleId, player.slot)]?.takeIf { it.isNotBlank() }
-            TablePlayer(
-                playerNumber = player.playerNumber,
-                label = name ?: "Player ${player.playerNumber}",
-                hasName = name != null,
-                controller = ControllerHandle(player.moduleId),
-                slot = player.slot,
-                team = player.team,
-                participantId = player.participantId,
-                profileId = player.profileId?.takeIf { it.isNotEmpty() },
-                eliminated = player.eliminated,
-                conceded = player.conceded,
-                eliminatedBy = player.eliminatedBy,
-                selfEliminated = player.selfEliminated, eliminationPending = player.eliminationPending,
-                counters = player.counters,
-                life = player.life,
-                turnsCompleted = player.turnsCompleted,
-                commanderDamage = player.commanderDamage,
-                commander = player.commander,
-                commanderArt = player.commanderArt,
-                lifeRequest = player.lifeRequest,
-                avatar = seatAvatars[SeatKey(player.moduleId, player.slot)]?.let { avatarIcons[it] },
-            )
         }
         return TableSummary(
             atlasId = snapshot.atlasId,
             bootId = snapshot.bootId,
-            matchId = snapshot.matchId,
             firmwareVersion = info.firmwareVersion,
             revision = snapshot.revision,
-            state = snapshot.state,
-            settings = snapshot.settings,
-            doomBag = snapshot.doomBag,
-            atlasPlanechase = snapshot.planechase,
-            host = snapshot.hostModuleId?.let(::ControllerHandle),
-            starterPlayerNumber = snapshot.starterPlayer,
-            activePlayerNumber = snapshot.activePlayer,
-            winnerPlayerNumber = snapshot.winnerPlayer,
-            winnerPlayerNumbers = snapshot.winnerPlayers,
-            monarchPlayerNumber = snapshot.monarchPlayer,
-            initiativePlayerNumber = snapshot.initiativePlayer,
-            dayNight = snapshot.dayNight?.let { wire -> DayNight.entries.firstOrNull { it.name == wire } },
-            turnOrderReversed = snapshot.turnOrderReversed,
-            radDuePlayerNumbers = snapshot.players.filter { it.radDue }.map { it.playerNumber },
-            pending = snapshot.pending,
-            gameElapsedMs = snapshot.gameElapsedMs,
-            turnElapsedMs = snapshot.turnElapsedMs,
-            turnTimer = snapshot.turnTimer,
+            state = TableState.LOBBY,
+            settings = TableSettings(GameProfile.GENERIC, startingLife = 0),
+            host = null,
+            starterPlayerNumber = null,
+            activePlayerNumber = null,
+            winnerPlayerNumber = null,
+            pending = PendingDecisions(null, 0, null, null, null),
+            gameElapsedMs = 0,
+            turnElapsedMs = 0,
+            turnTimer = TurnTimer(TurnTimerPhase.NORMAL, null),
             receivedAtMs = receivedAtMs,
-            sampledAtMs = snapshot.sampledAtMs,
-            players = players,
-            physicalSigils = players
-                .filter { it.controller.kind == ControllerHandle.Kind.PHYSICAL }
-                .groupBy { it.controller }
-                .map { (controller, seated) ->
-                    PhysicalSigilAtTable(
-                        controller = controller,
-                        seats = seated.sortedBy { it.slot }.map {
-                            PhysicalSigilAtTable.Seat(it.slot, it.playerNumber, it.label)
-                        },
-                    )
-                }
-                .sortedBy { it.controller.id },
-            nudge = snapshot.nudge,
+            players = emptyList(),
+            physicalSigils = emptyList(),
             battery = snapshot.battery,
             links = snapshot.links,
-            game = snapshot.game,
-            games = snapshot.games,
-            shortGameUncounted = snapshot.shortGameUncounted,
-            stateWire = snapshot.wire,
+            hub = snapshot.hub,
         )
     }
 }

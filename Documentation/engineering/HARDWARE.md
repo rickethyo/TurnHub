@@ -19,7 +19,7 @@ owns source-verified specifications, pin conflicts, electrical/mechanical holds
 and [prototype BOM](hardware/PROTOTYPE_BOM.md). Physical compatibility and prices
 remain open; neither S3 firmware target exists yet.
 
-The [LVGL desktop foundation](../../LVGL/README.md) renders both candidate profiles
+The [LVGL desktop foundation](../../shared/simulator/README.md) renders both candidate profiles
 with existing themes/assets and simulated pointer/five-way input. This is an
 isolated experimental renderer; no S3 firmware environment or GPIO binding exists.
 

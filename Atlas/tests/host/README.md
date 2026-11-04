@@ -1,12 +1,12 @@
 # Atlas native regression scenarios
 
 These tests compile the **actual** Atlas application modules (`main.cpp` plus the
-handler and adapter modules declared in `atlas_app.h`), `GameEngine`, `Lobby`,
-and `IntentDispatcher`. Clock, radio, GPIO, web server, presentation, and
+handler and adapter modules declared in `atlas_app.h`), the hosted-game relay
+(`hosted_game.cpp`, `hosted_sigils.cpp`) and `IntentDispatcher`. Clock, radio, GPIO, web server, presentation, and
 NVS boundaries are replaced by deterministic stubs. No firmware is flashed.
 
 On Linux, run `bash Atlas/tests/host/run-linux.sh` from the repository root.
-It builds the application, storage, profile-store, OTA and battery-adapter suites with C++17 (like the firmware; the gameplay suite links the shared core), AddressSanitizer and UBSan, then runs them.
+It builds the application, storage, profile-store, OTA and battery-adapter suites with C++17 (like the firmware; the application suite links the shared core's JSON reader), AddressSanitizer and UBSan, then runs them.
 GitHub Actions uses this runner; see [CI checks](../../../Documentation/engineering/CONTINUOUS_INTEGRATION.md).
 
 On Windows, run `Atlas\tests\host\run.cmd` from an x64 Native Tools Command
@@ -16,7 +16,7 @@ Alternatively, run `Atlas\tests\host\run-gcc.ps1` in PowerShell with the
 PlatformIO `platformio/toolchain-gccmingw32` package installed, or pass
 `-Compiler` with another Windows GCC path. This runner uses C++17
 and `-mno-ms-bitfields` to preserve the packed radio layout.
-Both Windows runners execute gameplay and storage scenarios.
+Both Windows runners execute application and storage scenarios.
 They also compile the real `profile_store.cpp` against an in-memory NVS boundary
 and run `profile_store_scenarios`: unused seat lookups, 100 reconnect cycles,
 guest reads/writes, temporary bindings, legacy remember-key cleanup and placeholder filtering before
@@ -39,13 +39,15 @@ With GCC/Clang on another host, from this directory:
 ```sh
 mkdir -p build
 c++ -std=c++17 -Wall -Wextra -Istubs -I../../include -I../../../shared/include -I../../../core/include scenarios.cpp test_globals.cpp profile_fixture.cpp \
-    ../../src/app_context.cpp ../../src/gameplay_intents.cpp ../../src/table_intents.cpp \
-    ../../src/moderation_intent.cpp ../../src/sigil_input.cpp ../../src/sigil_menu.cpp ../../src/commander_picker.cpp ../../src/profile_picker.cpp ../../src/web_adapters.cpp ../../src/front_panel.cpp ../../src/touch_controls.cpp ../../src/sigil_accessibility.cpp \
-    ../../src/audio_controller.cpp ../../src/led_renderer.cpp ../../src/controller_profiles.cpp ../../src/web_api.cpp ../../src/web_session.cpp ../../src/web_profile_api.cpp ../../src/web_game_api.cpp ../../src/web_tablet_api.cpp ../../src/web_standalone_api.cpp ../../src/standalone_import.cpp ../../src/web_admin_api.cpp ../../src/sigil_update_service.cpp ../../src/sigil_update_jobs.cpp \
-    ../../src/profile_statistics.cpp ../../src/profile_stats_bridge.cpp ../../src/ota_manager.cpp \
-    ../../src/game_engine.cpp ../../src/lobby.cpp ../../src/intent_dispatcher.cpp ../../src/client_state.cpp \
-    ../../src/game_checkpoint.cpp ../../src/game_recovery.cpp ../../src/game_recovery_store.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp \
-    ../../src/match_archive.cpp ../../src/hosted_game.cpp ../../src/hosted_sigils.cpp ../../src/web_hosted_api.cpp ../../src/card_cache.cpp ../../../core/src/turnhub_json.cpp ../../../core/src/turnhub_core.cpp ../../../core/src/turnhub_offline.cpp \
+    ../../src/app_context.cpp ../../src/device_intents.cpp ../../src/sigil_input.cpp ../../src/sigil_menu.cpp \
+    ../../src/web_adapters.cpp ../../src/front_panel.cpp ../../src/touch_controls.cpp \
+    ../../src/audio_controller.cpp ../../src/led_renderer.cpp \
+    ../../src/web_api.cpp ../../src/web_session.cpp ../../src/web_profile_api.cpp ../../src/web_atlas_api.cpp \
+    ../../src/web_standalone_api.cpp ../../src/standalone_import.cpp ../../src/sigil_update_service.cpp \
+    ../../src/sigil_update_jobs.cpp ../../src/web_admin_api.cpp ../../src/profile_statistics.cpp \
+    ../../src/ota_manager.cpp ../../src/intent_dispatcher.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp \
+    ../../src/match_archive.cpp ../../src/hosted_game.cpp ../../src/hosted_sigils.cpp ../../src/web_hosted_api.cpp \
+    ../../src/card_cache.cpp ../../../core/src/turnhub_json.cpp ../../../core/src/turnhub_core.cpp \
     -o build/scenarios
 ./build/scenarios
 c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include -I../../../shared/include \
@@ -66,114 +68,35 @@ c++ -std=c++17 -Wall -Wextra -Istubs -I../../include -I../../../shared/include \
 staging a Sigil package with every check, reloading it after a restart, and
 one update job from offer to done or each failure.
 
-Six scenario groups cover dispatcher ownership; lobby and lifecycle restrictions;
-shared-seat win-response order and denial restoration; elimination versus
-concession; PASS grace/cancellation/rollover and actor validation; optional NVS
-absence versus injected type/handle/erase/commit errors.
+The application executable covers the hosted game (lease, revisions, inputs,
+resume offer, Sigil join and keys, the Atlas screen), Atlas state v1, the
+dispatcher contract, profile registration and login, profile policy, account
+setup and permissions, game import and match history, room backup, pairing
+(code check, window, forget), the table code, first-run setup, factory reset,
+power, sleep, theme and speaker settings, battery, home Wi-Fi, the update
+notice, Sigil OTA service, artwork uploads, personalization, the card cache,
+Mana Tap and the serial log. The rules themselves are tested in `core/` and the
+app, not here; Atlas has run no game since 2026-11-04.
 
-`python audit_adapters.py` checks that current transport/input adapters do not
-call canonical mutators or authoritative transition helpers directly.
+`python audit_adapters.py` checks that the transport/input adapters do not
+bypass the dispatcher.
 
 This is application regression coverage, not proof of radio delivery, GPIO
-debounce, flash persistence, buzzer/LED timing, browser authentication, or hardware
-behavior. See `Documentation/engineering/history/2026-09-19-atlas-intent-verification.md` for the hardware gate.
+debounce, flash persistence, buzzer/LED timing or hardware behavior.
 
 The storage executable compiles the production NVS blob adapter and statistics
 repository against injectable NVS calls. It checks identity contracts, deployed
 v1 bytes, missing versus unreadable records, unsupported schemas, write protection
-and read/set/commit failures. It does not simulate physical flash power loss.
-
-The gameplay executable also compiles the real profile HTTP handlers and controller
-registry. Three additional groups cover phone-only authentication/game lifecycle,
-mixed physical/phone companion control, and 16-player capacity. `profile_fixture`
-is an in-memory repository substitute; the SHA stub is a deterministic test double,
-not cryptography. Existing storage scenarios test the real statistics blob layer.
-
-Profile-policy scenarios cover all four owner choices, companion-session expiry,
-PIN-protected physical claim rejection, hidden-stat accumulation, and unavailable
-policy storage. The storage executable checks the real three-byte policy codec
-and NVS failure handling; gameplay scenarios use the profile repository fixture.
-
-The gameplay executable also covers ending a match as a draw through the real
-touchscreen adapter (hold threshold, overrides, statistics once, recovery
-validation), table presence codes (request, confirm, wrong codes, expiry), no table host, the
-Atlas speaker's cue routing and volume setting, and admin device management (forget one/all Sigils,
-seated/in-game refusal, storage failure, the 60/90/120-second pairing window). The
-storage executable checks the `pairwin` and `spkvol` codecs and the v1 `Draw` result byte.
-The administration smoke covers both the SD-pack page and the cardless fallback, including staged settings and initial Admin setup.
-
-Game/life checks cover persisted setup, host-only edits, captured match settings,
-own-life authorization, bounds, companion sessions, negative life and rematches.
-The harness now links real LED/audio renderers and replaces the radio boundary.
-
-Life approval and Commander coverage: the native gameplay executable checks
-recipient-only acceptance/rejection, duplicate and stale IDs, Atlas's 15-second
-deadline including rollover, concurrent edits, lifecycle cancellation and atomic
-Commander/life bounds. Browser gameplay tests are retired after the app-first
-cutover. These features still require native device/table acceptance.
-
-Manual pairing Intent scenarios cover origin authorization, radio unavailability,
-15-second timeout, clock rollover and rejection during gameplay. Radio transport
-and persistence still require the manual pairing bench checklist.
-
-Named-profile attachment scenarios cover adopting a joined guest, preserving its
-host and secondary seat, merging an already joined browser player, companion login
-without duplication, and rejecting replacement of another named account. Profile
-attachment and name edits push display names directly instead of requesting the
-Sigil reconnect handshake that clears transient bindings. On hardware, attach a
-named profile more than five seconds after boot and verify its name and player count
-remain stable, then sign into the same profile from a second browser.
+and read/set/commit failures, plus the policy, `pairwin` and `spkvol` codecs. It
+does not simulate physical flash power loss. `profile_fixture` is an in-memory
+repository substitute; the SHA stub is a deterministic test double, not
+cryptography.
 
 Sigil receive coverage copies both the 7-byte control packet and the 156-byte
-game display through the production receive buffer, rejecting incorrect sizes.
-The physical companion scenario checks game-end seat clearing, saved statistics,
-rematch restoration and guest behavior after reset.
+display packet through the production receive buffer, rejecting incorrect sizes.
 
-Native-client scenarios exercise the live state/info handlers, session-resolved
-PASS, boot/revision conflicts, no-op revisions, deferred commits, life approval
-expiry including clock rollover, Commander serialization, full 16-player matrices
-and reconnect. They emit `build/client-*.json`. After running the host suite, run
-`python check_client_contract.py` to check these actual responses and the shared
-`protocol/examples` fixtures against the contract schemas (standard library only).
-The checker supports only the schema keywords used here and rejects unknown ones.
-Display-name tests cover repeated deliveries, truncation, shortening and clearing;
-profile-store tests assert identical saves do not add NVS writes.
-
-Interrupted-match recovery: the gameplay executable now also compiles
-`game_checkpoint.cpp`, `game_recovery.cpp`, `game_recovery_store.cpp` and
-`nvs_blob_store.cpp`, and runs a `gameRecoveryLifecycle` scenario against the
-real `beginGameRecovery()`/`checkpointGame()` entry points main.cpp calls
-(`stubs/nvs.h` uses a separate recovery namespace handle with real map-backed
-reads and `checkpointReadError`; `OptionalPreferences` keeps its independent
-canned-value/error contract). Recovery fault scenarios run last because they
-change the process-wide store's writable state. They check: `NotFound` on a fresh store; a
-checkpoint is written after a dispatched intent with no direct call to
-`checkpointGame()` from the test, i.e. through the same observer hook
-main.cpp uses; a simulated reboot (fresh `GameEngine`/`Lobby`, same
-in-memory "flash") restores a paused, unfinished match with the elapsed game
-clock unaffected by the simulated downtime and without replaying the
-game-completed statistics callback; and a corrupted record fails safe to
-`Corrupt` with no players restored rather than loading ambiguous state. This
-does not simulate real flash power loss mid-write; see
-`Documentation/engineering/STAGED_CHANGES.md` for the remaining hardware
-acceptance items. Resume is the normal control; End match is the implemented
-five-second draw path for ending a recovered game.
-
-`completionRecoveryOrdering` runs the production completion bridge and recovery
-store with interruptions after the first and second profile writes for draws,
-confirmed wins and last-player-standing endings. The saved match must already
-be Game Over, restoring it must not replay statistics, and it cannot end again.
-It also injects failed writes, an uncertain commit that has written its bytes,
-read errors, corrupt records and future schemas. These block statistics and
-cannot be bypassed by the later observer. The per-profile boundary remains a
-fixture; real profile-store/storage suites test those repositories separately.
-Missing/partial results after interruption are an explicit limitation, not a
-passing claim of exactly-once multi-record persistence.
-
-`bash Atlas/tests/host/render-atlas-lvgl.sh` renders the S3 Atlas screen
-(`src/atlas_screen_lvgl.cpp`, the LVGL drawing shared with the firmware) from
-hand-built `AtlasScreen` fixtures in `preview/atlas_preview.cpp` to
-`build/preview/*.png` in Graphite, Brass and Daylight. It reuses the LVGL 9.3
-sources PlatformIO fetched for `env:atlas-s3` and needs Pillow for PNGs. It is
-a layout review aid, not a test: the screen model itself is tested by
-`scenarios`.
+The application executable emits `build/client-*.json` from the live info and
+state handlers. After running the host suite, run `python check_client_contract.py`
+to check these actual responses and the shared `protocol/examples` fixtures
+against the contract schemas (standard library only). The checker supports only
+the schema keywords used here and rejects unknown ones.

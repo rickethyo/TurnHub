@@ -15,8 +15,7 @@ extern esp_err_t readError, eraseError, injectedCommitError;
 // injection above is unaffected by default.
 extern esp_err_t openError, setError;
 // Backing store for nvs_get_blob/nvs_set_blob, shared across a test binary
-// run so a simulated reboot (fresh GameEngine/Lobby, same call to
-// beginGameRecovery) sees whatever a prior "boot" actually wrote -- exactly
+// run so a simulated reboot sees whatever a prior "boot" actually wrote -- exactly
 // like real flash surviving a power cycle.
 extern std::map<std::string, std::vector<uint8_t>> testBlobs;
 // Recovery always uses real map-backed reads, now that the completion bridge

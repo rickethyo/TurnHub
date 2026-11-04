@@ -4,15 +4,17 @@
 // do. Hardware-independent so host tests drive it: atlas_display.cpp feeds
 // touch samples in and draws the AtlasScreen this module builds.
 //
-// The touch adapter only builds Intents with IntentOrigin::AtlasHardware (the
-// screen is part of the Atlas and its only physical input); Atlas's handlers
-// decide every outcome. Its non-Intent actions change no table state: the
-// presence code screen (canceling a code a phone asked for), moving between screens
-// (Home, Game, Table, Settings and their lists) and the confirm popup.
+// Games run on the hub phone (hosted_game.h): the Game tab shows its game,
+// and its table controls queue inputs for the hub. Device actions build
+// Intents with IntentOrigin::AtlasHardware (the screen is part of the Atlas
+// and its only physical input); Atlas's handlers decide every outcome. Its
+// other actions change no device state: the presence code screen (canceling a
+// code a phone asked for), moving between screens (Home, Game, Settings and
+// their lists) and the confirm popup.
 //
 // Nothing acts on a hold (owner, 2026-10-30): an action that ends, removes or
 // erases something asks first in a confirm popup, and everything else is a
-// tap. Each destination has one path: the tab bar's four pages, and lists
+// tap. Each destination has one path: the tab bar's three pages, and lists
 // under Settings.
 
 #include <Arduino.h>
@@ -215,7 +217,7 @@ struct ScreenPlayer {
 // set on every screen, so the display rolls its planar die over whatever is
 // open whenever any player rolls (a Sigil, the app, a tablet or this screen);
 // the rest is the Planes screen's plane card. Faces: 0 blank, 1 chaos,
-// 2 planeswalk, as in GameEngine::PlanarView.
+// 2 planeswalk, as in the hub's game (hosted-v1.md).
 constexpr uint8_t SCREEN_PLANE_NAME_LENGTH = 40;
 struct ScreenPlanes {
   bool on = false;
@@ -417,18 +419,6 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y);
 // latest one, so the table sees the update happen. Presentation only.
 constexpr uint32_t SYNC_TOAST_MS = TOUCH_NOTICE_MS;
 void showSyncStatus(uint32_t nowMs, const char *text);
-
-// What a phone may put on the Atlas screen during Game 1's match (owner,
-// 2026-11-02: any signed-in player seated in that game; the HTTP handler
-// checks who asks). Presentation only, like the tabs: no game state moves.
-enum class AtlasView : uint8_t { Game, Table, Planes, Card };
-bool parseAtlasView(const char *key, AtlasView &view);
-const char *atlasViewKey(uint32_t nowMs);  // The open tab: game, table, planes, card or other.
-// Whether the view can show now (for the current table() scope), and why not.
-bool atlasViewAvailable(AtlasView view, const char *&error);
-// Opens the view for the current table() scope. False (with a reason for
-// the phone) when that view isn't there now.
-bool showAtlasView(AtlasView view, const char *&error);
 
 // Clears press, notice and screen state (tests, and boot).
 void resetTouchControls(bool startAtHome = false);

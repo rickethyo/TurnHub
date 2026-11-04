@@ -18,7 +18,6 @@
 #include "config.h"
 #include "diagnostic_log.h"
 #include "firmware_version.h"
-#include "game_recovery.h"
 #include "match_archive.h"
 #include "runtime_diagnostics.h"
 #include "sd_blob_store.h"

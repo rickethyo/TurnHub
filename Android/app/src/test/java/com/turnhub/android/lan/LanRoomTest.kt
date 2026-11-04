@@ -210,9 +210,7 @@ class LanRoomTest {
         val f = Fixture()
         val player = f.join()
         f.planarRollAllowed = false
-        for (kind in listOf("planar-roll", "planar-atlas:roll:blank", "planar-atlas:effect:chaos")) {
-            assertEquals("forbidden", f.room.handle(f.action(player, kind)).text("code"))
-        }
+        assertEquals("forbidden", f.room.handle(f.action(player, "planar-roll")).text("code"))
         f.room.grant(player.text("token"), true)
         assertEquals("forbidden", f.room.handle(f.action(player, "planar-roll")).text("code"))
         assertEquals("ok", f.room.handle(f.action(player, "planar-walk")).text("code"))

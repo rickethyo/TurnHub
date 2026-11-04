@@ -34,6 +34,21 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-11-03, Claude: Death May Die content is local-only and `LVGL/` is gone
+(owner's request, on `claude/master`). CMON content (`DmdContent.generated.kt`
+now in `Android/app/src/dmd/`, the content tests in `src/testDmd/`,
+`data/death-may-die/`, `tools/dmd-forge/` and the card-review, forge and rights
+docs) is untracked and gitignored; it stays on the owner's PC. Without it the
+app compiles the empty `src/dmdStub/` stand-in, so release builds carry no CMON
+content. The files remain in git history (no rewrite). The cooperative-mode
+engine code (wounds, Elder One track, pass rules) stays committed and the
+manual still describes the mode. `LVGL/` moved into `shared/`: `simulator/`,
+`display/tools/` (generators), `display/{fonts,icons}.hpp` and `licenses/`;
+nothing in it was device-specific. Validation: Android JVM tests 651/651 with
+the local content and 624 (+2 skipped) without, `assembleRelease` without it;
+`pio run` atlas-s3 and sigil; Windows MSVC simulator build and both CTest
+self-tests; font/icon `--check`; `check_docs.py`.
+
 2026-10-30, Codex: owner authorizes closing game/controller parity gaps through
 the shared engine, excluding takeover, then reassessing. Baseline `a7edbee3`,
 `codex/master`; fetched origin, clean tree, #178 remains open. Active scope:
@@ -273,11 +288,11 @@ hardware-accepted.
 
 Append replies under the same topic with date, author and reviewed SHA. Record a final outcome and links when resolved.
 
-TH-025: Death May Die dashboard merged in [PR #129](https://github.com/rickethyo/TurnHub/pull/129); [validation and handoff](Documentation/engineering/history/2026-10-17-death-may-die-dashboard.md). Device checks remain in STAGED_CHANGES.
+TH-025: Death May Die dashboard merged in [PR #129](https://github.com/rickethyo/TurnHub/pull/129); validation and handoff notes (local-only, with the DMD content). Device checks remain in STAGED_CHANGES.
 
-TH-026: Staged turns and community catalogue merged in [PR #131](https://github.com/rickethyo/TurnHub/pull/131); [validation and handoff](Documentation/engineering/history/2026-10-17-death-may-die-catalogue.md).
+TH-026: Staged turns and community catalogue merged in [PR #131](https://github.com/rickethyo/TurnHub/pull/131); validation and handoff notes (local-only, with the DMD content).
 
-TH-027 / TH-028: Merged in [PR #132](https://github.com/rickethyo/TurnHub/pull/132); [validation and handoff](Documentation/engineering/history/2026-10-18-pass-and-dmd-helpers.md). Device checks remain in STAGED_CHANGES.
+TH-027 / TH-028: Merged in [PR #132](https://github.com/rickethyo/TurnHub/pull/132); validation and handoff notes (local-only, with the DMD content). Device checks remain in STAGED_CHANGES.
 
 ## TH-029: Condition and relic rules with physical verification
 
@@ -315,7 +330,7 @@ TH-027 / TH-028: Merged in [PR #132](https://github.com/rickethyo/TurnHub/pull/1
   pass. Updated manual rendered and visually reviewed on pages 6–7. No local
   SDK/emulator or physical-device acceptance is claimed.
 - Next owner: review/integrate #133 using a merge commit, retaining codex/master;
-  compare physical cards using the [complete checklist](Documentation/engineering/DEATH_MAY_DIE_CARD_REVIEW.md),
+  compare physical cards using the complete checklist (now local-only),
   correct drafts and supply missing/unclear scans (conditions' rules face, both
   relic faces including the flip track). No physical card is marked verified by
   this implementation. Check phone/tablet large-text layouts, TalkBack, save/
@@ -560,9 +575,9 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
 - Scope: complete hardware/BOM planning first, then an isolated desktop LVGL UI foundation. Legacy Atlas/DevKit Sigils, PlatformIO, radio, OTA, engine, profile/statistics and CAD assets are preserved.
 - Hardware research: [board/electrical/mechanical record](Documentation/engineering/hardware/ESP32_S3_REFRESH.md), [prototype BOM](Documentation/engineering/hardware/PROTOTYPE_BOM.md), primary-source digests. Documented schematic/page conflicts and unsupported $1.80 price; no physical acceptance claimed.
 - Status: completed first desktop milestone. Hardware/BOM `76a447c`, architecture/feature gate `addf22d`, working simulator `2857474`. Validation/previews/handoff follow in the final milestone on this same branch.
-- Implemented: [LVGL simulator](LVGL/README.md), both profiles, common Inter/Cinzel and theme palettes, existing 64px presets, disposable presentation state/action sink, SDL pointer/five-way input, life requests, player/theme menus, mock pairing and deterministic timed/paused/game-over fixtures. No production hardware or transport bindings.
+- Implemented: [LVGL simulator](shared/simulator/README.md), both profiles, common Inter/Cinzel and theme palettes, existing 64px presets, disposable presentation state/action sink, SDL pointer/five-way input, life requests, player/theme menus, mock pairing and deterministic timed/paused/game-over fixtures. No production hardware or transport bindings.
 - Validation: Linux Debug + source-pinned Release builds; 2/2 CTest suites on both; both X11 event-input suites; 2/2 ASan/UBSan suites with leak detection disabled; 14 SDL/Xvfb captures; font/token/avatar digests, 31 adapter guards and whitespace passed. [Previews and evidence](Documentation/engineering/history/2026-10-11-lvgl-previews/README.md). Windows and all physical checks remain untested.
-- Handoff: use `LVGL/README.md` to build/launch; hardware holds and remaining migration work are owned by STAGED_CHANGES and linked topic docs. Next development: supplier/sample qualification, power/connector verification, then separate board drivers and production snapshot/Intent adapters. No merge, release or hardware flash. Push this feature branch only.
+- Handoff: use `shared/simulator/README.md` (then `LVGL/README.md`) to build/launch; hardware holds and remaining migration work are owned by STAGED_CHANGES and linked topic docs. Next development: supplier/sample qualification, power/connector verification, then separate board drivers and production snapshot/Intent adapters. No merge, release or hardware flash. Push this feature branch only.
 - Git completion follows AGENT_WORKFLOW step 4: one reviewable PR to master is required by repository conventions, permitted by the user's exception; no integration/release.
 
 ## 2026-10-13 — Claude: Gen 1 split onto `legacy/gen1`; master becomes the LVGL/S3 track
@@ -2151,3 +2166,32 @@ rejected/unknown/retry states. Retain the original action UUID on retries and
 capture the original die face in the room receipt so a later roll cannot be
 mistaken for this one. Unify personal card/Planes feedback for phone-hosted
 and Atlas-relayed clients; keep active-turn gates and no live test rolls.
+
+## Phone-hosted slices 5 and 6: Atlas's engine removed — 2026-11-04, Claude
+
+Owner chose "Delete it all in one go" for the last two slices of the
+phone-hosted direction (plan `phone-hosted-game.md`). Branch `claude/master`,
+PR #196.
+
+- **Atlas:** `GameEngine`, `Lobby`, the gameplay/table/moderation Intent
+  handlers, the game HTTP routes (`/api/control/*`, `/api/tablet/*`,
+  `/api/game/*`, `/api/v1/game`, `/api/v1/offline`, `/api/atlas/screen`,
+  `/api/session/play|join|game|request|poll`), the two-table venue model, the
+  offline merge and the recovery record are gone. Device work stays in
+  `device_intents.cpp`; games arrive only through `/api/hosted/*`.
+  `/api/v1/state` is now `atlas-state-v1` (hub, battery, links) and
+  `/api/session/me` returns only identity, permissions, PIN and policy.
+- **App:** the Atlas-run Game tab, seat claims, offline queues, venue
+  selector, Atlas Planes tab and moderation UI are gone; the Game tab shows
+  the hub's own game, and the lock-screen turn comes from the LAN room.
+- **Docs:** Invariant 1 now reads "the hub that runs the core owns the game;
+  Atlas owns hardware and records at rest". `TABLE_AUTHORITY.md` was
+  rewritten; the venue model was removed from `PLANNED_DESIGNS.md`.
+- **Left for later** (listed in `STAGED_CHANGES.md`): unbound game Intents in
+  `intent.h` and the Sigil's Link phone action; no app client for
+  `/api/planes*` and `/api/room`; unused account fields; dead app plumbing;
+  the `protocol.h` comment (another thread's file).
+
+Validation: Atlas host suites (Linux, sanitizers), `audit_adapters.py`,
+`check_client_contract.py` and `pio run -e atlas-s3` pass; app unit tests
+519 pass, 2 skipped. Not yet played on the boards.

@@ -1,11 +1,13 @@
 package com.turnhub.android.data
 
+import com.turnhub.android.domain.InvestigatorCardCatalogue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -49,6 +51,8 @@ class ScryfallCommanderArtTest {
     }
 
     @Test fun `community reference images are cached across service restarts without fetching other cards`() = runBlocking {
+        // The card ids come from Death May Die's local-only catalogue (src/dmd); skip without it.
+        assumeTrue(InvestigatorCardCatalogue.all.isNotEmpty())
         val web = FakeWeb { Reply(200, jpeg) }
         val service = ScryfallCommanderArt(folder.root, "TurnHub/test", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)
         assertNull(service.investigatorCard("https://untrusted.example"))
@@ -62,6 +66,8 @@ class ScryfallCommanderArtTest {
     }
 
     @Test fun `failed community image downloads can be retried and do not cache an error page`() = runBlocking {
+        // The card ids come from Death May Die's local-only catalogue (src/dmd); skip without it.
+        assumeTrue(InvestigatorCardCatalogue.all.isNotEmpty())
         var available = false
         val web = FakeWeb { if (available) Reply(200, jpeg) else Reply(503, "try later".toByteArray()) }
         val service = ScryfallCommanderArt(folder.root, "TurnHub/test", opener = web.opener, ioDispatcher = Dispatchers.Unconfined)

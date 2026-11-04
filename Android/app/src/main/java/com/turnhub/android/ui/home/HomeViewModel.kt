@@ -17,7 +17,6 @@ import com.turnhub.android.data.AtlasRepository
 import com.turnhub.android.data.AtlasRestarts
 import com.turnhub.android.data.AtlasUpdateWatcher
 import com.turnhub.android.data.AtlasWifiLink
-import com.turnhub.android.data.ControlAction
 import com.turnhub.android.data.PlayerSessionState
 import com.turnhub.android.data.UpdatesState
 import com.turnhub.android.data.WifiCredentialStore
@@ -25,7 +24,6 @@ import com.turnhub.android.data.WifiCredentials
 import com.turnhub.android.data.WifiJoinResult
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.protocol.AtlasConnectionState
-import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.ProfileSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -75,9 +73,10 @@ class HomeViewModel(
     private val updateWatcher: AtlasUpdateWatcher? = null,
     /** App lock and automatic sign-in; null where the phone can't keep a profile (and in tests). */
     private val vault: com.turnhub.android.data.ProfileVault? = null,
-    private val offlineQueues: com.turnhub.android.data.OfflineQueueStore = com.turnhub.android.data.MemoryOfflineQueueStore(),
     /** Atlas on the home network over pinned HTTPS (HOME_WIFI.md); null in tests. */
     private val homeLink: com.turnhub.android.data.AtlasHomeLink? = null,
+    /** Show this phone's game on Atlas as soon as it is connected and signed in; off in tests. */
+    private val autoHost: Boolean = false,
 ) : ViewModel() {
 
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
@@ -93,6 +92,8 @@ class HomeViewModel(
 
     /** Start or stop showing this phone's game on the connected Atlas. The phone keeps running it. */
     fun onHostOnAtlas(on: Boolean) {
+        // The player's own Stop holds until this phone leaves the Atlas.
+        hostingStopped = !on
         hostedJob?.cancel()
         hostedJob = null
         _hostedResume.value = null
@@ -130,11 +131,39 @@ class HomeViewModel(
         }
     }
 
+    /** The player stopped showing this phone's game on the connected Atlas. */
+    private var hostingStopped = false
+    private var autoHostObserver: Job? = null
+
+    /**
+     * Phone-hosted games are the one way to play with Atlas (owner, 2026-11-04):
+     * once this phone is connected and signed in, it shows its game on Atlas
+     * without a tap, unless the player stopped it. Leaving the Atlas resets that.
+     */
+    private fun observeAutoHost() {
+        autoHostObserver?.cancel()
+        autoHostObserver = viewModelScope.launch {
+            // A game Atlas still runs itself keeps the table until it ends.
+            combine(repository.connectionState, repository.offlineSinceMs, playerSession.state,
+                repository.tableSummary.map { it?.state?.underway() == true }) { state, since, session, atlasGame ->
+                state == AtlasConnectionState.CONNECTED && since == null && session is PlayerSessionState.SignedIn && !atlasGame
+            }.distinctUntilChanged().collect { ready ->
+                if (!ready) {
+                    if (repository.connectionState.value == AtlasConnectionState.DISCONNECTED) hostingStopped = false
+                    return@collect
+                }
+                if (!hostingStopped && hostedJob?.isActive != true && _hostedResume.value == null &&
+                    hostedLink.status.value !is com.turnhub.android.data.HostedAtlasLink.Status.Busy) onHostOnAtlas(true)
+            }
+        }
+    }
+
     private var standaloneObserver: Job? = null
     var standalone: com.turnhub.android.standalone.StandaloneTable? = null
         set(value) {
             field = value
             standaloneObserver?.cancel()
+            if (value != null && autoHost) observeAutoHost()
             if (value != null) standaloneObserver = viewModelScope.launch {
                 combine(value.state.map { it.library.history.map { r -> r.recordId } to it.library.players.map { p -> p.links } }.distinctUntilChanged(),
                     repository.tableSummary.map { it?.atlasId to it?.bootId }.distinctUntilChanged(),
@@ -475,17 +504,6 @@ class HomeViewModel(
     )
     val adminState: StateFlow<com.turnhub.android.data.AdminState> = adminConsole.state
 
-    /** This device as the table's shared screen (protocol/http-v1.md "Tablet mode"). */
-    private val tablet = com.turnhub.android.data.AtlasTablet(playerSession) { repository.endpoint.value }
-    val tabletState: StateFlow<com.turnhub.android.data.TabletState> = tablet.state
-
-    /** Atlas's whole game while one runs: the start of [offlineGame] if Atlas drops off. */
-    @Volatile private var offlineBase: com.turnhub.android.data.OfflineBase? = null
-    private val restoredOffline = runCatching { offlineQueues.load()?.let { com.turnhub.android.data.OfflineAtlasGame.restore(it, offlineQueues::save) } }
-    private val _offlineGame = MutableStateFlow(restoredOffline.getOrNull())
-    /** The game going on on this device while Atlas is out of reach; null otherwise. */
-    val offlineGame: StateFlow<com.turnhub.android.data.OfflineAtlasGame?> = _offlineGame.asStateFlow()
-
     /**
      * First-run setup (Documentation/engineering/FIRST_RUN_SETUP.md): shown
      * instead of the table while Atlas reports its Welcome stage. Checked on
@@ -555,7 +573,6 @@ class HomeViewModel(
         val session: PlayerSessionState,
         val busy: Boolean,
         val feedback: ActionFeedback?,
-        val gameSettings: GameSettingsInfo?,
         val accessibility: AccessibilitySettings?,
     )
 
@@ -563,7 +580,6 @@ class HomeViewModel(
         playerSession.state,
         playerSession.busy,
         playerSession.feedback,
-        playerSession.gameSettings,
         playerSession.accessibility,
         ::SessionView,
     )
@@ -594,7 +610,7 @@ class HomeViewModel(
         local,
         sessionFlows,
     ) { (connectionState, offlineSinceMs), tableSummary, repositoryFailure, screen, (view, personalization, avatars, choices, stats) ->
-        val (session, busy, feedback, gameSettings, accessibility) = view
+        val (session, busy, feedback, accessibility) = view
         val shown = screen.failure ?: repositoryFailure
         HomeUiState(
             connectionState = connectionState,
@@ -607,9 +623,8 @@ class HomeViewModel(
             joiningSsid = screen.joiningSsid,
             wifiPrompt = screen.wifiPrompt,
             wifiOff = screen.wifiOff,
-            player = tableSummary?.let { PlayerPanel.from(it, session, busy, feedback, gameSettings) },
+            player = tableSummary?.let { PlayerPanel(session, busy, feedback) },
             signIn = screen.signIn,
-            gameSettings = gameSettings,
             personalization = personalization,
             avatars = avatars,
             profileChoices = choices,
@@ -646,7 +661,6 @@ class HomeViewModel(
                 }
                 if (!signedIn) {
                     adminConsole.forget()
-                    tablet.forget()
                 }
             }
         }
@@ -659,75 +673,6 @@ class HomeViewModel(
                     wifiLink.release()
                 }
                 previous = state
-            }
-        }
-        // Offline play (protocol/http-v1.md, "Offline play"): while a game runs,
-        // keep Atlas's whole game, so the table goes on here if Atlas drops off.
-        viewModelScope.launch {
-            repository.tableSummary
-                .map { it?.takeIf { s -> s.state == com.turnhub.android.protocol.TableState.RUNNING || s.state == com.turnhub.android.protocol.TableState.PAUSED } }
-                .distinctUntilChanged { a, b -> a?.atlasId == b?.atlasId && a?.bootId == b?.bootId && a?.game == b?.game && a?.revision == b?.revision }
-                .collectLatest { summary ->
-                    if (summary == null) { offlineBase = null; return@collectLatest }
-                    if (repository.offlineSinceMs.value != null) return@collectLatest
-                    tablet.fetchOfflineBase(summary.game, System.currentTimeMillis())
-                        ?.takeIf { it.atlasId == summary.atlasId && it.bootId == summary.bootId && it.gameId == summary.matchId }
-                        ?.let { offlineBase = it }
-                }
-        }
-        // Keep an unacknowledged queue across reconnects and process recreation.
-        // Never route it into another Atlas, venue table or rematch.
-        viewModelScope.launch {
-            var retryAt = 0L
-            if (restoredOffline.isFailure) tablet.offlineNotice("Saved offline moves could not be read. They were kept untouched; recovery needs review.")
-            combine(repository.offlineSinceMs, repository.tableSummary, playerSession.state) { since, summary, session ->
-                listOf(since != null, summary?.atlasId, summary?.bootId, summary?.game, summary?.matchId,
-                    session is PlayerSessionState.SignedIn).joinToString("|")
-            }.distinctUntilChanged().collectLatest {
-                while (repository.offlineSinceMs.value != null || _offlineGame.value != null && repository.tableSummary.value != null) {
-                    val since = repository.offlineSinceMs.value
-                    val summary = repository.tableSummary.value
-                    var played = _offlineGame.value
-                    if (since != null && played == null && !restoredOffline.isFailure) {
-                        offlineBase?.takeIf { base -> base.playing && summary != null && base.matches(summary) && base.bootId == summary.bootId }?.let { base ->
-                            val candidate = com.turnhub.android.data.OfflineAtlasGame(base, persist = offlineQueues::save)
-                            if (candidate.save()) { candidate.listen(); _offlineGame.value = candidate; played = candidate }
-                            else tablet.offlineNotice("Couldn't save offline play. Reconnect Atlas before making more edits.")
-                        }
-                    }
-                    val pending = played
-                    if (pending != null) {
-                        if (since != null && summary != null && pending.base.matches(summary) && pending.base.bootId == summary.bootId) pending.listen()
-                        else {
-                            pending.stop()
-                            if (since == null && summary != null && pending.base.matches(summary) &&
-                                repository.connectionState.value == AtlasConnectionState.CONNECTED && System.currentTimeMillis() >= retryAt) {
-                                val delivered = tablet.syncOffline(pending)
-                                if (delivered == true && pending.acknowledge()) {
-                                    _offlineGame.value = null
-                                    offlineBase = tablet.fetchOfflineBase(summary.game, System.currentTimeMillis())
-                                    tablet.replayOffline(summary, com.turnhub.android.domain.TableClock.nowMs())
-                                } else {
-                                    retryAt = System.currentTimeMillis() + if (delivered == false) 30_000 else 5_000
-                                    if (delivered == null) tablet.offlineNotice("Offline moves are saved on this device. Waiting for Atlas to confirm them.")
-                                    if (delivered == true) tablet.offlineNotice("Atlas confirmed the moves, but this device couldn't clear its saved queue. Free storage and retry.")
-                                }
-                            }
-                        }
-                    }
-                    delay(2_000)
-                }
-            }
-        }
-        viewModelScope.launch {
-            repository.tableSummary.collect { summary -> summary?.let { tablet.settleOffline(it.revision) } }
-        }
-        // The bounded life/damage fallback still needs replay when no full-core base was available.
-        viewModelScope.launch {
-            repository.offlineSinceMs.collect { since ->
-                val summary = repository.tableSummary.value
-                if (since == null && summary != null && _offlineGame.value?.base?.matches(summary) != true)
-                    tablet.replayOffline(summary, com.turnhub.android.domain.TableClock.nowMs())
             }
         }
         // Profile choices are ephemeral and belong to exactly one Atlas/session.
@@ -767,10 +712,7 @@ class HomeViewModel(
                         playerSession.forget()
                         if (summary == null) local.update { it.copy(signIn = null) }
                     }
-                    last != null && (summary.revision != last.revision || summary.game != last.game) -> {
-                        if (summary.game != last.game) tablet.forget()
-                        launch { playerSession.refresh(refreshSettings = summary.settings != last.settings || summary.game != last.game) }
-                    }
+                    last != null && summary.revision != last.revision -> launch { playerSession.refresh() }
                 }
                 // A new Atlas (or a new boot of it): is it still being set up?
                 if (summary != null && (last == null || summary.atlasId != last.atlasId || summary.bootId != last.bootId)) {
@@ -787,29 +729,9 @@ class HomeViewModel(
         }
     }
 
-    fun onFollowGame(game: Int) {
-        if (repository.offlineSinceMs.value != null) return
-        viewModelScope.launch {
-            if (playerSession.followGame(game)) tablet.forget()
-        }
-    }
-
     fun onPlayersRefresh() = viewModelScope.launch { adminConsole.refreshDevices() }
 
     // --- playing from this phone ------------------------------------------------
-
-    /** The Link phone seat claim in progress or just finished. */
-    val seatClaim: StateFlow<com.turnhub.android.data.SeatClaim?> = playerSession.claim
-
-    /** "Use this seat": the player confirms with Link phone on that Sigil. */
-    fun onClaimSeat(moduleId: Int, slot: Int, seatName: String) {
-        val endpoint = repository.endpoint.value ?: return
-        viewModelScope.launch { playerSession.claimSeat(endpoint, moduleId, slot, seatName) }
-    }
-
-    fun onSeatClaimDismissed() {
-        playerSession.clearClaim()
-    }
 
     /** Opens the sign-in picker with Atlas's profile list. */
     fun onPlayFromPhoneClicked() {
@@ -893,28 +815,6 @@ class HomeViewModel(
         local.update { it.copy(signIn = null) }
     }
 
-    // --- live turn notification ----------------------------------------------
-
-    /**
-     * Whose turn it is for the lock-screen notification, kept up to date even
-     * while the screen is not watching (the Activity shows it only in the
-     * background). Null unless this phone's player sits in a live game.
-     */
-    val liveTurn: StateFlow<com.turnhub.android.domain.LiveTurn?> = combine(
-        repository.tableSummary,
-        playerSession.state,
-    ) { summary, session ->
-        val info = (session as? PlayerSessionState.SignedIn)?.info
-        summary?.let {
-            com.turnhub.android.domain.LiveTurn.from(
-                it,
-                info?.takeIf { me -> me.participating }?.playerNumber,
-                com.turnhub.android.domain.TableClock.nowMs(),
-                System.currentTimeMillis(),
-            )
-        }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
-
     // --- app lock and automatic sign-in ---------------------------------------
 
     private val _appLock = MutableStateFlow<AppLockRequest?>(null)
@@ -989,19 +889,6 @@ class HomeViewModel(
         local.update { it.copy(vaultVersion = it.vaultVersion + 1) }
     }
 
-    fun onJoinClicked() {
-        launchTable { playerSession.join() }
-    }
-
-    fun onPassClicked() = sendControl(ControlAction.PASS)
-
-    fun onPauseResumeClicked() = sendControl(ControlAction.PAUSE_RESUME)
-
-    /** Host only; Atlas re-validates the value and the host/lobby rule. */
-    fun onTurnTimerChosen(turnTimerMs: Long) {
-        viewModelScope.launch { playerSession.setTurnTimer(turnTimerMs) }
-    }
-
     /** Opens the Sigil accessibility editor and reads the profile's current choices from Atlas. */
     fun onAccessibilityClicked() {
         playerSession.clearFeedback()
@@ -1019,89 +906,6 @@ class HomeViewModel(
 
     fun onAccessibilityDismissed() {
         local.update { it.copy(accessibilityOpen = false) }
-    }
-
-    /** Any game control; Atlas decides whether it applies now. */
-    fun onControl(action: ControlAction) = sendControl(action)
-
-    /** Changes this player's own life; applies immediately on Atlas. */
-    fun onChangeMyLife(delta: Int) {
-        if (delta == 0) return
-        launchTable {
-            playerSession.counter("/api/control/life", listOf("delta" to delta.toString()), "Life updated.")
-        }
-    }
-
-    /** Asks [target] to approve a change to their life (Atlas accepts it after 15 s unless rejected). */
-    fun onRequestLife(target: Int, delta: Int) {
-        if (delta == 0) return
-        launchTable {
-            playerSession.counter(
-                "/api/control/life/request",
-                listOf("target" to target.toString(), "delta" to delta.toString()),
-                "Life change requested.",
-            )
-        }
-    }
-
-    fun onRespondLife(requestId: Long, accept: Boolean) {
-        launchTable {
-            playerSession.counter(
-                "/api/control/life/respond",
-                listOf("requestId" to requestId.toString(), "accept" to if (accept) "1" else "0"),
-                if (accept) "Life change accepted." else "Life change rejected.",
-            )
-        }
-    }
-
-    /** Records Commander damage this player received (negative corrects it). */
-    fun onCommanderDamage(source: Int, commander: Int, delta: Int) {
-        if (delta == 0) return
-        launchTable {
-            playerSession.counter(
-                "/api/control/commander",
-                listOf("source" to source.toString(), "commander" to commander.toString(), "delta" to delta.toString()),
-                "Commander damage and life updated.",
-            )
-        }
-    }
-
-    fun onPlayerCounter(kind: String, value: Int, commander: Int) {
-        val key = if (kind == "initiative" || kind == "city-blessing") "value" else "delta"
-        launchTable { playerSession.counter("/api/control/counter", listOf("counter" to kind, key to "$value", "commander" to "$commander"), "Counter updated.") }
-    }
-
-    fun onEliminate(source: Int?) {
-        launchTable { playerSession.counter("/api/control/eliminate", listOf("eliminatedBy" to "${source ?: 0}",
-            "selfEliminated" to if (source == 0) "1" else "0"), "Elimination recorded.") }
-    }
-
-    fun onResolveElimination(victim: Int, source: Int?, token: com.turnhub.android.protocol.GameActionToken) {
-        viewModelScope.launch(com.turnhub.android.data.ExpectedGame(token.game)) {
-            playerSession.counter("/api/control/elimination", listOf("player" to "$victim", "source" to "${source ?: 0}",
-                "selfEliminated" to if (source == 0) "1" else "0", "expectedBootId" to token.bootId,
-                "expectedRevision" to "${token.revision}"), "Elimination source recorded.")
-        }
-    }
-
-    fun onDoom(action: com.turnhub.android.protocol.DoomAction, token: com.turnhub.android.protocol.GameActionToken, player: Int, value: Int) {
-        viewModelScope.launch(com.turnhub.android.data.ExpectedGame(token.game)) {
-            playerSession.counter("/api/control/doom", listOf("action" to action.wire, "cycle" to "${token.cycle}",
-                "expectedRevision" to "${token.revision}", "expectedBootId" to token.bootId,
-                "player" to "$player", "inBag" to "$value", "source" to "$value"), "Bag updated.")
-        }
-    }
-
-    fun onEliminationRule(field: String, value: Int) {
-        launchTable { playerSession.counter("/api/game/settings", listOf(field to "$value"), "Elimination settings updated.") }
-    }
-
-    fun onSetZeroLifeElimination(enabled: Boolean) {
-        launchTable { playerSession.saveGameSettings(null, null, null, autoEliminateAtZeroLife = enabled) }
-    }
-
-    fun onSaveGameSettings(gameProfile: String?, startingLife: Int?, turnTimerMs: Long?, twoHeadedGiant: Boolean? = null, houseRules: Boolean? = null) {
-        launchTable { playerSession.saveGameSettings(gameProfile, startingLife, turnTimerMs, twoHeadedGiant, houseRules = houseRules) }
     }
 
     fun onSaveName(name: String) {
@@ -1160,87 +964,6 @@ class HomeViewModel(
     }
 
     fun onAdminMessageDismissed() = adminConsole.clearMessage()
-
-    // --- tablet mode --------------------------------------------------------------
-
-    /** Runs one tablet request; the outcome shows in [tabletState] and the next state snapshot. */
-    fun onTablet(block: suspend com.turnhub.android.data.AtlasTablet.() -> Unit) {
-        if (waitingForOfflineSync()) { tablet.offlineNotice("Offline moves are still waiting for Atlas to confirm."); return }
-        viewModelScope.launch { tablet.block() }
-    }
-
-    /**
-     * Play together's view of the connected Atlas game: guests get Atlas's state through
-     * this device, and their taps go to Atlas through its tablet grant, for their own seat.
-     */
-    internal val lanAtlasLink = object : com.turnhub.android.lan.LanAtlasLink {
-        override fun summary() = repository.tableSummary.value
-        override fun canAct() = playerSession.state.value is PlayerSessionState.SignedIn && repository.offlineSinceMs.value == null &&
-            _offlineGame.value?.base?.let { base -> summary()?.let(base::matches) } != true
-        private var directoryAt = 0L
-        private var directoryAtlas = ""
-        private var directory = org.json.JSONArray()
-        override suspend fun roomProfiles(): org.json.JSONArray {
-            val endpoint = repository.endpoint.value ?: return org.json.JSONArray()
-            val now = android.os.SystemClock.elapsedRealtime()
-            val atlas = summary()?.atlasId.orEmpty()
-            if (directoryAtlas != atlas) { directory = org.json.JSONArray(); directoryAt = 0; directoryAtlas = atlas }
-            if (now - directoryAt > 30_000 || directoryAt == 0L) {
-                val profiles = try { playerSession.profiles(endpoint) } catch (_: com.turnhub.android.data.AtlasException) { return directory }
-                directory = org.json.JSONArray(profiles.map {
-                    org.json.JSONObject().put("profileId", it.profileId).put("name", it.name).put("hasPin", it.hasPin).put("aliases", org.json.JSONArray(it.aliases))
-                })
-                directoryAt = now
-            }
-            return directory
-        }
-        override fun resolveIdentity(id: String): String {
-            for (i in 0 until directory.length()) {
-                val profile = directory.getJSONObject(i)
-                val aliases = profile.optJSONArray("aliases") ?: continue
-                if ((0 until aliases.length()).any { aliases.getString(it) == id }) return profile.getString("profileId")
-            }
-            return id
-        }
-        override suspend fun attachProfile(request: org.json.JSONObject): String? {
-            val endpoint = repository.endpoint.value ?: return null
-            request.put("_atlasId", summary()?.atlasId ?: return null)
-            roomProfiles()
-            val original = request.optString("profileId").ifBlank { request.optJSONObject("profile")?.optString("profileId").orEmpty() }
-            request.put("profileId", resolveIdentity(original))
-            val id = try { playerSession.attachRoomProfile(endpoint, request) } catch (_: com.turnhub.android.data.AtlasException) { null } ?: return null
-            directoryAt = 0
-            val summary = summary()
-            if (summary?.state == com.turnhub.android.protocol.TableState.LOBBY && summary.players.none { it.profileId == id }) {
-                tablet.inGame(summary.game) { seatSaved(id, request.optString("name")) }
-            }
-            return id
-        }
-        override suspend fun backupRoom(record: org.json.JSONObject): Boolean =
-            playerSession.raw("POST", "/api/room", listOf("roomId" to record.getString("session"),
-                "ownerKey" to record.getString("ownerKey"), "record" to record.toString()))?.ok == true
-        override suspend fun restoreRoom(record: org.json.JSONObject): org.json.JSONObject? {
-            val response = playerSession.raw("POST", "/api/room", listOf("roomId" to record.getString("session"),
-                "ownerKey" to record.getString("ownerKey"))) ?: return null
-            return if (response.ok) org.json.JSONObject(response.body) else null
-        }
-        override suspend fun endRoom(record: org.json.JSONObject): Boolean =
-            playerSession.raw("POST", "/api/room", listOf("roomId" to record.getString("session"),
-                "ownerKey" to record.getString("ownerKey"), "end" to "1"))?.ok == true
-        override suspend fun act(game: Int, block: suspend com.turnhub.android.data.TableControls.() -> Boolean): Boolean {
-            if (!canAct()) return false
-            var applied = false
-            tablet.clearMessage()
-            tablet.inGame(game, summary()?.matchId) { applied = block() }
-            return applied && tablet.state.value.message?.isError != true
-        }
-    }
-
-    fun onTabletMessageDismissed() = tablet.clearMessage()
-
-    fun onTabletPinDismissed() = tablet.dismissPin()
-
-    fun onTabletCodeDismissed() = tablet.dismissCode()
 
     // --- first-run setup --------------------------------------------------------
 
@@ -1446,21 +1169,6 @@ class HomeViewModel(
 
     fun onFeedbackDismissed() = playerSession.clearFeedback()
 
-    private fun launchTable(block: suspend () -> Unit) {
-        val game = repository.tableSummary.value?.game ?: return
-        viewModelScope.launch(com.turnhub.android.data.ExpectedGame(game)) { block() }
-    }
-
-    /** Sends once, pinned to the snapshot the player was looking at. */
-    private fun waitingForOfflineSync(): Boolean = repository.offlineSinceMs.value == null &&
-        _offlineGame.value?.base?.let { base -> repository.tableSummary.value?.let(base::matches) } == true
-
-    private fun sendControl(action: ControlAction) {
-        if (waitingForOfflineSync()) { tablet.offlineNotice("Offline moves are still waiting for Atlas to confirm."); return }
-        val summary = repository.tableSummary.value ?: return
-        viewModelScope.launch(com.turnhub.android.data.ExpectedGame(summary.game)) { playerSession.control(action, summary.revision, summary.bootId) }
-    }
-
     fun onEndpointChanged(text: String) {
         local.update { it.copy(endpointText = text, failure = null) }
     }
@@ -1622,7 +1330,6 @@ class HomeViewModel(
     }
 
     override fun onCleared() {
-        _offlineGame.value?.stop()
         wifiLink.release()
     }
 
@@ -1692,7 +1399,6 @@ class HomeViewModel(
             playerSession: AtlasPlayerSession,
             updateCheckIntervalMs: Long = AtlasUpdateWatcher.RELEASE_INTERVAL_MS,
             vault: com.turnhub.android.data.ProfileVault? = null,
-            offlineQueues: com.turnhub.android.data.OfflineQueueStore = com.turnhub.android.data.MemoryOfflineQueueStore(),
             homeLink: com.turnhub.android.data.AtlasHomeLink? = null,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
@@ -1700,7 +1406,7 @@ class HomeViewModel(
                 HomeViewModel(
                     repositoryFactory, wifiLink, credentialStore, playerSession, releases,
                     AtlasUpdateWatcher(playerSession, releases, updateCheckIntervalMs),
-                    vault, offlineQueues, homeLink,
+                    vault, homeLink, autoHost = true,
                 )
             }
         }

@@ -4,10 +4,10 @@
 on the S3 Atlas, drawing the existing `touch_controls.cpp` screen model
 (`atlas_display_s3.cpp`); the presentation types below are not bound yet.
 Hardware/BOM planning completed first in
-[the S3 refresh](hardware/ESP32_S3_REFRESH.md). `LVGL/` is isolated from Atlas,
+[the S3 refresh](hardware/ESP32_S3_REFRESH.md). `shared/simulator/` is isolated from Atlas,
 Sigil and their PlatformIO dependencies. This milestone is a UI foundation,
 not S3 firmware or a second playable game engine. Build/status belongs in
-[LVGL/README.md](../../LVGL/README.md).
+[shared/simulator/README.md](../../shared/simulator/README.md).
 
 ## Feature gate
 

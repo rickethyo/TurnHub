@@ -40,7 +40,7 @@ bool uploadRetired = false;
 bool uploadSeen = false;
 constexpr uint32_t UPLOAD_STALL_MS = 30000;
 uint32_t lastUploadChunkMs = 0;
-bool betweenGames() { return allTablesBetweenGames(); }
+bool betweenGames() { return TurnHubAtlas::betweenGames(millis()); }
 using namespace TurnHubWebApi::internal;
 
 void statusRoute() {

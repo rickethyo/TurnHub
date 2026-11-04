@@ -1,8 +1,6 @@
 package com.turnhub.android.data
 
 import com.turnhub.android.protocol.AccessibilitySettings
-import com.turnhub.android.protocol.ControlResult
-import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.LedStyle
 import com.turnhub.android.protocol.LoginResult
 import com.turnhub.android.protocol.ProfileSummary
@@ -24,11 +22,6 @@ private class ReportingAtlas : AtlasSessionTransport {
     override suspend fun getProfiles(): List<ProfileSummary> = emptyList()
     override suspend fun login(profileId: String, pin: String): LoginResult = throw AtlasException(AtlasFailure.Rejected("no"))
     override suspend fun me(token: String): SessionInfo = throw AtlasException(AtlasFailure.Rejected("no"))
-    override suspend fun join(token: String): String? = null
-    override suspend fun control(token: String, action: ControlAction, expectedRevision: Long?, expectedBootId: String?) =
-        ControlResult(true, "ACCEPTED", null, null, null)
-    override suspend fun getGameSettings(token: String): GameSettingsInfo = throw AtlasException(AtlasFailure.Rejected("no"))
-    override suspend fun setTurnTimer(token: String, turnTimerMs: Long): String? = null
     override suspend fun getAccessibility(token: String): AccessibilitySettings = throw AtlasException(AtlasFailure.Rejected("no"))
     override suspend fun saveAccessibility(token: String, sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int, lifeApprovalMs: Int) =
         throw AtlasException(AtlasFailure.Rejected("no"))

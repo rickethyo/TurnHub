@@ -34,9 +34,7 @@ using TurnHub::MAX_PLAYERS;
 using TurnHub::SigilBus;
 using TurnHub::SigilRecord;
 
-constexpr uint32_t CLAIM_TIMEOUT_MS = 30000;
 constexpr uint32_t SESSION_TIMEOUT_MS = 8UL * 60UL * 60UL * 1000UL;
-constexpr uint8_t MAX_PENDING_CLAIMS = 6;
 constexpr uint8_t MAX_WEB_SESSIONS = MAX_PLAYERS * 2;
 constexpr size_t TOKEN_LENGTH = 32;
 constexpr size_t PIN_HASH_LENGTH = 64;
@@ -46,72 +44,32 @@ constexpr size_t MIN_PASSWORD_LENGTH = 8;
 constexpr size_t MAX_PASSWORD_LENGTH = 64;
 constexpr char TOKEN_HEADER[] = "X-TurnHub-Token";
 
-// A browser waiting for someone to choose Link phone on a physical Sigil,
-// which proves possession and authorizes (or attaches) that seat.
-struct PendingClaim {
-  bool used = false;
-  uint64_t requestId = 0;
-  uint8_t controllerId = INVALID_ID;
-  uint8_t slot = 1;
-  uint32_t createdMs = 0;
-  bool approved = false;
-  char token[TOKEN_LENGTH + 1] = {};
-  char requestingToken[TOKEN_LENGTH + 1] = {};
-  char profileId[TurnHubProfiles::PROFILE_ID_LENGTH + 1] = {};
-  char error[100] = {};
-};
-
-// An authenticated browser. controllerId/slot are re-resolved from the
-// profile on each use because table seats can move.
+// An authenticated browser, signed in to one profile.
 struct WebSession {
   bool used = false;
-  uint8_t controllerId = INVALID_ID;
-  uint8_t slot = 1;
   char token[TOKEN_LENGTH + 1] = {};
   char profileId[TurnHubProfiles::PROFILE_ID_LENGTH + 1] = {};
   uint32_t lastSeenMs = 0;
   // True when this browser proved knowledge of the profile's PIN (PIN login,
-  // registration or setting a PIN). Sigil-press claims are not PIN-verified.
-  // Gates the private moderation history.
+  // registration or setting a PIN). Gates permissions and private history.
   bool pinVerified = false;
-  // Tablet mode: a table presence code turned this browser into the shared
-  // table screen, which seats players and acts for any of them.
-  bool tableDevice = false;
-  char clientKey[37] = {};
-  // Venue tables: the game (0-based) this browser follows while its profile
-  // isn't seated in one, and the one a table tablet serves.
-  uint8_t table = 0;
 };
 
 // --- Shared state (defined in web_api.cpp / web_session.cpp) -----------------
 
-extern PendingClaim pendingClaims[MAX_PENDING_CLAIMS];
 extern WebSession sessions[MAX_WEB_SESSIONS];
 extern bool profileStoreReady;
 // Public per-boot epoch reported with state revisions; not a credential.
 extern char bootId[TOKEN_LENGTH + 1];
 
-extern TableHooks tableHooks;
-extern ResolveSeatCallback resolveSeat;
-extern ControlCallback controlHandler;
-extern ProfileControlCallback profileControlHandler;
-extern ResolveProfileCallback resolveProfile;
-extern GameSettingsCallback readGameConfiguration;
-extern ConfigureGameCallback configureGameHandler;
-extern ChangeLifeCallback changeLifeHandler;
-extern ReadCountersCallback readCountersHandler;
-extern CounterControlCallback counterControlHandler;
-extern ModerateCallback moderateHandler;
 extern DeviceIntentCallback deviceHandler;
 extern PairingWindowCallback readPairingWindow;
 extern PresenceHooks presenceHooks;
 extern UpdateNoticeHooks updateNoticeHooks;
 extern SpeakerVolumeCallback readSpeakerVolume;
 extern SetupStageCallback readSetupStage;
-extern AccessibilityChangedCallback accessibilityChanged;
 extern StateCallback readClientState;
 extern RevisionCallback readClientRevision;
-extern OfflineHooks offlineHooks;
 
 // --- Responses (web_api.cpp) ---------------------------------------------------
 
@@ -141,7 +99,6 @@ WebSession *sessionForRequest(WebServer &server);
 WebSession *createProfileSession(const String &profileId, uint32_t nowMs, bool pinVerified);
 // {"ok":true,"token":...,"profileId":...}, or 503 when no session slot is free.
 void sendLogin(WebServer &server, WebSession *session);
-bool resolveSessionParticipant(WebSession &session);
 // Checks another profile's PIN or password, rate limited like a sign-in, and
 // admits the account (archived ones are refused). Sends the error.
 bool verifyProfileSecret(WebServer &server, const String &profileId, const String &pin);
@@ -149,13 +106,6 @@ bool verifyProfileSecret(WebServer &server, const String &profileId, const Strin
 String sessionProfileId(const WebSession &session);
 // Expires stale sessions and re-resolves every session's seat once, so a
 // listing can then ask seatHasSession / moduleSessionCount per seat cheaply.
-void resolveAllSessions(uint32_t nowMs);
-bool seatHasSession(uint8_t controllerId, uint8_t slot);
-uint8_t moduleSessionCount(uint8_t controllerId);
-bool validSlot(int slot);
-bool resolveSeatNow(uint8_t controllerId, uint8_t slot, SeatSnapshot &snapshot);
-String profileIdForPhysicalSeat(uint8_t controllerId, uint8_t slot);
-bool hasPin(uint8_t controllerId, uint8_t slot);
 bool validPin(const String &pin);
 String profilePinHash(const String &profileId, const String &pin);
 // Profile sync (plans: profile-transfer F). A link key lets one phone sync a
@@ -172,14 +122,10 @@ void noteProfileChange(const String &profileId);
 // Trims and truncates a user-supplied display name.
 String cleanName(const String &raw);
 
-void handleSessionRequest(WebServer &server);
-void handleSessionPoll(WebServer &server);
 void handleSessionLogin(WebServer &server);
-void handleGameSession(WebServer &server);
 void handleSessionMe(WebServer &server);
 void handleRoom(WebServer &server);
 void handleLogout(WebServer &server);
-void handleSessionGame(WebServer &server);
 
 // --- Profiles (web_profile_api.cpp) ----------------------------------------------
 
@@ -188,7 +134,6 @@ void handleRegistration(WebServer &server);
 void handleLinkKey(WebServer &server);
 void handleProfileSync(WebServer &server);
 void handleProfileHistory(WebServer &server);
-void handleParticipation(WebServer &server, WebControl control);
 void handleProfile(WebServer &server);
 void handleProfilePolicy(WebServer &server);
 void handleAccessibility(WebServer &server);
@@ -210,43 +155,24 @@ void handleStandaloneImport(WebServer &server);
 
 void handleInfo(WebServer &server);
 void handleState(WebServer &server);
-void handleOfflineGame(WebServer &server);
-void handleOfflineSync(WebServer &server);
 // Phone-hosted games (web_hosted_api.cpp, protocol/hosted-v1.md).
 void handleHostedClaim(WebServer &server);
 void handleHostedRelease(WebServer &server);
 void handleHostedPublish(WebServer &server);
 void handleHostedState(WebServer &server);
 void handleHostedInputs(WebServer &server);
-void handleSeats(WebServer &server);
-void handleGameSettings(WebServer &server);
-void handleSaveGameSettings(WebServer &server);
 // Next-game settings from the request over the current ones; sends 400 when invalid.
-bool parseGameSettings(WebServer &server, TurnHub::GameSettings &settings);
-void handleChangeLife(WebServer &server);
-void handleCounters(WebServer &server);
-void handleCounterControl(WebServer &server, TurnHub::IntentType type);
 // Cards Atlas keeps (card_cache.h): the planar catalog and saved commanders.
 void handlePlanesCatalogInfo(WebServer &server);
 void handlePlanesCatalog(WebServer &server);
 void handlePlaneCard(WebServer &server);
-void handleAtlasScreen(WebServer &server);
-void handleSetAtlasScreen(WebServer &server);
 void handleSavedCommanders(WebServer &server);
-void handleCommanderChoice(WebServer &server);
-void handleTabletCommanderChoice(WebServer &server);
-void chooseCommanderFor(WebServer &server, uint8_t controllerId, uint8_t slot);
 // Life or Commander request fields of a counter control; false when invalid.
-bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::IntentPayload &payload);
-bool freshGameActionRequest(WebServer &server);
 bool parseBoundedNumber(const String &text, int32_t min, int32_t max, int32_t &value);
 bool parseLifeInteger(const String &text, int32_t &value, bool negativeAllowed);
 // {"ok":true} or 409 with the seat callback's message.
-void sendSeatResult(WebServer &server, bool accepted, const String &message);
-void runControl(WebServer &server, WebControl control);
 // A session control for a seat already authorized: optional expectedRevision,
-// then the control callback; answers like /api/control/*.
-void runSeatControl(WebServer &server, uint8_t controllerId, uint8_t slot, WebControl control);
+// then the control callback.
 
 // --- Administration (web_admin_api.cpp) ---------------------------------------------
 
@@ -289,18 +215,9 @@ void handleAccounts(WebServer &server);
 void handleAccountPermissions(WebServer &server);
 void handleAccountArchive(WebServer &server);
 void handleAccountMerge(WebServer &server);
-void handleModerate(WebServer &server);
 
 // --- Tablet mode (web_tablet_api.cpp) ------------------------------------------------
 
-void handleTabletEnable(WebServer &server);
-void handleTabletDisable(WebServer &server);
-void handleTabletSeat(WebServer &server);
-void handleTabletUnseat(WebServer &server);
-void handleTabletControl(WebServer &server);
-void handleTabletLife(WebServer &server);
-void handleTabletSettings(WebServer &server);
-void handleTabletCounter(WebServer &server, TurnHub::IntentType type);
 
 }  // namespace internal
 }  // namespace TurnHubWebApi

@@ -358,3 +358,18 @@ Atlas/web/dist/
 
 # Board setup output: this PC's boards (tools/setup-boards.cmd)
 tools/boards.local.md
+
+# Death May Die: CMON licensing keeps its content off GitHub and out of released
+# builds. These stay on the owner's PC only; the app falls back to the empty
+# stand-in in Android/app/src/dmdStub when they're absent (build.gradle.kts).
+Android/app/src/dmd/
+Android/app/src/testDmd/
+data/death-may-die/
+tools/dmd-forge/
+Documentation/engineering/DEATH_MAY_DIE_CARD_REVIEW.md
+Documentation/engineering/DMD_DATABASE_FORGE.md
+Documentation/legal/DMD_RIGHTS_AUDIT.md
+Documentation/legal/dmd-catalogue-rights-inventory.json
+core/local/
+Documentation/engineering/history/*death-may-die*.md
+Documentation/engineering/history/*dmd*.md

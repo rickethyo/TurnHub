@@ -1,7 +1,7 @@
 // Atlas factory reset: erase the whole NVS partition, then restart. Firmware-
 // only (ESP-IDF flash calls); host tests stub eraseSettingsAndRestart() in
 // test_globals.cpp. The decision and its checks live in
-// handleFactoryResetIntent (table_intents.cpp).
+// handleFactoryResetIntent (device_intents.cpp).
 
 #include <Arduino.h>
 #include <nvs_flash.h>

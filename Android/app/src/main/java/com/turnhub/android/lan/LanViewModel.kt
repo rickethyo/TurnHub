@@ -25,9 +25,7 @@ internal fun interface LanHostingAccess { fun allowed(): Boolean }
  * What a host shows its table: the join code in standard joining, or the QR invitation in
  * QR-only joining (the device's own security setting). Guests must use whichever it shows.
  */
-internal data class LanHosting(val code: String? = null, val qr: String? = null,
-    /** Relaying the connected Atlas game rather than sharing this device's own. */
-    val atlas: Boolean = false)
+internal data class LanHosting(val code: String? = null, val qr: String? = null)
 
 internal data class RoomDisplay(val id: String, val name: String, val upright: Boolean, val detail: String = "", val public: Boolean = false, val view: String? = null)
 
@@ -57,20 +55,15 @@ internal data class LanUiState(
     val displayTargets: List<RoomDisplay> = emptyList(),
     val displayView: String? = null,
     val planarRollFeedback: PlanarRollFeedback? = null,
-    /** The Atlas game a hub relays, in place of [preview] or [remote] (Atlas decides it, not the hub). */
-    val previewAtlas: com.turnhub.android.domain.TableSummary? = null,
-    val atlas: com.turnhub.android.domain.TableSummary? = null,
 ) {
-    /** Seated or displaying a shared game, whichever device or Atlas runs it. */
-    val joined: Boolean get() = reconnecting || remote != null || atlas != null
+    /** Seated or displaying a shared game. */
+    val joined: Boolean get() = reconnecting || remote != null
 }
 
 internal class LanViewModel(
     context: Context,
     private val table: StandaloneTable,
     private val hostingAccess: LanHostingAccess = LanHostingAccess { true },
-    /** The connected Atlas game this device may relay to guests; null without one. */
-    private val atlasLink: LanAtlasLink? = null,
 ) : ViewModel() {
     private val context = context.applicationContext
     private val _state = MutableStateFlow(LanUiState())
@@ -89,7 +82,6 @@ internal class LanViewModel(
     private var polling: Job? = null
     private var generation = 0
     private val exchange = Mutex()
-    private val backupMutex = Mutex()
     private var commandEpoch = ""
     private data class QueuedAction(val match: String, val epoch: String, val kind: String, val value: Int,
         val slot: Int, val source: Int, val target: Int)
@@ -105,15 +97,13 @@ internal class LanViewModel(
     }
     val holdsConnection get() = server != null || token != null
     fun permissionDenied() { _state.update { it.copy(message = "Allow Nearby devices in Android settings to host or join over Wi-Fi.") } }
-    fun atlasRelayable(): Boolean = atlasLink?.summary()?.stateWire != null
     fun joinNewProfile(name: String) {
         if (!table.createAccount(name)) { unsupportedAction(); return }
         val added = table.state.value.library.players.lastOrNull() ?: return
         join("player", 0, localId = added.localId)
     }
     fun savedPlayers() = table.state.value.library.players
-    fun hostPlanesAvailable(): Boolean = if (_state.value.host?.atlas == true)
-        atlasLink?.summary()?.settings?.planechase == true else table.state.value.game.planechase.enabled
+    fun hostPlanesAvailable(): Boolean = table.state.value.game.planechase.enabled
     fun chooseView(view: String) {
         _state.update { it.copy(view = view) }
         saveGuest()
@@ -127,7 +117,7 @@ internal class LanViewModel(
     fun resumeRoom() {
         if (_state.value.busy || server != null || token != null) return
         val host = hostRecord
-        if (host != null) { startHosting(host.optBoolean("qrOnly"), host.optBoolean("atlas")); return }
+        if (host != null) { startHosting(host.optBoolean("qrOnly")); return }
         val saved = store.read("guest") ?: return
         invite = runCatching { LanInvite.parse(saved.text("invite")) }.getOrNull() ?: return
         token = saved.text("token")
@@ -136,33 +126,17 @@ internal class LanViewModel(
         generation++
         startPolling(generation)
     }
-    fun startHosting(qrOnly: Boolean, fromAtlas: Boolean = false) {
+    fun startHosting(qrOnly: Boolean) {
         if (_state.value.busy || token != null || server != null) return
         if (!hostingAccess.allowed()) return
-        if (fromAtlas && !atlasRelayable()) {
-            _state.update { it.copy(message = "Reconnect to Atlas, then tap Resume room.", resumable = true) }; return
-        }
-        if (!fromAtlas && table.state.value.storageProblem != null) return
+        if (table.state.value.storageProblem != null) return
         val record = hostRecord ?: JSONObject().put("session", randomLanSecret(16))
             .put("key", if (qrOnly) randomLanSecret() else LanJoinCode.generate()).put("ownerKey", randomLanSecret())
-            .put("qrOnly", qrOnly).put("atlas", fromAtlas).put("atlasId", atlasLink?.summary()?.atlasId.orEmpty())
-        if (fromAtlas && record.optString("atlasId") != atlasLink?.summary()?.atlasId) {
-            _state.update { it.copy(message = "This room belongs to another Atlas. Reconnect to it or end the saved room.") }; return
-        }
+            .put("qrOnly", qrOnly)
         _state.update { it.copy(busy = true, message = null) }
         viewModelScope.launch {
             var opened: LanServer? = null
             try {
-                if (fromAtlas) {
-                    val remote = atlasLink?.restoreRoom(record)
-                    if (remote != null && remote.optString("session") == record.text("session") &&
-                        remote.optString("ownerKey") == record.text("ownerKey") && remote.optLong("sequence") > record.optLong("sequence")) {
-                        record.put("members", remote.optJSONArray("members") ?: org.json.JSONArray())
-                        record.put("sequence", remote.optLong("sequence"))
-                        remote.optJSONObject("displayOrientations")?.let { record.put("displayOrientations", it) }
-                        remote.optJSONObject("displayViews")?.let { record.put("displayViews", it) }
-                    }
-                }
                 record.put("hostDeviceName", android.os.Build.MODEL.take(64))
                 check(store.write("host", record))
                 hostRecord = record
@@ -172,49 +146,32 @@ internal class LanViewModel(
                     unavailable = { (!foreground && !AtlasLinkHoldService.active) || table.state.value.storageProblem != null },
                     looks = { val state = table.state.value; val looks = state.library.players.associate { it.localId to it.personalization }
                         state.game.players.map { looks[it.localId] } })
-                fun atlasCore() = LanAtlasSessions(session, key, atlasLink!!,
-                    unavailable = { !foreground && !AtlasLinkHoldService.active })
                 fun baseRequest(op: String) = JSONObject().put("v", LAN_VERSION).put("session", session).put("op", op).put("key", key)
-                suspend fun snapshot(): JSONObject = if (fromAtlas) {
-                    if (atlasLink?.summary()?.atlasId != record.optString("atlasId")) baseRequest("preview").put("code", "unavailable")
-                    else atlasCore().handle(baseRequest("preview"))
-                } else localCore().handle(baseRequest("preview"))
-                val core = LanRoom(record, save = { next ->
-                    val saved = store.write("host", next)
-                    if (saved && fromAtlas) mirrorRoom(next)
-                    saved
-                }, planesAvailable = { if (fromAtlas) atlasLink?.summary()?.settings?.planechase == true else table.state.value.game.planechase.enabled },
-                    planarPlayerAllowed = { player ->
-                        if (fromAtlas) atlasLink?.summary()?.players?.any { it.playerNumber == player && !it.eliminated } == true
-                        else table.state.value.game.players.getOrNull(player - 1)?.eliminated == false
-                    }, planarRollAllowed = { player ->
-                        if (fromAtlas) atlasLink?.summary()?.let { it.state == com.turnhub.android.protocol.TableState.RUNNING && it.hasTurn(player) } == true
-                        else table.state.value.game.let { game -> game.state == com.turnhub.android.protocol.TableState.RUNNING &&
+                suspend fun snapshot(): JSONObject = localCore().handle(baseRequest("preview"))
+                val core = LanRoom(record, save = { next -> store.write("host", next) },
+                    planesAvailable = { table.state.value.game.planechase.enabled },
+                    planarPlayerAllowed = { player -> table.state.value.game.players.getOrNull(player - 1)?.eliminated == false },
+                    planarRollAllowed = { player ->
+                        table.state.value.game.let { game -> game.state == com.turnhub.android.protocol.TableState.RUNNING &&
                             game.active?.let { player - 1 in game.mates(it) } == true }
-                    }, snapshot = ::snapshot, resolveIdentity = { if (fromAtlas) atlasLink!!.resolveIdentity(it) else it }, seats = {
-                    if (fromAtlas) atlasLink?.summary()?.takeIf { it.atlasId == record.optString("atlasId") }?.players.orEmpty().map {
-                        LanRoom.RoomSeat(it.profileId ?: "participant:${it.participantId}", it.playerNumber, it.label)
-                    } else {
+                    }, snapshot = ::snapshot, resolveIdentity = { it }, seats = {
                         val state = table.state.value
                         state.game.players.mapIndexed { i, p ->
                             LanRoom.RoomSeat(state.library.players.firstOrNull { it.localId == p.localId }?.profileId
                                 ?: p.profileId ?: "guest:${state.game.gameId}:${p.name}", i + 1, p.name)
                         }
-                    }
-                }, profiles = { if (fromAtlas) atlasLink!!.roomProfiles() else table.roomProfiles() },
-                    attach = { if (fromAtlas) atlasLink!!.attachProfile(it) else table.attachRoomProfile(it) },
+                }, profiles = { table.roomProfiles() },
+                    attach = { table.attachRoomProfile(it) },
                     command = { request, player ->
                         // Reuse the existing validators against the current seat, never a remembered name.
-                        val death = !fromAtlas && table.state.value.game.profile.deathMayDie
-                        val role = if (!fromAtlas && player <= 0 && request.text("kind").startsWith(PLANAR_KIND)) "planes" else if (death) "investigator" else "player"
-                        val actingPlayer = if (fromAtlas && player <= 0 && request.text("kind").startsWith(PLANAR_KIND)) atlasLink?.summary()?.activePlayerNumber ?: player else player
-                        val join = baseRequest("join").put("role", role).put("player", if (role == "planes") 0 else actingPlayer).put("joinId", UUID.randomUUID().toString())
-                        val local = if (fromAtlas) null else localCore()
-                        val atlas = if (fromAtlas) atlasCore() else null
-                        val joined = local?.handle(join) ?: atlas!!.handle(join)
+                        val death = table.state.value.game.profile.deathMayDie
+                        val role = if (player <= 0 && request.text("kind").startsWith(PLANAR_KIND)) "planes" else if (death) "investigator" else "player"
+                        val join = baseRequest("join").put("role", role).put("player", if (role == "planes") 0 else player).put("joinId", UUID.randomUUID().toString())
+                        val local = localCore()
+                        val joined = local.handle(join)
                         if (joined.optString("code") != "ok") joined else {
                             val action = JSONObject(request.toString()).put("token", joined.text("token"))
-                            local?.handle(action) ?: atlas!!.handle(action)
+                            local.handle(action)
                         }
                     })
                 room = core
@@ -225,7 +182,7 @@ internal class LanViewModel(
                     try {
                         socket.bind(InetSocketAddress(wifi.address, 0), 8)
                         val listening = LanServer(socket) { request -> runBlocking(Dispatchers.Main.immediate) {
-                            if (!foreground && !fromAtlas) table.tick()
+                            if (!foreground) table.tick()
                             val answer = if (room === core) core.handle(request) else baseRequest("ended").put("code", "ended")
                             _state.update { it.copy(guests = core.guests, displayAllUpright = core.displayAllUpright("host"), displayId = "host", displayTargets = readDisplays(core.displayTargets())) }
                             answer
@@ -237,9 +194,8 @@ internal class LanViewModel(
                     } catch (error: Throwable) { socket.close(); throw error }
                 }
                 server = opened
-                _state.update { it.copy(host = LanHosting(key.takeUnless { record.optBoolean("qrOnly") }, invitation.encode(), fromAtlas),
-                    guests = core.guests, displayAllUpright = core.displayAllUpright("host"), displayId = "host", displayTargets = readDisplays(core.displayTargets()), busy = false, preview = null, previewAtlas = null, resumable = true) }
-                if (fromAtlas) mirrorRoom(record)
+                _state.update { it.copy(host = LanHosting(key.takeUnless { record.optBoolean("qrOnly") }, invitation.encode()),
+                    guests = core.guests, displayAllUpright = core.displayAllUpright("host"), displayId = "host", displayTargets = readDisplays(core.displayTargets()), busy = false, preview = null, resumable = true) }
             } catch (error: Exception) {
                 opened?.close(); room = null; advertiser?.close(); advertiser = null
                 if (error is CancellationException) throw error
@@ -247,42 +203,12 @@ internal class LanViewModel(
             }
         }
     }
-    private fun mirrorRoom(record: JSONObject) {
-        val copy = JSONObject(record.toString())
-        viewModelScope.launch {
-            val saved = backupMutex.withLock {
-                runCatching {
-                    store.read("ended")?.takeIf { it.optString("atlasId") == copy.optString("atlasId") }?.let { ended ->
-                        if (atlasLink?.endRoom(ended) == true) store.write("ended", null)
-                        else return@runCatching false
-                    }
-                    atlasLink?.backupRoom(copy) == true
-                }.getOrDefault(false)
-            }
-            if (!saved) _state.update { it.copy(message = "Room saved on this device. Atlas backup is waiting for its connection; tap Back up room to retry.") }
-        }
-    }
-    fun atTable(summary: com.turnhub.android.domain.TableSummary): Boolean {
-        val current = _state.value
-        return current.remote?.let { it.gameId == summary.bootId } ?: current.atlas?.let {
-            it.atlasId == summary.atlasId && it.bootId == summary.bootId && it.game == summary.game && it.matchId == summary.matchId
-        } ?: false
-    }
+    fun atTable(summary: com.turnhub.android.domain.TableSummary): Boolean =
+        _state.value.remote?.let { it.gameId == summary.bootId } ?: false
     fun unsupportedAction() { _state.update { it.copy(message = "Use the host for this game setup or decision.") } }
-    fun backupRoom() { hostRecord?.takeIf { it.optBoolean("atlas") }?.let(::mirrorRoom) }
     fun stopHosting() {
         if (hostRecord == null) { leave(); return }
-        val old = hostRecord
-        if (old?.optBoolean("atlas") == true && !store.write("ended", old)) {
-            _state.update { it.copy(message = "Couldn't save room cleanup. Try ending the room again.") }; return
-        }
         if (!store.write("host", null)) { _state.update { it.copy(message = "Couldn't end the saved room. Try again.") }; return }
-        if (old?.optBoolean("atlas") == true) {
-            viewModelScope.launch { backupMutex.withLock {
-                if (runCatching { atlasLink?.endRoom(old) == true }.getOrDefault(false)) store.write("ended", null)
-                else _state.update { it.copy(message = "Room ended on this device. Reconnect to Atlas to finish clearing its backup.") }
-            } }
-        }
         room = null; hostRecord = null
         advertiser?.close(); advertiser = null; server?.close(); server = null
         _state.update { it.copy(host = null, guests = emptyList(), resumable = false, message = "Room ended. The game is kept.") }
@@ -295,14 +221,6 @@ internal class LanViewModel(
         val result = runCatching { room?.grant(guest.token, !guest.master) }
         _state.update { it.copy(guests = room?.guests.orEmpty(), message = if (result.isFailure) "Couldn't save this permission. Try again." else null) }
     }
-    fun onAtlasAvailable() {
-        if (hostRecord?.optBoolean("atlas") == true && hostRecord?.optString("atlasId") == atlasLink?.summary()?.atlasId) resumeRoom()
-        val ended = store.read("ended") ?: return
-        if (ended.optString("atlasId") == atlasLink?.summary()?.atlasId) viewModelScope.launch { backupMutex.withLock {
-            if (runCatching { atlasLink?.endRoom(ended) == true }.getOrDefault(false)) store.write("ended", null)
-        } }
-    }
-
     /** [text] is a typed join code, or the invitation text a QR scan read. */
     fun preview(text: String) {
         if (_state.value.busy || token != null || server != null) return
@@ -311,7 +229,7 @@ internal class LanViewModel(
         val scanned = if (code == null) runCatching { LanInvite.parse(text) }.getOrNull() else null
         if (code == null && scanned == null) { _state.update { it.copy(message = "Enter the host's join code, like abc-123.") }; return }
         invite = null; joinRequest = null
-        _state.update { it.copy(busy = true, preview = null, previewAtlas = null, message = null) }
+        _state.update { it.copy(busy = true, preview = null, message = null) }
         viewModelScope.launch {
             try {
                 val candidates = scanned?.let(::listOf) ?: withContext(Dispatchers.IO) {
@@ -323,8 +241,7 @@ internal class LanViewModel(
                     answer = reply.text("code")
                     if (answer == "ok") {
                         invite = candidate
-                        _state.update { if (reply.has("atlas")) it.copy(previewAtlas = readAtlas(reply), directory = readDirectory(reply), busy = false)
-                            else it.copy(preview = readGame(reply), directory = readDirectory(reply), busy = false) }
+                        _state.update { it.copy(preview = readGame(reply), directory = readDirectory(reply), busy = false) }
                         return@launch
                     }
                     if (answer == "locked") break
@@ -344,10 +261,9 @@ internal class LanViewModel(
 
     fun join(role: String, player: Int, profileId: String? = null, pin: String = "", localId: String? = null, sourcePin: String? = null) {
         val invitation = invite ?: return
-        if (_state.value.busy || _state.value.preview == null && _state.value.previewAtlas == null) return
+        if (_state.value.busy || _state.value.preview == null) return
         val own = savedPlayers().firstOrNull { it.localId == localId }
-        val atlasId = _state.value.previewAtlas?.atlasId
-        val targetId = profileId ?: own?.links?.firstOrNull { it.atlasId == atlasId }?.profileId
+        val targetId = profileId
         val choice = listOf(role, player, targetId, localId).joinToString("|")
         val body = joinRequest?.takeIf { joinChoice == choice }
             ?: base(invitation, "join").put("key", invitation.key).put("role", role).put("player", player)
@@ -369,8 +285,7 @@ internal class LanViewModel(
                         "That player is already controlled by another device." else if (reply.text("code") == "pin-required") "Enter the profile PIN to authorize this link." else "Couldn't join. Check the profile and room invitation.") }
                     return@launch
                 }
-                val atlas = if (reply.has("atlas")) readAtlas(reply) else null
-                val game = if (atlas == null) readGame(reply) else null
+                val game = readGame(reply)
                 token = reply.text("token")
                 commandEpoch = reply.optString("epoch")
                 if (own != null) {
@@ -385,13 +300,13 @@ internal class LanViewModel(
                 }
                 joinRequest = null
                 generation++
-                _state.update { it.copy(remote = game, atlas = atlas, role = role, player = reply.optInt("player", player), preview = null,
-                    previewAtlas = null, online = true, busy = false, master = reply.optBoolean("master"),
+                _state.update { it.copy(remote = game, role = role, player = reply.optInt("player", player), preview = null,
+                    online = true, busy = false, master = reply.optBoolean("master"),
                     view = if (role == "planes") "planes" else if (role in setOf("display", "table")) "table" else if (role == "elder") "elder" else "personal",
                     displayView = reply.optString("displayView").takeIf { it in setOf("table", "planes") },
                     displayId = reply.optString("displayId", "host"), displayAllUpright = reply.optBoolean("displayAllUpright"),
                     displayTargets = reply.optJSONArray("displayTargets")?.let(::readDisplays).orEmpty(),
-                    message = viewOnlyNote(reply)).withLooks(reply) }
+                    message = null).withLooks(reply) }
                 val remembered = saveGuest()
                 startPolling(generation)
                 if (!remembered) _state.update { it.copy(message = "Joined, but this device couldn't save reconnect access. Keep the app open.") }
@@ -462,22 +377,17 @@ internal class LanViewModel(
 
     fun beginPlanarRoll(fromEffect: Boolean = false): String? {
         val current = _state.value
-        val summary = current.atlas ?: current.remote?.toSummary(System.currentTimeMillis(), com.turnhub.android.domain.TableClock.nowMs()) ?: return null
+        val summary = current.remote?.toSummary(System.currentTimeMillis(), com.turnhub.android.domain.TableClock.nowMs()) ?: return null
         if (!planarRollAllowed(current, summary) || pending != null || invite == null) return null
         val id = UUID.randomUUID().toString()
-        val kind = if (current.atlas != null) {
-            val face = com.turnhub.android.standalone.PlanarFace.roll(kotlin.random.Random.Default)
-            "planar-atlas:${if (fromEffect) "effect" else "roll"}:${face.wireValue}"
-        } else "planar-roll"
         _state.update { it.copy(planarRollFeedback = PlanarRollFeedback(id, "pending")) }
-        act(kind, if (current.atlas == null && fromEffect) 1 else 0, actionId = id)
+        act("planar-roll", if (fromEffect) 1 else 0, actionId = id)
         return id
     }
 
     fun act(kind: String, value: Int = 0, slot: Int = 0, source: Int = 0, target: Int = 0, actionId: String? = null) {
         val state = _state.value
-        val (match, revision) = state.remote?.let { it.gameId to it.revision }
-            ?: state.atlas?.let { it.relayMatch() to it.revision } ?: return
+        val (match, revision) = state.remote?.let { it.gameId to it.revision } ?: return
         val invitation = invite ?: return
         if (!state.online || state.role !in setOf("investigator", "player", "table") && !state.master) return
         if (state.busy || pending != null) {
@@ -488,19 +398,6 @@ internal class LanViewModel(
         pending = base(invitation, "command").put("token", token).put("actionId", actionId ?: UUID.randomUUID().toString())
             .put("epoch", commandEpoch).put("target", target.takeIf { it > 0 } ?: state.player).put("match", match).put("revision", revision).put("kind", kind).put("value", value).put("slot", slot).put("source", source).put("looksId", state.looksId)
         retry()
-    }
-
-    /**
-     * The hub's own Atlas screen picker, listed in Play together as a satellite of the room
-     * (owner, 2026-11-03): the tablet acts for a signed-in seated player, and Atlas checks it.
-     */
-    fun showOnAtlas(view: String) {
-        if (state.value.host?.atlas != true || view !in ATLAS_SCREEN_VIEWS) return
-        val link = atlasLink ?: return
-        val summary = link.summary() ?: return
-        val seat = summary.players.firstOrNull { it.profileId != null && it.controller.kind == com.turnhub.android.domain.ControllerHandle.Kind.VIRTUAL }
-            ?.let { com.turnhub.android.data.TabletSeat(it.controller.id, it.slot) } ?: return
-        if (link.canAct()) viewModelScope.launch { runCatching { link.act(summary.game) { showOnAtlas(seat, view) } } }
     }
 
     fun retry() {
@@ -533,7 +430,7 @@ internal class LanViewModel(
     private fun drainActions() {
         if (queued.isEmpty() || pending != null || _state.value.busy || !_state.value.online) return
         val next = queued.removeFirst()
-        val current = _state.value.remote?.gameId ?: _state.value.atlas?.relayMatch()
+        val current = _state.value.remote?.gameId
         if (current != next.match || commandEpoch != next.epoch) {
             queued.clear()
             _state.update { it.copy(message = "The game or host changed. Waiting edits were not replayed; review current values.") }
@@ -567,15 +464,13 @@ internal class LanViewModel(
         if (code == "released") {
             // The host removed this player from its lobby: choose a seat again with the same access.
             generation++; polling?.cancel(); polling = null; token = null; pending = null; joinRequest = null
-            _state.update { it.copy(remote = null, atlas = null, role = null, player = 0, online = false, uncertain = false,
+            _state.update { it.copy(remote = null, role = null, player = 0, online = false, uncertain = false,
                 preview = if (reply.has("game")) readGame(reply) else it.remote,
-                previewAtlas = if (reply.has("atlas")) readAtlas(reply) else it.atlas,
                 message = "Your player left the host's table. Choose a seat again.") }
             return
         }
         val online = code in setOf("ok", "stale", "rejected", "view-only", "forbidden", "interrupted", "renew")
         val game = if (reply.has("game")) readGame(reply) else null
-        val atlas = if (reply.has("atlas")) runCatching { readAtlas(reply) }.getOrNull() else null
         _state.update { before -> before.copy(
             player = reply.optInt("player", before.player),
             role = reply.optString("role", before.role ?: "display"),
@@ -584,17 +479,15 @@ internal class LanViewModel(
             displayView = reply.optString("displayView").takeIf { it in setOf("table", "planes") },
             displayId = reply.optString("displayId", before.displayId),
             displayTargets = reply.optJSONArray("displayTargets")?.let(::readDisplays) ?: before.displayTargets,
-            reconnecting = before.reconnecting && game == null && atlas == null,
+            reconnecting = before.reconnecting && game == null,
             directory = if (reply.has("directory")) readDirectory(reply) else before.directory,
             remote = game?.takeIf { before.remote == null || it.gameId != before.remote.gameId || it.revision >= before.remote.revision } ?: before.remote,
-            // A new Atlas boot starts its revisions again; within one, never step back.
-            atlas = atlas?.takeIf { before.atlas == null || it.bootId != before.atlas.bootId || it.game != before.atlas.game || it.matchId != before.atlas.matchId || it.revision >= before.atlas.revision } ?: before.atlas,
             online = online,
             looks = if (reply.has("looks")) readLooks(reply) else before.looks,
             looksId = if (reply.has("looks")) reply.optString("looksId") else before.looksId,
             message = when (code) {
-                "ok" -> if (before.uncertain) before.message else viewOnlyNote(reply)
-                "view-only" -> viewOnlyNote(reply)
+                "ok" -> if (before.uncertain) before.message else null
+                "view-only" -> null
                 "stale" -> "The table changed before this edit arrived. Review the latest values and try again."
                 "rejected" -> "That change isn't available in the current game state."
                 "unavailable" -> "The host is away or unable to save. Controls wait until it returns."
@@ -643,12 +536,6 @@ internal class LanViewModel(
             array.optJSONObject(i)?.let { runCatching { LocalPersonalization.fromJson(it) }.getOrNull() }
         }
     }
-    /** Atlas's own state, relayed by a hub; parsed with the same rules as a direct connection. */
-    private fun readAtlas(reply: JSONObject): com.turnhub.android.domain.TableSummary =
-        LanAtlasFrame.decode(reply.getJSONObject("atlas"), com.turnhub.android.domain.TableClock.nowMs())
-    /** A hub that isn't the Atlas table's tablet can show the game, but taps can't reach Atlas. */
-    private fun viewOnlyNote(reply: JSONObject): String? = if (reply.optBoolean("viewOnly"))
-        "The host isn't the Atlas table's tablet yet, so this view is read only. Ask them to use their device as the table screen." else null
     private fun readGame(reply: JSONObject): StandaloneGame = StandaloneTable.gameFromJson(reply.getJSONObject("game")).also {
         require(it.profile.lanSupported && it.players.size in 0..10)
     }

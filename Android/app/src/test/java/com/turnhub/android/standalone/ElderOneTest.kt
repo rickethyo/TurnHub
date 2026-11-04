@@ -1,6 +1,5 @@
 package com.turnhub.android.standalone
 
-import com.turnhub.android.domain.DeathMayDieStory
 import com.turnhub.android.domain.ElderOneTrack
 import com.turnhub.android.domain.EpisodeToken
 import com.turnhub.android.domain.EnemyCard
@@ -171,15 +170,6 @@ class ElderOneTest {
         assertEquals(ElderOneTrack(elderOne = "Hastur", episode = "Tomes of Madness"), StandaloneTable.gameFromJson(json).elder)
         val older = StandaloneTable.gameToJson(g).apply { remove("elder") }
         assertEquals(ElderOneTrack(), StandaloneTable.gameFromJson(older).elder)
-    }
-
-    @Test fun `the Elder One and episode lists name each once`() {
-        val elders = DeathMayDieStory.elderOnes.flatMap { it.names }
-        assertEquals(elders.size, elders.distinct().size)
-        assertTrue("Cthulhu" in elders && "Hastur" in elders)
-        val episodes = DeathMayDieStory.episodes.flatMap { it.names }
-        assertEquals(episodes.size, episodes.distinct().size)
-        assertTrue((elders + episodes).all { it.length <= ElderOneTrack.MAX_NAME })
     }
 
     @Test fun `fire tokens are counted, capped, saved and cleared by a rematch`() {

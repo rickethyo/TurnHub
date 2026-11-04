@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TurnHub Atlas state v1 (GET /api/v1/state)",
+  "description": "What an Atlas accessory reports about itself: the phone hub holding the table (hosted-v1.md), its battery and its links. The game itself is the hub's; Atlas runs none.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocolVersion", "atlasId", "bootId", "revision", "hub", "battery", "links"],
+  "properties": {
+    "protocolVersion": { "const": "1" },
+    "atlasId": { "type": "string", "minLength": 1 },
+    "bootId": { "type": "string", "pattern": "^[0-9A-F]{32}$" },
+    "revision": {
+      "description": "Changes when the hub summary changes; scoped to atlasId and bootId. Battery and links are sampled and do not move it.",
+      "type": "integer", "minimum": 0, "maximum": 4294967295
+    },
+    "hub": {
+      "description": "The phone that holds the table's lease, or null.",
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "gameId", "state", "players"],
+          "properties": {
+            "name": { "type": "string" },
+            "gameId": { "type": "string" },
+            "state": { "enum": ["LOBBY", "STARTING", "RUNNING", "PAUSED", "GAME_OVER"] },
+            "players": { "type": "integer", "minimum": 0 }
+          }
+        }
+      ]
+    },
+    "battery": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["percent", "low", "charging"],
+          "properties": {
+            "percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "low": { "type": "boolean" },
+            "charging": { "type": "boolean" }
+          }
+        }
+      ]
+    },
+    "links": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hotspot", "home", "sigils"],
+      "properties": {
+        "hotspot": { "type": "boolean" },
+        "home": { "type": "boolean" },
+        "sigils": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

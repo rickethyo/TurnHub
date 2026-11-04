@@ -1,26 +1,33 @@
 # TurnHub Shared Protocol
 
-**Status:** v0.1 working contract
+**Status:** v1 working contract (phone-hosted games since 2026-11-04)
 
 This directory defines the logical contract between Atlas and every controller or client.
 
-The protocol exists above transport. HTTP, WebSocket, BLE, a future local relay, physical Sigils, browser sessions, simulators, and the native Android app may encode or carry messages differently, but they must converge on the same semantic requests and authoritative Atlas state.
+The protocol exists above transport. HTTP, WebSocket, BLE, a future local relay, physical Sigils, browser sessions, simulators, and the native Android app may encode or carry messages differently, but they must converge on the same semantic requests and one authoritative state.
 
 ## Non-negotiable rule
 
-Atlas is the sole owner of canonical table and game state.
+The hub that runs the shared rules core owns each game (owner, 2026-11-04):
+a phone or tablet, never Atlas. Atlas owns its hardware and what it keeps at
+rest: profiles, statistics, match history, settings, Sigil pairings and the
+table lease ([hosted-v1.md](hosted-v1.md)).
 
-Clients do not perform gameplay state transitions locally. They request an action by sending an Intent. Atlas authenticates the actor, validates the current state, applies the authoritative transition, increments the state revision when canonical state changes, and publishes the resulting state/event.
+Clients do not perform gameplay transitions themselves. Guest phones, Sigils
+and the Atlas screen send inputs to the hub; the hub validates and applies
+them with the core and publishes the resulting state, which Atlas and guests
+render.
 
 ```text
-Android ----\
-Browser -----\
-Sigil --------> Intent -> Atlas -> validate -> mutate canonical state -> publish state/event
-Atlas UI ----/
-Simulator ---/
+Guest phone ---\
+Sigil ----------> input -> hub (shared core) -> validate -> mutate -> publish state
+Atlas screen --/
 ```
 
-A client may optimistically animate a button press, spinner, or pending indicator, but it must not treat a gameplay change as committed until Atlas accepts it and the authoritative state confirms it.
+A client may optimistically animate a button press, spinner, or pending
+indicator, but it must not treat a gameplay change as committed until the hub
+accepts it and its state confirms it. Atlas's own Intents
+(`Atlas/include/intent.h`) carry device and account work only.
 
 ## Three separate layers
 
@@ -60,13 +67,12 @@ Example:
 
 `expectedRevision` is optional. When supplied, it allows Atlas to reject a request made against stale state when that matters for the operation.
 
-### 3. Authoritative State Snapshot
+### 3. State snapshots
 
-Clients recover from reconnects by requesting a snapshot described by `state-v0.1.schema.json`.
-
-Snapshots carry an Atlas `revision` scoped to `atlasId` and `bootId`. The revision
-versions the published gameplay projection; clock samples can change without a
-revision change. See [http-v1.md](http-v1.md) for live revision and reconnect rules.
+Atlas's own status is `GET /api/v1/state` (`atlas-state-v1.schema.json`): who
+holds the table, battery and links, with a `revision` scoped to `atlasId` and
+`bootId`. A hosted game's state is the hub's ([hosted-v1.md](hosted-v1.md)).
+See [http-v1.md](http-v1.md) for revision and reconnect rules.
 
 ## Initial client API shape
 
@@ -75,13 +81,14 @@ The implemented HTTP surface is documented in [http-v1.md](http-v1.md):
 ```text
 GET  /api/v1/state
 GET  /api/v1/info
-POST /api/control/pass   (authenticated session adapter; other controls also exist)
+POST /api/hosted/claim | state | inputs | release   (hosted-v1.md)
 ```
 
-Additional endpoints may exist for profiles, authentication, device management, firmware, diagnostics, and setup. Gameplay semantics should still enter Atlas through the Intent layer.
+Other endpoints cover profiles, authentication, device management, firmware,
+diagnostics and setup.
 
 `POST /api/v1/intent` and `WS /api/v1/events` remain unimplemented proposals.
-The JSON envelope above is a draft, not a body accepted by `/api/control/pass`.
+The JSON envelope above is a draft.
 
 ## Intent result
 
@@ -125,23 +132,23 @@ that implements a rule runs the same files. Planechase is the first.
 
 ## State and event rules
 
-- Atlas assigns the canonical state revision.
-- Clients never increment the canonical revision themselves.
+- The state's owner (the hub for a game, Atlas for its own status) assigns its revision.
+- Clients never increment another owner's revision themselves.
 - A reconnect begins with a snapshot, not replaying guessed local history.
 - Events may reference the revision they resulted from.
 - If a client detects a revision gap it should request a new snapshot.
-- Time-sensitive display data may be locally rendered between snapshots, but Atlas remains authoritative for the underlying game clock/state.
+- Time-sensitive display data may be locally rendered between snapshots, but the hub remains authoritative for the underlying game clock/state.
 
 ## Security direction
 
 A table QR or discovery mechanism identifies/reaches an Atlas. It must not by itself grant control of a player seat.
 
-Authentication/seat assignment is a separate step. Client-supplied player numbers are not trusted when Atlas can resolve identity from the authenticated session/device relationship.
+Authentication/seat assignment is a separate step. Client-supplied player numbers are not trusted when the hub or Atlas can resolve identity from the authenticated session/device relationship.
 
 ## Current state
 
-Every gameplay action goes through Atlas's Intents, and phones use the same
-application handlers as Sigils (see [profile endpoints and ownership](../Documentation/engineering/PLAYERS_AND_ACCOUNTS.md)).
-The generic v0.1 JSON envelope remains a draft. State/info routes and revision-aware
-session controls are live. Internal `controllerId` naming does not silently change the
-draft JSON schema's `moduleId` field or the ESP-NOW wire packet.
+Games run on the hub's shared core; Atlas relays its Sigils' and screen's
+inputs to the hub ([hosted-v1.md](hosted-v1.md)). Atlas's own device and
+account actions go through its Intents. The generic v0.1 JSON envelope remains
+a draft. Internal `controllerId` naming does not silently change the draft
+JSON schema's `moduleId` field or the ESP-NOW wire packet.

@@ -20,7 +20,7 @@ bool atlasDisplayInverted();
 bool chooseAtlasDisplayInverted(bool inverted);
 // Backlight off and panel asleep, just before deep sleep (sleepAtlas).
 void darkenAtlasDisplayForSleep();
-// Menu > Device Sleep (scheduled by handleSleepIntent, table_intents.cpp):
+// Menu > Device Sleep (scheduled by handleSleepIntent, device_intents.cpp):
 // screen dark, backlight held off, then deep sleep until the screen is
 // touched (the FT6336U interrupt, TOUCH_INT_PIN) or BOOT (GPIO0) is pressed. Never
 // returns: waking restarts Atlas. Asleep on the cell, Atlas also wakes every
