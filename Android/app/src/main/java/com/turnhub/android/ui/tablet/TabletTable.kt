@@ -66,6 +66,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -1058,6 +1059,8 @@ internal fun PlayerPanel(
     // An emperor's turn edge is gold (owner, 2026-10-21); generals keep the usual colour.
     val emperorSeat = (unit.members.first().playerNumber - 1).takeIf { summary.emperor }
     val activeColor = if (emperorSeat != null && com.turnhub.android.domain.Emperor.isEmperor(emperorSeat)) p.emperorGold else p.active
+    val panelDensity = androidx.compose.ui.platform.LocalDensity.current
+    var headingHeight by remember(unit.key) { mutableStateOf(0.dp) }
     androidx.compose.runtime.CompositionLocalProvider(com.turnhub.android.ui.theme.LocalTurnHubPalette provides p) {
     MaterialTheme(colorScheme = p.toColorScheme()) {
     BoxWithConstraints(
@@ -1110,7 +1113,8 @@ internal fun PlayerPanel(
         // remaining area; gaps around Pass can never fall through to life controls.
         Column(Modifier.fillMaxSize()) {
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
-                val between = (maxHeight.value - turnRoom - 52f).coerceAtLeast(24f)
+                val headerRoom = maxOf(44f, headingHeight.value)
+                val between = (maxHeight.value - turnRoom - headerRoom - 8f).coerceAtLeast(24f)
                 // Room for the lines under the number, so a short panel shrinks the number instead of
                 // squashing those lines to slivers.
                 val demerits = unit.members.first().demerits
@@ -1133,45 +1137,37 @@ internal fun PlayerPanel(
                         { onBump(small) }, { onBump(big) }, Alignment.CenterEnd, Modifier.weight(1f).fillMaxHeight())
                 }
 
-                Row(
-                    Modifier.align(Alignment.TopStart).padding(horizontal = 16.dp, vertical = 12.dp)
-                        // Stops short of the centre disc, which covers the middle of this edge.
-                        .then(if (underHub) Modifier.widthIn(max = (panelWidth / 2 - 62.dp).coerceAtLeast(64.dp)) else Modifier),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    unit.members.forEach { member -> member.avatar?.let {
-                        com.turnhub.android.ui.components.AvatarGlyph(it, p.text, 32.dp)
-                    } }
-                    Column(Modifier.weight(1f, fill = false).widthIn(max = nameMax)) {
-                        Text(name, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        commanders?.let {
-                            Text(it, color = p.muted, style = MaterialTheme.typography.labelMedium, fontStyle = FontStyle.Italic,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
+                val markers = buildList {
                     if (summary.doomBag != null && summary.players.count { !it.eliminated } > 2 && !out) {
                         val risk = summary.doomBag.contains(unit.members.first().playerNumber)
-                        Tag(if (risk) "In bag" else "Safe", if (risk) p.warn else p.good, p.surface)
+                        add(PanelMarker(if (risk) "In bag" else "Safe", if (risk) p.warn else p.good, p.surface))
                     }
-                    emperorSeat?.let { seat ->
-                        Tag(emperorTag(seat), p.emperorTeamColor(com.turnhub.android.domain.Emperor.team(seat)), p.surface)
-                    }
-                    if (active) Tag("Turn", activeColor, p.onActive)
-                    if (out) Tag(if (unit.members.any { it.conceded }) "Conceded" else if (unit.members.any { it.selfEliminated }) "Eliminated by self" else "Eliminated", p.bad, p.surface)
+                    emperorSeat?.let { seat -> add(PanelMarker(emperorTag(seat),
+                        p.emperorTeamColor(com.turnhub.android.domain.Emperor.team(seat)), p.surface)) }
+                    if (active) add(PanelMarker("Turn", activeColor, p.onActive))
+                    if (out) add(PanelMarker(if (unit.members.any { it.conceded }) "Conceded"
+                        else if (unit.members.any { it.selfEliminated }) "Eliminated by self" else "Eliminated", p.bad, p.surface))
                     unit.members.first().eliminatedBy?.let { source ->
-                        summary.players.firstOrNull { it.playerNumber == source }?.let { Text("By ${it.label}", color = p.muted) }
+                        summary.players.firstOrNull { it.playerNumber == source }?.let {
+                            add(PanelMarker("By ${it.label}", p.surface, p.muted))
+                        }
                     }
                 }
+                AdaptivePlayerHeading(unit.members, name, commanders, markers, nameMax, panelWidth, maxHeight,
+                    reserveCredit = cards.any { it != null },
+                    modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 16.dp, vertical = 12.dp)
+                        // Leave the same safe zone beside the table's center menu.
+                        .then(if (underHub) Modifier.widthIn(max = (panelWidth / 2 - 62.dp).coerceAtLeast(64.dp)) else Modifier)
+                        .onSizeChanged { headingHeight = with(panelDensity) { it.height.toDp() } })
 
                 unit.members.firstOrNull { it.playerNumber == summary.monarchPlayerNumber }?.let { monarch ->
                     MonarchBadge(if (unit.members.size > 1) monarch.label else null,
-                        Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = if (commanders != null) 70.dp else 52.dp))
+                        Modifier.align(Alignment.TopStart).padding(start = 16.dp,
+                            top = (if (commanders != null) 70.dp else 52.dp) + (headerRoom - 44f).dp))
                 }
 
                 Column(
-                    Modifier.align(Alignment.Center).padding(top = 44.dp, bottom = 8.dp + turnRoom.dp)
+                    Modifier.align(Alignment.Center).padding(top = headerRoom.dp, bottom = 8.dp + turnRoom.dp)
                         .alpha(if (out) .45f else 1f)
                         .clearAndSetSemantics {
                             contentDescription = scoreDescription(profile, name, life, summary.settings.startingLife)
@@ -1302,8 +1298,10 @@ private fun InvestigatorPanelContent(
             member.investigator?.let {
                 Text(it, color = p.muted, style = MaterialTheme.typography.labelMedium, fontStyle = FontStyle.Italic)
             }
-            if (active) Tag("Turn", p.active, p.onActive)
-            if (unit.out) Tag(if (member.conceded) "Conceded" else "Eliminated", p.bad, p.surface)
+            AdaptivePanelMarkers(buildList {
+                if (active) add(PanelMarker("Turn", p.active, p.onActive))
+                if (unit.out) add(PanelMarker(if (member.conceded) "Conceded" else "Eliminated", p.bad, p.surface))
+            })
         }
         InvestigatorTracks(unit, summary, wounds, onWound, onMark,
             Modifier.fillMaxWidth().alpha(if (unit.out) .45f else 1f)) { who, action -> onControl(who.seat(), action) }
@@ -1428,17 +1426,6 @@ private fun MenuButton(name: String, compact: Boolean, onOpen: () -> Unit) {
         // A short panel keeps just the icon; its spoken label still says Menu.
         if (!compact) Text("More", color = p.text, fontWeight = FontWeight.SemiBold)
     }
-}
-
-@Composable
-private fun Tag(text: String, background: Color, color: Color) {
-    Text(
-        text,
-        color = color,
-        style = MaterialTheme.typography.labelMedium,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.background(background, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 2.dp),
-    )
 }
 
 /** Cancels when a life gesture leaves its actual bounds, including platform touch slop. */

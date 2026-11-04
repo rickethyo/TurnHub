@@ -691,6 +691,10 @@ Table view and personal phone controls use the same live player-card renderer.
 Cards with loaded commander/investigator art or a custom image use dark artwork
 contrast and light lettering in every app theme, so Daylight does not whiten
 the image. The surrounding shell and cards without images keep the chosen theme.
+Live status badges such as Turn and Conceded grow with the panel and the space
+left after measuring its name/subtitle. Crowded badges shrink or wrap beneath
+the name, and the life readout reserves room for the resulting heading. Their
+full text and Android's text scaling are retained.
 The Table tab is the live facing-seat layout. A compact wrapping row above the Game tab
 keeps the game selector and Play Together together. Game menu contains the
 Game card selector for personal/pass-and-play views. For eligible connected
