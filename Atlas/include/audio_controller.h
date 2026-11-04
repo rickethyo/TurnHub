@@ -26,7 +26,7 @@ enum class AudioCue : uint8_t {
   TurnPassed,          // Heard by the Sigil that passed. Silent by default.
   Pause,
   Resume,
-  TurnWarning,         // Turn timer: TURN_TIMER_WARNING_MS left. A subtle chirp.
+  TurnWarning,         // Turn timer nearly out. A subtle chirp.
   TimerExpired,        // Turn timer reached zero. No turn change follows.
   ActionRequired,      // A decision waits on this Sigil: win confirmation or life approval.
   GameStart,

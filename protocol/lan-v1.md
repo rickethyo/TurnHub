@@ -77,7 +77,7 @@ eliminated; public read-only members need a game-master grant to send edits.
 The hub validates the target and boolean, saves before acknowledging, rolls back
 failed writes, and returns current presentation state. Repeating the same value
 is idempotent. Other targets retain their values. Room `displayOrientations`
-persists across reconnects/restart and travels with the existing Atlas room backup.
+persists across reconnects and restarts.
 This does not alter game revisions, seat order, rules or gameplay permissions.
 
 Android displays render only their own setting. All panels upright ignores local
@@ -160,11 +160,8 @@ host record; Leave room deletes a guest's reconnect record. Closing the app does
 neither. Display-awake behavior and the existing five-minute background link hold
 remain; a closed standalone hub cannot serve until reopened.
 
-An Atlas hub mirrors its saved room through capability-authenticated
-`POST /api/room` (see HTTP contract). Local saving precedes asynchronous Atlas
-backup; a failed backup is visible and retryable. One saved room is supported per
-Atlas. Atlas keeps running its game while the hub is unavailable; LAN guests wait
-for the same hub to return. A saved room is not an independent Atlas LAN server.
+The room lives only on the hub; Atlas keeps no copy. LAN guests wait for the
+same hub to return.
 
 ## Verification
 

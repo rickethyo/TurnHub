@@ -147,8 +147,8 @@ const lv_image_dsc_t *labelIcon(const char *label) {
       {"Add seat B", &th_icon_users_24}, {"Close", &th_icon_close_24}, {"Undo", &th_icon_refresh_24},
       {"Done", &th_icon_check_24}, {"More actions", &th_icon_more_24}, {"Drop seat B", &th_icon_users_24},
       {"Partner: off", &th_icon_users_24}, {"Partner: on", &th_icon_users_24}, {"Leave lobby", &th_icon_close_24},
-      {"Reset table", &th_icon_refresh_24}, {"Link phone", &th_icon_link_24}, {"Switch seat", &th_icon_users_24},
-      {"Switch game", &th_icon_table_24}, {"Random start", &th_icon_refresh_24},
+      {"Reset table", &th_icon_refresh_24}, {"Switch seat", &th_icon_users_24},
+      {"Random start", &th_icon_refresh_24},
       {"Next starter", &th_icon_chevron_right_24}, {"Undo hit", &th_icon_refresh_24},
       {"Counters", &th_icon_plus_24}, {"Cmd damage", &th_icon_crown_24}, {"Calibrate", &th_icon_sigil_24}, {"Undo pass", &th_icon_refresh_24},
   };

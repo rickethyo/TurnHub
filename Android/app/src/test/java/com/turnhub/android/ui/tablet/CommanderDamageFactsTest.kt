@@ -12,16 +12,14 @@ class CommanderDamageFactsTest {
         it.copy(settings = it.settings.copy(profile = GameProfile.MTG_COMMANDER))
     }
 
-    @Test fun `full source names partner damage and pending offline damage remain visible`() {
+    @Test fun `full source names and partner damage remain visible`() {
         val base = summary()
         val source = base.players[1].copy(label = "A much longer source name")
         val recipient = base.players[0].copy(commanderDamage = listOf(CommanderDamage(source.playerNumber, listOf(7, 3))))
         val table = base.copy(players = listOf(recipient, source))
-        val facts = commanderDamageFacts(TableUnit("recipient", listOf(recipient)), table) { who, from, commander ->
-            if (who == recipient.participantId && from == source.playerNumber && commander == 2) 4 else 0
-        }
+        val facts = commanderDamageFacts(TableUnit("recipient", listOf(recipient)), table)
         assertEquals(1, facts.size)
-        assertEquals(14, facts.single().total)
+        assertEquals(10, facts.single().total)
         assertEquals(source.label, facts.single().name)
         assertTrue(facts.single().text.contains(source.label))
     }
@@ -33,7 +31,7 @@ class CommanderDamageFactsTest {
         val second = first.copy(playerNumber = 3, participantId = 333, commanderDamage = listOf(CommanderDamage(source.playerNumber, listOf(20, 0))))
         val table = base.copy(players = listOf(first, source, second))
         val team = TableUnit("team", listOf(first, second))
-        assertEquals(listOf(11, 20), commanderDamageFacts(team, table) { _, _, _ -> 0 }.map { it.total })
-        assertTrue(commanderDamageFacts(team, table.copy(settings = table.settings.copy(profile = GameProfile.POKEMON))) { _, _, _ -> 0 }.isEmpty())
+        assertEquals(listOf(11, 20), commanderDamageFacts(team, table).map { it.total })
+        assertTrue(commanderDamageFacts(team, table.copy(settings = table.settings.copy(profile = GameProfile.POKEMON))).isEmpty())
     }
 }

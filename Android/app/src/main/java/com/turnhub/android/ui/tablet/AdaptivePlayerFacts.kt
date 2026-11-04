@@ -17,14 +17,13 @@ internal data class CommanderDamageFact(val source: Int, val name: String, val t
     val text: String get() = "⚔ $name $total"
 }
 
-internal fun commanderDamageFacts(unit: TableUnit, summary: TableSummary,
-    offlineCommander: (Long, Int, Int) -> Int): List<CommanderDamageFact> {
+internal fun commanderDamageFacts(unit: TableUnit, summary: TableSummary): List<CommanderDamageFact> {
     if (!summary.settings.profile.commanderRules) return emptyList()
     return unit.members.flatMap { member ->
         summary.players.filter { it.playerNumber != member.playerNumber }.map { source ->
             val damage = member.commanderDamage.firstOrNull { it.sourcePlayer == source.playerNumber }?.damage.orEmpty()
             CommanderDamageFact(source.playerNumber, source.label,
-                (1..2).sumOf { c -> (damage.getOrNull(c - 1) ?: 0) + offlineCommander(member.participantId, source.playerNumber, c) })
+                (1..2).sumOf { c -> damage.getOrNull(c - 1) ?: 0 })
         }
     }.filter { it.total > 0 }
 }

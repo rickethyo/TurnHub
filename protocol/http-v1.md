@@ -424,23 +424,3 @@ Saved commanders: up to six per profile on the microSD card (`d<profileId>`).
 `commanders: [{slot, name, art}]`, newest first. Choosing a commander for a
 game is the hub's; the match record carries it.
 
-## Persistent game-night room backup
-
-`POST /api/room` requires an ordinary game session and the hub's private
-`roomId` (32 lowercase hex) and `ownerKey` (64 lowercase hex). These are separate
-from the public join code and may never enter public state, diagnostics or logs.
-One room record is stored in NVS namespace `th_room_v2`, key `room`.
-
-- `record=<JSON>` creates/updates an opaque room record, at most 8192 bytes.
-  Existing records require the same room ID and owner capability. Equal bytes
-  skip flash writes. Storage failure returns 503, without reporting success.
-- Omitting `record` reads that room's saved JSON with the same capability.
-- `end=1` deletes the matching room; no record is an idempotent success.
-- Invalid capability syntax returns 400; another room/owner returns 409;
-  missing records return 404. Anonymous requests receive 401.
-
-This is membership/reconnect backup, not a game checkpoint or host election.
-The hub owns serialized membership writes and a monotonic room sequence; local
-saving precedes asynchronous mirroring. On resume it can recover a newer
-matching Atlas record. A failed mirror remains visible and retryable. Guests
-still connect to the Android hub, not this HTTP endpoint.

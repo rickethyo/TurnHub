@@ -64,17 +64,13 @@ the hub. Contract: `protocol/hosted-v1.md`. Slices, each a flash-and-test round:
 
 Follow-ups left by slices 5 and 6:
 
-- The plane catalog and card routes (`/api/planes`, `/api/planes/card`) have
-  no app client now; `AtlasPlaneCards.kt` stays for the hosted game's plane
-  card on the Atlas screen.
-- The room backup route (`/api/room`) has no app client.
-- The game Intents in `intent.h` are unbound; prune them with the Sigil's
-  "Link phone" action, which Atlas now ignores (Sigil firmware untouched).
-- `/api/accounts` still reports `nudgeMuted`, `atTable`, `reconnectRequired`
-  and the Game Master power bits, which nothing uses now.
-- The app's `TabletTable` still carries dead offline Commander plumbing, and
-  `HomeViewModel.onAtlasOpened` is unused.
-- `shared/include/protocol.h` still names `GameEngine` in a comment.
+- The plane catalog and card routes (`/api/planes`, `/api/planes/card`) and
+  the Atlas screen's plane card view stay, but no app client sends cards now:
+  wire `AtlasPlaneCards.kt` into the hosted game, or retire the view.
+- `/api/accounts` still reports `nudgeMuted` and the Game Master moderation
+  bits (Reset connections, Remove player), which only the app's People sheet
+  shows now; decide whether Game Master still means anything on Atlas before
+  changing the account layout.
 - "Connect a phone to start" on the Atlas screen with no hub (slice 3).
 
 ## Saved game setups on Atlas (next parity slice, 2026-10-31)
@@ -83,10 +79,10 @@ Android saves named lobby configurations locally (seats/identities, format, rule
 
 ## Persistent rooms: device acceptance and iOS counterpart
 
-Android and Atlas implement the version-2 room contract in
+Android implements the version-2 room contract in
 [Shared devices](SHARED_DEVICES.md). Verify two real devices through process
 recreation, Wi-Fi address changes, same-profile reconnect without PIN, game-type
-changes, simultaneous facing-panel taps and loss/recovery of Atlas backup.
+changes and simultaneous facing-panel taps.
 Verify the UI with large text and TalkBack. The hub remains the game's
 authority; the room does not create an additional takeover path.
 

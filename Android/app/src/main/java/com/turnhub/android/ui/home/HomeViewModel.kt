@@ -1062,11 +1062,6 @@ class HomeViewModel(
 
     fun onAtlasDiscoveryEnabled() { autoStarted = false; onAppStarted() }
 
-    fun onAtlasOpened() {
-        automaticProbe = false
-        repository.tableSummary.value?.let { offerAutomaticSignIn(it.atlasId) }
-    }
-
     /** "Try again" after the saved table didn't answer. */
     fun onSearchAgain() {
         automaticProbe = false

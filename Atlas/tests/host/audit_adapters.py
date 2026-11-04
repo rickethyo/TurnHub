@@ -1,10 +1,10 @@
 """Regression guard for the Atlas controller/application boundary.
 
 Transport adapters (Sigil radio events, browser callbacks,
-touchscreen buttons, loop timers) must only build Intents and dispatch them. This check
-fails if an adapter body mutates canonical game/lobby state, assigns
-table-decision state, calls a lifecycle transition helper, or calls an
-Intent handler directly instead of going through the dispatcher.
+touchscreen buttons, loop timers) must only build Intents and dispatch them
+(or queue hosted inputs for the hub). This check fails if an adapter body
+calls an Intent handler directly instead of going through the dispatcher, or
+changes pairing state itself.
 """
 from pathlib import Path
 import re
@@ -20,10 +20,6 @@ ADAPTERS = {
 }
 
 FORBIDDEN = [
-    r"game\.(?:start|reset|passTurn|pause|resume|endInDraw|changeLife|requestLifeChange|respondLifeChange|expireLifeChanges|cancelLifeChanges|changeCommanderDamage|recordCommanderHit|undoCommanderHit|eliminatePlayer|claimMonarch|changePlayerCounter|setEliminationSettings|beginWinClaim|confirmWinClaim|denyWinClaim|cancelWinClaim)\s*\(",
-    r"lobby\.(?:join|leave|toggleSecondary|selectStarter|selectStarterSeat|randomStarter|resetEmpty|resetForRematch|setStartArmedBy|clearStartArm|replaceController)\s*\(",
-    r"\b(?:hubState|eliminationTargetPlayer|winArmedModule|winArmedPlayer|pendingPass|countdownStartedAtMs|nextGameSettings)\s*=(?!=)",
-    r"\b(?:enterEmptyLobby|enterRematchLobby|startGame|beginCountdown|cancelCountdown|finishGameState|clearDecisionState|confirmElimination|beginEliminationSelection|cycleEliminationTarget|cancelEliminationSelection|clearPendingPass|cancelPendingPassForModule)\s*\(",
     r"\bhandle\w+Intent\s*\(",
     r"sigilBus\.(?:forget|openPairing)\s*\(",
     r"\bpairingWindowMs\s*=(?!=)",

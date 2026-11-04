@@ -419,7 +419,6 @@ internal fun TabletTable(
                         onRespond = { seat, id, accept ->
                             controls { this.respondLife(seat, id, accept) }
                         },
-                        offlineCommander = { _, _, _ -> 0 },
                         haptics = haptics,
                         reduceMotion = reduceMotion,
                         underHub = index in underHub,
@@ -528,7 +527,6 @@ internal fun TabletTable(
                         controls { counter(member.seat(), kind, value, commander) }
                     },
                     onLife = { member, delta -> controls { life(member.seat(), delta) } },
-                    offlineCommander = { _, _, _ -> 0 },
                 )
             }
         }
@@ -862,7 +860,6 @@ internal fun PlayerPanel(
     /** Pokémon and Lorcana: marks a once-per-turn action or Special Condition (see [TurnPanelLines]). */
     onTurnMark: (TablePlayer, String, Int) -> Unit,
     onRespond: (TabletSeat, Long, Boolean) -> Unit,
-    offlineCommander: (Long, Int, Int) -> Int,
     haptics: TurnHubHaptics,
     reduceMotion: Boolean = false,
     underHub: Boolean = false,
@@ -901,7 +898,7 @@ internal fun PlayerPanel(
     val panelDensity = androidx.compose.ui.platform.LocalDensity.current
     var headingHeight by remember(unit.key) { mutableStateOf(0.dp) }
     var factsHeight by remember(unit.key) { mutableStateOf(0.dp) }
-    val damageFacts = commanderDamageFacts(unit, summary, offlineCommander)
+    val damageFacts = commanderDamageFacts(unit, summary)
     val counterRows = if (summary.settings.profile.magicRules) unit.members.map { member ->
         counterChips(member.counters, summary.initiativePlayerNumber == member.playerNumber,
             summary.settings.profile.commanderRules, summary.settings.poisonLimit)
@@ -930,7 +927,7 @@ internal fun PlayerPanel(
     ) {
         if (sector) {
             StarPlayerContent(unit, summary, life, onOpenMenu, onPlanarRoll, onBump, onControl, onTurnMark,
-                onRespond, offlineCommander, haptics, reduceMotion, controlsEnabled, observerOnly,
+                onRespond, haptics, reduceMotion, controlsEnabled, observerOnly,
                 recentDelta, cards.firstOrNull())
             return@BoxWithConstraints
         }
@@ -1121,14 +1118,14 @@ internal fun PlayerPanel(
 private fun StarPlayerContent(unit: TableUnit, summary: TableSummary, life: Int, onMenu: () -> Unit,
     onPlanarRoll: (() -> Unit)?, onBump: (Int) -> Unit, onControl: (TabletSeat, String) -> Unit,
     onTurnMark: (TablePlayer, String, Int) -> Unit, onRespond: (TabletSeat, Long, Boolean) -> Unit,
-    offlineCommander: (Long, Int, Int) -> Int, haptics: TurnHubHaptics, reduceMotion: Boolean,
+    haptics: TurnHubHaptics, reduceMotion: Boolean,
     controlsEnabled: Boolean, observerOnly: Boolean, recentDelta: Int, art: TileArt?) {
     val flow = requireNotNull(LocalStarSeatFlow.current)
     val p = palette
     val member = unit.members.first()
     val active = summary.hasTurn(member.playerNumber) && summary.state != TableState.GAME_OVER
     val (small, big) = lifeSteps(summary.settings.profile)
-    val damage = commanderDamageFacts(unit, summary, offlineCommander)
+    val damage = commanderDamageFacts(unit, summary)
     val counters = listOf(counterChips(member.counters, summary.initiativePlayerNumber == member.playerNumber,
         true, summary.settings.poisonLimit))
     val factSize = adaptiveFactTextSize(counters, damage, flow.facts.width.dp, flow.facts.height.dp, 18)
@@ -1551,7 +1548,6 @@ internal fun PlayerMenu(
     onCommander: (TablePlayer, Int, Int, Int) -> Unit,
     onCounter: (TablePlayer, String, Int, Int) -> Unit,
     onLife: (TablePlayer, Int) -> Unit,
-    offlineCommander: (Long, Int, Int) -> Int,
     controlsEnabled: Boolean = true,
 ) {
     val p = palette
@@ -1600,7 +1596,7 @@ internal fun PlayerMenu(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             PublicDisplayButton()
-            PlayerMenuItems(unit, summary, partners, onControl, onEliminate, onCommander, onCounter, offlineCommander)
+            PlayerMenuItems(unit, summary, partners, onControl, onEliminate, onCommander, onCounter)
         }
         AccentButton("Done", onClose, Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp))
     }
@@ -1615,7 +1611,6 @@ private fun PlayerMenuItems(
     onEliminate: (TablePlayer, Int?) -> Unit,
     onCommander: (TablePlayer, Int, Int, Int) -> Unit,
     onCounter: (TablePlayer, String, Int, Int) -> Unit,
-    offlineCommander: (Long, Int, Int) -> Int,
 ) {
     val p = palette
     val playing = (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) && summary.settings.profile.magicRules
@@ -1709,7 +1704,7 @@ private fun PlayerMenuItems(
                 }
                 summary.players.filter { summary.commanderDamageAllowed(member.playerNumber, it.playerNumber) }.forEach { source ->
                     val damage = member.commanderDamage.firstOrNull { it.sourcePlayer == source.playerNumber }?.damage.orEmpty()
-                    fun valueOf(c: Int) = (damage.getOrNull(c - 1) ?: 0) + offlineCommander(member.participantId, source.playerNumber, c)
+                    fun valueOf(c: Int) = damage.getOrNull(c - 1) ?: 0
                     val commanders = if (showPartner || valueOf(2) > 0) listOf(1, 2) else listOf(1)
                     commanders.forEach { c ->
                         val value = valueOf(c)

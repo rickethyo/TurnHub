@@ -26,8 +26,7 @@ constexpr SigilAction MENU_ORDER[] = {
     SigilAction::Resume, SigilAction::ClaimWin, SigilAction::BeginElimination,
     SigilAction::AddPartner, SigilAction::DropPartner, SigilAction::RandomStarter,
     SigilAction::CycleStarter, SigilAction::AddSeatB, SigilAction::RemoveSeatB, SigilAction::Leave,
-    SigilAction::SwitchTable,
-    SigilAction::Rematch, SigilAction::ResetTable, SigilAction::LinkPhone, SigilAction::SwitchSeat,
+    SigilAction::Rematch, SigilAction::ResetTable, SigilAction::SwitchSeat,
     SigilAction::Pass, SigilAction::CancelPass, SigilAction::Join, SigilAction::StartGame,
     SigilAction::CancelStart, SigilAction::ConfirmWin, SigilAction::DenyWin, SigilAction::Eliminate,
     SigilAction::NextTarget, SigilAction::CancelElimination};
@@ -93,7 +92,6 @@ const char *sigilActionLabel(SigilAction action) {
     case SigilAction::CancelElimination: return "Cancel";
     case SigilAction::Rematch: return "Rematch";
     case SigilAction::ResetTable: return "Reset table";
-    case SigilAction::LinkPhone: return "Link phone";
     case SigilAction::Leave: return "Leave lobby";
     case SigilAction::AdjustLife: return "Change life";
     case SigilAction::CommanderDamage: return "Cmd damage";
@@ -101,7 +99,6 @@ const char *sigilActionLabel(SigilAction action) {
     case SigilAction::AddPartner: return "Partner: off";
     case SigilAction::DropPartner: return "Partner: on";
     case SigilAction::SwitchSeat: return "Switch seat";
-    case SigilAction::SwitchTable: return "Switch game";
     default: return "";
   }
 }

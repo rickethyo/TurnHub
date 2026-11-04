@@ -10,10 +10,7 @@ const char *intentOriginName(IntentOrigin origin) {
   switch (origin) {
     case IntentOrigin::PhysicalSigil: return "SIGIL";
     case IntentOrigin::Browser: return "BROWSER";
-    case IntentOrigin::AndroidApp: return "ANDROID";
     case IntentOrigin::AtlasHardware: return "ATLAS";
-    case IntentOrigin::TableTablet: return "TABLET";
-    case IntentOrigin::Simulator: return "SIMULATOR";
     case IntentOrigin::System: return "SYSTEM";
     case IntentOrigin::Unknown:
     default:

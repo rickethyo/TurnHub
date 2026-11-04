@@ -229,7 +229,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
                                         } else null,
                                         onBump = { bump(it) }, onControl = { _, action -> act(action) },
                                         onTurnMark = { _, kind, value -> act(kind, value) },
-                                        onRespond = { _, _, _ -> }, offlineCommander = { _, _, _ -> 0 },
+                                        onRespond = { _, _, _ -> },
                                         haptics = haptics, reduceMotion = reduceMotion, controlsEnabled = enabled && !tableView)
                                 }
                             }
@@ -244,7 +244,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
                         onCommander = { _, source, commander, delta -> act("commander", delta, commander, source) },
                         onCounter = { _, kind, value, slot -> act(kind, value,
                             if (kind.startsWith(StandaloneGame.ACTION_KIND) || kind.startsWith(StandaloneGame.CONDITION_KIND)) 0 else slot) },
-                        onLife = { _, delta -> act("life", delta) }, offlineCommander = { _, _, _ -> 0 }, controlsEnabled = enabled)
+                        onLife = { _, delta -> act("life", delta) }, controlsEnabled = enabled)
                 }
             }
         }

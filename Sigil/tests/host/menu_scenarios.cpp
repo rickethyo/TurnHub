@@ -73,8 +73,8 @@ int main() {
 
   // Wire format: mask, default and revision; bad defaults read as none.
   {
-    const MenuStateFields f = decodeMenuState2(menu({A::Pass, A::Pause, A::LinkPhone}, A::Pass, 5));
-    assert(f.actions == (sigilActionBit(A::Pass) | sigilActionBit(A::Pause) | sigilActionBit(A::LinkPhone)));
+    const MenuStateFields f = decodeMenuState2(menu({A::Pass, A::Pause, A::Rematch}, A::Pass, 5));
+    assert(f.actions == (sigilActionBit(A::Pass) | sigilActionBit(A::Pause) | sigilActionBit(A::Rematch)));
     assert(f.defaultAction == SIGIL_ACTION_NONE && f.revision == 5);
     assert(decodeMenuState2(menu({A::Pause}, A::Pass, 1)).defaultAction == SIGIL_ACTION_NONE);
     const int32_t select = encodeSelectAction(A::ClaimWin, 63);
@@ -350,11 +350,11 @@ int main() {
     // Touch Select passes, and pressed again in the grace period it
     // undoes the pass (Undo pass is on the click, like Atlas's "pass again").
     SigilMenu sigil;
-    sigil.applyMenuState2(menu({A::Pass, A::Pause, A::ClaimWin, A::LinkPhone}, A::Pass, 1), 0);
+    sigil.applyMenuState2(menu({A::Pass, A::Pause, A::ClaimWin, A::Rematch}, A::Pass, 1), 0);
     sigil.keyDown(Key::Select, 10); sigil.keyUp(Key::Select, 20);
     MenuChoice c = sigil.update(20);
     assert(c.ready && c.action == A::Pass);
-    sigil.applyMenuState2(menu({A::CancelPass, A::Pause, A::ClaimWin, A::LinkPhone}, A::CancelPass, 2), 30);
+    sigil.applyMenuState2(menu({A::CancelPass, A::Pause, A::ClaimWin, A::Rematch}, A::CancelPass, 2), 30);
     assert(sigil.keyAction(Key::Select) == id(A::CancelPass));
     sigil.keyDown(Key::Select, 40); sigil.keyUp(Key::Select, 50);
     c = sigil.update(50);

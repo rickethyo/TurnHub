@@ -161,12 +161,12 @@ static void dispatcherContract() {
   IntentDispatcher dispatcher;
   const auto handler=+[](const Intent&,void*) { return IntentResult::accept(); };
   assert(!dispatcher.bind(IntentType::None,handler));
-  assert(dispatcher.bind(IntentType::Pass,handler));
-  assert(!dispatcher.bind(IntentType::Pass,handler));
-  Intent intent; intent.type=IntentType::Pass;
+  assert(dispatcher.bind(IntentType::Sleep,handler));
+  assert(!dispatcher.bind(IntentType::Sleep,handler));
+  Intent intent; intent.type=IntentType::Sleep;
   assert(dispatcher.dispatch(intent).accepted());
   intent.type=IntentType::Count; assert(!dispatcher.dispatch(intent).accepted());
-  intent.type=IntentType::ChangeLife; assert(!dispatcher.dispatch(intent).accepted());
+  intent.type=IntentType::ForgetPairing; assert(!dispatcher.dispatch(intent).accepted());
 }
 
 
@@ -2969,30 +2969,6 @@ static void deviceNavigation() {
   endHostedGame();resetTouchControls();
 }
 
-static void persistentRoomBackup() {
-  endHostedGame();
-  String id;
-  const String token=registerPhone("Room owner",id);
-  const String room="0123456789abcdef0123456789abcdef";
-  const String owner="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-  const String record="{\"session\":\"room\",\"members\":[{\"role\":\"table\"}]}";
-  testBlobs.erase("room");
-  assert(request("/api/room","",{{"roomId",room},{"ownerKey",owner},{"record",record}})==401);
-  assert(request("/api/room",token,{{"roomId",room},{"ownerKey","bad"},{"record",record}})==400);
-  assert(request("/api/room",token,{{"roomId",room},{"ownerKey",owner},{"record",record}})==200);
-  // Each request opens a fresh store, as a reboot does; no RAM room session is required.
-  assert(request("/api/room",token,{{"roomId",room},{"ownerKey",owner}})==200);
-  assert(server.body==record);
-  assert(request("/api/room",token,{{"roomId",room},{"ownerKey",String("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")},{"record","{}"}})==409);
-  setError=ESP_ERR_NVS_INVALID_HANDLE;
-  assert(request("/api/room",token,{{"roomId",room},{"ownerKey",owner},{"record","{}"}})==503);
-  setError=ESP_OK;
-  assert(request("/api/room",token,{{"roomId",room},{"ownerKey",owner}})==200 && server.body==record);
-  assert(request("/api/room",token,{{"roomId",room},{"ownerKey",owner},{"end","1"}})==200);
-  assert(request("/api/room",token,{{"roomId",room},{"ownerKey",owner}})==404);
-  ProfileFixture::profiles.erase(id.c_str());
-}
-
 static void phoneHostedGame() {
   freshTable(); testNow=50000;
   auto &hosted=TurnHubHosted::hostedTable(); hosted.clear();
@@ -3209,7 +3185,6 @@ int main() {
   manaTapOnAtlas(); std::cout<<"PASS Mana Tap on Atlas: touch play, pause on leaving or a pass, record, no table state\n";
   deliberatePairing(); std::cout<<"PASS deliberate pairing authorization, radio failure, timeout, rollover and gameplay exclusion\n";
   virtualProfileFlow(); std::cout<<"PASS profile registration/login, phone-only game, companion sessions, authorization and throttling\n";
-  persistentRoomBackup(); std::cout<<"PASS persistent room backup: capability, restart, failed storage, end\n";
   phoneHostedGame(); std::cout<<"PASS phone-hosted game: lease, revisions, Atlas screen controls queue inputs, input queue, expiry\n";
   hostedResume(); std::cout<<"PASS phone-hosted resume: a quiet or departed hub leaves its unfinished game for another phone\n";
   hostedSigils(); std::cout<<"PASS phone-hosted Sigils: join, bound seats drawn from the hub game, menus, keys queued not applied\n";
