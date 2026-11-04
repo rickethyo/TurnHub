@@ -1,0 +1,268 @@
+#include "game_recovery.h"
+#include "game_engine.h"
+#include "lobby.h"
+#include <Arduino.h>
+#include <cstring>
+#include "serial_log.h"
+
+using TurnHub::serialLog;
+
+namespace TurnHub {
+namespace {
+constexpr uint32_t MAGIC = 0x50434854; // THCP, explicit little-endian wire bytes
+constexpr uint32_t SCHEMA = 10;
+constexpr uint32_t CLOCK_CHECKPOINT_MS = 60000;
+// Wire layout (little-endian): magic, schema, 12 header bytes (including monarch, initiative, loss flags and the
+// 16-bit winner set), 6 header words, 22 bag bytes, then (schema 9) a table byte (day/night, reversed bit 2) and
+// the 16-bit rad-due set; then per player: 3 bytes, participant word, 9-byte profile ID, 4 stat words,
+// 5 counter words, blessing byte, (schema 9) treasure and rad words, eliminated byte, life word and
+// count x 2 Commander damage words; CRC-32 last. Schema 10 adds a 49-byte
+// match ID after the table fields and a 33-byte name before each player.
+constexpr size_t HEADER_SIZE = 4 + 4 + 12 + 6 * 4 + 22 + 3 + 49;
+constexpr size_t CRC_SIZE = 4;
+constexpr size_t MIN_RECORD_SIZE = HEADER_SIZE + CRC_SIZE;
+constexpr size_t PLAYER_SIZE = 3 + 4 + sizeof(PlayerSeat::profileId) + 4 * 4 + 1 + 4 + 22 + 8 + 33;
+static_assert(GAME_CHECKPOINT_CAPACITY ==
+                  MIN_RECORD_SIZE + MAX_PLAYERS * (PLAYER_SIZE + MAX_PLAYERS * 2 * 4),
+              "GAME_CHECKPOINT_CAPACITY must match the largest record");
+
+// Bounds-checked little-endian writer; ok turns false on overflow.
+struct Writer {
+  Writer(uint8_t *dataIn, size_t capacityIn) : data(dataIn), capacity(capacityIn) {}
+  uint8_t *data; size_t capacity, at = 0; bool ok = true;
+  void byte(uint8_t v) { if (at < capacity) data[at++] = v; else ok = false; }
+  void word(uint32_t v) { for (uint8_t i=0;i<4;++i) byte(static_cast<uint8_t>(v >> (8*i))); }
+};
+// Bounds-checked little-endian reader; ok turns false on underflow or a bad flag.
+struct Reader {
+  Reader(const uint8_t *dataIn, size_t sizeIn) : data(dataIn), size(sizeIn) {}
+  const uint8_t *data; size_t size, at = 0; bool ok = true;
+  uint8_t byte() { if (at < size) return data[at++]; ok = false; return 0; }
+  uint32_t word() { uint32_t v=0; for (uint8_t i=0;i<4;++i) v |= uint32_t(byte()) << (8*i); return v; }
+  bool flag() { const uint8_t v=byte(); if (v>1) ok=false; return v!=0; }
+};
+// CRC-32 (IEEE 802.3, reflected polynomial 0xEDB88320).
+uint32_t crc32(const uint8_t *bytes, size_t size) {
+  uint32_t crc = 0xFFFFFFFFu;
+  for (size_t i=0;i<size;++i) {
+    crc ^= bytes[i];
+    for (uint8_t bit=0;bit<8;++bit) crc = (crc>>1) ^ (0xEDB88320u & (0u-(crc&1u)));
+  }
+  return ~crc;
+}
+// The CRC of an encoded record's contents, without its trailing CRC. (A CRC
+// over the whole record is the same constant for every record.)
+uint32_t payloadCrc(const uint8_t *record, size_t size) {
+  return crc32(record, size - CRC_SIZE);
+}
+}  // namespace
+
+size_t encodeCheckpoint(const GameCheckpoint &s, uint8_t *bytes, size_t capacity) {
+  if (!bytes || !validCheckpoint(s)) return 0;
+  Writer w{bytes,capacity};
+  w.word(MAGIC); w.word(SCHEMA);
+  w.byte(s.count); w.byte(s.active); w.byte(s.starter); w.byte(s.winner);
+  w.byte(s.paused); w.byte(s.over); w.byte(profileByte(s.settings));
+  w.byte(s.monarch);
+  w.byte(s.initiative);
+  w.byte((s.settings.autoEliminateAtPoisonLimit ? 1 : 0) | (s.settings.autoEliminateAtCommanderDamage ? 2 : 0) |
+      (s.settings.houseRules ? 4 : 0) | (s.settings.planechase ? 8 : 0) | (s.settings.planarDigital ? 16 : 0));
+  w.byte(static_cast<uint8_t>(s.winners)); w.byte(static_cast<uint8_t>(s.winners >> 8));
+  w.word(static_cast<uint32_t>(s.settings.poisonLimit));
+  w.word(static_cast<uint32_t>(s.settings.startingLife));
+  w.word(s.gameElapsed); w.word(s.turnElapsed); w.word(s.settings.turnTimerMs); w.word(s.nextRequestId);
+  const auto &bag = s.doom;
+  w.word(bag.atRisk); w.word(bag.drawn);
+  w.byte(bag.boundary); w.byte(bag.warmup); w.byte(bag.pending); w.byte(bag.pendingTurn);
+  w.byte(bag.selected); w.byte(bag.lastDraw); w.word(bag.cycle); w.word(bag.lastCheck);
+  w.byte(static_cast<uint8_t>(static_cast<uint8_t>(s.dayNight) | (s.reversed ? 4 : 0)));
+  w.byte(static_cast<uint8_t>(s.radDue)); w.byte(static_cast<uint8_t>(s.radDue >> 8));
+  for (char c : s.gameId) w.byte(static_cast<uint8_t>(c));
+  for (uint8_t i=0;i<s.count;++i) {
+    for (char c : s.names[i]) w.byte(static_cast<uint8_t>(c));
+    const auto &p=s.players[i]; const auto &stats=s.stats[i];
+    w.byte(p.playerNumber); w.byte(p.controllerId); w.byte(p.slot); w.word(p.participantId);
+    for (char c : p.profileId) w.byte(static_cast<uint8_t>(c));
+    w.word(stats.turnsCompleted); w.word(stats.totalTurnMs);
+    w.word(stats.fastestTurnMs); w.word(stats.longestTurnMs);
+    const auto &counters = s.counters[i];
+    w.word(counters.poison); w.word(counters.energy); w.word(counters.experience);
+    w.word(counters.commanderCasts[0]); w.word(counters.commanderCasts[1]); w.byte(counters.cityBlessing);
+    w.word(static_cast<uint32_t>(counters.treasure)); w.word(static_cast<uint32_t>(counters.rad));
+    w.byte((s.eliminated[i] ? 1 : 0) | (s.conceded[i] ? 2 : 0) | (s.selfEliminated[i] ? 4 : 0) | (s.eliminationPending[i] ? 8 : 0)); w.word(static_cast<uint32_t>(s.life[i])); w.byte(s.eliminatedBy[i]);
+    for (uint8_t j=0;j<s.count;++j) for (uint8_t c=0;c<2;++c)
+      w.word(static_cast<uint32_t>(s.damage[i][j][c]));
+  }
+  if (!w.ok) return 0;
+  w.word(crc32(bytes,w.at));
+  return w.ok ? w.at : 0;
+}
+TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameCheckpoint &s) {
+  using TurnHubStorage::Status;
+  if (!bytes || size < 39 || size > GAME_CHECKPOINT_CAPACITY) return Status::Corrupt;
+  Reader header{bytes,size};
+  if (header.word()!=MAGIC) return Status::Corrupt;
+  const uint32_t schema = header.word();
+  if (schema != SCHEMA) return Status::UnsupportedSchema;
+  Reader checksum{bytes + size - CRC_SIZE, CRC_SIZE};
+  if (checksum.word() != crc32(bytes, size - CRC_SIZE)) return Status::Corrupt;
+  Reader r{bytes, size - CRC_SIZE};
+  r.word();  // Magic and schema were checked above.
+  r.word();
+  clearCheckpoint(s);
+  s.count=r.byte(); s.active=r.byte(); s.starter=r.byte(); s.winner=r.byte();
+  s.paused=r.flag(); s.over=r.flag(); readProfileByte(r.byte(), s.settings);
+  s.monarch = r.byte();
+  s.initiative = r.byte();
+  const uint8_t flags = r.byte(); if (flags > 31) return Status::Corrupt;
+  s.settings.autoEliminateAtPoisonLimit = flags & 1; s.settings.autoEliminateAtCommanderDamage = flags & 2;
+  s.settings.houseRules = flags & 4;
+  s.settings.planechase = flags & 8;
+  s.settings.planarDigital = flags & 16;
+  s.winners = r.byte(); s.winners = static_cast<uint16_t>(s.winners | (r.byte() << 8));
+  s.settings.poisonLimit = static_cast<int32_t>(r.word());
+  s.settings.startingLife=static_cast<int32_t>(r.word());
+  s.gameElapsed=r.word(); s.turnElapsed=r.word(); s.settings.turnTimerMs=r.word(); s.nextRequestId=r.word();
+  if (s.count>MAX_PLAYERS) return Status::Corrupt;
+  const uint32_t risk = r.word(), drawn = r.word();
+  if (risk > UINT16_MAX || drawn > UINT16_MAX) return Status::Corrupt;
+  s.doom.atRisk = static_cast<uint16_t>(risk); s.doom.drawn = static_cast<uint16_t>(drawn);
+  s.doom.boundary = r.byte(); s.doom.warmup = r.byte(); s.doom.pending = r.flag(); s.doom.pendingTurn = r.byte();
+  s.doom.selected = r.byte(); s.doom.lastDraw = r.byte(); s.doom.cycle = r.word(); s.doom.lastCheck = r.word();
+  const uint8_t table = r.byte();
+  if ((table & 3) >= static_cast<uint8_t>(DayNight::Count) || table > 7) return Status::Corrupt;
+  s.dayNight = static_cast<DayNight>(table & 3); s.reversed = (table & 4) != 0;
+  s.radDue = r.byte(); s.radDue = static_cast<uint16_t>(s.radDue | (r.byte() << 8));
+  for (char &c : s.gameId) c=static_cast<char>(r.byte());
+  for (uint8_t i=0;i<s.count;++i) {
+    for (char &c : s.names[i]) c=static_cast<char>(r.byte());
+    auto &p=s.players[i]; auto &stats=s.stats[i];
+    p.playerNumber=r.byte(); p.controllerId=r.byte(); p.slot=r.byte(); p.participantId=r.word();
+    for (char &c : p.profileId) c=static_cast<char>(r.byte());
+    stats.turnsCompleted=r.word(); stats.totalTurnMs=r.word();
+    stats.fastestTurnMs=r.word(); stats.longestTurnMs=r.word();
+    auto &c = s.counters[i];
+    c.poison = static_cast<int32_t>(r.word()); c.energy = static_cast<int32_t>(r.word()); c.experience = static_cast<int32_t>(r.word());
+    c.commanderCasts[0] = static_cast<int32_t>(r.word()); c.commanderCasts[1] = static_cast<int32_t>(r.word()); c.cityBlessing = r.flag();
+    c.treasure = static_cast<int32_t>(r.word()); c.rad = static_cast<int32_t>(r.word());
+    const uint8_t exitFlags = r.byte();
+    if (exitFlags > 15) return Status::Corrupt;
+    s.eliminated[i] = (exitFlags & 1) != 0;
+    s.conceded[i] = (exitFlags & 2) != 0;
+    s.selfEliminated[i] = (exitFlags & 4) != 0; s.eliminationPending[i] = (exitFlags & 8) != 0; s.life[i]=static_cast<int32_t>(r.word());
+    s.eliminatedBy[i] = r.byte();
+    for (uint8_t j=0;j<s.count;++j) for (uint8_t c=0;c<2;++c)
+      s.damage[i][j][c]=static_cast<int32_t>(r.word());
+  }
+  return r.ok && r.at == size - CRC_SIZE && validCheckpoint(s) ? Status::Ok : Status::Corrupt;
+}
+
+// Restores a saved match into the engine and lobby. A missing record leaves
+// the store writable; an unreadable or future-schema record is preserved and
+// the store stays read-only so it is never overwritten.
+TurnHubStorage::Status GameRecovery::load(GameEngine &game, Lobby &lobby, uint32_t nowMs) {
+  using TurnHubStorage::Status;
+  writable_ = false;
+  previousSize_ = 0;
+  size_t size = 0;
+  status_ = store_.read(key_, bytes_, sizeof(bytes_), size);
+  serialLog.print("ATLAS|RECOVERY|READ|STATUS|");
+  serialLog.print(storageStatusName(status_));
+  serialLog.print("|SIZE|");
+  serialLog.println(size);
+  if (status_ == Status::NotFound) {
+    writable_ = true;
+    return status_;
+  }
+  if (status_ != Status::Ok) return status_;
+  status_ = decodeCheckpoint(bytes_, size, scratch_);
+  serialLog.print("ATLAS|RECOVERY|DECODE|STATUS|");
+  serialLog.println(storageStatusName(status_));
+  if (status_ != Status::Ok) return status_;  // Preserve unreadable/future records.
+  if (!game.restoreCheckpoint(scratch_, nowMs)) {
+    serialLog.println("ATLAS|RECOVERY|VALIDATE|FAILED");
+    return status_ = Status::Corrupt;
+  }
+  if (scratch_.count) {
+    lobby.restorePlayers(scratch_.players, scratch_.count, scratch_.starter);
+  } else {
+    lobby.resetEmpty();
+  }
+  rememberSaved(nowMs);
+  writable_ = true;
+  serialLog.print("ATLAS|RECOVERY|RESTORE|OK|PLAYERS|");
+  serialLog.print(scratch_.count);
+  serialLog.print("|OVER|");
+  serialLog.println(scratch_.over ? 1 : 0);
+  return status_;
+}
+
+TurnHubStorage::Status GameRecovery::saveCompleted(const GameEngine &game, uint32_t nowMs) {
+  using TurnHubStorage::Status;
+  if (!game.hasPlayers() || !game.gameOver()) return Status::InvalidArgument;
+  writable_ = false;  // A failed barrier must not be bypassed by the observer.
+
+  // Recheck the stored record before replacing it. This also keeps the barrier
+  // safe if recovery could not load at boot: damaged/future records are never
+  // replaced simply because another match has since finished.
+  size_t existingSize = 0;
+  status_ = store_.read(key_, bytes_, sizeof(bytes_), existingSize);
+  if (status_ == Status::Ok) status_ = decodeCheckpoint(bytes_, existingSize, scratch_);
+  if (status_ != Status::Ok && status_ != Status::NotFound) return status_;
+
+  game.checkpoint(scratch_, nowMs);
+  const size_t size = encodeCheckpoint(scratch_, bytes_, sizeof(bytes_));
+  if (!size) return status_ = Status::InvalidArgument;
+  status_ = store_.write(key_, bytes_, size);
+  serialLog.print("ATLAS|RECOVERY|COMPLETION|STATUS|");
+  serialLog.println(storageStatusName(status_));
+  if (status_ == Status::Ok) {
+    rememberSaved(nowMs);
+    writable_ = true;
+  }
+  return status_;
+}
+
+// Keeps a clock-normalized copy of what was last saved, so save() can tell
+// a real state change from elapsed time alone.
+void GameRecovery::rememberSaved(uint32_t nowMs) {
+  scratch_.gameElapsed = 0;
+  scratch_.turnElapsed = 0;
+  previousSize_ = encodeCheckpoint(scratch_, bytes_, sizeof(bytes_));
+  previousCrc_ = previousSize_ ? payloadCrc(bytes_, previousSize_) : 0;
+  lastSavedMs_ = nowMs;
+}
+// Writes only when the match changed (ignoring elapsed clocks) or, for a
+// running match, when the periodic clock checkpoint is due.
+TurnHubStorage::Status GameRecovery::save(const GameEngine &game, uint32_t nowMs) {
+  using TurnHubStorage::Status;
+  if (!writable_) return status_;
+  game.checkpoint(scratch_, nowMs);
+  const uint32_t gameTime = scratch_.gameElapsed;
+  const uint32_t turnTime = scratch_.turnElapsed;
+  scratch_.gameElapsed = 0;
+  scratch_.turnElapsed = 0;
+  const size_t normalizedSize = encodeCheckpoint(scratch_, bytes_, sizeof(bytes_));
+  if (!normalizedSize) return status_ = Status::InvalidArgument;
+  const bool changed = normalizedSize != previousSize_ ||
+      payloadCrc(bytes_, normalizedSize) != previousCrc_;
+  const bool clockDue = game.hasPlayers() && !game.paused() && !game.gameOver() &&
+      nowMs - lastSavedMs_ >= CLOCK_CHECKPOINT_MS;
+  if (!changed && !clockDue) return status_;
+
+  scratch_.gameElapsed = gameTime;
+  scratch_.turnElapsed = turnTime;
+  const size_t size = encodeCheckpoint(scratch_, bytes_, sizeof(bytes_));
+  status_ = store_.write(key_, bytes_, size);
+  serialLog.print("ATLAS|RECOVERY|WRITE|REASON|");
+  serialLog.print(changed ? "CHANGED" : "CLOCK");
+  serialLog.print("|STATUS|");
+  serialLog.print(storageStatusName(status_));
+  serialLog.print("|SIZE|");
+  serialLog.println(size);
+  if (status_ == Status::Ok) rememberSaved(nowMs);
+  return status_;
+}
+GameCheckpoint GameRecovery::scratch_{};
+uint8_t GameRecovery::bytes_[GAME_CHECKPOINT_CAPACITY]{};
+} // namespace TurnHub

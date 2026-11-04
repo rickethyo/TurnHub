@@ -1,0 +1,82 @@
+#pragma once
+
+#include "game_engine.h"
+#include "lobby.h"
+
+namespace TurnHub {
+
+// Read model only: no rules, storage, authentication or transport state.
+struct ClientPending {
+  uint8_t passPlayer = 0;
+  uint32_t passStartedMs = 0;
+  uint32_t countdownStartedMs = 0;
+  uint8_t eliminationTarget = 0;
+  // The last nudge (seq 0: none since boot).
+  uint32_t nudgeSeq = 0;
+  uint8_t nudgeFrom = 0, nudgeTo = 0;
+  uint32_t nudgeAtMs = 0;
+  // Game over within SHORT_GAME_MS and not counted yet (CountShortGame).
+  bool shortGameUncounted = false;
+};
+
+// The /api/v1/state projection (protocol/state-v0.1.schema.json). observe()
+// copies the fields clients render and bumps revision() whenever any changed;
+// clocks are sampled at json() time and never bump the revision.
+class ClientState {
+ public:
+  // Each player's display name ("" for an unnamed guest). Storage reads live
+  // behind this hook, so the projection stays storage-free; it is asked only
+  // when a seat's occupant changes or after refreshNames().
+  using NameLookup = String (*)(const PlayerSeat &seat, bool inGame);
+  // The seat's chosen commander (name and printing ID); false for none.
+  using CommanderLookup = bool (*)(const PlayerSeat &seat, bool inGame, String &name, String &art);
+  static constexpr size_t NAME_LENGTH = 32;
+
+  void setNameLookup(NameLookup lookup) { nameLookup_ = lookup; namesStale_ = true; }
+  void setCommanderLookup(CommanderLookup lookup) { commanderLookup_ = lookup; }
+  // Re-read every name at the next observe() (a profile may have been renamed).
+  void refreshNames() { namesStale_ = true; }
+  void observe(HubState state, const Lobby &lobby, const GameEngine &game,
+      const GameSettings &nextSettings, const ClientPending &pending);
+  // One counter for every game table, so a revision never repeats when a
+  // client follows another game, and a change in either game is a new one.
+  uint32_t revision() const { return revision_; }
+  // True when a pending life request has passed its approval window.
+  bool expirationDue(uint32_t nowMs) const;
+  String json(const String &atlasId, const char *bootId, const GameEngine &game,
+      uint32_t nowMs, uint32_t passGraceMs) const;
+
+ private:
+  struct Player {
+    uint8_t number = 0, controller = INVALID_ID, slot = 0, team = 0;
+    uint32_t participant = 0, turnsCompleted = 0;
+    bool eliminated = false, conceded = false, selfEliminated = false, eliminationPending = false;
+    bool radDue = false;
+    uint8_t eliminatedBy = 0;
+    PlayerCounters counters{};
+    int32_t life = 0;
+    int32_t damage[MAX_PLAYERS][COMMANDERS_PER_PLAYER] = {};
+    LifeChangeRequest request{};
+    char name[NAME_LENGTH + 1] = {};
+    char commander[81] = {};
+    char commanderArt[49] = {};
+  };
+  Player players_[MAX_PLAYERS]{};
+  NameLookup nameLookup_ = nullptr;
+  CommanderLookup commanderLookup_ = nullptr;
+  bool namesStale_ = true;
+  HubState state_ = HubState::Lobby;
+  GameSettings settings_{};
+  DoomBag doom_{};
+  GameEngine::PlanarView planar_{};
+  ClientPending pending_{};
+  uint8_t count_ = 0, host_ = INVALID_ID, starter_ = 0, active_ = 0;
+  uint8_t monarch_ = 0, initiative_ = 0;
+  DayNight dayNight_ = DayNight::Neither;
+  bool reversed_ = false;
+  uint8_t winner_ = 0, claimant_ = 0, confirmation_ = 0;
+  uint16_t winners_ = 0;  // Every winner (bit playerNumber - 1).
+  bool inGame_ = false, initialized_ = false;
+  static uint32_t revision_;
+};
+} // namespace TurnHub
