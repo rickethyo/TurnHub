@@ -78,6 +78,8 @@ class HomeViewModel(
     private val offlineQueues: com.turnhub.android.data.OfflineQueueStore = com.turnhub.android.data.MemoryOfflineQueueStore(),
     /** Atlas on the home network over pinned HTTPS (HOME_WIFI.md); null in tests. */
     private val homeLink: com.turnhub.android.data.AtlasHomeLink? = null,
+    /** Show this phone's game on Atlas as soon as it is connected and signed in; off in tests. */
+    private val autoHost: Boolean = false,
 ) : ViewModel() {
 
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
@@ -93,6 +95,8 @@ class HomeViewModel(
 
     /** Start or stop showing this phone's game on the connected Atlas. The phone keeps running it. */
     fun onHostOnAtlas(on: Boolean) {
+        // The player's own Stop holds until this phone leaves the Atlas.
+        hostingStopped = !on
         hostedJob?.cancel()
         hostedJob = null
         _hostedResume.value = null
@@ -130,11 +134,39 @@ class HomeViewModel(
         }
     }
 
+    /** The player stopped showing this phone's game on the connected Atlas. */
+    private var hostingStopped = false
+    private var autoHostObserver: Job? = null
+
+    /**
+     * Phone-hosted games are the one way to play with Atlas (owner, 2026-11-04):
+     * once this phone is connected and signed in, it shows its game on Atlas
+     * without a tap, unless the player stopped it. Leaving the Atlas resets that.
+     */
+    private fun observeAutoHost() {
+        autoHostObserver?.cancel()
+        autoHostObserver = viewModelScope.launch {
+            // A game Atlas still runs itself keeps the table until it ends.
+            combine(repository.connectionState, repository.offlineSinceMs, playerSession.state,
+                repository.tableSummary.map { it?.state?.underway() == true }) { state, since, session, atlasGame ->
+                state == AtlasConnectionState.CONNECTED && since == null && session is PlayerSessionState.SignedIn && !atlasGame
+            }.distinctUntilChanged().collect { ready ->
+                if (!ready) {
+                    if (repository.connectionState.value == AtlasConnectionState.DISCONNECTED) hostingStopped = false
+                    return@collect
+                }
+                if (!hostingStopped && hostedJob?.isActive != true && _hostedResume.value == null &&
+                    hostedLink.status.value !is com.turnhub.android.data.HostedAtlasLink.Status.Busy) onHostOnAtlas(true)
+            }
+        }
+    }
+
     private var standaloneObserver: Job? = null
     var standalone: com.turnhub.android.standalone.StandaloneTable? = null
         set(value) {
             field = value
             standaloneObserver?.cancel()
+            if (value != null && autoHost) observeAutoHost()
             if (value != null) standaloneObserver = viewModelScope.launch {
                 combine(value.state.map { it.library.history.map { r -> r.recordId } to it.library.players.map { p -> p.links } }.distinctUntilChanged(),
                     repository.tableSummary.map { it?.atlasId to it?.bootId }.distinctUntilChanged(),
@@ -1700,7 +1732,7 @@ class HomeViewModel(
                 HomeViewModel(
                     repositoryFactory, wifiLink, credentialStore, playerSession, releases,
                     AtlasUpdateWatcher(playerSession, releases, updateCheckIntervalMs),
-                    vault, offlineQueues, homeLink,
+                    vault, offlineQueues, homeLink, autoHost = true,
                 )
             }
         }

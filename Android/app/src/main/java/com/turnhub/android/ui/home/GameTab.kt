@@ -155,16 +155,18 @@ internal fun HomeUiState.me(): TablePlayer? {
 enum class GameSource { DEVICE, ATLAS }
 
 /**
- * The one game the Game and Table tabs show. Without an Atlas it is this
- * device's; with one, Atlas runs it unless this device already has a game
- * under way and the player isn't seated at Atlas. [chosen] is the player's
- * own pick from the Game tab and wins while an Atlas is there.
+ * The one game the Game and Table tabs show. Phone-hosted games (owner,
+ * 2026-11-04): this device runs the game and shows it on Atlas, so it is the
+ * device's unless the player is seated in a game Atlas still runs itself
+ * (until those go away). [chosen] is the player's own pick from the Game tab
+ * and wins while an Atlas is there. [deviceGameUnderway] no longer decides.
  */
+@Suppress("UNUSED_PARAMETER")
 fun gameSource(atlasTable: Boolean, seatedAtAtlas: Boolean, deviceGameUnderway: Boolean, chosen: GameSource?): GameSource = when {
     !atlasTable -> GameSource.DEVICE
     chosen != null -> chosen
-    deviceGameUnderway && !seatedAtAtlas -> GameSource.DEVICE
-    else -> GameSource.ATLAS
+    seatedAtAtlas -> GameSource.ATLAS
+    else -> GameSource.DEVICE
 }
 
 /** A game that is being played (not being set up or finished). */

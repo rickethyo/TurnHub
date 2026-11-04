@@ -11,8 +11,8 @@ class GameSourceTest {
     }
 
     @Test
-    fun atlasRunsTheGameUnlessTheDeviceHasOneUnderway() {
-        assertEquals(GameSource.ATLAS, gameSource(true, false, false, null))
+    fun theDeviceRunsTheGameUnlessThePlayerIsSeatedInAnAtlasGame() {
+        assertEquals(GameSource.DEVICE, gameSource(true, false, false, null))
         assertEquals(GameSource.DEVICE, gameSource(true, false, true, null))
         assertEquals(GameSource.ATLAS, gameSource(true, true, true, null))
     }

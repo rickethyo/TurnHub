@@ -54,7 +54,13 @@ the hub. Contract: `protocol/hosted-v1.md`. Slices, each a flash-and-test round:
    on one phone, resume it on another, finish it and see one record on Atlas.
    Not yet: keeping the resumable game across an Atlas restart (RAM only).
 5. **One app path:** remove the app's Atlas-authoritative branch
-   (`TableSummary` games, `LanAtlasRelay`, `OfflineAtlasGame`).
+   (`TableSummary` games, `LanAtlasRelay`, `OfflineAtlasGame`). First step
+   (implemented, `claude/master`): with an Atlas the Game tab shows this
+   phone's game unless the player is seated in a game Atlas runs itself, and a
+   connected, signed-in phone shows its game on Atlas without a tap (Stop holds
+   until it leaves that Atlas; a game Atlas runs itself keeps the table until
+   it ends). Open check: connect a signed-in phone and see Atlas follow its
+   game with no tap. Next: delete the Atlas-run game UI and relays.
 6. **Delete Atlas's engine:** `GameEngine`, `Lobby`, gameplay/table intents,
    game HTTP API, offline merge, old recovery record; rewrite Invariant 1
    ("Atlas owns all canonical state"), CLAUDE.md, AGENTS.md and the manuals.
