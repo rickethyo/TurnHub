@@ -1,0 +1,70 @@
+package com.turnhub.android.data
+
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import org.json.JSONObject
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class HostedAtlasLinkTest {
+    private val calls = mutableListOf<String>()
+    private var claimCode = 200
+    private var stateCode = 200
+
+    private val link = HostedAtlasLink({ method, path, fields ->
+        calls += "$method $path" + (fields.firstOrNull { it.first == "state" }?.let { " " + JSONObject(it.second).getLong("revision") } ?: "")
+        when (path) {
+            "/api/hosted/claim" -> RawResponse(claimCode, if (claimCode == 409) "{\"ok\":false,\"host\":\"Ana\"}" else "{\"ok\":true}")
+            "/api/hosted/state" -> RawResponse(stateCode, "{\"ok\":true}")
+            else -> RawResponse(200, "{\"ok\":true}")
+        }
+    }, renewMs = 10_000)
+
+    private fun game(revision: Long) = JSONObject().put("gameId", "g").put("revision", revision)
+
+    @Test
+    fun `claims, pushes each new state, renews while quiet and releases when stopped`() = runTest {
+        val games = MutableStateFlow(game(1))
+        val job = launch { link.host(games) }
+        runCurrent()
+        assertEquals(listOf("POST /api/hosted/claim", "POST /api/hosted/state 1"), calls)
+        assertEquals(HostedAtlasLink.Status.Hosting, link.status.value)
+        games.value = game(2)
+        runCurrent()
+        assertEquals("POST /api/hosted/state 2", calls.last())
+        advanceTimeBy(10_001)
+        assertEquals("POST /api/hosted/state 2", calls.last())
+        assertEquals(4, calls.size)
+        job.cancel()
+        runCurrent()
+        assertEquals("POST /api/hosted/release", calls.last())
+        assertEquals(HostedAtlasLink.Status.Off, link.status.value)
+    }
+
+    @Test
+    fun `another hub keeps the table and nothing is pushed`() = runTest {
+        claimCode = 409
+        link.host(MutableStateFlow(game(1)))
+        assertEquals(HostedAtlasLink.Status.Busy("Ana"), link.status.value)
+        assertTrue(calls.none { it.startsWith("POST /api/hosted/state") || it.endsWith("release") })
+    }
+
+    @Test
+    fun `a lost lease is claimed back once`() = runTest {
+        val job = launch { link.host(MutableStateFlow(game(1))) }
+        runCurrent()
+        stateCode = 409
+        claimCode = 409
+        advanceTimeBy(10_001)
+        assertEquals(HostedAtlasLink.Status.Busy("Ana"), link.status.value)
+        job.cancel()
+        runCurrent()
+        assertTrue(calls.none { it.endsWith("release") })
+    }
+}

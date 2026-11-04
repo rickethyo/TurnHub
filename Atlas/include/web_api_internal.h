@@ -212,6 +212,12 @@ void handleInfo(WebServer &server);
 void handleState(WebServer &server);
 void handleOfflineGame(WebServer &server);
 void handleOfflineSync(WebServer &server);
+// Phone-hosted games (web_hosted_api.cpp, protocol/hosted-v1.md).
+void handleHostedClaim(WebServer &server);
+void handleHostedRelease(WebServer &server);
+void handleHostedPublish(WebServer &server);
+void handleHostedState(WebServer &server);
+void handleHostedInputs(WebServer &server);
 void handleSeats(WebServer &server);
 void handleGameSettings(WebServer &server);
 void handleSaveGameSettings(WebServer &server);

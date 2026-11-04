@@ -256,6 +256,33 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `set up a new table never reconnects the saved home Atlas and uses the factory password`() = runTest {
+        val homeStore = com.turnhub.android.data.MemoryHomeAtlasStore()
+        val known = com.turnhub.android.data.SavedHomeAtlas("THA-025448410001", "192.168.1.40", 443, "a".repeat(64))
+        homeStore.save(known)
+        store.save(WifiCredentials("Renamed-Table", "old-password"))
+        val home = com.turnhub.android.data.AtlasHomeLink(homeStore, info = { Fixtures.info() },
+            discoverNew = { error("a saved table must not look for new ones") })
+        val vm = HomeViewModel({ repository }, link, store, playerSession, homeLink = home)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
+        vm.onSetUpNewTable()
+        assertEquals(listOf(defaultCredentials), link.joins)
+        assertFalse(repository.connects.contains(known.endpoint))
+    }
+
+    @Test
+    fun `try again with only a saved home Atlas that is away says not found instead of joining a hotspot`() = runTest {
+        val homeStore = com.turnhub.android.data.MemoryHomeAtlasStore()
+        homeStore.save(com.turnhub.android.data.SavedHomeAtlas("THA-025448410001", "192.168.1.40", 443, "a".repeat(64)))
+        val home = com.turnhub.android.data.AtlasHomeLink(homeStore, info = { error("away") })
+        val vm = HomeViewModel({ repository }, link, store, playerSession, homeLink = home)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
+        vm.onSearchAgain()
+        assertEquals(Discovery.NotFound, vm.uiState.value.discovery)
+        assertTrue(link.joins.isEmpty())
+    }
+
+    @Test
     fun `connecting with wifi off asks to turn it on, then joins once it is on`() = runTest {
         link.wifiOn = false
         val viewModel = viewModel()

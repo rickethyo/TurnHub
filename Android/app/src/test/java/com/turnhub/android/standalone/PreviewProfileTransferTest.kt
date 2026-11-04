@@ -35,11 +35,19 @@ class PreviewProfileTransferTest {
     private fun bundle() = PreviewProfileTransfer.export(source, setOf(owner.localId, other.localId), mapOf(owner.localId to "2468"))
 
     @Test fun `only the production app and an explicit Preview result request can export`() {
-        assertTrue(PreviewProfileTransfer.allowedCaller(PreviewProfileTransfer.TURNHUB, PreviewProfileTransfer.PREVIEW, PreviewProfileTransfer.ACTION))
-        assertFalse(PreviewProfileTransfer.allowedCaller(PreviewProfileTransfer.TURNHUB, null, PreviewProfileTransfer.ACTION))
-        assertFalse(PreviewProfileTransfer.allowedCaller(PreviewProfileTransfer.TURNHUB, "another.app", PreviewProfileTransfer.ACTION))
-        assertFalse(PreviewProfileTransfer.allowedCaller(PreviewProfileTransfer.PREVIEW, PreviewProfileTransfer.PREVIEW, PreviewProfileTransfer.ACTION))
-        assertFalse(PreviewProfileTransfer.allowedCaller(PreviewProfileTransfer.TURNHUB, PreviewProfileTransfer.PREVIEW, "wrong"))
+        val key = "AB".repeat(32)
+        val trusted = setOf(key.lowercase())
+        fun allowed(source: String, caller: String?, action: String, signers: Set<String> = setOf(key)) =
+            PreviewProfileTransfer.allowedCaller(source, caller, action, signers, trusted)
+        assertTrue(allowed(PreviewProfileTransfer.TURNHUB, PreviewProfileTransfer.PREVIEW, PreviewProfileTransfer.ACTION))
+        assertFalse(allowed(PreviewProfileTransfer.TURNHUB, null, PreviewProfileTransfer.ACTION))
+        assertFalse(allowed(PreviewProfileTransfer.TURNHUB, "another.app", PreviewProfileTransfer.ACTION))
+        assertFalse(allowed(PreviewProfileTransfer.PREVIEW, PreviewProfileTransfer.PREVIEW, PreviewProfileTransfer.ACTION))
+        assertFalse(allowed(PreviewProfileTransfer.TURNHUB, PreviewProfileTransfer.PREVIEW, "wrong"))
+        // The right package name signed by another key is an impersonator.
+        assertFalse(allowed(PreviewProfileTransfer.TURNHUB, PreviewProfileTransfer.PREVIEW, PreviewProfileTransfer.ACTION, setOf("cd".repeat(32))))
+        assertFalse(allowed(PreviewProfileTransfer.TURNHUB, PreviewProfileTransfer.PREVIEW, PreviewProfileTransfer.ACTION, emptySet()))
+        assertFalse(allowed(PreviewProfileTransfer.TURNHUB, PreviewProfileTransfer.PREVIEW, PreviewProfileTransfer.ACTION, setOf(key, "cd".repeat(32))))
     }
 
     @Test fun `every selected protected profile needs its PIN and only selected identities are copied`() {

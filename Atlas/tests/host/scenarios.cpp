@@ -26,6 +26,7 @@
 // Compile the actual application entry point; the handler and adapter
 // modules it binds are linked from ../../src, not copied rules.
 #include "../../src/main.cpp"
+#include "hosted_game.h"
 #include "profile_stats_bridge.h"
 #include "touch_controls.h"
 #include "../../../Sigil/include/received_packet.h"
@@ -6783,6 +6784,67 @@ static void persistentRoomBackup() {
   ProfileFixture::profiles.erase(id.c_str());
 }
 
+// Phone-hosted games (hosted_game.h, protocol/hosted-v1.md): one hub holds
+// the table, pushes the core's game JSON, and Atlas shows it without deciding.
+static std::string hostedState(const char *gameId,int revision,const char *state,int active,int life) {
+  return std::string("{\"gameId\":\"")+gameId+"\",\"revision\":"+std::to_string(revision)+",\"state\":\""+state+
+      "\",\"profile\":\"MtgCommander\",\"active\":"+std::to_string(active)+
+      ",\"players\":[{\"name\":\"Ana\",\"life\":"+std::to_string(life)+"},{\"name\":\"Ben\",\"life\":40}]}";
+}
+static void phoneHostedGame() {
+  enterEmptyLobby(); testNow=50000;
+  auto &hosted=TurnHubHosted::hostedTable(); hosted.clear();
+  String anaId,benId;
+  const String ana=registerPhone("Hub Ana",anaId), ben=registerPhone("Hub Ben",benId);
+  assert(request("/api/hosted/claim","")==401);
+  assert(request("/api/hosted/state",ana,{{"state",hostedState("g1",1,"RUNNING",0,40).c_str()}})==409);  // claim first
+  assert(request("/api/hosted/claim",ana)==200 && server.body.find("\"host\":\"Hub Ana\"")!=std::string::npos);
+  assert(request("/api/hosted/claim",ben)==409 && server.body.find("Hub Ana")!=std::string::npos);
+  assert(!hosted.live(testNow));
+  // Nothing shows before a game arrives; then the hub's game is the screen.
+  assert(request("/api/hosted/state",ana,{{"state","not json"}})==400);
+  assert(request("/api/hosted/state",ana,{{"state","{\"revision\":1}"}})==400);
+  assert(request("/api/hosted/state",ana,{{"state",hostedState("",5,"LOBBY",0,40).c_str()}})==200);  // setup, no gameId yet
+  assert(request("/api/hosted/state",ana,{{"state",hostedState("",2,"LOBBY",0,40).c_str()}})==200);
+  assert(request("/api/hosted/state",ana,{{"state",hostedState("g1",3,"RUNNING",1,37).c_str()}})==200);
+  assert(hosted.live(testNow) && hosted.game().players.size()==2 && hosted.game().players[0].life==37);
+  resetTouchControls(false);
+  AtlasScreen screen; buildAtlasScreen(testNow,screen);
+  assert(screen.kind==ScreenKind::Status && !strcmp(screen.badge,"PLAYING") && !strcmp(screen.title,"Ben's turn"));
+  assert(!strcmp(screen.detail,"Hosted by Hub Ana") && screen.playerCount==2 && screen.showLife);
+  assert(screen.players[0].life==37 && (screen.players[1].flags&CHIP_ACTIVE) && !(screen.players[0].flags&CHIP_ACTIVE));
+  for(uint8_t i=0;i<screen.buttonCount;++i) assert(screen.buttons[i].action!=TouchAction::PassTurn);  // read-only
+  // Only newer revisions of the same game replace it; a retry is fine.
+  assert(request("/api/hosted/state",ana,{{"state",hostedState("g1",2,"RUNNING",0,40).c_str()}})==400);
+  assert(request("/api/hosted/state",ana,{{"state",hostedState("g1",3,"RUNNING",0,10).c_str()}})==400);
+  assert(request("/api/hosted/state",ana,{{"state",hostedState("g1",3,"RUNNING",1,37).c_str()}})==200);
+  assert(request("/api/hosted/state",ben,{{"state",hostedState("g1",9,"RUNNING",1,1).c_str()}})==409);
+  assert(hosted.game().revision==3);
+  // Watchers read it; only the hub reads the input queue.
+  assert(request("/api/hosted/state",ben,{},HTTP_GET)==200 && server.body.find("\"live\":true")!=std::string::npos &&
+      server.body.find("\"gameId\":\"g1\"")!=std::string::npos);
+  assert(hosted.queue(2,"act-1","{\"do\":\"pass\"}",testNow)==1);
+  assert(hosted.queue(2,"act-1","{\"do\":\"pass\"}",testNow)==1);  // same action once
+  assert(hosted.queue(3,"act-2","{\"do\":\"pass\"}",testNow)==0);  // no such player
+  assert(hosted.queue(1,"act-3","nope",testNow)==0);
+  assert(request("/api/hosted/inputs",ben,{},HTTP_GET)==409);
+  assert(request("/api/hosted/inputs",ana,{{"after","0"}},HTTP_GET)==200 &&
+      server.body.find("\"id\":\"act-1\"")!=std::string::npos && server.body.find("\"last\":1")!=std::string::npos);
+  assert(request("/api/hosted/inputs",ana,{{"after","1"}},HTTP_GET)==200 && server.body.find("act-1")==std::string::npos);
+  // A new game id starts a fresh queue.
+  assert(request("/api/hosted/state",ana,{{"state",hostedState("g2",1,"LOBBY",0,40).c_str()}})==200);
+  assert(hosted.inputsAfter(0).empty());
+  buildAtlasScreen(testNow,screen); assert(!strcmp(screen.badge,"LOBBY") && !strcmp(screen.title,"Game setup") && !screen.showLife);
+  // A hub that goes quiet loses the table; the screen goes back to Atlas's own.
+  testNow+=TurnHubHosted::LEASE_MS;
+  assert(!hosted.live(testNow));
+  buildAtlasScreen(testNow,screen); assert(strncmp(screen.detail,"Hosted by",9)!=0);
+  assert(request("/api/hosted/claim",ben)==200 && !hosted.hasGame());  // the last hub's game is not Ben's
+  assert(request("/api/hosted/release",ana)==409);
+  assert(request("/api/hosted/release",ben)==200 && !hosted.lease().held);
+  ProfileFixture::profiles.erase(anaId.c_str()); ProfileFixture::profiles.erase(benId.c_str());
+}
+
 static void utcBookkeepingClock() {
   TurnHubClock::WallClock clock;
   constexpr uint64_t utc = 1700000000000ULL;
@@ -6826,6 +6888,7 @@ int main() {
   stackDiagnostics(); std::cout<<"PASS stack watermark semantics, warning rate limit, rollover and request tracing\n";
   virtualProfileFlow(); std::cout<<"PASS profile registration/login, phone-only game, companion sessions, authorization and throttling\n";
   persistentRoomBackup(); std::cout<<"PASS persistent room backup: capability, restart, failed storage, end\n";
+  phoneHostedGame(); std::cout<<"PASS phone-hosted game: lease, revisions, read-only Atlas screen, input queue, expiry\n";
   nativeClientBoundary(); std::cout<<"PASS native snapshots, revisions, stale requests, PASS, Commander and reconnect\n";
   guestSigilsDoNotCreateAccounts(); std::cout<<"PASS guest Sigil joins, shared seats, polling and games create no accounts\n";
   physicalCompanionFlow(); std::cout<<"PASS mixed table, physical attachment, two phones and one Sigil, statistics once\n";

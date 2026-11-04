@@ -36,6 +36,8 @@ data class StateSnapshot(
     val nudge: Nudge? = null,
     /** Atlas's own battery; null with no cell or from older firmware. Sampled, not versioned. */
     val battery: AtlasBattery? = null,
+    /** Atlas's links, as its header icons show them; null from older firmware. Sampled, not versioned. */
+    val links: AtlasLinks? = null,
     val monarchPlayer: Int? = null,
     val initiativePlayer: Int? = null,
     /** Magic: `NEITHER`, `DAY` or `NIGHT` (CR 726); null for other formats and older firmware. */
@@ -63,6 +65,16 @@ data class AtlasBattery(
     val percent: Int,
     val low: Boolean,
     val charging: Boolean,
+)
+
+/**
+ * Mirrors `links` in protocol/state-v0.1.schema.json: Atlas's own hotspot is
+ * up, it is on the home network, and how many Sigils are online.
+ */
+data class AtlasLinks(
+    val hotspot: Boolean,
+    val home: Boolean,
+    val sigils: Int,
 )
 
 /**

@@ -19,6 +19,30 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 
 ## Open work
 
+### Phone-hosted games (owner, 2026-11-04)
+
+The hub phone or tablet runs every game with the shared core; Atlas shows it,
+drives the Sigils and keeps profiles, statistics and match history. Phone-less
+games go away; Atlas's screen keeps setup and table views, sending every tap to
+the hub. Contract: `protocol/hosted-v1.md`. Slices, each a flash-and-test round:
+
+1. **Hosted contract and hub push** (implemented, `claude/master`): lease,
+   state and input routes; read-only hosted view on the Atlas screen; the
+   app's "Show on Atlas". Open check: push a running game from a phone and
+   watch the Atlas screen follow; a second phone sees "Atlas busy".
+2. **Sigils:** seat binding chosen in the app; display packets from hosted
+   state; presses queued as inputs; the hub reads `/api/hosted/inputs`.
+   Measure Sigil to hub to Sigil latency (target under 200 ms).
+3. **Atlas screen controls:** setup and game screens read hosted state and
+   queue taps as inputs; "Connect a phone to start" with no hub.
+4. **Records and resume:** finished games go to Atlas's history and stats;
+   Atlas keeps the hub's latest state so another signed-in phone can resume.
+5. **One app path:** remove the app's Atlas-authoritative branch
+   (`TableSummary` games, `LanAtlasRelay`, `OfflineAtlasGame`).
+6. **Delete Atlas's engine:** `GameEngine`, `Lobby`, gameplay/table intents,
+   game HTTP API, offline merge, old recovery record; rewrite Invariant 1
+   ("Atlas owns all canonical state"), CLAUDE.md, AGENTS.md and the manuals.
+
 ### Android stabilization before the iOS port
 
 - **Stable Android reference for iOS** (owner, 2026-10-16): Android has the

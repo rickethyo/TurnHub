@@ -51,6 +51,9 @@ class SigilDisplay {
   // Called only by setup or the display task; changing theme invalidates its caches.
   virtual void setTheme(TurnHubTheme::Id theme) { theme_ = theme; }
   virtual void setInverted(bool inverted) { inverted_ = inverted; }
+  // The Atlas link for the header's signal bars (owner, 2026-11-03), as on
+  // Atlas's header: 0 unpaired (none), 1 lost (dim and slashed), 2 linked.
+  void setAtlasLink(uint8_t link) { atlasLink_ = link; }
   bool inverted() const { return inverted_; }
   TurnHubTheme::Id theme() const { return theme_; }
   bool ornamental() const { return theme_ == TurnHubTheme::Id::Brass; }
@@ -110,6 +113,7 @@ class SigilDisplay {
  protected:
   TurnHubTheme::Id theme_ = TurnHubTheme::Id::Graphite;
   bool inverted_ = false;
+  uint8_t atlasLink_ = 0;
   MenuView menu_;
   LifeOverlay life_;
   uint16_t manaBest_ = 0;

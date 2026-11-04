@@ -682,6 +682,8 @@ void updateDisplay() {
   const bool inverted = pendingInverted;
   themeChanged = false;
   portEXIT_CRITICAL(&displayProfileMux);
+  // The header's signal bars follow the Atlas link on every screen drawn.
+  sigilDisplay.setAtlasLink(atlasKnown ? (atlasLink.lost() ? 1 : 2) : 0);
   if (changedTheme) {
     sigilDisplay.setTheme(theme);
     sigilDisplay.setInverted(inverted);

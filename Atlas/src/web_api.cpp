@@ -200,6 +200,12 @@ const Route ROUTES[] = {
   {"/api/v1/state", HTTP_GET, handleState},
   {"/api/v1/game", HTTP_GET, handleOfflineGame},
   {"/api/v1/offline", HTTP_POST, handleOfflineSync},
+  // Phone-hosted games: the hub runs the game, Atlas shows it (hosted-v1.md).
+  {"/api/hosted/claim", HTTP_POST, handleHostedClaim},
+  {"/api/hosted/release", HTTP_POST, handleHostedRelease},
+  {"/api/hosted/state", HTTP_POST, handleHostedPublish},
+  {"/api/hosted/state", HTTP_GET, handleHostedState},
+  {"/api/hosted/inputs", HTTP_GET, handleHostedInputs},
 
   // Accounts and administration.
   {"/api/room", HTTP_POST, handleRoom},
@@ -373,7 +379,8 @@ class RouteTableHandler final : public RequestHandler {
     if (route == nullptr) return false;
     const WebSession *session = sessionForRequest(server);
     if (session && session->tableDevice && session->profileId[0] == 0) {
-      const bool tabletRoute = strncmp(uri.c_str(), "/api/tablet/", 12) == 0;
+      // The shared table tablet may host the game (phone-hosted games).
+      const bool tabletRoute = strncmp(uri.c_str(), "/api/tablet/", 12) == 0 || strncmp(uri.c_str(), "/api/hosted/", 12) == 0;
       const bool readRoute = method == HTTP_GET && (uri == "/api/v1/info" || uri == "/api/v1/state" || uri == "/api/v1/game" ||
           uri == "/api/seats" || uri == "/api/profiles" || uri == "/api/avatars" || uri == "/api/avatar" ||
           uri == "/api/action-receipt" || uri == "/api/counters" || uri == "/api/profiles/commanders" || uri == "/api/session/me");

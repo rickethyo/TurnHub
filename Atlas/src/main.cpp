@@ -263,7 +263,12 @@ String clientSnapshot(const String &atlasId, const char *bootId) {
   } else {
     json += "null";
   }
-  json += '}';
+  // Atlas's links, as its header icons show them (owner, 2026-11-03): the
+  // hotspot, the home network and the Sigils online. Sampled like the battery.
+  json += ",\"links\":{\"hotspot\":"; json += atlasHotspotOn() ? "true" : "false";
+  json += ",\"home\":"; json += homeWifiConnected() ? "true" : "false";
+  json += ",\"sigils\":"; json += String(static_cast<unsigned>(sigilBus.activeCount(millis())));
+  json += "}}";
   return json;
 }
 

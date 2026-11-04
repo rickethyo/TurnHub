@@ -204,9 +204,8 @@ bool homeWifiConfigured();
 bool homeWifiConnected();
 // Atlas's address on the home network ("" when not connected).
 const char *homeWifiAddress();
-// Atlas's own hotspot is up. On the home-only bench build
-// (TURNHUB_HOTSPOT_OFF_ON_HOME, owner 2026-11-03) it goes off 2 min after
-// Atlas joins the home network and comes back after 1 min without it.
+// Atlas's own hotspot is up (off on the home-only build, TURNHUB_HOTSPOT_OFF
+// in main.cpp, until its fallback brings it back).
 bool atlasHotspotOn();
 // The home network's channel when Atlas last joined it, or 0.
 uint8_t homeWifiNetworkChannel();

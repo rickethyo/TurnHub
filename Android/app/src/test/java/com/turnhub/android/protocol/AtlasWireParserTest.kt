@@ -137,6 +137,15 @@ class AtlasWireParserTest {
 
 
     @Test
+    fun `parses Atlas's links, absent as none`() {
+        assertEquals(AtlasLinks(hotspot = false, home = true, sigils = 2), Fixtures.state("running.response.json").links)
+        assertNull(Fixtures.state("lobby.response.json").links)
+        assertThrows(AtlasWireException::class.java) {
+            Fixtures.state("running.response.json") { getJSONObject("links").put("sigils", 99) }
+        }
+    }
+
+    @Test
     fun `parses Atlas's battery, absent or null as none`() {
         assertEquals(AtlasBattery(percent = 82, low = false, charging = false), Fixtures.state("running.response.json").battery)
         assertNull(Fixtures.state("lobby.response.json").battery)

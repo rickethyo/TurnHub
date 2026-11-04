@@ -40,6 +40,7 @@ class LvglSigilDisplay : public SigilDisplay {
   // The key a finger is on (Key::Count for none), lit on the pad.
   void setPressedKey(Key key);
   void showHome(uint8_t sigilId, bool connected, const char *name, uint8_t mode) override;
+  void linkBars(lv_obj_t *bar);
   void showTable(uint8_t sigilId, const TableSnapshot &table, uint8_t page, bool connected) override;
   void showSettings(uint8_t sigilId) override;
   void showManaTap(uint8_t sigilId, const TurnHub::ManaTap &game, const char *name, bool turnPaused,

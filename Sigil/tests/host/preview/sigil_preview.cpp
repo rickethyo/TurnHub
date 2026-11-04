@@ -82,7 +82,7 @@ int main() {
     LvglSigilDisplay d;
     const auto theme = t == 0 ? TurnHubTheme::Id::Graphite : TurnHubTheme::Id::Brass;
     const std::string suffix = t == 0 ? "" : "-brass";
-    d.setTheme(theme);
+    d.setTheme(theme); d.setAtlasLink(2);
     d.showHome(2,true,"Alexandria",static_cast<uint8_t>(DisplayMode::Running)); save("home"+suffix);
     d.setManaBest(24);
     d.showHome(2,true,"Alexandria",static_cast<uint8_t>(DisplayMode::Running)); save("home-mana-best"+suffix);

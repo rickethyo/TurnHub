@@ -29,13 +29,31 @@ import java.util.UUID
 
 /** The Play app owns consent and account unlocking. No caller can directly read its preferences. */
 class ProfileTransferActivity : ComponentActivity() {
+    /** The calling app's signing certificates; empty when unknown. */
+    private fun callerSigners(caller: String?): Set<String> = runCatching {
+        val pm = packageManager
+        if (caller == null) return emptySet()
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            val info = pm.getPackageInfo(caller, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES).signingInfo
+                ?: return emptySet()
+            // The APK's current signers only, never a rotated key's history.
+            info.apkContentsSigners.orEmpty().map { PreviewProfileTransfer.sha256Hex(it.toByteArray()) }.toSet()
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo(caller, android.content.pm.PackageManager.GET_SIGNATURES).signatures.orEmpty()
+                .map { PreviewProfileTransfer.sha256Hex(it.toByteArray()) }.toSet()
+        }
+    }.getOrDefault(emptySet())
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setResult(RESULT_CANCELED)
-        if (!PreviewProfileTransfer.allowedCaller(BuildConfig.APPLICATION_ID, callingPackage, intent.action)) {
+        if (!PreviewProfileTransfer.allowedCaller(BuildConfig.APPLICATION_ID, callingPackage, intent.action, callerSigners(callingPackage))) {
             finish(); return
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // No tapjacking: ignore taps while another app draws over the consent screen.
+        window.decorView.filterTouchesWhenObscured = true
         val library = runCatching {
             PreferencesStandaloneStore(this).loadLibrary()?.let { LocalLibrary.fromJson(JSONObject(it)) } ?: LocalLibrary()
         }.getOrNull()
