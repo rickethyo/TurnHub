@@ -24,8 +24,23 @@ object PreviewProfileTransfer {
         return JSONObject(out.toString(Charsets.UTF_8.name()))
     }
 
-    fun allowedCaller(source: String, caller: String?, action: String?): Boolean =
-        source == TURNHUB && caller == PREVIEW && action == ACTION
+    /**
+     * SHA-256 of the certificates allowed to sign TurnHub Preview (the owner's
+     * debug key). A package name alone can be claimed by any sideloaded app.
+     * Public fingerprints, not secrets.
+     */
+    val PREVIEW_SIGNERS: Set<String> = setOf(
+        "42621edb537ab6b3c0f4f02d61279af55f5e788e7e7b0efd47c36b66ed00ac0b", // Legion7-Pro debug.keystore (2026-11-04)
+    )
+
+    /** [callerSigners]: SHA-256 hex of each certificate the calling package is signed with. */
+    fun allowedCaller(source: String, caller: String?, action: String?, callerSigners: Set<String>,
+        trusted: Set<String> = PREVIEW_SIGNERS): Boolean =
+        source == TURNHUB && caller == PREVIEW && action == ACTION &&
+            callerSigners.isNotEmpty() && callerSigners.all { it.lowercase() in trusted.map(String::lowercase) }
+
+    fun sha256Hex(bytes: ByteArray): String =
+        java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
     /** Each protected account must be unlocked before its verifier/history/links leave the source. */
     fun export(library: LocalLibrary, selected: Set<String>, secrets: Map<String, String>): JSONObject {

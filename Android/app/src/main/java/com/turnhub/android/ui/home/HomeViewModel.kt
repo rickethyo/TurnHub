@@ -1317,11 +1317,20 @@ class HomeViewModel(
     fun onSetUpNewTable() {
         automaticProbe = false
         local.update { it.copy(discovery = Discovery.Idle, endpointText = AtlasEndpoint.DEFAULT.baseUrl, failure = null) }
-        if (homeLink != null) { onConnectClicked(); return }
-        joinThenConnect(
-            AtlasEndpoint.DEFAULT,
-            WifiCredentials(WifiCredentials.DEFAULT_ATLAS_SSID, WifiCredentials.DEFAULT_ATLAS_PASSPHRASE),
-        )
+        val factoryDefault = WifiCredentials(WifiCredentials.DEFAULT_ATLAS_SSID, WifiCredentials.DEFAULT_ATLAS_PASSPHRASE)
+        val link = homeLink
+        // A table this phone already trusts is never "new": skip home search and use the printed password.
+        if (link == null || link.hasSavedAtlas() || !wifiLink.wifiEnabled()) return joinThenConnect(AtlasEndpoint.DEFAULT, factoryDefault)
+        wifiJoinJob?.cancel()
+        wifiJoinJob = viewModelScope.launch {
+            disconnectJob?.join()
+            local.update { it.copy(discovery = Discovery.Searching) }
+            // A fresh app may find an Atlas already on home Wi-Fi; trusting it still needs the App link code.
+            val candidate = link.pairingCandidate()
+            currentCoroutineContext().ensureActive()
+            local.update { it.copy(discovery = Discovery.Idle, homePairing = candidate) }
+            if (candidate == null) joinThenConnect(AtlasEndpoint.DEFAULT, factoryDefault)
+        }
     }
 
     /** Nothing else is joining, connected, rejoining or asking. */
@@ -1333,20 +1342,25 @@ class HomeViewModel(
 
     private suspend fun rejoinSavedTable() {
         if (!idle()) return
-        if (homeLink != null) { onConnectClicked(); return }
         val saved = credentialStore.lastSsid()?.let(credentialStore::load)
-        if (saved == null) {
-            // A phone that has never joined a table: the screen offers setup.
-            local.update { it.copy(discovery = Discovery.Idle) }
+        val link = homeLink
+        if (saved == null && link?.hasSavedAtlas() != true) {
+            // A phone that has never joined a table: offer an Atlas found on home Wi-Fi, else setup.
+            if (link == null || !wifiLink.wifiEnabled()) { local.update { it.copy(discovery = Discovery.Idle) }; return }
+            local.update { it.copy(discovery = Discovery.Searching, failure = null) }
+            val candidate = link.pairingCandidate()
+            currentCoroutineContext().ensureActive()
+            local.update { it.copy(discovery = Discovery.Idle, homePairing = candidate) }
             return
         }
         if (!wifiLink.wifiEnabled()) return askToTurnOnWifi { onSearchAgain() }
         local.update { it.copy(discovery = Discovery.Searching, failure = null) }
-        homeLink?.find()?.let { home ->
+        link?.find()?.let { home ->
             local.update { it.copy(discovery = Discovery.Idle) }
             connectRepository(home)
             return
         }
+        if (saved == null) { local.update { it.copy(discovery = Discovery.NotFound) }; return }
         val joined = quietJoin(AtlasEndpoint.DEFAULT, saved)
         local.update { it.copy(discovery = if (joined) Discovery.Idle else Discovery.NotFound) }
     }
