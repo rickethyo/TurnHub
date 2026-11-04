@@ -1980,7 +1980,8 @@ Owner follow-up: finish the public display on `codex/master` and install it.
 Codex owns the read-only player-panel footer: replace Pass/More with Active
 turn timing, completed turns and a small format-specific fact from the host
 snapshot. Baseline remains `a3731bb6` with the upright-display work preserved;
-origin/master is already an ancestor. Claude's phone-hosted game work is out
+origin/master was synchronized after committing the slice (#191 had merged).
+Claude's phone-hosted game work is out
 of scope. No gameplay commands, host update, merge or release.
 
 Validation for the public-display follow-up: standard Android debug APK builds;
