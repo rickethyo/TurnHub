@@ -80,7 +80,7 @@ AtlasScreen base(const char *badge, const char *title, const char *detail) {
   snprintf(s.title, sizeof(s.title), "%s", title);
   snprintf(s.detail, sizeof(s.detail), "%s", detail);
   s.sigilsOnline = 2;
-  s.batteryPercent = 72;
+  s.batteryPercent = 72; s.hotspotStations = 1; s.homeWifiOn = true; s.homeWifiLinked = true;
   return s;
 }
 

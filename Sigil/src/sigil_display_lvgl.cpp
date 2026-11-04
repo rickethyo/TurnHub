@@ -36,6 +36,7 @@ namespace {
 constexpr int16_t W = SIGIL_SCREEN_W;
 constexpr int16_t M = 10;  // Side margin.
 constexpr int16_t HEADER_H = 44;
+constexpr int16_t TITLE_RESERVE = 102;  // The header key (76) and the signal bars.
 // Menu's grouped list: four rows above the navigation bar.
 constexpr int16_t MENU_TOP = 50, MENU_ROW_H = 53;
 
@@ -255,6 +256,33 @@ bool LvglSigilDisplay::lifeKeysShown() const {
       menu_.compass[static_cast<uint8_t>(Key::Right)] == MENU_NONE;
 }
 
+// Three signal bars left of the header key, the same icon as the Sigil radio
+// on Atlas's header: lit in the turn colour while Atlas answers, dim and
+// slashed while it is lost, none while unpaired.
+void LvglSigilDisplay::linkBars(lv_obj_t *bar) {
+  if (!atlasLink_) return;
+  constexpr int16_t size = 16, x = 164 - 6 - size, y = (HEADER_H - size) / 2;
+  const bool lit = atlasLink_ == 2;
+  const uint32_t ink = lit ? pal().turn : pal().textTertiary;
+  for (int i = 0; i < 3; ++i) {
+    const int16_t h = 5 + i * 4;
+    lv_obj_t *b = box(bar, x + 1 + i * 5, y + size - h, 3, h);
+    lv_obj_set_style_radius(b, 1, 0);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(b, rgb(ink), 0);
+  }
+  if (!lit) {
+    static const lv_point_precise_t slash[] = {{0, 0}, {14, 14}};
+    lv_obj_t *line = lv_line_create(bar);
+    lv_obj_remove_style_all(line);
+    lv_line_set_points(line, slash, 2);
+    lv_obj_set_style_line_width(line, 2, 0);
+    lv_obj_set_style_line_rounded(line, true, 0);
+    lv_obj_set_style_line_color(line, rgb(pal().textSecondary), 0);
+    lv_obj_set_pos(line, x + 1, y + 1);
+  }
+}
+
 // Each frame owns its visible touch regions; blank space has no action.
 lv_obj_t *LvglSigilDisplay::frame(const char *title, uint8_t, uint8_t, const char *subtitle) {
   styleTheme = theme_; styleInverted = inverted_;
@@ -274,15 +302,16 @@ lv_obj_t *LvglSigilDisplay::frame(const char *title, uint8_t, uint8_t, const cha
   lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_BOTTOM, 0);
   lv_obj_set_style_border_width(bar, 1, 0);
   lv_obj_set_style_border_color(bar, rgb(pal().separator), 0);
+  linkBars(bar);
   if (subtitle) {
     // A two-line header: the title over a small caption, clear of the header key.
-    text(bar, title, &th_semi_20, pal().text, M, 2, W - 2 * M - 80);
-    text(bar, subtitle, &th_eyebrow_13, pal().textSecondary, M, 26, W - 2 * M - 80);
+    text(bar, title, &th_semi_20, pal().text, M, 2, W - 2 * M - TITLE_RESERVE);
+    text(bar, subtitle, &th_eyebrow_13, pal().textSecondary, M, 26, W - 2 * M - TITLE_RESERVE);
     return screen;
   }
   // Large while it clears the header's More key; the smaller title otherwise.
-  const bool large = textWidth(title, &th_bold_28) <= W - 2 * M - 80;
-  text(bar, title, large ? &th_bold_28 : &th_semi_20, pal().text, M, large ? 6 : 11, W - 2 * M);
+  const bool large = textWidth(title, &th_bold_28) <= W - 2 * M - TITLE_RESERVE;
+  text(bar, title, large ? &th_bold_28 : &th_semi_20, pal().text, M, large ? 6 : 11, W - 2 * M - TITLE_RESERVE);
   return screen;
 }
 
