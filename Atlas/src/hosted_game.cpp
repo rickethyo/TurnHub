@@ -10,8 +10,9 @@ Claim HostedTable::claim(const std::string &token, const std::string &profileId,
   if (token.empty()) return Claim::Busy;
   if (leaseLive(nowMs) && lease_.token != token) return Claim::Busy;
   if (lease_.token != token) {
-    // A new hub starts clean: the last hub's game and inputs are not its own.
-    clear();
+    // A new hub starts clean: the last hub's game and inputs are not its own,
+    // though it may resume that game (resumeJson).
+    endLease();
     lease_.held = true;
     lease_.token = token;
   }
@@ -23,8 +24,40 @@ Claim HostedTable::claim(const std::string &token, const std::string &profileId,
 
 bool HostedTable::release(const std::string &token) {
   if (!lease_.held || lease_.token != token) return false;
-  clear();
+  endLease();
   return true;
+}
+
+namespace {
+bool unfinished(const turnhub::Game &game) {
+  return !game.gameId.empty() && game.state != turnhub::TableState::Lobby && game.state != turnhub::TableState::GameOver;
+}
+const std::string NO_HOST;
+}  // namespace
+
+void HostedTable::endLease() {
+  if (hasGame() && unfinished(game_)) {
+    resume_ = state_;
+    resumeHost_ = lease_.name;
+    resumeGameId_ = game_.gameId;
+  }
+  lease_ = Lease();
+  game_ = turnhub::Game();
+  state_.clear();
+  inputs_.clear();
+}
+
+std::string HostedTable::resumeJson(uint32_t nowMs) const {
+  if (leaseLive(nowMs)) return std::string();
+  // A hub that went quiet still has its game here.
+  if (hasGame() && unfinished(game_)) return state_;
+  return resume_;
+}
+
+const std::string &HostedTable::resumeHost(uint32_t nowMs) const {
+  if (leaseLive(nowMs)) return NO_HOST;
+  if (hasGame() && unfinished(game_)) return lease_.name;
+  return resume_.empty() ? NO_HOST : resumeHost_;
 }
 
 bool HostedTable::holds(const std::string &token, uint32_t nowMs) const {
@@ -55,6 +88,8 @@ bool HostedTable::publish(const std::string &token, const std::string &stateJson
   turnhub::Game next = turnhub::gameFromJson(json);
   if (next.players.size() > static_cast<size_t>(turnhub::Game::MAX_PLAYERS)) { error = "That game is not valid"; return false; }
   if (!hasGame() || gameId != game_.gameId) inputs_.clear();
+  // The game to resume is back with a hub (this one resumed it, or its own hub came back).
+  if (!gameId.empty() && gameId == resumeGameId_) { resume_.clear(); resumeHost_.clear(); resumeGameId_.clear(); }
   game_ = std::move(next);
   state_ = stateJson;
   lease_.renewedAtMs = nowMs;
@@ -84,10 +119,10 @@ std::vector<Input> HostedTable::inputsAfter(uint32_t seq) const {
 }
 
 void HostedTable::clear() {
-  lease_ = Lease();
-  game_ = turnhub::Game();
-  state_.clear();
-  inputs_.clear();
+  endLease();
+  resume_.clear();
+  resumeHost_.clear();
+  resumeGameId_.clear();
 }
 
 std::string sigilLocalId(uint8_t sigilId, uint8_t slot) {

@@ -45,8 +45,14 @@ the hub. Contract: `protocol/hosted-v1.md`. Slices, each a flash-and-test round:
    taps, the player screen and game options on a hosted game; "Connect a
    phone to start" with no hub waits for slice 6, while Atlas still runs its
    own games.
-4. **Records and resume:** finished games go to Atlas's history and stats;
-   Atlas keeps the hub's latest state so another signed-in phone can resume.
+4. **Records and resume** (implemented, `claude/master`): finished hosted
+   games reach Atlas's history and stats through the local-game import, which
+   already runs while the hub is connected and signed in. Atlas keeps an
+   unfinished game when its hub releases the table or goes quiet. Another
+   phone that taps Show on Atlas with no game under way is offered "Resume
+   <host>'s game" or "Show mine instead". Open checks: stop hosting mid-game
+   on one phone, resume it on another, finish it and see one record on Atlas.
+   Not yet: keeping the resumable game across an Atlas restart (RAM only).
 5. **One app path:** remove the app's Atlas-authoritative branch
    (`TableSummary` games, `LanAtlasRelay`, `OfflineAtlasGame`).
 6. **Delete Atlas's engine:** `GameEngine`, `Lobby`, gameplay/table intents,

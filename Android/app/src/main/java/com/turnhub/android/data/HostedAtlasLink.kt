@@ -70,6 +70,19 @@ class HostedAtlasLink(
         }
     }
 
+    /** An unfinished game the last hub left on Atlas, for this phone to resume. */
+    data class Resume(val host: String, val game: JSONObject)
+
+    /** The game to resume while no phone hosts the table, or null (none, or Atlas not reached). */
+    suspend fun resumable(): Resume? {
+        val response = runCatching { call("GET", "/api/hosted/state", emptyList()) }.getOrNull()
+        if (response?.ok != true) return null
+        return runCatching {
+            val resume = JSONObject(response.body).optJSONObject("resume") ?: return null
+            Resume(resume.optString("host"), resume.getJSONObject("game"))
+        }.getOrNull()
+    }
+
     private suspend fun pollInputs(apply: suspend (Input) -> Unit) {
         var after = 0L
         val seen = LinkedHashSet<String>()

@@ -857,6 +857,20 @@ class StandaloneTable(
 
     /** LAN capabilities already select the seat. Freshness and mode are rechecked here. */
     /**
+     * Resumes a phone-hosted game Atlas kept when its last hub went away
+     * (protocol/hosted-v1.md): only while this phone has no game under way, so
+     * it never replaces one. The game's players stay as that hub named them.
+     */
+    fun resumeHostedGame(json: JSONObject): Boolean {
+        val current = _state.value.game
+        val underway = setOf(TableState.STARTING, TableState.RUNNING, TableState.PAUSED)
+        if (_state.value.storageProblem != null || current.state in underway) return false
+        val game = runCatching { gameFromJson(json) }.getOrNull() ?: return false
+        if (game.gameId.isBlank() || game.state !in underway) return false
+        return publishGame(game.copy(offlineRecorder = offlineRecorder), durable = true)
+    }
+
+    /**
      * Phone-hosted games (protocol/hosted-v1.md): an input from the Atlas this phone hosts on.
      * Atlas only names the seat; this phone's rules decide. Player 0 is a table action:
      * a Sigil joins or leaves setup (bound by localId "sigil:<id>:<slot>"), or starts the game.

@@ -19,12 +19,13 @@ class HostedAtlasLinkTest {
     private var queued = "{\"inputs\":[],\"last\":0}"
     private var claimCode = 200
     private var stateCode = 200
+    private var watched = "{\"live\":false,\"host\":null,\"game\":null,\"resume\":null}"
 
     private val link = HostedAtlasLink({ method, path, fields ->
         allCalls += "$method $path" + (fields.firstOrNull { it.first == "state" }?.let { " " + JSONObject(it.second).getLong("revision") } ?: "")
         when (path) {
             "/api/hosted/claim" -> RawResponse(claimCode, if (claimCode == 409) "{\"ok\":false,\"host\":\"Ana\"}" else "{\"ok\":true}")
-            "/api/hosted/state" -> RawResponse(stateCode, "{\"ok\":true}")
+            "/api/hosted/state" -> if (method == "GET") RawResponse(200, watched) else RawResponse(stateCode, "{\"ok\":true}")
             "/api/hosted/inputs" -> RawResponse(200, queued)
             else -> RawResponse(200, "{\"ok\":true}")
         }
@@ -85,5 +86,15 @@ class HostedAtlasLinkTest {
         assertEquals("pass", applied[0].action.getString("kind"))
         assertTrue(allCalls.any { it == "GET /api/hosted/inputs" })
         job.cancel()
+    }
+
+    @Test
+    fun `offers the last hub's unfinished game to resume`() = runTest {
+        assertEquals(null, link.resumable())
+        watched = "{\"live\":false,\"host\":null,\"game\":null,\"resume\":{\"host\":\"Ana\",\"game\":{\"gameId\":\"g7\",\"revision\":5}}}"
+        val resume = link.resumable()!!
+        assertEquals("Ana", resume.host)
+        assertEquals("g7", resume.game.getString("gameId"))
+        assertEquals(listOf("GET /api/hosted/state", "GET /api/hosted/state"), allCalls)
     }
 }

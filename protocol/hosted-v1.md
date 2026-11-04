@@ -41,8 +41,24 @@ game is not valid. The hub re-sends its latest state every 10 s while nothing
 changes, which keeps the lease.
 
 `GET /api/hosted/state` (any session) answers
-`{"live": true, "host": "Ana", "game": {...}}`, or `"game": null` with no
-live hub.
+`{"live": true, "host": "Ana", "game": {...}, "resume": null}`, or
+`"game": null` with no live hub.
+
+## Resume and records
+
+When a hub releases the table or goes quiet in the middle of a game (started,
+not over), Atlas keeps that game in RAM. While no hub holds the table, `resume`
+carries it: `{"host": "Ana", "game": {...}}`. Another signed-in phone with no
+game under way may adopt it and host it. Any hub that pushes the same
+`gameId` (this phone, or the first one coming back) takes it off the offer. A
+finished game, setup or an Atlas restart leaves nothing to resume; the first
+hub still has its own copy.
+
+A hosted game is the hub's own local game, so its finished record reaches
+Atlas's history and statistics the way every local game does, through
+`POST /api/standalone/import` (`http-v1.md`), once per `recordId` (the
+`gameId`). That happens automatically while the hub is connected and signed in.
+Sigil guests are unlinked players.
 
 ## Inputs: Atlas's own controls
 

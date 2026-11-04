@@ -95,13 +95,38 @@ class HomeViewModel(
     fun onHostOnAtlas(on: Boolean) {
         hostedJob?.cancel()
         hostedJob = null
+        _hostedResume.value = null
         val table = standalone ?: return
         if (!on) return
         hostedJob = viewModelScope.launch {
-            hostedLink.host(table.state.map { hostedGameJson(it.game) }) { input ->
-                // Atlas's Sigils (and later its screen): this phone's rules decide.
-                table.applyHostedInput(input.player, input.action)
+            // Another phone's unfinished game on Atlas: offer it first, unless this phone is mid-game.
+            val underway = table.state.value.game.state.let {
+                it == com.turnhub.android.protocol.TableState.STARTING || it == com.turnhub.android.protocol.TableState.RUNNING ||
+                    it == com.turnhub.android.protocol.TableState.PAUSED
             }
+            if (!underway) hostedLink.resumable()?.let { _hostedResume.value = it; return@launch }
+            host(table)
+        }
+    }
+
+    /** The unfinished game Atlas kept from its last hub, offered before this phone shows its own. */
+    private val _hostedResume = MutableStateFlow<com.turnhub.android.data.HostedAtlasLink.Resume?>(null)
+    val hostedResume: StateFlow<com.turnhub.android.data.HostedAtlasLink.Resume?> = _hostedResume.asStateFlow()
+
+    /** Resume Atlas's kept game here (or start this phone's own instead), then show it on Atlas. */
+    fun onResumeHosted(resume: Boolean) {
+        val offer = _hostedResume.value ?: return
+        val table = standalone ?: return
+        _hostedResume.value = null
+        if (resume) table.resumeHostedGame(offer.game)
+        hostedJob?.cancel()
+        hostedJob = viewModelScope.launch { host(table) }
+    }
+
+    private suspend fun host(table: com.turnhub.android.standalone.StandaloneTable) {
+        hostedLink.host(table.state.map { hostedGameJson(it.game) }) { input ->
+            // Atlas's Sigils and screen: this phone's rules decide.
+            table.applyHostedInput(input.player, input.action)
         }
     }
 

@@ -48,7 +48,8 @@ class HostedTable {
  public:
   // Take or renew the table. Another live hub's lease is never taken over.
   Claim claim(const std::string &token, const std::string &profileId, const std::string &name, uint32_t nowMs);
-  // Only the holder releases; the game and queue go with it.
+  // Only the holder releases; the queue goes with it, and an unfinished game
+  // stays for another phone to resume (resumeJson).
   bool release(const std::string &token);
   bool holds(const std::string &token, uint32_t nowMs) const;
   // A hub holds the table and has pushed a game.
@@ -72,15 +73,27 @@ class HostedTable {
   std::vector<Input> inputsAfter(uint32_t seq) const;
   uint32_t lastSeq() const { return nextSeq_ - 1; }
 
+  // The last hub's unfinished game (started, not over) once no hub holds the
+  // table, for another signed-in phone to resume; empty when there is none.
+  // A hub that pushes the same gameId takes it back.
+  std::string resumeJson(uint32_t nowMs) const;
+  const std::string &resumeHost(uint32_t nowMs) const;
+
+  // Forgets everything, including a game to resume.
   void clear();
 
  private:
+  // Ends the lease and queue; keeps an unfinished game to resume.
+  void endLease();
   bool leaseLive(uint32_t nowMs) const { return lease_.held && nowMs - lease_.renewedAtMs < LEASE_MS; }
   Lease lease_;
   turnhub::Game game_;
   std::string state_;
   std::vector<Input> inputs_;
   uint32_t nextSeq_ = 1;
+  std::string resume_;      // The last hub's unfinished game, after a new hub took the table.
+  std::string resumeHost_;
+  std::string resumeGameId_;
 };
 
 // Game 1's hosted table (the Atlas screen and Sigils follow Game 1).

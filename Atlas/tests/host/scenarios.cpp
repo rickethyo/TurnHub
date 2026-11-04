@@ -6870,6 +6870,36 @@ static void phoneHostedGame() {
   ProfileFixture::profiles.erase(anaId.c_str()); ProfileFixture::profiles.erase(benId.c_str());
 }
 
+// Slice 4: a hub that goes away leaves its unfinished game for another phone to resume.
+static void hostedResume() {
+  enterEmptyLobby(); testNow=120000;
+  auto &hosted=TurnHubHosted::hostedTable(); hosted.clear();
+  String anaId,benId;
+  const String ana=registerPhone("Resume Ana",anaId), ben=registerPhone("Resume Ben",benId);
+  const auto resumeOf=[&](const String &who){ assert(request("/api/hosted/state",who,{},HTTP_GET)==200); return server.body; };
+  assert(request("/api/hosted/claim",ana)==200);
+  assert(request("/api/hosted/state",ana,{{"state",hostedState("g7",4,"RUNNING",0,33).c_str()}})==200);
+  assert(resumeOf(ben).find("\"resume\":null")!=std::string::npos);  // a live hub: nothing to resume
+  // Ana's phone goes quiet: Ben sees her game to resume, then takes the table and resumes it.
+  testNow+=TurnHubHosted::LEASE_MS;
+  std::string body=resumeOf(ben);
+  assert(body.find("\"live\":false")!=std::string::npos && body.find("\"resume\":{\"host\":\"Resume Ana\"")!=std::string::npos &&
+      body.find("\"gameId\":\"g7\"")!=std::string::npos);
+  assert(request("/api/hosted/claim",ben)==200 && !hosted.hasGame());
+  assert(hosted.resumeJson(testNow).empty());  // Ben holds the table now
+  assert(request("/api/hosted/state",ben,{{"state",hostedState("g7",5,"RUNNING",1,33).c_str()}})==200);
+  assert(request("/api/hosted/release",ben)==200);
+  body=resumeOf(ana);  // Ben stopped mid-game: still resumable, now Ben's
+  assert(body.find("\"resume\":{\"host\":\"Resume Ben\"")!=std::string::npos && body.find("\"revision\":5")!=std::string::npos);
+  // A finished game, or setup, is not offered.
+  assert(request("/api/hosted/claim",ana)==200);
+  assert(request("/api/hosted/state",ana,{{"state",hostedState("g7",6,"GAME_OVER",1,33).c_str()}})==200);
+  assert(request("/api/hosted/release",ana)==200 && hosted.resumeJson(testNow).empty());
+  assert(resumeOf(ben).find("\"resume\":null")!=std::string::npos);
+  hosted.clear();
+  ProfileFixture::profiles.erase(anaId.c_str()); ProfileFixture::profiles.erase(benId.c_str());
+}
+
 // Slice 2: Sigils bound by localId show the hub's game and queue their keys.
 static void hostedSigils() {
   enterEmptyLobby(); testNow=90000; TurnHub::fixtureRadio=true;
@@ -6964,6 +6994,7 @@ int main() {
   virtualProfileFlow(); std::cout<<"PASS profile registration/login, phone-only game, companion sessions, authorization and throttling\n";
   persistentRoomBackup(); std::cout<<"PASS persistent room backup: capability, restart, failed storage, end\n";
   phoneHostedGame(); std::cout<<"PASS phone-hosted game: lease, revisions, Atlas screen controls queue inputs, input queue, expiry\n";
+  hostedResume(); std::cout<<"PASS phone-hosted resume: a quiet or departed hub leaves its unfinished game for another phone\n";
   hostedSigils(); std::cout<<"PASS phone-hosted Sigils: join, bound seats drawn from the hub game, menus, keys queued not applied\n";
   nativeClientBoundary(); std::cout<<"PASS native snapshots, revisions, stale requests, PASS, Commander and reconnect\n";
   guestSigilsDoNotCreateAccounts(); std::cout<<"PASS guest Sigil joins, shared seats, polling and games create no accounts\n";
