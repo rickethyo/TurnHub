@@ -30,9 +30,13 @@ the hub. Contract: `protocol/hosted-v1.md`. Slices, each a flash-and-test round:
    state and input routes; read-only hosted view on the Atlas screen; the
    app's "Show on Atlas". Open check: push a running game from a phone and
    watch the Atlas screen follow; a second phone sees "Atlas busy".
-2. **Sigils:** seat binding chosen in the app; display packets from hosted
-   state; presses queued as inputs; the hub reads `/api/hosted/inputs`.
-   Measure Sigil to hub to Sigil latency (target under 200 ms).
+2. **Sigils** (implemented, `claude/master`): a Sigil joins the hub's setup
+   from its menu (bound by `localId`), shows the hub's game, and its menu
+   choices and life keys are queued for the hub, which polls every 300 ms.
+   Open checks: join two Sigils from setup, pass and change life from them
+   and see the phone follow; measure Sigil to hub to Sigil latency (target
+   under 200 ms). Not yet: Commander damage and partner pickers, player
+   controls, elimination, rematch and seat switching on hosted Sigils.
 3. **Atlas screen controls:** setup and game screens read hosted state and
    queue taps as inputs; "Connect a phone to start" with no hub.
 4. **Records and resume:** finished games go to Atlas's history and stats;

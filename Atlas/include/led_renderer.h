@@ -7,6 +7,7 @@
 #include "lobby.h"
 #include "sigil_bus.h"
 #include "turnhub_types.h"
+#include "turnhub_core.h"
 
 namespace TurnHub {
 
@@ -44,6 +45,11 @@ class LedRenderer {
       uint32_t nowMs,
       // The Sigils seated at (or headed for) this game, one bit per ID.
       uint16_t sigilMask = 0xFFFF);
+
+  // Phone-hosted games (hosted_game.h): the hub's game on the Sigils bound
+  // to its players, with the same packets and cues as Atlas's own games.
+  // Atlas decides nothing here; it only draws [game].
+  void renderHosted(const turnhub::Game &game, uint32_t nowMs, uint16_t sigilMask = 0xFFFF);
 
   // A shared Sigil shows one of its seats full screen, and its life keys
   // change the shown seat. This switches to its other living seat (the

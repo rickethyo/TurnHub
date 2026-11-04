@@ -27,6 +27,7 @@
 // modules it binds are linked from ../../src, not copied rules.
 #include "../../src/main.cpp"
 #include "hosted_game.h"
+#include "hosted_sigils.h"
 #include "profile_stats_bridge.h"
 #include "touch_controls.h"
 #include "../../../Sigil/include/received_packet.h"
@@ -4878,7 +4879,7 @@ static void twoHeadedGiantSigils() {
   assert(!hasDisplayFlag(sentGameDisplays[2].state,DISPLAY_FLAG_ACTIVE));
   assert(table().game.changeLife(1,-2) && table().game.lifeTotal(2)==28);
   leds.render(table().hubState,table().lobby,table().game,0,0,0,testNow);
-  assert(sentGameDisplays[1].primary.life==28);
+  assert(TurnHub::sentGameDisplays[1].primary.life==28);
   choose(1,SigilAction::Pass); assert(table().pendingPass.active);
   syncSigilMenus(testNow);
   assert(sigilMenuFor(0).actions & sigilActionBit(SigilAction::CancelPass));
@@ -6845,6 +6846,56 @@ static void phoneHostedGame() {
   ProfileFixture::profiles.erase(anaId.c_str()); ProfileFixture::profiles.erase(benId.c_str());
 }
 
+// Slice 2: Sigils bound by localId show the hub's game and queue their keys.
+static void hostedSigils() {
+  enterEmptyLobby(); testNow=90000; TurnHub::fixtureRadio=true;
+  auto &hosted=TurnHubHosted::hostedTable(); hosted.clear();
+  String anaId; const String ana=registerPhone("Sigil Hub",anaId);
+  assert(request("/api/hosted/claim",ana)==200);
+  const std::string lobby="{\"gameId\":\"\",\"revision\":1,\"state\":\"LOBBY\",\"profile\":\"MTG_COMMANDER\",\"players\":[]}";
+  assert(request("/api/hosted/state",ana,{{"state",lobby.c_str()}})==200);
+  // An unbound Sigil may join the hub's setup; the hub decides.
+  assert(TurnHubAtlas::hostedForSigil(0,testNow));
+  assert(sigilMenuFor(0).actions==TurnHubProtocol::sigilActionBit(TurnHubProtocol::SigilAction::Join));
+  syncSigilMenus(testNow);
+  TurnHubAtlas::handleHostedSigilEvent(0,TurnHubProtocol::PacketType::SelectAction,
+      TurnHubProtocol::encodeSelectAction(TurnHubProtocol::SigilAction::Join,sigilMenuRevision(0)));
+  auto inputs=hosted.inputsAfter(0); assert(inputs.size()==1 && inputs[0].player==0);
+  assert(inputs[0].action=="{\"kind\":\"sigil-join\",\"sigil\":0,\"slot\":1}");
+  // The hub seats Sigils 0 and 1 and starts; Ana (Sigil 0) has the turn.
+  const std::string running="{\"gameId\":\"g5\",\"revision\":7,\"state\":\"RUNNING\",\"profile\":\"MTG_COMMANDER\",\"active\":0,"
+      "\"players\":[{\"name\":\"Ana\",\"life\":38,\"localId\":\"sigil:0:1\",\"commanderDamage\":{\"1\":[2,0]}},"
+      "{\"name\":\"Ben\",\"life\":40,\"localId\":\"sigil:1:1\"}]}";
+  assert(request("/api/hosted/state",ana,{{"state",running.c_str()}})==200);
+  assert(TurnHubHosted::sigilPlayer(hosted.game(),0,1)==0 && TurnHubHosted::sigilPlayer(hosted.game(),1,1)==1);
+  leds.invalidateAll(); leds.renderHosted(hosted.game(),testNow,0x3);
+  const auto &shown=TurnHub::sentGameDisplays[0];
+  assert(shown.primary.life==38 && !strcmp(shown.primary.name,"Ana") && shown.commander==1);
+  assert(TurnHubProtocol::displayPrimaryPlayer(shown.state)==1);
+  assert(TurnHub::sentGameDisplays[1].primary.life==40 && !strcmp(TurnHub::sentGameDisplays[1].primary.name,"Ben"));
+  using TurnHubProtocol::SigilAction; using TurnHubProtocol::sigilActionBit;
+  assert(sigilMenuFor(0).actions & sigilActionBit(SigilAction::Pass));
+  assert(!(sigilMenuFor(1).actions & sigilActionBit(SigilAction::Pass)) && (sigilMenuFor(1).actions & sigilActionBit(SigilAction::Pause)));
+  syncSigilMenus(testNow);
+  TurnHubAtlas::handleHostedSigilEvent(0,TurnHubProtocol::PacketType::SelectAction,
+      TurnHubProtocol::encodeSelectAction(SigilAction::Pass,sigilMenuRevision(0)));
+  // Life keys only for this Sigil's own seat; Ben's Sigil can't move Ana's life.
+  TurnHubAtlas::handleHostedSigilEvent(1,TurnHubProtocol::PacketType::LifeAdjust,TurnHubProtocol::encodeLifeAdjust(1,-3));
+  TurnHubAtlas::handleHostedSigilEvent(1,TurnHubProtocol::PacketType::LifeAdjust,TurnHubProtocol::encodeLifeAdjust(2,-3));
+  // A stale menu choice is dropped (Ben can't pass on Ana's turn).
+  TurnHubAtlas::handleHostedSigilEvent(1,TurnHubProtocol::PacketType::SelectAction,
+      TurnHubProtocol::encodeSelectAction(SigilAction::Pass,sigilMenuRevision(1)));
+  inputs=hosted.inputsAfter(0);  // A new game id cleared the join.
+  assert(inputs.size()==2);
+  assert(inputs[0].player==1 && inputs[0].action=="{\"kind\":\"pass\",\"value\":0,\"slot\":0,\"source\":0}");
+  assert(inputs[1].player==2 && inputs[1].action=="{\"kind\":\"life\",\"value\":-3,\"slot\":0,\"source\":0}");
+  // Atlas changed nothing itself: the game is still the hub's.
+  assert(hosted.game().players[0].life==38 && hosted.game().active && *hosted.game().active==0);
+  assert(request("/api/hosted/release",ana)==200 && !TurnHubAtlas::hostedForSigil(0,testNow));
+  TurnHub::fixtureRadio=false;
+  ProfileFixture::profiles.erase(anaId.c_str());
+}
+
 static void utcBookkeepingClock() {
   TurnHubClock::WallClock clock;
   constexpr uint64_t utc = 1700000000000ULL;
@@ -6889,6 +6940,7 @@ int main() {
   virtualProfileFlow(); std::cout<<"PASS profile registration/login, phone-only game, companion sessions, authorization and throttling\n";
   persistentRoomBackup(); std::cout<<"PASS persistent room backup: capability, restart, failed storage, end\n";
   phoneHostedGame(); std::cout<<"PASS phone-hosted game: lease, revisions, read-only Atlas screen, input queue, expiry\n";
+  hostedSigils(); std::cout<<"PASS phone-hosted Sigils: join, bound seats drawn from the hub game, menus, keys queued not applied\n";
   nativeClientBoundary(); std::cout<<"PASS native snapshots, revisions, stale requests, PASS, Commander and reconnect\n";
   guestSigilsDoNotCreateAccounts(); std::cout<<"PASS guest Sigil joins, shared seats, polling and games create no accounts\n";
   physicalCompanionFlow(); std::cout<<"PASS mixed table, physical attachment, two phones and one Sigil, statistics once\n";

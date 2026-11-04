@@ -98,7 +98,10 @@ class HomeViewModel(
         val table = standalone ?: return
         if (!on) return
         hostedJob = viewModelScope.launch {
-            hostedLink.host(table.state.map { hostedGameJson(it.game) })
+            hostedLink.host(table.state.map { hostedGameJson(it.game) }) { input ->
+                // Atlas's Sigils (and later its screen): this phone's rules decide.
+                table.applyHostedInput(input.player, input.action)
+            }
         }
     }
 

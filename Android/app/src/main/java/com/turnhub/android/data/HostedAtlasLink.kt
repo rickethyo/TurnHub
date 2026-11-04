@@ -3,7 +3,9 @@ package com.turnhub.android.data
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +26,8 @@ class HostedAtlasLink(
     private val call: suspend (method: String, path: String, fields: List<Pair<String, String>>) -> RawResponse?,
     /** Under Atlas's 30 s lease, so a quiet game keeps the table. */
     private val renewMs: Long = 10_000,
+    /** How often to read Atlas's queued inputs: a Sigil press should feel immediate. */
+    private val inputPollMs: Long = 300,
 ) {
     sealed interface Status {
         data object Off : Status
@@ -36,18 +40,26 @@ class HostedAtlasLink(
     private val _status = MutableStateFlow<Status>(Status.Off)
     val status: StateFlow<Status> = _status.asStateFlow()
 
-    /** Runs until cancelled. [games] is the core's game JSON, newest last. */
-    suspend fun host(games: Flow<JSONObject>) {
+    /** One input from Atlas's own controls (a Sigil key, later the Atlas screen). */
+    data class Input(val seq: Long, val id: String, val player: Int, val action: JSONObject)
+
+    /**
+     * Runs until cancelled. [games] is the core's game JSON, newest last; [apply] gets each
+     * input Atlas's controls queued, once, for this phone's rules to accept or ignore.
+     */
+    suspend fun host(games: Flow<JSONObject>, apply: suspend (Input) -> Unit = {}) {
         try {
             if (!claim()) return
-            var latest: String? = null
-            games.distinctUntilChanged { a, b -> a.toString() == b.toString() }.collectLatest { game ->
-                latest = game.toString()
-                // A push renews the lease; while nothing changes, re-send to keep it.
-                while (true) {
-                    currentCoroutineContext().ensureActive()
-                    if (!publish(latest!!)) return@collectLatest
-                    delay(renewMs)
+            coroutineScope {
+                launch { pollInputs(apply) }
+                games.distinctUntilChanged { a, b -> a.toString() == b.toString() }.collectLatest { game ->
+                    val latest = game.toString()
+                    // A push renews the lease; while nothing changes, re-send to keep it.
+                    while (true) {
+                        currentCoroutineContext().ensureActive()
+                        if (!publish(latest)) return@collectLatest
+                        delay(renewMs)
+                    }
                 }
             }
         } finally {
@@ -55,6 +67,32 @@ class HostedAtlasLink(
                 if (_status.value == Status.Hosting) runCatching { call("POST", "/api/hosted/release", emptyList()) }
                 if (_status.value !is Status.Busy) _status.value = Status.Off
             }
+        }
+    }
+
+    private suspend fun pollInputs(apply: suspend (Input) -> Unit) {
+        var after = 0L
+        val seen = LinkedHashSet<String>()
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            if (_status.value == Status.Hosting) {
+                val response = runCatching { call("GET", "/api/hosted/inputs", listOf("after" to "$after")) }.getOrNull()
+                if (response?.ok == true) runCatching {
+                    val body = JSONObject(response.body)
+                    val list = body.getJSONArray("inputs")
+                    for (i in 0 until list.length()) {
+                        val item = list.getJSONObject(i)
+                        val input = Input(item.getLong("seq"), item.getString("id"), item.getInt("player"), item.getJSONObject("action"))
+                        after = maxOf(after, input.seq)
+                        // Each action once, even if Atlas restarts its numbering.
+                        if (seen.add(input.id)) apply(input)
+                        while (seen.size > 512) seen.remove(seen.first())
+                    }
+                    // Atlas restarted (its numbering went back): read from the start.
+                    if (body.optLong("last", after) < after) after = 0
+                }
+            }
+            delay(inputPollMs)
         }
     }
 

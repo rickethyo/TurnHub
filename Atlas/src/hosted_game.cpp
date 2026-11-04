@@ -2,6 +2,8 @@
 
 #include "turnhub_json.h"
 
+#include <cstdio>
+
 namespace TurnHubHosted {
 
 Claim HostedTable::claim(const std::string &token, const std::string &profileId, const std::string &name, uint32_t nowMs) {
@@ -86,6 +88,37 @@ void HostedTable::clear() {
   game_ = turnhub::Game();
   state_.clear();
   inputs_.clear();
+}
+
+std::string sigilLocalId(uint8_t sigilId, uint8_t slot) {
+  return "sigil:" + std::to_string(sigilId) + ":" + std::to_string(slot);
+}
+
+int sigilPlayer(const turnhub::Game &game, uint8_t sigilId, uint8_t slot) {
+  const std::string id = sigilLocalId(sigilId, slot);
+  for (size_t i = 0; i < game.players.size(); ++i) if (game.players[i].localId == id) return static_cast<int>(i);
+  return -1;
+}
+
+uint8_t sigilPlayers(const turnhub::Game &game, uint8_t sigilId, int out[2]) {
+  uint8_t count = 0;
+  for (uint8_t slot = 1; slot <= 2; ++slot) {
+    const int index = sigilPlayer(game, sigilId, slot);
+    if (index >= 0) out[count++] = index;
+  }
+  return count;
+}
+
+bool playerSigil(const turnhub::Game &game, int index, uint8_t &sigilId, uint8_t &slot) {
+  if (index < 0 || index >= static_cast<int>(game.players.size())) return false;
+  const std::string &id = game.players[index].localId;
+  unsigned parsedId = 0, parsedSlot = 0;
+  char tail = 0;
+  if (id.rfind("sigil:", 0) != 0 || sscanf(id.c_str() + 6, "%u:%u%c", &parsedId, &parsedSlot, &tail) != 2 ||
+      parsedId > 255 || parsedSlot < 1 || parsedSlot > 2) return false;
+  sigilId = static_cast<uint8_t>(parsedId);
+  slot = static_cast<uint8_t>(parsedSlot);
+  return true;
 }
 
 HostedTable &hostedTable() {

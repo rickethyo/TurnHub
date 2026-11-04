@@ -86,4 +86,14 @@ class HostedTable {
 // Game 1's hosted table (the Atlas screen and Sigils follow Game 1).
 HostedTable &hostedTable();
 
+// Sigil seats: the hub binds a player to a Sigil by giving it the localId
+// "sigil:<id>:<slot>" (slot 1 = seat A, 2 = seat B). Atlas never edits it.
+std::string sigilLocalId(uint8_t sigilId, uint8_t slot);
+// The 0-based index of the player on that Sigil seat, or -1.
+int sigilPlayer(const turnhub::Game &game, uint8_t sigilId, uint8_t slot);
+// The players on a Sigil (seat A first), as 0-based indexes; returns the count.
+uint8_t sigilPlayers(const turnhub::Game &game, uint8_t sigilId, int out[2]);
+// The Sigil seat of a 0-based player index, or false.
+bool playerSigil(const turnhub::Game &game, int index, uint8_t &sigilId, uint8_t &slot);
+
 }  // namespace TurnHubHosted

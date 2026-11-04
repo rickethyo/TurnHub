@@ -12,6 +12,7 @@
 #include "runtime_diagnostics.h"
 #include "serial_log.h"
 #include "sigil_menu.h"
+#include "hosted_sigils.h"
 #include "web_api.h"
 
 using TurnHub::serialLog;
@@ -345,6 +346,11 @@ void processSigilEvents() {
     }
     TurnHub::recordActivity(activityKind(event.type), String("sigil=") + String(event.sigilId));
     if (connectionBlocked(event.sigilId)) continue;
+    // Phone-hosted games: queued for the hub, never applied here.
+    if (hostedForSigil(event.sigilId, millis())) {
+      handleHostedSigilEvent(event.sigilId, event.type, event.value);
+      continue;
+    }
     switch (event.type) {
 
       case PacketType::PlayerControl: handlePlayerControl(event.sigilId,event.value); break;
