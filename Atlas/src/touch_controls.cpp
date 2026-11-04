@@ -1,23 +1,23 @@
-// Atlas touchscreen: the TFT's screen model and its touch buttons. The touch
-// adapter only builds Intents (IntentOrigin::AtlasHardware); the handlers
-// decide. The exceptions change no table state: Cancel takes a presence code
-// off the screen (front_panel.cpp), the tabs and list rows switch screens, and
-// the confirm popup asks before a hazardous action. Nothing acts on a hold.
-// The board draws the screen model (atlas_board.h).
+// Atlas touchscreen: the TFT's screen model and its touch buttons. Games
+// run on the hub phone (hosted_game.h): the Game tab shows the hub's game,
+// and its few table controls queue inputs for the hub (hosted_sigils.h). The
+// touch adapter's device actions build Intents (IntentOrigin::AtlasHardware);
+// the handlers decide. The rest change no device state: Cancel takes a
+// presence code off the screen (front_panel.cpp), the tabs and list rows
+// switch screens, and the confirm popup asks before a hazardous action.
+// Nothing acts on a hold. The board draws the screen model (atlas_board.h).
 
-#include "avatars.h"
 #include "touch_controls.h"
-#include "player_controls_model.h"
 
 #include <stdio.h>
 #include <algorithm>
 #include <string.h>
 
-#include "account_access.h"
 #include "atlas_app.h"
 #include "atlas_battery.h"
 #include "atlas_display.h"
-#include "controller_profiles.h"
+#include "avatars.h"
+#include "config.h"
 #include "speaker_settings.h"
 #include "firmware_version.h"
 #include "home_wifi.h"
@@ -40,8 +40,6 @@ namespace {
 
 constexpr int16_t MARGIN = 8;
 constexpr int16_t FULL_WIDTH = ATLAS_SCREEN_WIDTH - 2 * MARGIN;
-// Profile names are looked up at most this often (the store may read NVS).
-constexpr uint32_t NAME_REFRESH_MS = 3000;
 
 // Press state for the touch in progress (pressedArg: which of the keys or
 // rows sharing an action).
@@ -58,54 +56,14 @@ uint32_t noticeAtMs = 0;
 
 // Which screen is up, and the QR code chosen on the QR screen.
 ScreenKind openScreen = ScreenKind::Home;
-uint8_t overviewPage = 0;
 TouchAction qrChoice = TouchAction::QrWifi;
-// The Player screen: whose it is (by controller and slot, since lobby player
-// numbers change with the turn order). pressedSeat is the chip under the finger.
-PlayerSeat shownSeat;
 // The confirm popup: the action it asks about, and the screen it covers. It
-// closes by itself when that screen does (a match ending, a code showing).
+// closes by itself when that screen does (a code showing).
 TouchAction confirmAction = TouchAction::None;
 ScreenKind confirmOver = ScreenKind::Status;
-bool playerControlsOpen = false;
-uint8_t playerControlsPage = 0;
-PlayerSeat pressedSeat;
 // Skip for now on the setup Welcome screen: hidden until the next start-up,
 // or until Setup under Menu. Presentation only; the stage stays Atlas's.
 bool setupSkipped = false;
-
-// Add player: the page of saved profiles shown (not at either table), the
-// name being typed for a new one, and the PIN being typed for one that
-// needs it. Presentation only, like the open screen.
-constexpr uint8_t SEAT_PAGE_ROWS = 4;
-constexpr uint8_t TYPED_PIN_LENGTH = 8;
-struct SeatRow {
-  char profileId[TurnHubProfiles::PROFILE_ID_LENGTH + 1] = {};
-  char label[SCREEN_NAME_LENGTH + 7] = {};  // "Name (PIN)"
-  bool needsPin = false;
-};
-SeatRow seatRows[SEAT_PAGE_ROWS];
-uint8_t seatRowCount = 0;
-uint8_t seatPage = 0;
-uint8_t seatPages = 0;
-char typedName[SCREEN_NAME_LENGTH + 1] = {};
-char typedPin[TYPED_PIN_LENGTH + 1] = {};
-uint8_t pinRow = 0;
-// The name keyboard, six keys a row: letters, then hyphen, apostrophe and
-// space (NameKey's arg is the index).
-constexpr char NAME_KEYS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ-' ";
-constexpr uint8_t NAME_KEY_COUNT = sizeof(NAME_KEYS) - 1;
-const char *const NAME_KEY_LABELS[NAME_KEY_COUNT] = {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
-    "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "-", "'", "Space"};
-const char *const DIGIT_LABELS[10] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
-
-struct NameCache {
-  char profileId[9] = {};
-  char name[SCREEN_NAME_LENGTH + 1] = {};
-  uint32_t fetchedAtMs = 0;
-  bool valid = false;
-};
-NameCache names[MAX_SCREEN_PLAYERS];
 
 // Mana Tap (mana_tap.h), opened from Home. Presentation only, like the open
 // screen: it changes no table state. It pauses when its screen is not up and
@@ -177,11 +135,6 @@ void addRow(AtlasScreen &screen, int16_t y, const ButtonSpec *specs, uint8_t cou
   }
 }
 
-// Stacks buttons full width down the body, from its top (portrait menus).
-void addColumn(AtlasScreen &screen, const ButtonSpec *specs, uint8_t count) {
-  for (uint8_t i = 0; i < count; ++i) addRow(screen, SCREEN_BODY_Y + i * (BUTTON_ROW_H + MARGIN), &specs[i], 1);
-}
-
 // One grouped list (Settings and its pages): full-width rows packed from the
 // body's top, as tall as LIST_ROW_H or as fit above `bottom`. The display
 // draws touching rows as one card.
@@ -211,82 +164,43 @@ void addKey(AtlasScreen &screen, TouchAction action, const char *label, int16_t 
   button.arg = arg;
 }
 
-bool matchInProgress() {
-  return table().hubState == HubState::Running || table().hubState == HubState::Paused;
-}
+// The hub's game is under way (Starting, Running or Paused).
+bool matchInProgress() { return gameUnderway(millis()); }
 
-// Settings navigation remains available in every game state.
-bool menuAvailable() {
-  return true;  // Navigation/settings remain available during play.
-}
+// The hub's game, while a hub holds the table.
+bool hostedShown(uint32_t nowMs) { return TurnHubHosted::hostedTable().live(nowMs); }
 
 // The first Sigil waiting for its pairing code to be checked, or INVALID_ID.
 // One at a time on this screen; the next shows once it is decided.
 uint8_t waitingPairSlot() {
-  if (table().hubState != HubState::Lobby) return INVALID_ID;
+  if (!betweenGames(millis())) return INVALID_ID;
   for (uint8_t slot = 0; slot < MAX_PHYSICAL_SIGILS; ++slot) {
     if (sigilBus.pendingPairing(slot) != nullptr) return slot;
   }
   return INVALID_ID;
 }
 
-// The chips on the status screen, in the order they are drawn: the lobby's
-// seats, or the match's players while one is in progress.
-uint8_t chipSeats(PlayerSeat *out) {
-  if (table().hubState == HubState::Lobby) return table().lobby.buildPlayers(out, MAX_SCREEN_PLAYERS);
-  if (!matchInProgress()) return 0;
-  const uint8_t count = table().game.playerCount() < MAX_SCREEN_PLAYERS ? table().game.playerCount() : MAX_SCREEN_PLAYERS;
-  for (uint8_t i = 0; i < count; ++i) out[i] = *table().game.playerAt(i);
-  return count;
-}
-
-bool sameSeat(const PlayerSeat &a, const PlayerSeat &b) {
-  return a.controllerId == b.controllerId && a.slot == b.slot;
-}
-
-// The shown seat as it is now (its current player number), if it still
-// plays: at the table in the lobby, or not out in a match.
-bool currentShownSeat(PlayerSeat &seat) {
-  if (table().hubState != HubState::Lobby && !matchInProgress()) return false;
-  PlayerSeat seats[MAX_SCREEN_PLAYERS];
-  const uint8_t count = chipSeats(seats);
-  for (uint8_t i = 0; i < count; ++i) {
-    if (!sameSeat(seats[i], shownSeat)) continue;
-    if (table().hubState != HubState::Lobby && table().game.isEliminated(seats[i].playerNumber)) return false;
-    seat = seats[i];
-    return true;
-  }
-  return false;
-}
-
-// First-run setup takes the lobby's status screen until it is complete
+// First-run setup takes the Game tab between games until it is complete
 // (Welcome can be skipped for now; "You're all set" waits for Done).
 bool setupScreenDue() {
-  if (table().hubState != HubState::Lobby || setupStage == TurnHub::SetupStage::Complete) return false;
+  if (!betweenGames(millis()) || setupStage == TurnHub::SetupStage::Complete) return false;
   return !(setupStage == TurnHub::SetupStage::Welcome && setupSkipped);
 }
 
-// The screen under any confirm popup. A code a phone asked for shows over
-// whatever screen is open, then a pairing code waiting to be checked. The
-// Table screen belongs to a match and closes when it ends; Settings remains
-// available during a game.
-ScreenKind baseScreen(uint32_t nowMs) {
-  if (openScreen == ScreenKind::Table && !matchInProgress()) openScreen = ScreenKind::Status;
-  // A player's screen closes when the lobby or match it belongs to ends, or
-  // once that player is out.
-  PlayerSeat shown;
-  if (openScreen == ScreenKind::Player && !currentShownSeat(shown)) openScreen = ScreenKind::Status;
-  if ((openScreen == ScreenKind::Menu || openScreen == ScreenKind::Device || openScreen == ScreenKind::Power ||
-       openScreen == ScreenKind::Themes) && !menuAvailable()) {
-    openScreen = ScreenKind::Status;
+// Screens this Atlas no longer has (the hub runs games) fall back to the Game tab.
+bool shownScreen(ScreenKind kind) {
+  switch (kind) {
+    case ScreenKind::Home: case ScreenKind::Status: case ScreenKind::Qr: case ScreenKind::Menu:
+    case ScreenKind::Device: case ScreenKind::Power: case ScreenKind::Themes: case ScreenKind::ManaTap:
+      return true;
+    default: return false;
   }
-  const bool lobbyOnly = openScreen == ScreenKind::Seat || openScreen == ScreenKind::Name ||
-      openScreen == ScreenKind::Pin || openScreen == ScreenKind::NewGame;
-  if (lobbyOnly && table().hubState != HubState::Lobby) openScreen = ScreenKind::Status;
-  if (openScreen == ScreenKind::PlaneCard && (!table().game.planar().digital || !table().game.planar().plane[0]))
-    openScreen = ScreenKind::Planes;
-  if ((openScreen == ScreenKind::Planes || openScreen == ScreenKind::PlaneCard) &&
-      (!matchInProgress() || !table().game.planar().enabled)) openScreen = ScreenKind::Status;
+}
+
+// The screen under any confirm popup. A code a phone asked for shows over
+// whatever screen is open, then a pairing code waiting to be checked.
+ScreenKind baseScreen(uint32_t nowMs) {
+  if (!shownScreen(openScreen)) openScreen = ScreenKind::Status;
   if (pendingPresenceCode(nowMs) != nullptr) return ScreenKind::Code;
   if (waitingPairSlot() != INVALID_ID) return ScreenKind::PairCode;
   if (openScreen == ScreenKind::Status && setupScreenDue()) return ScreenKind::Setup;
@@ -310,10 +224,10 @@ void layoutMenu(AtlasScreen &screen) {
   const bool homeOn = homeWifiEnabled();
   ButtonSpec rows[7];
   uint8_t n = 0;
-  if (table().hubState == HubState::Lobby && setupStage != TurnHub::SetupStage::Complete) {
+  if (betweenGames(millis()) && setupStage != TurnHub::SetupStage::Complete) {
     rows[n++] = {TouchAction::OpenSetup, "Setup", 0, 1};
   }
-  if (table().hubState == HubState::Lobby) rows[n++] = {TouchAction::Pair, "Pair a Sigil", 0, 1};
+  if (betweenGames(millis())) rows[n++] = {TouchAction::Pair, "Pair a Sigil", 0, 1};
   rows[n++] = {TouchAction::OpenQr, "QR codes", 0, 1};
   rows[n++] = {TouchAction::OpenThemes, theme, 0, 1};
   rows[n++] = {TouchAction::HomeWifi, !homeOn ? "Home Wi-Fi: off" : homeWifiConnected() ? "Home Wi-Fi: connected" : "Home Wi-Fi: on", 0, 1};
@@ -332,7 +246,7 @@ void layoutMenu(AtlasScreen &screen) {
 }
 
 // Settings > Device: USB drive, Sleep (between games; a touch wakes Atlas),
-// Unpair Sigils (lobby only, as the handler requires) and Factory reset (not
+// Unpair Sigils (between games, as the handler requires) and Factory reset (not
 // during a match). Unpair and Factory reset ask first in the popup; they
 // stand in for the BOOT button's held gestures.
 void layoutDevice(AtlasScreen &screen) {
@@ -342,7 +256,7 @@ void layoutDevice(AtlasScreen &screen) {
   rows[n++] = {TouchAction::OpenPower, "Sound, screen, sleep", 0, 1};
   rows[n++] = {TouchAction::UsbDrive, usbWanted ? "USB drive: on" : "USB drive: off", 0, 1};
   if (!matchInProgress()) rows[n++] = {TouchAction::SleepAtlas, "Sleep", 0, 1};
-  if (table().hubState == HubState::Lobby) rows[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", ASK, 1};
+  if (betweenGames(millis())) rows[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", ASK, 1};
   if (!matchInProgress()) rows[n++] = {TouchAction::FactoryResetAtlas, "Factory reset", ASK, 1};
   addList(screen, rows, n);
   for (uint8_t i = 0; i < screen.buttonCount; ++i) {
@@ -383,143 +297,8 @@ void layoutThemes(AtlasScreen &screen) {
   addRow(screen, BUTTON_ROW_Y, back, 1);
 }
 
-// In-game controls kept off the main row: Master pass (a stuck turn, running
-// games only) and End match, each confirmed in the popup; then Back.
-void layoutTable(AtlasScreen &screen) {
-  ButtonSpec rows[3];
-  uint8_t n = 0;
-  if (table().hubState == HubState::Running) rows[n++] = {TouchAction::MasterPass, "Master pass", ASK, 1};
-  // As in the app: within the first three minutes, undo the start (nothing is recorded).
-  if (table().game.gameElapsedMs(millis()) <= TurnHub::UNDO_START_MS)
-    rows[n++] = {TouchAction::BackToSetup, "Back to setup", ASK, 1};
-  rows[n++] = {TouchAction::EndMatch, "End match", ASK, 1};
-  addList(screen, rows, n);
-  const ButtonSpec back[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
-  addRow(screen, BUTTON_ROW_Y, back, 1);
-}
-
-// The game the next match plays, as the app's game tiles name it.
-const char *gameName(const TurnHub::GameSettings &settings) {
-  switch (settings.profile) {
-    case TurnHub::GameProfile::Magic: return "Standard";
-    case TurnHub::GameProfile::Commander:
-    case TurnHub::GameProfile::StarCommander:
-    case TurnHub::GameProfile::DoomCommander: return "Commander";
-    case TurnHub::GameProfile::Yugioh: return "Yu-Gi-Oh!";
-    default: return "Other";
-  }
-}
-
-// Magic and Commander modes, as the app's Mode choice names them.
-const char *modeName(const TurnHub::GameSettings &settings) {
-  if (settings.profile == TurnHub::GameProfile::StarCommander) return "Star Commander";
-  if (settings.profile == TurnHub::GameProfile::DoomCommander) return "Bag of Doom";
-  return settings.twoHeadedGiant ? "Two-Headed Giant" : "Free-for-all";
-}
-
-// New game (lobby): the app's game setup as rows that each step their
-// setting (ConfigureGame from the table), then Start game once two sit.
-void layoutNewGame(AtlasScreen &screen) {
-  const TurnHub::GameSettings &next = table().nextGameSettings;
-  static char game[32], mode[32], life[32], timer[32], house[32], planes[32];
-  snprintf(game, sizeof(game), "Game: %s", gameName(next));
-  snprintf(mode, sizeof(mode), "Mode: %s", modeName(next));
-  TurnHub::OfficialRules locked{};
-  const bool official = TurnHub::lockedRules(next, locked);
-  snprintf(life, sizeof(life), "Starting life: %ld%s", static_cast<long>(next.startingLife), official ? " (rules)" : "");
-  if (next.turnTimerMs == TurnHub::TURN_TIMER_OFF) snprintf(timer, sizeof(timer), "Turn timer: off");
-  else snprintf(timer, sizeof(timer), "Turn timer: %lu min", static_cast<unsigned long>(next.turnTimerMs / 60000));
-  snprintf(house, sizeof(house), "House rules: %s", next.houseRules ? "on" : "off");
-  snprintf(planes, sizeof(planes), "Planechase: %s", next.planechase ? "on" : "off");
-  ButtonSpec rows[6];
-  uint8_t n = 0;
-  rows[n++] = {TouchAction::GameType, game, 0, 1};
-  if (TurnHub::magicRules(next.profile)) rows[n++] = {TouchAction::GameMode, mode, 0, 1};
-  rows[n++] = {TouchAction::GameLife, life, 0, 1};
-  rows[n++] = {TouchAction::GameTimer, timer, 0, 1};
-  TurnHub::OfficialRules rules{};
-  const bool hasHouseRules = TurnHub::officialRules(next.profile, next.twoHeadedGiant, rules);
-  if (hasHouseRules) rows[n++] = {TouchAction::GameHouseRules, house, 0, 1};
-  if (TurnHub::magicRules(next.profile)) rows[n++] = {TouchAction::GamePlanechase, planes, 0, 1};
-  // Six settings still fit as one list, 44 px rows down to the button row.
-  addList(screen, rows, n, n > 5 ? BUTTON_ROW_Y : BUTTON_ROW_Y - MARGIN);
-  ButtonSpec lower[2];
-  uint8_t m = 0;
-  if (table().lobby.playerCount() >= 2) lower[m++] = {TouchAction::StartGame, "Start game", 0, 3};
-  lower[m++] = {TouchAction::CloseScreen, "Back", 0, 2};
-  addRow(screen, BUTTON_ROW_Y, lower, m);
-}
-
-// One player's screen (playtest 2026-09-29, item 9): life steps above,
-// More, Concede (confirmed in the popup) and Back below.
-void layoutPlayer(AtlasScreen &screen) {
-  // Lobby: turn order (item 11). Earlier and Later, then Back.
-  if (table().hubState == HubState::Lobby) {
-    static char commander[48];
-    PlayerSeat shown;
-    const bool commanders = TurnHub::commanderRules(table().nextGameSettings.profile) && currentShownSeat(shown) &&
-        profileIdForTableSeat(shown, false).length();
-    if (commanders) {
-      const auto *card = chosenCommander(profileIdForTableSeat(shown, false));
-      snprintf(commander, sizeof(commander), "Commander: %s", card ? card->name : "none");
-    }
-    const ButtonSpec upper[] = {{TouchAction::MoveEarlier, "Earlier", 0, 1},
-        {TouchAction::MoveLater, "Later", 0, 1},
-        {TouchAction::RemoveSeat, "Remove", ASK, 1},
-        {TouchAction::SeatCommander, commander, 0, 1}};
-    addColumn(screen, upper, commanders ? 4 : 3);
-    PlayerSeat seat;
-    if (currentShownSeat(seat) && table().lobby.hasSecondary(seat.controllerId)) {
-      const ButtonSpec lower[] = {{TouchAction::SeatBLeft, "B left", 0, 1},
-          {TouchAction::SeatBRight, "B right", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
-      addRow(screen, BUTTON_ROW_Y, lower, 3);
-    } else {
-      const ButtonSpec lower[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
-      addRow(screen, BUTTON_ROW_Y, lower, 1);
-    }
-    return;
-  }
-  if (playerControlsOpen) {
-    PlayerSeat seat; if (!currentShownSeat(seat)) return;
-    screen.showPlayerControls=true; screen.controls=playerControlsFor(seat.playerNumber);
-    uint8_t ids[TurnHubUi::PLAYER_CONTROL_COUNT];
-    const uint8_t count=TurnHubUi::playerControlRows(screen.controls,ids), pages=(count+2)/3;
-    if (playerControlsPage>=pages) playerControlsPage=pages ? pages-1 : 0;
-    screen.controlsPage=playerControlsPage;
-    for (uint8_t j=0;j<3 && playerControlsPage*3+j<count;++j) {
-      const uint8_t id=ids[playerControlsPage*3+j]; const bool toggle=TurnHubUi::playerControlToggle(id);
-      const int16_t y=SCREEN_BODY_Y+j*78+24;
-      if (!toggle || id!=8) addKey(screen,TouchAction::ControlMinus,toggle ? "Off" : "-",16,y,52,44,id);
-      addKey(screen,TouchAction::ControlPlus,toggle ? "On" : "+",252,y,52,44,id);
-    }
-    ButtonSpec row[3]; uint8_t n=0;
-    if (playerControlsPage) row[n++]={TouchAction::PlayerControlsPrev,"Prev",0,1};
-    row[n++]={TouchAction::PlayerControlsBack,"Done",0,1};
-    if (playerControlsPage+1<pages) row[n++]={TouchAction::PlayerControlsNext,"Next",0,1};
-    addRow(screen,BUTTON_ROW_Y,row,n); return;
-  }
-  // Yu-Gi-Oh! life moves in hundreds, as on the app's life cards.
-  const bool hundreds = table().game.settings().profile == TurnHub::GameProfile::Yugioh;
-  const ButtonSpec upper[] = {{TouchAction::LifeMinus5, hundreds ? "-1000" : "-5", 0, 1},
-      {TouchAction::LifeMinus1, hundreds ? "-100" : "-1", 0, 1},
-      {TouchAction::LifePlus1, hundreds ? "+100" : "+1", 0, 1},
-      {TouchAction::LifePlus5, hundreds ? "+1000" : "+5", 0, 1}};
-  addRow(screen, BUTTON_UPPER_ROW_Y, upper, 4);
-  const ButtonSpec lower[] = {{TouchAction::OpenPlayerControls,"More",0,1},
-      {TouchAction::Concede, "Concede", ASK, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
-  addRow(screen, BUTTON_ROW_Y, lower, 3);
-}
-
-// The confirm popup: the action in its own words, and Cancel.
 const char *confirmLabel(TouchAction action) {
   switch (action) {
-    case TouchAction::EndMatch: return "End match";
-    case TouchAction::MasterPass: return "Pass turn";
-    case TouchAction::BackToSetup: return "Back to setup";
-    case TouchAction::ClearLobby: return "Clear lobby";
-    case TouchAction::ResetTable: return "Reset";
-    case TouchAction::RemoveSeat: return "Remove";
-    case TouchAction::Concede: return "Concede";
     case TouchAction::UnpairSigils: return "Unpair all";
     case TouchAction::FactoryResetAtlas: return "Erase Atlas";
     default: return "Confirm";
@@ -538,114 +317,6 @@ void layoutConfirm(AtlasScreen &screen) {
     screen.buttons[i].w = w;
   }
 }
-
-// Add player: a page of saved profiles, then New player, More and Back.
-void layoutSeat(AtlasScreen &screen) {
-  for (uint8_t i = 0; i < seatRowCount; ++i) {
-    addKey(screen, TouchAction::SeatProfile, seatRows[i].label, MARGIN, SCREEN_BODY_Y + i * (BUTTON_ROW_H + MARGIN),
-        FULL_WIDTH, BUTTON_ROW_H, i);
-  }
-  ButtonSpec lower[3];
-  uint8_t n = 0;
-  lower[n++] = {TouchAction::NewPlayer, "New player", 0, 3};
-  if (seatPages > 1) lower[n++] = {TouchAction::SeatMore, "More", 0, 2};
-  lower[n++] = {TouchAction::CloseScreen, "Back", 0, 2};
-  addRow(screen, BUTTON_ROW_Y, lower, n);
-}
-
-// New player: six keys a row over the body (each about 47 x 56 px; Space
-// takes two), then Cancel, Delete and Add.
-void layoutName(AtlasScreen &screen) {
-  constexpr uint8_t COLS = 6;
-  constexpr int16_t GAP = 4;
-  constexpr int16_t KEY_W = (FULL_WIDTH - (COLS - 1) * GAP) / COLS;
-  constexpr int16_t KEY_H = (BUTTON_ROW_Y - MARGIN - SCREEN_BODY_Y - 4 * GAP) / 5;
-  for (uint8_t i = 0; i < NAME_KEY_COUNT; ++i) {
-    const int16_t x = MARGIN + (i % COLS) * (KEY_W + GAP);
-    const int16_t y = SCREEN_BODY_Y + (i / COLS) * (KEY_H + GAP);
-    const int16_t w = NAME_KEYS[i] == ' ' ? 2 * KEY_W + GAP : KEY_W;
-    addKey(screen, TouchAction::NameKey, NAME_KEY_LABELS[i], x, y, w, KEY_H, i);
-  }
-  const ButtonSpec lower[] = {{TouchAction::CloseScreen, "Cancel", 0, 2}, {TouchAction::NameBack, "Delete", 0, 2},
-      {TouchAction::NameDone, "Add", 0, 2}};
-  addRow(screen, BUTTON_ROW_Y, lower, 3);
-}
-
-// A profile's PIN: a phone-style keypad (1-9, Del, 0, OK), then Cancel.
-void layoutPin(AtlasScreen &screen) {
-  constexpr int16_t KEY_W = (FULL_WIDTH - 2 * MARGIN) / 3;
-  constexpr int16_t KEY_H = (BUTTON_ROW_Y - MARGIN - SCREEN_BODY_Y - 3 * MARGIN) / 4;
-  for (uint8_t i = 0; i < 12; ++i) {
-    const int16_t x = MARGIN + (i % 3) * (KEY_W + MARGIN);
-    const int16_t y = SCREEN_BODY_Y + (i / 3) * (KEY_H + MARGIN);
-    if (i == 9) {
-      addKey(screen, TouchAction::PinBack, "Del", x, y, KEY_W, KEY_H, 0);
-    } else if (i == 11) {
-      addKey(screen, TouchAction::PinDone, "OK", x, y, KEY_W, KEY_H, 0);
-    } else {
-      const uint8_t digit = i == 10 ? 0 : i + 1;
-      addKey(screen, TouchAction::PinKey, DIGIT_LABELS[digit], x, y, KEY_W, KEY_H, digit);
-    }
-  }
-  const ButtonSpec lower[] = {{TouchAction::CloseScreen, "Cancel", 0, 1}};
-  addRow(screen, BUTTON_ROW_Y, lower, 1);
-}
-
-// A zone of `seat`'s chip on the status screen, as a touch target (chips
-// are drawn as tiles, not buttons). In the lobby the whole chip opens the
-// player's screen; in a game its name band does, and the halves below change
-// life. Eliminated players' chips act on nothing.
-bool hostedShown(uint32_t nowMs);
-
-bool chipZone(const PlayerSeat &seat, TouchAction action, uint32_t nowMs, TouchButton &out) {
-  // A hosted game's tiles are the hub's players, not Atlas seats: they show only.
-  if (seat.controllerId == INVALID_ID || activeScreen(nowMs) != ScreenKind::Status || hostedShown(nowMs)) return false;
-  PlayerSeat seats[MAX_SCREEN_PLAYERS];
-  const uint8_t count = chipSeats(seats);
-  for (uint8_t i = 0; i < count; ++i) {
-    if (!sameSeat(seats[i], seat)) continue;
-    const bool inGame = table().hubState != HubState::Lobby;
-    if (inGame && table().game.isEliminated(seats[i].playerNumber)) return false;
-    out = TouchButton();
-    out.action = action;
-    screenChipCell(i, count, out.x, out.y, out.w, out.h);
-    if (!inGame) return action == TouchAction::OpenPlayer;
-    if (action == TouchAction::OpenPlayer) {
-      out.h = CHIP_NAME_BAND_H;
-      return true;
-    }
-    if (action != TouchAction::ChipLifeMinus && action != TouchAction::ChipLifePlus) return false;
-    out.y += CHIP_NAME_BAND_H;
-    out.h -= CHIP_NAME_BAND_H;
-    out.w /= 2;
-    if (action == TouchAction::ChipLifePlus) out.x += out.w;
-    return true;
-  }
-  return false;
-}
-
-// The seat and chip zone at (x, y), if any.
-TouchAction chipAt(int16_t x, int16_t y, uint32_t nowMs, PlayerSeat &found) {
-  static const TouchAction zones[] = {TouchAction::OpenPlayer, TouchAction::ChipLifeMinus, TouchAction::ChipLifePlus};
-  PlayerSeat seats[MAX_SCREEN_PLAYERS];
-  const uint8_t count = chipSeats(seats);
-  for (uint8_t i = 0; i < count; ++i) {
-    for (TouchAction zone : zones) {
-      TouchButton chip;
-      if (chipZone(seats[i], zone, nowMs, chip) && chip.contains(x, y)) {
-        found = seats[i];
-        return zone;
-      }
-    }
-  }
-  return TouchAction::None;
-}
-
-bool chipAction(TouchAction action) {
-  return action == TouchAction::OpenPlayer || action == TouchAction::ChipLifeMinus || action == TouchAction::ChipLifePlus;
-}
-
-// The buttons for the open screen and the table state.
 
 void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
   screen.buttonCount = 0;
@@ -673,45 +344,6 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
       return;
     }
     case ScreenKind::Confirm: layoutConfirm(screen); return;
-    case ScreenKind::NewGame: layoutNewGame(screen); return;
-    // The plane card fills the body (the display draws it); the die and the
-    // card-says-so planeswalk sit under it within thumb reach.
-    case ScreenKind::Planes: {
-      const auto planes = table().game.planar();
-      if (table().hubState == HubState::Running) {
-        static char roll[32];
-        if (planes.rollCost > 0) snprintf(roll, sizeof(roll), "Roll: %ld mana", static_cast<long>(planes.rollCost));
-        else snprintf(roll, sizeof(roll), "Roll the die: free");
-        const ButtonSpec upper[] = {planes.phenomenon ? ButtonSpec{TouchAction::PlanarResolve, "Resolve phenomenon", 0, 1}
-                                                       : ButtonSpec{TouchAction::PlanarRoll, roll, 0, 1}};
-        addRow(screen, BUTTON_UPPER_ROW_Y, upper, 1);
-        ButtonSpec lower[3];
-        uint8_t n = 0;
-        lower[n++] = {TouchAction::PlanarWalk, "Planeswalk", 0, 3};
-        if (planes.digital && planes.plane[0]) lower[n++] = {TouchAction::OpenPlaneCard, "Card", 0, 2};
-        lower[n++] = {TouchAction::CloseScreen, "Back", 0, 2};
-        addRow(screen, BUTTON_ROW_Y, lower, n);
-        return;
-      }
-      ButtonSpec lower[2];
-      uint8_t n = 0;
-      if (planes.digital && planes.plane[0]) lower[n++] = {TouchAction::OpenPlaneCard, "Card view", 0, 1};
-      lower[n++] = {TouchAction::CloseScreen, "Back", 0, 1};
-      addRow(screen, BUTTON_ROW_Y, lower, n);
-      return;
-    }
-    // The whole landscape panel is one button back to the Planes page.
-    case ScreenKind::PlaneCard:
-      addKey(screen, TouchAction::PlaneCardBack, "Back", 0, 0, ATLAS_SCREEN_HEIGHT, ATLAS_SCREEN_WIDTH, 0);
-      return;
-    case ScreenKind::Overview: {
-      const uint8_t count = table().hubState == HubState::Lobby ? table().lobby.playerCount() : table().game.playerCount();
-      if (count > MAX_SCREEN_PLAYERS) {
-        const ButtonSpec row[] = {{TouchAction::OverviewNext, "More players", 0, 1}};
-        addRow(screen, BUTTON_ROW_Y, row, 1);
-      }
-      return;
-    }
     case ScreenKind::Code: {
       const ButtonSpec row[] = {{TouchAction::CancelCode, "Cancel", 0, 1}};
       addRow(screen, BUTTON_ROW_Y, row, 1);
@@ -723,9 +355,6 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
       addRow(screen, BUTTON_ROW_Y, row, 2);
       return;
     }
-    case ScreenKind::Table:
-      layoutTable(screen);
-      return;
     case ScreenKind::Menu:
       layoutMenu(screen);
       return;
@@ -734,12 +363,6 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
       layoutDevice(screen);
       return;
     case ScreenKind::Power: layoutPower(screen); return;
-    case ScreenKind::Player:
-      layoutPlayer(screen);
-      return;
-    case ScreenKind::Seat: layoutSeat(screen); return;
-    case ScreenKind::Name: layoutName(screen); return;
-    case ScreenKind::Pin: layoutPin(screen); return;
     case ScreenKind::Qr: {
       const ButtonSpec row[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
       addRow(screen, BUTTON_ROW_Y, row, 1);
@@ -761,6 +384,8 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     }
     case ScreenKind::Status:
       break;
+    default:
+      return;
   }
   // A hosted game: the table controls the hub's game offers, queued for the hub.
   if (hostedShown(nowMs)) {
@@ -774,79 +399,28 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     if (n) addRow(screen, BUTTON_ROW_Y, row, n);
     return;
   }
-
-  switch (table().hubState) {
-    // Add player, Start (New game: the game's options, then Start game) and
-    // Clear; Pair and QR codes are under the Settings tab.
-    case HubState::Lobby: {
-      ButtonSpec row[3];
-      uint8_t n = 0;
-      row[n++] = {TouchAction::OpenSeat, "Add player", 0, 3};
-      row[n++] = {TouchAction::OpenNewGame, "Game setup", 0, 3};
-      if (table().lobby.playerCount() >= 1) row[n++] = {TouchAction::ClearLobby, "Clear", ASK, 2};
-      addRow(screen, BUTTON_ROW_Y, row, n);
-      break;
-    }
-    // Pass is a tap: it keeps its grace period, so the seat can still cancel.
-    // The master pass and End match sit on the Actions screen.
-    case HubState::Running: {
-      // Planechase's Planes page is a tab of its own (layoutButtons).
-      const ButtonSpec row[] = {{TouchAction::PassTurn, "Pass", 0, 3},
-          {TouchAction::Pause, "Pause", 0, 2}, {TouchAction::OpenTable, "Actions", 0, 3}};
-      addRow(screen, BUTTON_ROW_Y, row, 3);
-      break;
-    }
-    case HubState::Paused: {
-      const ButtonSpec row[] = {{TouchAction::Resume, "Resume", 0, 3}, {TouchAction::OpenTable, "Actions", 0, 2}};
-      addRow(screen, BUTTON_ROW_Y, row, 2);
-      break;
-    }
-    case HubState::GameOver: {
-      const ButtonSpec row[] = {{TouchAction::Rematch, "Rematch", 0, 3}, {TouchAction::ResetTable, "Reset", ASK, 2}};
-      addRow(screen, BUTTON_ROW_Y, row, 2);
-      break;
-    }
-    case HubState::Starting: {
-      const ButtonSpec row[] = {{TouchAction::CancelStart, "Cancel start", 0, 1}};
-      addRow(screen, BUTTON_ROW_Y, row, 1);
-      break;
-    }
-  }
 }
 
-// The same destinations as the app and Sigil; actions remain role-specific.
+// The tabs: Home, Game and Settings, as on the app and Sigil.
 void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
   layoutContentButtons(screen, nowMs);
   const auto kind = activeScreen(nowMs);
-  if (kind == ScreenKind::Code || kind == ScreenKind::PairCode || kind == ScreenKind::Name ||
-      kind == ScreenKind::Pin || kind == ScreenKind::Setup || kind == ScreenKind::Confirm ||
-      kind == ScreenKind::PlaneCard) return;
-  // A Planechase match adds a Planes tab after Table, as the app does.
-  const bool planesTab = matchInProgress() && table().game.planar().enabled;
-  const TouchAction actions[] = {TouchAction::OpenHome, TouchAction::OpenGame,
-      TouchAction::OpenOverview, TouchAction::OpenPlanes, TouchAction::OpenSettings};
+  if (kind == ScreenKind::Code || kind == ScreenKind::PairCode || kind == ScreenKind::Setup ||
+      kind == ScreenKind::Confirm) return;
+  const TouchAction actions[] = {TouchAction::OpenHome, TouchAction::OpenGame, TouchAction::OpenSettings};
   const char *labels[] = {TurnHubUi::pageTitle(TurnHubUi::Page::Home), TurnHubUi::pageTitle(TurnHubUi::Page::Game),
-      TurnHubUi::pageTitle(TurnHubUi::Page::Table), "Planes", TurnHubUi::pageTitle(TurnHubUi::Page::Settings)};
-  const uint8_t selected = kind == ScreenKind::Home || kind == ScreenKind::ManaTap ? 0 : kind == ScreenKind::Status || kind == ScreenKind::Player ||
-      kind == ScreenKind::Table || kind == ScreenKind::Seat || kind == ScreenKind::NewGame || (!planesTab && kind == ScreenKind::Planes) ? 1
-      : kind == ScreenKind::Overview ? 2 : kind == ScreenKind::Planes ? 3 : 4;
-  const uint8_t count = planesTab ? 5 : 4;
-  const int16_t w = ATLAS_SCREEN_WIDTH / count;
-  uint8_t slot = 0;
-  for (uint8_t i = 0; i < 5; ++i) {
-    if (i == 3 && !planesTab) continue;
-    addKey(screen, actions[i], labels[i], slot * w, 432, slot + 1 == count ? ATLAS_SCREEN_WIDTH - slot * w : w, 48, 0);
-    screen.buttons[screen.buttonCount-1].selected = i == selected;
-    ++slot;
+      TurnHubUi::pageTitle(TurnHubUi::Page::Settings)};
+  const uint8_t selected = kind == ScreenKind::Home || kind == ScreenKind::ManaTap ? 0 : kind == ScreenKind::Status ? 1 : 2;
+  constexpr uint8_t COUNT = 3;
+  const int16_t w = ATLAS_SCREEN_WIDTH / COUNT;
+  for (uint8_t i = 0; i < COUNT; ++i) {
+    addKey(screen, actions[i], labels[i], i * w, 432, i + 1 == COUNT ? ATLAS_SCREEN_WIDTH - i * w : w, 48, 0);
+    screen.buttons[screen.buttonCount - 1].selected = i == selected;
   }
 }
 
 // The current layout's button for an action, or nullptr if it is gone.
 const TouchButton *currentButton(TouchAction action, AtlasScreen &layout, uint32_t nowMs) {
-  if (chipAction(action)) {
-    static TouchButton chip;
-    return chipZone(pressedSeat, action, nowMs, chip) ? &chip : nullptr;
-  }
   layoutButtons(layout, nowMs);
   for (uint8_t i = 0; i < layout.buttonCount; ++i) {
     if (layout.buttons[i].action == action && layout.buttons[i].arg == pressedArg) return &layout.buttons[i];
@@ -863,8 +437,7 @@ TouchAction buttonAt(int16_t x, int16_t y, uint32_t nowMs) {
     return layout.buttons[i].action;
   }
   pressedArg = 0;
-  pressedSeat = PlayerSeat();
-  return chipAt(x, y, nowMs, pressedSeat);
+  return TouchAction::None;
 }
 
 const char *actionName(TouchAction action) {
@@ -975,91 +548,16 @@ void showNotice(uint32_t nowMs, const char *text) {
   noticeAtMs = nowMs;
 }
 
-// The Intent a table-wide button asks for.
-IntentType tableIntentType(TouchAction action) {
-  switch (action) {
-    case TouchAction::Pair: return IntentType::PairRequest;
-    case TouchAction::EndMatch: return IntentType::EndMatch;
-    case TouchAction::MasterPass: return IntentType::MasterPass;
-    case TouchAction::BackToSetup: return IntentType::BackToSetup;
-    case TouchAction::StartGame: return IntentType::StartGame;
-    case TouchAction::CancelStart: return IntentType::CancelStart;
-    case TouchAction::Rematch: return IntentType::Rematch;
-    case TouchAction::ResetTable:
-    case TouchAction::ClearLobby: return IntentType::ResetGame;
-    default: return IntentType::None;
-  }
-}
-
-// Fills seatRows with page seatPage of the saved profiles that could sit
-// down: not archived and not at either table. Reads the store, so only on
-// opening Add player, paging, and after a seat.
-void loadSeatPage() {
-  char ids[TurnHubProfiles::MAX_LOGIN_PROFILES][TurnHubProfiles::PROFILE_ID_LENGTH + 1];
-  const size_t count = TurnHubProfiles::ready() ? TurnHubProfiles::listProfileIds(ids, TurnHubProfiles::MAX_LOGIN_PROFILES) : 0;
-  uint8_t eligible = 0;
-  seatRowCount = 0;
-  for (size_t i = 0; i < count; ++i) {
-    const String id(ids[i]);
-    TurnHubAccounts::Account account;
-    if (tableForProfile(id) >= 0 || (TurnHubAccounts::load(id, account) && account.archived)) continue;
-    const uint8_t page = eligible++ / SEAT_PAGE_ROWS;
-    if (page != seatPage) continue;
-    SeatRow &row = seatRows[seatRowCount++];
-    snprintf(row.profileId, sizeof(row.profileId), "%s", ids[i]);
-    row.needsPin = !TurnHubWebApi::physicalUseAllowed(id);
-    char name[SCREEN_NAME_LENGTH + 1];
-    snprintf(name, sizeof(name), "%s", TurnHubProfiles::nameForProfile(id).c_str());
-    snprintf(row.label, sizeof(row.label), row.needsPin ? "%s (PIN)" : "%s", name);
-  }
-  seatPages = (eligible + SEAT_PAGE_ROWS - 1) / SEAT_PAGE_ROWS;
-  if (seatPage > 0 && seatPage >= seatPages) {
-    seatPage = 0;
-    loadSeatPage();
-  }
-}
-
-void openSeatScreen(uint8_t page) {
-  seatPage = page;
-  loadSeatPage();
-  openScreen = ScreenKind::Seat;
-}
-
-// A name key: capitals start each word, the rest are lower case; no leading
-// or doubled spaces.
-void typeNameKey(uint8_t index) {
-  if (index >= NAME_KEY_COUNT) return;
-  const size_t length = strlen(typedName);
-  if (length >= SCREEN_NAME_LENGTH) return;
-  char c = NAME_KEYS[index];
-  const char before = length ? typedName[length - 1] : ' ';
-  if (c == ' ' && before == ' ') return;
-  if (c >= 'A' && c <= 'Z' && before != ' ' && before != '-') c = static_cast<char>(c - 'A' + 'a');
-  typedName[length] = c;
-  typedName[length + 1] = '\0';
-}
-
 // Screen changes: no Intent, no table state, no notice. Back leaves the
 // Settings pages (QR codes, Theme, Device) for Settings, and everything else
 // for the Game page.
 bool navigate(TouchAction action) {
   switch (action) {
-    case TouchAction::OpenPlayerControls: playerControlsOpen=true; playerControlsPage=0; return true;
-    case TouchAction::PlayerControlsBack: playerControlsOpen=false; return true;
-    case TouchAction::PlayerControlsPrev: if (playerControlsPage) --playerControlsPage; return true;
-    case TouchAction::PlayerControlsNext: if (playerControlsPage<3) ++playerControlsPage; return true;
     case TouchAction::OpenHome: openScreen = ScreenKind::Home; return true;
     case TouchAction::OpenGame: openScreen = ScreenKind::Status; return true;
-    case TouchAction::OpenOverview: openScreen = ScreenKind::Overview; return true;
     case TouchAction::OpenSettings: openScreen = ScreenKind::Menu; return true;
-    case TouchAction::OverviewNext: overviewPage = overviewPage ? 0 : 1; return true;
-    case TouchAction::OpenNewGame: openScreen = ScreenKind::NewGame; return true;
-    case TouchAction::OpenPlanes: openScreen = ScreenKind::Planes; return true;
-    case TouchAction::OpenPlaneCard: openScreen = ScreenKind::PlaneCard; return true;
-    case TouchAction::PlaneCardBack: openScreen = ScreenKind::Planes; return true;
     case TouchAction::ConfirmNo: confirmAction = TouchAction::None; return true;
     case TouchAction::OpenQr: openScreen = ScreenKind::Qr; return true;
-    case TouchAction::OpenTable: openScreen = ScreenKind::Table; return true;
     case TouchAction::OpenThemes: openScreen = ScreenKind::Themes; return true;
     case TouchAction::UsbDrive: {
       const bool share = !sdCardUsbShareWanted();
@@ -1093,50 +591,14 @@ bool navigate(TouchAction action) {
     }
     case TouchAction::OpenDevice: openScreen = ScreenKind::Device; return true;
     case TouchAction::OpenPower: openScreen = ScreenKind::Power; return true;
-    case TouchAction::OpenPlayer:
-      openScreen = ScreenKind::Player;
-      shownSeat = pressedSeat;
-      playerControlsOpen=false;
-      return true;
-    case TouchAction::OpenSeat: openSeatScreen(0); return true;
-    case TouchAction::SeatMore: openSeatScreen(seatPages ? (seatPage + 1) % seatPages : 0); return true;
-    case TouchAction::NewPlayer:
-      typedName[0] = '\0';
-      openScreen = ScreenKind::Name;
-      return true;
-    case TouchAction::NameKey: typeNameKey(pressedArg); return true;
-    case TouchAction::NameBack: {
-      const size_t length = strlen(typedName);
-      if (length) typedName[length - 1] = '\0';
-      return true;
-    }
-    case TouchAction::PinKey: {
-      const size_t length = strlen(typedPin);
-      if (length < TYPED_PIN_LENGTH && pressedArg <= 9) {
-        typedPin[length] = static_cast<char>('0' + pressedArg);
-        typedPin[length + 1] = '\0';
-      }
-      return true;
-    }
-    case TouchAction::PinBack: {
-      const size_t length = strlen(typedPin);
-      if (length) typedPin[length - 1] = '\0';
-      return true;
-    }
     case TouchAction::CloseScreen: {
-      // The keyboard and keypad go back to the list; the list to the table.
-      if (openScreen == ScreenKind::Name || openScreen == ScreenKind::Pin) {
-        typedPin[0] = '\0';
-        openSeatScreen(seatPage);
-        return true;
-      }
-      if (openScreen == ScreenKind::Power && menuAvailable()) {
+      if (openScreen == ScreenKind::Power) {
         openScreen = ScreenKind::Device;
         return true;
       }
       const bool fromMenuScreen = openScreen == ScreenKind::Qr || openScreen == ScreenKind::Device ||
           openScreen == ScreenKind::Themes;
-      openScreen = fromMenuScreen && menuAvailable() ? ScreenKind::Menu : ScreenKind::Status;
+      openScreen = fromMenuScreen ? ScreenKind::Menu : ScreenKind::Status;
       return true;
     }
     case TouchAction::QrWifi:
@@ -1154,75 +616,16 @@ bool navigate(TouchAction action) {
   }
 }
 
-// The next value of one New game row, in the app's order; nullptr when it
-// stepped, or why it cannot. Atlas's handler applies official rules after.
-const char *stepGameSetting(TouchAction action, TurnHub::GameSettings &next) {
-  using TurnHub::GameProfile;
-  switch (action) {
-    // Commander, Standard, Yu-Gi-Oh!, Other: a fresh game of the next one.
-    case TouchAction::GameType: {
-      const GameProfile now = TurnHub::commanderRules(next.profile) ? GameProfile::Commander : next.profile;
-      next.profile = now == GameProfile::Commander ? GameProfile::Magic : now == GameProfile::Magic ? GameProfile::Yugioh
-          : now == GameProfile::Yugioh ? GameProfile::Generic : GameProfile::Commander;
-      next.twoHeadedGiant = false;
-      next.houseRules = false;
-      if (next.profile == GameProfile::Generic) next.startingLife = 20;
-      return nullptr;
-    }
-    // Magic: Free-for-all and Two-Headed Giant. Commander adds Bag of Doom
-    // and Star Commander (their own profiles).
-    case TouchAction::GameMode:
-      if (next.profile == GameProfile::Magic) {
-        next.twoHeadedGiant = !next.twoHeadedGiant;
-        return nullptr;
-      }
-      if (!TurnHub::commanderRules(next.profile)) return "This game has one mode";
-      if (next.profile == GameProfile::Commander && !next.twoHeadedGiant) {
-        next.twoHeadedGiant = true;
-        next.startingLife = TurnHub::TEAM_LIFE_COMMANDER;
-      } else if (next.profile == GameProfile::Commander) {
-        next.twoHeadedGiant = false;
-        next.profile = GameProfile::DoomCommander;
-        next.startingLife = 40;
-      } else if (next.profile == GameProfile::DoomCommander) {
-        next.profile = GameProfile::StarCommander;
-        next.startingLife = TurnHub::STAR_DEFAULT_LIFE;
-      } else {
-        next.profile = GameProfile::Commander;
-      }
-      return nullptr;
-    // Official games keep their life unless House rules are on.
-    case TouchAction::GameLife: {
-      TurnHub::OfficialRules rules{};
-      if (TurnHub::lockedRules(next, rules)) return "Official rules set it: turn on House rules";
-      static const int32_t CARDS[] = {4000, 8000, 16000};
-      static const int32_t LIFE[] = {20, 25, 30, 40, 60};
-      const bool yugioh = next.profile == GameProfile::Yugioh;
-      const int32_t *presets = yugioh ? CARDS : LIFE;
-      const uint8_t count = yugioh ? 3 : 5;
-      int32_t chosen = presets[0];
-      for (uint8_t i = 0; i < count; ++i) {
-        if (presets[i] > next.startingLife) { chosen = presets[i]; break; }
-      }
-      next.startingLife = chosen;
-      return nullptr;
-    }
-    case TouchAction::GameTimer: {
-      uint8_t i = 0;
-      while (i < TurnHub::TURN_TIMER_PRESET_COUNT && TurnHub::TURN_TIMER_PRESETS_MS[i] <= next.turnTimerMs) ++i;
-      next.turnTimerMs = TurnHub::TURN_TIMER_PRESETS_MS[i < TurnHub::TURN_TIMER_PRESET_COUNT ? i : 0];
-      return nullptr;
-    }
-    case TouchAction::GameHouseRules:
-      next.houseRules = !next.houseRules;
-      return nullptr;
-    case TouchAction::GamePlanechase:
-      next.planechase = !next.planechase;
-      return nullptr;
-    default:
-      return "Unknown setting";
-  }
-}
+
+
+
+
+
+
+
+
+
+
 
 // Adapter: turns one touch button into its Intent. Pause and Resume act for
 // the active seat; the rest act for the table (origin only, no seat).
@@ -1298,169 +701,13 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       result = intents.dispatch(intent);
       break;
     }
-    case TouchAction::Pair:
-    case TouchAction::EndMatch:
-    case TouchAction::MasterPass:
-    case TouchAction::BackToSetup:
-    case TouchAction::StartGame:
-    case TouchAction::CancelStart:
-    case TouchAction::Rematch:
-    case TouchAction::ResetTable:
-    case TouchAction::ClearLobby: {
+    case TouchAction::Pair: {
       Intent intent;
-      intent.type = tableIntentType(action);
+      intent.type = IntentType::PairRequest;
       intent.actor.origin = IntentOrigin::AtlasHardware;
       result = intents.dispatch(intent);
-      // After a master pass, End match or Pair (from the Menu), show the
-      // table what happened: the turn, the result or the pairing countdown.
-      if (result.accepted() && (action == TouchAction::MasterPass || action == TouchAction::EndMatch ||
-          action == TouchAction::BackToSetup || action == TouchAction::Pair)) {
-        openScreen = ScreenKind::Status;
-      }
-      break;
-    }
-    // Hold to pass: the active player's own pass, as the app's shared table
-    // and their Sigil send it (Atlas keeps the usual grace period).
-    case TouchAction::ControlMinus:
-    case TouchAction::ControlPlus: {
-      PlayerSeat seat;
-      if (!currentShownSeat(seat) || pressedArg>=TurnHubUi::PLAYER_CONTROL_COUNT ||
-          !(playerControlsFor(seat.playerNumber).allowed & (1u<<pressedArg))) return;
-      const int8_t value=action==TouchAction::ControlPlus ? 1 : TurnHubUi::playerControlToggle(pressedArg) ? 0 : -1;
-      result=intents.dispatch(playerControlIntent(seat,IntentOrigin::AtlasHardware,pressedArg,value));
-      break;
-    }
-    case TouchAction::PassTurn: {
-      const PlayerSeat *active = table().game.activePlayer();
-      result = active == nullptr ? IntentResult::reject(IntentStatus::InvalidState, "There is no active player")
-          : dispatchSeatIntent(IntentType::Pass, IntentOrigin::AtlasHardware, *active);
-      break;
-    }
-    // A tap on a tile's lower half: one life down or up for that player, the
-    // small step their own controls use.
-    case TouchAction::ChipLifeMinus:
-    case TouchAction::ChipLifePlus: {
-      TouchButton zone;
-      if (!chipZone(pressedSeat, action, nowMs, zone)) {
-        result = IntentResult::reject(IntentStatus::InvalidActor, "That player is not in this game");
-        break;
-      }
-      Intent intent;
-      intent.type = IntentType::ChangeLife;
-      intent.actor.origin = IntentOrigin::AtlasHardware;
-      intent.actor.controllerId = pressedSeat.controllerId;
-      intent.actor.slot = pressedSeat.slot;
-      intent.actor.playerNumber = pressedSeat.playerNumber;
-      intent.payload.targetPlayer = pressedSeat.playerNumber;
-      const int32_t step = table().game.settings().profile == TurnHub::GameProfile::Yugioh ? 100 : 1;
-      intent.payload.value = action == TouchAction::ChipLifeMinus ? -step : step;
-      result = intents.dispatch(intent);
-      break;
-    }
-    case TouchAction::Pause:
-    case TouchAction::Resume: {
-      const PlayerSeat *active = table().game.activePlayer();
-      if (active == nullptr) {
-        result = IntentResult::reject(IntentStatus::InvalidState, "There is no active player");
-        break;
-      }
-      const IntentType type = action == TouchAction::Pause ? IntentType::Pause : IntentType::Resume;
-      result = dispatchSeatIntent(type, IntentOrigin::AtlasHardware, *active);
-      break;
-    }
-    // The Player screen acts for the player whose chip was tapped, as their
-    // own Sigil would: ChangeLife for their own life, and Concede. The
-    // handlers decide; nothing here changes the game.
-    case TouchAction::LifeMinus5:
-    case TouchAction::LifeMinus1:
-    case TouchAction::LifePlus1:
-    case TouchAction::LifePlus5:
-    case TouchAction::Concede: {
-      PlayerSeat seat;
-      if (!currentShownSeat(seat) || table().hubState == HubState::Lobby) {
-        result = IntentResult::reject(IntentStatus::InvalidActor, "That player is not in this game");
-        break;
-      }
-      Intent intent;
-      intent.actor.origin = IntentOrigin::AtlasHardware;
-      intent.actor.controllerId = seat.controllerId;
-      intent.actor.slot = seat.slot;
-      intent.actor.playerNumber = seat.playerNumber;
-      if (action == TouchAction::Concede) {
-        intent.type = IntentType::Concede;
-      } else {
-        intent.type = IntentType::ChangeLife;
-        intent.payload.targetPlayer = seat.playerNumber;
-        // The small and big steps (LifeMinus1 / LifeMinus5 name the usual ones).
-        const int32_t step = table().game.settings().profile == TurnHub::GameProfile::Yugioh ? 100 : 1;
-        const int32_t bigStep = step == 100 ? 1000 : 5;
-        intent.payload.value = action == TouchAction::LifeMinus5 ? -bigStep
-            : action == TouchAction::LifeMinus1 ? -step : action == TouchAction::LifePlus1 ? step : bigStep;
-      }
-      result = intents.dispatch(intent);
-      if (action == TouchAction::Concede && result.accepted()) openScreen = ScreenKind::Status;
-      break;
-    }
-    // Turn order in the lobby: the table device asks, the handler decides.
-    case TouchAction::MoveEarlier:
-    case TouchAction::MoveLater:
-    case TouchAction::SeatBLeft:
-    case TouchAction::SeatBRight: {
-      PlayerSeat seat;
-      if (!currentShownSeat(seat)) {
-        result = IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
-        break;
-      }
-      Intent intent;
-      const bool sides = action == TouchAction::SeatBLeft || action == TouchAction::SeatBRight;
-      intent.type = sides ? IntentType::SetSeatSide : IntentType::MoveSeat;
-      intent.actor.origin = IntentOrigin::AtlasHardware;
-      intent.payload.targetPlayer = seat.playerNumber;
-      intent.payload.value = sides ? (action == TouchAction::SeatBLeft ? 1 : 0) :
-          (action == TouchAction::MoveEarlier ? -1 : 1);
-      result = intents.dispatch(intent);
-      break;
-    }
-    // Remove on a lobby Player screen (confirmed): that seat leaves the lobby.
-    // Planechase for the active player; the die is Atlas's own (one face in
-    // six planeswalks, one is chaos).
-    case TouchAction::PlanarRoll:
-    case TouchAction::PlanarWalk:
-    case TouchAction::PlanarResolve: {
-      Intent intent;
-      intent.type = IntentType::PlanarAction;
-      intent.actor.origin = IntentOrigin::AtlasHardware;
-      intent.payload.flags = static_cast<uint32_t>(action == TouchAction::PlanarRoll ? TurnHub::PlanarCommand::Roll :
-          action == TouchAction::PlanarWalk ? TurnHub::PlanarCommand::Planeswalk : TurnHub::PlanarCommand::Resolve);
-      const uint32_t face = esp_random() % 6;
-      intent.payload.value = face == 0 ? 2 : face == 1 ? 1 : 0;
-      result = intents.dispatch(intent);
-      break;
-    }
-    // The next of the shown player's saved commanders, then none.
-    case TouchAction::SeatCommander: {
-      PlayerSeat seat;
-      if (!currentShownSeat(seat)) {
-        result = IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
-        break;
-      }
-      const String profile = profileIdForTableSeat(seat, false);
-      TurnHubCards::SavedCommanders saved;
-      if (!profile.length() || !TurnHubCards::loadCommanders(profile, saved) || !saved.count) {
-        result = IntentResult::reject(IntentStatus::Conflict, "Save commanders from the app first");
-        break;
-      }
-      const auto *current = chosenCommander(profile);
-      uint8_t next = 1;
-      for (uint8_t i = 0; current && i < saved.count; ++i)
-        if (!strcmp(saved.slots[i].name, current->name)) next = static_cast<uint8_t>(i + 2 > saved.count ? 0 : i + 2);
-      Intent intent;
-      intent.type = IntentType::SetCommander;
-      intent.actor.origin = IntentOrigin::AtlasHardware;
-      intent.actor.controllerId = seat.controllerId;
-      intent.actor.slot = seat.slot;
-      intent.payload.value = next;
-      result = intents.dispatch(intent);
+      // From Settings: show the table the pairing countdown.
+      if (result.accepted()) openScreen = ScreenKind::Status;
       break;
     }
     case TouchAction::PowerScreenOff:
@@ -1485,80 +732,6 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       result = intents.dispatch(intent);
       break;
     }
-    case TouchAction::RemoveSeat: {
-      PlayerSeat seat;
-      if (!currentShownSeat(seat)) {
-        result = IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
-        break;
-      }
-      Intent intent;
-      intent.type = IntentType::RemoveSeat;
-      intent.actor.origin = IntentOrigin::AtlasHardware;
-      intent.actor.controllerId = seat.controllerId;
-      intent.actor.slot = seat.slot;
-      result = intents.dispatch(intent);
-      if (result.accepted()) openScreen = ScreenKind::Status;
-      break;
-    }
-    // Add player: a saved profile sits down (its PIN first when it needs
-    // one, as on the tablet), or New player makes a profile with no PIN
-    // and seats it. The JoinProfile handler decides; this screen stays up
-    // for the next player.
-    case TouchAction::SeatProfile:
-    case TouchAction::PinDone:
-    case TouchAction::NameDone: {
-      String profile;
-      if (action == TouchAction::SeatProfile) {
-        if (pressedArg >= seatRowCount) {
-          result = IntentResult::reject(IntentStatus::InvalidActor, "Choose a player");
-          break;
-        }
-        if (seatRows[pressedArg].needsPin) {
-          pinRow = pressedArg;
-          typedPin[0] = '\0';
-          openScreen = ScreenKind::Pin;
-          return;
-        }
-        profile = seatRows[pressedArg].profileId;
-      } else if (action == TouchAction::PinDone) {
-        String message;
-        profile = seatRows[pinRow].profileId;
-        const bool accepted = TurnHubWebApi::checkTablePin(profile, String(typedPin), message);
-        typedPin[0] = '\0';
-        if (!accepted) {
-          // The result keeps a pointer to its message.
-          static char refused[sizeof(noticeText)];
-          snprintf(refused, sizeof(refused), "%s", message.c_str());
-          result = IntentResult::reject(IntentStatus::Unauthorized, refused);
-          break;
-        }
-      } else {
-        String name(typedName);
-        name.trim();
-        if (name.length() == 0) {
-          result = IntentResult::reject(IntentStatus::InvalidActor, "Type the player's name");
-          break;
-        }
-        if (TurnHubWebApi::profileNameTaken(name)) {
-          result = IntentResult::reject(IntentStatus::Conflict, "That name has a profile; pick it");
-          break;
-        }
-        profile = TurnHubProfiles::ready() ? TurnHubProfiles::createProfileWithName(name) : String();
-        if (profile.length() == 0) {
-          result = IntentResult::reject(IntentStatus::Conflict, "Could not save the profile");
-          break;
-        }
-        serialLog.print("ATLAS|TOUCH|NEW_PROFILE|");
-        serialLog.println(profile);
-      }
-      Intent intent;
-      intent.type = IntentType::JoinProfile;
-      intent.actor.origin = IntentOrigin::AtlasHardware;
-      snprintf(intent.payload.profileId, sizeof(intent.payload.profileId), "%s", profile.c_str());
-      result = intents.dispatch(intent);
-      if (result.accepted()) openSeatScreen(seatPage);
-      break;
-    }
     // "You're all set": leave setup, and for Pair a Sigil open pairing too.
     case TouchAction::SetupDone:
     case TouchAction::SetupPair: {
@@ -1577,7 +750,7 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
     }
     // Settings > Device, confirmed: the BOOT button's Unpair and Factory reset, as the
     // same AtlasHardware Intents (front_panel.cpp's updateBootButton). The
-    // handlers decide: Unpair needs the lobby and no seated Sigil.
+    // handlers decide: Unpair waits until no game is under way.
     case TouchAction::UnpairSigils:
     case TouchAction::FactoryResetAtlas: {
       Intent intent;
@@ -1590,43 +763,6 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
         intent.payload.value = TurnHub::FACTORY_RESET_ATLAS;
       }
       result = intents.dispatch(intent);
-      break;
-    }
-    // New game: one row steps one setting; Atlas validates and saves it.
-    case TouchAction::GameType:
-    case TouchAction::GameMode:
-    case TouchAction::GameLife:
-    case TouchAction::GameTimer:
-    case TouchAction::GameHouseRules:
-    case TouchAction::GamePlanechase: {
-      TurnHub::GameSettings next = table().nextGameSettings;
-      const char *refused = stepGameSetting(action, next);
-      if (refused != nullptr) {
-        result = IntentResult::reject(IntentStatus::Rejected, refused);
-        break;
-      }
-      Intent intent;
-      intent.type = IntentType::ConfigureGame;
-      intent.actor.origin = IntentOrigin::AtlasHardware;
-      intent.payload.flags = static_cast<uint32_t>(next.profile) |
-          (next.twoHeadedGiant ? TurnHub::GAME_FLAG_TWO_HEADED_GIANT : 0) |
-          (next.autoEliminateAtZeroLife ? 0 : TurnHub::GAME_FLAG_MANUAL_ELIMINATION) |
-          (next.autoEliminateAtPoisonLimit ? 0 : TurnHub::GAME_FLAG_MANUAL_POISON) |
-          (next.autoEliminateAtCommanderDamage ? 0 : TurnHub::GAME_FLAG_MANUAL_COMMANDER) |
-          (next.houseRules ? TurnHub::GAME_FLAG_HOUSE_RULES : 0) |
-          (next.planechase && TurnHub::magicRules(next.profile) ? TurnHub::GAME_FLAG_PLANECHASE : 0) |
-          (next.planarDigital ? TurnHub::GAME_FLAG_PLANAR_DIGITAL : 0);
-      intent.payload.value = next.startingLife;
-      intent.payload.poisonLimit = next.poisonLimit;
-      intent.payload.durationMs = next.turnTimerMs;
-      result = intents.dispatch(intent);
-      // The row shows the new value; only a refusal needs words.
-      if (result.accepted()) {
-        serialLog.print("ATLAS|TOUCH|");
-        serialLog.print(actionName(action));
-        serialLog.println("|ACCEPTED");
-        return;
-      }
       break;
     }
     case TouchAction::SleepAtlas: {
@@ -1659,132 +795,27 @@ void formatClock(char *out, size_t size, uint32_t ms) {
   }
 }
 
-// A player's display name: the profile name, or "Player N" for a guest.
-void playerName(const PlayerSeat &seat, const String &profileId, uint32_t nowMs, char *out) {
-  NameCache &cache = names[(seat.playerNumber - 1) % MAX_SCREEN_PLAYERS];
-  if (!cache.valid || strcmp(cache.profileId, profileId.c_str()) != 0 ||
-      nowMs - cache.fetchedAtMs >= NAME_REFRESH_MS) {
-    const String name = profileId.length() ? TurnHubProfiles::nameForProfile(profileId) : String();
-    if (name.length()) {
-      size_t n = 0;
-      for (; n < name.length() && n < SCREEN_NAME_LENGTH; ++n) {
-        cache.name[n] = name[n] >= 32 && name[n] <= 126 ? name[n] : '?';
-      }
-      cache.name[n] = '\0';
+// The Game tab: the hub's game (names, life, whose turn), or how to start one.
+void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
+  if (!hostedShown(nowMs)) {
+    snprintf(screen.badge, sizeof(screen.badge), "READY");
+    snprintf(screen.title, sizeof(screen.title), "No game yet");
+    const uint32_t pairingMs = pairingRemainingMs(nowMs);
+    if (pairingMs > 0) {
+      snprintf(screen.detail, sizeof(screen.detail), "Pairing open: %lu s left",
+          static_cast<unsigned long>((pairingMs + 999) / 1000));
     } else {
-      snprintf(cache.name, sizeof(cache.name), "Player %u", static_cast<unsigned>(seat.playerNumber));
+      snprintf(screen.detail, sizeof(screen.detail), "%u %s online", static_cast<unsigned>(screen.sigilsOnline),
+          screen.sigilsOnline == 1 ? "Sigil" : "Sigils");
     }
-    snprintf(cache.profileId, sizeof(cache.profileId), "%s", profileId.c_str());
-    cache.fetchedAtMs = nowMs;
-    cache.valid = true;
+    snprintf(screen.lines[0], sizeof(screen.lines[0]), "Start a game in the TurnHub app:");
+    snprintf(screen.lines[1], sizeof(screen.lines[1]), "it shows here and on the Sigils.");
+    snprintf(screen.lines[2], sizeof(screen.lines[2]), "Settings: pair Sigils, QR codes.");
+    screen.lineCount = 3;
+    char update[sizeof(screen.detail)];
+    if (sigilUpdateNotice(update, sizeof(update), nowMs)) snprintf(screen.detail, sizeof(screen.detail), "%s", update);
+    return;
   }
-  memcpy(out, cache.name, sizeof(cache.name));
-}
-
-// Player chips: the game's seats once a game exists, otherwise the lobby's.
-void addPlayers(AtlasScreen &screen, uint32_t nowMs) {
-  PlayerSeat seats[MAX_PLAYERS];
-  uint8_t count = 0;
-  const bool inGame = table().game.hasPlayers() && table().hubState != HubState::Lobby;
-  if (inGame) {
-    for (uint8_t i = 0; i < table().game.playerCount() && count < MAX_PLAYERS; ++i) {
-      const PlayerSeat *seat = table().game.playerAt(i);
-      if (seat != nullptr) seats[count++] = *seat;
-    }
-  } else {
-    count = table().lobby.buildPlayers(seats, MAX_PLAYERS);
-  }
-  PlayerSeat starter;
-  const bool hasStarter = !inGame && table().lobby.selectedStarter(starter);
-  const uint8_t waitingOn = table().game.hasWinClaim() ? table().game.nextWinConfirmationPlayerNumber() : 0;
-  screen.showLife = inGame;
-  const uint8_t first = screen.kind == ScreenKind::Overview && overviewPage && count > MAX_SCREEN_PLAYERS ? MAX_SCREEN_PLAYERS : 0;
-  for (uint8_t i = first; i < count && screen.playerCount < MAX_SCREEN_PLAYERS; ++i) {
-    const PlayerSeat &seat = seats[i];
-    ScreenPlayer &p = screen.players[screen.playerCount++];
-    p.number = seat.playerNumber;
-    // Phone-joined players included (they showed as "Player N" in the lobby).
-    const String profile = profileIdForTableSeat(seat, inGame);
-    playerName(seat, profile, nowMs, p.name);
-    // Current Atlas uses a tiny approved thumbnail; future LCD layouts use the JPEG master.
-    const uint8_t avatar = TurnHubProfiles::avatarForProfile(
-        profile.length() ? profile : TurnHubControllers::profileForSeat(seat.controllerId, seat.slot));
-    if (TurnHubAvatars::validPresetAvatar(avatar)) p.avatar = avatar;
-    if (avatar == TurnHubAvatars::AVATAR_CUSTOM) {
-      p.avatarPixels = TurnHubProfiles::artworkThumbnail(profile, p.imageRevision);
-      if (p.avatarPixels) p.avatar = avatar;
-    }
-    if (inGame) {
-      p.life = table().game.lifeTotal(seat.playerNumber);
-      uint32_t turnMs = 0;
-      if (const TurnHub::PlayerStats *stats = table().game.statsForPlayer(seat.playerNumber)) turnMs = stats->totalTurnMs;
-      // Two-Headed Giant: both teammates hold the turn.
-      const bool hasTurn = table().hubState != HubState::GameOver && table().game.hasTurn(seat.playerNumber) &&
-          !table().game.isEliminated(seat.playerNumber);
-      if (hasTurn) {
-        turnMs += table().game.currentTurnElapsedMs(nowMs);
-      }
-      formatClock(p.turnTime, sizeof(p.turnTime), turnMs);
-      if (hasTurn) p.flags |= CHIP_ACTIVE;
-      if (table().game.isEliminated(seat.playerNumber)) p.flags |= CHIP_OUT;
-      if (table().hubState == HubState::GameOver && table().game.isWinner(seat.playerNumber)) p.flags |= CHIP_WINNER;
-      if (seat.playerNumber == waitingOn) p.flags |= CHIP_WAITING;
-    } else {
-      if (hasStarter && seat.sameSeat(starter)) p.flags |= CHIP_STARTER;
-    }
-  }
-}
-
-const char *nameOfPlayer(const AtlasScreen &screen, uint8_t number) {
-  for (uint8_t i = 0; i < screen.playerCount; ++i) {
-    if (screen.players[i].number == number) return screen.players[i].name;
-  }
-  return "";
-}
-
-// "Ana's" or, in Two-Headed Giant, "Team 1's": whose turn or win it is.
-void formatSide(char *out, size_t size, const AtlasScreen &screen, uint8_t number, const char *suffix) {
-  const uint8_t team = table().game.teamOf(number);
-  if (team) snprintf(out, size, "Team %u%s", static_cast<unsigned>(team), suffix);
-  else snprintf(out, size, "%s%s", nameOfPlayer(screen, number), suffix);
-}
-
-// Two-Headed Giant: the starting team skips the draw of its first turn.
-bool startingTeamFirstTurn() {
-  if (!table().game.twoHeadedGiant() || !table().game.hasTurn(table().game.starterPlayerNumber())) return false;
-  const TurnHub::PlayerStats *stats = table().game.statsForPlayer(table().game.starterPlayerNumber());
-  return stats != nullptr && stats->turnsCompleted == 0;
-}
-
-// The round: each living player's completed turns, where the starter's turn
-// opens a new round. The highest count among the living is the rounds
-// finished by the players furthest along; if the active player is one of
-// them, their turn opens the next round.
-void formatTurnClock(AtlasScreen &screen, uint32_t nowMs) {
-  const bool over = table().hubState == HubState::GameOver && table().game.hasPlayers();
-  if (table().hubState != HubState::Running && table().hubState != HubState::Paused && !over) return;
-  // A finished game keeps its final round and length in the header.
-  screen.round = table().game.currentRound();
-  formatClock(screen.gameClock, sizeof(screen.gameClock), table().game.gameElapsedMs(nowMs));
-  if (over) return;
-  if (table().game.turnTimerMs() > 0) {
-    const uint32_t left = table().game.turnRemainingMs(nowMs);
-    screen.timerPermille = static_cast<int16_t>(static_cast<uint64_t>(left) * 1000 / table().game.turnTimerMs());
-    const TurnHub::TurnTimerPhase phase = table().game.turnTimerPhase(nowMs);
-    screen.timerWarning = phase == TurnHub::TurnTimerPhase::Warning ||
-        phase == TurnHub::TurnTimerPhase::Expired;
-    formatClock(screen.clock, sizeof(screen.clock), left);
-  } else {
-    formatClock(screen.clock, sizeof(screen.clock), table().game.currentTurnElapsedMs(nowMs));
-  }
-}
-
-// Phone-hosted games (hosted_game.h): the hub's game; its controls queue inputs.
-bool hostedShown(uint32_t nowMs) {
-  return tableIndex() == 0 && TurnHubHosted::hostedTable().live(nowMs);
-}
-
-void formatHosted(AtlasScreen &screen, uint32_t nowMs) {
   const TurnHubHosted::HostedTable &hosted = TurnHubHosted::hostedTable();
   const turnhub::Game &game = hosted.game();
   const bool inGame = game.state != turnhub::TableState::Lobby;
@@ -1795,6 +826,15 @@ void formatHosted(AtlasScreen &screen, uint32_t nowMs) {
     chip.number = static_cast<uint8_t>(i + 1);
     snprintf(chip.name, sizeof(chip.name), "%s", player.name.c_str());
     chip.life = player.life;
+    // A player the hub linked to an Atlas profile shows that profile's avatar:
+    // a preset, or the approved custom image's tiny thumbnail.
+    const String profile = player.profileId.c_str();
+    const uint8_t avatar = profile.length() ? TurnHubProfiles::avatarForProfile(profile) : 0;
+    if (TurnHubAvatars::validPresetAvatar(avatar)) chip.avatar = avatar;
+    if (avatar == TurnHubAvatars::AVATAR_CUSTOM) {
+      chip.avatarPixels = TurnHubProfiles::artworkThumbnail(profile, chip.imageRevision);
+      if (chip.avatarPixels) chip.avatar = avatar;
+    }
     if (inGame && game.active && *game.active == static_cast<int>(i)) chip.flags |= CHIP_ACTIVE;
     if (player.eliminated) chip.flags |= CHIP_OUT;
     if (game.state == turnhub::TableState::GameOver &&
@@ -1819,103 +859,11 @@ void formatHosted(AtlasScreen &screen, uint32_t nowMs) {
     snprintf(screen.title, sizeof(screen.title), "%s", game.state == turnhub::TableState::GameOver ? "Game over" : "Game setup");
   }
   snprintf(screen.detail, sizeof(screen.detail), "Hosted by %.36s", hosted.lease().name.c_str());
-  (void)nowMs;
-}
-
-void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
-  addPlayers(screen, nowMs);
-  formatTurnClock(screen, nowMs);
-  const uint8_t players = table().game.hasPlayers() ? table().game.playerCount() : table().lobby.playerCount();
-  switch (table().hubState) {
-    case HubState::Lobby: {
-      snprintf(screen.badge, sizeof(screen.badge), "LOBBY");
-      snprintf(screen.title, sizeof(screen.title), "Lobby");
-      const uint32_t pairingMs = pairingRemainingMs(nowMs);
-      if (pairingMs > 0) {
-        snprintf(screen.detail, sizeof(screen.detail), "Pairing open: %lu s left",
-            static_cast<unsigned long>((pairingMs + 999) / 1000));
-      } else if (table().nextGameSettings.twoHeadedGiant) {
-        snprintf(screen.detail, sizeof(screen.detail), "%u %s, Two-Headed Giant",
-            static_cast<unsigned>(players), players == 1 ? "player" : "players");
-      } else {
-        snprintf(screen.detail, sizeof(screen.detail), "%u %s, %u %s",
-            static_cast<unsigned>(players), players == 1 ? "player" : "players",
-            static_cast<unsigned>(screen.sigilsOnline), screen.sigilsOnline == 1 ? "Sigil" : "Sigils");
-      }
-      if (screen.playerCount == 0) {
-        // An empty table: how to join. The Wi-Fi QR code is under Settings.
-        snprintf(screen.lines[0], sizeof(screen.lines[0]), "Tap Add player to seat someone,");
-        snprintf(screen.lines[1], sizeof(screen.lines[1]), "or join from the app or a Sigil.");
-        snprintf(screen.lines[2], sizeof(screen.lines[2]), "Settings: pair Sigils, QR codes.");
-        screen.lineCount = 3;
-      }
-      break;
-    }
-    case HubState::Starting:
-      snprintf(screen.badge, sizeof(screen.badge), "STARTING");
-      snprintf(screen.title, sizeof(screen.title), "Starting");
-      snprintf(screen.detail, sizeof(screen.detail), "The game begins shortly");
-      break;
-    case HubState::Running: {
-      snprintf(screen.badge, sizeof(screen.badge), "PLAYING");
-      formatSide(screen.title, sizeof(screen.title), screen, table().game.activePlayerNumber(), "'s turn");
-      if (table().pendingPass.active) {
-        // Count down the grace period so the table sees the pass is still
-        // cancelable, and for how long (turntest, 2026-09-26).
-        const uint32_t elapsed = millis() - table().pendingPass.requestedAtMs;
-        const uint32_t leftMs = elapsed < PASS_GRACE_MS ? PASS_GRACE_MS - elapsed : 0;
-        snprintf(screen.detail, sizeof(screen.detail), "Passing in %lus: that seat can cancel",
-            static_cast<unsigned long>((leftMs + 999) / 1000));
-      } else if (startingTeamFirstTurn()) {
-        snprintf(screen.detail, sizeof(screen.detail), "Starting team: skip your first draw");
-      } else if (table().game.turnTimerMs() > 0) {
-        snprintf(screen.detail, sizeof(screen.detail), "Turn time left %s", screen.clock);
-      } else {
-        snprintf(screen.detail, sizeof(screen.detail), "Turn time %s", screen.clock);
-      }
-      break;
-    }
-    case HubState::Paused:
-      snprintf(screen.badge, sizeof(screen.badge), "PAUSED");
-      snprintf(screen.title, sizeof(screen.title), "Paused");
-      if (table().game.hasWinClaim()) {
-        snprintf(screen.detail, sizeof(screen.detail), "Win claim: waiting on %s",
-            nameOfPlayer(screen, table().game.nextWinConfirmationPlayerNumber()));
-      } else if (table().eliminationTargetPlayer != 0) {
-        snprintf(screen.detail, sizeof(screen.detail), "Eliminate %s? Their Sigil decides",
-            nameOfPlayer(screen, table().eliminationTargetPlayer));
-      } else {
-        formatSide(screen.detail, sizeof(screen.detail), screen, table().game.activePlayerNumber(), "'s turn");
-      }
-      break;
-    case HubState::GameOver:
-      snprintf(screen.badge, sizeof(screen.badge), "GAME OVER");
-      snprintf(screen.title, sizeof(screen.title), "Game over");
-      if (table().game.endedInDraw()) {
-        snprintf(screen.detail, sizeof(screen.detail), "The match ended in a draw");
-      } else {
-        uint8_t winners[MAX_PLAYERS];
-        const uint8_t count = table().game.winnerPlayers(winners, MAX_PLAYERS);
-        if (count == 2) {
-          // Star Commander: a shared victory names both winners.
-          char first[24] = {};
-          snprintf(first, sizeof(first), "%s", nameOfPlayer(screen, winners[0]));
-          snprintf(screen.detail, sizeof(screen.detail), "%s and %s win", first, nameOfPlayer(screen, winners[1]));
-        } else if (count > 2) {
-          snprintf(screen.detail, sizeof(screen.detail), "%u players share the victory", static_cast<unsigned>(count));
-        } else {
-          formatSide(screen.detail, sizeof(screen.detail), screen, table().game.winnerPlayerNumber(), " wins");
-        }
-      }
-      break;
-  }
   // Sigil updates run between games; their progress and outcome, in words,
   // take the detail line so a failure is never silent at the table.
-  if (table().hubState == HubState::Lobby || table().hubState == HubState::GameOver) {
-    char update[sizeof(screen.detail)];
-    if (sigilUpdateNotice(update, sizeof(update), nowMs)) {
-      snprintf(screen.detail, sizeof(screen.detail), "%s", update);
-    }
+  char update[sizeof(screen.detail)];
+  if (!inGame || game.state == turnhub::TableState::GameOver) {
+    if (sigilUpdateNotice(update, sizeof(update), nowMs)) snprintf(screen.detail, sizeof(screen.detail), "%s", update);
   }
 }
 
@@ -1966,25 +914,6 @@ void formatPairCode(AtlasScreen &screen, uint32_t nowMs) {
   screen.lineCount = 2;
 }
 
-// The Table screen: whose turn a master pass would skip, in words.
-void formatTable(AtlasScreen &screen, uint32_t nowMs) {
-  snprintf(screen.badge, sizeof(screen.badge), "TABLE");
-  snprintf(screen.title, sizeof(screen.title), "Game actions");
-  if (table().hubState != HubState::Running) {
-    snprintf(screen.detail, sizeof(screen.detail), "Resume to use Master pass");
-    return;
-  }
-  if (table().game.hasWinClaim() || table().eliminationTargetPlayer != 0) {
-    snprintf(screen.detail, sizeof(screen.detail), "Finish the table decision first");
-    return;
-  }
-  const PlayerSeat *active = table().game.activePlayer();
-  if (active == nullptr) return;
-  char name[SCREEN_NAME_LENGTH + 1];
-  playerName(*active, String(active->profileId), nowMs, name);
-  snprintf(screen.detail, sizeof(screen.detail), "Stuck turn? Master pass skips %s", name);
-}
-
 // "Update available", in words, for the on-board LED's blue blink.
 void formatUpdateLine(char *out, size_t size, TurnHub::UpdateKind kind) {
   snprintf(out, size, "%s: use the app", TurnHub::updateKindText(kind));
@@ -1999,7 +928,7 @@ void formatMenu(AtlasScreen &screen) {
     return;
   }
   snprintf(screen.detail, sizeof(screen.detail), "%s",
-      table().hubState == HubState::Lobby ? "Pair Sigils, share codes, the look" : "Share codes, the look");
+      betweenGames(millis()) ? "Pair Sigils, share codes, the look" : "Share codes, the look");
 }
 
 void formatDevice(AtlasScreen &screen) {
@@ -2010,98 +939,31 @@ void formatDevice(AtlasScreen &screen) {
 
 // Home: the table at a glance, like the app's home card. The status card
 // says what the table is doing in a headline and a line (lines 0-1) over the
-// players' tokens; three tiles count players and Sigils and name the game
-// (lines 2-3). Nothing here ticks: the turn clock lives on the Game tab.
-// Battery, SD and updates are in the header, and the network on QR codes.
+// players' tokens; two tiles name the hub and the players (lines 2-3).
+// Nothing here ticks. Battery, SD and updates are in the header, and the
+// network on QR codes.
 void formatHome(AtlasScreen &screen, uint32_t nowMs) {
   formatStatus(screen, nowMs);
-  // Status lines and clocks are the Game tab's; Home shows no countdowns.
   char headline[sizeof(screen.title)], line[sizeof(screen.detail)];
   snprintf(headline, sizeof(headline), "%s", screen.title);
   snprintf(line, sizeof(line), "%s", screen.detail);
-  screen.clock[0] = '\0';
-  screen.timerPermille = -1;
-  screen.timerWarning = false;
-  for (uint8_t i = 0; i < screen.playerCount; ++i) screen.players[i].turnTime[0] = '\0';
-  const bool lobby = table().hubState == HubState::Lobby;
-  const TurnHub::GameSettings &settings = lobby ? table().nextGameSettings : table().game.settings();
   snprintf(screen.title, sizeof(screen.title), "TurnHub");
-  snprintf(screen.detail, sizeof(screen.detail), "Your table, Game 1");
-  switch (table().hubState) {
-    case HubState::Lobby:
-      if (screen.playerCount == 0) {
-        snprintf(screen.lines[0], sizeof(screen.lines[0]), "Ready for players");
-        snprintf(screen.lines[1], sizeof(screen.lines[1]), "Join from the app or a Sigil");
-      } else {
-        snprintf(screen.lines[0], sizeof(screen.lines[0]), "%u %s at the table", static_cast<unsigned>(screen.playerCount),
-            screen.playerCount == 1 ? "player" : "players");
-        snprintf(screen.lines[1], sizeof(screen.lines[1]), "%s", screen.playerCount < 2 ? "Start needs two players"
-            : "Start a game from the Game tab");
-      }
-      break;
-    case HubState::Running:
-      snprintf(screen.lines[0], sizeof(screen.lines[0]), "%s", headline);
-      if (screen.round) snprintf(screen.lines[1], sizeof(screen.lines[1]), "Round %u", static_cast<unsigned>(screen.round));
-      else snprintf(screen.lines[1], sizeof(screen.lines[1]), "Match in progress");
-      break;
-    case HubState::GameOver:
-      snprintf(screen.lines[0], sizeof(screen.lines[0]), "%s", line);
-      snprintf(screen.lines[1], sizeof(screen.lines[1]), "Rematch or Reset on the Game tab");
-      break;
-    default:  // Starting and Paused say it in their own words.
-      snprintf(screen.lines[0], sizeof(screen.lines[0]), "%s", headline);
-      snprintf(screen.lines[1], sizeof(screen.lines[1]), "%s", line);
-      break;
+  snprintf(screen.detail, sizeof(screen.detail), "Your table");
+  if (!hostedShown(nowMs)) {
+    snprintf(screen.lines[0], sizeof(screen.lines[0]), "Ready for a game");
+    snprintf(screen.lines[1], sizeof(screen.lines[1]), "Start one in the TurnHub app");
+    snprintf(screen.lines[2], sizeof(screen.lines[2]), "No hub");
+    snprintf(screen.lines[3], sizeof(screen.lines[3]), "%u %s", static_cast<unsigned>(screen.sigilsOnline),
+        screen.sigilsOnline == 1 ? "Sigil" : "Sigils");
+    screen.lineCount = 4;
+    return;
   }
-  snprintf(screen.lines[2], sizeof(screen.lines[2]), "%s", gameName(settings));
-  snprintf(screen.lines[3], sizeof(screen.lines[3]), "%ld life", static_cast<long>(settings.startingLife));
+  snprintf(screen.lines[0], sizeof(screen.lines[0]), "%s", headline);
+  snprintf(screen.lines[1], sizeof(screen.lines[1]), "%s", line);
+  snprintf(screen.lines[2], sizeof(screen.lines[2]), "%.20s", TurnHubHosted::hostedTable().lease().name.c_str());
+  snprintf(screen.lines[3], sizeof(screen.lines[3]), "%u %s", static_cast<unsigned>(screen.playerCount),
+      screen.playerCount == 1 ? "player" : "players");
   screen.lineCount = 4;
-}
-
-// Planechase: the face-up plane (Atlas's digital deck) or the players' own,
-// and the latest roll in words (the die animation is never the only place
-// it shows). planes.* was filled by fillPlanes.
-void formatPlanes(AtlasScreen &screen) {
-  const ScreenPlanes &planes = screen.planes;
-  snprintf(screen.badge, sizeof(screen.badge), "PLANES");
-  snprintf(screen.title, sizeof(screen.title), "Planechase");
-  static const char *const faces[] = {"blank", "chaos", "planeswalk"};
-  if (planes.phenomenon) snprintf(screen.detail, sizeof(screen.detail), "Phenomenon: resolve it first");
-  else if (planes.roll > 0)
-    snprintf(screen.detail, sizeof(screen.detail), "%s rolled %s", planes.roller[0] ? planes.roller : "A player",
-        faces[planes.face < 3 ? planes.face : 0]);
-  else snprintf(screen.detail, sizeof(screen.detail), "The active player rolls");
-}
-
-// The Planechase fields every screen carries in a match (see ScreenPlanes).
-void fillPlanes(AtlasScreen &screen, uint32_t nowMs) {
-  if (!matchInProgress()) return;
-  const auto view = table().game.planar();
-  if (!view.enabled) return;
-  ScreenPlanes &out = screen.planes;
-  out.on = true;
-  out.digital = view.digital;
-  out.phenomenon = view.phenomenon;
-  if (const auto *card = view.plane[0] ? TurnHubCards::findPlane(view.plane) : nullptr)
-    snprintf(out.plane, sizeof(out.plane), "%s", card->name);
-  out.deckLeft = view.deckSize;
-  out.planeswalks = view.planeswalks;
-  out.chaos = view.chaos;
-  out.counters = view.counters;
-  out.rollCost = view.rollCost;
-  out.roll = view.lastRoll;
-  out.face = view.lastFace;
-  out.cost = view.lastCost;
-  out.fromEffect = view.lastFromEffect;
-  if (view.lastRoll > 0) {
-    if (const PlayerSeat *seat = table().game.playerByNumber(view.lastPlayer))
-      playerName(*seat, profileIdForTableSeat(*seat, true), nowMs, out.roller);
-  }
-  // Only the card view reads the card (from the microSD card, once per plane).
-  if (screen.kind == ScreenKind::PlaneCard && view.plane[0]) {
-    out.card = TurnHubCards::planeCard(view.plane);
-    if (out.card && out.card->art) out.art = planeArtPixels(view.plane);
-  }
 }
 
 void formatManaTap(AtlasScreen &screen) {
@@ -2128,9 +990,11 @@ void formatManaTap(AtlasScreen &screen) {
 }
 
 // Runs Mana Tap: pauses it when its screen is not up, or when a turn passes
-// in this table's match (and shows the Game tab), otherwise moves the orbs.
+// in the hub's game (and shows the Game tab), otherwise moves the orbs.
 void serviceManaTap(uint32_t nowMs) {
-  const uint8_t active = table().hubState == HubState::Running ? table().game.activePlayerNumber() : 0;
+  const turnhub::Game &game = TurnHubHosted::hostedTable().game();
+  const uint8_t active = hostedShown(nowMs) && game.state == turnhub::TableState::Running && game.active
+      ? static_cast<uint8_t>(*game.active + 1) : 0;
   const bool passed = active != 0 && manaTurnPlayer != 0 && active != manaTurnPlayer;
   manaTurnPlayer = active;
   if (manaTap.phase() != TurnHub::ManaPhase::Playing) return;
@@ -2146,44 +1010,9 @@ void serviceManaTap(uint32_t nowMs) {
 }
 
 // The confirm popup: what the action will do, in words.
-void formatConfirm(AtlasScreen &screen, uint32_t nowMs) {
+void formatConfirm(AtlasScreen &screen) {
   snprintf(screen.badge, sizeof(screen.badge), "CONFIRM");
-  char name[SCREEN_NAME_LENGTH + 1] = "this player";
-  PlayerSeat seat;
-  if (currentShownSeat(seat)) playerName(seat, profileIdForTableSeat(seat, table().hubState != HubState::Lobby), nowMs, name);
-  const PlayerSeat *active = table().game.activePlayer();
-  char turn[SCREEN_NAME_LENGTH + 1] = "";
-  if (active != nullptr && matchInProgress()) playerName(*active, String(active->profileId), nowMs, turn);
   switch (confirmAction) {
-    case TouchAction::EndMatch:
-      snprintf(screen.title, sizeof(screen.title), "End the match?");
-      snprintf(screen.detail, sizeof(screen.detail), "It ends for everyone as a draw.");
-      break;
-    case TouchAction::BackToSetup:
-      snprintf(screen.title, sizeof(screen.title), "Back to setup?");
-      snprintf(screen.detail, sizeof(screen.detail), "Same players and settings; nothing saved.");
-      break;
-    case TouchAction::MasterPass:
-      if (turn[0]) snprintf(screen.title, sizeof(screen.title), "Pass for %s?", turn);
-      else snprintf(screen.title, sizeof(screen.title), "Pass this turn?");
-      snprintf(screen.detail, sizeof(screen.detail), "For a stuck turn: it passes now.");
-      break;
-    case TouchAction::ClearLobby:
-      snprintf(screen.title, sizeof(screen.title), "Clear the lobby?");
-      snprintf(screen.detail, sizeof(screen.detail), "Everyone leaves the table.");
-      break;
-    case TouchAction::ResetTable:
-      snprintf(screen.title, sizeof(screen.title), "Reset the table?");
-      snprintf(screen.detail, sizeof(screen.detail), "Everyone leaves for an empty lobby.");
-      break;
-    case TouchAction::RemoveSeat:
-      snprintf(screen.title, sizeof(screen.title), "Remove %s?", name);
-      snprintf(screen.detail, sizeof(screen.detail), "They leave the lobby.");
-      break;
-    case TouchAction::Concede:
-      snprintf(screen.title, sizeof(screen.title), "Concede for %s?", name);
-      snprintf(screen.detail, sizeof(screen.detail), "Their game ends.");
-      break;
     case TouchAction::UnpairSigils:
       snprintf(screen.title, sizeof(screen.title), "Unpair every Sigil?");
       snprintf(screen.detail, sizeof(screen.detail), "Each one must pair again to play.");
@@ -2196,15 +1025,6 @@ void formatConfirm(AtlasScreen &screen, uint32_t nowMs) {
       snprintf(screen.title, sizeof(screen.title), "Are you sure?");
       break;
   }
-}
-
-// New game: the next match's settings; the rows carry the values.
-void formatNewGame(AtlasScreen &screen) {
-  snprintf(screen.badge, sizeof(screen.badge), "NEW GAME");
-  snprintf(screen.title, sizeof(screen.title), "New game");
-  const uint8_t players = table().lobby.playerCount();
-  if (players < 2) snprintf(screen.detail, sizeof(screen.detail), "Seat two players to start");
-  else snprintf(screen.detail, sizeof(screen.detail), "%u players. Tap a row to change it", static_cast<unsigned>(players));
 }
 
 // The owner-set Wi-Fi password, or "" for the shipped default. The screen
@@ -2273,69 +1093,6 @@ void formatQr(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.qrCaption, sizeof(screen.qrCaption), "%s", AtlasConfig::WIFI_SSID);
 }
 
-// One player's screen: their name, and their life in words (or the
-// concession question).
-void formatPlayer(AtlasScreen &screen, uint32_t nowMs) {
-  PlayerSeat seat;
-  if (!currentShownSeat(seat)) return;
-  const bool inLobby = table().hubState == HubState::Lobby;
-  snprintf(screen.badge, sizeof(screen.badge), inLobby ? "ORDER" : "PLAYER");
-  char name[SCREEN_NAME_LENGTH + 1];
-  playerName(seat, profileIdForTableSeat(seat, !inLobby), nowMs, name);
-  snprintf(screen.title, sizeof(screen.title), "%s", name);
-  if (inLobby && table().nextGameSettings.twoHeadedGiant) {
-    // Two-Headed Giant teams are neighbours in turn order (1+2, 3+4, ...).
-    snprintf(screen.detail, sizeof(screen.detail), "Turn order: %u of %u, Team %u",
-        static_cast<unsigned>(seat.playerNumber), static_cast<unsigned>(table().lobby.playerCount()),
-        static_cast<unsigned>((seat.playerNumber + 1) / 2));
-  } else if (inLobby) {
-    // Show each player's position and the shared Sigil's physical seating.
-    snprintf(screen.detail, sizeof(screen.detail), "Turn order: %u of %u%s",
-        static_cast<unsigned>(seat.playerNumber), static_cast<unsigned>(table().lobby.playerCount()),
-        table().lobby.hasSecondary(seat.controllerId) ?
-            (table().lobby.secondaryFirst(seat.controllerId) ? "; B left, before A" : "; B right, after A") : "");
-  } else if (playerControlsOpen) {
-    snprintf(screen.detail,sizeof(screen.detail),"Counters & status / page %u",playerControlsPage+1);
-  } else {
-    snprintf(screen.detail, sizeof(screen.detail), "%s %ld%s",
-        table().game.twoHeadedGiant() ? "Team life" : "Life",
-        static_cast<long>(table().game.lifeTotal(seat.playerNumber)),
-        table().game.hasTurn(seat.playerNumber) ? ", their turn" : "");
-  }
-}
-
-// Add player's three screens: the list, the name being typed, and the PIN
-// (as dots, never the digits).
-void formatSeat(AtlasScreen &screen) {
-  snprintf(screen.badge, sizeof(screen.badge), "ADD PLAYER");
-  switch (screen.kind) {
-    case ScreenKind::Seat:
-      snprintf(screen.title, sizeof(screen.title), "Who's playing?");
-      if (seatRowCount == 0) {
-        snprintf(screen.detail, sizeof(screen.detail), "No one else saved: tap New player");
-      } else if (seatPages > 1) {
-        snprintf(screen.detail, sizeof(screen.detail), "Tap a name to seat them (%u of %u)",
-            static_cast<unsigned>(seatPage + 1), static_cast<unsigned>(seatPages));
-      } else {
-        snprintf(screen.detail, sizeof(screen.detail), "Tap a name to seat them");
-      }
-      return;
-    case ScreenKind::Name:
-      snprintf(screen.title, sizeof(screen.title), "%s", typedName[0] ? typedName : "New player");
-      snprintf(screen.detail, sizeof(screen.detail), "Type their name. No PIN needed");
-      return;
-    default: {
-      char name[SCREEN_NAME_LENGTH + 1];
-      snprintf(name, sizeof(name), "%s", TurnHubProfiles::nameForProfile(seatRows[pinRow].profileId).c_str());
-      snprintf(screen.title, sizeof(screen.title), "%s's PIN", name);
-      char dots[2 * TYPED_PIN_LENGTH + 1] = {};
-      for (size_t i = 0; typedPin[i]; ++i) strcat(dots, i ? " *" : "*");
-      snprintf(screen.detail, sizeof(screen.detail), "%s", dots[0] ? dots : "Enter it, then OK");
-      return;
-    }
-  }
-}
-
 }  // namespace
 
 void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
@@ -2353,29 +1110,16 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen.hotspotStations = screen.hotspotOn ? static_cast<uint8_t>(WiFi.softAPgetStationNum()) : 0;
   screen.homeWifiOn = homeWifiEnabled() && homeWifiConfigured();
   screen.homeWifiLinked = screen.homeWifiOn && homeWifiConnected();
-  fillPlanes(screen, nowMs);
   switch (screen.kind) {
     case ScreenKind::Home:
       formatHome(screen, nowMs);
       break;
     case ScreenKind::ManaTap: formatManaTap(screen); break;
-    case ScreenKind::Confirm: formatConfirm(screen, nowMs); break;
-    case ScreenKind::NewGame: formatNewGame(screen); break;
-    case ScreenKind::Planes:
-    case ScreenKind::PlaneCard: formatPlanes(screen); break;
-    case ScreenKind::Overview:
-      formatStatus(screen,nowMs);
-      snprintf(screen.title,sizeof(screen.title),"Table");
-      snprintf(screen.detail,sizeof(screen.detail),"Read only / %s",overviewPage ? "players 9-16" : "players 1-8");
-      break;
-    case ScreenKind::Status:
-      if (hostedShown(nowMs)) formatHosted(screen, nowMs);
-      else formatStatus(screen, nowMs);
-      break;
+    case ScreenKind::Confirm: formatConfirm(screen); break;
+    case ScreenKind::Status: formatStatus(screen, nowMs); break;
     case ScreenKind::Qr: formatQr(screen, nowMs); break;
     case ScreenKind::Code: formatCode(screen, nowMs); break;
     case ScreenKind::PairCode: formatPairCode(screen, nowMs); break;
-    case ScreenKind::Table: formatTable(screen, nowMs); break;
     case ScreenKind::Menu: formatMenu(screen); break;
     case ScreenKind::Themes:
       snprintf(screen.badge, sizeof(screen.badge), "THEME");
@@ -2388,11 +1132,8 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
       snprintf(screen.title, sizeof(screen.title), "Sound, screen, sleep");
       snprintf(screen.detail, sizeof(screen.detail), "Deep sleep runs on battery only");
       break;
-    case ScreenKind::Player: formatPlayer(screen, nowMs); break;
     case ScreenKind::Setup: formatSetup(screen, nowMs); break;
-    case ScreenKind::Seat:
-    case ScreenKind::Name:
-    case ScreenKind::Pin: formatSeat(screen); break;
+    default: break;
   }
   layoutButtons(screen, nowMs);
   if (syncText[0] != '\0' && nowMs - syncAtMs < SYNC_TOAST_MS) snprintf(screen.sync, sizeof(screen.sync), "%s", syncText);
@@ -2452,53 +1193,6 @@ void showSyncStatus(uint32_t nowMs, const char *text) {
   syncAtMs = nowMs;
 }
 
-bool parseAtlasView(const char *key, AtlasView &view) {
-  if (key == nullptr) return false;
-  if (!strcmp(key, "game")) view = AtlasView::Game;
-  else if (!strcmp(key, "table")) view = AtlasView::Table;
-  else if (!strcmp(key, "planes")) view = AtlasView::Planes;
-  else if (!strcmp(key, "card")) view = AtlasView::Card;
-  else return false;
-  return true;
-}
-
-const char *atlasViewKey(uint32_t nowMs) {
-  switch (baseScreen(nowMs)) {
-    case ScreenKind::Status: return "game";
-    case ScreenKind::Overview: return "table";
-    case ScreenKind::Planes: return "planes";
-    case ScreenKind::PlaneCard: return "card";
-    default: return "other";
-  }
-}
-
-bool atlasViewAvailable(AtlasView view, const char *&error) {
-  // The touchscreen shows Game 1 until its game selector lands.
-  if (tableIndex() != 0) { error = "The Atlas screen shows Game 1"; return false; }
-  if (!matchInProgress()) { error = "Only during a game"; return false; }
-  const auto &planar = table().game.planar();
-  if ((view == AtlasView::Planes || view == AtlasView::Card) && !planar.enabled) {
-    error = "This game has no Planechase";
-    return false;
-  }
-  if (view == AtlasView::Card && (!planar.digital || !planar.plane[0])) {
-    error = "No plane card to show";
-    return false;
-  }
-  error = nullptr;
-  return true;
-}
-
-bool showAtlasView(AtlasView view, const char *&error) {
-  if (!atlasViewAvailable(view, error)) return false;
-  openScreen = view == AtlasView::Game ? ScreenKind::Status : view == AtlasView::Table ? ScreenKind::Overview
-      : view == AtlasView::Planes ? ScreenKind::Planes : ScreenKind::PlaneCard;
-  // A phone's choice drops a half-done touch on Atlas (its popup or player page).
-  confirmAction = TouchAction::None;
-  playerControlsOpen = false;
-  return true;
-}
-
 void resetTouchControls(bool startAtHome) {
   syncText[0] = '\0';
   touchDown = false;
@@ -2506,18 +1200,13 @@ void resetTouchControls(bool startAtHome) {
   pressedAction = TouchAction::None;
   pressedArg = 0;
   noticeText[0] = '\0';
-  seatRowCount = seatPage = seatPages = pinRow = 0;
-  typedName[0] = typedPin[0] = '\0';
   openScreen = startAtHome ? ScreenKind::Home : ScreenKind::Status;
   qrChoice = TouchAction::QrWifi;
-  shownSeat = pressedSeat = PlayerSeat();
   confirmAction = TouchAction::None;
-  playerControlsOpen=false; playerControlsPage=0;
   setupSkipped = false;
   manaTap = TurnHub::ManaTap();
   manaTurnPaused = false;
   manaTurnPlayer = 0;
-  for (auto &cache : names) cache = NameCache();
 }
 
 }  // namespace TurnHubAtlas

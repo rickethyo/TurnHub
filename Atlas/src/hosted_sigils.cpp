@@ -132,7 +132,7 @@ bool queueHostedScreenAction(HostedScreenAction action) {
 }
 
 bool hostedForSigil(uint8_t sigilId, uint32_t nowMs) {
-  return sigilId < MAX_PHYSICAL_SIGILS && tableForController(sigilId) == 0 && TurnHubHosted::hostedTable().live(nowMs);
+  return sigilId < MAX_PHYSICAL_SIGILS && TurnHubHosted::hostedTable().live(nowMs);
 }
 
 TurnHubProtocol::MenuStateFields hostedSigilMenu(uint8_t sigilId) {

@@ -10,7 +10,7 @@
 
 namespace TurnHubAtlas {
 
-// A hub hosts this Sigil's game (Game 1).
+// A hub hosts the game.
 bool hostedForSigil(uint8_t sigilId, uint32_t nowMs);
 // The menu a Sigil gets in a hosted game.
 TurnHubProtocol::MenuStateFields hostedSigilMenu(uint8_t sigilId);

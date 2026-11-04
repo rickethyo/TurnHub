@@ -4,13 +4,13 @@
   "atlasId": "THA-025448410001",
   "firmwareVersion": "0.6.0-dev",
   "apiVersion": "1",
-  "protocolVersion": "0.1",
+  "protocolVersion": "1",
   "radioProtocolVersion": 3,
   "bootId": "0123456789ABCDEF0123456789ABCDEF",
   "revision": 0,
   "capabilities": {
     "stateSnapshot": true,
-    "sessionControls": true,
+    "sessionControls": false,
     "intentEnvelope": false,
     "events": false,
     "requestDeduplication": false

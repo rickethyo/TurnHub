@@ -28,7 +28,7 @@ std::string hubName(WebServer &server, const WebSession &session) {
   String name = server.arg("name");
   name.trim();
   if (name.length() && name.length() <= turnhub::Game::MAX_NAME) return name.c_str();
-  return session.tableDevice ? "Table tablet" : "A phone";
+  return "A phone";
 }
 
 void sendHolder(WebServer &server, int status, bool ok) {

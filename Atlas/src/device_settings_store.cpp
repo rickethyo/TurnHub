@@ -1,4 +1,5 @@
-#include "game_settings_store.h"
+// NVS records for Atlas device settings (the turnhub namespace). Host tests
+// stub these functions in profile_fixture.cpp.
 #include "nvs_blob_store.h"
 #include "pairing_settings.h"
 #include "power_settings.h"
@@ -8,14 +9,6 @@
 #include "upload_approval.h"
 namespace TurnHub {
 namespace { TurnHubStorage::NvsBlobStore store; }
-TurnHubStorage::Status loadGameSettings(GameSettings &settings) {
-  const auto status=store.begin("turnhub");
-  return status==TurnHubStorage::Status::Ok?readGameSettings(store,settings):status;
-}
-TurnHubStorage::Status saveGameSettings(const GameSettings &settings) {
-  const auto status=store.begin("turnhub");
-  return status==TurnHubStorage::Status::Ok?writeGameSettings(store,settings):status;
-}
 TurnHubStorage::Status loadPairingWindow(uint32_t &windowMs) {
   const auto status=store.begin("turnhub");
   return status==TurnHubStorage::Status::Ok?readPairingWindow(store,windowMs):status;

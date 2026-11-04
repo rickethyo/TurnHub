@@ -69,6 +69,7 @@ def check(value, schema):
 def validate(path):
     value = json.loads(path.read_text())
     schema_name = ("info-v1" if "deviceType" in value else
+                   "atlas-state-v1" if "hub" in value and "players" not in value else
                    "accessibility-v1" if "ledStyle" in value else
                    "control-result-v1" if "ok" in value else "state-v0.1")
     check(value, json.loads((PROTOCOL / (schema_name + ".schema.json")).read_text()))
@@ -94,7 +95,7 @@ def validate(path):
 
 
 generated = sorted((Path(__file__).parent / "build").glob("client-*.json"))
-assert len(generated) >= 8, "Run native scenarios first"
+assert len(generated) >= 3, "Run native scenarios first"
 examples = sorted((PROTOCOL / "examples").glob("*.response.json"))
 for path in generated + examples:
     validate(path)

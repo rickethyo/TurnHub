@@ -1,10 +1,8 @@
 #pragma once
 
-// Sigil menus: which actions each Sigil may offer right now,
-// and the MenuState2 transport. Availability mirrors what the Intent handlers
-// would accept so the menu never offers a dead end, but it is presentation
-// only: every choice still goes through the dispatcher and its validators
-// (SelectAction -> handleSelectAction in sigil_input.cpp).
+// Sigil menus: which actions each Sigil may offer right now (the hub phone's
+// game, hosted_sigils.cpp, plus Link phone) and the MenuState2 transport.
+// Presentation only: each choice is queued for the hub, which decides.
 
 #include <Arduino.h>
 

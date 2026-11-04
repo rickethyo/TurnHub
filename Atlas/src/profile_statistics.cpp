@@ -1,11 +1,10 @@
 #include "profile_statistics.h"
 
+#include "game_profile.h"
+
 namespace TurnHubProfileStats {
 namespace {
 
-using TurnHub::GameEngine;
-using TurnHub::PlayerSeat;
-using TurnHub::PlayerStats;
 using TurnHubProfiles::LastGameResult;
 using TurnHubProfiles::ProfileStats;
 
@@ -97,67 +96,6 @@ void mergeStats(ProfileStats &into, const ProfileStats &from) {
   into.lastGameResult = last.lastGameResult;
   into.lastGameProfile = last.lastGameProfile;
   into.lastGameEliminationsMade = last.lastGameEliminationsMade;
-}
-
-uint8_t recordCompletedGame(
-    const GameEngine &game,
-    ResolveProfileIdCallback resolveProfileId) {
-  if (!game.gameOver() || resolveProfileId == nullptr) {
-    return 0;
-  }
-  if (!TurnHubProfiles::ready() && !TurnHubProfiles::begin()) {
-    return 0;
-  }
-
-  const uint32_t gameDurationMs = game.gameElapsedMs(millis());
-  const uint8_t starter = game.starterPlayerNumber();
-  uint8_t updated = 0;
-
-  for (uint8_t index = 0; index < game.playerCount(); ++index) {
-    const PlayerSeat *seat = game.playerAt(index);
-    if (seat == nullptr) {
-      continue;
-    }
-
-    const String profileId = resolveProfileId(*seat);
-    if (!TurnHubProfiles::profileExists(profileId)) {
-      continue;
-    }
-
-    ProfileStats persistent{};
-    if (!TurnHubProfiles::loadStatsForProfile(profileId, persistent)) {
-      continue;
-    }
-
-    const PlayerStats *current = game.statsForPlayer(seat->playerNumber);
-    GameResult result;
-    result.gameProfile = static_cast<uint8_t>(game.settings().profile);
-    result.durationMs = gameDurationMs;
-    result.eliminationsMade = game.eliminationsBy(seat->playerNumber);
-    if (game.isWinner(seat->playerNumber)) {
-      result.result = LastGameResult::Win;
-    } else if (game.isEliminated(seat->playerNumber)) {
-      result.result = game.hasConceded(seat->playerNumber) ? LastGameResult::Conceded : LastGameResult::Eliminated;
-    } else if (game.endedInDraw()) {
-      result.result = LastGameResult::Draw;
-    } else {
-      result.result = LastGameResult::Loss;
-    }
-    result.started = seat->playerNumber == starter;
-    if (current != nullptr) {
-      result.turns = current->turnsCompleted;
-      result.turnMs = current->totalTurnMs;
-      result.fastestTurnMs = current->fastestTurnMs;
-      result.longestTurnMs = current->longestTurnMs;
-    }
-    applyGameResult(persistent, result);
-
-    if (TurnHubProfiles::saveStatsForProfile(profileId, persistent)) {
-      ++updated;
-    }
-  }
-
-  return updated;
 }
 
 const char *resultName(LastGameResult result) {

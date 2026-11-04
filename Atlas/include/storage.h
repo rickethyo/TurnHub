@@ -31,3 +31,23 @@ class BlobStore {
 };
 
 }  // namespace TurnHubStorage
+
+namespace TurnHub {
+
+// Shared, greppable spelling for diagnostic logging, so a serial console tells
+// NotFound, Corrupt, UnsupportedSchema, IoError and a clean Ok apart.
+inline const char *storageStatusName(TurnHubStorage::Status status) {
+  using TurnHubStorage::Status;
+  switch (status) {
+    case Status::Ok: return "OK";
+    case Status::NotFound: return "NOT_FOUND";
+    case Status::Unavailable: return "UNAVAILABLE";
+    case Status::InvalidArgument: return "INVALID_ARGUMENT";
+    case Status::Corrupt: return "CORRUPT";
+    case Status::UnsupportedSchema: return "UNSUPPORTED_SCHEMA";
+    case Status::IoError: return "IO_ERROR";
+    default: return "UNKNOWN";
+  }
+}
+
+}  // namespace TurnHub
