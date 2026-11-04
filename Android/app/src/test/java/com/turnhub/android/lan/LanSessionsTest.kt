@@ -11,6 +11,53 @@ import org.junit.Test
 import java.util.UUID
 
 class LanSessionsTest {
+    @Test fun `guest everyone controls update all five counters through the real host engine`() {
+        val f = Fixture(tcg(GameProfile.MTG_COMMANDER))
+        val token = f.join("player", 1).getString("token")
+        StandaloneGame.EVERYONE_COUNTERS.forEach { kind ->
+            assertEquals(kind, "ok", f.sessions.handle(f.action(token, "everyone:$kind:1", 0)).getString("code"))
+            val players = StandaloneTable.gameToJson(f.table.state.value.game).getJSONArray("players")
+            val counters = (0 until players.length()).map { players.getJSONObject(it).getJSONObject("counters").getInt(kind) }
+            assertEquals(kind, listOf(1, 1), counters)
+            assertEquals(kind, "ok", f.sessions.handle(f.action(token, "everyone:$kind:-1", 0)).getString("code"))
+        }
+        val request = f.action(token, "everyone:rad:1", 0)
+        assertEquals("ok", f.sessions.handle(request).getString("code"))
+        assertEquals("ok", f.sessions.handle(request).getString("code"))
+        assertEquals(listOf(1, 1), f.table.state.value.game.players.map { it.counters.rad })
+        assertEquals("stale", f.sessions.handle(f.action(token, "everyone:rad:1", 0).put("match", "old-match")).getString("code"))
+        listOf("everyone:rad:2", "everyone:rad:0", "everyone:rad:+1", "everyone:commander-casts:1").forEach {
+            assertEquals("rejected", f.sessions.handle(f.action(token, it, 0)).getString("code"))
+        }
+        listOf("slot", "source", "value").forEach {
+            assertEquals("rejected", f.sessions.handle(f.action(token, "everyone:rad:1", 0).put(it, 1)).getString("code"))
+        }
+        assertEquals(listOf(1, 1), f.table.state.value.game.players.map { it.counters.rad })
+    }
+
+    @Test fun `everyone counters respect shared poison living players and read only views`() {
+        val teams = Fixture(tcg(GameProfile.MTG_COMMANDER, teams = true))
+        val token = teams.join("player", 1).getString("token")
+        assertEquals("ok", teams.sessions.handle(teams.action(token, "everyone:poison:1", 0)).getString("code"))
+        assertEquals(listOf(1, 1, 1, 1), teams.table.state.value.game.players.map { it.counters.poison })
+        val display = teams.join("planes", 0).getString("token")
+        assertEquals("forbidden", teams.sessions.handle(teams.action(display, "everyone:rad:1", 0)).getString("code"))
+        val nonMagic = Fixture(tcg(GameProfile.POKEMON))
+        val pokemon = nonMagic.join("player", 1).getString("token")
+        assertEquals("rejected", nonMagic.sessions.handle(nonMagic.action(pokemon, "everyone:rad:1", 0)).getString("code"))
+
+        var game = StandaloneGame().setFormat(GameProfile.MTG_COMMANDER)
+        repeat(3) { game = game.addPlayer("Player $it") }
+        game = game.chooseStarter(0).start(1_000, "living-match")
+        game = game.copy(players = game.players.mapIndexed { i, p -> if (i == 2) p.copy(eliminated = true) else p })
+        val living = Fixture(game)
+        val live = living.join("player", 1).getString("token")
+        val out = living.join("player", 3).getString("token")
+        assertEquals("rejected", living.sessions.handle(living.action(out, "everyone:rad:1", 0)).getString("code"))
+        assertEquals("ok", living.sessions.handle(living.action(live, "everyone:rad:1", 0)).getString("code"))
+        assertEquals(listOf(1, 1, 0), living.table.state.value.game.players.map { it.counters.rad })
+    }
+
     private fun tcg(profile: GameProfile, teams: Boolean = false): StandaloneGame {
         var g = StandaloneGame().setFormat(profile).setTwoHeadedGiant(teams)
         val count = if (profile.starCommander || profile.bagOfDoom) 5 else if (profile.emperor) 6 else if (teams) 4 else 2

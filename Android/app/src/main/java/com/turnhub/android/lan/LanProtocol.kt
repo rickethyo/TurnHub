@@ -75,6 +75,15 @@ internal const val PLANAR_KIND = "planar-"
 /** The host infers the player from the authenticated session, never a request's seat. */
 internal data class LanAction(val match: String, val revision: Long, val player: Int, val kind: String, val value: Int, val slot: Int, val source: Int = 0)
 
+/** The panel's all-player commands carry their signed unit delta in the kind, with no extra fields. */
+internal fun everyoneCounterAction(kind: String, value: Int, slot: Int, source: Int): Pair<String, Int>? {
+    val game = com.turnhub.android.standalone.StandaloneGame
+    if (value != 0 || slot != 0 || source != 0 || !kind.startsWith(game.EVERYONE_PREFIX)) return null
+    val parts = kind.removePrefix(game.EVERYONE_PREFIX).split(':')
+    if (parts.size != 2 || parts[0] !in game.EVERYONE_COUNTERS || parts[1] !in setOf("-1", "1")) return null
+    return parts[0] to parts[1].toInt()
+}
+
 internal val com.turnhub.android.protocol.GameProfile.lanSupported: Boolean
     get() = deathMayDie || magicRules || this in listOf(com.turnhub.android.protocol.GameProfile.GENERIC, com.turnhub.android.protocol.GameProfile.YUGIOH,
         com.turnhub.android.protocol.GameProfile.POKEMON, com.turnhub.android.protocol.GameProfile.LORCANA)

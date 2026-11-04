@@ -2,4 +2,5 @@
 <!-- Only the share folder in the app's cache is exposed: a result picture or a CSV export. -->
 <paths>
     <cache-path name="shared" path="shared/" />
+    <cache-path name="profile_transfer" path="profile-transfer/" />
 </paths>

@@ -85,6 +85,14 @@ sets the Atlas screen's view for the guest's own seat (Atlas accepts signed-in
 players only, as from their own phone). Setup and special table decisions unsupported
 by the LAN vocabulary stay on the host and are reported visibly.
 
+The personal and shared-panel counter menus
+also send `everyone:<kind>:<delta>` for `poison`, `energy`, `experience`,
+`treasure` and `rad`, with delta exactly `-1` or `1`; the outer `value`, `slot`
+and `source` must all be zero. An authenticated living Magic player can apply
+these through the normal host-engine or Atlas counter validator. Only living
+players change, and shared team poison changes once per team. Read-only views
+cannot send these commands; normal match/revision and receipt checks apply.
+
 Local commands require the exact match/revision. Atlas commands require its
 boot/game context. A per-member immutable action-UUID receipt prevents duplicate
 deltas and rejects changed payloads; receipts are not evicted. After 2048 actions

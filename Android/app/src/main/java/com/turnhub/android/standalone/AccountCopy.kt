@@ -17,6 +17,9 @@ object AccountCopy {
         .put("personalization", player.personalization.toJson())
         .put("lastActivityMs", player.lastActivityMs)
         .put("createdAtMs", player.createdAtMs)
+        .put("commanders", JSONArray().apply { player.commanders.forEach { (name, art) ->
+            put(JSONObject().put("name", name).put("art", art ?: JSONObject.NULL))
+        } })
         .put("history", JSONArray().apply {
             history.filter { record -> record.players.any { it.localId == player.localId } }.forEach { record ->
                 put(record.copy(players = record.players.map { seat ->
@@ -47,7 +50,18 @@ object AccountCopy {
             (it.linkKey == null || it.linkKey.matches(Regex("[0-9A-F]{32}"))) })
         require(links.map { it.atlasId }.distinct().size == links.size)
         return SavedLocalPlayer(localId, name, profileId, LocalPersonalization.fromJson(json.getJSONObject("personalization")),
-            links, credential, json.optLong("lastActivityMs", 0), json.optLong("createdAtMs", 0).also { require(it >= 0) })
+            links, credential, json.optLong("lastActivityMs", 0), json.optLong("createdAtMs", 0).also { require(it >= 0) },
+            json.optJSONArray("commanders")?.let { choices ->
+                require(choices.length() <= 6)
+                (0 until choices.length()).map { index ->
+                    val choice = choices.getJSONObject(index)
+                    val commander = choice.getString("name")
+                    val art = choice.optStringOrNull("art")
+                    require(commander.isNotBlank() && commander.length <= StandaloneGame.MAX_COMMANDER)
+                    require(art == null || com.turnhub.android.data.TileCardGame.valid(art))
+                    commander to art
+                }
+            }.orEmpty())
     }
 
     /** Only the copied identity gains a local binding; names and opponents' device UUIDs never do. */

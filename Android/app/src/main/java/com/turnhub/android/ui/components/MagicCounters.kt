@@ -41,6 +41,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import com.turnhub.android.domain.DayNight
 import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.PlayerCounters
@@ -88,10 +90,19 @@ fun CounterChips(
     modifier: Modifier = Modifier,
     compact: Boolean = false,
     commanderRarity: String? = null,
+    contentSize: TextUnit? = null,
+    artworkBackdrop: Boolean = false,
 ) {
     val chips = counterChips(counters, initiative, commander, poisonLimit)
     if (chips.isEmpty()) return
     val p = palette
+    val chipStyle = (if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleMedium).let { style ->
+        contentSize?.let { style.copy(fontSize = it, lineHeight = (it.value * 1.2f).sp) } ?: style
+    }
+    val labelStyle = contentSize?.let { MaterialTheme.typography.labelMedium.copy(fontSize = it, lineHeight = (it.value * 1.2f).sp) }
+        ?: MaterialTheme.typography.labelMedium
+    val iconSize = contentSize?.let { with(androidx.compose.ui.platform.LocalDensity.current) { it.toDp() } * 1.2f }
+        ?: if (compact) 16.dp else 22.dp
     FlowRow(
         modifier,
         horizontalArrangement = Arrangement.spacedBy(6.dp, if (compact) Alignment.CenterHorizontally else Alignment.Start),
@@ -103,6 +114,7 @@ fun CounterChips(
             Row(
                 Modifier
                     .clip(shape)
+                    .then(if (artworkBackdrop) Modifier.background(p.surface.copy(alpha = .82f)) else Modifier)
                     .background(color.copy(alpha = .12f))
                     .border(1.dp, color.copy(alpha = .35f), shape)
                     .padding(horizontal = if (compact) 7.dp else 10.dp, vertical = if (compact) 3.dp else 6.dp)
@@ -112,14 +124,14 @@ fun CounterChips(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                if (chip.icon != null) Icon(painterResource(chip.icon), contentDescription = null, tint = commanderIconColor(commanderRarity.takeIf { chip.label == "Commander 1 tax" }), modifier = Modifier.size(if (compact) 16.dp else 22.dp))
-                else Text(chip.glyph, color = color, style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleMedium)
+                if (chip.icon != null) Icon(painterResource(chip.icon), contentDescription = null, tint = commanderIconColor(commanderRarity.takeIf { chip.label == "Commander 1 tax" }), modifier = Modifier.size(iconSize))
+                else Text(chip.glyph, color = color, style = chipStyle)
                 chip.value?.let {
-                    Text(it, color = color, style = (if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleMedium)
+                    Text(it, color = color, style = chipStyle
                         .copy(fontWeight = FontWeight.Bold))
                 }
                 if (!compact || chip.value == null) {
-                    Text(chip.label, color = color, style = MaterialTheme.typography.labelMedium)
+                    Text(chip.label, color = color, style = labelStyle)
                 }
             }
         }

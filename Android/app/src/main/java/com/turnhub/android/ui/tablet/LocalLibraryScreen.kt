@@ -145,6 +145,7 @@ fun LocalLibraryScreen(
                                 Modifier.fillMaxWidth(), enabled = state.storageProblem == null)
                             if (table != null) TextButton({ copyingAccount = true }, enabled = state.storageProblem == null) {
                                 Text("Copy an account from another device") }
+                            if (table != null) ImportTurnHubButton(table)
                             if (canLink) TextButton(onClick = onLoadProfiles,
                                 enabled = !importState.busy && state.storageProblem == null) { Text("Refresh profiles") }
                         }

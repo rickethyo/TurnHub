@@ -630,6 +630,26 @@ large histories need performance/storage work before a release guarantee.
 
 ### Platform and control presentation boundaries
 
+TurnHub Preview offers **Import accounts from TurnHub** in Players and the
+initial Admin prompt. An updated main TurnHub app opens its own account picker
+on the same phone and checks each selected protected profile's PIN/password.
+It returns a temporary read-only file grant exclusively to Preview. No network
+or camera is needed. The copy retains stable profile IDs, original age,
+appearance, Commander choices, Atlas links, PIN protection and retained history.
+Preview merges by identity and match UUID in one durable save, preserving its
+current game, existing profile settings and existing device Admin. If Preview
+has no Admin, the selected source Admin may become its Admin. Repeating a copy
+does not duplicate statistics; this is a snapshot, not ongoing synchronization.
+Older Play builds without this endpoint show an update message in Preview.
+The main app needs a Play-signed update before same-phone importing is possible.
+
+The exporter accepts only a result request from the Preview package. It reads
+the source library without writing it, verifies protected profiles before
+creating the payload, and shares only selected accounts through a scoped cache
+path. Wi-Fi passwords, room access tokens, device-bound biometric secrets and
+the current game are not copied. The existing QR account-copy flow remains
+available between devices.
+
 The profile vault checks Android 11 at its key-generation API boundary as well
 as exposing availability; its authentication policy and stored format are
 unchanged. Haptics use typed click/thud primitives, check each required motor
@@ -666,8 +686,21 @@ Atlas firmware includes the complete admin portal and its maintenance/Developer
 assets. The update assistant lists only Atlas and Sigils, never queries portal
 installation or card status, and ignores retired `portal` release entries.
 
-Connected and device games share the Game tab's upright player panels. The Table
-tab is the live facing-seat layout. A compact wrapping row above the Game tab
+Connected and device games share the Game tab's upright player panels. The
+Table view and personal phone controls use the same live player-card renderer.
+Cards with loaded commander/investigator art or a custom image use dark artwork
+contrast and light lettering in every app theme, so Daylight does not whiten
+the image. The surrounding shell and cards without images keep the chosen theme.
+Live status badges such as Turn and Conceded grow with the panel and the space
+left after measuring its name/subtitle. Crowded badges shrink or wrap beneath
+the name, and the life readout reserves room for the resulting heading. Their
+full text and Android's text scaling are retained.
+Player and commander names also fit the measured heading and wrap when needed.
+Counters and received Commander damage scale to the available facts band,
+including full damage-source names, with their actual wrapped height reserved
+beside the life readout. Local translucent backdrops sit behind names and chips;
+the artwork remains visible throughout the rest of the card.
+The Table tab is the live facing-seat layout. A compact wrapping row above the Game tab
 keeps the game selector and Play Together together. Game menu contains the
 Game card selector for personal/pass-and-play views. For eligible connected
 players it also offers On the Atlas screen, using the same screen picker and

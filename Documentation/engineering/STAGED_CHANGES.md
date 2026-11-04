@@ -310,6 +310,14 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
   retention and large-history storage/performance remain open. Local player
   editing, PIN removal, account deletion and retained UUID-based history are
   implemented; device checks belong to stabilization above.
+- **Play to Preview account copy** (owner, 2026-11-03): same-phone export and
+  import are implemented in Android, with per-account PIN verification,
+  scoped file grants and atomic destination storage. Install Preview on S23
+  first; its installed Play build 597 requires a Play-signed update containing
+  the exporter. Check the complete real-device transfer after that update,
+  including protected/multiple accounts, history deduplication, cancellation
+  and large text/TalkBack. This does not share live storage or replace general
+  export/backup; see [Android behavior](../../Android/README.md).
 - **Connected artwork:** design Atlas-owned player-card background storage,
   transfer, caching, approval and no-card/failure fallback. Local tile artwork
   and connected avatar upload/crop/review are implemented. Preserve player
