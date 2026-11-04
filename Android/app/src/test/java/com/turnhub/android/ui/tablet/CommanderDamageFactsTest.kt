@@ -8,7 +8,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CommanderDamageFactsTest {
-    private fun summary() = TableSummaryMapper.map(Fixtures.info(), Fixtures.state("running.response.json"), receivedAtMs = 1_000).let {
+    private fun summary() = com.turnhub.android.testing.TableFixtures.running(receivedAtMs = 1_000).let {
         it.copy(settings = it.settings.copy(profile = GameProfile.MTG_COMMANDER))
     }
 

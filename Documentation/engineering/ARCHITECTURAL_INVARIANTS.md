@@ -2,68 +2,51 @@
 
 These are hard design rules for TurnHub. They are not suggestions. A proposed implementation that violates an invariant should be treated as an architectural regression unless the invariant itself is deliberately revised.
 
-## Invariant 1: Atlas is the sole authority for game and table state
+## Invariant 1: The hub that runs the core owns the game; Atlas owns hardware and records at rest
 
-Only Atlas may create, validate, mutate, persist, recover, or resolve canonical game/table state.
+*Revised by the project owner on 2026-11-04 (phone-hosted games); was "Atlas is the
+sole authority for game and table state".*
 
-Canonical state includes, at minimum:
+One device runs each game: the **hub**, a phone or tablet that runs the shared
+rules core (`core/`, through the NDK on Android). Only the hub may create,
+validate, mutate, persist or resolve that game's state:
 
-- Player list and seat assignments.
-- Active player and turn order.
-- Turn number.
-- Game lifecycle state.
-- Pause/resume state.
-- Turn timing anchors and warning configuration.
+- Player list, seats and turn order.
+- Game lifecycle, pause/resume and turn timing.
 - Life totals and game-specific counters.
-- Elimination/concession state.
-- Victory claims, confirmations, denials, and winner.
-- Controller-to-player assignment.
-- Session recovery state.
-- Statistics derived from game events.
+- Elimination, concession, victory claims and winners.
+- The in-progress match and its result.
 
-Physical Sigils, Virtual Sigils, browsers, future apps, and simulated controllers MUST NOT independently decide or mutate canonical game state.
+Atlas runs no game. It owns its hardware and what it keeps at rest: the radio and
+Sigil pairings, its screen, profiles and PINs, statistics, match history,
+settings and the table lease (`protocol/hosted-v1.md`). It shows the hub's game,
+relays Sigil and touchscreen input to the hub as inputs, and records the finished
+game the hub reports.
 
-*Exception (project owner):* native apps may run a **standalone game** when no
-Atlas is at the table. It is a separate game, not Atlas state: it never changes
-a game Atlas is running, and it reaches Atlas only as a finished game record
-that Atlas validates and credits to its own profiles under the existing import
-contract. Android implements this mode ([Android/README.md](../../Android/README.md));
-iOS is at the foundation stage ([development framework](IOS_DEVELOPMENT.md)).
-
-An Android standalone TCG or Death May Die host may serve [shared devices](SHARED_DEVICES.md).
-That host alone runs the standalone engine and persists the match/results. Guest
-apps render snapshots and send authenticated own-player/shared-table requests; they
-never become another authority, save remote results or take over on disconnect.
-
-They may:
-
-- Capture input.
-- Authenticate a user/controller where appropriate.
-- Send an intent/request to Atlas.
-- Cache presentation data.
-- Render state supplied by Atlas.
-- Perform local UI behavior such as debounce, animation, sound, vibration, display refresh, or connection indicators.
-
-They may not treat cached presentation state as authoritative.
-
-Conceptual rule:
+Sigils, the Atlas touchscreen, guest phones and simulators MUST NOT decide game
+outcomes. They may capture input, authenticate a user where appropriate, send an
+input or request to the hub, cache presentation data, render the hub's state and
+perform local UI behavior (debounce, animation, sound, vibration, connection
+indicators). They may not treat cached presentation state as authoritative.
 
 ```text
-Controller -> request/intent -> Atlas -> validate/mutate -> canonical state -> render/update -> Controller
+Controller -> input -> hub (shared core) -> validate/mutate -> state -> Atlas and guests render
 ```
 
-If a controller disconnects, restarts, or disagrees with Atlas, Atlas wins.
+If a controller disconnects, restarts, or disagrees with the hub, the hub wins.
+If the hub drops, its game pauses on Atlas until the hub (or, from Atlas's
+checkpoint, another phone) takes the lease again.
 
-Room membership is distinct from game authority. The designated Android hub may
-persist game-night membership and reconnect capabilities and mirror them to
-Atlas. Room grants never confer account administration. The existing authority
-continues to validate each command; room persistence does not elect a new host.
+A [shared-devices](SHARED_DEVICES.md) room host is that game's hub: guest apps
+render its snapshots and send authenticated own-player/shared-table requests; they
+never become another authority, save remote results or take over on disconnect.
+Room grants never confer account administration.
 
 ## Invariant 2: One semantic implementation per game action
 
 A game action must have one authoritative semantic implementation.
 
-For example, physical Pass and browser Pass may arrive through different transports, but both must converge on the same Atlas operation rather than maintaining separate pass logic.
+For example, a Sigil's Pass and a phone's Pass may arrive through different transports, but both must converge on the same core operation on the hub rather than maintaining separate pass logic.
 
 This applies to:
 
@@ -156,19 +139,19 @@ A feature should not create a second state owner, a second semantic implementati
 
 ## Invariant 10: Controller inputs converge on semantic Intents
 
-Physical Sigils, browsers, Atlas controls, simulators, and future applications should converge on the same semantic Intent vocabulary before canonical game behavior is executed.
+Physical Sigils, browsers, Atlas controls, simulators, and future applications should converge on the same semantic vocabulary before canonical behavior is executed: on Atlas, its Intents for device and account work; for the game, the hub's inputs.
 
-Adapters may decode and authenticate their own transport, but canonical validation and mutation belong to the authoritative Atlas Intent handler/domain operation.
+Adapters may decode and authenticate their own transport, but canonical validation and mutation belong to the authoritative handler: an Atlas Intent handler for what Atlas owns, the hub's core for the game.
 
 For example:
 
 ```text
-Physical Sigil PASS --\
-Browser Pass ----------+--> IntentType::Pass --> one Atlas handler
-Atlas button ----------/
+Sigil PASS ---------\
+Atlas screen Pass ---+--> hosted input --> the hub's core
+Guest phone Pass ----/
 ```
 
-The Intent layer is an application boundary. It does not replace the GameEngine and it does not create a second source of truth.
+The Intent layer is an application boundary on Atlas. It does not run games and it does not create a second source of truth.
 
 ## Invariant 11: Accessibility is a first-class system requirement
 
@@ -181,7 +164,7 @@ At minimum:
 - Motion, flashing, or LED cadence MUST NOT be the sole carrier of essential meaning.
 - Essential digital controls MUST provide accessible input paths appropriate to the platform.
 - Physical actions that depend on timing, fine dexterity, or a specific gesture SHOULD have an authorized assistive path when practical.
-- Accessibility alternatives MUST converge on the same semantic Intent and Atlas authorization as the default controller path. They do not create a second game engine or state owner.
+- Accessibility alternatives MUST converge on the same semantic action and authorization as the default controller path. They do not create a second game engine or state owner.
 
 Web and application surfaces SHOULD target WCAG 2.2 Level AA. Physical Atlas/Sigil design MUST follow the separate requirements in `ACCESSIBILITY.md`, including redundant cues and assistive-input considerations.
 
@@ -192,12 +175,14 @@ A feature is not complete merely because its default interaction works for a use
 Anything built for the app is built for Atlas, and anything built for Atlas is
 built for the app, so TurnHub never again splits into two ecosystems.
 Accounts, statistics, game rules, records, settings and their behavior work
-the same whether a game is played on a phone, a tablet or an Atlas.
+the same whether a game is shown on a phone, a tablet or an Atlas; since
+2026-11-04 every game runs on one shared core on its hub, so the rules cannot
+drift.
 The product model is **one game, many controllers**: host/transport selection
 must not select a different game layout or interaction flow. Shared presentation
 consumes the same state/action vocabulary; adapters handle credentials,
 requests and persistence. Player and shared-table roles may expose different
-permissions, consistently across authorities.
+permissions, consistently across devices.
 
 - A feature lands on both sides in the same PR, or the PR records the
   counterpart in `STAGED_CHANGES.md` as the next slice. Neither side ships a
@@ -211,7 +196,7 @@ permissions, consistently across authorities.
 
 For every new feature, ask:
 
-> If every Sigil and browser vanished and later reconnected, could Atlas reconstruct the correct game entirely from its own canonical state?
+> If every Sigil, guest phone and the Atlas screen vanished and later reconnected, could the hub reconstruct the correct game entirely from its own state?
 
 For game/table behavior, the expected answer is **yes**.
 
@@ -227,4 +212,4 @@ For every user-facing feature, also ask:
 
 The expected answer is **yes** whenever a practical alternative exists.
 
-Last established: 2026-09-20; feature gate extended to eight questions (as in `CLAUDE.md`) 2026-10-06
+Last established: 2026-09-20; feature gate extended to eight questions (as in `CLAUDE.md`) 2026-10-06; Invariant 1 revised for phone-hosted games 2026-11-04

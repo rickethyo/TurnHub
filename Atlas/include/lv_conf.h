@@ -1,5 +1,5 @@
 // LVGL 9.3 configuration for the S3 Atlas firmware (env:atlas-s3 only; the
-// desktop simulator has its own LVGL/lv_conf.h). Anything not set here takes
+// desktop simulator has its own shared/simulator/lv_conf.h). Anything not set here takes
 // LVGL's default from lv_conf_internal.h.
 #ifndef LV_CONF_H
 #define LV_CONF_H

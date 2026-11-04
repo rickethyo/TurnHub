@@ -28,7 +28,7 @@ and maintenance-script changes require CI, not `[skip ci]`.
 
 | Check name | Work performed |
 | --- | --- |
-| Host tests and contracts | Atlas gameplay, storage and profile-store suites; the shared rules core's scenarios (`core/tests/run-linux.sh`, C++17); Sigil touch, menu, secure-link, pairing, session and firmware-package suites; adapter audit; DMD catalogue generation and validator; generated-response and shared-fixture contract validation; design tokens current (`design/build_tokens.py --check`); embedded admin portal builds (`Atlas/web/build.py --check`); the app's manual asset matches the newest manual; `tools/firmware/thfw.py` tests |
+| Host tests and contracts | Atlas gameplay, storage and profile-store suites; the shared rules core's scenarios (`core/tests/run-linux.sh`, C++17); Sigil touch, menu, secure-link, pairing, session and firmware-package suites; adapter audit; generated-response and shared-fixture contract validation; design tokens current (`design/build_tokens.py --check`); embedded admin portal builds (`Atlas/web/build.py --check`); the app's manual asset matches the newest manual; `tools/firmware/thfw.py` tests |
 | Firmware (atlas-s3) | Build the ES3C40P S3 Atlas (`env:atlas-s3`), the one Atlas build; check its firmware descriptor and, with the signing secret, add a signed `atlas.thfw` (refused while `TURNHUB_OTA_RETIRED` is set: USB-flashed until S3 OTA) |
 | Firmware (sigil) | The one Sigil build: touchscreen-only LVGL firmware on the E32R28T (`env:sigil`); descriptor check and, with the signing secret, `sigil.thfw` (refused while `TURNHUB_OTA_RETIRED` is set) |
 | LVGL simulator (manual only; semi-retired) | Desktop LVGL simulator built with ASan/UBSan, its CTest self-tests (SDL dummy drivers) and the font digest check |
@@ -79,11 +79,10 @@ the paths into five switches:
 | `Atlas/include/` | yes | | | | yes |
 | `Atlas/` (elsewhere) | yes | | | | |
 | `Sigil/` | | yes | | | |
-| `LVGL/` | | | | | yes |
-| `shared/` | yes | yes | | | yes |
+| `shared/simulator/` | | | | | yes |
+| `shared/` (elsewhere) | yes | yes | | | yes |
 | `protocol/` | yes | | yes | | |
 | `Android/` (except the generated `assets/manual.md`) | | | yes | | |
-| `data/death-may-die/`, `tools/dmd-forge/` | | | yes | | |
 | `design/` | yes | | yes | | yes |
 | `tools/firmware/` | yes | yes | | yes | |
 | `.github/` (except `workflows/ios.yml`) | yes | yes | yes | yes | yes |
@@ -226,4 +225,6 @@ checks. The existing PlatformIO framework/toolchain/library cache is separate.
 
 The semi-retired desktop simulator runs only on manual workflow dispatch. Real
 Atlas/Sigil builds remain automatic, as do shared display font/icon digest checks.
-Board display assets live in `shared/display/`; simulator sources remain in `LVGL/`.
+Board display assets and their generators live in `shared/display/`; simulator sources are in `shared/simulator/`.
+Death May Die's content is local-only (gitignored), so CI builds and tests the app with the
+empty `Android/app/src/dmdStub/` stand-in.

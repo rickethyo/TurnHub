@@ -32,102 +32,22 @@ Admin account merges retain the existing verified merge workflow. Play Together
 links a protected profile once and then restores its room-scoped credential;
 shared table controllers require no personal account. See [Shared devices](SHARED_DEVICES.md).
 
-## Joining a table
+## Joining a game
 
-- One profile has **at most one participant** at the table. Two phones and a
-  Sigil may all control that participant; statistics count once.
-- **Phones** join with `POST /api/session/join` and can form a whole table
-  with no Sigils: pick a starter, start, play, finish, rematch.
-- **Sigils** join through the **profile picker** (`profile_picker.cpp`, RAM
-  browsing state only). The page lists Guest, then saved profiles, three to
-  a page. E-ink: each name has a fixed key (Up/Right/Down), the click shows
-  more names, Left goes back. OLED: the same page as a scrolling list. Words
-  mark special rows: "no profile" (Guest), "at table: attach" (already playing from a phone; choosing it attaches this Sigil to
-  that participant). Archived or moderated profiles and profiles on another
-  Sigil are not listed. Names that would look the same on a Sigil (the
-  same name, or the same first 12 characters) are numbered in profile ID
-  order, "Sam 1" and "Sam 2", cut to fit (2026-10-06). The picker closes after a minute idle, at game start,
-  or when the Sigil joins another way.
-- **Use this seat** (the app’s Players tab):
-  `POST /api/session/request` with `module` and `slot`, then poll
-  `GET /api/session/poll?id=` while the player chooses **Link phone** on that
-  Sigil within 30 s. Signed out, approval signs the phone in to the seat's
-  profile for gameplay (a Sigil press proves possession, not its PIN; private
-  statistics and administration remain locked). Signed in, it attaches that Sigil seat to the
-  signed-in profile. The app signs in from its profile list. In a lobby its Paired Sigils list
-  can also request attachment of an empty seat A, with the same physical
-  confirmation and server validation.
+Since 2026-11-04 the hub phone or tablet runs every game
+([hosted-v1.md](../../protocol/hosted-v1.md)), so the hub seats its players:
+its own accounts, accounts copied from Atlas, or guests. Atlas's lobby, its
+profile picker, seat claims ("Use this seat" and the Sigil's Link phone),
+mid-game Sigil joins, the Atlas screen's Add player and tablet mode's
+`/api/tablet/*` routes were removed with Atlas's engine.
+
+- One profile has **at most one participant** in a game; statistics count once.
+- **Sigils** join the hub's setup from their menu while a hub holds the
+  table; Atlas binds the Sigil to that hub player (`hosted_sigils.cpp`) and
+  queues its keys for the hub. A Sigil guest is an unlinked player.
 - **Phone profile selection:** an empty PIN creates a gameplay-only session.
   Entering a valid PIN creates a PIN-verified session for private stats and
   administration. A profile with no saved PIN can choose one for those uses.
-- **S3 Atlas screen, Add player** (*Experimental*, 2026-10-28): the lobby's
-  Add player lists saved profiles not at either table, four to a page
-  (More pages on). Choosing any available profile seats it immediately; no
-  PIN is needed. New player types a name on the on-screen keyboard and
-  creates a profile with no PIN (a name already in use is refused). Each
-  seat is a `JoinProfile` Intent from `AtlasHardware`, on a browser
-  controller as the tablet's. Clear lobby moved under Menu.
-- **Seat B** on a shared Sigil uses the same picker (**Add seat B**); Guest
-  adds seat B directly. `PickProfile` with slot 2 adds the seat and binds the
-  profile in one step.
-- Attachment and profile choice happen in the lobby, with one exception
-  (owner request 2026-10-07, *Experimental: host-tested*): during a running
-  or paused game a Sigil outside it offers **Join** while some player in the
-  game has no Sigil (seated from a phone or the tablet). Its picker then lists
-  only those players (no Guest), and choosing one moves that player onto the
-  Sigil with their place, life and clock (`GameEngine::replaceController`).
-  Nobody new joins mid-game until venue lobbies, and a participant that
-  already has a physical controller is never silently moved.
-- Seat bindings are temporary (RAM): released when the seat leaves (the
-  Sigil's Leave, Drop seat B, a phone leaving for a profile seated on a
-  Sigil, a Game Master removal), at Reset and on restart. They survive Game
-  Over so Sigils can name the winner, and Rematch restores them. A seated
-  Sigil that reboots keeps its profiles.
-- **Turn order** is set on the Atlas touchscreen in the lobby by tapping a
-  player chip: Earlier/Later (`MoveSeat`) and, on a shared Sigil, B left or
-  B right (`SetSeatSide`). Any player may do it, and so may a table tablet
-  (Earlier/Later, 2026-10-07); a phone may not.
-  Starter, participants and bindings stay with their physical seats, and
-  recovery restores A/B and B/A pairs.
-
-## Tablet mode (2026-10-06)
-
-*Experimental: host-tested, not yet played on hardware.* One shared tablet or
-phone lies in the middle of the table, split into a panel per player that
-faces their seat (Android app, Game → Open tablet mode, `ui/tablet/`).
-The app renders `/api/v1/state` and sends `/api/tablet/*` requests; it keeps
-the screen on and hides system bars during play. Browser tablet mode is retired.
-The game selector follows Atlas’s venue list. A shared-tablet switch keeps its
-players seated in their original game. State/name caches and local staged edits
-reset when games change; queued offline changes include the venue game, boot
-and participant identity. Native raw table actions include `expectedGame`; Atlas
-rejects a stale selected-game context before dispatching the semantic action.
-
-- **Shared controls.** Apps open a restricted game connection automatically.
-  No profile selection or sign-in is required for Game and Table.
-  No tablet role, presence code or enable step is needed. Selecting a shared
-  view does not replace the personal session. PIN verification is reserved for
-  private statistics and privileged administration, not seating or gameplay.
-- **Seating.** In the lobby the tablet adds players: a new name creates a
-  profile with no PIN (names are unique, ignoring case); an existing profile
-  follows its owner's PIN choice below, else the tablet asks for its PIN
-  (rate limited like a sign-in). Seated players join as browser controllers,
-  so a Sigil can then attach to any of them through its picker ("at table:
-  attach") and a phone can sign in to the same participant.
-- **Turn order.** The tablet lobby's arrows move a seat earlier or later
-  (`move-earlier`/`move-later`, `MoveSeat` with the `TableTablet` origin);
-  panels sit clockwise in that order. The game's order is fixed once it
-  starts. Claim the win and Concede sit at the top of each panel's More.
-- **Acting for a seat.** Every panel action names the seat (`module`, `slot`
-  from `/api/v1/state`) and goes through the same seat callbacks and Intents
-  a phone uses (`web_tablet_api.cpp`). Atlas still decides: a seat changes
-  only its own life, records only Commander damage it received, only the
-  active player passes or claims a win, and win confirmations go to the
-  confirming seat. Statistics are recorded per profile as for any game.
-- **Paused decisions:** tablet clients keep the central pause overlay closed
-  during a win claim so the scheduled player's panel can Confirm or Deny.
-  Resume is offered only for an ordinary pause. Elimination selection directs
-  the table to the existing Atlas/Sigil controls instead of offering Resume.
 
 ## Owner policy
 
@@ -150,13 +70,12 @@ sign-in list.
 | Permission | Allows |
 |---|---|
 | Admin | Account permissions, device names, network settings, firmware and portal updates, pairing confirmation and forget, factory reset, Return table to lobby, speaker volume from the portal (anyone at Atlas may set it on its screen, Settings > Device) |
-| Game Master | Force pass (logged as a master pass), nudge mute; optional sub-permissions **reset connections** and **remove from game** |
+| Game Master | Sees the people list and reviews player images (its in-game moderation left with Atlas's engine, 2026-11-04) |
 | Developer | Developer page, diagnostics and the RAM log download (`GET /api/diagnostics/log`) |
 
 A normal account has none. Permissions combine freely and are checked on
 Atlas for every protected request. Privileged accounts can't remove their
-secret. **There is no table host** (2026-09-25): any seated player may start,
-pick the starter, change next-game settings, rematch or reset.
+secret. In a game the hub decides who may start, change settings, rematch or reset.
 
 **First Admin.** On a new Atlas the app's setup or the portal's banner lets a
 signed-in account with a secret claim the first Admin, after proving
@@ -187,23 +106,10 @@ QR code also shows a private password without a code.
 
 ## Moderation
 
-Game Master actions go through the `Moderate` Intent, which re-checks
-permission and target state:
-
-- **Force pass** acts at once, within the normal pause and decision rules.
-- **Reset connections** revokes the target's sessions and pending claims and
-  suspends its Sigil controls until a PIN sign-in. Seat, life and game state
-  stay. A shared Sigil is suspended as a unit.
-- **Remove from game** also leaves the lobby or eliminates the participant
-  through the concession flow (open decisions finish first; a primary seat
-  with a seat B removes B first). The account and statistics stay.
-- **Nudge mute** stops that account sending nudges (`NudgePlayer` is refused).
-
-Both disconnecting actions need the target to have a secret. Connection
-resets and removals are counted (`o<profileId>`), saved before acting
-(a storage failure rejects the action), and shown only to the account's own
-PIN-verified session, never to Admins, Game Masters, seats, Sigils or
-exports.
+Atlas's in-game moderation (force pass, reset connections, remove from
+game, nudge mute; the `Moderate` Intent) was removed on 2026-11-04 with its
+engine. Earlier resets and removals stay counted (`o<profileId>`) and are
+shown only to the account's own PIN-verified session.
 
 Archived accounts stay visible to Admins at the bottom of the account list,
 can be restored, and are hidden from Game Master tools.
@@ -216,17 +122,13 @@ can be restored, and are hidden from Game Master tools.
   [Staged Changes](STAGED_CHANGES.md), "Parked: storage batch".
 - Future LCD artwork transfer/cache and final ESP32-S3 screen layouts.
 - Per-Sigil startup choice (last profile or picker).
-- Moderation from the Atlas Player screen.
 
 ## Verification
 
-Host scenarios run the real HTTP handlers, Intent handlers and engine:
-registration and login (PIN and password), hardware-free games, duplicate-join
-refusal, concurrent sessions, logout and re-login, PIN throttling and
-revocation, mixed attachment, the picker for both seats and policies,
-permissions, presence codes, moderation and counter privacy. Phone-only
-games, phone plus Sigil on one player and persistence across reboots are
-verified in use (owner, 2026-10-02).
+Host scenarios run the real HTTP and Intent handlers: registration and login
+(PIN and password), concurrent sessions, logout and re-login, PIN throttling
+and revocation, policies, permissions and presence codes. Persistence across
+reboots is verified in use (owner, 2026-10-02).
 
 ## Standalone device identity and optional import
 
@@ -245,7 +147,7 @@ matches cannot be submitted again by the app, and rejected records/reasons stay
 visible for explicit review. Atlas validates destination hardware identity and
 all exact profile identities before crediting a new record. Existing session
 sign-in is still required; profile linking does not itself grant permissions.
-See [import contract](../../protocol/http-v1.md#standalone-tablet-game-import-2026-10-07).
+See [import contract](../../protocol/http-v1.md#game-import-2026-10-07).
 
 **Getting an account back from Atlas** (owner, 2026-10-29; *implemented, JVM
 tests only*): after a reinstall or on a new phone, Players lists the loaded
@@ -315,8 +217,5 @@ future LCD layouts; those firmware targets and their radio transfer are pending.
 Players is one identity-based list with location labels: This device, Atlas,
 or both. Names alone never merge identities. Public gameplay references can
 be copied to the device without a PIN; this copies no credential, private
-history, privileged role or private-history link key. Selecting a local
-profile in an Atlas lobby uploads its public identity only when needed.
-Game uses the same upright player panels for device and Atlas games. Table
-shows the live facing-seat layout and does not repeat the setup form.
+history, privileged role or private-history link key. Game shows the hub's own game, hosted on Atlas or not.
 Private statistics and administration remain under PIN-verified profile access.

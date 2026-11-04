@@ -153,7 +153,7 @@ void serviceScreenOff(uint32_t nowMs) {
   if (screenDark || splashUp) return;
   // Settings > Device > Sound, screen, sleep (power_settings.h); 0 keeps it on,
   // by default during a match on USB so the clock stays in view.
-  const uint32_t idleMs = TurnHub::screenOffIdleMs(powerSettings, atlasOnBattery(), !allTablesBetweenGames());
+  const uint32_t idleMs = TurnHub::screenOffIdleMs(powerSettings, atlasOnBattery(), gameUnderway(millis()));
   if (idleMs == 0) {
     screenActiveAtMs = nowMs;
     return;

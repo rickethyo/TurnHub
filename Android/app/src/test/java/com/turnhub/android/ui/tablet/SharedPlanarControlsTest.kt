@@ -9,7 +9,7 @@ import org.junit.Test
 
 class SharedPlanarControlsTest {
     @Test fun `roll button follows active turn and team even for a seated master`() {
-        val base = TableSummaryMapper.map(Fixtures.info(), Fixtures.state("running.response.json"), receivedAtMs = 1000)
+        val base = com.turnhub.android.testing.TableFixtures.running(receivedAtMs = 1000)
         val summary = base.copy(activePlayerNumber = base.players.first().playerNumber,
             settings = base.settings.copy(profile = GameProfile.MTG_COMMANDER, planechase = true))
         val state = LanUiState(role = "player", player = summary.players.first().playerNumber, online = true)
@@ -30,7 +30,7 @@ class SharedPlanarControlsTest {
         assertTrue(sharedPlanarEnabled(LanUiState(role = "player", player = 1, online = true), summary))
     }
     @Test fun `living player controls planes without master but offline eliminated and public viewers cannot`() {
-        val base = TableSummaryMapper.map(Fixtures.info(), Fixtures.state("running.response.json"), receivedAtMs = 1000)
+        val base = com.turnhub.android.testing.TableFixtures.running(receivedAtMs = 1000)
         val summary = base.copy(settings = base.settings.copy(profile = GameProfile.MTG_COMMANDER, planechase = true))
         val state = LanUiState(role = "player", player = summary.players.first().playerNumber, online = true)
         assertTrue(sharedPlanarEnabled(state, summary))

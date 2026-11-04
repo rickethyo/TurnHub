@@ -18,51 +18,21 @@ namespace internal {
 bool profileStoreReady = false;
 char bootId[TOKEN_LENGTH + 1] = {};
 
-ResolveSeatCallback resolveSeat = nullptr;
-ControlCallback controlHandler = nullptr;
-ProfileControlCallback profileControlHandler = nullptr;
-ResolveProfileCallback resolveProfile = nullptr;
-GameSettingsCallback readGameConfiguration = nullptr;
-ConfigureGameCallback configureGameHandler = nullptr;
-ChangeLifeCallback changeLifeHandler = nullptr;
-ReadCountersCallback readCountersHandler = nullptr;
-CounterControlCallback counterControlHandler = nullptr;
-ModerateCallback moderateHandler = nullptr;
 DeviceIntentCallback deviceHandler = nullptr;
 PairingWindowCallback readPairingWindow = nullptr;
 PresenceHooks presenceHooks;
 UpdateNoticeHooks updateNoticeHooks;
 SpeakerVolumeCallback readSpeakerVolume = nullptr;
 SetupStageCallback readSetupStage = nullptr;
-AccessibilityChangedCallback accessibilityChanged = nullptr;
 StateCallback readClientState = nullptr;
 RevisionCallback readClientRevision = nullptr;
-TableHooks tableHooks;
 HardwareTestCallback hardwareTestHandler = nullptr;
 
 namespace {
 WebServer *webServer = nullptr;
-// Bounded, session-private receipts. Never resend a mutation after a lost response.
-struct ActionReceipt { String token, id, body; int status=0; uint32_t at=0; };
-ActionReceipt receipts[16];
-uint8_t receiptNext=0;
-int activeReceipt=-1;
-constexpr uint32_t RECEIPT_LIFETIME_MS=120000;
-bool receiptLive(const ActionReceipt &r) { return r.id.length() && millis()-r.at < RECEIPT_LIFETIME_MS; }
-bool validActionId(const String &id) {
-  if(id.length()!=36) return false;
-  for(size_t i=0;i<id.length();++i) if(!((id[i]>='0'&&id[i]<='9')||(id[i]>='a'&&id[i]<='f')||id[i]=='-')) return false;
-  return true;
-}
-
 }  // namespace
 
 void sendJson(WebServer &server, int status, const String &body) {
-  if(activeReceipt>=0 && body.length()<=1024) {
-    receipts[activeReceipt].at=millis();
-    receipts[activeReceipt].status=status;
-    receipts[activeReceipt].body=body;
-  }
   server.sendHeader("Cache-Control", "no-store");
   server.send(status, "application/json", body);
 }
@@ -95,36 +65,9 @@ using namespace internal;
 
 // --- Callback registration -------------------------------------------------------
 
-void configure(ResolveSeatCallback resolveSeatCallback, ControlCallback controlCallback,
-    ProfileControlCallback profileControlCallback, ResolveProfileCallback resolveProfileCallback) {
-  resolveSeat = resolveSeatCallback;
-  controlHandler = controlCallback;
-  profileControlHandler = profileControlCallback;
-  resolveProfile = resolveProfileCallback;
-}
-
 void configureClientState(StateCallback state, RevisionCallback revision) {
   readClientState = state;
   readClientRevision = revision;
-}
-
-namespace internal { OfflineHooks offlineHooks; }
-void configureOffline(const OfflineHooks &hooks) { internal::offlineHooks = hooks; }
-
-void configureGameControls(GameSettingsCallback read, ConfigureGameCallback configure,
-    ChangeLifeCallback life) {
-  readGameConfiguration = read;
-  configureGameHandler = configure;
-  changeLifeHandler = life;
-}
-
-void configureCounterControls(ReadCountersCallback read, CounterControlCallback control) {
-  readCountersHandler = read;
-  counterControlHandler = control;
-}
-
-void configureModeration(ModerateCallback callback) {
-  moderateHandler = callback;
 }
 
 void configureDevices(DeviceIntentCallback manage, PairingWindowCallback window) {
@@ -134,10 +77,6 @@ void configureDevices(DeviceIntentCallback manage, PairingWindowCallback window)
 
 void configureHardwareTests(HardwareTestCallback callback) {
   hardwareTestHandler = callback;
-}
-
-void configureAccessibility(AccessibilityChangedCallback callback) {
-  accessibilityChanged = callback;
 }
 
 void configurePresence(const PresenceHooks &hooks) {
@@ -156,23 +95,13 @@ void configureSetup(SetupStageCallback stage) {
   readSetupStage = stage;
 }
 
-void configureTables(const TableHooks &hooks) {
-  tableHooks = hooks;
-}
-
 // --- Routes ---------------------------------------------------------------------------
 
 namespace {
 // Handlers that carry a fixed argument, as plain functions so the route
 // table can stay constant data in flash.
-template <WebControl C> void controlRoute(WebServer &server) { runControl(server, C); }
-template <TurnHub::IntentType T> void counterRoute(WebServer &server) { handleCounterControl(server, T); }
-template <TurnHub::IntentType T> void tabletCounterRoute(WebServer &server) { handleTabletCounter(server, T); }
 void accountSetupStatus(WebServer &server) { handleAccountSetup(server, true); }
 void accountSetupCreate(WebServer &server) { handleAccountSetup(server, false); }
-void joinSession(WebServer &server) { handleParticipation(server, WebControl::Join); }
-void leaveSession(WebServer &server) { handleParticipation(server, WebControl::Leave); }
-
 struct Route {
   const char *uri;
   HTTPMethod method;
@@ -182,24 +111,11 @@ struct Route {
 // One table, matched by one request handler. A server.on() per route cost
 // about 140 bytes of heap each (handler object, URI object, path copy):
 // roughly 10 KB for these routes.
-void handleActionReceipt(WebServer &server) {
-  const WebSession *session=sessionForRequest(server);
-  if(!session) {sendError(server,401,"Game connection expired");return;}
-  const String id=server.arg("actionId");
-  if(!validActionId(id)) {sendError(server,400,"Invalid action receipt");return;}
-  for(const auto &r:receipts) if(receiptLive(r) && r.token==session->token && r.id==id && r.status) {
-    sendJson(server,200,String("{\"found\":true,\"status\":")+String(r.status)+",\"body\":\""+jsonEscape(r.body)+"\"}");return;
-  }
-  sendJson(server,404,"{\"found\":false}");
-}
-
 const Route ROUTES[] = {
   // Client contract (protocol/http-v1.md).
   {"/api/v1/info", HTTP_GET, handleInfo},
   {"/api/time", HTTP_POST, handleClockSync},
   {"/api/v1/state", HTTP_GET, handleState},
-  {"/api/v1/game", HTTP_GET, handleOfflineGame},
-  {"/api/v1/offline", HTTP_POST, handleOfflineSync},
   // Phone-hosted games: the hub runs the game, Atlas shows it (hosted-v1.md).
   {"/api/hosted/claim", HTTP_POST, handleHostedClaim},
   {"/api/hosted/release", HTTP_POST, handleHostedRelease},
@@ -219,7 +135,6 @@ const Route ROUTES[] = {
   {"/api/accounts/permissions", HTTP_POST, handleAccountPermissions},
   {"/api/accounts/archive", HTTP_POST, handleAccountArchive},
   {"/api/accounts/merge", HTTP_POST, handleAccountMerge},
-  {"/api/accounts/moderate", HTTP_POST, handleModerate},
   {"/api/diagnostics/log", HTTP_GET, handleSerialLogDownload},
   {"/api/devices", HTTP_GET, handleDevices},
   {"/api/device/test", HTTP_POST, handleHardwareTest},
@@ -251,19 +166,12 @@ const Route ROUTES[] = {
   {"/api/updates/latest", HTTP_POST, handleLatestFirmware},
 
   // Profiles and sessions.
-  {"/api/seats", HTTP_GET, handleSeats},
   {"/api/profiles", HTTP_GET, handleProfiles},
   {"/api/profiles/register", HTTP_POST, handleRegistration},
   {"/api/profiles/link-key", HTTP_POST, handleLinkKey},
   {"/api/profiles/sync", HTTP_POST, handleProfileSync},
   {"/api/profiles/history", HTTP_GET, handleProfileHistory},
-  {"/api/session/join", HTTP_POST, joinSession},
-  {"/api/session/leave", HTTP_POST, leaveSession},
-  {"/api/session/request", HTTP_POST, handleSessionRequest},
-  {"/api/session/poll", HTTP_GET, handleSessionPoll},
   {"/api/session/login", HTTP_POST, handleSessionLogin},
-  {"/api/session/play", HTTP_POST, handleGameSession},
-  {"/api/action-receipt", HTTP_GET, handleActionReceipt},
   {"/api/session/me", HTTP_GET, handleSessionMe},
   {"/api/session/profile", HTTP_POST, handleProfile},
   {"/api/session/policy", HTTP_POST, handleProfilePolicy},
@@ -278,61 +186,13 @@ const Route ROUTES[] = {
   {"/api/session/stats", HTTP_GET, handleProfileStats},
   {"/api/session/stats/export", HTTP_GET, handleProfileStatsExport},
   {"/api/session/logout", HTTP_POST, handleLogout},
-  {"/api/session/game", HTTP_POST, handleSessionGame},
 
-  // Game settings and counters.
-  {"/api/game/settings", HTTP_GET, handleGameSettings},
-  {"/api/game/settings", HTTP_POST, handleSaveGameSettings},
-  {"/api/game/counters", HTTP_GET, handleCounters},
-  {"/api/control/life", HTTP_POST, handleChangeLife},
-  {"/api/control/life/request", HTTP_POST, counterRoute<TurnHub::IntentType::RequestLifeChange>},
-  {"/api/control/life/respond", HTTP_POST, counterRoute<TurnHub::IntentType::RespondLifeChange>},
-  {"/api/control/commander", HTTP_POST, counterRoute<TurnHub::IntentType::ChangeCounter>},
-  {"/api/control/counter", HTTP_POST, counterRoute<TurnHub::IntentType::ChangeCounter>},
-
-  // Session controls.
-  {"/api/control/pass", HTTP_POST, controlRoute<WebControl::Pass>},
-  {"/api/control/pause", HTTP_POST, controlRoute<WebControl::PauseResume>},
-  {"/api/control/concede", HTTP_POST, controlRoute<WebControl::Concede>},
-  {"/api/control/eliminate", HTTP_POST, controlRoute<WebControl::EliminateSeat>},
-  {"/api/control/monarch", HTTP_POST, controlRoute<WebControl::ClaimMonarch>},
-  {"/api/control/win", HTTP_POST, controlRoute<WebControl::ClaimWin>},
-  {"/api/control/confirm", HTTP_POST, controlRoute<WebControl::ConfirmWin>},
-  {"/api/control/deny", HTTP_POST, controlRoute<WebControl::DenyWin>},
-  {"/api/control/starter", HTTP_POST, controlRoute<WebControl::SelectStarter>},
-  {"/api/control/start", HTTP_POST, controlRoute<WebControl::Start>},
-  {"/api/control/cancel-start", HTTP_POST, controlRoute<WebControl::CancelStart>},
-  {"/api/control/rematch", HTTP_POST, controlRoute<WebControl::Rematch>},
-  {"/api/control/reset", HTTP_POST, controlRoute<WebControl::Reset>},
-  {"/api/control/back-to-setup", HTTP_POST, controlRoute<WebControl::BackToSetup>},
-  {"/api/control/count-game", HTTP_POST, controlRoute<WebControl::CountShortGame>},
-  {"/api/control/nudge", HTTP_POST, controlRoute<WebControl::Nudge>},
-  {"/api/control/elimination", HTTP_POST, counterRoute<TurnHub::IntentType::ResolveElimination>},
-  {"/api/control/doom", HTTP_POST, counterRoute<TurnHub::IntentType::DoomBag>},
-  {"/api/control/planar", HTTP_POST, counterRoute<TurnHub::IntentType::PlanarAction>},
-  {"/api/control/commander-choice", HTTP_POST, handleCommanderChoice},
+  // Records and cards the app keeps on Atlas.
   {"/api/planes", HTTP_GET, handlePlanesCatalogInfo},
   {"/api/planes", HTTP_POST, handlePlanesCatalog},
   {"/api/planes/card", HTTP_POST, handlePlaneCard},
-  {"/api/atlas/screen", HTTP_GET, handleAtlasScreen},
-  {"/api/atlas/screen", HTTP_POST, handleSetAtlasScreen},
   {"/api/profiles/commanders", HTTP_GET, handleSavedCommanders},
-  // Tablet mode: one shared table screen acting for any seated player.
   {"/api/standalone/import", HTTP_POST, handleStandaloneImport},
-  {"/api/tablet/enable", HTTP_POST, handleTabletEnable},
-  {"/api/tablet/disable", HTTP_POST, handleTabletDisable},
-  {"/api/tablet/seat", HTTP_POST, handleTabletSeat},
-  {"/api/tablet/unseat", HTTP_POST, handleTabletUnseat},
-  {"/api/tablet/control", HTTP_POST, handleTabletControl},
-  {"/api/tablet/life", HTTP_POST, handleTabletLife},
-  {"/api/tablet/elimination", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::ResolveElimination>},
-  {"/api/tablet/doom", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::DoomBag>},
-  {"/api/tablet/planar", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::PlanarAction>},
-  {"/api/tablet/commander-choice", HTTP_POST, handleTabletCommanderChoice},
-  {"/api/tablet/settings", HTTP_POST, handleTabletSettings},
-  {"/api/tablet/life/respond", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::RespondLifeChange>},
-  {"/api/tablet/commander", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::ChangeCounter>},
-  {"/api/tablet/counter", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::ChangeCounter>},
 };
 
 const Route *findRoute(HTTPMethod method, const String &uri) {
@@ -344,29 +204,6 @@ const Route *findRoute(HTTPMethod method, const String &uri) {
 
 }  // namespace
 
-// The game a request acts on (TableHooks). Matches the token without
-// sessionForRequest's housekeeping, which the handler does anyway.
-uint8_t requestGame(WebServer &server) {
-  if (tableHooks.count < 2) return 0;
-  const String token = server.header(TOKEN_HEADER);
-  const WebSession *session = nullptr;
-  for (const WebSession &candidate : sessions) {
-    if (candidate.used && token.length() == TOKEN_LENGTH && token.equalsIgnoreCase(candidate.token)) {
-      session = &candidate;
-      break;
-    }
-  }
-  if (session == nullptr) {
-    const long game = server.hasArg("game") ? server.arg("game").toInt() : 1;
-    return game >= 1 && game <= tableHooks.count ? static_cast<uint8_t>(game - 1) : 0;
-  }
-  if (!session->tableDevice && tableHooks.profileTable != nullptr) {
-    const int8_t seated = tableHooks.profileTable(String(session->profileId));
-    if (seated >= 0) return static_cast<uint8_t>(seated);
-  }
-  return session->table < tableHooks.count ? session->table : 0;
-}
-
 namespace {
 
 class RouteTableHandler final : public RequestHandler {
@@ -377,64 +214,16 @@ class RouteTableHandler final : public RequestHandler {
   bool handle(WebServer &server, HTTPMethod method, String uri) override {
     const Route *route = findRoute(method, uri);
     if (route == nullptr) return false;
-    const WebSession *session = sessionForRequest(server);
-    if (session && session->tableDevice && session->profileId[0] == 0) {
-      // The shared table tablet may host the game (phone-hosted games).
-      const bool tabletRoute = strncmp(uri.c_str(), "/api/tablet/", 12) == 0 || strncmp(uri.c_str(), "/api/hosted/", 12) == 0;
-      const bool readRoute = method == HTTP_GET && (uri == "/api/v1/info" || uri == "/api/v1/state" || uri == "/api/v1/game" ||
-          uri == "/api/seats" || uri == "/api/profiles" || uri == "/api/avatars" || uri == "/api/avatar" ||
-          uri == "/api/action-receipt" || uri == "/api/counters" || uri == "/api/profiles/commanders" || uri == "/api/session/me");
-      const bool sessionRoute = method == HTTP_POST && (uri == "/api/profiles/register" || uri == "/api/session/game" || uri == "/api/session/logout");
-      // The app's planes and plane cards for Atlas, and what the Atlas screen
-      // shows (for a seated player the app names; the handler checks it).
-      const bool planesRoute = uri == "/api/v1/offline" || uri == "/api/room" || uri == "/api/planes" || uri == "/api/planes/card" || uri == "/api/atlas/screen";
-      if (!tabletRoute && !readRoute && !sessionRoute && !planesRoute) {
-        sendError(server, 403, "The shared tablet account only has table controls");
-        return true;
-      }
-    }
-    activeReceipt=-1;
-    const bool gameAction=method==HTTP_POST && (strncmp(uri.c_str(),"/api/tablet/",12)==0 ||
-        strncmp(uri.c_str(),"/api/control/",13)==0 || strncmp(uri.c_str(),"/api/game/",10)==0 ||
-        (uri=="/api/profiles/register" && server.hasArg("profileId") && server.arg("pin").length()==0));
-    if(gameAction && server.hasArg("actionId")) {
-      const String id=server.arg("actionId");
-      if(!session) {sendError(server,401,"Game connection expired");return true;}
-      if(!validActionId(id)) {sendError(server,400,"Invalid action identifier");return true;}
-      for(const auto &r:receipts) if(receiptLive(r) && r.token==session->token && r.id==id) {
-        sendError(server,409,"Action identifier already used; check its receipt");return true;
-      }
-      activeReceipt=receiptNext; receiptNext=(receiptNext+1)%16;
-      auto &r=receipts[activeReceipt]; r=ActionReceipt{};r.token=session->token;r.id=id;r.at=millis();
-    }
-    // Every handler acts on the request's game; the previous one is restored.
-    const uint8_t game = requestGame(server);
-    // A stale native screen must not mutate a different followed table, even
-    // when that table happens to have the same revision/player numbers.
-    if (server.hasArg("expectedGame") && server.arg("expectedGame") != String(game + 1)) {
-      internal::sendError(server, 409, "The selected game changed. Refresh the table and try again");
-      activeReceipt=-1;
-      return true;
-    }
-    const uint8_t previous = tableHooks.select ? tableHooks.select(game) : 0;
-    if (server.hasArg("expectedMatchId") && (!tableHooks.matchId || server.arg("expectedMatchId") != tableHooks.matchId())) {
-      internal::sendError(server,409,"The match changed. Refresh the table before making another edit");
-      activeReceipt=-1;
-      if(tableHooks.select) tableHooks.select(previous);
-      return true;
-    }
-    // Target the recurring phone workload. Administrative requests and log
-    // downloads stay outside tracing so diagnostics don't trace themselves
-    // or evict gameplay evidence with unrelated activity.
-    if (gameAction || route->handler == handleState || route->handler == handleSeats ||
-        route->handler == handleCounters || route->handler == handleSessionMe) {
+    // Target the recurring phone workload (the hub's pushes and polls).
+    // Administrative requests and log downloads stay outside tracing so
+    // diagnostics don't trace themselves.
+    if (route->handler == handleState || route->handler == handleHostedPublish ||
+        route->handler == handleHostedInputs || route->handler == handleSessionMe) {
       TurnHub::HttpRequestTrace trace(route->uri);
       route->handler(server);
     } else {
       route->handler(server);
     }
-    activeReceipt=-1;
-    if (tableHooks.select) tableHooks.select(previous);
     return true;
   }
 };

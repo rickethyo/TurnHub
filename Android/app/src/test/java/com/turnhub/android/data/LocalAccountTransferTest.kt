@@ -26,13 +26,9 @@ class LocalAccountTransferTest {
             id = profileId
             return LoginResult("verified", id)
         }
-        override suspend fun me(token: String) = SessionInfo(id, "Owner", 8, 1, 0, false, false, false, false)
+        override suspend fun me(token: String) = SessionInfo(id, "Owner")
         override suspend fun logout(token: String) { logouts++ }
         override suspend fun getProfiles() = emptyList<ProfileSummary>()
-        override suspend fun join(token: String): String? = null
-        override suspend fun control(token: String, action: ControlAction, expectedRevision: Long?, expectedBootId: String?) = error("unused")
-        override suspend fun getGameSettings(token: String) = error("unused")
-        override suspend fun setTurnTimer(token: String, turnTimerMs: Long): String? = null
         override suspend fun getAccessibility(token: String) = AtlasWireParser.parseAccessibility(Fixtures.text("accessibility.response.json"))
         override suspend fun saveAccessibility(token: String, sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int, lifeApprovalMs: Int) = getAccessibility(token)
         override suspend fun getPersonalization(token: String) = Personalization("#112233", 0, true)

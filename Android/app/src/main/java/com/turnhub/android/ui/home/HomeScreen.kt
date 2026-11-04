@@ -82,7 +82,6 @@ import com.turnhub.android.ui.components.Eyebrow
 import com.turnhub.android.ui.components.GearMark
 import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.components.Tone
-import com.turnhub.android.ui.components.rememberNowMs
 import com.turnhub.android.ui.components.AmbientBackground
 import com.turnhub.android.ui.theme.TurnHubThemeChoice
 import com.turnhub.android.ui.theme.palette
@@ -103,8 +102,8 @@ private enum class HomeTab(val label: String, @DrawableRes val icon: Int) {
 }
 
 /**
- * One navigation shell for device play and Atlas capabilities.
- * Each authority retains its own game state and action callbacks.
+ * One navigation shell: this device runs the game; a connected Atlas adds its
+ * screen, Sigils, profiles, records and settings.
  */
 @Composable
 fun HomeScreen(
@@ -121,7 +120,6 @@ fun HomeScreen(
     onWifiOffDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
     discoveryActions: DiscoveryActions = DiscoveryActions(),
-    gameActions: GameActions = GameActions(),
     accountActions: AccountActions = AccountActions(),
     theme: TurnHubThemeChoice = TurnHubThemeChoice.AUTO,
     reduceMotion: Boolean = false,
@@ -137,14 +135,6 @@ fun HomeScreen(
     setupActions: SetupActions = SetupActions(),
     updatesAvailable: Int = 0,
     onOpenUpdates: () -> Unit = {},
-    seatClaim: com.turnhub.android.data.SeatClaim? = null,
-    seatActions: SeatActions = SeatActions(),
-    tablet: com.turnhub.android.data.TabletState = com.turnhub.android.data.TabletState(),
-    tabletActions: com.turnhub.android.ui.tablet.TabletActions = com.turnhub.android.ui.tablet.TabletActions(),
-    /** Atlas dropped off mid-game: the game going on on this device. */
-    offlineGame: com.turnhub.android.data.OfflineAtlasGame? = null,
-    onFollowGame: (Int) -> Unit = {},
-    onAtlasOpened: () -> Unit = {},
     /**
      * The device game's Game page around [running], the shared Game tab drawn
      * for it once it starts; the lobby before. openTable switches to the
@@ -220,37 +210,17 @@ fun HomeScreen(
     androidx.compose.runtime.LaunchedEffect(requestedTab) {
         HomeTab.entries.firstOrNull { it.name == requestedTab }?.let { tab = it; onTabRequestHandled() }
     }
-    val me = uiState.me()
-    val atlasScreenSeat = summary?.let { table ->
-        (listOfNotNull(me) + table.players.filter { localState.library.linkedPlayer(table.atlasId, it.profileId) != null })
-            .firstOrNull { it.profileId != null && it.controller.kind == com.turnhub.android.domain.ControllerHandle.Kind.VIRTUAL }
-            ?.let { com.turnhub.android.data.TabletSeat(it.controller.id, it.slot) }
-    }
     val info = uiState.sessionInfo()
     val canSettings = info?.has(com.turnhub.android.protocol.AccountPermission.ADMIN) == true
     val canPeople = canSettings || info?.has(com.turnhub.android.protocol.AccountPermission.GAME_MASTER) == true
     val canDev = info?.has(com.turnhub.android.protocol.AccountPermission.DEVELOPER) == true
-    // One Game tab: Atlas's game or this device's, never both side by side.
-    var chosenSource by rememberSaveable { mutableStateOf<GameSource?>(null) }
-    // A finished device game keeps the tab until the next one is set up, so its results stay in view.
-    val deviceUnderway = localState.game.state != TableState.LOBBY
-    val source = gameSource(atlasTable = summary != null, seatedAtAtlas = me != null,
-        deviceGameUnderway = deviceUnderway, chosen = chosenSource)
-    val atlasGame = source == GameSource.ATLAS
     val deviceSummary = androidx.compose.runtime.remember(localState.game, localState.library.players) {
         localState.game.toSummary(System.currentTimeMillis(), com.turnhub.android.domain.TableClock.nowMs(),
             localState.library.players.associate { it.localId to it.personalization })
     }
-    val deviceGameActions = GameActions(
-        onOpenTablet = onPlayOnDevice,
-        onEliminationRule = { field, value -> localTable?.changeEliminationRule(field, value) },
-    )
-    // The Planes tab shows only while Planechase is on (Game setup's toggle turns it on),
-    // for this device's game or Atlas's.
-    val atlasPlanes = atlasGame && summary != null && summary.settings.profile.magicRules && summary.settings.planechase
-    val planes = if (atlasGame) atlasPlanes else localState.game.profile.magicRules && localState.game.planechase.enabled
-    // Atlas doesn't run Death May Die, so the tab is for this device's own game only.
-    val elderOne = localState.game.profile.deathMayDie && !atlasGame
+    // The Planes tab shows only while Planechase is on (Game setup's toggle turns it on).
+    val planes = localState.game.profile.magicRules && localState.game.planechase.enabled
+    val elderOne = localState.game.profile.deathMayDie
     val tabs = HomeTab.entries.filter { (it != HomeTab.PLANES || planes) && (it != HomeTab.ELDER || elderOne) }
     // Leaving Magic or turning Planechase off hides the Planes tab (Death May Die the Elder One tab); whoever was on it goes back to Game.
     androidx.compose.runtime.LaunchedEffect(planes) { if (!planes && tab == HomeTab.PLANES) tab = HomeTab.GAME }
@@ -263,47 +233,14 @@ fun HomeScreen(
     }
     // Presence also says whether Atlas still needs its first Admin.
     androidx.compose.runtime.LaunchedEffect(info?.profileId) { if (info != null) adminActions.onRefresh() }
-    val incomingRequest = me?.lifeRequest?.let { it.state == LifeRequestState.PENDING && it.target == me.playerNumber } == true
     // The bundled user manual, reachable from the top bar before or after connecting.
     var showManual by rememberSaveable { mutableStateOf(false) }
     if (showManual) {
         ManualScreen(onClose = { showManual = false }, modifier = modifier)
         return
     }
-    // Tablet mode: this device becomes the table's shared screen until closed.
-    com.turnhub.android.ui.components.GameSoundEffect(summary, available = !uiState.isOffline)
-    var showTablet by rememberSaveable { mutableStateOf(false) }
-    if (showTablet) {
-        com.turnhub.android.ui.tablet.TabletScreen(
-            summary = summary,
-            session = info,
-            signedIn = uiState.player?.signedIn == true,
-            tablet = tablet,
-            actions = tabletActions,
-            reduceMotion = reduceMotion,
-            offline = uiState.isOffline,
-            offlineGame = offlineGame,
-            atlasScreenSeat = atlasScreenSeat,
-            onFollowGame = onFollowGame,
-            switching = uiState.player?.busy == true,
-            onClose = {
-                showTablet = false
-                tab = HomeTab.TABLE
-            },
-            onBackToSetup = { showTablet = false; tab = HomeTab.GAME },
-            modifier = modifier,
-            onEditBackground = if (localTable == null) null else { player ->
-                editingBackgroundId = summary?.let { localState.library.linkedPlayer(it.atlasId, player.profileId)?.localId }
-            },
-            canEditBackground = { player -> summary?.let { localState.library.linkedPlayer(it.atlasId, player.profileId) } != null },
-        )
-        return
-    }
-
     // A saved/background Atlas connection must not label a device game as Atlas play.
-    val reportFromAtlas = summary != null && (setup.visible ||
-        (tab in listOf(HomeTab.GAME, HomeTab.TABLE) && atlasGame) ||
-        (tab == HomeTab.PLAYERS && summary != null))
+    val reportFromAtlas = summary != null && (setup.visible || tab == HomeTab.PLAYERS)
     val reportContext = if (reportFromAtlas && summary != null) {
         com.turnhub.android.ui.components.tableBugReportContext(summary,
             if (setup.visible) "Atlas setup" else tab.label)
@@ -317,7 +254,7 @@ fun HomeScreen(
         )
     }
 
-    val playing = (if (atlasGame) summary else deviceSummary)?.state == TableState.RUNNING
+    val playing = deviceSummary.state == TableState.RUNNING
     AmbientBackground(reduceMotion, modifier.fillMaxSize(), quiet = !setup.visible && tab != HomeTab.MORE &&
         (playing || tab in listOf(HomeTab.TABLE, HomeTab.PLANES, HomeTab.ELDER))) {
     Scaffold(
@@ -325,7 +262,7 @@ fun HomeScreen(
         containerColor = Color.Transparent,
         topBar = {
             Column(Modifier.background(p.bg.copy(alpha = .92f))) {
-                BrandBar(uiState, running = summary?.state == TableState.RUNNING, reduceMotion = reduceMotion,
+                BrandBar(uiState, running = playing, reduceMotion = reduceMotion,
                     report = reportContext,
                     onManualClick = { showManual = true },
                     onGearClick = { tab = HomeTab.MORE; morePage = MorePage.ABOUT })
@@ -352,9 +289,7 @@ fun HomeScreen(
                                 tab = entry
                             },
                             icon = {
-                                BadgedBox(badge = { if (entry == HomeTab.GAME && incomingRequest) Badge { Text("!") } }) {
-                                    Icon(painterResource(entry.icon), contentDescription = null, modifier = Modifier.size(24.dp))
-                                }
+                                Icon(painterResource(entry.icon), contentDescription = null, modifier = Modifier.size(24.dp))
                             },
                             label = {
                                 Text(
@@ -377,35 +312,19 @@ fun HomeScreen(
             }
         },
     ) { innerPadding ->
-        val shownGame = if (atlasGame) summary else deviceSummary
-        val nowMs = rememberNowMs(
-            ticking = shownGame != null &&
-                (shownGame.state == TableState.RUNNING || shownGame.pending.passPlayer != null ||
-                    shownGame.players.any { it.lifeRequest?.state == LifeRequestState.PENDING }),
-        )
-        val labels = summary?.players?.associate { it.playerNumber to it.label }.orEmpty()
-        val labelFor: (Int) -> String = { number -> labels[number] ?: "Player $number" }
         Column(Modifier.fillMaxSize().padding(innerPadding)) {
             if (!setup.visible && tab == HomeTab.GAME) {
                 androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween) {
-                    if (summary != null && atlasGame && summary.games.size > 1)
-                        GameSelector(summary, onFollowGame, enabled = !uiState.isOffline && uiState.player?.busy != true && !tablet.busy, compact = true)
-                    else Text(if (atlasGame) "Atlas" else "On device", color = p.muted,
+                    Text("On device", color = p.muted,
                         style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 8.dp, vertical = 16.dp))
-                    if (summary != null && (if (atlasGame) deviceUnderway else summary.state.underway())) {
-                        TextButton(onClick = {
-                            chosenSource = if (atlasGame) GameSource.DEVICE else GameSource.ATLAS
-                            if (!atlasGame) onAtlasOpened()
-                        }) { Text(if (atlasGame) "Device game" else "Atlas game") }
-                    }
                     // Phone-hosted: this phone runs the game, Atlas shows it (and its Sigils, later).
-                    if (onHostOnAtlas != null && !atlasGame && summary != null && hostedResumeHost != null) {
+                    if (onHostOnAtlas != null && summary != null && hostedResumeHost != null) {
                         TextButton(onClick = { onResumeHosted(true) }) {
                             Text("Resume " + (hostedResumeHost.takeIf { it.isNotBlank() }?.let { "$it's" } ?: "Atlas") + " game")
                         }
                         TextButton(onClick = { onResumeHosted(false) }) { Text("Show mine instead") }
-                    } else if (onHostOnAtlas != null && !atlasGame && summary != null) {
+                    } else if (onHostOnAtlas != null && summary != null) {
                         val hosting = hostedStatus == com.turnhub.android.data.HostedAtlasLink.Status.Hosting
                         TextButton(onClick = { onHostOnAtlas(!hosting) },
                             modifier = Modifier.semantics { stateDescription = if (hosting) "Showing on Atlas" else "Not on Atlas" }) {
@@ -445,39 +364,18 @@ fun HomeScreen(
             ) { shown ->
                 pageState.SaveableStateProvider(when (shown) {
                     HomeTab.MORE -> "MORE:${morePage.name}"
-                    HomeTab.GAME, HomeTab.TABLE -> "${shown.name}:${source.name}"
                     else -> shown.name
                 }) {
                     when {
-                        !setup.visible && atlasGame && (shown == HomeTab.TABLE || shown == HomeTab.GAME) ->
-                            com.turnhub.android.ui.tablet.TabletScreen(
-                                summary = summary, session = info, signedIn = uiState.player?.signedIn == true,
-                                tablet = tablet, actions = tabletActions, reduceMotion = reduceMotion,
-                                onClose = { tab = HomeTab.GAME }, onBackToSetup = { tab = HomeTab.GAME },
-                                offline = uiState.isOffline, offlineGame = offlineGame, switching = uiState.player?.busy == true,
-                                atlasScreenSeat = atlasScreenSeat,
-                                onFollowGame = onFollowGame, embedded = true,
-                                setupOnly = shown == HomeTab.GAME, localProfiles = localState.library.players, onFullScreen = { showTablet = true },
-                                onEditBackground = if (localTable == null) null else { player ->
-                                    editingBackgroundId = summary?.let { localState.library.linkedPlayer(it.atlasId, player.profileId)?.localId }
-                                },
-                                canEditBackground = { player -> summary?.let { localState.library.linkedPlayer(it.atlasId, player.profileId) } != null },
-                            )
                         !setup.visible && shown == HomeTab.TABLE -> localTableContent({ tab = HomeTab.GAME }, { tab = HomeTab.PLANES })
                         !setup.visible && shown == HomeTab.HISTORY -> localHistoryContent()
-                        !setup.visible && shown == HomeTab.PLANES && atlasGame && summary != null ->
-                            com.turnhub.android.ui.tablet.AtlasPlanesTab(summary, tabletActions, reduceMotion, uiState.isOffline || offlineGame?.base?.matches(summary) == true,
-                                // A signed-in player of this phone (its own account, or one seated from it), never a Sigil or a guest.
-                                screenSeat = atlasScreenSeat)
                         !setup.visible && shown == HomeTab.PLANES -> localPlanesContent()
                         !setup.visible && shown == HomeTab.ELDER -> localElderContent()
                         !setup.visible && shown == HomeTab.PLAYERS -> localPlayersContent()
-                        !setup.visible && shown == HomeTab.GAME && !atlasGame -> localGameContent({ tab = HomeTab.TABLE }, { tab = HomeTab.PLANES }) {
-                            val labelFor: (Int) -> String = { n -> deviceSummary.players.firstOrNull { it.playerNumber == n }?.label ?: "Player $n" }
+                        !setup.visible && shown == HomeTab.GAME -> localGameContent({ tab = HomeTab.TABLE }, { tab = HomeTab.PLANES }) {
                             Column(Modifier.widthIn(max = 720.dp).fillMaxSize().padding(4.dp)) {
                                 if (localTable != null) com.turnhub.android.ui.tablet.LocalTable(localState, localTable, reduceMotion,
                                     onClose = { tab = HomeTab.GAME }, onOpenPlanes = { tab = HomeTab.PLANES }, phoneView = true)
-                                else GameTab(uiState, deviceSummary, nowMs, reduceMotion, deviceGameActions, labelFor, GameSource.DEVICE)
                             }
                         }
                         else -> Column(

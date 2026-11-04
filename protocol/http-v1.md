@@ -1,9 +1,11 @@
 # Implemented Atlas client HTTP contract
 
-Atlas remains authoritative. Browser and native clients share these routes and
-must not implement game rules. Responses use `Cache-Control: no-store`. Connect
-to Atlas's existing Wi-Fi network first. Discovery, automatic Wi-Fi connection,
-BLE, events and the generic JSON Intent envelope remain unimplemented.
+Atlas runs no game (owner, 2026-11-04): the hub phone or tablet runs every game
+with the shared rules core, and Atlas is the table accessory that shows it,
+drives the Sigils and keeps profiles, statistics, records and settings. The
+hosted-game routes are in [hosted-v1.md](hosted-v1.md); this file covers the
+rest. Responses use `Cache-Control: no-store`. Discovery, events and the
+generic JSON Intent envelope remain unimplemented.
 
 ## Joining Atlas's network
 
@@ -17,67 +19,43 @@ it. Once the owner sets a password in the portal, the default no longer
 applies. Clients must therefore fall back to asking the user. The Android app
 does this: it tries a saved password, then this default, then prompts.
 
-## Connection and first PASS
+## Connection and sign-in
 
 1. `GET /api/v1/info` returns public device identity (`THA-` plus station MAC),
-   firmware, HTTP API version `1`, logical protocol `0.1`, the Atlas-Sigil
-   radio version (informational; 3 since 2026-09-30), boot ID, revision and capability flags. MAC identity is not authentication.
+   firmware, HTTP API version `1`, logical protocol `1`, the Atlas-Sigil
+   radio version (informational), boot ID, revision and capability flags
+   ([info-v1.schema.json](info-v1.schema.json)). MAC identity is not authentication.
    `home` (since 2026-11-03) is Atlas's address on the home network with its
    HTTPS port and `tlsPin` (lower-case hex SHA-256 of the key's
    SubjectPublicKeyInfo), or `null` when Atlas is not on one. Over HTTPS on the
    home network the API is the same; clients trust exactly that key, learned
    only over Atlas's own hotspot ([Home Wi-Fi](../Documentation/engineering/HOME_WIFI.md)).
    No Wi-Fi password, PIN, profile data or session token is included.
-2. `GET /api/v1/state` returns one main-loop snapshot conforming to
-   [state-v0.1.schema.json](state-v0.1.schema.json). This is public table state,
-   consistent with `/api/status` and `/api/seats`. No profile statistics or
-   credentials are included. Each player carries `displayName` (the profile
-   name, or `null` for an unnamed guest; clients show "Player N"), so names
-   arrive with the state they belong to (since 2026-09-29). Atlas re-reads
-   names when a seat's occupant changes and at least every 5 s, so a rename
-   may appear without a revision change. `/api/seats` still carries names and
-   avatars.
+2. `GET /api/v1/state` returns Atlas's own status
+   ([atlas-state-v1.schema.json](atlas-state-v1.schema.json)): identity, boot
+   ID and `revision`; `hub`, the hosted game's hub (`name`, `gameId`, `state`,
+   `players`) or `null` when no hub holds the table; `battery`; and `links`.
+   It never carries a game: players, life and turns come from the hub.
 3. Use `GET /api/profiles`, then `POST /api/session/login` with form fields
    `profileId` and `pin`, or `POST /api/profiles/register` with `name` and `pin`.
-   Omit `pin` or send it empty for a gameplay-only session; ordinary play never
-   requires it. Supplying the correct secret unlocks private stats and admin
-   permissions. A gameplay-only session cannot change an existing PIN or mint
-   private-history link keys. `pin` is the profile's secret: a PIN of 4 to 8 digits or a password of 8 to
+   Omit `pin` or send it empty for a gameplay-only session. Supplying the
+   correct secret unlocks private stats and admin permissions. A gameplay-only
+   session cannot change an existing PIN or mint private-history link keys.
+   `pin` is the profile's secret: a PIN of 4 to 8 digits or a password of 8 to
    64 UTF-8 bytes without control characters (since 2026-10-02).
    A profile with no secret yet (`hasPin:false`, e.g. made on a Sigil or the
-   tablet) takes the `pin` of its first login as its secret (since 2026-10-07);
-   clients ask for it twice first.
+   Atlas screen) takes the `pin` of its first login as its secret (since
+   2026-10-07); clients ask for it twice first.
    Keep the returned token private; send it in `X-TurnHub-Token` on authenticated
-   requests. `POST /api/session/join` joins the authenticated profile.
-4. `GET /api/session/me` resolves the session's current `module`, `slot`, `player`
-   and `participating` status, plus 1-based `game` (the resolved venue table). Physical companion attachment retains its existing
-   [physical claim flow](../Documentation/engineering/PLAYERS_AND_ACCOUNTS.md).
-5. Fetch state. Map semantic `PASS` to `POST /api/control/pass` with
-   `application/x-www-form-urlencoded` fields, not the draft JSON envelope.
-   Atlas resolves the actor from the session, never client-supplied seat IDs.
-6. Success returns `ok`, `status: "ACCEPTED"`, `message`, `bootId` and `revision`.
-   Fetch state again to render the authoritative outcome.
-
-### Two games on one Atlas
-
-Atlas runs two games side by side (since 2026-10-07, Atlas 0.7.0): Game 1
-and Game 2, each with its own lobby, turn order, timer and life totals.
-Profiles, statistics and pairing are shared, and a profile plays in one game
-at a time. Every request acts on one game: a table tablet's chosen game; else
-the game the session's profile is seated in; else the game the session
-follows; without a session, `?game=N` if given, else Game 1.
-`POST /api/session/game` with `game` (1 or 2) makes the session follow that
-game. A profile in a lobby leaves it first; one playing in a game gets 409
-until that game is over and back in its lobby. State and `/api/status` add
-`game` (this snapshot's game) and `games` (each game's `game`, `state` and
-`players`). `revision` is one counter across both games, so it never repeats
-when a client follows another game.
+   requests.
+4. `GET /api/session/me` returns the session's `profileId`, `name`,
+   `permissions`, `hasPin` and `policy`.
 
 ### Atlas battery
 
 State carries `battery`: `{percent, low, charging}` for Atlas's own cell
 (estimated from its voltage; `low` at 15 %, `charging` while on USB and below 100 %), or
-`null` with no cell. Like the clocks it is sampled, so it can change without a
+`null` with no cell. It is sampled, so it can change without a
 revision change. The Android app draws it as a header gauge;
 `GET /api/devices` also reports it under `atlas.battery` with `millivolts`.
 
@@ -85,10 +63,6 @@ State also carries `links`: `{hotspot, home, sigils}` (Atlas 2026-11-03), the
 same links as the Atlas header's icons: its own hotspot is up, it is on the
 home network, and how many Sigils are online. Sampled like `battery`; the app
 draws the same icons beside its battery gauge.
-
-Controls dispatch through the same `IntentDispatcher` as Sigils and Atlas's
-button. PASS acceptance may arm **or cancel** the existing three-second grace
-period; it does not mean the next turn has started. State confirms the later commit.
 
 ## Update notice
 
@@ -110,70 +84,14 @@ for its "Update available" card.
 
 - Compare `(atlasId, bootId, revision)`. Boot ID is a public random epoch generated
   when the HTTP service starts, not an authentication credential.
-- Revision is a 32-bit in-memory version of the published gameplay projection.
-  Atlas observes completed dispatches and refreshes before reads. A meaningful
-  projection change advances it; rejected and accepted no-op requests do not.
-  Nested dispatches may increment it more than once. It is not an event count.
-- The projection covers membership/participant identity, settings, lifecycle,
-  active/starter/winner, completed turns, elimination, PASS/countdown state, win
-  decisions, life, Commander damage and life approval records. It does not version
-  names, account policies, pairing, button gestures or network health.
-- Clock samples (`sampledAtMs`, `gameElapsedMs`, `turnElapsedMs`, remaining PASS
-  time) may change at the same revision. Millisecond timestamps wrap at 32 bits;
-  use unsigned subtraction within one boot. Pending life approval expires
-  15,000 ms after `requestedAtMs` under Atlas's existing rules.
-- Missing Commander entries mean zero damage. Each entry's two values represent
-  commander 1 and commander 2 of `sourcePlayer`. Lobby life is `null`.
-- `moduleId` retains the existing wire spelling for an Atlas controller handle:
-  physical handles 0–7, virtual handles 8–23. It is not a durable device ID.
-  Slots are 1/2. `participantId` is stable while that participant is at the table;
-  re-resolve identity after reconnect or lifecycle changes.
+- `revision` is a 32-bit in-memory counter of Atlas's own published state
+  (the hub's lease and hosted game). It is not an event count. `battery` and
+  `links` are sampled and may change at the same revision.
 - Always fetch fresh state after reconnect. If identity/boot changes or revision
-  decreases (including wrap), discard cached state and stale commands. Sessions
-  are volatile and expire after eight hours of inactivity. A 401 requires login
-  again; rejoining still obeys existing lobby restrictions.
-- Never automatically replay an ambiguous timed-out control. Request IDs are not
-  deduplicated. Reconcile from state, then let the user issue a new action.
-
-## Turn timer
-
-Atlas owns the turn timer; clients display it. `settings.turnTimerMs` is the
-captured per-turn countdown (0 = off; otherwise 15,000-3,600,000 in whole
-seconds). `turnTimer.phase` is `NORMAL`, `WARNING` (10 s or less left), `EXPIRED`
-(time ran out; the turn continues and Atlas never passes it) or `LONG_TURN`
-(timer off, turn past five minutes). `turnTimer.remainingMs` is null when the
-timer is off or no turn runs. Both are clock samples like `turnElapsedMs`: they
-may change at the same revision, and clients may count down locally between
-snapshots. Firmware before the timer omits both fields; treat that as off.
-
-`GET /api/game/settings` (authenticated) returns `turnTimerMs` and
-`turnTimer {presetsMs, minMs, maxMs, warningMs, longTurnMs}` alongside the
-existing fields. `POST /api/game/settings` accepts `turnTimerMs`; omitted fields
-keep their current values. `twoHeadedGiant` (`0` or `1`, `mtg` and `mtg_commander`
-only, never `mtg_star_commander` or `mtg_bag_of_doom`; GET returns it with the suggested `teamLife` per profile) turns on
-Two-Headed Giant: neighbours in turn order are teams of two with one shared life
-total and one turn (see the state schema's `team`). Changing to another profile
-without sending it turns it off. Any seated player may change settings (there is no
-table host since 2026-09-25), only in the lobby (409 otherwise); invalid values
-return 400. In `GET /api/session/me`, `host` now means "this seat may use table
-actions", which is true for every seated player; `hostModuleId` in the state is
-always `null`. Both fields remain for compatibility.
-
-Table presence (2026-09-25): `GET /api/presence` returns `{verified,
-remainingMs, setup, canRequest, codeRequired}`. `codeRequired` is the Admin's
-table code setting (2026-10-08, off by default): while it is false every
-signed-in account reads as verified (`remainingMs` 600000) and no request
-returns `presenceRequired`. `GET /api/table-code` (Admin) returns
-`{required}`; `POST /api/table-code?required=0|1` (Admin) changes it, and
-turning it off while it is on returns `403 {"presenceRequired": true}` until
-that Admin has entered a code. `POST /api/presence/request` (an Admin, or
-anyone signed in before any Admin exists) shows a six-digit code on the Atlas
-screen for 90 s. `POST /api/presence/confirm?code=NNNNNN` returns 200 when
-verified (for 10 minutes), 400 for a wrong code, 409 when no code is showing
-for that account, and 429 after five wrong codes. `POST /api/presence/lock`
-ends verification. Protected requests without verification return
-`403 {"presenceRequired": true}`. See
-[Turn timer and cues](../Documentation/engineering/GAMEPLAY.md).
+  decreases (including wrap), discard cached state. Sessions are volatile and
+  expire after eight hours of inactivity. A 401 requires login again.
+- Never automatically replay an ambiguous timed-out request. Request IDs are not
+  deduplicated. Reconcile from state, then let the user act again.
 
 ## First-run setup (2026-09-30)
 
@@ -197,51 +115,6 @@ One flow for the Android app and the portal
   (multipart field `firmware`), `POST /api/sigil-firmware`,
   `POST /api/sigil-update` and `GET /api/sigil-firmware`.
 
-## Star Commander (2026-10-13)
-
-`settings.profile` (state) and `gameProfile` (settings, standalone import,
-`lastGameType`) accept `mtg_star_commander`: a five-player Commander variant with
-every Commander counter, default starting life 40 and normal clockwise turns.
-
-- **Seats decide relationships.** For player number `p` (1-5, `i = p - 1`) the
-  allies are players `(i+1)%5 + 1` and `(i+4)%5 + 1`; the enemies are
-  `(i+2)%5 + 1` and `(i+3)%5 + 1`. They follow the lobby seat order and are fixed
-  once the match starts, also after a player is eliminated. Clients derive them
-  from `playerNumber`; there is no separate field.
-- **Start:** a Star Commander table needs exactly five players; Start is refused
-  with 409 `"Star Commander needs exactly five players."`. Two-Headed Giant is
-  never allowed with it (`twoHeadedGiant=1` is refused; choosing the profile
-  turns Two-Headed Giant off).
-- **Commander damage between allies** is refused by Atlas for every client
-  (phone, tablet, Sigil): 409 `"Allies can't deal Commander damage to each other
-  in Star Commander."`. Damage from an enemy works as in Commander. Ordinary
-  life changes are never restricted.
-- **Victory:** after every elimination path (elimination, concession, zero
-  life, poison, Commander damage, a loss-rule change), once the whole batch of
-  eliminations is applied, every living player whose two enemies are both out
-  wins. Two allies can share a victory: `winnerPlayers` lists both and
-  `winnerPlayer` is the lower number. A shared victory is not a draw. A batch
-  that leaves nobody and no winner is a draw (`winnerPlayer: null`,
-  `winnerPlayers: []`). Last-player-standing does not apply. Win claims
-  (alternate win conditions) work as in Commander, with a single winner.
-- **Statistics:** every winner is credited a win. `GET /api/session/stats`
-  `lifetime` adds `starGamesPlayed` and `starGamesWon` (also counted in
-  `gamesPlayed` and `gamesWon`).
-
-`winnerPlayers` (state, always present since 2026-10-13) lists every winner in
-ascending order: one player, both Two-Headed Giant teammates, or two Star
-Commander allies; empty while nobody has won and for a draw. See
-`examples/star-commander.response.json`.
-
-## Draws
-
-`state: "GAME_OVER"` with `winnerPlayer: null` means the match ended as a draw:
-someone held End match on the Atlas touchscreen for 5 seconds during a running
-or paused match (2026-09-24; originally the Atlas master button, which is gone). No new field was added; before this change no finished match
-could lack a winner. Clients should say "Draw" rather than "Winner: none". Every
-participant's statistics count one game played; the last-game result reads
-`"Draw"` (or `"Eliminated"` for a player already out).
-
 ## Device administration (Admin permission)
 
 Session-token authenticated; other accounts get 403.
@@ -261,21 +134,19 @@ Session-token authenticated; other accounts get 403.
   `screenOff`, `gameScreen`, `autoSleep` (indices; omitted fields keep their
   value) saves them: 400 for an unknown index, 409 when saving fails.
 
-## People: accounts, roles and moderation
+## People: accounts and roles
 
 `GET /api/accounts` (session token) lists accounts: everyone for an Admin,
 non-archived accounts for a Game Master, only the caller otherwise. Each entry
 has `profileId`, `name`, `permissions` (bits: 1 Admin, 2 Game Master,
 4 Developer, 8 GM reset connections, 16 GM remove from game, 32 Tablet
 access), `archived` and
-`avatar`; Game Masters and the account itself also get `nudgeMuted`. Admins
+`avatar`; Admins
 and Game Masters also get `hasPin`, `primary` (the initial Admin), `atTable`
 and `reconnectRequired`, so clients can explain a blocked action up front.
 `POST /api/accounts/permissions` (`profileId`, `permissions`) and
 `POST /api/accounts/archive` (`profileId`, `archived=0|1`) need Admin;
-`POST /api/accounts/moderate` (`profileId`, `action` = `pass`, `reset`,
-`remove`, `mute`, `unmute`) needs Game Master. Atlas validates every rule:
-moderation powers need Game Master, roles need a PIN, the initial Admin keeps
+Atlas validates every rule: roles need a PIN, the initial Admin keeps
 Admin and cannot be archived, and archiving waits until the account has left
 the table.
 
@@ -297,8 +168,7 @@ profile's own Sigil accessibility preferences: `sigilSound` (form `0`/`1`),
 `ledStyle` (`standard`, `reduced-motion`, `monochrome-safe`), `longPressMs`,
 `winHoldMs` and `lifeApprovalMs` (how long other players' life-change requests
 wait for this player: one of `lifeApprovalOptionsMs`, 15000, 30000 or 60000).
-A state snapshot's `lifeRequest.windowMs` is the window fixed when that request
-was made. Omitted POST fields keep their saved values. Hold times are whole
+Omitted POST fields keep their saved values. Hold times are whole
 multiples of `stepMs` (250) within the returned `limits`, and the win hold must
 be at least `minGapMs` (1000) longer than the long press; anything else returns
 400 and nothing is stored. No session returns 401; an unreadable or unwritable
@@ -308,51 +178,17 @@ defaults) - see [accessibility-v1.schema.json](accessibility-v1.schema.json) and
 [the example](examples/accessibility.response.json).
 
 These are profile settings, like `/api/session/policy`, not table state: they
-change no Intent's meaning and take no revision check. Atlas applies them to
+take no revision check. Atlas applies them to
 the player's physical Sigil within about two seconds (see
 [Accessibility](../Documentation/engineering/ACCESSIBILITY.md#implemented-accessibility-settings)).
-
-## Nudge
-
-`POST /api/control/nudge` (a session control, no body) lets a living player who
-is not up prod the active player while a game runs. Atlas plays the Nudge cue on
-the active player's Sigil and sets the snapshot's `nudge` to
-`{"seq","fromPlayer","toPlayer","ageMs"}` (null until the first nudge since
-boot). `seq` grows with every nudge, so a client alerts `toPlayer` once per new
-`seq`, and ignores an old one (`ageMs` large) it finds when it connects. One
-nudge per player per 30 s, and none from an account a Game Master muted; those,
-the active player nudging themselves and a game that isn't running return 409
-`REJECTED`.
-
-## Optional concurrency check on session controls
-
-The existing `runControl` adapter accepts `expectedRevision` (canonical unsigned
-decimal text) and `expectedBootId`. Supply both from the latest snapshot. A stale
-revision, missing/wrong boot ID, or unavailable revision provider returns HTTP 409
-with `status: "CONFLICT"` before dispatch. Invalid revision text returns HTTP 400.
-
-Supported routes: `/api/control/pass`, `pause`, `concede`, `eliminate`, `win`, `confirm`, `deny`,
-`starter`, `start`, `cancel-start`, `rematch`, `reset`, `nudge`. Omitting the check preserves
-browser behavior. Life, counters, participation and settings retain their existing
-contracts and do not yet accept this check.
-
-After authentication and seat resolution, handler rejection returns HTTP 409 with
-`ok: false`, `status: "REJECTED"`, `error`, `bootId` and `revision`. Earlier
-authentication/validation failures retain existing JSON errors; not every error
-contains a revision or semantic status. Fetch state after a conflict or rejection.
 
 ## Fixtures and remaining work
 
 [Response fixtures](examples/) come from host scenarios with public identity,
-epoch and revision normalized for readability. `pass.request.json` describes
-the live HTTP adapter request, not an Intent body.
-`intent-v0.1.schema.json` remains a draft. `/api/v1/intent` and `/api/v1/events`
-do not exist and are advertised as unsupported.
-
-The next Android slice can test info → login/join → snapshot → PASS → snapshot
-→ reconnect through an `AtlasRepository`, with a fake transport and these fixtures.
-Generic envelopes, richer per-intent statuses, deduplication and events remain
-separate future work. No Android application ID is selected here.
+epoch and revision normalized for readability: `info`, `state-idle` (no hub),
+`state-hosted` (a hub holds the table) and `accessibility`, plus the shared
+match record. `intent-v0.1.schema.json` remains a draft. `/api/v1/intent` and
+`/api/v1/events` do not exist and are advertised as unsupported.
 
 ## Personalization and artwork (2026-10-10)
 
@@ -395,73 +231,10 @@ separate future work. No Android application ID is selected here.
   a time. The 512px master serves app/tablet and future hardware derivatives;
   future S3 LCD firmware/radio transfer is not implemented.
 
-## Tablet mode (2026-10-06)
+## Game import (2026-10-07)
 
-One shared screen at the table acting for every seat. Engineering record:
-`Documentation/engineering/PLAYERS_AND_ACCOUNTS.md` (Tablet mode).
-
-1. Any signed-in profile may use the shared seat routes directly. No tablet
-   permission, presence grant or enable step is required. The personal session
-   and player identity remain intact. The legacy enable/disable endpoints are
-   retained for older shared-display clients, but are not used by current app navigation.
-2. Lobby: `POST /api/tablet/seat` with `name` (creates a profile with no PIN;
-   409 when the name exists) or `profileId` (plus `pin` when the answer was
-   `403 {"pinRequired":true}`); answers `{"ok":true,"profileId":...}`.
-   `POST /api/tablet/unseat` with `profileId`.
-3. Every seat action carries `module` and `slot` from the state's players:
-   - `POST /api/tablet/life`: `delta` (the seat's own life).
-   - `POST /api/tablet/commander`: `delta`, `source`, `commander` (damage
-     the seat received), as `/api/control/commander`.
-   - `POST /api/tablet/life/respond`: `requestId`, `accept`.
-   - `life` and `commander` take an optional `queuedMs` (0 to 86400000): a
-     change the tablet kept while Atlas wasn't answering, tapped that long
-     ago. Atlas applies it now under its usual rules and only logs the age
-     (`ATLAS|TABLET|OFFLINE|...`); it has no wall clock to back-date with.
-     The app sends such changes once on reconnect, only for the same boot,
-     the same game and a player still in it, and never retries a refused one.
-   - `POST /api/tablet/settings`: the `/api/game/settings` fields.
-   - `POST /api/tablet/control`: `action` = `pass`, `pause`, `concede`, `eliminate`, `win`,
-     `confirm`, `deny`, `starter`, `start`, `cancel-start`, `rematch`,
-     `reset`, `back-to-setup`, `count-game`, or (lobby) `move-earlier`/`move-later` for turn order; answers like `/api/control/*` (status, revision, optional
-     `expectedRevision`).
-
-
-## Offline play (2026-11-03)
-
-When Atlas drops off mid-game, a phone keeps the game going on its own copy
-of the shared core and sends what it did once Atlas answers again (owner,
-2026-11-03). Engineering record: `Documentation/engineering/TABLE_AUTHORITY.md`.
-
-- `GET /api/v1/game` (the session's game, like `/api/v1/state`): `atlasId`,
-  `bootId`, `game`, `atlasMs` (Atlas's game clock now, the core's `nowMs`) and
-  `state` (the core's whole game, `toJson`). The app keeps the latest one while a
-  game runs.
-- `POST /api/v1/offline` (signed-in session): `device` (1 to 40 characters, the
-  phone's queue name), `baseBoot` (the `bootId` the copy came from), `base` (that
-  `state`, at most 16 KB), `nowMs` (now, on the copy's clock) and `entries`, a JSON
-  array of at most 512 `{"seq": 1, "atMs": ..., "action": {...}, "draws": [...]}`:
-  `seq` counts from 1 per device, `atMs` is the copy's `atlasMs` plus the phone's
-  time since it arrived, `action` is a core action (`applyAction`, no `nowMs`) and
-  `draws` the random draws it took. Atlas merges queues in `atMs` order (then
-  device, then `seq`; a repeated `seq` counts once), works turn timeouts out again
-  at their own deadlines and answers `{"ok":true,"mode","revision","outcomes":[{"device","seq","applied"}]}`
-  for this device's entries. `mode`:
-  - `replayed`: nothing moved on Atlas since the copy; replayed from it.
-  - `merged`: another phone from the same outage synced first and nothing else has
-    happened since; every queue so far is replayed together from the start.
-  - `restored`: Atlas restarted and restored this match and nobody has acted since;
-    the phone's copy (more complete than the restore) is the start, moved onto the
-    new boot's clock. The game continues running if it was.
-  - `late`: the game moved on here (a Sigil, another phone); each entry is applied
-    now, in the phone's order.
-  Starting, rematching, resetting or seating are refused (`applied: false`):
-  offline play ends with the match. 409 when the match has ended or changed (or its
-  players did), 400 for a malformed request, 401 without a session.
-
-## Standalone tablet game import (2026-10-07)
-
-With no Atlas at the table, the Android app can run a standalone game itself
-(`Android/README.md`, "The one exception"). Each finished game is kept on the
+The app runs every game itself (a hosted game, or a phone-only one with no
+Atlas at the table). Each finished game is kept on the
 device separately from delivery metadata. Sign in and map every player to an
 exact profile on that Atlas. Android can deliver automatically when every player
 has a previously verified Atlas-scoped account link; otherwise mapping is manual.
@@ -508,6 +281,22 @@ window. It does not guarantee arbitrary long-term replay protection. Imported ga
 started, completed turns and turn times, and set the last-game fields like a
 live game.
 
+Optional per-player fields (`i` from 0), each validated before any receipt or
+statistics write:
+
+- `concededN` (0 or 1, default 0); 1 requires nonzero `outN`.
+- `eliminatedByN`: the credited opponent's 0-based match index, or empty for
+  unknown; only a non-conceding removed player may have one, never a teammate.
+- `selfEliminatedN=0|1`; true requires an exit order and no concession,
+  bag-drawn flag or opponent credit.
+- `bagDrawnN=0|1` (Bag of Doom only); true requires an `outOrder`, no
+  concession and no `eliminatedByN`. It records the exit reason without
+  awarding an opponent an elimination.
+- `twoHeadedGiant=0|1` for the whole game.
+
+Imports accept up to 10 players; `winners` supports indices 0 to 9. Profile
+statistics return `eliminationsMade` in both `lifetime` and `lastGame`.
+
 ### Match records and CSV (2026-10-29)
 
 A finished game is one match record, the same on every device
@@ -538,127 +327,7 @@ is skipped. Without a card nothing is kept and the NVS totals still count.
   in, oldest first, `limit` 1 to 20 (default 10) after `skip`. 503 without a
   card.
 
-Atlas's own games join the history once Atlas runs the shared core (staged).
-
-### Native game-context guard (2026-10-10)
-
-Raw native tablet/game actions can include `expectedGame` as the decimal 1-based
-game number rendered by their screen. The route adapter compares it to the game
-resolved from the current session before selecting a table or invoking the
-handler. A mismatch returns HTTP 409 and performs no action. It supplements
-revision/boot checks: two games may have matching revisions/player numbers.
-`POST /api/session/game` remains the explicit follow/switch operation; it does
-not use this guard. Authentication and semantic Intent validation remain required.
-
-Browser `/tablet` and `/stats` now serve administration recovery. Native gameplay,
-profile statistics and `/api/tablet/*` contracts remain available.
-
-### Zero-life elimination and voluntary concessions (2026-10-10)
-
-`GET /api/game/settings` and state `settings` expose `autoEliminateAtZeroLife`
-(Boolean, default true). The settings POST and `/api/tablet/settings` accept
-`autoEliminateAtZeroLife=0|1`. Seated players can change it in the lobby or during
-running/paused play; only this field may change during play. Enabling applies
-immediately to all living participants at zero or negative life, including
-paused matches. An open win claim/elimination decision blocks changes. Lobby
-changes persist as the next-game default; in-play changes persist in recovery
-for the current match. Profile/life/timer/team changes remain lobby-only.
-
-`POST /api/control/eliminate` and tablet control `action=eliminate` remove the
-caller/selected seat with an elimination reason. Concede remains a voluntary
-exit. State `players[].conceded` distinguishes it while `eliminated` remains
-true for either exit. Both actions reject already-out seats and open decisions.
-Statistics add lifetime `gamesConceded` and last result `Conceded`, separate from
-`gamesEliminated`/`Eliminated`. Standalone import optionally accepts `concededN`
-(0 or 1, default 0); 1 requires nonzero `outN`. Android retains the reason in
-local history regardless of import.
-
-### Magic monarch
-
-`POST /api/control/monarch` declares the authenticated seated player monarch.
-The tablet equivalent is action `monarch` at `/api/tablet/control`, using the
-normal module, slot and game scope. Both require a living player in a running
-or paused `mtg`/`mtg_commander`/`mtg_star_commander`/`mtg_bag_of_doom` game; invalid game/seat state returns 409.
-Declaring monarch transfers the crown immediately, with at most one holder
-per game. `GET /api/v1/state` reports nullable `monarchPlayer` (1-based individual
-player number), absent on older firmware. When that player leaves play it
-passes to the active player, or to the next living player in turn order when
-the active player is leaving (Magic CR 724.4); it clears on reset or new match,
-and survives pause and recovery. A pending win claim rejects a claim with 409. Players apply
-Magic’s card rules themselves. No life, turn or victory change is implied.
-
-### Magic counters and live loss rules
-
-`POST /api/control/counter` changes the authenticated living player’s own
-Magic counters. The shared-table equivalent is `/api/tablet/counter` with the
-normal `module`, `slot` and game scope. Both converge on ChangeCounter.
-
-| counter | Value fields | Meaning |
-| --- | --- | --- |
-| `poison`, `energy`, `experience` | `delta` (nonzero, ±99,999) | Add/correct a nonnegative bounded total. Poison is shared by 2HG teammates. |
-| `commander-casts` | `delta`, `commander` (1 or 2) | Command-zone casts in Commander. Next tax = 2 × casts. |
-| `city-blessing` | `value` (0 or 1) | Declare blessing or clear an erroneous entry; independent per player. |
-| `initiative` | `value` (0 or 1) | Claim/transfer, or release one’s own initiative. |
-| `treasure`, `rad` | `delta` (nonzero, ±99,999) | Per-player totals, as for energy. |
-| `rad-resolve` | `delta` (0 to the player’s rad) | Answers the player’s own rad trigger (state `radDue`, set as their turn begins, CR 727): they milled their rad count and `delta` were nonlands, so they lose that much life and rad. 0 just clears it. |
-| `day-night` | `value` (0 neither, 1 day, 2 night) | Table-wide (state `dayNight`); any living player sets it. Neither only corrects a mistake. |
-| `turn-order` | `value` (1 reversed, 0 clockwise) | Table-wide (state `turnOrderReversed`); reversed turns go counterclockwise, still team by team in Two-Headed Giant. |
-| `everyone` | `kind` (`poison`, `energy`, `experience`, `treasure`, `rad`), `delta` (1 or −1) | One for every living player (each team once for shared poison), each within its own bounds; 409 when nobody could change. |
-
-Day/night, turn order, rad triggers and treasure/rad reset with each new
-match and survive pause and recovery (checkpoint schema 9). An unchanged value
-(the same day/night or turn order) is 409.
-Lobby/finished matches, eliminated seats, non-Magic formats and open table
-decisions are rejected (409). Bad fields/ranges are 400; unauthenticated
-personal requests are 401. Existing commander-damage routes are unchanged.
-
-### Official rules and house rules (2026-10-14)
-
-`GET /api/game/settings` and state `settings` expose `houseRules` (Boolean,
-default false); the settings POST and `/api/tablet/settings` accept
-`houseRules=0|1` in the lobby only. Without house rules the official modes keep
-the official starting life and poison limit, as the standalone app does
-(`OfficialRules.kt`): `mtg` 20 and 10, `mtg_commander` 40 and 10, Two-Headed
-Giant `mtg` 30 and 15, `yugioh` 8000. Atlas saves those values whatever life or
-limit the request carries (200), and refuses a live poison-limit change (409).
-Start is refused (409) unless official Two-Headed Giant has exactly four players
-and a Yu-Gi-Oh! Duel two. Custom modes (`generic`, `mtg_star_commander`, `mtg_bag_of_doom`,
-Two-Headed Giant `mtg_commander`) stay editable. In Two-Headed Giant a
-teammate is never a source of Commander damage (409).
-
-With nobody chosen to go first, Atlas picks a random starter when the
-countdown ends. `starter` on the chosen player again clears the choice.
-
-### Back to setup and short games (2026-10-14)
-
-`POST /api/control/back-to-setup` (tablet action `back-to-setup`): a seated
-player, while running or paused and within the first three minutes of game
-time (pauses excluded), returns the table to the lobby with the same players
-and settings. Nothing is recorded; later it is 409.
-
-A match that ends within one minute of game time is kept out of profile
-statistics: state `shortGameUncounted` is true at game over until a seated
-player sends `POST /api/control/count-game` (tablet action `count-game`), which
-records it once. A rematch or reset leaves it uncounted. After a restart the
-finished match can no longer be counted, so it is never counted twice.
-
-`POST /api/game/settings` and `/api/tablet/settings` additionally accept
-`autoEliminateAtPoisonLimit`, `autoEliminateAtCommanderDamage` (0 or 1) and
-`poisonLimit` (1..99,999), in the lobby and during running/paused play.
-Zero-life, poison and Commander rules are independent. All default on for
-new matches; poison defaults 10, or 15 for 2HG. A team-mode change selects
-the standard poison limit unless a limit is explicitly supplied. Enabling
-a rule/changing a limit applies immediately. Commander loss is 21 from one
-commander, never a pooled damage sum; only Commander games apply it.
-
-State adds nullable `initiativePlayer` and per-player `counters` with poison,
-energy, experience, exactly two `commanderCasts`, and `cityBlessing`. Settings
-expose the three new fields. Old snapshots omit these fields (clients render
-zero counters/no initiative and disabled new automatic rules). Clocks and
-turns do not change when statuses are claimed. Recovery preserves these facts;
-new matches clear counters/status, and a leaving holder's initiative passes
-like the monarch (CR 725.4).
-
+A hosted game's record reaches the history through the hub's finish report ([hosted-v1.md](hosted-v1.md#resume-and-records)).
 
 ## Importing a phone-owned account
 
@@ -714,86 +383,22 @@ personalization using ordinary APIs; card availability, size limits and Admin
 image review remain enforced. Existing accounts retain their personalization.
 
 
-## Elimination attribution
-
-`POST /api/control/eliminate` and the shared-table equivalent
-`POST /api/tablet/control` (`action=eliminate`) accept optional `eliminatedBy`:
-`0` for no player credited, or a real opponent's 1-based player number. Atlas
-validates source identity, refuses self/teammate credit, and captures it before
-elimination completion. Omitted means unknown. Concessions award no credit.
-Live state players expose nullable `eliminatedBy` with the same numbering.
-
-Standalone imports accept up to **10** players and optional `twoHeadedGiant=0|1`.
-Each `eliminatedByN` is a **0-based match index**, or empty for unknown; only a
-non-conceding removed player may have an opponent credited. Attribution is
-validated before any receipt or statistics writes. `winners` supports indices
-0–9 without truncation. Profile statistics return `eliminationsMade` in both
-`lifetime` and `lastGame`; lifetime counts individual opponents removed, not
-matches, and is retained without an SD card.
-
-
-## Bag of Doom
-
-`gameProfile` / `settings.profile` / `lastGameType` accept `mtg_bag_of_doom`,
-a custom Commander variant for at least five players without teams. See
-[gameplay rules](../Documentation/engineering/GAMEPLAY.md#commander--bag-of-doom).
-State adds optional `doomBag` (null outside a started Bag of Doom match):
-
-| Field | Meaning |
-| --- | --- |
-| `atRisk`, `drawn` | 16-bit masks; bit `playerNumber - 1`. Living eligible names, and historical bag victims respectively. |
-| `boundary` | Player whose turn ends the current cycle; 0 when off. |
-| `warmup` | Opening complete cycles still required, 0–4. |
-| `cycle` | Positive uint32 bag generation, incremented by each check or credited kill while active. |
-| `pending`, `pendingTurn` | Check due; life edits still belong to the turn that just ended. |
-| `sealed` | A private choice was reserved. Membership is frozen; retry resolves the same name. |
-| `lastDraw`, `lastCheck` | Last completed result and cycle. `lastDraw=0` means everyone was safe; `lastCheck=0` means no check yet. |
-
-`POST /api/control/doom` requires a signed-in living participant.
-`POST /api/tablet/doom` requires a signed-in session and an acting living
-`moduleId`/`slot`. Both require **exact** `expectedBootId`, `expectedRevision`
-and positive uint32 `cycle` from the displayed snapshot. Authentication failures
-are 401/403, stale or inapplicable actions 409, malformed action fields 400.
-
-| `action` | Extra form fields | Transition |
-| --- | --- | --- |
-| `eligibility` | `player` (1–16), `inBag` (0 or 1) | Correct a living player's membership before sealing. |
-| `credit` | `player` (removed victim), `source` (credited opponent), both 1–16 | Credit an uncredited non-conceding, non-bag removal once; reset active bag/boundary. |
-| `draw` | None | Resolve a due paused check after life approvals; authority chooses, saves, removes and refills. |
-
-Clients never select a victim. Atlas saves a hidden reservation before revealing
-the result; storage failure returns 409 and retry uses the same reservation.
-Only `sealed` is projected. Resume/claim-win is refused while a check is due.
-A resolved check remains paused until the usual resume action. No radio payload
-changes. Each venue game retains its independent bag and freshness guards.
-
-### Planechase with physical planes (2026-10-30)
-
-`settings.planechase` (`POST /api/game/settings` or `/api/tablet/settings`
-field `planechase=0|1`, lobby only, Magic formats) plays the next match with
-the players' own plane cards. Atlas runs the shared core's Planechase rules
-with `source: "physical"`: it counts the planar die's mana cost per turn
-(the first roll each turn is free), chaos and planeswalks, and the face-up
-plane's counters, and projects them as the state's `planechase` object (null
-when off). The client rolls the die and sends the face; Atlas has no plane
-list of its own: with `planarDeck=digital` it deals the catalog the app sent
-(below), shuffled, and the state's `planechase` adds the face-up `plane`
-(`id`, `name`, `phenomenon`) and `deckSize`. Without a catalog the deck falls
-back to the players' own planes.
+### Plane catalog and saved commanders
 
 Plane catalog (Atlas 2026-10-30): `GET /api/planes` answers `version` and
-`count`; `POST /api/planes` (any signed-in browser or tablet) takes `version`
+`count`; `POST /api/planes` (any signed-in session) takes `version`
 (up to 24 characters) in the query and the planes as a `text/plain` body, one
 line per card
 `<36-character Scryfall id><TAB><name, up to 40><TAB><1 phenomenon | 0>`, up to
 192 cards. Atlas keeps it in RAM at once and answers `{ok, count, queued}`;
 with a card in, its SD worker then writes the records (`pl0`…, `plv`), and
-Atlas reloads them at boot or card insertion. The app sends its downloaded
-planes whenever the versions differ.
+Atlas reloads them at boot or card insertion. No app sends them since
+2026-11-04: the Atlas-run game's Planes tab was removed, and the hosted
+game's plane card on the Atlas screen is staged (`STAGED_CHANGES.md`).
 
-Plane cards (Atlas 2026-11-03, for the Atlas screen's card view): `GET
+Plane cards (Atlas 2026-11-03, for the Atlas screen's plane card): `GET
 /api/planes` also answers `cards` (ids whose text Atlas keeps) and `art` (ids
-with art too). `POST /api/planes/card` (any signed-in browser or tablet) takes
+with art too). `POST /api/planes/card` (any signed-in session) takes
 one catalog plane's `id`, `type` and `artist` (up to 47 printable ASCII
 characters each), `text` (rules, up to 639, newlines allowed) and `chaos` (the
 chaos ability, up to 319) in the query, and the art as a `text/plain` body: a
@@ -811,105 +416,13 @@ card itself, and 503 while a new card's index is still being read. The card
 work ran on Atlas's main loop before (2026-11-03): about 320 lookups froze the
 screen for up to 110 s. On 503 the app sends the same request again after
 1.5 s, for up to about 90 s. Optional `index` and `total` (this card's place
-in the app's batch) let the Atlas screen show the progress as each card is
-written. The app (tablet mode) sends every catalog plane Atlas lacks art for
-after the catalog, on its own once per Atlas boot (`atlasId` + `bootId`) and
-app session, never again after a failure; its Send planes to Atlas button
-sends every plane.
-
-Atlas screen view (Atlas 2026-11-03): `GET /api/atlas/screen` (any signed-in
-session) answers `{ok:true, view, views}`: the Atlas touchscreen's open page
-(`game`, `table`, `planes`, `card` or `other`) and the views it can show now.
-`POST /api/atlas/screen` with `view` turns the Atlas screen to one of them
-during Game 1's match (the touchscreen shows Game 1). It is presentation only.
-Any signed-in player seated in that game may set it (owner, 2026-11-02): a
-browser uses its own seat, the app names the seat it acts for with `module`
-and `slot` as `/api/tablet/*` do. 403 for a Sigil seat or a guest (no
-profile), 409 when the seat isn't in the game or the view isn't available
-(no match, no Planechase, no digital plane face up), 400 for an unknown view.
+in the batch) let the Atlas screen show the progress as each card is
+written.
 
 Saved commanders: up to six per profile on the microSD card (`d<profileId>`).
-`GET /api/profiles/commanders` (the session's own, or `?profileId=` from a
-tablet) answers `commanders: [{slot, name, art}]`, newest first.
-`POST /api/control/commander-choice` (signed-in seat) and
-`/api/tablet/commander-choice` (signed-in session, `moduleId`/`slot`, lobby only)
-take `name` (up to 80 characters) and optional `art` (a printing ID, or `none` for explicitly no artwork) to save
-and choose one, `slot` (1-based, 0 for none) to choose a saved one, or
-`forget` (a slot) to remove it. 409 without a card or for a guest. The chosen
-commander shows as each player's `commander` (`name`, `art`) in the state,
-in the lobby and through the match, and the match record carries it.
-
-`POST /api/control/planar` (signed-in participant) and `/api/tablet/planar`
-(signed-in session, acting `moduleId`/`slot`) take `action`:
-
-| `action` | Extra form fields | Who |
-| --- | --- | --- |
-| `roll` | `face` (`blank`, `chaos`, `planeswalk`), optional `fromEffect=1` (a card's free roll) | The active player or teammate |
-| `planeswalk`, `chaos` | None (a card says so) | The active player or teammate |
-| `counter` | `delta` (`1` or `-1`) | Any living player |
-
-Malformed fields answer 400, refusals (not running, not their turn, Planechase
-off) 409. Interrupted-match recovery keeps Planechase on; the counts restart.
-
-Standalone imports accept optional `bagDrawnN=0|1` for each zero-based player.
-True requires this format, an `outOrder`, no concession and no `eliminatedByN`.
-It records the exit reason without awarding an opponent an elimination.
-
-
-## Explicit elimination source
-
-Native `POST /api/control/start` and `POST /api/tablet/control?action=start`
-include `askEliminationSource=1`. It opts the match into pausing automatic
-removals until their sources are answered; Bag of Doom always enables it.
-State settings project `askEliminationSource`. Each player adds optional
-`selfEliminated` and `eliminationPending` booleans (absent means false).
-Pending attribution defers completion/statistics, including the last removal
-or an all-out batch. Resume, win claims and bag draws wait for these answers.
-
-`POST /api/control/elimination` (seated session, including eliminated players)
-and `POST /api/tablet/elimination` (signed-in session, acting `moduleId`/`slot`) take:
-
-- `player`: pending victim's 1-based player number.
-- `source`: chosen opponent's 1-based player number, or 0 for Unknown/Self.
-- `selfEliminated`: required 0 or 1; 1 requires `source=0`.
-- `expectedBootId`, `expectedRevision`: exact values from the rendered snapshot.
-
-Malformed fields return 400, stale/already-answered/inapplicable choices 409,
-and missing authorization 401/403. Any participant may answer, including an
-all-out table. Teammates answer together. An opponent can already be eliminated;
-self/teammate opponent credit is refused. Self and Unknown give no opponent
-credit or bag refill. The explicit opponent drives the credited-elimination bag
-reset, independently of the current turn. The last answer decides any pending
-outcome; otherwise play remains paused. No source is inferred or preselected.
-
-Manual `/api/control/eliminate` and tablet `action=eliminate` accept optional
-`selfEliminated=1` with `eliminatedBy=0`. Supplying `eliminatedBy` explicitly
-(including 0/Unknown) is an answered source before removal. An interactive Sigil
-removal without an explicit source queues the question. Concessions and bag
-victims never queue it. Standalone imports accept `selfEliminatedN=0|1`; true
-requires an exit order and no concession, bag-drawn flag or opponent credit.
-
-### Automatic game access and action receipts (Atlas 0.7.23)
-
-`POST /api/session/play` takes a per-app `clientKey` (UUID text) and optional
-1-based `game`. It opens or reuses a RAM-only gameplay session and returns
-`{ok:true,token:...}`. No profile choice, PIN or presence prompt is required.
-The compatibility `tablet:true` field identifies its restricted capabilities;
-it has no personal profile, private statistics or administrative permissions.
-Besides `/api/tablet/*` and the table reads, it may use `/api/planes`,
-`/api/planes/card` and `/api/atlas/screen`.
-Personal sessions already in use are preserved by the app. Profile creation
-for ordinary gameplay (`gameplayOnly=1` on a PIN-less identity upload)
-does not issue private-history link keys.
-
-Shared game mutations may include `actionId` (UUID text). This is separate
-from the numeric life-approval `requestId`. Atlas retains up to 16 responses
-of at most 1024 bytes for two minutes, scoped to their session token.
-`GET /api/action-receipt?actionId=...` returns `{found:true,status,body}`
-with the original JSON body as a string, or 404 `{found:false}`. Reusing an
-unexpired action ID on a POST is refused with 409 before any mutation.
-The app queries a receipt after a transport timeout; it never retries the
-mutation automatically or treats a missing receipt as proof of rejection.
+`GET /api/profiles/commanders` (the session's own, or `?profileId=`) answers
+`commanders: [{slot, name, art}]`, newest first. Choosing a commander for a
+game is the hub's; the match record carries it.
 
 ## Persistent game-night room backup
 
@@ -931,39 +444,3 @@ The hub owns serialized membership writes and a monotonic room sequence; local
 saving precedes asynchronous mirroring. On resume it can recover a newer
 matching Atlas record. A failed mirror remains visible and retryable. Guests
 still connect to the Android hub, not this HTTP endpoint.
-
-### Offline play and persistent rooms
-
-Account-free game sessions may use `GET /api/v1/game` and `POST /api/v1/offline`.
-The fetch names its venue game; the POST supplies `expectedGame`, which rejects
-a changed followed table before dispatch. Public state includes `matchId` (the
-individual match, independent of the venue number and Atlas boot). Play Together
-commands include it so an old room command cannot cross a rematch.
-
-Offline action receipts survive intervening live actions for the current match
-and Atlas process. They hash the original base boot/revision, stream, sequence
-and immutable payload; duplicate queues return recorded outcomes without another
-mutation. Reusing an ID with changed contents is a conflict. The per-table bound
-is 1024 receipts, with no eviction; capacity rejection leaves the phone's saved
-queue available for review. These receipts are RAM-only on Atlas; they do not
-establish exactly-once reconciliation across Atlas power loss.
-
-The phone commits its pending queue and local game state before displaying an
-offline edit, retains the same stream/sequence across app recreation, and removes
-the queue only after confirmed Atlas acceptance and a successful local clear.
-Rejected or interrupted delivery retains the data. One pending outage is kept per
-device; a different Atlas/table/match cannot consume it. Local offline controls
-freeze during reconciliation, as do room guest edits for that match. Guests
-continue using the hub's Atlas relay when it is ready; they do not independently
-promote themselves to offline authorities.
-
-`GET /api/profiles` includes public `aliases` for identities redirected by an
-explicit Admin merge. Room members can follow these IDs without name matching
-or another PIN. Profile sync follows the existing `mergedInto`/`linkKey` response;
-no local histories or permissions are silently combined.
-
-Native shared writes also carry `expectedMatchId` from their rendered snapshot.
-Atlas checks it after selecting the venue and before dispatch, closing the gap
-where an in-flight request arrives just after a rematch. The bounded life/damage
-fallback retains this identity and still replays when no full offline core was
-available; it cannot merge or replay across individual matches.

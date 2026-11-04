@@ -1,48 +1,6 @@
 package com.turnhub.android.protocol
 
 /**
- * Mirrors one entry of `players[]` in protocol/state-v0.1.schema.json.
- *
- * [moduleId] keeps the wire spelling for an Atlas *controller handle*
- * (physical 0-7, virtual 8-23; protocol/http-v1.md). It is not a durable
- * device ID and not a paired-Sigil inventory entry.
- *
- * [profileId] and [displayName] are optional in the schema; current Atlas
- * firmware does not send them in `/api/v1/state`, so both are normally null.
- */
-data class Player(
-    /** Commander formats: the chosen (lobby) or played commander and its printing; null for none. */
-    val commander: String? = null,
-    val commanderArt: String? = null,
-    val playerNumber: Int,
-    val moduleId: Int,
-    /** 1 = the module's primary seat (A), 2 = its secondary seat (B). */
-    val slot: Int,
-    /** Two-Headed Giant team (players 1+2 are team 1); null outside Two-Headed Giant. */
-    val team: Int? = null,
-    /** Unsigned 32-bit; stable only while this participant stays at the table. */
-    val participantId: Long,
-    val profileId: String?,
-    val displayName: String?,
-    val eliminated: Boolean,
-    val conceded: Boolean = false,
-    /** Credited opponent player number; null for unknown/concession. */
-    val eliminatedBy: Int? = null,
-    val selfEliminated: Boolean = false,
-    val eliminationPending: Boolean = false,
-    val counters: PlayerCounters = PlayerCounters(),
-    /** Magic: this player's rad trigger waits for their nonland count (counter `rad-resolve`). */
-    val radDue: Boolean = false,
-    /** Null in the lobby, before Atlas has captured starting life. */
-    val life: Int?,
-    /** Unsigned 32-bit. */
-    val turnsCompleted: Long,
-    /** Missing sources mean zero damage (protocol/http-v1.md). */
-    val commanderDamage: List<CommanderDamage>,
-    val lifeRequest: LifeRequest?,
-)
-
-/**
  * Commander damage this player has received from [sourcePlayer]'s commanders.
  * [damage] always has two entries: commander 1 and commander 2.
  */
@@ -51,7 +9,7 @@ data class CommanderDamage(
     val damage: List<Int>,
 )
 
-/** Mirrors `lifeRequest.state` in protocol/state-v0.1.schema.json. */
+/** Where a life-change request stands. */
 enum class LifeRequestState {
     NONE,
     PENDING,
@@ -68,9 +26,8 @@ enum class LifeRequestState {
 }
 
 /**
- * A request by [actor] to change [target]'s life by [delta]. Atlas owns the
- * approval deadline ([windowMs] after [requestedAtMs], the recipient's own
- * choice); this app only renders the state Atlas reports.
+ * A request by [actor] to change [target]'s life by [delta]. The game owns the
+ * approval deadline ([windowMs] after [requestedAtMs], the recipient's own choice).
  */
 data class LifeRequest(
     /** Unsigned 32-bit. */
@@ -79,7 +36,7 @@ data class LifeRequest(
     val target: Int,
     val delta: Int,
     val state: LifeRequestState,
-    /** Atlas uptime clock, unsigned 32-bit, wraps; only comparable within one boot. */
+    /** The game's clock when it was asked; only comparable within one game. */
     val requestedAtMs: Long,
     /** The recipient's approval window in milliseconds (15,000 by default). */
     val windowMs: Long = 15_000L,

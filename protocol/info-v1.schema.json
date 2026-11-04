@@ -33,7 +33,8 @@
       "const": "1"
     },
     "protocolVersion": {
-      "const": "0.1"
+      "description": "1: Atlas is an accessory to a phone hub (atlas-state-v1, hosted-v1.md). 0.1 was the retired Atlas-run game state.",
+      "const": "1"
     },
     "radioProtocolVersion": {
       "description": "Atlas-Sigil ESP-NOW protocol version (3 since the baseline Sigil, 2026-09-30; 2 was the secure link). Informational: clients do not use the radio.",

@@ -12,14 +12,10 @@ import com.turnhub.android.protocol.TableState
 import com.turnhub.android.protocol.TurnTimer
 
 /**
- * A UI-oriented summary of one authoritative state snapshot
- * (protocol/state-v0.1.schema.json), combined with the identity fields Atlas
- * reports from `GET /api/v1/info` (protocol/http-v1.md).
- *
- * This lives in `domain/`, not `protocol/`, because no single Atlas response
- * looks like this. It is always rebuilt whole from the latest snapshot
- * ([TableSummaryMapper]); nothing in it is advanced locally, so it is a cache
- * of Atlas state for rendering, never a second source of truth.
+ * A UI-oriented summary of one game: this device's own (`StandaloneGame`), a
+ * Play together room's, or (with no players) the connected Atlas's identity,
+ * battery and links ([TableSummaryMapper]). The game's owner rebuilds it whole;
+ * nothing in it is advanced locally, so it is a cache for rendering.
  */
 data class TableSummary(
     val atlasId: String,
@@ -30,8 +26,6 @@ data class TableSummary(
     val state: TableState,
     val settings: TableSettings,
     val doomBag: com.turnhub.android.protocol.DoomBag? = null,
-    /** Atlas's Planechase with the players' own plane cards; null when off (the device game keeps its own). */
-    val atlasPlanechase: com.turnhub.android.protocol.AtlasPlanechase? = null,
     val host: ControllerHandle?,
     val starterPlayerNumber: Int?,
     val activePlayerNumber: Int?,
@@ -96,8 +90,8 @@ data class TableSummary(
     val dayNight: DayNight? = null,
     /** Turns go counterclockwise until the table sets them back. */
     val turnOrderReversed: Boolean = false,
-    /** Atlas's own `/api/v1/state` body (public table state) that a Play together hub relays to its guests. */
-    val stateWire: String? = null,
+    /** Connected Atlas: the phone hub holding its table (protocol/hosted-v1.md); null otherwise. */
+    val hub: com.turnhub.android.protocol.AtlasHub? = null,
     /** Individual match UUID; a venue game number survives rematches. */
     val matchId: String = "",
 ) {
@@ -161,15 +155,15 @@ data class TableSummary(
 /** Day and night (CR 726): neither until a daybound or nightbound card appears, then day or night for the rest of the game. */
 enum class DayNight { NEITHER, DAY, NIGHT }
 
-/** A controller seat: handle + slot. How `/api/seats` names are matched to players. */
+/** A controller seat: handle + slot. */
 data class SeatKey(val moduleId: Int, val slot: Int)
 
 /** One participant as the Home screen renders it. */
 data class TablePlayer(
     val playerNumber: Int,
-    /** Atlas-provided name (state, else `/api/seats`), or a neutral "Player N". */
+    /** The player's name, or a neutral "Player N". */
     val label: String,
-    /** True when [label] came from Atlas rather than the "Player N" fallback. */
+    /** True when [label] is a real name rather than the "Player N" fallback. */
     val hasName: Boolean,
     val controller: ControllerHandle,
     val slot: Int,

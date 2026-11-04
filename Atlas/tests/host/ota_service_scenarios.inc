@@ -19,7 +19,7 @@ static std::vector<uint8_t> otaTestPackage(uint8_t product) {
 static void otaServiceScenarios() {
   using namespace TurnHub;
   using namespace TurnHubProtocol;
-  freshLobby(2); enterEmptyLobby(); resetPresence();
+  freshTable(); resetPresence();
   TurnHubWebApi::configureDevices(manageDevices, [](){return pairingWindowMs;});
   TurnHubWebApi::configurePresence(presenceHooks());
   beginSigilUpdates("OTA test AP", "test-password");
@@ -45,14 +45,13 @@ static void otaServiceScenarios() {
   r.firmwareMajor=0;r.firmwareMinor=8;r.firmwarePatch=0;
   fixtureConnectOta(r);r.sessionGeneration=1;r.confirmedSessionGeneration=1;
   assert(request("/api/sigil-update",admin,{{"module","abc"}})==400);
-  table().hubState=HubState::Running;assert(request("/api/sigil-update",admin,{{"module","0"}})==409);table().hubState=HubState::Lobby;
+  hostGame();assert(request("/api/sigil-update",admin,{{"module","0"}})==409);endHostedGame();
   assert(request("/api/sigil-update",admin,{{"module","0"}})==200 && sigilUpdatesBusy());
   serviceSigilUpdates(testNow);
   assert(strcmp(fixtureUpdateOffer.ssid, "OTA test AP")==0);
   assert(strcmp(fixtureUpdateOffer.password, "test-password")==0);
   assert(fixtureUpdateOffer.product==2 && fixtureUpdateOffer.packageSize==otaTestPackage(2).size());
   assert(upload(admin,otaTestPackage(2))==403); // Cannot replace an active package.
-  Intent start;start.type=IntentType::StartGame;assert(intents.dispatch(start).status==IntentStatus::Conflict);
   char token[33];for(size_t i=0;i<16;++i)snprintf(token+2*i,3,"%02x",fixtureUpdateOffer.token[i]);
   assert(request("/api/sigil-package","",{{"token","bad"}},HTTP_GET)==403);
   assert(request("/api/sigil-package","",{{"token",token}},HTTP_GET)==200);

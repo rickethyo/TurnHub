@@ -8,11 +8,11 @@ This is a working development record, not a substitute for the complete license 
 
 | Component | Copyright / project owner | Use in TurnHub | Upstream license | Distribution note |
 | --- | --- | --- | --- | --- |
-| LVGL 9.3.0 | LVGL Kft and contributors | Desktop UI simulator and the S3 Atlas screen | MIT | Preserve [full upstream license](LVGL/licenses/LVGL-MIT.txt) with desktop and S3 Atlas firmware distribution; not in legacy firmware. |
+| LVGL 9.3.0 | LVGL Kft and contributors | Desktop UI simulator and the S3 Atlas screen | MIT | Preserve [full upstream license](shared/licenses/LVGL-MIT.txt) with desktop and S3 Atlas firmware distribution; not in legacy firmware. |
 | LovyanGFX 1.2.30 | lovyan03 and contributors (with Adafruit and Bodmer code) | S3 Atlas panel and touch drivers | FreeBSD (BSD-2-Clause) | Preserve its combined `license.txt` notices with S3 Atlas firmware. |
-| LVGL default font glyphs | Montserrat and Font Awesome projects | Bundled internal fallback in LVGL 9.3; visible UI uses Inter/Cinzel | SIL OFL 1.1 for font glyphs | Preserve [Montserrat OFL](LVGL/licenses/OFL-Montserrat.txt) and [Font Awesome font notice](LVGL/licenses/FontAwesome-Free.txt). |
-| SDL 2.32.4 | SDL project and contributors | Desktop display and input | zlib | Preserve [upstream license](LVGL/licenses/SDL-zlib.txt) and source notices. |
-| lv_font_conv 1.5.3 | LVGL font converter project | Development-only generation of Inter/Cinzel bitmaps | MIT | [Tool license](LVGL/licenses/lv-font-conv-MIT.txt); font output remains under the existing [Inter](design/fonts/OFL-Inter.txt) and [Cinzel](design/fonts/OFL-Cinzel.txt) OFL notices. |
+| LVGL default font glyphs | Montserrat and Font Awesome projects | Bundled internal fallback in LVGL 9.3; visible UI uses Inter/Cinzel | SIL OFL 1.1 for font glyphs | Preserve [Montserrat OFL](shared/licenses/OFL-Montserrat.txt) and [Font Awesome font notice](shared/licenses/FontAwesome-Free.txt). |
+| SDL 2.32.4 | SDL project and contributors | Desktop display and input | zlib | Preserve [upstream license](shared/licenses/SDL-zlib.txt) and source notices. |
+| lv_font_conv 1.5.3 | LVGL font converter project | Development-only generation of Inter/Cinzel bitmaps | MIT | [Tool license](shared/licenses/lv-font-conv-MIT.txt); font output remains under the existing [Inter](design/fonts/OFL-Inter.txt) and [Cinzel](design/fonts/OFL-Cinzel.txt) OFL notices. |
 | Arduino-ESP32 | Espressif Systems and contributors | Arduino framework used by ESP32 Atlas and Sigil firmware | LGPL-2.1 | Firmware distribution obligations must be verified before release. Preserve upstream notices and license terms. |
 | PlatformIO Core | PlatformIO Labs and contributors | Development/build tooling | Apache-2.0 | Development tool, not presently intended to be embedded in or shipped as part of TurnHub firmware. Track for build provenance. |
 
@@ -37,7 +37,7 @@ TurnHub's software license. No applicable content redistribution permission is
 recorded. Free access, source credits, runtime downloads and ownership of a
 physical copy do not establish app/content reuse rights. The published
 Asmodee/FFG policy contains an app restriction. See the
-[DMD rights audit](Documentation/legal/DMD_RIGHTS_AUDIT.md) for the current
+DMD rights audit (local-only, kept off GitHub with the content) for the current
 inventory, scope and rights-holder confirmation needed before distribution.
 
 ## TurnHub-owned material

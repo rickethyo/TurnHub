@@ -1,10 +1,9 @@
 package com.turnhub.android.protocol
 
 /**
- * Mirrors `settings.profile` in protocol/state-v0.1.schema.json. See
+ * A game format, by its wire name in the shared core. See
  * Documentation/engineering/GAMEPLAY.md for what each format means
- * (starting life presets, etc.) -- this app does not implement or validate rules
- * for any of them, it only displays Atlas's current selection.
+ * (starting life presets, etc.).
  */
 enum class GameProfile(val wireValue: String) {
     GENERIC("generic"),
@@ -93,9 +92,8 @@ enum class GameProfile(val wireValue: String) {
 }
 
 /**
- * Mirrors the `settings` object in protocol/state-v0.1.schema.json: the game
- * format, starting life and turn timer Atlas captured for the current match
- * (or, in the lobby, the setup the next match will capture).
+ * A game's settings: the format, starting life and turn timer captured for
+ * the current match (or, in the lobby, the setup the next match will capture).
  */
 data class TableSettings(
     val profile: GameProfile,
@@ -124,9 +122,8 @@ data class TableSettings(
 }
 
 /**
- * Mirrors `turnTimer` in protocol/state-v0.1.schema.json. Atlas derives the
- * phase; the app only displays it. A sampled value like the clocks: it can
- * change without a revision change.
+ * The turn timer's phase and countdown, derived by the game's rules. A sampled
+ * value like the clocks: it can change without a revision change.
  */
 data class TurnTimer(
     val phase: TurnTimerPhase,
@@ -152,16 +149,3 @@ enum class TurnTimerPhase(val wireValue: String) {
         fun fromWire(value: String): TurnTimerPhase? = entries.firstOrNull { it.wireValue == value }
     }
 }
-
-/**
- * `GET /api/game/settings`: the table's next-match setup, whether this session
- * may edit it (host, in the lobby) and the turn-timer choices Atlas offers.
- */
-data class GameSettingsInfo(
-    val settings: TableSettings,
-    val available: Boolean,
-    val canEdit: Boolean,
-    val turnTimerPresetsMs: List<Long>,
-    val turnTimerMinMs: Long,
-    val turnTimerMaxMs: Long,
-)

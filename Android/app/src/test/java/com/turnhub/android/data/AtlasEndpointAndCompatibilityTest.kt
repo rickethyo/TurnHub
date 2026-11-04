@@ -32,14 +32,14 @@ class AtlasEndpointAndCompatibilityTest {
     @Test
     fun `fixture info is compatible`() {
         AtlasCompatibility.requireCompatible(Fixtures.info())
-        AtlasCompatibility.requireCompatible(Fixtures.state("running.response.json"))
+        AtlasCompatibility.requireCompatible(Fixtures.state("state-hosted.response.json"))
     }
 
     @Test
     fun `incompatible API, protocol or missing snapshots are rejected`() {
         val incompatible = listOf(
             Fixtures.info { put("apiVersion", "2") },
-            Fixtures.info { put("protocolVersion", "0.2") },
+            Fixtures.info { put("protocolVersion", "2") },
             Fixtures.info { getJSONObject("capabilities").put("stateSnapshot", false) },
         )
         incompatible.forEach { info ->
@@ -47,7 +47,7 @@ class AtlasEndpointAndCompatibilityTest {
             assertTrue(error.failure is AtlasFailure.Incompatible)
         }
         val error = assertThrows(AtlasException::class.java) {
-            AtlasCompatibility.requireCompatible(Fixtures.state("running.response.json") { put("protocolVersion", "0.2") })
+            AtlasCompatibility.requireCompatible(Fixtures.state("state-hosted.response.json") { put("protocolVersion", "2") })
         }
         assertTrue(error.failure is AtlasFailure.Incompatible)
     }

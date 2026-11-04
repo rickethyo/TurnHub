@@ -1,0 +1,22 @@
+{
+  "protocolVersion": "1",
+  "atlasId": "THA-025448410001",
+  "bootId": "0123456789ABCDEF0123456789ABCDEF",
+  "revision": 7,
+  "hub": {
+    "name": "Kitchen tablet",
+    "gameId": "m-20261104-1",
+    "state": "RUNNING",
+    "players": 4
+  },
+  "battery": {
+    "percent": 64,
+    "low": false,
+    "charging": true
+  },
+  "links": {
+    "hotspot": true,
+    "home": true,
+    "sigils": 2
+  }
+}

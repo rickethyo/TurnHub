@@ -61,11 +61,12 @@ jobs:
               # iOS has its own path-filtered macOS workflow.
               .github/workflows/ios.yml) ;;
               .github/*) atlas=true sigil=true android=true tools=true lvgl=true ;;
+              # The simulator lives in shared/simulator; firmware never builds it.
+              shared/simulator/*) lvgl=true ;;
               shared/*) atlas=true sigil=true lvgl=true ;;
               # The simulator reads Atlas's avatar masks (Atlas/include).
               Atlas/include/*) atlas=true lvgl=true ;;
               Atlas/*) atlas=true ;;
-              LVGL/*) lvgl=true ;;
               Sigil/*) sigil=true ;;
               # Shared fixtures feed the Atlas contract check and Android tests.
               protocol/*) atlas=true android=true ;;
@@ -75,7 +76,6 @@ jobs:
               # manual asset check covers it, so it needs no Gradle build.
               Android/app/src/main/assets/manual.md) ;;
               Android/*) android=true ;;
-              data/death-may-die/*|tools/dmd-forge/*) android=true ;;
               # The shared rules core: its own suite always runs; the app replays
               # its scenarios and Atlas links it.
               core/*) android=true atlas=true ;;
@@ -117,9 +117,9 @@ jobs:
         run: python3 tools/scripts/check_docs.py
       - name: Shared display assets match their sources
         run: |
-          python3 LVGL/tools/generate_fonts.py --check
-          python3 LVGL/tools/generate_display_fonts.py --check
-          python3 LVGL/tools/generate_icons.py --check
+          python3 shared/display/tools/generate_fonts.py --check
+          python3 shared/display/tools/generate_display_fonts.py --check
+          python3 shared/display/tools/generate_icons.py --check
       # Reads the responses the Atlas host suites generate.
       - name: Validate generated responses and shared contracts
         if: env.ATLAS == 'true'
@@ -128,10 +128,6 @@ jobs:
         run: |
           python3 design/build_tokens.py --check
           python3 design/build_avatar_masks.py --check
-      - name: Death May Die catalogue generation and validator
-        run: |
-          node --test tools/dmd-forge/catalogue.test.mjs
-          node tools/dmd-forge/build.mjs --check
       - name: Android manual asset matches the newest user manual
         run: python3 Android/tools/export_manual.py --check
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
@@ -247,7 +243,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # Desktop LVGL presentation simulator (LVGL/README.md): sanitizer build,
+  # Desktop LVGL presentation simulator (shared/simulator/README.md): sanitizer build,
   # its CTest self-tests under SDL's dummy drivers, and the font digests.
   lvgl:
     name: LVGL simulator (manual, semi-retired)
@@ -265,14 +261,14 @@ jobs:
       - name: Build the simulator (ASan and UBSan)
         if: env.BUILD == 'true'
         run: |
-          cmake -S LVGL -B LVGL/build -DCMAKE_BUILD_TYPE=Release -DTURNHUB_SANITIZERS=ON
-          cmake --build LVGL/build --parallel
+          cmake -S shared/simulator -B shared/simulator/build -DCMAKE_BUILD_TYPE=Release -DTURNHUB_SANITIZERS=ON
+          cmake --build shared/simulator/build --parallel
       - name: Simulator self-tests
         if: env.BUILD == 'true'
-        run: ctest --test-dir LVGL/build --output-on-failure
+        run: ctest --test-dir shared/simulator/build --output-on-failure
       - name: Fonts match their recorded digests
         if: env.BUILD == 'true'
-        run: python3 LVGL/tools/generate_fonts.py --check
+        run: python3 shared/display/tools/generate_fonts.py --check
 
   android:
     name: Android build and unit tests

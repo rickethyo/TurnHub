@@ -2,13 +2,10 @@ package com.turnhub.android.data
 
 import com.turnhub.android.protocol.AccessibilitySettings
 import com.turnhub.android.protocol.AtlasInfo
-import com.turnhub.android.protocol.ControlResult
-import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.LedStyle
 import com.turnhub.android.protocol.LoginResult
 import com.turnhub.android.protocol.ProfileSummary
 import com.turnhub.android.protocol.AvatarIcon
-import com.turnhub.android.protocol.SeatEntry
 import com.turnhub.android.protocol.SessionInfo
 import com.turnhub.android.protocol.SetupStatus
 import com.turnhub.android.protocol.AtlasWireException
@@ -49,7 +46,6 @@ class HttpAtlasTransport(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val connectTimeoutMs: Int = 3_000,
     private val readTimeoutMs: Int = 3_000,
-    private val pollContext: () -> PollContext = { PollContext() },
 ) : AtlasTransport, AtlasSessionTransport {
 
     // On the home network Atlas answers HTTPS, trusted only with its pin (PinnedTls).
@@ -67,12 +63,8 @@ class HttpAtlasTransport(
         return parse { AtlasWireParser.parseInfo(response.body) }
     }
 
-    override val contextKey: String get() = pollContext().key
-
     override suspend fun getState(): StateSnapshot {
-        val context = pollContext()
-        val response = request("GET", "/api/v1/state?game=${context.game}", headers = context.headers)
-        if (pollContext() != context) throw AtlasException(AtlasFailure.Rejected("Table selection changed; refreshing."))
+        val response = request("GET", "/api/v1/state")
         if (response.code != HttpURLConnection.HTTP_OK) {
             val detail = if (response.code == HttpURLConnection.HTTP_UNAVAILABLE) {
                 "Atlas has not published table state yet"
@@ -81,17 +73,7 @@ class HttpAtlasTransport(
             }
             throw AtlasException(AtlasFailure.HttpStatus(response.code, detail))
         }
-        return parse { AtlasWireParser.parseState(response.body).copy(wire = response.body) }
-    }
-
-    override suspend fun getSeats(): List<SeatEntry> {
-        val context = pollContext()
-        val response = request("GET", "/api/seats?game=${context.game}", headers = context.headers)
-        if (pollContext() != context) throw AtlasException(AtlasFailure.Rejected("Table selection changed; refreshing."))
-        if (response.code != HttpURLConnection.HTTP_OK) {
-            throw AtlasException(AtlasFailure.HttpStatus(response.code, "Atlas seats request failed"))
-        }
-        return parse { AtlasWireParser.parseSeats(response.body) }
+        return parse { AtlasWireParser.parseState(response.body) }
     }
 
     override suspend fun getAvatars(): List<AvatarIcon> {
@@ -124,51 +106,6 @@ class HttpAtlasTransport(
         val response = request("GET", "/api/session/me", headers = auth(token))
         requireOk(response, "Could not read your session")
         return parse { AtlasWireParser.parseSessionMe(response.body) }
-    }
-
-    override suspend fun join(token: String): String? {
-        val response = request("POST", "/api/session/join", headers = auth(token), formBody = "")
-        requireOk(response, "Could not join the table")
-        return parse { AtlasWireParser.parseControlResult(response.body).message }
-    }
-
-    override suspend fun control(
-        token: String,
-        action: ControlAction,
-        expectedRevision: Long?,
-        expectedBootId: String?,
-    ): ControlResult {
-        val fields = buildList {
-            if (action == ControlAction.START) add("askEliminationSource" to "1")
-            if (expectedRevision != null && expectedBootId != null) {
-                add("expectedRevision" to expectedRevision.toString())
-                add("expectedBootId" to expectedBootId)
-            }
-        }
-        val response = request("POST", action.path, headers = auth(token), formBody = form(*fields.toTypedArray()))
-        if (response.code == HttpURLConnection.HTTP_CONFLICT) {
-            // REJECTED / CONFLICT: a normal outcome carrying Atlas's reason.
-            return parse { AtlasWireParser.parseControlResult(response.body) }
-        }
-        requireOk(response, "Atlas did not accept the request")
-        return parse { AtlasWireParser.parseControlResult(response.body) }
-    }
-
-    override suspend fun getGameSettings(token: String): GameSettingsInfo {
-        val response = request("GET", "/api/game/settings", headers = auth(token))
-        requireOk(response, "Could not read the game settings")
-        return parse { AtlasWireParser.parseGameSettings(response.body) }
-    }
-
-    override suspend fun setTurnTimer(token: String, turnTimerMs: Long): String? {
-        val response = request(
-            "POST",
-            "/api/game/settings",
-            headers = auth(token),
-            formBody = form("turnTimerMs" to turnTimerMs.toString()),
-        )
-        requireOk(response, "Atlas did not save the turn timer")
-        return parse { AtlasWireParser.parseControlResult(response.body).message }
     }
 
     override suspend fun getAccessibility(token: String): AccessibilitySettings {
@@ -204,51 +141,6 @@ class HttpAtlasTransport(
     override suspend fun logout(token: String) {
         val response = request("POST", "/api/session/logout", headers = auth(token), formBody = "")
         if (response.code != HttpURLConnection.HTTP_UNAUTHORIZED) requireOk(response, "Sign-out failed")
-    }
-
-    override suspend fun postControl(
-        token: String,
-        path: String,
-        fields: List<Pair<String, String>>,
-    ): ControlResult {
-        val response = request("POST", path, headers = auth(token), formBody = form(*fields.toTypedArray()))
-        if (response.code == HttpURLConnection.HTTP_UNAUTHORIZED) throw AtlasException(AtlasFailure.SessionExpired)
-        if (response.code in 400..499) {
-            val reason = AtlasWireParser.errorMessage(response.body)
-            return try {
-                AtlasWireParser.parseControlResult(response.body).let { it.copy(message = it.message ?: reason) }
-            } catch (_: AtlasWireException) {
-                ControlResult(ok = false, status = "REJECTED", message = reason, revision = null, bootId = null)
-            }
-        }
-        requireOk(response, "Atlas did not accept the request")
-        return try {
-            parse { AtlasWireParser.parseControlResult(response.body) }
-        } catch (_: AtlasException) {
-            ControlResult(ok = true, status = "ACCEPTED", message = null, revision = null, bootId = null)
-        }
-    }
-
-    override suspend fun saveGameSettings(
-        token: String,
-        gameProfile: String?,
-        startingLife: Int?,
-        turnTimerMs: Long?,
-        twoHeadedGiant: Boolean?,
-        autoEliminateAtZeroLife: Boolean?,
-        houseRules: Boolean?,
-    ): String? {
-        val fields = buildList {
-            gameProfile?.let { add("gameProfile" to it) }
-            startingLife?.let { add("startingLife" to it.toString()) }
-            turnTimerMs?.let { add("turnTimerMs" to it.toString()) }
-            twoHeadedGiant?.let { add("twoHeadedGiant" to if (it) "1" else "0") }
-            autoEliminateAtZeroLife?.let { add("autoEliminateAtZeroLife" to if (it) "1" else "0") }
-            houseRules?.let { add("houseRules" to if (it) "1" else "0") }
-        }
-        val response = request("POST", "/api/game/settings", headers = auth(token), formBody = form(*fields.toTypedArray()))
-        requireOk(response, "Atlas did not save the game settings")
-        return messageOf(response.body)
     }
 
     override suspend fun saveProfile(token: String, name: String?, pin: String?, currentPin: String?): String? {
@@ -443,14 +335,6 @@ class HttpAtlasTransport(
             path.substringBefore('?') == "/api/planes" || path.substringBefore('?') == "/api/planes/card")
             maxOf(readTimeoutMs, ARTWORK_TIMEOUT_MS) else readTimeoutMs,
     ): Response = withContext(ioDispatcher) {
-        val expectedGame = kotlinx.coroutines.currentCoroutineContext()[ExpectedGame]?.game
-        val tableAction = path.startsWith("/api/control/") || path.startsWith("/api/tablet/") ||
-            path.startsWith("/api/game/") || path == "/api/session/join" || path == "/api/session/leave"
-        val scopedBody = formBody?.let {
-            if (expectedGame != null && tableAction && !Regex("(^|&)expectedGame=").containsMatchIn(it))
-                it + (if (it.isEmpty()) "" else "&") + "expectedGame=$expectedGame"
-            else it
-        }
         val connection = try {
             opener.open(URL(endpoint.baseUrl + path))
         } catch (e: IOException) {
@@ -465,10 +349,10 @@ class HttpAtlasTransport(
             connection.instanceFollowRedirects = false
             connection.setRequestProperty("Accept", "application/json")
             headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
-            if (scopedBody != null) {
+            if (formBody != null) {
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-                connection.outputStream.use { it.write(scopedBody.toByteArray(Charsets.UTF_8)) }
+                connection.outputStream.use { it.write(formBody.toByteArray(Charsets.UTF_8)) }
             } else if (rawBody != null) {
                 connection.doOutput = true
                 connection.setFixedLengthStreamingMode(rawBody.size)
@@ -527,11 +411,4 @@ class HttpAtlasTransport(
         /** Bounded SD artwork validation and writes can exceed the polling deadline. */
         const val ARTWORK_TIMEOUT_MS = 30_000
     }
-}
-
-/** Session-scoped polling context. Tokens never appear in diagnostic strings. */
-data class PollContext(val token: String = "", val game: Int = 1) {
-    val headers: Map<String, String> get() = if (token.isEmpty()) emptyMap() else mapOf("X-TurnHub-Token" to token)
-    val key: String get() = "$game:$token"
-    override fun toString() = "PollContext(game=$game, authenticated=${token.isNotEmpty()})"
 }

@@ -85,12 +85,9 @@ bool save(const char *key, const char *value) {
   return ok;
 }
 
-// No match on any table and no firmware being written.
+// No hub's game under way and no firmware being written.
 bool tableIdle() {
-  for (const GameTable &t : tables) {
-    if (t.hubState == HubState::Running || t.hubState == HubState::Paused) return false;
-  }
-  return !sigilUpdatesBusy() && !ota.inProgress();
+  return !gameUnderway(millis()) && !sigilUpdatesBusy() && !ota.inProgress();
 }
 
 uint8_t radioChannel() {

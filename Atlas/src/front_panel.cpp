@@ -225,7 +225,7 @@ void resetPresence() {
 }
 
 bool otaAllowed() {
-  return allTablesBetweenGames();
+  return betweenGames(millis());
 }
 
 uint32_t pairingRemainingMs(uint32_t nowMs) {
@@ -301,11 +301,11 @@ void readSerialCommands(uint32_t nowMs) {
   }
 }
 
-// The pairing window closes after its configured length or when the lobby
-// ends; a shown presence code closes after PRESENCE_CODE_MS.
+// The pairing window closes after its configured length or when a game
+// starts; a shown presence code closes after PRESENCE_CODE_MS.
 void updatePairingWindow(uint32_t nowMs) {
   if (pairingActive &&
-      (nowMs - pairingStartedAtMs >= pairingIndicatorMs || table().hubState != HubState::Lobby)) {
+      (nowMs - pairingStartedAtMs >= pairingIndicatorMs || !betweenGames(nowMs))) {
     pairingActive = false;
     serialLog.println("ATLAS|PAIRING|EXIT");
   }

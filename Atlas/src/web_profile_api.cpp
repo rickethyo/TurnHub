@@ -354,7 +354,6 @@ void handleProfileSync(WebServer &server) {
           reduce != (prefs.ledStyle == TurnHubProfiles::LedStyle::ReducedMotion)) {
         prefs.ledStyle = reduce ? TurnHubProfiles::LedStyle::ReducedMotion : TurnHubProfiles::LedStyle::Standard;
         ok = TurnHubProfiles::saveAccessibilityForProfile(id, prefs) && ok;
-        if (accessibilityChanged) accessibilityChanged();
       }
     }
     sync.activityMs = activity;
@@ -435,21 +434,6 @@ void handleProfileHistory(WebServer &server) {
   sendJson(server, 200, body);
 }
 
-void handleParticipation(WebServer &server, WebControl control) {
-  WebSession *session = sessionForRequest(server);
-  if (!session) {
-    sendError(server, 401, "Sign in to a profile first");
-    return;
-  }
-  String message;
-  if (!profileControlHandler ||
-      !profileControlHandler(sessionProfileId(*session), control, INVALID_ID, 1, message)) {
-    sendError(server, 409, message);
-    return;
-  }
-  sendOkMessage(server, message);
-}
-
 // Updates the signed-in profile: any of name, pin, clearPin=1. A pin or
 // clearPin on a profile that has a PIN needs currentPin.
 void handleProfile(WebServer &server) {
@@ -483,16 +467,12 @@ void handleProfile(WebServer &server) {
       !verifyProfileSecret(server, profileId, server.arg("currentPin"))) {
     return;
   }
-  resolveSessionParticipant(*session);
-  const SigilRecord *record = recordForModule(session->controllerId);
-  bool displayProfileChanged = false;
 
   if (server.hasArg("name")) {
     if (!TurnHubProfiles::setNameForProfile(profileId, cleanName(server.arg("name")))) {
       sendJson(server, 500, "{\"ok\":false,\"error\":\"Could not save player name\"}");
       return;
     }
-    displayProfileChanged = true;
     noteProfileChange(profileId);
   }
 
@@ -507,35 +487,17 @@ void handleProfile(WebServer &server) {
       sendJson(server, 500, "{\"ok\":false,\"error\":\"Could not save PIN\"}");
       return;
     }
-    if (record != nullptr) TurnHubProfiles::setPinHashForSeat(record->mac, session->slot, hash);
     session->pinVerified = true;  // It now knows the profile's PIN.
   }
 
   if (clearPin) {
-    TurnHubProfiles::ProfilePolicy policy;
-    if (!TurnHubProfiles::loadPolicyForProfile(profileId, policy) || !policy.allowPhysicalWithoutPin) {
-      sendError(server, 409, "Enable PIN-free physical use before removing the PIN");
-      return;
-    }
-    if (record == nullptr) {
-      sendError(server, 409, "Keep a PIN for hardware-independent profile login");
-      return;
-    }
-    if (!TurnHubProfiles::clearPinForProfile(profileId)) {
-      sendJson(server, 500, "{\"ok\":false,\"error\":\"Could not remove PIN\"}");
-      return;
-    }
-    TurnHubProfiles::clearPinForSeat(record->mac, session->slot);
-    session->pinVerified = false;
+    // Signing in always takes the PIN now that no Sigil seat holds a profile.
+    sendError(server, 409, "Keep a PIN for hardware-independent profile login");
+    return;
   }
 
   if (server.hasArg("pin") || clearPin) endOtherSessions(*session, profileId);
 
-  // Every Sigil shows player names: push the new one.
-  SigilBus *bus = SigilBus::activeInstance();
-  if (displayProfileChanged && record != nullptr && bus != nullptr) {
-    bus->syncDisplayProfile(session->controllerId);
-  }
   sendJson(server, 200, "{\"ok\":true}");
 }
 
@@ -780,7 +742,6 @@ void handleSaveAccessibility(WebServer &server) {
     return;
   }
   if (server.hasArg("ledStyle")) noteProfileChange(id);
-  if (accessibilityChanged) accessibilityChanged();
   sendAccessibility(server, prefs, true);
 }
 
@@ -851,7 +812,6 @@ void handleProfileStatsExport(WebServer &server) {
   server.send(200, "text/plain; charset=utf-8", report);
 }
 
-
 namespace {
 using TurnHubArtwork::Image;
 using TurnHubStorage::Status;
@@ -897,7 +857,7 @@ String imageRevision(const Image &image) {
 
 void handleAvatarUpload(WebServer &server) {
   WebSession *session = sessionForRequest(server);
-  if (!session || session->tableDevice) { sendError(server, 401, "Sign into your personal profile first"); return; }
+  if (!session) { sendError(server, 401, "Sign into your personal profile first"); return; }
   const String profile = sessionProfileId(*session);
   auto *store = TurnHubProfiles::profileArtworkStore();
   if (!store) { sendError(server, 503, "Insert a working microSD card to save an image"); return; }

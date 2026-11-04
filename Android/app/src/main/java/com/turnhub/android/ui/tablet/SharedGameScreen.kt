@@ -69,9 +69,7 @@ import com.turnhub.android.ui.theme.palette
 /** A distinct screen prevents a guest's snapshot entering local play/history. */
 @Composable
 internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: LanViewModel,
-    requestNetwork: (() -> Unit) -> Unit, reduceMotion: Boolean, onClose: () -> Unit,
-    /** The Atlas game this device is connected to, which it can relay to the table's other phones. */
-    atlas: com.turnhub.android.domain.TableSummary? = null) {
+    requestNetwork: (() -> Unit) -> Unit, reduceMotion: Boolean, onClose: () -> Unit) {
     val context = LocalContext.current
     var invitation by remember { mutableStateOf("") }
     var scanning by remember { mutableStateOf(false) }
@@ -85,7 +83,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) scanning = true
         else camera.launch(Manifest.permission.CAMERA)
     }
-    if (state.remote?.profile?.let { !it.deathMayDie } == true || state.atlas != null || state.remote != null && !elderView && (state.role in setOf("display", "table", "planes") || state.view == "table")) {
+    if (state.remote?.profile?.let { !it.deathMayDie } == true || state.remote != null && !elderView && (state.role in setOf("display", "table", "planes") || state.view == "table")) {
         SharedTcgRemote(state, model, reduceMotion) { model.leave(); onClose() }
         return
     }
@@ -102,13 +100,6 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
             val remote = state.remote
             val host = state.host
             when {
-                host != null && host.atlas -> SharedHero(
-                    eyebrow = "Play together · Sharing the Atlas game", title = atlas?.let { sharedGameTitle(it.settings.profile) } ?: "Atlas table",
-                    subtitle = "Atlas runs the game; guests reach it through this device",
-                    mood = LinkMood.LIVE, reduceMotion = reduceMotion) {
-                    StatusBadge(host.code?.let { "Join code $it" } ?: "Joining by QR only", Tone.GOOD)
-                    StatusBadge(when (state.guests.size) { 0 -> "No devices yet"; 1 -> "1 device joined"; else -> "${state.guests.size} devices joined" })
-                }
                 host != null -> SharedHero(
                     eyebrow = "Play together · Hosting", title = sharedGameTitle(local),
                     subtitle = local.elder.episode?.takeIf { local.profile.deathMayDie }?.let { "Episode · $it" } ?: "This device owns the game",
@@ -141,7 +132,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
             }
             state.message?.let { Notice(it, p.warn, Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
             when {
-                host != null -> HostingPanel(state, local, model, atlas)
+                host != null -> HostingPanel(state, local, model)
                 remote != null -> {
                     if (state.uncertain && !state.busy) Notice("The host hasn't confirmed your last action. Retry it to find out whether it was saved.", p.warn) {
                         ToneButton("Retry last action", { requestNetwork(model::retry) }, Modifier.fillMaxWidth(), tone = Tone.WARN, enabled = !state.busy)
@@ -156,17 +147,9 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
                 else -> {
                     val hostable = local.profile.lanSupported
                     val (qrOnly, setQrOnly) = rememberLanQrOnly()
-                    if (atlas?.stateWire != null) BrassCard {
-                        Eyebrow("Share the Atlas game")
-                        Text("Let friends join the Atlas game using a code or QR. Keep this device connected to Atlas while they play.",
-                            color = p.text, style = MaterialTheme.typography.bodyLarge)
-                        LanSecuritySwitch(qrOnly, !state.busy, setQrOnly)
-                        AccentButton("Share Atlas game", { requestNetwork { model.startHosting(qrOnly, fromAtlas = true) } }, Modifier.fillMaxWidth(),
-                            enabled = !state.busy)
-                    }
                     BrassCard {
                         Eyebrow("Host from this device")
-                        Text("Run the game on this device and invite friends to use their own phones. Everyone needs the same Wi-Fi; internet and Atlas are optional.",
+                        Text("Run the game on this device and invite friends to use their own phones. Everyone needs the same Wi-Fi; internet is optional.",
                             color = p.text, style = MaterialTheme.typography.bodyLarge)
                         if (!hostable) Text("Open a room now, then choose the game on the Game tab.",
                             color = p.muted, style = MaterialTheme.typography.bodyMedium)
@@ -188,7 +171,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
                             Modifier.fillMaxWidth(), enabled = !state.busy && com.turnhub.android.lan.LanJoinCode.normalize(invitation) != null)
                         ToneButton("Scan QR code", ::scan, Modifier.fillMaxWidth(), enabled = !state.busy)
                     }
-                    if (state.preview != null || state.previewAtlas != null) RoomPicker(state, model, requestNetwork)
+                    if (state.preview != null) RoomPicker(state, model, requestNetwork)
                 }
             }
             ToneButton(if (state.joined) "Leave shared game" else "Back to game", ::close, Modifier.fillMaxWidth(), enabled = !state.busy)
@@ -269,8 +252,7 @@ private fun Notice(text: String, edge: Color, modifier: Modifier = Modifier, tit
 }
 
 @Composable
-private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanViewModel,
-    atlas: com.turnhub.android.domain.TableSummary? = null) {
+private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanViewModel) {
     val p = palette
     val host = state.host ?: return
     val clipboard = LocalClipboardManager.current
@@ -287,25 +269,16 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
             InviteQr(host.qr)
             ToneButton("Copy invitation", { clipboard.setText(AnnotatedString(host.qr)) }, Modifier.fillMaxWidth())
         }
-        Text(if (host.atlas) "Share it only with your table. Keep TurnHub open here: guests reach Atlas through this device."
-            else "Share it only with your table. Keep TurnHub open here: this device saves every change and records the result.",
+        Text("Share it only with your table. Keep TurnHub open here: this device saves every change and records the result.",
             color = p.muted, style = MaterialTheme.typography.bodyMedium)
     }
     BrassCard {
         Eyebrow("Joined devices · ${state.guests.size}")
-        // Atlas's own screen is a satellite of the room, with the same picker as the Planes tab.
-        val screenSeat = atlas?.takeIf { host.atlas && (it.state == TableState.RUNNING || it.state == TableState.PAUSED) }?.players
-            ?.firstOrNull { it.profileId != null && it.controller.kind == com.turnhub.android.domain.ControllerHandle.Kind.VIRTUAL }
-            ?.let { com.turnhub.android.data.TabletSeat(it.controller.id, it.slot) }
-        if (screenSeat != null) AtlasScreenPicker(screenSeat, TabletActions(),
-            cardView = atlas.atlasPlanechase?.let { it.digital && it.plane != null } == true, enabled = state.online,
-            onScreenView = model::showOnAtlas, title = "Atlas screen", detail = "Satellite · choose what Atlas shows the table")
         if (state.guests.isEmpty()) Text("No one has joined yet. Devices appear here as they join.", color = p.muted,
             style = MaterialTheme.typography.bodyMedium)
         state.guests.forEach { guest ->
-            val atlasPlayer = atlas?.players?.firstOrNull { it.playerNumber == guest.player }
             val localPlayer = local.players.getOrNull(guest.player - 1)
-            val person = (if (host.atlas) atlasPlayer?.label else localPlayer?.name)
+            val person = localPlayer?.name
                 ?: guest.name?.takeIf { it.isNotBlank() } ?: "Player"
             val title = when (guest.role) {
                 "table" -> "Shared table controls"
@@ -327,7 +300,7 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
                     when (guest.role) {
                         "planes" -> PlanesMark(40.dp)
                         "elder" -> ElderSigil(40.dp)
-                        else -> PlayerAvatar(person, guest.player, atlasPlayer?.avatar, size = 40.dp)
+                        else -> PlayerAvatar(person, guest.player, null, size = 40.dp)
                     }
                     Column(Modifier.weight(1f)) {
                         Text(title, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -341,7 +314,6 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
             }
         }
     }
-    if (state.host?.atlas == true) ToneButton("Back up room", model::backupRoom)
     ArmedButton("End room", "Tap again: disconnect every device", Tone.BAD, model::stopHosting)
 }
 

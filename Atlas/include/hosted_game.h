@@ -51,6 +51,8 @@ class HostedTable {
   // Only the holder releases; the queue goes with it, and an unfinished game
   // stays for another phone to resume (resumeJson).
   bool release(const std::string &token);
+  // An Admin's Return to lobby: ends whoever's lease, like release().
+  void releaseAny() { endLease(); }
   bool holds(const std::string &token, uint32_t nowMs) const;
   // A hub holds the table and has pushed a game.
   bool live(uint32_t nowMs) const;

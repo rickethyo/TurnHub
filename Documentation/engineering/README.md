@@ -14,7 +14,7 @@ Cross-agent discussion and project-wide handoffs live in [`COLLABORATION.md`](..
 
 | Document | Covers |
 |---|---|
-| [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) | Rules every change preserves: Atlas authority, one handler per action, the feature gate, accessibility |
+| [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) | Rules every change preserves: the hub owns the game, one handler per action, the feature gate, accessibility |
 | [Architecture](ARCHITECTURE.md) | Ownership, the Intent pipeline and the full Intent catalog |
 | [Storage and Recovery](STORAGE_AND_RECOVERY.md) | Identities, every NVS and SD record, the microSD card, match recovery, completion ordering |
 | [Radio Protocol](RADIO_PROTOCOL.md) | ESP-NOW packets, capability bits, menus, lights, Atlas lost |
@@ -22,7 +22,6 @@ Cross-agent discussion and project-wide handoffs live in [`COLLABORATION.md`](..
 | [Players and Accounts](PLAYERS_AND_ACCOUNTS.md) | Profiles, sign-in, joining from phones and Sigils, the picker, permissions, presence codes, moderation |
 | [Gameplay](GAMEPLAY.md) | Game profiles, turns, turn timer, life and approvals, Commander damage, light and sound cues |
 | [Shared table authority design](TABLE_AUTHORITY.md) | Common engine, phone takeover, Atlas preference and reconciliation plan |
-| [DMD Database Forge](DMD_DATABASE_FORGE.md) | Private cross-device catalogue authoring and reviewed Android imports |
 | [Shared devices](SHARED_DEVICES.md) | Phone-hosted Death May Die, same-network guest displays and investigator controls |
 | [First-run Setup](FIRST_RUN_SETUP.md) | Guided setup of a new Atlas from the app or portal |
 | [Firmware Updates](FIRMWARE_UPDATES.md) | `.thfw` packages, signing, releases, Sigil OTA, update notices |
@@ -36,10 +35,10 @@ Cross-agent discussion and project-wide handoffs live in [`COLLABORATION.md`](..
 | [Hardware](HARDWARE.md) | Atlas and Sigil boards, pins, the touchscreen, displays, controls, identifying and flashing boards |
 | [Accessibility](ACCESSIBILITY.md) | Requirements and the implemented accessibility settings |
 | [Continuous Integration](CONTINUOUS_INTEGRATION.md) | GitHub Actions checks, artifacts and local equivalents |
-| [Planned Designs](PLANNED_DESIGNS.md) | Designs for features not built yet: venue model, Sigil sleep, front LED strip, shared SD cards |
+| [Planned Designs](PLANNED_DESIGNS.md) | Designs for features not built yet: Planechase on Atlas, Sigil sleep, front LED strip, shared SD cards |
 
 Elsewhere: the HTTP client contract is [`protocol/http-v1.md`](../../protocol/http-v1.md);
-the LVGL screens are [`LVGL/README.md`](../../LVGL/README.md); the
+the LVGL desktop simulator is [`shared/simulator/README.md`](../../shared/simulator/README.md); the
 host test suites are [`Atlas/tests/host/README.md`](../../Atlas/tests/host/README.md);
 the design system is [`design/README.md`](../../design/README.md); the Android
 app is [`Android/README.md`](../../Android/README.md); dependencies and IP are

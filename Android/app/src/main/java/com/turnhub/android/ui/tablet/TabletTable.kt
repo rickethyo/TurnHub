@@ -84,11 +84,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.turnhub.android.data.OfflineChange
 import com.turnhub.android.data.PLANAR_PREFIX
 import com.turnhub.android.data.TableControls
 import com.turnhub.android.data.TabletSeat
-import com.turnhub.android.data.TabletState
 import com.turnhub.android.domain.TableClock
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
@@ -224,14 +222,10 @@ private const val PASS_HOLD_MS = 600L
 @Composable
 internal fun TabletTable(
     summary: TableSummary,
-    tablet: TabletState,
-    /** Sends one request for a seat: to Atlas, or (standalone) to the app's own game. */
+    /** Sends one request for a seat to the hub's own game. */
     controls: (suspend TableControls.() -> Unit) -> Unit,
-    onDismissMessage: () -> Unit,
     reduceMotion: Boolean,
     onClose: () -> Unit,
-    /** Atlas isn't answering: life and Commander taps are kept for it, everything else waits. */
-    offline: Boolean = false,
     /** Local rule authority: applies local countdowns/cooperative rules; Atlas supplies its own. */
     standalone: Boolean = false,
     /** Optional full-record caption override; otherwise share the host's finished snapshot. */
@@ -245,11 +239,9 @@ internal fun TabletTable(
     /** Observe the actual game without exposing controls before authorization. */
     readOnly: Boolean = false,
     phoneView: Boolean = false,
-    atlasScreen: (@Composable () -> Unit)? = null,
 ) {
     val p = palette
     val haptics = rememberHaptics()
-    val isOffline by rememberUpdatedState(offline)
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     val current by rememberUpdatedState(summary)
@@ -280,13 +272,7 @@ internal fun TabletTable(
     }
     val starLayout = rememberStarLayout()
     var menuOpen by remember { mutableStateOf(false) }
-    // Atlas's Planechase with the players' own planes: the app rolls the die and Atlas counts.
-    val atlasPlanes = summary.atlasPlanechase.takeIf { !standalone }
-    var atlasRolling by remember { mutableStateOf(false) }
-    val planarRoll = onPlanarRoll ?: if (atlasPlanes != null && atlasPlanes.plane?.phenomenon != true &&
-        summary.state == TableState.RUNNING && !readOnly && !offline) {
-        { atlasRolling = true }
-    } else null
+    val planarRoll = onPlanarRoll
     var bagPrompt by rememberBagPromptState(summary)
     val bag = summary.doomBag
     val attribution = summary.players.firstOrNull { it.eliminationPending }
@@ -316,15 +302,8 @@ internal fun TabletTable(
     }
 
     LaunchedEffect(summary.revision) { sent.removeAll { it.acked && it.sentAtRevision != summary.revision } }
-    LaunchedEffect(tablet.message) {
-        if (tablet.message != null) {
-            delay(3_500)
-            onDismissMessage()
-        }
-    }
-
     var pendingStart by remember { mutableStateOf<Pair<TabletSeat, String>?>(null) }
-    val startCountdown = rememberGameStartCountdown(summary.state, standalone && !offline) {
+    val startCountdown = rememberGameStartCountdown(summary.state, standalone) {
         pendingStart?.let { (seat, action) -> controls { control(seat, action) } }
         pendingStart = null
     }
@@ -332,8 +311,7 @@ internal fun TabletTable(
         if (readOnly) return
         seat ?: return
         if (standalone && action == "pass" && current.settings.profile.cooperative) {
-            if (isOffline) controls { refuseOffline() }
-            else {
+            run {
                 val turn = current.cooperativeTurn()
                 val next = current.nextTurnPlayerNumber
                 if (turn != null && next != null) {
@@ -349,30 +327,13 @@ internal fun TabletTable(
             pendingStart = seat to action; startCountdown(); return
         }
         haptics.tick()
-        if (isOffline) controls { refuseOffline() } else controls { this.control(seat, action) }
-    }
-
-    /** Keeps a change for Atlas while it isn't answering, against the last state it sent. */
-    fun keep(player: TablePlayer, delta: Int, source: Int? = null, commander: Int = 1) {
-        val change = OfflineChange(
-            participantId = player.participantId,
-            source = source,
-            commander = commander,
-            delta = delta,
-            queuedAtMs = TableClock.nowMs(),
-            bootId = current.bootId,
-            gameElapsedMs = current.gameElapsedMs,
-            game = current.game,
-            matchId = current.matchId,
-        )
-        controls { queueOffline(change) }
+        controls { this.control(seat, action) }
     }
 
     fun flush(key: String) {
         val delta = unsent.remove(key) ?: return
         if (delta == 0) return
         val unit = tableUnits(current).firstOrNull { it.key == key } ?: return
-        if (isOffline) return keep(unit.lifeSeat, delta)
         val entry = SentLife(nextId++, key, delta, current.revision)
         sent.add(entry)
         controls {
@@ -460,8 +421,7 @@ internal fun TabletTable(
                 // An acknowledged change is dropped as soon as a newer snapshot arrives (which carries
                 // it), in the same frame, so the number never counts it twice and jumps back.
                 val inFlight = sent.filter { it.key == unit.key && !(it.acked && it.sentAtRevision != summary.revision) }
-                val life = (unit.lifeSeat.life ?: 0) + pending + inFlight.sumOf { it.delta } +
-                    unit.members.sumOf { tablet.offlineLife(it.participantId) }
+                val life = (unit.lifeSeat.life ?: 0) + pending + inFlight.sumOf { it.delta }
                 Box(modifier.then(if (sector) Modifier else Modifier.padding(4.dp)).then(
                     // List cards measure their own height; facing fixes both dimensions.
                     if (list) Modifier.rotate(turn.toFloat()) else Modifier.facing(publicPanelDegrees(upright, degrees, turn)),
@@ -488,10 +448,9 @@ internal fun TabletTable(
                         onInvestigatorCard = { member, slot, card -> controls { investigatorCard(member.seat(), slot, card) } },
                         investigatorFocused = index == focused,
                         onRespond = { seat, id, accept ->
-                            if (isOffline) controls { refuseOffline() }
-                            else controls { this.respondLife(seat, id, accept) }
+                            controls { this.respondLife(seat, id, accept) }
                         },
-                        offlineCommander = tablet::offlineCommander,
+                        offlineCommander = { _, _, _ -> 0 },
                         haptics = haptics,
                         reduceMotion = reduceMotion,
                         underHub = index in underHub,
@@ -592,41 +551,22 @@ internal fun TabletTable(
                         send(seat, if (action == "win" && solo) "claim-win" else action)
                     },
                     onEliminate = { member, _ ->
-                        if (isOffline) controls { refuseOffline() } else manualRemoval = member.playerNumber
+                        manualRemoval = member.playerNumber
                         playerMenu = null
                     },
                     onCommander = { member, source, which, delta ->
                         haptics.tick()
-                        if (isOffline) keep(member, delta, source, which)
-                        else controls { this.commander(member.seat(), source, which, delta) }
+                        controls { this.commander(member.seat(), source, which, delta) }
                     },
                     onCounter = { member, kind, value, commander ->
-                        if (isOffline) controls { refuseOffline() }
-                        else controls { counter(member.seat(), kind, value, commander) }
+                        controls { counter(member.seat(), kind, value, commander) }
                     },
                     onLife = { member, delta -> controls { life(member.seat(), delta) } },
                     onEditSkills = { member, skills -> controls { investigatorSkills(member.seat(), skills) } },
                     onInvestigatorCard = { member, slot, card -> controls { investigatorCard(member.seat(), slot, card) } },
-                    offlineCommander = tablet::offlineCommander,
+                    offlineCommander = { _, _, _ -> 0 },
                 )
             }
-        }
-
-        tablet.message?.let { message ->
-            Text(
-                message.message,
-                color = p.text,
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(top = 140.dp)
-                    .widthIn(max = 420.dp)
-                    .background(p.surface, RoundedCornerShape(12.dp))
-                    .border(1.dp, if (message.isError) p.bad else p.line, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
-                    .semantics { liveRegion = LiveRegionMode.Polite },
-            )
         }
 
         passToTurn?.takeIf { it == cooperativeTurn }?.let { turn ->
@@ -642,7 +582,7 @@ internal fun TabletTable(
         val manualVictim = summary.players.firstOrNull { it.playerNumber == manualRemoval && !it.eliminated }
         val sourceVictim = if (attribution != null) attribution.takeIf { sourceOpen } else manualVictim
         if (!readOnly && sourceVictim != null) EliminationSourceDialog(summary, sourceVictim, attribution != null,
-            enabled = !isOffline && !tablet.busy, onConfirm = { source ->
+            enabled = true, onConfirm = { source ->
                 val token = com.turnhub.android.protocol.GameActionToken(summary.bootId, summary.revision, bag?.cycle ?: 0, summary.game)
                 if (attribution != null) {
                     val actor = summary.players.firstOrNull { !it.eliminated } ?: sourceVictim
@@ -652,7 +592,7 @@ internal fun TabletTable(
         if (bag != null && attribution == null && sourceVictim == null && showBag && !menuOpen && playerMenu == null &&
             summary.pending.eliminationTargetPlayer == null &&
             summary.state in listOf(TableState.RUNNING, TableState.PAUSED)) {
-            DoomBagDialog(summary, !isOffline && !tablet.busy, onAction = { action, player, value ->
+            DoomBagDialog(summary, true, onAction = { action, player, value ->
                 val actor = summary.players.firstOrNull { !it.eliminated }?.seat()
                 if (actor != null) {
                     bagPrompt = bagPrompt.open(); haptics.tick()
@@ -663,11 +603,6 @@ internal fun TabletTable(
         }
         val anySeat = summary.anySeat()
         val activeSeat = summary.players.firstOrNull { it.playerNumber == summary.activePlayerNumber }?.seat() ?: anySeat
-        if (atlasRolling) PlanarRollDialog(reduceMotion, onRoll = {
-            val face = com.turnhub.android.standalone.PlanarFace.roll(kotlin.random.Random.Default)
-            send(activeSeat, "$PLANAR_PREFIX" + "roll:${face.wireValue}")
-            face
-        }, onFinish = { atlasRolling = false })
         when (summary.state) {
             TableState.STARTING -> Overlay("Starting…", "The game begins in a moment.") {
                 ToneButton("Cancel", { send(anySeat, "cancel-start") }, Modifier.fillMaxWidth())
@@ -768,8 +703,7 @@ internal fun TabletTable(
                             }
                         }
                     }
-                    atlasScreen?.invoke()
-                    BackToSetup(summary, enabled = !isOffline && anySeat != null) {
+                    BackToSetup(summary, enabled = anySeat != null) {
                         menuOpen = false; send(anySeat, "back-to-setup")
                     }
                     GameClockLine(summary)
@@ -783,10 +717,10 @@ internal fun TabletTable(
                     val paused = summary.state == TableState.PAUSED
                     AccentButton(if (paused) "Resume game" else "Pause game", {
                         menuOpen = false; send(activeSeat, "pause")
-                    }, Modifier.fillMaxWidth(), enabled = !isOffline && activeSeat != null)
+                    }, Modifier.fillMaxWidth(), enabled = activeSeat != null)
                     summary.dayNight?.let { dayNight ->
                         DisclosureCard(com.turnhub.android.ui.components.dayNightLabel(dayNight)?.let { "Day & night · $it" } ?: "Day & night") {
-                            com.turnhub.android.ui.components.DayNightControls(dayNight, !isOffline && anySeat != null) { action ->
+                            com.turnhub.android.ui.components.DayNightControls(dayNight, anySeat != null) { action ->
                                 send(anySeat, action)
                             }
                         }
@@ -799,44 +733,7 @@ internal fun TabletTable(
                                 else "↻ Turns go clockwise. Reverse them when a card says so.", color = p.text, style = MaterialTheme.typography.bodyMedium)
                             ToneButton(if (reversed) "↻ Back to clockwise" else "↺ Reverse turn order", {
                                 send(anySeat, if (reversed) "turn-order-clockwise" else "turn-order-reversed")
-                            }, Modifier.fillMaxWidth(), tone = Tone.ACCENT, enabled = !isOffline && anySeat != null)
-                        }
-                    }
-                    atlasPlanes?.let { planes ->
-                        DisclosureCard("Planechase · ${planes.planeswalks} planeswalk${if (planes.planeswalks == 1) "" else "s"}") {
-                            planes.plane?.let { card ->
-                                Text((card.name ?: "A plane") + if (card.phenomenon) " (phenomenon)" else "", color = p.text,
-                                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                                if (card.phenomenon) AccentButton("Resolve the phenomenon", { send(activeSeat, "${PLANAR_PREFIX}resolve") },
-                                    Modifier.fillMaxWidth(), enabled = !isOffline && activeSeat != null)
-                                Text("${planes.deckSize} cards in the planar deck.", color = p.muted, style = MaterialTheme.typography.bodySmall)
-                            }
-                            val last = planes.lastRoll?.let { roll ->
-                                val who = summary.players.firstOrNull { it.playerNumber == roll.player }?.label ?: "Player ${roll.player}"
-                                " Last roll: $who, ${roll.face}${if (roll.fromEffect) " (a card's roll)" else ""}."
-                            }.orEmpty()
-                            Text("Chaos ${planes.chaos} times. The next roll this turn costs ${planes.rollCost} mana.$last",
-                                color = p.text, style = MaterialTheme.typography.bodyMedium)
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                ToneButton("Planeswalk", { send(activeSeat, "${PLANAR_PREFIX}planeswalk") }, Modifier.weight(1f),
-                                    enabled = !isOffline && activeSeat != null)
-                                ToneButton("Chaos ensues", { send(activeSeat, "${PLANAR_PREFIX}chaos") }, Modifier.weight(1f),
-                                    enabled = !isOffline && activeSeat != null)
-                            }
-                            if (planes.digital) ToneButton("Top card to the bottom", { send(activeSeat, "${PLANAR_PREFIX}top-to-bottom") },
-                                Modifier.fillMaxWidth(), enabled = !isOffline && activeSeat != null && planes.deckSize > 1)
-                            Text("A card's own roll is free:", color = p.muted, style = MaterialTheme.typography.bodySmall)
-                            ToneButton("Roll for a card", {
-                                val face = com.turnhub.android.standalone.PlanarFace.roll(kotlin.random.Random.Default)
-                                send(activeSeat, "${PLANAR_PREFIX}effect:${face.wireValue}")
-                            }, Modifier.fillMaxWidth(), enabled = !isOffline && activeSeat != null)
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Counters on the plane: ${planes.counters}", color = p.text,
-                                    style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                                ToneButton("−1", { send(anySeat, "${PLANAR_PREFIX}counter:-1") }, enabled = !isOffline && anySeat != null && planes.counters > 0)
-                                ToneButton("+1", { send(anySeat, "${PLANAR_PREFIX}counter:1") }, tone = Tone.ACCENT, enabled = !isOffline && anySeat != null)
-                            }
+                            }, Modifier.fillMaxWidth(), tone = Tone.ACCENT, enabled = anySeat != null)
                         }
                     }
                     DisclosureCard("Table tools") {
@@ -845,7 +742,7 @@ internal fun TabletTable(
                     DisclosureCard("Game rules") {
                         ModeRulesButton(summary.settings.profile, summary.settings.twoHeadedGiant, Modifier.fillMaxWidth())
                         Text("Automatic elimination", color = p.muted, style = MaterialTheme.typography.titleSmall)
-                        EliminationRulesEditor(summary.settings, !isOffline && anySeat != null, limitsLocked) { field, value ->
+                        EliminationRulesEditor(summary.settings, anySeat != null, limitsLocked) { field, value ->
                             anySeat?.let { seat -> controls { setEliminationRule(seat, field, value) } }
                         }
                     }

@@ -11,88 +11,6 @@ import org.junit.Test
 class AtlasWireParserTest {
 
     @Test
-    fun `elimination credit is nullable and cannot name self or a concession`() {
-        assertNull(Fixtures.state("running.response.json").players[0].eliminatedBy)
-        val credited = Fixtures.state("running.response.json") {
-            getJSONArray("players").getJSONObject(0).put("eliminated", true).put("eliminatedBy", 2)
-        }
-        assertEquals(2, credited.players[0].eliminatedBy)
-        for (source in listOf(0, 1, 17)) assertThrows(AtlasWireException.Malformed::class.java) {
-            Fixtures.state("running.response.json") {
-                getJSONArray("players").getJSONObject(0).put("eliminated", true).put("eliminatedBy", source)
-            }
-        }
-        assertThrows(AtlasWireException.Malformed::class.java) {
-            Fixtures.state("running.response.json") {
-                getJSONArray("players").getJSONObject(0).put("eliminated", true).put("conceded", true).put("eliminatedBy", 2)
-            }
-        }
-    }
-
-    @Test
-    fun `Magic counters rules and initiative parse with strict bounds`() {
-        val c = JSONObject().put("poison", 3).put("energy", 4).put("experience", 5)
-            .put("commanderCasts", org.json.JSONArray(listOf(2, 1))).put("cityBlessing", true)
-        val state = Fixtures.state("running.response.json") {
-            put("initiativePlayer", 2)
-            getJSONObject("settings").put("poisonLimit", 15).put("autoEliminateAtPoisonLimit", true).put("autoEliminateAtCommanderDamage", true)
-            getJSONArray("players").getJSONObject(0).put("counters", c)
-        }
-        assertEquals(2, state.initiativePlayer)
-        assertEquals(15, state.settings.poisonLimit)
-        assertTrue(state.settings.autoEliminateAtCommanderDamage)
-        assertEquals(3, state.players[0].counters.poison)
-        assertEquals(4, state.players[0].counters.commanderTax(1))
-        assertEquals(com.turnhub.android.protocol.PlayerCounters(), Fixtures.state("running.response.json").players[0].counters)
-        assertThrows(Exception::class.java) {
-            Fixtures.state("running.response.json") { getJSONArray("players").getJSONObject(0).put("counters", c.put("poison", -1)) }
-        }
-    }
-
-    @Test
-    fun `treasure rad day night and turn order parse, and older firmware omits them`() {
-        val c = JSONObject().put("poison", 0).put("energy", 0).put("experience", 0)
-            .put("commanderCasts", org.json.JSONArray(listOf(0, 0))).put("cityBlessing", false).put("treasure", 2).put("rad", 3)
-        val state = Fixtures.state("running.response.json") {
-            put("dayNight", "NIGHT").put("turnOrderReversed", true)
-            getJSONArray("players").getJSONObject(0).put("counters", c).put("radDue", true)
-        }
-        assertEquals("NIGHT", state.dayNight)
-        assertTrue(state.turnOrderReversed)
-        assertEquals(2, state.players[0].counters.treasure)
-        assertEquals(3, state.players[0].counters.rad)
-        assertTrue(state.players[0].radDue)
-        val older = Fixtures.state("running.response.json")
-        assertNull(older.dayNight)
-        assertTrue(!older.turnOrderReversed && !older.players[0].radDue)
-        assertNull(Fixtures.state("running.response.json") { put("dayNight", JSONObject.NULL) }.dayNight)
-        assertThrows(AtlasWireException.Malformed::class.java) { Fixtures.state("running.response.json") { put("dayNight", "DUSK") } }
-        assertThrows(Exception::class.java) {
-            Fixtures.state("running.response.json") { getJSONArray("players").getJSONObject(0).put("counters", c.put("rad", -1)) }
-        }
-    }
-
-    @Test
-    fun `monarch parses and older snapshots have no monarch`() {
-        assertNull(Fixtures.state("running.response.json").monarchPlayer)
-        assertNull(Fixtures.state("running.response.json") { put("monarchPlayer", JSONObject.NULL) }.monarchPlayer)
-        assertEquals(2, Fixtures.state("running.response.json") { put("monarchPlayer", 2) }.monarchPlayer)
-    }
-
-    @Test
-    fun `parses zero life setting and concession reason`() {
-        val state = Fixtures.state("running.response.json") {
-            getJSONObject("settings").put("autoEliminateAtZeroLife", true)
-            getJSONArray("players").getJSONObject(0).put("eliminated", true).put("conceded", true)
-        }
-        assertTrue(state.settings.autoEliminateAtZeroLife)
-        assertTrue(state.players[0].conceded)
-        assertThrows(AtlasWireException.Malformed::class.java) {
-            Fixtures.state("running.response.json") { getJSONObject("settings").put("autoEliminateAtZeroLife", "yes") }
-        }
-    }
-
-    @Test
     fun `parses the info fixture`() {
         val info = AtlasWireParser.parseInfo(Fixtures.text("info.response.json"))
 
@@ -101,14 +19,14 @@ class AtlasWireParserTest {
         assertEquals("THA-025448410001", info.atlasId)
         assertEquals("0.6.0-dev", info.firmwareVersion)
         assertEquals("1", info.apiVersion)
-        assertEquals("0.1", info.protocolVersion)
+        assertEquals("1", info.protocolVersion)
         assertEquals(3, info.radioProtocolVersion)
         assertEquals(Fixtures.BOOT_ID, info.bootId)
         assertEquals(0L, info.revision)
         assertEquals(
             AtlasCapabilities(
                 stateSnapshot = true,
-                sessionControls = true,
+                sessionControls = false,
                 intentEnvelope = false,
                 events = false,
                 requestDeduplication = false,
@@ -118,67 +36,77 @@ class AtlasWireParserTest {
     }
 
     @Test
-    fun `parses every state fixture`() {
-        listOf("lobby", "running", "reconnected", "commander", "timer-warning").forEach { name ->
-            val state = AtlasWireParser.parseState(Fixtures.text("$name.response.json"))
-            assertEquals(name, "THA-025448410001", state.atlasId)
-            assertEquals(name, Fixtures.BOOT_ID, state.bootId)
+    fun `parses an idle Atlas with no hub`() {
+        val state = Fixtures.state("state-idle.response.json")
+
+        assertEquals("1", state.protocolVersion)
+        assertEquals("THA-025448410001", state.atlasId)
+        assertEquals(Fixtures.BOOT_ID, state.bootId)
+        assertEquals(1L, state.revision)
+        assertNull(state.hub)
+        assertNull(state.battery)
+        assertEquals(AtlasLinks(hotspot = true, home = false, sigils = 0), state.links)
+    }
+
+    @Test
+    fun `parses the hub holding the table, its battery and links`() {
+        val state = Fixtures.state("state-hosted.response.json")
+
+        assertEquals(AtlasHub("Kitchen tablet", "m-20261104-1", TableState.RUNNING, players = 4), state.hub)
+        assertEquals(AtlasBattery(percent = 64, low = false, charging = true), state.battery)
+        assertEquals(AtlasLinks(hotspot = true, home = true, sigils = 2), state.links)
+    }
+
+    @Test
+    fun `hub and battery are required but may be null, links are required`() {
+        listOf("hub", "battery", "links", "revision", "bootId", "atlasId", "protocolVersion").forEach { key ->
+            assertThrows(key, AtlasWireException.Malformed::class.java) {
+                Fixtures.state("state-hosted.response.json") { remove(key) }
+            }
+        }
+        assertThrows(AtlasWireException.Malformed::class.java) {
+            Fixtures.state("state-hosted.response.json") { put("links", JSONObject.NULL) }
         }
     }
 
     @Test
-    fun `parses Atlas's turn timer`() {
-        val state = Fixtures.state("timer-warning.response.json")
-
-        assertEquals(TableSettings(GameProfile.MTG, 20, turnTimerMs = 90_000), state.settings)
-        assertEquals(TurnTimer(TurnTimerPhase.WARNING, remainingMs = 9_000), state.turnTimer)
-        assertEquals(TurnTimer(TurnTimerPhase.NORMAL, remainingMs = null), Fixtures.state("lobby.response.json").turnTimer)
-    }
-
-
-    @Test
-    fun `parses Atlas's links, absent as none`() {
-        assertEquals(AtlasLinks(hotspot = false, home = true, sigils = 2), Fixtures.state("running.response.json").links)
-        assertNull(Fixtures.state("lobby.response.json").links)
-        assertThrows(AtlasWireException::class.java) {
-            Fixtures.state("running.response.json") { getJSONObject("links").put("sigils", 99) }
-        }
-    }
-
-    @Test
-    fun `parses Atlas's battery, absent or null as none`() {
-        assertEquals(AtlasBattery(percent = 82, low = false, charging = false), Fixtures.state("running.response.json").battery)
-        assertNull(Fixtures.state("lobby.response.json").battery)
-        assertNull(Fixtures.state("running.response.json") { put("battery", JSONObject.NULL) }.battery)
-        val charging = Fixtures.state("running.response.json") {
-            put("battery", JSONObject().put("percent", 12).put("low", true).put("charging", true))
-        }
-        assertEquals(AtlasBattery(percent = 12, low = true, charging = true), charging.battery)
+    fun `bad hub battery and link values are malformed`() {
         listOf<JSONObject.() -> Unit>(
+            { getJSONObject("hub").put("state", "OVERTIME") },
+            { getJSONObject("hub").put("players", -1) },
+            { getJSONObject("hub").remove("gameId") },
             { getJSONObject("battery").put("percent", 101) },
             { getJSONObject("battery").remove("charging") },
+            { getJSONObject("links").put("sigils", 99) },
+            { put("revision", 4_294_967_296L) },
+            { put("revision", "4") },
+            { put("bootId", "not-a-boot-id") },
         ).forEach { edit ->
             assertThrows(AtlasWireException.Malformed::class.java) {
-                Fixtures.state("running.response.json", edit)
+                Fixtures.state("state-hosted.response.json", edit)
             }
         }
     }
 
+    @Test
+    fun `unknown fields are ignored for forward compatibility`() {
+        val state = Fixtures.state("state-idle.response.json") { put("futureField", JSONObject().put("x", 1)) }
+        assertEquals(1L, state.revision)
+        assertEquals(4_294_967_295L, Fixtures.state("state-idle.response.json") { put("revision", 4_294_967_295L) }.revision)
+    }
 
     @Test
-    fun `an unknown timer phase or bad remaining time is malformed`() {
-        listOf<JSONObject.() -> Unit>(
-            { remove("turnTimer") },
-            { getJSONObject("settings").remove("turnTimerMs") },
-            { getJSONObject("turnTimer").put("phase", "PANIC") },
-            { getJSONObject("turnTimer").remove("remainingMs") },
-            { getJSONObject("turnTimer").put("remainingMs", -1) },
-            { getJSONObject("settings").put("turnTimerMs", "90s") },
-        ).forEach { edit ->
-            assertThrows(AtlasWireException.Malformed::class.java) {
-                Fixtures.state("timer-warning.response.json", edit)
-            }
-        }
+    fun `parses the preset icons and skips a malformed one`() {
+        val row = "#".repeat(8) + ".".repeat(8)
+        val rows = List(16) { "\"$row\"" }.joinToString(",")
+        val icons = AtlasWireParser.parseAvatars(
+            """{"size":16,"avatars":[{"id":1,"key":"die","label":"Die","rows":[$rows]},
+               {"id":2,"key":"bad","label":"Bad","rows":["#"]}]}""",
+        )
+        assertEquals(1, icons.size)
+        assertEquals("Die", icons[0].label)
+        assertTrue(icons[0].ink(0, 0))
+        assertTrue(!icons[0].ink(8, 0))
     }
 
     @Test
@@ -211,219 +139,6 @@ class AtlasWireParserTest {
     }
 
     @Test
-    fun `parses game settings with timer choices`() {
-        val body = """{"gameProfile":"mtg","startingLife":20,"turnTimerMs":120000,
-            "turnTimer":{"presetsMs":[0,60000,120000,180000,300000],"minMs":15000,"maxMs":3600000,
-            "warningMs":10000,"longTurnMs":300000},"available":true,"canEdit":false}"""
-
-        val settings = AtlasWireParser.parseGameSettings(body)
-
-        assertEquals(TableSettings(GameProfile.MTG, 20, 120_000), settings.settings)
-        assertEquals(listOf(0L, 60_000L, 120_000L, 180_000L, 300_000L), settings.turnTimerPresetsMs)
-        assertEquals(15_000L to 3_600_000L, settings.turnTimerMinMs to settings.turnTimerMaxMs)
-        assertEquals(true to false, settings.available to settings.canEdit)
-
-        // Every Atlas sends the timer fields; without them the answer is malformed.
-        assertThrows(AtlasWireException.Malformed::class.java) {
-            AtlasWireParser.parseGameSettings("""{"gameProfile":"generic","startingLife":40,"available":true,"canEdit":true}""")
-        }
-    }
-
-    @Test
-    fun `parses the running fixture faithfully`() {
-        val state = Fixtures.state("running.response.json")
-
-        assertEquals("0.1", state.protocolVersion)
-        assertEquals(4L, state.revision)
-        assertEquals(TableState.RUNNING, state.state)
-        assertEquals(8, state.hostModuleId)
-        assertEquals(1, state.starterPlayer)
-        assertEquals(1, state.activePlayer)
-        assertNull(state.winnerPlayer)
-        assertEquals(TableSettings(GameProfile.GENERIC, 40), state.settings)
-        assertEquals(4101L, state.sampledAtMs)
-        assertEquals(100L, state.gameElapsedMs)
-        assertEquals(100L, state.turnElapsedMs)
-        assertEquals(PendingDecisions(null, 0, null, null, null), state.pending)
-        assertEquals(Nudge(seq = 3, fromPlayer = 2, toPlayer = 1, ageMs = 1200), state.nudge)
-        assertNull(Fixtures.state("lobby.response.json").nudge)
-        assertEquals(2, state.players.size)
-        assertEquals(
-            Player(
-                playerNumber = 1,
-                moduleId = 8,
-                slot = 1,
-                participantId = 28,
-                profileId = null,
-                displayName = null,
-                eliminated = false,
-                life = 40,
-                turnsCompleted = 0,
-                commanderDamage = emptyList(),
-                lifeRequest = null,
-            ),
-            state.players[0],
-        )
-    }
-
-    @Test
-    fun `parses Two-Headed Giant teams`() {
-        val state = Fixtures.state("two-headed-giant.response.json")
-        assertEquals(true, state.settings.twoHeadedGiant)
-        assertEquals(listOf(1, 1, 2, 2), state.players.map { it.team })
-        assertEquals(false, Fixtures.state("running.response.json").settings.twoHeadedGiant)
-        assertNull(Fixtures.state("running.response.json").players[0].team)
-    }
-
-    @Test
-    fun `parses commander damage and life requests`() {
-        val state = Fixtures.state("commander.response.json")
-
-        assertEquals(GameProfile.MTG_COMMANDER, state.settings.profile)
-        assertEquals(listOf(CommanderDamage(sourcePlayer = 2, damage = listOf(0, 3))), state.players[0].commanderDamage)
-        assertEquals(
-            LifeRequest(id = 2, actor = 1, target = 2, delta = -2, state = LifeRequestState.PENDING, requestedAtMs = 4000, windowMs = 15000),
-            state.players[1].lifeRequest,
-        )
-    }
-
-    @Test
-    fun `lobby life is null`() {
-        val lobbyPlayer = Fixtures.json("running.response.json").getJSONArray("players").getJSONObject(0)
-            .put("life", JSONObject.NULL)
-        val state = Fixtures.state("lobby.response.json") { getJSONArray("players").put(lobbyPlayer) }
-
-        assertEquals(TableState.LOBBY, state.state)
-        assertNull(state.players.single().life)
-        assertNull(state.hostModuleId)
-        assertNull(state.activePlayer)
-    }
-
-    @Test
-    fun `unsigned 32-bit values keep their full range`() {
-        val max = 4_294_967_295L
-        val state = Fixtures.state("running.response.json") {
-            put("revision", max)
-            put("sampledAtMs", max)
-            getJSONArray("players").getJSONObject(0).put("participantId", max).put("turnsCompleted", max)
-        }
-
-        assertEquals(max, state.revision)
-        assertEquals(max, state.sampledAtMs)
-        assertEquals(max, state.players[0].participantId)
-        assertEquals(max, state.players[0].turnsCompleted)
-    }
-
-    @Test
-    fun `nudge is required but may be null`() {
-        assertThrows(AtlasWireException.Malformed::class.java) {
-            Fixtures.state("running.response.json") { remove("nudge") }
-        }
-    }
-
-    @Test
-    fun `revision outside unsigned 32-bit range is malformed`() {
-        assertThrows(AtlasWireException.Malformed::class.java) {
-            Fixtures.state("running.response.json") { put("revision", 4_294_967_296L) }
-        }
-        assertThrows(AtlasWireException.Malformed::class.java) {
-            Fixtures.state("running.response.json") { put("revision", -1) }
-        }
-    }
-
-    @Test
-    fun `optional names are read when Atlas sends them`() {
-        val state = Fixtures.state("running.response.json") {
-            getJSONArray("players").getJSONObject(0).put("displayName", "Ricky").put("profileId", "A1B2C3D4")
-        }
-
-        assertEquals("Ricky", state.players[0].displayName)
-        assertEquals("A1B2C3D4", state.players[0].profileId)
-    }
-
-    @Test
-    fun `unknown fields are ignored for forward compatibility`() {
-        val state = Fixtures.state("running.response.json") { put("futureField", JSONObject().put("x", 1)) }
-        assertEquals(4L, state.revision)
-    }
-
-    @Test
-    fun `missing required state fields are malformed`() {
-        listOf("revision", "bootId", "settings", "players", "pending", "turnElapsedMs").forEach { key ->
-            assertThrows(key, AtlasWireException.Malformed::class.java) {
-                Fixtures.state("running.response.json") { remove(key) }
-            }
-        }
-        assertThrows(AtlasWireException.Malformed::class.java) {
-            Fixtures.state("running.response.json") { getJSONArray("players").getJSONObject(0).remove("life") }
-        }
-    }
-
-    @Test
-    fun `unknown enum values fail closed`() {
-        assertThrows(AtlasWireException.Malformed::class.java) {
-            Fixtures.state("running.response.json") { put("state", "OVERTIME") }
-        }
-        assertThrows(AtlasWireException.Malformed::class.java) {
-            Fixtures.state("running.response.json") { getJSONObject("settings").put("profile", "chess") }
-        }
-    }
-
-    @Test
-    fun `wrong field types are malformed`() {
-        assertThrows(AtlasWireException.Malformed::class.java) {
-            Fixtures.state("running.response.json") { put("revision", "4") }
-        }
-        assertThrows(AtlasWireException.Malformed::class.java) {
-            Fixtures.state("running.response.json") { put("revision", 4.5) }
-        }
-        assertThrows(AtlasWireException.Malformed::class.java) {
-            Fixtures.state("running.response.json") { put("bootId", "not-a-boot-id") }
-        }
-    }
-
-    @Test
-    fun `parses seats as emitted by Atlas handleSeats`() {
-        // Shape of Atlas/src/web_api.cpp handleSeats(); extra fields are ignored.
-        val body = """{"seats":[
-            {"module":0,"virtual":false,"slot":1,"slotName":"A","player":1,"active":true,"eliminated":false,
-             "lifeAvailable":true,"life":40,"profileId":"A1B2C3D4","name":"Ricky","hasPin":true,"sessionClaimed":false},
-            {"module":0,"virtual":false,"slot":2,"slotName":"B","player":2,"active":false,"eliminated":false,
-             "lifeAvailable":true,"life":40,"profileId":"","name":"  ","hasPin":false,"sessionClaimed":false},
-            {"module":9,"virtual":true,"slot":1,"slotName":"A","player":3,"active":false,"eliminated":false,
-             "lifeAvailable":false,"life":0,"profileId":"","name":"","hasPin":false,"sessionClaimed":true}
-        ]}"""
-
-        assertEquals(
-            listOf(
-                SeatEntry(moduleId = 0, slot = 1, playerNumber = 1, name = "Ricky"),
-                SeatEntry(moduleId = 0, slot = 2, playerNumber = 2, name = null),
-                SeatEntry(moduleId = 9, slot = 1, playerNumber = 3, name = null),
-            ),
-            AtlasWireParser.parseSeats(body),
-        )
-        assertTrue(AtlasWireParser.parseSeats("""{"seats":[]}""").isEmpty())
-        assertThrows(AtlasWireException.Malformed::class.java) { AtlasWireParser.parseSeats("""{"nope":1}""") }
-    }
-
-    @Test
-    fun `parses a seat avatar and the preset icons`() {
-        val seat = AtlasWireParser.parseSeats("""{"seats":[{"module":0,"slot":1,"player":1,"name":"Ricky","avatar":3}]}""")
-        assertEquals(3, seat.single().avatar)
-        assertEquals(0, AtlasWireParser.parseSeats("""{"seats":[{"module":0,"slot":1,"player":1}]}""").single().avatar)
-        val row = "#".repeat(8) + ".".repeat(8)
-        val rows = List(16) { "\"$row\"" }.joinToString(",")
-        val icons = AtlasWireParser.parseAvatars(
-            """{"size":16,"avatars":[{"id":1,"key":"die","label":"Die","rows":[$rows]},
-               {"id":2,"key":"bad","label":"Bad","rows":["#"]}]}""",
-        )
-        assertEquals(1, icons.size)  // The malformed icon is skipped.
-        assertEquals("Die", icons[0].label)
-        assertTrue(icons[0].ink(0, 0))
-        assertTrue(!icons[0].ink(8, 0))
-    }
-
-    @Test
     fun `non-TurnHub responders are rejected`() {
         val notTurnHub = listOf(
             "<html><body>Router login</body></html>",
@@ -444,80 +159,4 @@ class AtlasWireParserTest {
         }
         assertTrue(error.message!!.contains("capabilities"))
     }
-    @Test
-    fun `winnerPlayers lists every winner and older firmware falls back to winnerPlayer`() {
-        val shared = Fixtures.state("running.response.json") {
-            put("state", "GAME_OVER")
-            getJSONObject("settings").put("profile", "mtg_star_commander")
-            put("winnerPlayer", 1)
-            put("winnerPlayers", org.json.JSONArray(listOf(1, 2)))
-        }
-        assertEquals(GameProfile.MTG_STAR_COMMANDER, shared.settings.profile)
-        assertTrue(shared.settings.profile.commanderRules && shared.settings.profile.magicRules)
-        assertEquals(listOf(1, 2), shared.winnerPlayers)
-        assertEquals(1, shared.winnerPlayer)
-        // Absent (older firmware): the single winner, or nobody.
-        assertEquals(listOf(3), Fixtures.state("running.response.json") { remove("winnerPlayers"); put("winnerPlayer", 3) }.winnerPlayers)
-        assertEquals(emptyList<Int>(), Fixtures.state("running.response.json") { remove("winnerPlayers") }.winnerPlayers)
-        assertEquals(emptyList<Int>(), Fixtures.state("running.response.json").winnerPlayers)
-        assertEquals(emptyList<Int>(), Fixtures.state("running.response.json") { put("winnerPlayers", org.json.JSONArray()) }.winnerPlayers)
-        listOf<Any>("2", org.json.JSONArray(listOf("x")), org.json.JSONArray(listOf(0)), org.json.JSONArray(listOf(2, 2))).forEach { bad ->
-            assertThrows(AtlasWireException.Malformed::class.java) {
-                Fixtures.state("running.response.json") { put("winnerPlayers", bad) }
-            }
-        }
-    }
-
-    @Test
-    fun `the star commander fixture parses with its shared winners`() {
-        // Written by the Atlas side of Star Commander; skipped if it is ever missing.
-        val fixture = runCatching { Fixtures.text("star-commander.response.json") }.getOrNull()
-        org.junit.Assume.assumeTrue("star-commander.response.json not present yet", fixture != null)
-        val state = AtlasWireParser.parseState(fixture!!)
-        assertEquals(GameProfile.MTG_STAR_COMMANDER, state.settings.profile)
-        assertEquals(TableState.GAME_OVER, state.state)
-        assertEquals(5, state.players.size)
-        assertEquals(2, state.winnerPlayers.size)
-        assertEquals(state.winnerPlayer, state.winnerPlayers.first())
-    }
-    @Test fun `atlas planechase with physical planes parses and rejects invalid shapes`() {
-        val body = Fixtures.text("planechase.response.json")
-        val parsed = AtlasWireParser.parseState(body)
-        assertTrue(parsed.settings.planechase)
-        val planes = parsed.planechase!!
-        assertEquals(2, planes.planeswalks)
-        assertEquals(2, planes.chaos)
-        assertEquals("planeswalk", planes.lastRoll!!.face)
-        assertTrue(planes.lastRoll.fromEffect)
-        assertEquals(null, AtlasWireParser.parseState(JSONObject(body).put("planechase", JSONObject.NULL).toString()).planechase)
-        for ((key, value) in listOf("source" to "magic", "counters" to 1000, "chaos" to -1)) {
-            val bad = JSONObject(body).apply { getJSONObject("planechase").put(key, value) }
-            assertTrue(runCatching { AtlasWireParser.parseState(bad.toString()) }.isFailure)
-        }
-        val digital = AtlasWireParser.parseState(Fixtures.text("planechase-digital.response.json"))
-        assertTrue(digital.settings.planarDigital && digital.planechase!!.digital)
-        assertEquals(2, digital.planechase!!.deckSize)
-        assertEquals(36, digital.planechase!!.plane!!.id.length)
-        assertEquals("Atraxa, Praetors' Voice", digital.players.first { it.commander != null }.commander)
-        val badFace = JSONObject(body).apply { getJSONObject("planechase").getJSONObject("lastRoll").put("face", "sideways") }
-        assertTrue(runCatching { AtlasWireParser.parseState(badFace.toString()) }.isFailure)
-    }
-
-    @Test fun `bag state preserves masks and sealed flag and rejects invalid shapes`() {
-        val body = Fixtures.text("bag-of-doom.response.json")
-        val parsed = AtlasWireParser.parseState(body)
-        assertEquals(GameProfile.MTG_BAG_OF_DOOM, parsed.settings.profile)
-        assertEquals(21, parsed.doomBag!!.atRisk)
-        assertEquals(true, parsed.doomBag.pending)
-        assertEquals(0, parsed.doomBag.selected)
-        for (value in listOf(-1, 65536)) {
-            val bad = JSONObject(body).apply { getJSONObject("doomBag").put("atRisk", value) }
-            assertTrue(runCatching { AtlasWireParser.parseState(bad.toString()) }.isFailure)
-        }
-        assertTrue(runCatching { AtlasWireParser.parseState(JSONObject(body).put("doomBag", "bad").toString()) }.isFailure)
-        assertEquals(true, AtlasWireParser.parseState(JSONObject(body).apply {
-            getJSONObject("doomBag").put("sealed", true)
-        }.toString()).doomBag!!.sealed)
-    }
-
 }

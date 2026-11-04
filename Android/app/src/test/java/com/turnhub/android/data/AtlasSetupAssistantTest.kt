@@ -1,8 +1,6 @@
 package com.turnhub.android.data
 
 import com.turnhub.android.protocol.AccessibilitySettings
-import com.turnhub.android.protocol.ControlResult
-import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.LedStyle
 import com.turnhub.android.protocol.LoginResult
 import com.turnhub.android.protocol.ProfileSummary
@@ -58,8 +56,7 @@ private class FakeAtlas : AtlasSessionTransport {
 
     override suspend fun me(token: String): SessionInfo {
         val id = who(token) ?: throw AtlasException(AtlasFailure.SessionExpired)
-        return SessionInfo(id, profiles[id]?.first, 8, 1, 0, false, false, false, false,
-            permissions = if (id == admin) 1 else 0)
+        return SessionInfo(id, profiles[id]?.first, permissions = if (id == admin) 1 else 0)
     }
 
     var uploadApprovalRequired = true
@@ -116,11 +113,6 @@ private class FakeAtlas : AtlasSessionTransport {
         }
     }
 
-    override suspend fun join(token: String): String? = null
-    override suspend fun control(token: String, action: ControlAction, expectedRevision: Long?, expectedBootId: String?) =
-        ControlResult(true, "ACCEPTED", null, null, null)
-    override suspend fun getGameSettings(token: String): GameSettingsInfo = throw AtlasException(AtlasFailure.Rejected("no"))
-    override suspend fun setTurnTimer(token: String, turnTimerMs: Long): String? = null
     override suspend fun getAccessibility(token: String): AccessibilitySettings = throw AtlasException(AtlasFailure.Rejected("no"))
     override suspend fun saveAccessibility(token: String, sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int, lifeApprovalMs: Int) =
         throw AtlasException(AtlasFailure.Rejected("no"))

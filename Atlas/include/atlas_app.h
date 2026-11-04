@@ -1,46 +1,42 @@
 #pragma once
-#include <array>
 
-// Atlas application layer: the runtime objects, table-decision state and
-// helpers shared by the Intent handlers and the transport adapters.
+// Atlas application layer: the runtime objects and helpers shared by the
+// Intent handlers and the transport adapters.
+//
+// Phone-hosted games (owner, 2026-11-04): the hub phone or tablet runs every
+// game with the shared rules core; Atlas shows it on its screen and Sigils,
+// queues their presses for the hub and keeps records (hosted_game.h). Atlas
+// itself decides only device matters: pairing, settings, setup, sleep and
+// resets.
 //
 // Module layout (everything below lives in namespace TurnHubAtlas):
 //
 //   main.cpp               runtime object definitions, handler bindings,
 //                          networking/HTTP bring-up, setup() and loop()
-//   app_context.cpp        seat resolution, audio masks, Intent builders
-//   gameplay_intents.cpp   PASS, pause/resume, concede, win claims, ending
-//                          a match as a draw, life/Commander counters,
-//                          turn-timer cues
-//   table_intents.cpp      lobby participation, starter selection, start
-//                          countdown, rematch/reset, elimination, pairing
-//                          (open, forget, window), game settings
-//   moderation_intent.cpp  Game Master moderation
-//   sigil_input.cpp        ESP-NOW event adapter (menu choices, life keys)
+//   app_context.cpp        Intent origin names, the System Intent builder and
+//                          the between-games checks
+//   device_intents.cpp     pairing (open, confirm, forget, window), speaker,
+//                          power, table code, upload approval, first-run
+//                          setup, Return to lobby, factory reset and sleep
+//   hosted_sigils.cpp      the Sigils' menus and keys in a hosted game
+//   sigil_input.cpp        ESP-NOW event adapter
 //   web_adapters.cpp       browser callbacks registered with TurnHubWebApi
 //   front_panel.cpp        pairing window, table presence codes, BOOT button
 //   touch_controls.cpp     touchscreen buttons (adapter) and the TFT's
 //                          screen model (touch_controls.h)
-//   sigil_accessibility.cpp  seated players' accessibility preferences ->
-//                          each Sigil's LED style, sound and hold timing
 //
-// Ownership rule (ARCHITECTURAL_INVARIANTS.md, Invariants 2 and 10):
-// handle*Intent functions are the only code that validates and mutates
-// canonical table state. Adapters build an Intent and dispatch it;
-// tests/host/audit_adapters.py fails the build if one bypasses the dispatcher.
+// Ownership rule (ARCHITECTURAL_INVARIANTS.md): handle*Intent functions are
+// the only code that changes Atlas's device state. Adapters build an Intent
+// and dispatch it; tests/host/audit_adapters.py fails the build if one
+// bypasses the dispatcher.
 
 #include <Arduino.h>
 #include <WebServer.h>
 
-#include "accessibility_prefs.h"
 #include "audio_controller.h"
-#include "card_cache.h"
-#include "client_state.h"
-#include "game_engine.h"
 #include "intent.h"
 #include "intent_dispatcher.h"
 #include "led_renderer.h"
-#include "lobby.h"
 #include "ota_manager.h"
 #include "power_settings.h"
 #include "protocol.h"
@@ -56,8 +52,6 @@ extern WebServer server;
 namespace TurnHubAtlas {
 
 using TurnHub::AudioController;
-using TurnHub::GameEngine;
-using TurnHub::HubState;
 using TurnHub::Intent;
 using TurnHub::IntentDispatcher;
 using TurnHub::IntentOrigin;
@@ -66,26 +60,12 @@ using TurnHub::IntentStatus;
 using TurnHub::IntentType;
 using TurnHub::INVALID_ID;
 using TurnHub::LedRenderer;
-using TurnHub::Lobby;
 using TurnHub::MAX_CONTROLLERS;
 using TurnHub::MAX_PHYSICAL_SIGILS;
-using TurnHub::MAX_PLAYERS;
 using TurnHub::OtaManager;
-using TurnHub::PlayerSeat;
 using TurnHub::SigilBus;
 using TurnHub::SigilEvent;
-using TurnHub::stateName;
 using TurnHubProtocol::PacketType;
-using TurnHubWebApi::SeatSnapshot;
-using TurnHubWebApi::WebControl;
-
-// --- Timing -----------------------------------------------------------------
-
-constexpr uint32_t START_COUNTDOWN_MS = 3000;
-// A queued PASS commits after this grace period unless it is canceled.
-// Shared with Sigils (protocol.h), which draw the countdown. Keep in sync
-// with the "within 3 seconds" wording in handlePassIntent.
-using TurnHubProtocol::PASS_GRACE_MS;
 
 // --- Runtime objects (defined in main.cpp) ----------------------------------
 
@@ -95,8 +75,6 @@ extern LedRenderer leds;
 extern AudioController audio;
 extern OtaManager ota;
 
-// False when the settings store failed to load; starting a game is refused.
-extern bool gameSettingsAvailable;
 extern bool espNowReady;
 // Atlas's pairing window; admins choose it (pairing_settings.h).
 extern uint32_t pairingWindowMs;
@@ -108,127 +86,20 @@ extern TurnHub::PowerSettings powerSettings;
 extern TurnHub::SetupStage setupStage;
 void beginFirstRunSetup();
 
-// --- Canonical table-decision state (mutated only by Intent handlers) -------
+// --- The hosted game (hosted_game.h) ------------------------------------------
 
-struct PendingPassState {
-  bool active = false;
-  PlayerSeat seat;
-  uint32_t requestedAtMs = 0;
-  IntentOrigin origin = IntentOrigin::Unknown;
-};
-
-// Turn-timer cue tracking (see updateTurnTimerCues). Exposed for host tests.
-struct TurnTimerCueState {
-  uint8_t player = 0;
-  uint32_t turnsCompleted = 0;
-  TurnHub::TurnTimerPhase phase = TurnHub::TurnTimerPhase::Normal;
-};
-
-// The last nudge (NudgePlayer), for clients to show; seq counts every nudge
-// since boot. lastSentMs throttles each sending player, by player number.
-struct NudgeState {
-  uint32_t seq = 0;
-  uint8_t fromPlayer = 0, toPlayer = 0;
-  uint32_t atMs = 0;
-  uint32_t lastSentMs[TurnHub::MAX_PLAYERS + 1] = {};
-};
-// One nudge per sender per this many milliseconds.
-constexpr uint32_t NUDGE_COOLDOWN_MS = 30000;
-
-// Everything that belongs to one game at the table: its lobby, engine,
-// table decisions and client projection. Atlas runs MAX_GAME_TABLES of them
-// side by side (the venue model, PLANNED_DESIGNS.md); profiles, statistics,
-// pairing and settings stay shared.
-struct GameTable {
-  Lobby lobby;
-  GameEngine game;
-  TurnHub::ClientState clientState;
-  HubState hubState = HubState::Lobby;
-  PendingPassState pendingPass;
-  uint32_t countdownStartedAtMs = 0;
-  int8_t lastCountdownSecond = -1;
-  // Player selected for elimination while paused; 0 when none.
-  uint8_t eliminationTargetPlayer = 0;
-  TurnTimerCueState turnTimerCue;
-  NudgeState nudgeState;
-  // Settings this table's next match starts with. The last ones saved
-  // (game_settings_store) are every table's settings after a boot.
-  TurnHub::GameSettings nextGameSettings;
-  // The finished match was short (SHORT_GAME_MS) and the table counted it, or
-  // it was restored after a restart (never counted twice).
-  bool shortGameCounted = false;
-  // Commanders chosen in the lobby, by profile, from each profile's saved
-  // ones (card_cache.h); the match takes them at its start.
-  struct SeatCommander {
-    char profileId[9] = {};
-    TurnHubCards::Commander card{};
-  };
-  SeatCommander commanders[MAX_PLAYERS];
-  // Offline play: the outage the phones' queues are merging into. Open from
-  // the first phone's sync until anything else changes the game, so a second
-  // phone's queue joins the same timeline rather than landing on top.
-  struct OfflineMerge {
-    bool open = false;
-    std::string receiptMatch;
-    struct Receipt { std::array<uint8_t,32> id{}, payload{}; bool applied=false; };
-    std::vector<Receipt> receipts;
-    turnhub::Game base;
-    String baseBoot;
-    bool onThisClock = false;  // base runs on this boot's clock.
-    std::vector<turnhub::OfflineEntry> entries;
-    int64_t resultRevision = 0;
-    int64_t untilMs = 0;  // On base's clock.
-  } offline;
-};
-
-constexpr uint8_t MAX_GAME_TABLES = 2;
-extern GameTable tables[MAX_GAME_TABLES];
-
-// The table the running code acts on. Entry points (an Intent, a Sigil
-// event, an HTTP request, a loop tick) select it with a TableScope; outside
-// any scope it is table 0, Game 1.
-GameTable &table();
-uint8_t tableIndex();
-// Points table() at tables[index] (ignored when out of range) and returns the
-// previous index; TableScope is the usual way. For callbacks that can't hold
-// a scope object (the HTTP route table).
-uint8_t selectTable(uint8_t index);
-
-class TableScope {
-public:
-  explicit TableScope(uint8_t index);
-  ~TableScope();
-  TableScope(const TableScope &) = delete;
-  TableScope &operator=(const TableScope &) = delete;
-
-private:
-  uint8_t previous_;
-};
-
-// Venue tables. The game a Sigil joins when it isn't seated anywhere;
-// changed only by handleChooseTableIntent (RAM, Game 1 after a boot).
-extern uint8_t sigilTable[MAX_PHYSICAL_SIGILS];
-// The table a controller is seated at, or for an unseated Sigil its chosen
-// one; phone controllers outside every table are Game 1's.
-uint8_t tableForController(uint8_t controllerId);
-// Joined to a lobby or playing in a game, at any table.
-bool seatedAnywhere(uint8_t controllerId);
-// The table where a profile plays (lobby or game), or -1.
-int8_t tableForProfile(const String &profileId);
-// Bit per physical Sigil whose table is index.
-uint16_t sigilsAtTable(uint8_t index);
-// Device-wide gate: OTA and Sigil updates wait for every game. (Pairing
-// follows the game the Atlas screen shows.)
-bool allTablesBetweenGames();
-// True while more than one game is in progress: loop() then keeps Atlas's
-// speaker quiet (AudioController::setSpeakerShared).
-bool atlasSpeakerShared();
+// A hub's game has started and isn't over (Starting, Running or Paused).
+bool gameUnderway(uint32_t nowMs);
+// Between games: OTA, Sigil updates, pairing, forgetting Sigils and sleep wait for this.
+bool betweenGames(uint32_t nowMs);
+// A player of the hub's live game sits on this Sigil.
+bool sigilInGame(uint8_t sigilId, uint32_t nowMs);
 
 // --- main.cpp ----------------------------------------------------------------
 
 bool configureIntentHandlers();
-void observeClientState();
 void observeIntent(const Intent &intent);
+// GET /api/v1/state: Atlas's own state (no game; protocol/http-v1.md).
 uint32_t clientRevision();
 String clientSnapshot(const String &atlasId, const char *bootId);
 void handleStatus();
@@ -237,95 +108,11 @@ void startNetworking();
 // --- app_context.cpp ---------------------------------------------------------
 
 const char *intentOriginName(IntentOrigin origin);
-
-// Table-wide cue targets: Atlas's speaker plus the Sigils with joined/in-game seats.
-uint16_t lobbyAudioMask();
-uint16_t gameAudioMask();
-
-// Seat lookups against the running game, or the lobby before a game starts.
-bool seatForModuleSlot(uint8_t controllerId, uint8_t slot, PlayerSeat &seat);
-bool firstLivingSeatForModule(uint8_t controllerId, PlayerSeat &seat);
-// Who sits in a seat, for display: the profile captured at game start, or
-// before a game the Sigil seat's bound profile or the phone's own profile.
-// One lookup for the Atlas screen and /api/v1/state, so they always agree.
-String profileIdForTableSeat(const PlayerSeat &seat, bool inGame);
-// That profile's name, or "" for a guest (clients show "Player N").
-String displayNameForTableSeat(const PlayerSeat &seat, bool inGame);
-bool commanderForTableSeat(const PlayerSeat &seat, bool inGame, String &name, String &art);
-// This table's chosen commander for a profile, or nullptr.
-const TurnHubCards::Commander *chosenCommander(const String &profileId);
-IntentResult handleSetCommanderIntent(const Intent &intent, void *);
-// The canonical seat named by an Intent actor, or nullptr if the actor's
-// controller/slot/player triple no longer agrees with the game.
-const PlayerSeat *seatForIntentActor(const Intent &intent);
-bool resolveProfileParticipant(const String &profileId, uint8_t &controllerId, uint8_t &slot);
-
-// Intent builders. Each returns the dispatcher's result unchanged.
-IntentResult dispatchSeatIntent(IntentType type, IntentOrigin origin,
-    const PlayerSeat &seat, uint32_t flags = 0);
-IntentResult dispatchModuleIntent(IntentType type, uint8_t controllerId,
-    uint8_t slot = 1, int32_t value = 0);
 IntentResult dispatchSystemIntent(IntentType type);
 
-// --- gameplay_intents.cpp ----------------------------------------------------
+// --- device_intents.cpp ------------------------------------------------------
 
-IntentResult handlePassIntent(const Intent &intent, void *);
-IntentResult handleCommitPassIntent(const Intent &intent, void *);
-IntentResult handlePauseIntent(const Intent &intent, void *);
-IntentResult handleResumeIntent(const Intent &intent, void *);
-IntentResult handleTogglePauseIntent(const Intent &intent, void *);
-IntentResult handleConcedeIntent(const Intent &intent, void *);
-IntentResult handleClaimMonarchIntent(const Intent &intent, void *context);
-IntentResult handleEliminateSeatIntent(const Intent &intent, void *);
-IntentResult handleResolveEliminationIntent(const Intent &intent, void *);
-IntentResult handleDoomBagIntent(const Intent &intent, void *);
-IntentResult handleClaimWinIntent(const Intent &intent, void *);
-IntentResult handleConfirmWinIntent(const Intent &intent, void *);
-IntentResult handleDenyWinIntent(const Intent &intent, void *);
-IntentResult handleChangeLifeIntent(const Intent &intent, void *);
-IntentResult handleExpireLifeChangesIntent(const Intent &intent, void *);
-IntentResult handleCounterIntent(const Intent &intent, void *);
-IntentResult handleEndMatchIntent(const Intent &intent, void *);
-IntentResult handleMasterPassIntent(const Intent &intent, void *);
-// ATLAS|GAME|MASTER_PASS|<from>-><to>|ORIGIN|<origin>, plus an activity entry.
-void logMasterPass(uint8_t fromPlayer, uint8_t toPlayer, IntentOrigin origin);
-
-void clearPendingPass(const char *reason);
-bool cancelPendingPassForModule(uint8_t sigilId, const char *reason);
-// Loop ticks: commit an expired PASS grace period; emit timer phase cues.
-void updatePendingPass(uint32_t nowMs);
-void updateTurnTimerCues(uint32_t nowMs);
-
-// --- table_intents.cpp -------------------------------------------------------
-
-IntentResult handleProfileParticipationIntent(const Intent &intent, void *);
-// Turn order in the lobby, from the Atlas touchscreen only (MoveSeat).
-IntentResult handleMoveSeatIntent(const Intent &intent, void *);
-IntentResult handleNudgeIntent(const Intent &intent, void *);
-IntentResult handleRemoveSeatIntent(const Intent &intent, void *);
-IntentResult handleChooseTableIntent(const Intent &intent, void *);
-IntentResult handleSetSeatSideIntent(const Intent &intent, void *);
-IntentResult handleSeatMembershipIntent(const Intent &intent, void *);
-IntentResult handleSelectStarterIntent(const Intent &intent, void *);
-IntentResult handleStartIntent(const Intent &intent, void *);
-IntentResult handleCompleteStartIntent(const Intent &intent, void *);
-IntentResult handleCancelStartIntent(const Intent &intent, void *);
-IntentResult handleResetIntent(const Intent &intent, void *);
-IntentResult handleBackToSetupIntent(const Intent &intent, void *);
-IntentResult handleCountShortGameIntent(const Intent &intent, void *);
-IntentResult handlePlanarIntent(const Intent &intent, void *);
-// Offline play: the request the web adapter staged for SyncOffline (null
-// outside that dispatch), and the core's state with Atlas's clock for
-// GET /api/v1/game.
-extern TurnHubWebApi::OfflineSyncRequest *pendingOfflineSync;
-IntentResult handleSyncOfflineIntent(const Intent &intent, void *);
-String offlineGameJson(const String &atlasId, const char *bootId);
-// A finished match under SHORT_GAME_MS that nobody has counted yet.
-bool shortGameUncounted();
-IntentResult handleCancelPassIntent(const Intent &intent, void *);
-IntentResult handleEliminationIntent(const Intent &intent, void *);
 IntentResult handlePairRequestIntent(const Intent &intent, void *);
-IntentResult handleGameSettingsIntent(const Intent &intent, void *);
 IntentResult handleForgetPairingIntent(const Intent &intent, void *);
 IntentResult handlePairConfirmIntent(const Intent &intent, void *);
 IntentResult handleConfigurePairingIntent(const Intent &intent, void *);
@@ -333,6 +120,7 @@ IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *);
 IntentResult handleConfigurePowerIntent(const Intent &intent, void *);
 IntentResult handleConfigureUploadApprovalIntent(const Intent &intent, void *);
 IntentResult handleConfigureTableCodeIntent(const Intent &intent, void *);
+// Return to lobby: ends the hub's hold on the table (it keeps its game).
 IntentResult handleResetTableIntent(const Intent &intent, void *);
 IntentResult handleFactoryResetIntent(const Intent &intent, void *);
 IntentResult handleAdvanceSetupIntent(const Intent &intent, void *);
@@ -345,7 +133,7 @@ void eraseSettingsAndRestart();
 // Menu > Device Sleep (owner 2026-10-02): scheduled by handleSleepIntent, run
 // from loop() once the notice has been on screen. sleepAtlas() is firmware-
 // only (atlas_display.h); host tests stub it. Waking is a restart: saved data
-// survives, the lobby and sessions do not.
+// survives, sessions do not.
 // The same Intent with System origin is auto sleep on the cell
 // (serviceAutoSleep): payload.value SLEEP_REASON_IDLE between games, or
 // SLEEP_REASON_EMPTY at any time.
@@ -359,59 +147,18 @@ constexpr int32_t SLEEP_REASON_EMPTY = 2;
 // (power_settings.h; Off never) with no player action between games, or once the charge has read empty for
 // BATTERY_EMPTY_CONFIRM_MS. Called from loop().
 void serviceAutoSleep(uint32_t nowMs);
-// A player did something (a non-System Intent, or a touch): restarts the idle
-// count.
+// A player did something (a non-System Intent, a touch, a hub's push):
+// restarts the idle count.
 void noteAtlasActivity(uint32_t nowMs);
-
-// Clears Atlas-owned table decisions.
-void clearDecisionState();
-void enterEmptyLobby(const Intent *cause = nullptr);
-// Enters GameOver after the engine reports a finished match.
-void finishGameState();
-// Loop tick: completes the start countdown through a System intent.
-void updateCountdown(uint32_t nowMs);
-
-// --- moderation_intent.cpp ---------------------------------------------------
-
-IntentResult handleModerateIntent(const Intent &intent, void *);
 
 // --- sigil_input.cpp ---------------------------------------------------------
 
 void processSigilEvents();
-// A Sigil's menu choice (SelectAction payload, encodeSelectAction).
-void handleSelectAction(uint8_t sigilId, int32_t value);
-// Life from a Sigil: a batched LifeAdjust, and a LifeResponse to a request.
-void handleLifeAdjust(uint8_t sigilId, int32_t value);
-void handlePlayerControl(uint8_t sigilId, int32_t value);
-void handleLifeResponse(uint8_t sigilId, int32_t value);
-
-// --- sigil_accessibility.cpp -------------------------------------------------
-
-// The merged preferences of the players seated at (or last bound to) a Sigil.
-TurnHubProfiles::AccessibilityPrefs seatedAccessibility(uint8_t sigilId);
-// Restyle one Sigil / every Sigil now (after a preference or seat change).
-void applySigilAccessibility(uint8_t sigilId, uint32_t nowMs);
-void applyAllSigilAccessibility(uint32_t nowMs);
-// Loop tick: revisits one Sigil per tick and resends hold timing.
-void updateSigilAccessibility(uint32_t nowMs);
 
 // --- web_adapters.cpp --------------------------------------------------------
 
 // Registers every browser adapter with TurnHubWebApi.
 void registerWebCallbacks();
-bool resolveWebSeat(uint8_t controllerId, uint8_t slot, SeatSnapshot &snapshot);
-bool handleWebControl(uint8_t controllerId, uint8_t slot, WebControl control, String &message);
-bool handleProfileControl(const String &profileId, WebControl control,
-    uint8_t controllerId, uint8_t slot, String &message);
-bool readGameSettings(TurnHub::GameSettings &settings, bool &editable);
-bool configureGame(uint8_t controller, uint8_t slot,
-    const TurnHub::GameSettings &settings, String &message);
-bool changeLife(uint8_t controller, uint8_t slot, int32_t delta, String &message);
-bool readCounters(uint8_t controller, uint8_t slot, TurnHubWebApi::CounterSnapshot &snapshot);
-bool changeCounter(uint8_t controller, uint8_t slot, IntentType type,
-    const TurnHub::IntentPayload &payload, String &message);
-bool moderateAccount(const String &actor, const String &target,
-    const String &action, String &message);
 bool manageDevices(const String &actor, IntentType type, int32_t value, String &message);
 
 // --- front_panel.cpp ---------------------------------------------------------
@@ -421,14 +168,6 @@ extern bool pairingActive;
 
 void beginFrontPanel();
 void startPairingIndicator(uint32_t nowMs);
-// Holding "End match" on the touchscreen this long ends a match as a draw.
-constexpr uint32_t END_MATCH_HOLD_MS = 5000;
-// Holding "Master pass" (touchscreen Table screen) this long passes a stuck turn.
-constexpr uint32_t MASTER_PASS_HOLD_MS = 2000;
-// Atlas touchscreen lobby hold: clear every player from an unstarted lobby.
-constexpr uint32_t LOBBY_CLEAR_HOLD_MS = 2000;
-// Atlas lobby Player screen: Remove takes one seat out, held like Clear.
-constexpr uint32_t LOBBY_REMOVE_HOLD_MS = 2000;
 // Touchscreen Device screen (Menu, between games; owner 2026-10-02): the
 // same holds as the BOOT button's gestures, which these buttons stand in for
 // when BOOT is out of reach inside a case.
@@ -462,9 +201,6 @@ void cancelPresenceCode();
 // Admin setting (table_code_setting.h, off by default): while false, every
 // signed-in profile counts as verified at the table and no code is needed.
 extern bool tableCodeRequired;
-// With nobody chosen to go first, a game starts with a random player (as the
-// standalone app does). Host scenarios turn it off so player 1 starts.
-extern bool randomStarterByDefault;
 extern bool uploadApprovalRequired;
 bool presenceConfirmedFor(const String &profileId, uint32_t nowMs);
 // Time left for that profile, or 0.

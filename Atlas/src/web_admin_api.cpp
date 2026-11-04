@@ -22,6 +22,7 @@
 #include "profile_statistics.h"
 #include "avatars.h"
 #include "atlas_battery.h"
+#include "hosted_game.h"
 
 using TurnHub::serialLog;
 
@@ -29,6 +30,16 @@ namespace TurnHubWebApi {
 namespace internal {
 
 namespace {
+
+// A player of the hub's live game (hosted_game.h) uses this profile.
+bool atTable(const String &profileId) {
+  const TurnHubHosted::HostedTable &hosted = TurnHubHosted::hostedTable();
+  if (profileId.length() == 0 || !hosted.live(millis())) return false;
+  for (const auto &player : hosted.game().players) {
+    if (player.profileId == profileId.c_str()) return true;
+  }
+  return false;
+}
 
 String macText(const uint8_t mac[6]) {
   char text[18];
@@ -96,7 +107,6 @@ String atlasHardwareId() {
 void handleDevices(WebServer &server) {
   SigilBus *bus = SigilBus::activeInstance();
   const uint32_t nowMs = millis();
-  resolveAllSessions(nowMs);
 
   String json;
   json.reserve(3800);
@@ -126,7 +136,6 @@ void handleDevices(WebServer &server) {
     first = false;
 
     const uint32_t ageMs = nowMs - record->lastSeenMs;
-    const String profileA = TurnHubProfiles::boundProfileIdForSeat(record->mac, 1);
 
     json += "{\"id\":"; json += String(id);
     json += ",\"label\":\""; json += jsonEscape(deviceLabel(id));
@@ -140,9 +149,6 @@ void handleDevices(WebServer &server) {
     json += "\",\"metadata\":"; json += jsonBool(record->helloInfoValid);
     json += ",\"capabilities\":"; json += String(record->capabilities);
     json += ",\"maxPlayers\":"; json += String(2);
-    json += ",\"sessionCount\":"; json += String(moduleSessionCount(id));
-    json += ",\"profileA\":\""; json += jsonEscape(profileA);
-    json += "\"";
     json += "}";
   }
   // Sigils waiting for the owner's pairing-code check (PAIRING_AND_SECURE_LINK.md). The
@@ -1013,13 +1019,12 @@ void handleAccounts(WebServer &server) {
     // roles and moderation need a PIN, the initial Admin keeps Admin, and
     // archiving waits until the account has left the table.
     if (admin || gameMaster) {
-      uint8_t controller = INVALID_ID, slot = 1;
       json += ",\"hasPin\":";
       json += jsonBool(TurnHubProfiles::hasPinForProfile(id));
       json += ",\"primary\":";
       json += jsonBool(primary.length() && id == primary);
       json += ",\"atTable\":";
-      json += jsonBool(resolveProfile && resolveProfile(id, controller, slot));
+      json += jsonBool(atTable(id));
       json += ",\"reconnectRequired\":";
       json += jsonBool(account.reconnectRequired);
     }
@@ -1072,10 +1077,8 @@ void handleAccountArchive(WebServer &server) {
     sendError(server, 409, "The initial Admin cannot be archived");
     return;
   }
-  uint8_t controller = INVALID_ID, slot = 1;
-  if (archive && resolveProfile && resolveProfile(id, controller, slot)) {
-    sendError(server, 409,
-        "Account is still at the table. Leave the table or reset the completed game before archiving");
+  if (archive && atTable(id)) {
+    sendError(server, 409, "Account is playing the hub's game. Archive it once that game ends");
     return;
   }
   if (account.archived != archive) {
@@ -1112,9 +1115,8 @@ int mergeAccount(const String &id, const String &into, const char *&error) {
     error = "The initial Admin can't be merged away, and archived accounts can't be merged";
     return 409;
   }
-  uint8_t controller = INVALID_ID, slot = 1;
-  if (resolveProfile && (resolveProfile(id, controller, slot) || resolveProfile(into, controller, slot))) {
-    error = "Both accounts must leave the table first";
+  if (atTable(id) || atTable(into)) {
+    error = "Merge the accounts once the hub's game ends";
     return 409;
   }
   TurnHubProfiles::ProfileStats from{}, stats{};
@@ -1164,18 +1166,6 @@ void handleAccountMerge(WebServer &server) {
   const int status = mergeAccount(server.arg("profileId"), server.arg("into"), error);
   if (status) {
     sendError(server, status, error);
-    return;
-  }
-  sendJson(server, 200, "{\"ok\":true}");
-}
-
-void handleModerate(WebServer &server) {
-  if (!requirePermission(server, TurnHubAccounts::GameMaster)) return;
-  const String actor(sessionForRequest(server)->profileId);
-  String message;
-  if (!moderateHandler ||
-      !moderateHandler(actor, server.arg("profileId"), server.arg("action"), message)) {
-    sendError(server, 409, message);
     return;
   }
   sendJson(server, 200, "{\"ok\":true}");

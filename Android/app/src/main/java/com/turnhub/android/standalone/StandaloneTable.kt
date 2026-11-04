@@ -4,7 +4,6 @@ import android.content.Context
 import com.turnhub.android.data.RawResponse
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import com.turnhub.android.data.OfflineChange
 import com.turnhub.android.data.TableControls
 import com.turnhub.android.data.TabletSeat
 import com.turnhub.android.protocol.GameProfile
@@ -849,8 +848,6 @@ class StandaloneTable(
     }
 
     override suspend fun respondLife(seat: TabletSeat, requestId: Long, accept: Boolean) = Unit
-    override fun queueOffline(change: OfflineChange) = Unit
-    override fun refuseOffline() = Unit
     override suspend fun disable() = Unit
 
     // --- plumbing -------------------------------------------------------------------

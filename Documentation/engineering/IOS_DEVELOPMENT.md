@@ -59,13 +59,11 @@ needs them, rather than filling the package with unused abstractions.
   finished-match UUIDs, history and settings. Test actions and clock anchors
   with an injected time source. Persist accepted actions, not rendered timer
   ticks. Recover after process death without silently replacing unreadable data.
-- **Connected:** Atlas owns every gameplay decision. The iOS repository sends
-  existing semantic controls and replaces its display state with Atlas
-  snapshots. Never replay offline controls or turn a lost connection into a
-  local copy of the Atlas game.
-- **Mode changes:** choose standalone or Atlas explicitly. Preserve the local
-  game separately; connecting cannot upload a running match, transfer authority
-  or take over navigation after a background discovery result.
+- **Connected:** since 2026-11-04 the device's own game is the hub's game:
+  with an Atlas it hosts that game on Atlas (`protocol/hosted-v1.md`) and
+  applies the inputs Atlas queues through the same shared core. Atlas makes
+  no gameplay decision.
+- **Discovery:** a background discovery result never takes over navigation.
 - **Identity/import:** local player UUIDs and Atlas-scoped profile identities
   remain separate. Names never prove identity. Import only finished matches
   through the existing verified-link/mapping contract; retain local history

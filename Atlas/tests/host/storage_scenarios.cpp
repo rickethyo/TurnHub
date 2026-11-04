@@ -9,7 +9,6 @@
 #include "nvs_blob_store.h"
 #include "profile_stats_storage.h"
 #include "profile_policy.h"
-#include "game_settings_store.h"
 #include "pairing_settings.h"
 #include "accessibility_prefs.h"
 #include "sd_blob_store.h"
@@ -328,75 +327,6 @@ void tableCodeRecords() {
   }
   FakeNvs::blobs.clear();
 }
-
-void gameSettingsRecords() {
-  using namespace TurnHub;
-  FakeNvs::reset();
-  NvsBlobStore store;
-  assert(store.begin("turnhub")==Status::Ok);
-  GameSettings settings;
-  assert(readGameSettings(store,settings)==Status::NotFound);
-  assert(settings.profile==GameProfile::Generic && settings.startingLife==40);
-  // Independent little-endian wire image: Yu-Gi-Oh!, 8000 life.
-  FakeNvs::blobs["gamecfg"]={1,3,0x40,0x1f,0,0};
-  assert(readGameSettings(store,settings)==Status::Ok);
-  // Schema 1 predates the turn timer and reads as OFF.
-  assert(settings.profile==GameProfile::Yugioh && settings.startingLife==8000 &&
-      settings.turnTimerMs==TURN_TIMER_OFF);
-  for (uint8_t profile=0;profile<static_cast<uint8_t>(GameProfile::Count);++profile) for(int32_t life : {0,27,99999})
-      for(uint32_t timer : {TURN_TIMER_OFF,TURN_TIMER_MIN_MS,120000u,TURN_TIMER_MAX_MS}) {
-    settings.profile=static_cast<GameProfile>(profile);settings.startingLife=life;settings.turnTimerMs=timer;
-    settings.autoEliminateAtPoisonLimit = profile & 1; settings.autoEliminateAtCommanderDamage = profile & 2; settings.poisonLimit = 17;
-    settings.houseRules = true;  // Official modes would load their official life.
-    assert(writeGameSettings(store,settings)==Status::Ok);
-    assert(FakeNvs::blobs["gamecfg"].size()==15 && FakeNvs::blobs["gamecfg"][0]==3);
-    NvsBlobStore reopened;assert(reopened.begin("turnhub")==Status::Ok);
-    GameSettings again;assert(readGameSettings(reopened,again)==Status::Ok);
-    assert(sameGameSettings(again,settings));
-    const int before=FakeNvs::writes;
-    assert(writeGameSettings(reopened,settings)==Status::Ok && FakeNvs::writes==before);
-  }
-  // Without house rules an official mode loads its official life and poison limit.
-  settings=GameSettings{}; settings.profile=GameProfile::Magic; settings.startingLife=27; settings.poisonLimit=17;
-  assert(writeGameSettings(store,settings)==Status::Ok && FakeNvs::blobs["gamecfg"][10]==3);
-  assert(readGameSettings(store,settings)==Status::Ok && settings.startingLife==20 && settings.poisonLimit==10 && !settings.houseRules);
-  settings.houseRules=true; settings.startingLife=27;
-  assert(writeGameSettings(store,settings)==Status::Ok && FakeNvs::blobs["gamecfg"][10]==7);
-  assert(readGameSettings(store,settings)==Status::Ok && settings.startingLife==27 && settings.houseRules);
-  settings.planechase=true;
-  assert(writeGameSettings(store,settings)==Status::Ok && FakeNvs::blobs["gamecfg"][10]==15);
-  assert(readGameSettings(store,settings)==Status::Ok && settings.planechase);
-  FakeNvs::blobs["gamecfg"][10]=32; assert(readGameSettings(store,settings)==Status::Corrupt);
-  // Independent schema 2 image: Generic, 40 life, 90-second timer.
-  FakeNvs::blobs["gamecfg"]={2,0,40,0,0,0,0x90,0x5f,0x01,0};
-  assert(readGameSettings(store,settings)==Status::Ok && settings.turnTimerMs==90000);
-  settings.turnTimerMs=0;settings.startingLife=-1;
-  assert(writeGameSettings(store,settings)==Status::InvalidArgument);
-  settings.startingLife=1000001;
-  assert(writeGameSettings(store,settings)==Status::InvalidArgument);
-  settings.startingLife=40;
-  for(uint32_t timer : {1u,14000u,15500u,TURN_TIMER_MAX_MS+1000})
-    {settings.turnTimerMs=timer;assert(writeGameSettings(store,settings)==Status::InvalidArgument);}
-  for(const auto &bytes : {std::vector<uint8_t>{}, {1,0,20}, {1,0,20,0,0,0,0},
-      {1,6,20,0,0,0}, {1,0,0xff,0xff,0xff,0xff}, {2,0,20,0,0,0}, {1,0,20,0,0,0,0,0,0,0},
-      {2,0,20,0,0,0,0xe8,0x03,0,0}, {99,0,20,0,0,0}}) {
-    FakeNvs::blobs["gamecfg"]=bytes;
-    settings=GameSettings{};
-    const Status expected=bytes.size()==6&&bytes[0]==99?Status::UnsupportedSchema:Status::Corrupt;
-    const int before=FakeNvs::writes;
-    assert(readGameSettings(store,settings)==expected && settings.startingLife==40);
-    assert(writeGameSettings(store,settings)==expected && FakeNvs::writes==before);
-    assert(FakeNvs::blobs["gamecfg"]==bytes);
-  }
-  FakeNvs::blobs.clear();
-  FakeNvs::readError=ESP_ERR_NVS_INVALID_HANDLE;
-  assert(writeGameSettings(store,GameSettings{})==Status::IoError);
-  FakeNvs::readError=ESP_OK;FakeNvs::setError=ESP_ERR_NVS_INVALID_HANDLE;
-  assert(writeGameSettings(store,GameSettings{})==Status::IoError);
-  FakeNvs::setError=ESP_OK;FakeNvs::commitError=ESP_ERR_NVS_INVALID_HANDLE;
-  assert(writeGameSettings(store,GameSettings{})==Status::IoError);
-}
-
 
 static void accountRecords(){
   FakeNvs::blobs.clear();FakeNvs::setError=FakeNvs::commitError=FakeNvs::readError=ESP_OK;
@@ -824,12 +754,11 @@ int main() {
   protectedRecords();
   backendFailures();
   profilePolicyRecords();
-  gameSettingsRecords();
   pairingWindowRecords();
   speakerVolumeRecords();
   tableCodeRecords();
   accessibilityRecords();
   sdRecords();
   sdHotplugPolicy();
-  std::cout << "PASS: identity, statistics, moderation history, profile policy, game settings, accessibility preferences, speaker volume, NVS failures, SD records and SD hot-plug timing\n";
+  std::cout << "PASS: identity, statistics, moderation history, profile policy, accessibility preferences, speaker volume, NVS failures, SD records and SD hot-plug timing\n";
 }

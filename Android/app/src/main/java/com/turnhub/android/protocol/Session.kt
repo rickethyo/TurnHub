@@ -21,27 +21,12 @@ data class LoginResult(val token: String, val profileId: String) {
     override fun toString(): String = "LoginResult(token=***, profileId=$profileId)"
 }
 
-/**
- * `GET /api/session/me`: what Atlas resolved this session to. Atlas decides
- * the seat and player from the session; the app never supplies them.
- */
+/** `GET /api/session/me`: the signed-in profile and its account permissions. */
 data class SessionInfo(
     val profileId: String,
     val name: String?,
-    /** Controller handle the session resolved to (virtual 8-23 for a phone-only player). */
-    val moduleId: Int,
-    val slot: Int,
-    /** 0 when not at the table. */
-    val playerNumber: Int,
-    val participating: Boolean,
-    val host: Boolean,
-    val active: Boolean,
-    val eliminated: Boolean,
     /** Account permission bits (see [AccountPermission]). */
     val permissions: Int = 0,
-    /** This session acts as the table's shared tablet (`POST /api/tablet/enable`). */
-    val tablet: Boolean = false,
-    val game: Int = 1,
 ) {
     fun has(permission: AccountPermission): Boolean = permissions and permission.bit != 0
 }
@@ -55,15 +40,3 @@ enum class AccountPermission(val bit: Int, val label: String) {
     GM_REMOVE_FROM_GAME(16, "GM: remove from game"),
 }
 
-/**
- * Result of a session control such as `POST /api/control/pass`. [status] is
- * ACCEPTED, REJECTED or CONFLICT when Atlas got that far; earlier validation
- * failures carry only [message].
- */
-data class ControlResult(
-    val ok: Boolean,
-    val status: String?,
-    val message: String?,
-    val revision: Long?,
-    val bootId: String?,
-)

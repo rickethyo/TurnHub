@@ -492,10 +492,6 @@ class AtlasAdminConsole(
         post("/api/accounts/archive", listOf("profileId" to profileId, "archived" to if (archived) "1" else "0"),
             success = if (archived) "Account archived." else "Account restored.")
 
-    /** Game Master: `pass`, `mute`, `unmute`, `reset` or `remove`. [success] names what happened. */
-    suspend fun moderate(profileId: String, action: String, success: String = "Moderation applied.") =
-        post("/api/accounts/moderate", listOf("profileId" to profileId, "action" to action), success = success)
-
     // --- plumbing ---------------------------------------------------------------
 
     private suspend fun refreshPresence() {
