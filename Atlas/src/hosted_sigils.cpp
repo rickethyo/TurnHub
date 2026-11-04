@@ -56,13 +56,25 @@ int confirmingSeat(uint8_t sigilId) {
   return TurnHubHosted::playerSigil(hostedGame(), *confirmer, id, slot) && id == sigilId ? *confirmer : -1;
 }
 
-void queueInput(uint8_t sigilId, int player, const std::string &action) {
+// source: a Sigil's ID, or ATLAS_SCREEN for the Atlas touchscreen.
+constexpr uint8_t ATLAS_SCREEN = 0xFF;
+
+void queueInput(uint8_t source, int player, const std::string &action) {
   char id[40];
-  snprintf(id, sizeof(id), "sigil-%u-%lu-%lu", static_cast<unsigned>(sigilId),
-      static_cast<unsigned long>(millis()), static_cast<unsigned long>(++inputCounter));
+  if (source == ATLAS_SCREEN) {
+    snprintf(id, sizeof(id), "atlas-%lu-%lu", static_cast<unsigned long>(millis()),
+        static_cast<unsigned long>(++inputCounter));
+  } else {
+    snprintf(id, sizeof(id), "sigil-%u-%lu-%lu", static_cast<unsigned>(source),
+        static_cast<unsigned long>(millis()), static_cast<unsigned long>(++inputCounter));
+  }
   const uint32_t seq = TurnHubHosted::hostedTable().queue(player, id, action, millis());
-  TurnHub::serialLog.print("ATLAS|HOSTED|SIGIL|");
-  TurnHub::serialLog.print(sigilId);
+  if (source == ATLAS_SCREEN) {
+    TurnHub::serialLog.print("ATLAS|HOSTED|SCREEN");
+  } else {
+    TurnHub::serialLog.print("ATLAS|HOSTED|SIGIL|");
+    TurnHub::serialLog.print(source);
+  }
   TurnHub::serialLog.print(seq ? "|QUEUED|" : "|DROPPED|");
   TurnHub::serialLog.println(action.c_str());
 }
@@ -81,6 +93,43 @@ void queueTable(uint8_t sigilId, const char *kind, uint8_t slot = 0) {
 }
 
 }  // namespace
+
+HostedScreenActions hostedScreenActions() {
+  const turnhub::Game &game = hostedGame();
+  HostedScreenActions actions;
+  const bool turn = game.active && living(*game.active);
+  switch (game.state) {
+    case turnhub::TableState::Lobby: actions.start = game.players.size() >= 2; break;
+    case turnhub::TableState::Running: actions.pass = actions.pause = turn; break;
+    case turnhub::TableState::Paused: actions.resume = turn && !game.openWinClaim(); break;
+    default: break;
+  }
+  return actions;
+}
+
+bool queueHostedScreenAction(HostedScreenAction action) {
+  const HostedScreenActions offered = hostedScreenActions();
+  const int active = hostedGame().active ? *hostedGame().active : -1;
+  switch (action) {
+    case HostedScreenAction::Start:
+      if (!offered.start) return false;
+      queueInput(ATLAS_SCREEN, 0, "{\"kind\":\"start\"}");
+      return true;
+    case HostedScreenAction::Pass:
+      if (!offered.pass) return false;
+      queueSeat(ATLAS_SCREEN, active, "pass");
+      return true;
+    case HostedScreenAction::Pause:
+      if (!offered.pause) return false;
+      queueSeat(ATLAS_SCREEN, active, "pause", 1);
+      return true;
+    case HostedScreenAction::Resume:
+      if (!offered.resume) return false;
+      queueSeat(ATLAS_SCREEN, active, "pause", 0);
+      return true;
+  }
+  return false;
+}
 
 bool hostedForSigil(uint8_t sigilId, uint32_t nowMs) {
   return sigilId < MAX_PHYSICAL_SIGILS && tableForController(sigilId) == 0 && TurnHubHosted::hostedTable().live(nowMs);

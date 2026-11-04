@@ -76,5 +76,13 @@ never edits the game. While a hub hosts Game 1, Atlas draws Game 1's Sigils
 from the hub's game (display, table roster and light cues), offers their menu
 from it (Join in setup; Pass and Claim win on their turn; Pause, Resume and
 life keys while playing; Confirm or Deny a win claim), and queues every choice
-and key as an input. Inputs come from Sigils now; the Atlas screen adds them in
-slice 3.
+and key as an input.
+
+## Atlas screen
+
+While a hub hosts Game 1, the Atlas game screen shows the hub's game and offers
+Start game (setup with two or more players, a `start` table action), Pass and
+Pause (a living player's turn) and Resume (paused with no open win claim). Each
+is queued for the active player, as the Atlas screen's own controls act for the
+active seat; its input ids start with `atlas-` (Sigils' with `sigil-`). The
+player tiles show only.

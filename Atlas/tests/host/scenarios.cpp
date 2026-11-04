@@ -6814,7 +6814,23 @@ static void phoneHostedGame() {
   assert(screen.kind==ScreenKind::Status && !strcmp(screen.badge,"PLAYING") && !strcmp(screen.title,"Ben's turn"));
   assert(!strcmp(screen.detail,"Hosted by Hub Ana") && screen.playerCount==2 && screen.showLife);
   assert(screen.players[0].life==37 && (screen.players[1].flags&CHIP_ACTIVE) && !(screen.players[0].flags&CHIP_ACTIVE));
-  for(uint8_t i=0;i<screen.buttonCount;++i) assert(screen.buttons[i].action!=TouchAction::PassTurn);  // read-only
+  // Slice 3: the screen's Pass and Pause queue inputs for Ben (the turn); Atlas changes nothing.
+  {
+    bool pass=false,pause=false;
+    for(uint8_t i=0;i<screen.buttonCount;++i) {
+      pass|=screen.buttons[i].action==TouchAction::PassTurn; pause|=screen.buttons[i].action==TouchAction::Pause;
+      assert(screen.buttons[i].action!=TouchAction::StartGame && screen.buttons[i].action!=TouchAction::ChipLifeMinus);
+    }
+    assert(pass && pause);
+    assert(TurnHubAtlas::queueHostedScreenAction(TurnHubAtlas::HostedScreenAction::Pass));
+    assert(!TurnHubAtlas::queueHostedScreenAction(TurnHubAtlas::HostedScreenAction::Start));
+    assert(!TurnHubAtlas::queueHostedScreenAction(TurnHubAtlas::HostedScreenAction::Resume));
+    const auto queued=hosted.inputsAfter(0);
+    assert(queued.size()==1 && queued[0].player==2 && !strncmp(queued[0].id.c_str(),"atlas-",6) &&
+        queued[0].action=="{\"kind\":\"pass\",\"value\":0,\"slot\":0,\"source\":0}");
+    assert(hosted.game().active && *hosted.game().active==1);
+  }
+  const uint32_t base=hosted.lastSeq();
   // Only newer revisions of the same game replace it; a retry is fine.
   assert(request("/api/hosted/state",ana,{{"state",hostedState("g1",2,"RUNNING",0,40).c_str()}})==400);
   assert(request("/api/hosted/state",ana,{{"state",hostedState("g1",3,"RUNNING",0,10).c_str()}})==400);
@@ -6824,18 +6840,26 @@ static void phoneHostedGame() {
   // Watchers read it; only the hub reads the input queue.
   assert(request("/api/hosted/state",ben,{},HTTP_GET)==200 && server.body.find("\"live\":true")!=std::string::npos &&
       server.body.find("\"gameId\":\"g1\"")!=std::string::npos);
-  assert(hosted.queue(2,"act-1","{\"do\":\"pass\"}",testNow)==1);
-  assert(hosted.queue(2,"act-1","{\"do\":\"pass\"}",testNow)==1);  // same action once
+  assert(hosted.queue(2,"act-1","{\"do\":\"pass\"}",testNow)==base+1);
+  assert(hosted.queue(2,"act-1","{\"do\":\"pass\"}",testNow)==base+1);  // same action once
   assert(hosted.queue(3,"act-2","{\"do\":\"pass\"}",testNow)==0);  // no such player
   assert(hosted.queue(1,"act-3","nope",testNow)==0);
   assert(request("/api/hosted/inputs",ben,{},HTTP_GET)==409);
-  assert(request("/api/hosted/inputs",ana,{{"after","0"}},HTTP_GET)==200 &&
-      server.body.find("\"id\":\"act-1\"")!=std::string::npos && server.body.find("\"last\":1")!=std::string::npos);
-  assert(request("/api/hosted/inputs",ana,{{"after","1"}},HTTP_GET)==200 && server.body.find("act-1")==std::string::npos);
+  assert(request("/api/hosted/inputs",ana,{{"after",std::to_string(base).c_str()}},HTTP_GET)==200 &&
+      server.body.find("\"id\":\"act-1\"")!=std::string::npos &&
+      server.body.find("\"last\":"+std::to_string(base+1))!=std::string::npos);
+  assert(request("/api/hosted/inputs",ana,{{"after",std::to_string(base+1).c_str()}},HTTP_GET)==200 && server.body.find("act-1")==std::string::npos);
   // A new game id starts a fresh queue.
   assert(request("/api/hosted/state",ana,{{"state",hostedState("g2",1,"LOBBY",0,40).c_str()}})==200);
   assert(hosted.inputsAfter(0).empty());
   buildAtlasScreen(testNow,screen); assert(!strcmp(screen.badge,"LOBBY") && !strcmp(screen.title,"Game setup") && !screen.showLife);
+  {  // Two players in setup: the screen offers Start, which only queues it.
+    bool start=false; for(uint8_t i=0;i<screen.buttonCount;++i) start|=screen.buttons[i].action==TouchAction::StartGame;
+    assert(start && TurnHubAtlas::queueHostedScreenAction(TurnHubAtlas::HostedScreenAction::Start));
+    const auto queued=hosted.inputsAfter(0);
+    assert(queued.size()==1 && queued[0].player==0 && queued[0].action=="{\"kind\":\"start\"}");
+    assert(hosted.game().state==turnhub::TableState::Lobby);
+  }
   // A hub that goes quiet loses the table; the screen goes back to Atlas's own.
   testNow+=TurnHubHosted::LEASE_MS;
   assert(!hosted.live(testNow));
@@ -6939,7 +6963,7 @@ int main() {
   stackDiagnostics(); std::cout<<"PASS stack watermark semantics, warning rate limit, rollover and request tracing\n";
   virtualProfileFlow(); std::cout<<"PASS profile registration/login, phone-only game, companion sessions, authorization and throttling\n";
   persistentRoomBackup(); std::cout<<"PASS persistent room backup: capability, restart, failed storage, end\n";
-  phoneHostedGame(); std::cout<<"PASS phone-hosted game: lease, revisions, read-only Atlas screen, input queue, expiry\n";
+  phoneHostedGame(); std::cout<<"PASS phone-hosted game: lease, revisions, Atlas screen controls queue inputs, input queue, expiry\n";
   hostedSigils(); std::cout<<"PASS phone-hosted Sigils: join, bound seats drawn from the hub game, menus, keys queued not applied\n";
   nativeClientBoundary(); std::cout<<"PASS native snapshots, revisions, stale requests, PASS, Commander and reconnect\n";
   guestSigilsDoNotCreateAccounts(); std::cout<<"PASS guest Sigil joins, shared seats, polling and games create no accounts\n";
