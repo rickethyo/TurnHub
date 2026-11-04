@@ -11,7 +11,6 @@ internal fun TableSummary.resultShareSummary(): String {
     val winners = players.filter { isWinner(it.playerNumber) }.sortedBy { it.playerNumber }
     return buildString {
         appendLine(when {
-            settings.profile.cooperative -> if (winners.isEmpty()) "The investigators lost." else "The investigators win!"
             winners.isEmpty() -> "Game over: a draw!"
             winners.size == 1 -> "🏆 ${winners.single().label} won!"
             else -> "🏆 ${winners.joinToString(" and ") { it.label }} shared the win!"

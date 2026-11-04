@@ -259,7 +259,6 @@ fun EliminationRulesEditor(settings: TableSettings, enabled: Boolean = true,
     if (!settings.profile.countsLife) {
         Text(when {
             settings.profile.pokemon -> "Taking your last Prize card wins the game. Other ways to win are in each player's menu."
-            settings.profile.deathMayDie -> "The investigators win or lose together, from any player's menu. Nobody is out automatically."
             else -> "Reaching ${settings.startingLife} lore wins the game. A player who can't draw is out from their menu."
         },
             color = palette.muted, style = MaterialTheme.typography.bodySmall)

@@ -1,8 +1,8 @@
 # turnhub-core
 
 One set of game rules for every TurnHub device. *Experimental* (2026-10-29):
-The phone or tablet hub runs every game on this core through the NDK (`Android/app/src/main/cpp/game_jni.cpp`, `NativeGameCore`)
-for every mode but the local-only Death May Die. The Kotlin rules stay as the
+The phone or tablet hub runs every game on this core through the NDK (`Android/app/src/main/cpp/game_jni.cpp`, `NativeGameCore`).
+The Kotlin rules stay as the
 test oracle (`-Pturnhub.referenceRules=true`). Host scenarios check both. The
 plan and its phases are in [Shared table authority](../../Documentation/engineering/TABLE_AUTHORITY.md)
 and [Staged changes](../../Documentation/engineering/STAGED_CHANGES.md).
@@ -37,12 +37,6 @@ initiative, day/night and reversed order; elimination rules, attribution,
 concession and win claims; Star Commander, Emperor and Bag of Doom.
 Not yet: Planechase, Pokémon/Lorcana turn markers and Special Conditions,
 and commander selection.
-
-Death May Die can't ship in a released version (licensing, owner
-2026-10-29). Its rules will live in a separate local-only module,
-`shared/core/local/death-may-die/`, compiled only with `TURNHUB_LOCAL_DMD` for local
-and preview builds, never in release firmware or Play builds. Keep its rules,
-names and data out of the main core.
 
 ## Actions
 

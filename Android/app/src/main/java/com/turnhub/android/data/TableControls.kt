@@ -23,11 +23,6 @@ interface TableControls {
     suspend fun doom(seat: TabletSeat, action: com.turnhub.android.protocol.DoomAction,
         token: com.turnhub.android.protocol.GameActionToken, player: Int = 0, value: Int = 0): Boolean
 
-    /** A phone-hosted cooperative turn ends only after its recipient is chosen. */
-    suspend fun passTo(turn: com.turnhub.android.domain.CooperativeTurn, playerNumber: Int): Boolean {
-        error("Pass to requires a phone-hosted cooperative game")
-    }
-
     /** Changes the seat's own life by [delta]; true when it was applied. */
     suspend fun life(seat: TabletSeat, delta: Int): Boolean
 
@@ -35,14 +30,6 @@ interface TableControls {
     suspend fun commander(seat: TabletSeat, source: Int, commander: Int, delta: Int)
 
     suspend fun counter(seat: TabletSeat, kind: String, value: Int, commander: Int = 1)
-    /** Editable reference text for the phone-only investigator dashboard. */
-    suspend fun investigatorSkills(seat: TabletSeat, skills: List<com.turnhub.android.domain.InvestigatorSkill>) {
-        error("Investigator dashboards require a phone-hosted game")
-    }
-    suspend fun investigatorCard(seat: TabletSeat, slot: com.turnhub.android.domain.InvestigatorCardSlot,
-        card: com.turnhub.android.domain.InvestigatorCard?) {
-        error("Investigator cards require a phone-hosted game")
-    }
     suspend fun setEliminationRule(seat: TabletSeat, field: String, value: Int)
 
     suspend fun setAutoEliminateAtZeroLife(seat: TabletSeat, enabled: Boolean)

@@ -164,8 +164,7 @@ internal class LanViewModel(
                     attach = { table.attachRoomProfile(it) },
                     command = { request, player ->
                         // Reuse the existing validators against the current seat, never a remembered name.
-                        val death = table.state.value.game.profile.deathMayDie
-                        val role = if (player <= 0 && request.text("kind").startsWith(PLANAR_KIND)) "planes" else if (death) "investigator" else "player"
+                        val role = if (player <= 0 && request.text("kind").startsWith(PLANAR_KIND)) "planes" else "player"
                         val join = baseRequest("join").put("role", role).put("player", if (role == "planes") 0 else player).put("joinId", UUID.randomUUID().toString())
                         val local = localCore()
                         val joined = local.handle(join)
@@ -302,7 +301,7 @@ internal class LanViewModel(
                 generation++
                 _state.update { it.copy(remote = game, role = role, player = reply.optInt("player", player), preview = null,
                     online = true, busy = false, master = reply.optBoolean("master"),
-                    view = if (role == "planes") "planes" else if (role in setOf("display", "table")) "table" else if (role == "elder") "elder" else "personal",
+                    view = if (role == "planes") "planes" else if (role in setOf("display", "table")) "table" else "personal",
                     displayView = reply.optString("displayView").takeIf { it in setOf("table", "planes") },
                     displayId = reply.optString("displayId", "host"), displayAllUpright = reply.optBoolean("displayAllUpright"),
                     displayTargets = reply.optJSONArray("displayTargets")?.let(::readDisplays).orEmpty(),
@@ -355,7 +354,7 @@ internal class LanViewModel(
         }
         val state = _state.value
         val invitation = invite ?: return
-        if (!state.online || state.busy || state.uncertain || state.role !in setOf("player", "investigator", "table") && !state.master &&
+        if (!state.online || state.busy || state.uncertain || state.role !in setOf("player", "table") && !state.master &&
             !(view != null && target == state.displayId && state.role in setOf("display", "planes"))) return
         val g = generation
         _state.update { it.copy(busy = true) }
@@ -389,7 +388,7 @@ internal class LanViewModel(
         val state = _state.value
         val (match, revision) = state.remote?.let { it.gameId to it.revision } ?: return
         val invitation = invite ?: return
-        if (!state.online || state.role !in setOf("investigator", "player", "table") && !state.master) return
+        if (!state.online || state.role !in setOf("player", "table") && !state.master) return
         if (state.busy || pending != null) {
             if (queued.size < 64) queued.addLast(QueuedAction(match, commandEpoch, kind, value, slot, source, target))
             else _state.update { it.copy(message = "Too many changes are waiting. Review the table before another edit.") }

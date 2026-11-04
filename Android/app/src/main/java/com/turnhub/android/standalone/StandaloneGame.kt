@@ -1,12 +1,8 @@
 package com.turnhub.android.standalone
 
 import com.turnhub.android.domain.ControllerHandle
-import com.turnhub.android.domain.CooperativeTurn
 import com.turnhub.android.domain.DayNight
-import com.turnhub.android.domain.ElderOneTrack
 import com.turnhub.android.domain.Emperor
-import com.turnhub.android.domain.InvestigatorCard
-import com.turnhub.android.domain.InvestigatorCardSlot
 import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
@@ -61,11 +57,6 @@ data class LocalPlayer(
     val cardOnly: Boolean = false,
     /** Pokémon and Lorcana: this turn's once-per-turn actions; Pokémon's Special Conditions. */
     val turn: TurnStatus = TurnStatus(),
-    /** Death May Die: the investigator this player plays ([com.turnhub.android.domain.DeathMayDie]); shown, never scored. */
-    val investigator: String? = null,
-    /** Death May Die: stress tokens, from 0 (wounds are [life]). */
-    val stress: Int = 0,
-    val dashboard: com.turnhub.android.domain.InvestigatorDashboard = com.turnhub.android.domain.InvestigatorDashboard(),
     /** A named guest keeps basic match history, without a durable player identity. */
     val guest: Boolean = false,
 )
@@ -108,9 +99,6 @@ data class StandaloneGame(
      * limit and player count unless the table turns on house rules.
      */
     val houseRules: Boolean = false,
-    /** Death May Die: optional relic rules, selected before the match. */
-    val useRelics: Boolean = false,
-    val drawTwoCards: Boolean = false,
     val players: List<LocalPlayer> = emptyList(),
     /** Index into [players] of whose turn it is. */
     val active: Int? = null,
@@ -150,14 +138,6 @@ data class StandaloneGame(
      * many nonland cards they milled (owner, 2026-10-20). Set when their turn begins.
      */
     val radDue: List<Int> = emptyList(),
-    /** Cooperative games (Death May Die): the players who have taken their turn this [round]. */
-    val acted: Set<Int> = emptySet(),
-    /** Cooperative games: the round, from 1; a round ends once every living player has taken a turn. */
-    val round: Int = 1,
-    /** Cooperative games: the investigator staged to follow the current turn, by index. */
-    val nextTurn: Int? = null,
-    /** Death May Die: the Elder One, episode, Summoning track and stages ([ElderOneTrack]). */
-    val elder: ElderOneTrack = ElderOneTrack(),
     val revision: Long = 0,
     /** Runtime-only action journal; never serialized or shared with another table. */
     val offlineRecorder: OfflineRecorder? = null,
@@ -188,8 +168,6 @@ data class StandaloneGame(
 
     private val lorcana: Boolean get() = profile.lorcana
 
-    private val deathMayDie: Boolean get() = profile.deathMayDie
-
     /** [index] and, in Two-Headed Giant, their teammate. */
     fun mates(index: Int): List<Int> =
         if (!twoHeadedGiant) listOf(index) else (index - index % 2).let { listOf(it, it + 1) }.filter { it in players.indices }
@@ -197,24 +175,8 @@ data class StandaloneGame(
     /** The official rules this game follows; null for a custom mode or house rules. */
     val locked: OfficialRules? get() = if (houseRules) null else officialRules(profile, twoHeadedGiant)
 
-    /**
-     * Death May Die: every investigator chosen, with a sanity condition and (only when their
-     * optional rules are in use) a relic.
-     */
-    val investigatorCardsReady: Boolean get() = setupMissing.isEmpty()
-
-    /** Death May Die: what each player still needs before the game can start, by name; empty when ready. */
-    val setupMissing: List<Pair<String, List<String>>> get() = if (!deathMayDie) emptyList() else players.mapNotNull { player ->
-        listOfNotNull(
-            "investigator".takeIf { player.investigator == null },
-            "sanity condition".takeIf { player.dashboard.sanityCondition?.normalized() == null },
-            "relic".takeIf { useRelics && player.dashboard.relic?.normalized() == null },
-        ).takeIf { it.isNotEmpty() }?.let { player.name to it }
-    }
-
     /** Required player count and all selected setup references are ready. */
     val canStart: Boolean get() = when {
-        !investigatorCardsReady -> false
         profile.bagOfDoom -> players.size >= 5 && !twoHeadedGiant
         star -> players.size == StarCommander.PLAYERS
         emperor -> players.size == Emperor.PLAYERS
@@ -277,7 +239,7 @@ data class StandaloneGame(
     }
 
     fun setFormat(profile: GameProfile, startingLife: Int? = null): StandaloneGame {
-        if (GameRuleRuntime.shared(this) && !profile.deathMayDie) return core("setFormat", "profile" to profile.name, "life" to startingLife)
+        if (GameRuleRuntime.shared(this)) return core("setFormat", "profile" to profile.name, "life" to startingLife)
         if (state != TableState.LOBBY) return this
         // Star Commander, Bag of Doom and Emperor seat their own way: choosing one turns Two-Headed Giant off.
         val teams = twoHeadedGiant && profile.magicRules && !profile.ownSeating
@@ -378,7 +340,6 @@ data class StandaloneGame(
     fun start(nowMs: Long, gameId: String, random: Random = Random.Default, planarDeck: List<PlanarCard> = emptyList()): StandaloneGame {
         if (GameRuleRuntime.shared(this)) return core("start", "nowMs" to nowMs, "gameId" to gameId, "planarDeck" to planarCards(planarDeck), random = random)
         if (state != TableState.LOBBY && state != TableState.GAME_OVER) return this
-        if (deathMayDie && state == TableState.GAME_OVER) return rematch(nowMs, gameId, random, planarDeck)
         if (!canStart) return this
         // The lobby's chosen starter, else random (a rematch is random too). A team game
         // starts with a team: its first player holds the turn for both.
@@ -394,10 +355,9 @@ data class StandaloneGame(
             gameId = gameId,
             askEliminationSource = askEliminationSource || profile.bagOfDoom,
             state = TableState.RUNNING,
-            // Lorcana counts lore up from 0 to [startingLife]; Death May Die counts wounds up from 0.
-            players = players.map { LocalPlayer(it.name, it.profileId, life = if (lorcana || deathMayDie) 0 else startingLife, localId = it.localId,
-                commander = it.commander, commanderArt = it.commanderArt, cardOnly = it.cardOnly, guest = it.guest, investigator = it.investigator,
-                dashboard = it.dashboard.fresh()) },
+            // Lorcana counts lore up from 0 to [startingLife].
+            players = players.map { LocalPlayer(it.name, it.profileId, life = if (lorcana) 0 else startingLife, localId = it.localId,
+                commander = it.commander, commanderArt = it.commanderArt, cardOnly = it.cardOnly, guest = it.guest) },
             doomBag = if (profile.bagOfDoom) DoomRules.start(first + 1, (1 shl players.size) - 1, players.size) else com.turnhub.android.protocol.DoomBag(),
             active = first,
             starter = first,
@@ -416,13 +376,8 @@ data class StandaloneGame(
             planechase = if (planechase.enabled && magic) planechase.dealt(planarDeck) else planechase.cleared(),
             pokemonCheckup = emptyList(),
             radDue = emptyList(),
-            acted = emptySet(),
-            round = 1,
-            nextTurn = null,
             winClaim = null,
             winConfirmed = emptySet(),
-            // Figures placed during setup are on the map when play begins.
-            elder = elder.fresh().copy(enemies = elder.enemies),
         ).bump()
     }
 
@@ -442,12 +397,9 @@ data class StandaloneGame(
             timerRules = timerRules,
             twoHeadedGiant = twoHeadedGiant,
             houseRules = houseRules,
-            useRelics = useRelics,
-            drawTwoCards = drawTwoCards,
             planechase = planechase.cleared(),
-            elder = elder.fresh(),
             players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt,
-                cardOnly = it.cardOnly, guest = it.guest, investigator = it.investigator, dashboard = it.dashboard.fresh()) },
+                cardOnly = it.cardOnly, guest = it.guest) },
             revision = revision + 1,
         )
     }
@@ -476,32 +428,10 @@ data class StandaloneGame(
         return settled.advanceTurn(nowMs, reward = true, random = random)
     }
 
-    fun cooperativeTurn(): CooperativeTurn? {
-        val holder = active ?: return null
-        if (!profile.cooperative || state != TableState.RUNNING || players[holder].eliminated) return null
-        return CooperativeTurn(gameId, holder + 1, round, players[holder].turnsCompleted.toLong())
-    }
-
-    /** Normally only investigators still to go; a finished round offers every survivor. */
-    fun cooperativePassTargets(): List<Int> {
-        val turn = cooperativeTurn() ?: return emptyList()
-        val living = players.indices.filter { !players[it].eliminated }
-        val done = acted + (turn.playerNumber - 1)
-        return living.filter { it !in done }.ifEmpty { living }.map { it + 1 }
-    }
-
-    /** Finishes and hands off one turn in one mutation, guarded against a stale chooser. */
-    fun passTo(turn: CooperativeTurn, playerNumber: Int, nowMs: Long): StandaloneGame {
-        if (turn != cooperativeTurn() || playerNumber !in cooperativePassTargets()) return this
-        val settled = applyTurnTimeout(nowMs)
-        if (settled.cooperativeTurn() != turn) return settled
-        return settled.advanceTurn(nowMs, reward = true, nextPlayer = playerNumber - 1)
-    }
-
-    private fun advanceTurn(nowMs: Long, reward: Boolean, random: Random = Random.Default, nextPlayer: Int? = null): StandaloneGame {
+    private fun advanceTurn(nowMs: Long, reward: Boolean, random: Random = Random.Default): StandaloneGame {
         val holder = active ?: return this
         val team = mates(holder)
-        val next = nextPlayer ?: stagedNextTurn ?: (if (profile.cooperative) nextUp(team.last(), acted + team) else nextAfter(team)) ?: return this
+        val next = nextAfter(team) ?: return this
         val now = gameElapsedMs(nowMs)
         val took = (now - turnStartedAtElapsedMs).coerceAtLeast(0)
         val earn = reward && timerRules.earnExtensions && turnTimerMs > 0 && !timeoutHandled && turnExtensionMs == 0L &&
@@ -524,42 +454,12 @@ data class StandaloneGame(
                 )
             },
             active = next,
-            nextTurn = null,
             turnStartedAtElapsedMs = now,
             turnExtensionMs = 0,
             timeoutHandled = false,
             planechase = planechase.newTurn(),
             radDue = if (magic) mates(next).filter { checked[it].counters.rad > 0 && !checked[it].eliminated } else emptyList(),
-            acted = if (profile.cooperative) acted + team else acted,
-        ).bump().closeRound().doomPassed(holder + 1, nowMs)
-    }
-
-    /**
-     * Cooperative games have no fixed order: the next player clockwise after [index] still to go
-     * this round ([done] have gone), or once everyone has, the next player clockwise.
-     */
-    private fun nextUp(index: Int, done: Set<Int>): Int? = (1..players.size)
-        .map { (index + it) % players.size }
-        .firstOrNull { !players[it].eliminated && it !in done } ?: nextIn(index)
-        ?: index.takeIf { !players[it].eliminated }
-
-    private fun canStageNextTurn(index: Int): Boolean = profile.cooperative && playing &&
-        index in players.indices && !players[index].eliminated && index !in acted && index != active
-
-    /** Validated for rendering, recovery and every path that advances a turn. */
-    val stagedNextTurn: Int? get() = nextTurn?.takeIf { canStageNextTurn(it) }
-
-    /** Stage one recipient without touching clocks or stats; selecting them again cancels. */
-    fun stageNextTurn(index: Int): StandaloneGame {
-        if (state != TableState.RUNNING || !canStageNextTurn(index)) return this
-        return copy(nextTurn = index.takeUnless { it == stagedNextTurn }).bump()
-    }
-
-    /** Cooperative games: once every living player has taken a turn, the next round starts with nobody done. */
-    private fun closeRound(): StandaloneGame {
-        if (!profile.cooperative) return this
-        val living = players.indices.filter { !players[it].eliminated }
-        return if (com.turnhub.android.domain.DeathMayDie.roundOver(acted, living)) copy(acted = emptySet(), round = round + 1) else this
+        ).bump().doomPassed(holder + 1, nowMs)
     }
 
     /** Pauses a running game, or resumes a paused one. */
@@ -582,11 +482,6 @@ data class StandaloneGame(
             if (prizes == player.life) return this
             val taken = update(index) { it.copy(life = prizes) }
             return if (prizes == 0) taken.finish(listOf(index), nowMs) else taken
-        }
-        // Death May Die counts wounds up from 0 to the sixth, which kills: the table confirms the death.
-        if (deathMayDie) {
-            val wounds = (player.life + delta).coerceIn(0, com.turnhub.android.domain.DeathMayDie.DEATH_WOUNDS)
-            return if (wounds == player.life) this else update(index) { it.copy(life = wounds) }
         }
         // Lorcana counts lore up: reaching the goal wins at once.
         if (lorcana) {
@@ -633,10 +528,10 @@ data class StandaloneGame(
         return if (!playing || !magic || next == dayNight) this else copy(dayNight = next).bump()
     }
 
-    /** A card reverses turn order, or a later one (or a correction) sets it back. Not in cooperative games, which choose who goes next. */
+    /** A card reverses turn order, or a later one (or a correction) sets it back. */
     fun setTurnOrderReversed(on: Boolean): StandaloneGame {
         if (GameRuleRuntime.shared(this)) return core("setTurnOrderReversed", "on" to on)
-        return if (!playing || profile.cooperative || on == turnOrderReversed) this else copy(turnOrderReversed = on).bump()
+        return if (!playing || on == turnOrderReversed) this else copy(turnOrderReversed = on).bump()
     }
 
     fun claimMonarch(index: Int): StandaloneGame {
@@ -650,33 +545,6 @@ data class StandaloneGame(
         if (GameRuleRuntime.shared(this)) return core("changeCounter", "index" to index, "kind" to kind, "value" to value, "commander" to commander, "nowMs" to nowMs)
         val player = players.getOrNull(index) ?: return this
         if (pokemon || lorcana) return markTurn(index, kind, value)
-        if (deathMayDie) return when (kind) {
-            TAKE_TURN_KIND -> stageNextTurn(index)
-            INSANITY_KIND -> {
-                if (!playing || player.eliminated || value == 0) this
-                else {
-                    val next = player.dashboard.changeInsanity(value)
-                    if (next == player.dashboard) this else update(index) { it.copy(dashboard = next) }
-                }
-            }
-            SKILL_KIND -> {
-                val slot = commander - 1
-                if (!playing || player.eliminated || slot !in player.dashboard.skills(player.investigator).indices || value !in 1..4 || player.dashboard.skillLevels.getOrElse(slot) { 1 } == value) this
-                else update(index) { it.copy(dashboard = it.dashboard.copy(
-                    skillLevels = it.dashboard.skills(it.investigator).indices.map { i -> if (i == slot) value else it.dashboard.skillLevels.getOrElse(i) { 1 } })) }
-            }
-            FIRE_KIND -> {
-                val fire = (player.dashboard.fire + value).coerceIn(0, com.turnhub.android.domain.InvestigatorDashboard.MAX_FIRE)
-                if (!playing || player.eliminated || value == 0 || fire == player.dashboard.fire) this
-                else update(index) { it.copy(dashboard = it.dashboard.copy(fire = fire)) }
-            }
-            STRESS_KIND -> {
-                val stress = (player.stress + value).coerceIn(0, com.turnhub.android.domain.DeathMayDie.MAX_STRESS)
-                if (!playing || player.eliminated || value == 0 || stress == player.stress) this
-                else update(index) { it.copy(stress = stress) }
-            }
-            else -> this
-        }
         if (!playing || player.eliminated || !magic) return this
         if (kind == RAD_KIND) return resolveRad(index, value, nowMs)
         if (kind == "initiative") {
@@ -774,16 +642,16 @@ data class StandaloneGame(
         // Teammates leave together.
         val leaving = mates(index).filter { !players[it].eliminated }
         val out = players.count { it.eliminated } + 1
-        var game = copy(nextTurn = nextTurn.takeUnless { it in leaving }, players = players.mapIndexed { i, p ->
+        var game = copy(players = players.mapIndexed { i, p ->
             if (i in leaving) p.copy(eliminated = true, conceded = conceded, outOrder = out, eliminatedBy = eliminatedBy, selfEliminated = self) else p
         }).bump().passStatuses(leaving).doomLeft(eliminatedBy?.plus(1) ?: 0)
         if (game.players.none { it.eliminationPending }) game.decided()?.let { return game.finish(it, nowMs) }
         if (active in leaving) {
-            val next = game.stagedNextTurn ?: (if (profile.cooperative) game.nextUp(leaving.last(), acted) else game.nextAfter(leaving)) ?: return game
-            game = game.copy(active = next, nextTurn = null, turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false,
+            val next = game.nextAfter(leaving) ?: return game
+            game = game.copy(active = next, turnStartedAtElapsedMs = game.gameElapsedMs(nowMs), turnExtensionMs = 0, timeoutHandled = false,
                 planechase = game.planechase.newTurn())
         }
-        return game.closeRound()
+        return game
     }
 
     fun setAutoEliminateAtZeroLife(enabled: Boolean, nowMs: Long): StandaloneGame {
@@ -803,7 +671,7 @@ data class StandaloneGame(
         if (targets.isEmpty()) return this
         var out = players.count { it.eliminated }
         var game = copy(players = players.mapIndexed { i, p ->
-            if (i in targets) p.copy(eliminated = true, conceded = false, outOrder = ++out, eliminationPending = askEliminationSource && !profile.cooperative) else p
+            if (i in targets) p.copy(eliminated = true, conceded = false, outOrder = ++out, eliminationPending = askEliminationSource) else p
         }).passStatuses(targets).bump().doomLeft()
         if (game.players.none { it.eliminationPending }) game.decided()?.let { return game.finish(it, nowMs) }
         if (active in targets) {
@@ -850,14 +718,13 @@ data class StandaloneGame(
         }
 
     /**
-     * A claim from a player's own device. Cooperative games, and a table where nobody else is
-     * left to ask, win at once; otherwise the others confirm one at a time ([answerWinClaim]).
+     * A claim from a player's own device. A table where nobody else is
+     * left to ask wins at once; otherwise the others confirm one at a time ([answerWinClaim]).
      */
     fun requestWin(index: Int, nowMs: Long): StandaloneGame {
         if (GameRuleRuntime.shared(this)) return core("requestWin", "index" to index, "nowMs" to nowMs)
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated || openWinClaim != null || doomBag.pending || players.any { it.eliminationPending }) return this
-        if (profile.cooperative) return claimWin(index, nowMs)
         val asked = copy(winClaim = index, winConfirmed = emptySet())
         return if (asked.winConfirmer == null) claimWin(index, nowMs) else asked.bump()
     }
@@ -874,14 +741,12 @@ data class StandaloneGame(
 
     /**
      * The table agreed this player won (the claim is armed on the panel, so one tap can't end a game).
-     * In a cooperative game every player wins together, the fallen too.
      */
     fun claimWin(index: Int, nowMs: Long): StandaloneGame {
         if (GameRuleRuntime.shared(this)) return core("claimWin", "index" to index, "nowMs" to nowMs)
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated || doomBag.pending || players.any { it.eliminationPending }) return this
         return finish(when {
-            profile.cooperative -> players.indices.toList()
             // CR 809.5a: the team wins together, its fallen generals too.
             emperor && players.size == Emperor.PLAYERS -> Emperor.teamSeats(Emperor.team(index))
             else -> listOf(index)
@@ -894,13 +759,10 @@ data class StandaloneGame(
         return if (!playing) this else finish(emptyList(), nowMs)
     }
 
-    /** The same players play again; Death May Die returns to setup for fresh card assignments. */
+    /** The same players play again. */
     fun rematch(nowMs: Long, gameId: String, random: Random = Random.Default, planarDeck: List<PlanarCard> = emptyList()): StandaloneGame {
         if (GameRuleRuntime.shared(this)) return core("rematch", "nowMs" to nowMs, "gameId" to gameId, "planarDeck" to planarCards(planarDeck), random = random)
         if (state != TableState.GAME_OVER) return this
-        if (deathMayDie) return reset().let { setup ->
-            setup.copy(players = setup.players.map { it.copy(dashboard = it.dashboard.fresh(clearCards = true)) })
-        }
         return start(nowMs, gameId, random, planarDeck)
     }
 
@@ -915,49 +777,6 @@ data class StandaloneGame(
         if (state != TableState.GAME_OVER || !star || players.size != StarCommander.PLAYERS) return this
         val reseated = SEAN_MODE_ORDER.map { players[it] }
         return copy(players = reseated, starter = null).start(nowMs, gameId, random, planarDeck)
-    }
-
-    // --- Death May Die's Elder One -----------------------------------------------------
-
-    /** The Elder One or episode the table plays, in setup or during the game; blank clears it. */
-    fun setElderOne(name: String?): StandaloneGame = editElder(setup = true) { it.withElderOne(name) }
-
-    fun setEpisode(name: String?): StandaloneGame = editElder(setup = true) { it.withEpisode(name) }
-
-    /** Episode tokens: named in setup or during the game, counted during it. */
-    fun nameEpisodeToken(name: String): StandaloneGame = editElder(setup = true) { it.withToken(name) }
-
-    fun removeEpisodeToken(index: Int): StandaloneGame = editElder(setup = true) { it.withoutToken(index) }
-
-    fun changeEpisodeToken(index: Int, delta: Int): StandaloneGame = editElder(setup = false) { it.token(index, delta) }
-
-    /** Minions and episode monsters: placed in setup or during the game, wounded during it. */
-    fun addEnemy(card: com.turnhub.android.domain.EnemyCard): StandaloneGame = editElder(setup = true) { it.withEnemy(card) }
-
-    fun removeEnemy(index: Int): StandaloneGame = editElder(setup = true) { it.withoutEnemy(index) }
-
-    fun woundEnemy(index: Int, delta: Int): StandaloneGame = editElder(setup = false) { it.woundEnemy(index, delta) }
-
-    /**
-     * A change to the Story board during the game ([ElderOneTrack]). The Progression token
-     * reaching the last space loses the game; defeating the Final stage is [killElderOne].
-     */
-    fun changeElder(nowMs: Long, change: (ElderOneTrack) -> ElderOneTrack): StandaloneGame {
-        val next = editElder(setup = false, change)
-        return if (next !== this && next.elder.dominates) next.finish(emptyList(), nowMs) else next
-    }
-
-    /** The Final stage is defeated: the investigators win together. */
-    fun killElderOne(nowMs: Long): StandaloneGame {
-        if (!deathMayDie || !playing || !elder.vulnerable || elder.stage < ElderOneTrack.FINAL_STAGE ||
-            doomBag.pending || players.any { it.eliminationPending }) return this
-        return finish(players.indices.toList(), nowMs)
-    }
-
-    private fun editElder(setup: Boolean, change: (ElderOneTrack) -> ElderOneTrack): StandaloneGame {
-        if (!deathMayDie || state == TableState.GAME_OVER || (!setup && !playing)) return this
-        val next = change(elder)
-        return if (next == elder) this else copy(elder = next).bump()
     }
 
     // --- Pokémon and Lorcana -----------------------------------------------------------
@@ -1131,84 +950,11 @@ data class StandaloneGame(
         return update(index) { it.copy(commander = clean, commanderArt = printing, cardOnly = only) }
     }
 
-    /**
-     * Death May Die: names (or clears, when blank) the investigator [index] plays. Each
-     * investigator has one figure and dashboard, so two players can't share one.
-     */
-    fun setInvestigator(index: Int, name: String?): StandaloneGame {
-        if (index !in players.indices || state == TableState.GAME_OVER) return this
-        val clean = name?.trim()?.take(MAX_NAME)?.takeIf { it.isNotEmpty() }
-        if (players[index].investigator == clean) return this
-        if (clean != null && players.withIndex().any { (i, p) -> i != index && p.investigator.equals(clean, ignoreCase = true) }) return this
-        return update(index) { it.copy(investigator = clean, dashboard = com.turnhub.android.domain.InvestigatorDashboard()) }
-    }
-
-    /** Optional rules are chosen in setup; disabling relics discards their assignments. */
-    fun setUseRelics(on: Boolean): StandaloneGame {
-        if (!deathMayDie || state != TableState.LOBBY || useRelics == on) return this
-        return copy(useRelics = on, players = if (on) players else players.map {
-            it.copy(dashboard = it.dashboard.copy(relic = null, cardOffers = it.dashboard.cardOffers - InvestigatorCardSlot.RELIC))
-        }).bump()
-    }
-
-    fun setDrawTwoCards(on: Boolean): StandaloneGame {
-        if (!deathMayDie || state != TableState.LOBBY || drawTwoCards == on) return this
-        return copy(drawTwoCards = on).bump()
-    }
-
-    /** A pair is reserved once per slot for this match, including its unchosen card. */
-    fun dealInvestigatorCards(index: Int, slot: InvestigatorCardSlot, random: Random = Random.Default): StandaloneGame {
-        val player = players.getOrNull(index) ?: return this
-        if (!deathMayDie || state != TableState.LOBBY || !drawTwoCards ||
-            (slot == InvestigatorCardSlot.RELIC && !useRelics) || player.dashboard.cardOffers.containsKey(slot)) return this
-        val reserved = players.flatMap { p -> p.dashboard.cardOffers.values.flatten() +
-            InvestigatorCardSlot.entries.mapNotNull { p.dashboard.card(it)?.catalogueId } }.toSet()
-        val pool = com.turnhub.android.domain.InvestigatorCardCatalogue.all.filter { it.slot == slot && it.id !in reserved }
-        if (pool.size < 2) return this
-        val pair = pool.shuffled(random).take(2).map { it.id }
-        return update(index) { it.copy(dashboard = it.dashboard.copy(cardOffers = it.dashboard.cardOffers + (slot to pair))) }
-    }
-
-    /** Assigns or corrects one match card without applying its printed effects. */
-    fun setInvestigatorCard(index: Int, slot: InvestigatorCardSlot, card: InvestigatorCard?): StandaloneGame {
-        val player = players.getOrNull(index) ?: return this
-        if (!deathMayDie || (state != TableState.LOBBY && !playing) || player.eliminated) return this
-        if (slot == InvestigatorCardSlot.RELIC && !useRelics) return this
-        val clean = card?.normalized(slot)
-        if (card != null && clean == null) return this
-        if (clean?.catalogueId?.let { com.turnhub.android.domain.InvestigatorCardCatalogue.find(it)?.slot != slot } == true) return this
-        if (player.dashboard.card(slot) == clean) return this
-        val board = when (slot) {
-            InvestigatorCardSlot.SANITY_CONDITION -> player.dashboard.copy(sanityCondition = clean)
-            InvestigatorCardSlot.RELIC -> player.dashboard.copy(relic = clean)
-        }
-        return update(index) { it.copy(dashboard = board) }
-    }
-
-    /** Reference edits do not move any markers or apply a skill's effects. */
-    fun setInvestigatorSkills(index: Int, skills: List<com.turnhub.android.domain.InvestigatorSkill>): StandaloneGame {
-        val player = players.getOrNull(index) ?: return this
-        if (!deathMayDie || state == TableState.GAME_OVER || player.eliminated || skills.size !in 3..com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILLS ||
-            skills.any { it.name.isBlank() || it.name.length > com.turnhub.android.domain.InvestigatorDashboard.MAX_SKILL_NAME ||
-                it.levels.size != 4 || it.levels.any { text -> text.length > com.turnhub.android.domain.InvestigatorDashboard.MAX_LEVEL_TEXT } }) return this
-        val clean = skills.map { it.copy(name = it.name.trim()) }
-        if (clean.map { it.name.lowercase(java.util.Locale.ROOT) }.distinct().size != clean.size) return this
-        val previous = player.dashboard.skills(player.investigator)
-        if (clean == previous) return this
-        val levels = clean.mapIndexed { slot, skill ->
-            val match = previous.indexOfFirst { it.name.equals(skill.name, ignoreCase = true) }
-            val old = if (slot < 3 || (match < 0 && clean.size == previous.size)) slot else match
-            if (old >= 0) player.dashboard.skillLevels.getOrElse(old) { 1 } else 1
-        }
-        return update(index) { it.copy(dashboard = it.dashboard.copy(customSkills = clean, skillLevels = levels)) }
-    }
-
     private fun finish(winners: List<Int>, nowMs: Long): StandaloneGame = copy(
         state = TableState.GAME_OVER,
         winClaim = null,
         winConfirmed = emptySet(),
         doomBag = doomBag.copy(pending = false, pendingTurn = 0, selected = 0, sealed = false),
-        nextTurn = null,
         winner = winners.firstOrNull(),
         winners = winners,
         elapsedMs = gameElapsedMs(nowMs),
@@ -1235,11 +981,6 @@ data class StandaloneGame(
      */
     private fun decided(): List<Int>? {
         val standing = players.indices.filter { !players[it].eliminated }
-        // Together to the end: the game is lost once nobody is left (or the table says so). In
-        // Death May Die an investigator lost while the Elder One is still on the Summoning track
-        // loses the game too, once the table tracks the Elder One in the app.
-        if (deathMayDie && elder.inUse && !elder.summoned && standing.size < players.size) return emptyList()
-        if (profile.cooperative) return if (standing.isEmpty()) emptyList() else null
         if (star && players.size == StarCommander.PLAYERS) {
             return StarCommander.winners(players.map { it.eliminated }).takeIf { it.isNotEmpty() || standing.isEmpty() }
         }
@@ -1292,13 +1033,10 @@ data class StandaloneGame(
             winner = winner,
             winners = winners,
             twoHeadedGiant = twoHeadedGiant,
-            elderOne = elder.elderOne.takeIf { deathMayDie },
-            episode = elder.episode.takeIf { deathMayDie },
             players = players.mapIndexed { i, p ->
                 GameRecord.Player(
                     name = p.name,
                     guest = p.guest,
-                    investigator = p.investigator.takeIf { deathMayDie },
                     localId = p.localId,
                     profileId = p.profileId,
                     finalLife = p.life,
@@ -1390,10 +1128,6 @@ data class StandaloneGame(
             host = null,
             starterPlayerNumber = starter?.plus(1),
             activePlayerNumber = active?.plus(1),
-            passPlayerNumbers = cooperativePassTargets(),
-            nextTurnPlayerNumber = stagedNextTurn?.plus(1),
-            useRelics = useRelics,
-            drawTwoCards = drawTwoCards,
             winnerPlayerNumber = winner?.plus(1),
             winnerPlayerNumbers = winners.map { it + 1 },
             monarchPlayerNumber = monarch?.plus(1),
@@ -1429,10 +1163,6 @@ data class StandaloneGame(
                     commanderArt = p.commanderArt,
                     cardOnly = p.cardOnly || !profile.commanderRules,
                     turn = p.turn,
-                    investigator = p.investigator,
-                    stress = p.stress,
-                    dashboard = p.dashboard,
-                    actedThisRound = profile.cooperative && i in acted,
                     life = if (state == TableState.LOBBY) null else p.life,
                     turnsCompleted = p.turnsCompleted.toLong(),
                     commanderDamage = p.commanderDamage.map { (source, damage) -> CommanderDamage(source + 1, damage) },
@@ -1446,8 +1176,6 @@ data class StandaloneGame(
             physicalSigils = emptyList(),
             pokemonCheckup = pokemonCheckup,
             radDuePlayerNumbers = if (state == TableState.RUNNING || state == TableState.PAUSED) radDue.map { it + 1 } else emptyList(),
-            round = round.takeIf { profile.cooperative && state != TableState.LOBBY },
-            elder = elder.takeIf { deathMayDie },
         )
     }
 
@@ -1474,8 +1202,6 @@ data class StandaloneGame(
             GameProfile.YUGIOH -> 8000
             GameProfile.POKEMON -> 6
             GameProfile.LORCANA -> 20
-            // Unused: wounds count up from 0.
-            GameProfile.DEATH_MAY_DIE -> 1
             else -> 20
         }
 
@@ -1487,18 +1213,11 @@ data class StandaloneGame(
         /** Counter kinds for once-per-turn actions and Pokémon's Special Conditions ([TurnAction], [SpecialCondition] names follow). */
         const val ACTION_KIND = "turn-action:"
         const val CONDITION_KIND = "pokemon-condition:"
-        /** Counter kind for staging a cooperative game's next turn ([stageNextTurn]). */
-        const val TAKE_TURN_KIND = "take-turn"
         /** Resolves the turn's rad trigger; the value is how many milled cards were nonlands. */
         const val RAD_KIND = "rad-resolve"
         /** The counters the game menu can give every player at once. */
         val EVERYONE_COUNTERS = listOf("poison", "energy", "experience", "treasure", "rad")
         const val EVERYONE_PREFIX = "everyone:"
-        /** Counter kind for Death May Die's stress tokens. */
-        const val STRESS_KIND = "stress"
-        const val FIRE_KIND = "fire"
-        const val INSANITY_KIND = "insanity"
-        const val SKILL_KIND = "investigator-skill"
 
         private const val SOLO_POISON = 10
         private const val TEAM_POISON = 15

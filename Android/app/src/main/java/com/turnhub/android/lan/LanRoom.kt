@@ -67,12 +67,11 @@ internal class LanRoom(
             val name = when (role) {
                 "display", "table" -> "Public table display"
                 "planes" -> "Planes display"
-                "elder" -> "Elder One display"
                 else -> m.optString("name").takeIf { it.isNotBlank() }?.let { "$it's screen" } ?: "Player screen"
             }
             targets.put(JSONObject().put("id", id).put("name", name)
                 .put("detail", friendlyDisplayDevice(m.optString("deviceName")))
-                .put("public", role in setOf("display", "table", "planes", "elder"))
+                .put("public", role in setOf("display", "table", "planes"))
                 .put("view", displayView(id))
                 .put("upright", displayAllUpright(id)))
         }
@@ -138,7 +137,7 @@ internal class LanRoom(
                     }
                     "presentation" -> commandLock.withLock {
                         if (member(m.text("token")) == null) reply("unauthorized")
-                        else if (m.text("role") !in setOf("player", "investigator", "table") && !m.optBoolean("master") &&
+                        else if (m.text("role") !in setOf("player", "table") && !m.optBoolean("master") &&
                             !(r.has("displayView") && !r.has("displayAllUpright") && r.optString("displayTarget") == m.text("joinId") &&
                                 m.text("role") in setOf("display", "planes"))) frame("forbidden", m)
                         else {
@@ -171,8 +170,8 @@ internal class LanRoom(
             return frame("ok", it).put("token", it.text("token"))
         }
         if (members.length() >= 16) return reply("full")
-        val role = r.text("role").also { require(it in setOf("player", "investigator", "display", "table", "planes", "elder")) }
-        val identity = if (role in setOf("player", "investigator")) {
+        val role = r.text("role").also { require(it in setOf("player", "display", "table", "planes")) }
+        val identity = if (role == "player") {
             // PIN/profile authorization is performed once here, never on poll/reconnect.
             attach(r) ?: run { failures.addLast(now()); return reply(r.optString("_attachError", "pin-required")) }
         } else ""
@@ -208,7 +207,7 @@ internal class LanRoom(
             if (m.text("role") == "player" && isPlanarRollKind(kind) && !planarRollAllowed(own)) return frame("forbidden", m)
             if (!privileged && !(planesAvailable() && (table ||
                     m.text("role") == "player" && own > 0 && planarPlayerAllowed(own)))) return frame("forbidden", m)
-        } else if (target <= 0 || !table && !privileged && m.text("role") !in setOf("player", "investigator")) return frame("forbidden", m)
+        } else if (target <= 0 || !table && !privileged && m.text("role") != "player") return frame("forbidden", m)
         if (seats().none { it.number == target } && !kind.startsWith(PLANAR_KIND)) return frame("stale", m)
         if (ledger.size >= 2048) {
             val generation = m.optLong("commandGeneration")

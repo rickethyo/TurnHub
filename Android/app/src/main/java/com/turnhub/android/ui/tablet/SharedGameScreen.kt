@@ -53,9 +53,6 @@ import androidx.core.content.ContextCompat
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.MultiFormatWriter
-import com.turnhub.android.domain.DeathMayDie
-import com.turnhub.android.domain.InvestigatorCard
-import com.turnhub.android.domain.InvestigatorDashboard
 import com.turnhub.android.lan.RoomProfile
 import com.turnhub.android.lan.LanUiState
 import com.turnhub.android.lan.LanViewModel
@@ -74,16 +71,13 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
     var invitation by remember { mutableStateOf("") }
     var scanning by remember { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
-    // An investigator device can look at the Elder One board and back; the session, its seat and
-    // any pending retry stay as they are (owner, 2026-10-20).
-    val elderView = state.view == "elder"
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { scanning = it }
     fun close() { if (!state.busy) { if (state.joined) confirmLeave = true else onClose() } }
     fun scan() {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) scanning = true
         else camera.launch(Manifest.permission.CAMERA)
     }
-    if (state.remote?.profile?.let { !it.deathMayDie } == true || state.remote != null && !elderView && (state.role in setOf("display", "table", "planes") || state.view == "table")) {
+    if (state.remote != null) {
         SharedTcgRemote(state, model, reduceMotion) { model.leave(); onClose() }
         return
     }
@@ -97,29 +91,14 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
                 ToneButton("Leave room", { model.leave(); onClose() })
                 return@Column
             }
-            val remote = state.remote
             val host = state.host
             when {
                 host != null -> SharedHero(
                     eyebrow = "Play together · Hosting", title = sharedGameTitle(local),
-                    subtitle = local.elder.episode?.takeIf { local.profile.deathMayDie }?.let { "Episode · $it" } ?: "This device owns the game",
+                    subtitle = "This device owns the game",
                     mood = LinkMood.LIVE, reduceMotion = reduceMotion) {
                     StatusBadge(host.code?.let { "Join code $it" } ?: "Joining by QR only", Tone.GOOD)
                     StatusBadge(when (state.guests.size) { 0 -> "No devices yet"; 1 -> "1 device joined"; else -> "${state.guests.size} devices joined" })
-                }
-                remote != null -> {
-                    val player = remote.players.getOrNull(state.player - 1)
-                    SharedHero(
-                        eyebrow = if (state.role == "elder") "Shared game · Elder One display" else "Shared game · Investigator",
-                        title = if (state.role == "elder") remote.elder.elderOne ?: "Death May Die" else player?.let { it.investigator ?: it.name } ?: "Investigator",
-                        subtitle = if (state.role == "elder") remote.elder.episode?.let { "Episode · $it" } ?: "Markers are controlled by the host"
-                            else player?.let { "Played by ${it.name}" } ?: "",
-                        mood = if (state.online) LinkMood.LIVE else LinkMood.LOST, reduceMotion = reduceMotion) {
-                        StatusBadge(if (state.online) "Connected to host" else "Disconnected · last known state",
-                            if (state.online) Tone.GOOD else Tone.WARN,
-                            Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-                        StatusBadge(gameStatus(remote), if (remote.state == TableState.GAME_OVER) { if (remote.winners.isEmpty()) Tone.BAD else Tone.GOOD } else Tone.NEUTRAL)
-                    }
                 }
                 else -> SharedHero(
                     eyebrow = "Play together · Same Wi-Fi", title = "Host or join a game",
@@ -133,17 +112,6 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
             state.message?.let { Notice(it, p.warn, Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
             when {
                 host != null -> HostingPanel(state, local, model)
-                remote != null -> {
-                    if (state.uncertain && !state.busy) Notice("The host hasn't confirmed your last action. Retry it to find out whether it was saved.", p.warn) {
-                        ToneButton("Retry last action", { requestNetwork(model::retry) }, Modifier.fillMaxWidth(), tone = Tone.WARN, enabled = !state.busy)
-                    }
-                    ToneButton("Table view", { model.chooseView("table") })
-                    if (state.role in setOf("player", "investigator")) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ViewChoice("My investigator", !elderView, Modifier.weight(1f)) { model.chooseView("personal") }
-                        ViewChoice("Elder One · read only", elderView, Modifier.weight(1f)) { model.chooseView("elder") }
-                    }
-                    if (state.role in setOf("elder", "display", "planes") || elderView) ElderOneDisplay(remote, reduceMotion) else InvestigatorRemote(state, model)
-                }
                 else -> {
                     val hostable = local.profile.lanSupported
                     val (qrOnly, setQrOnly) = rememberLanQrOnly()
@@ -189,21 +157,6 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
             "The game and its history remain on the host. Your separate local game is unchanged.") },
         confirmButton = { ToneButton("Leave", { model.leave(); confirmLeave = false; onClose() }) },
         dismissButton = { ToneButton("Stay", { confirmLeave = false }) })
-}
-
-/** One of the investigator device's two views; the chosen one is filled and says so to TalkBack. */
-@Composable
-private fun ViewChoice(label: String, chosen: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val m = modifier.semantics { selected = chosen }
-    if (chosen) AccentButton(label, onClick, m) else ToneButton(label, onClick, m)
-}
-
-private fun gameStatus(game: StandaloneGame) = when (game.state) {
-    TableState.GAME_OVER -> if (game.winners.isEmpty()) "The investigators lost" else "The investigators won"
-    TableState.LOBBY -> "In the lobby"
-    TableState.PAUSED -> "Round ${game.round} · Paused"
-    TableState.RUNNING -> "Round ${game.round}"
-    else -> "Round ${game.round} · ${game.state.name.lowercase().replace('_', ' ')}"
 }
 
 private enum class LinkMood { IDLE, LIVE, LOST }
@@ -284,14 +237,12 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
                 "table" -> "Shared table controls"
                 "display" -> "Table display"
                 "planes" -> "Planes display"
-                "elder" -> "Elder One display"
                 else -> person
             }
             val detail = when (guest.role) {
                 "table" -> "Normal gameplay controls for every player"
                 "display" -> "Read-only table view"
                 "planes" -> "Face-up plane and planar die"
-                "elder" -> "Track, ritual and stages"
                 else -> if (guest.player == 0) "Waiting for the next game" else "Personal player screen"
             }
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.inset).padding(12.dp),
@@ -299,7 +250,6 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     when (guest.role) {
                         "planes" -> PlanesMark(40.dp)
-                        "elder" -> ElderSigil(40.dp)
                         else -> PlayerAvatar(person, guest.player, null, size = 40.dp)
                     }
                     Column(Modifier.weight(1f)) {
@@ -389,8 +339,6 @@ private fun RoomPicker(state: LanUiState, model: LanViewModel, requestNetwork: (
         OutlinedTextField(value = newName, onValueChange = { newName = it.take(32) }, label = { Text("New player name") },
             singleLine = true, modifier = Modifier.fillMaxWidth())
         ToneButton("Join as a new player", { requestNetwork { model.joinNewProfile(newName) } }, enabled = !state.busy && newName.isNotBlank())
-        if (state.preview?.profile?.deathMayDie == true) SeatRow({ ElderSigil(44.dp) }, "Elder One display",
-            "Read only · track, ritual and stages", !state.busy) { requestNetwork { model.join("elder", 0) } }
         Text("Your profiles on this device", color = p.muted)
         model.savedPlayers().forEach { player ->
             SeatRow({ PlayerAvatar(player.name, 1, null) }, player.name, "Bring your profile into this room", !state.busy) {
@@ -453,213 +401,6 @@ private fun PlanesMark(size: androidx.compose.ui.unit.Dp) {
         .border(2.dp, p.accent.copy(alpha = .7f), CircleShape).clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
         androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(com.turnhub.android.ui.theme.DesignTokens.Icons.cards),
             contentDescription = null, tint = p.accent, modifier = Modifier.size(size * .5f))
-    }
-}
-
-/** A small seven-pointed summoning star standing in for the Elder One's avatar. Decorative. */
-@Composable
-private fun ElderSigil(size: androidx.compose.ui.unit.Dp) {
-    val p = palette
-    Box(Modifier.size(size).clip(CircleShape).background(Brush.radialGradient(listOf(p.surface3, p.inset)))
-        .border(2.dp, p.bad.copy(alpha = .7f), CircleShape).clearAndSetSemantics { }) {
-        Canvas(Modifier.matchParentSize()) {
-            val c = center
-            val r = this.size.minDimension * .34f
-            val points = (0 until 7).map { i ->
-                val a = Math.toRadians(i * 360.0 / 7 - 90).toFloat()
-                Offset(c.x + r * kotlin.math.cos(a), c.y + r * kotlin.math.sin(a))
-            }
-            points.indices.forEach { i -> drawLine(p.bad, points[i], points[(i + 3) % 7], 1.5.dp.toPx()) }
-            drawCircle(p.bad, r * .22f, c)
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun InvestigatorRemote(state: LanUiState, model: LanViewModel) {
-    val p = palette
-    val game = state.remote ?: return
-    val seat = state.player - 1
-    val player = game.players.getOrNull(seat) ?: return
-    val board = player.dashboard
-    val enabled = state.online && !state.busy && !state.uncertain && !player.eliminated &&
-        game.state in listOf(TableState.RUNNING, TableState.PAUSED)
-    InvestigatorPortrait(player)
-    if (game.state == TableState.LOBBY) Notice("You're in. Your controls unlock when the host starts the game.", p.info,
-        title = "Waiting for the host to start")
-    else {
-        TurnCard(game, seat, player, enabled, model)
-        GuestPauseButton(game.state, enabled, model, Modifier.fillMaxWidth())
-    }
-    val dying = player.life >= DeathMayDie.DEATH_WOUNDS || board.insanity >= InvestigatorDashboard.MAX_INSANITY
-    if (dying && !player.eliminated) Notice(
-        if (player.life >= DeathMayDie.DEATH_WOUNDS) "Six wounds. Confirm the death, or remove a wound if it was a mistake. The host removes this investigator, which can end the game."
-        else "Consumed by madness. Confirm the death, or correct insanity if it was a mistake. The host removes this investigator, which can end the game.",
-        p.bad, Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
-        title = "☠ ${player.investigator ?: player.name} dies") {
-        if (enabled) ArmedButton("Confirm investigator death", "Tap again: ${player.investigator ?: player.name} is out", Tone.BAD) { model.act("eliminate") }
-    } else if (board.pendingLevelUps > 0) ThresholdAlert(player.investigator ?: player.name, board, board.skills(player.investigator), enabled) { slot, level ->
-        model.act("skill", level, slot + 1)
-    }
-    BrassCard {
-        Eyebrow("Tracks")
-        // Two tiles a row where they fit with room for − and +; one a row on a phone's cover screen.
-        BoxWithConstraints(Modifier.fillMaxWidth()) { FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp), maxItemsInEachRow = if (maxWidth < 480.dp) 1 else 2) {
-            val tile = Modifier.weight(1f).fillMaxRowHeight()
-            TrackTile("🩸 Wounds", "wound", player.life, DeathMayDie.DEATH_WOUNDS, p.bad, enabled, tile) { model.act("wounds", it) }
-            TrackTile("⚡ Stress", "stress", player.stress, DeathMayDie.MAX_STRESS, p.info, enabled, tile) { model.act("stress", it) }
-            // The End of Turn reminder sits under the Fire track it belongs to (owner, 2026-10-20).
-            TrackTile("🔥 Fire", "fire token", board.fire, InvestigatorDashboard.MAX_FIRE, p.warn, enabled, tile, alarmAtMax = false,
-                caption = if (board.fire > 0) "At End of Turn, roll ${board.fire} black ${if (board.fire == 1) "die" else "dice"}, then discard the fire."
-                    else null) { model.act("fire", it) }
-            TrackTile("🌀 Insanity", "insanity", board.insanity, InvestigatorDashboard.MAX_INSANITY, p.accent, enabled, tile,
-                caption = "Bonus dice +${board.bonusDice}") { model.act("insanity", it) }
-        } }
-    }
-    val skills = board.skills(player.investigator)
-    var correcting by rememberSaveable(player.investigator) { mutableStateOf(false) }
-    if (skills.isNotEmpty()) BrassCard {
-        Eyebrow("Skills")
-        skills.forEachIndexed { index, skill ->
-            val level = board.skillLevels.getOrElse(index) { 1 }
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.inset).padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(skill.name, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f))
-                    StatusBadge("Level $level", Tone.ACCENT)
-                }
-                // Levels rise from the threshold alert; the chips only fix a mistake (owner, 2026-10-20).
-                if (correcting) SkillLevelChips(skill.name, level, enabled) { model.act("skill", it, index + 1) }
-                skill.levels.take(level).forEachIndexed { earlier, rules ->
-                    if (rules.isNotBlank()) Text("${earlier + 1}: $rules", color = p.text, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-        }
-        TextButton({ correcting = !correcting }) { Text(if (correcting) "Done correcting skill levels" else "Correct skill levels") }
-    }
-    board.sanityCondition?.let { CardPanel("🌀 Insanity card", it, p.accent) }
-    board.relic.takeIf { game.useRelics }?.let { CardPanel("✦ Relic", it, p.warn) }
-}
-
-/** Whose turn it is, and this investigator's one turn action, first on the screen. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TurnCard(game: StandaloneGame, seat: Int, player: LocalPlayer, enabled: Boolean, model: LanViewModel) {
-    val p = palette
-    val active = game.active == seat
-    val running = game.state == TableState.RUNNING
-    BrassCard(highlight = if (active && running) p.active else null) {
-        Eyebrow("Turn") {
-            StatusBadge(when {
-                player.eliminated -> "Out"
-                active -> "Your turn"
-                game.stagedNextTurn == seat -> "Up next"
-                seat in game.acted -> "Turn taken"
-                else -> "Still to go"
-            }, when {
-                player.eliminated -> Tone.BAD
-                active -> Tone.ACTIVE
-                seat in game.acted -> Tone.NEUTRAL
-                else -> Tone.INFO
-            })
-        }
-        if (!active) {
-            game.active?.let(game.players::getOrNull)?.let { holder ->
-                Text("${holder.investigator ?: holder.name} is taking their turn.", color = p.text, style = MaterialTheme.typography.bodyLarge)
-            }
-            val canTake = enabled && seat !in game.acted && running
-            if (game.stagedNextTurn == seat) ToneButton("Cancel next turn", { model.act("take-turn") }, Modifier.fillMaxWidth(), enabled = canTake)
-            else AccentButton("Take the next turn", { model.act("take-turn") }, Modifier.fillMaxWidth(), enabled = canTake)
-        } else {
-            Text("When you're done, pass the turn to", color = p.text, style = MaterialTheme.typography.titleMedium)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                game.toSummary(System.currentTimeMillis(), com.turnhub.android.domain.TableClock.nowMs()).passPlayerNumbers.forEach { target ->
-                    val next = game.players[target - 1]
-                    ToneButton(next.investigator ?: next.name, { model.act("pass", target) }, enabled = enabled && running)
-                }
-            }
-        }
-    }
-}
-
-/** One track: its name, the number out of [max], a bar of the same, and − / + either side. */
-@Composable
-private fun TrackTile(name: String, noun: String, value: Int, max: Int, hue: Color, enabled: Boolean, modifier: Modifier,
-    alarmAtMax: Boolean = true, caption: String? = null, onStep: (Int) -> Unit) {
-    val p = palette
-    val full = alarmAtMax && value >= max
-    val shape = RoundedCornerShape(18.dp)
-    Column(modifier.clip(shape).background(Brush.verticalGradient(listOf(hue.copy(alpha = .16f), p.inset)))
-        .border(if (full) 2.dp else 1.dp, if (full) p.bad else hue.copy(alpha = .55f), shape).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            StepButton("−", "Remove a $noun", enabled && value > 0) { onStep(-1) }
-            Column(Modifier.weight(1f).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
-                horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(name.uppercase(), color = p.text, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp), maxLines = 1)
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text("$value", color = if (full) p.bad else p.text, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
-                    Text(" / $max", color = p.muted, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(bottom = 4.dp))
-                }
-            }
-            StepButton("+", "Add a $noun", enabled && value < max) { onStep(1) }
-        }
-        TrackBar(value, max, hue)
-        caption?.let { Text(it, color = p.text, style = MaterialTheme.typography.labelMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.align(Alignment.CenterHorizontally)) }
-    }
-}
-
-/** Pips for short tracks, a filling bar for long ones. Decorative: the number says it. */
-@Composable
-private fun TrackBar(value: Int, max: Int, hue: Color) {
-    val p = palette
-    if (max <= 9) Row(Modifier.fillMaxWidth().clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        (1..max).forEach { i ->
-            Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(if (i <= value) hue else p.line))
-        }
-    } else Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(p.line).clearAndSetSemantics { }) {
-        Box(Modifier.fillMaxWidth(value.toFloat() / max).fillMaxHeight().background(hue))
-    }
-}
-
-@Composable
-private fun CardPanel(slot: String, card: InvestigatorCard, hue: Color) {
-    val p = palette
-    val shape = RoundedCornerShape(22.dp)
-    // The insanity card and the relic each wear their own color and mark, so they're told apart at a glance.
-    Column(Modifier.fillMaxWidth().clip(shape).background(Brush.verticalGradient(listOf(hue.copy(alpha = .22f), p.surface)))
-        .border(2.dp, hue, shape).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(slot.uppercase(), color = hue, style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 1.5.sp), fontWeight = FontWeight.Black,
-            modifier = Modifier.semantics { heading() })
-        Text(card.name, color = p.text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text(card.rules.ifBlank { "Refer to the physical card." }, color = p.text, style = MaterialTheme.typography.bodyMedium)
-        if (card.transformedRules.isNotBlank()) {
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.inset).padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("REVERSE FACE", color = p.muted, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp))
-                Text(card.transformedRules, color = p.text, style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-        InvestigatorCardReferenceButton(card.catalogueId)
-    }
-}
-
-/** The investigator's picture and name at the top of their device, when the wiki has one. */
-@Composable
-private fun InvestigatorPortrait(player: LocalPlayer) {
-    val p = palette
-    val art = rememberInvestigatorArt(player.investigator) ?: return
-    val shape = RoundedCornerShape(22.dp)
-    Box(Modifier.fillMaxWidth().height(220.dp).clip(shape).border(1.dp, p.line, shape)) {
-        Image(art.image, contentDescription = "${art.cardName}, art by ${art.artist}", Modifier.fillMaxSize(),
-            contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = Alignment.TopCenter)
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .7f)))))
-        Text(player.investigator ?: player.name, color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black,
-            modifier = Modifier.align(Alignment.BottomStart).padding(16.dp))
     }
 }
 

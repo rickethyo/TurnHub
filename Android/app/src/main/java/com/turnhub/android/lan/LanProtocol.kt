@@ -86,7 +86,7 @@ internal fun everyoneCounterAction(kind: String, value: Int, slot: Int, source: 
 }
 
 internal val com.turnhub.android.protocol.GameProfile.lanSupported: Boolean
-    get() = deathMayDie || magicRules || this in listOf(com.turnhub.android.protocol.GameProfile.GENERIC, com.turnhub.android.protocol.GameProfile.YUGIOH,
+    get() = magicRules || this in listOf(com.turnhub.android.protocol.GameProfile.GENERIC, com.turnhub.android.protocol.GameProfile.YUGIOH,
         com.turnhub.android.protocol.GameProfile.POKEMON, com.turnhub.android.protocol.GameProfile.LORCANA)
 /** [name] keeps a player's seat when lobby changes move them to another number. */
 internal data class LanGuest(val token: String, val role: String, val player: Int, val name: String? = null, val master: Boolean = false) {

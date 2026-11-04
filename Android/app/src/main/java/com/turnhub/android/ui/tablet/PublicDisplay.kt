@@ -37,7 +37,7 @@ internal fun PublicDisplayScope(state: LanUiState, model: LanViewModel, content:
     var local by remember { mutableStateOf(prefs.getBoolean("display_all_upright", false)) }
     val shared = state.host != null || state.joined
     val enabled = state.host != null || !shared || state.online && !state.busy && !state.uncertain &&
-        (state.role in setOf("player", "investigator", "table") || state.master)
+        (state.role in setOf("player", "table") || state.master)
     val id = if (shared) state.displayId else "local"
     val choice = PublicDisplayChoice(if (shared) state.displayAllUpright else local, enabled, id,
         if (shared) state.displayTargets else listOf(RoomDisplay(id, "This screen", local)),

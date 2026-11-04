@@ -25,9 +25,6 @@ data class GameRecord(
     val twoHeadedGiant: Boolean = false,
     /** Every winner, [winner] first: several share a Star Commander victory. */
     val winners: List<Int> = listOfNotNull(winner),
-    /** Death May Die: the Elder One and episode the table played, when it tracked them. */
-    val elderOne: String? = null,
-    val episode: String? = null,
 ) {
     data class Player(
         val name: String,
@@ -50,8 +47,6 @@ data class GameRecord(
         val commanderBySource: Map<Int, List<Int>> = emptyMap(),
         val demerits: Int = 0,
         val extensionsUsed: Int = 0,
-        /** Death May Die: the investigator this player played. */
-        val investigator: String? = null,
         val guest: Boolean = false,
     )
 
@@ -64,10 +59,6 @@ data class GameRecord(
 
     /** Counted in history and stats without asking: long enough not to be a test game or a wrong setup. */
     fun counted(minimumMs: Long = StandaloneGame.SHORT_GAME_MS): Boolean = durationMs >= minimumMs
-
-    /** Death May Die: "Elder One: Hastur · Episode: …" for the history card; null when neither was tracked. */
-    val storyLine: String? get() = listOfNotNull(elderOne?.let { "Elder One: $it" }, episode?.let { "Episode: $it" })
-        .joinToString(" · ").ifEmpty { null }
 
     /** No winner at all. A shared victory is never a draw. */
     val draw: Boolean get() = winner == null && winners.isEmpty()
@@ -82,13 +73,10 @@ data class GameRecord(
         put("starter", starter ?: JSONObject.NULL)
         put("winner", winner ?: JSONObject.NULL)
         put("winners", JSONArray(winners))
-        elderOne?.let { put("elderOne", it) }
-        episode?.let { put("episode", it) }
         put("players", JSONArray().apply {
             players.forEach { p ->
                 put(JSONObject().apply {
                     put("name", p.name)
-                    p.investigator?.let { put("investigator", it) }
                     put("profileId", p.profileId ?: JSONObject.NULL)
                     put("localId", p.localId ?: JSONObject.NULL)
                     if (p.guest) {
@@ -173,13 +161,10 @@ data class GameRecord(
                 // Records saved before shared victories: the single winner, if any.
                 winners = json.optIntList("winners") ?: listOfNotNull(json.optIntOrNull("winner")),
                 twoHeadedGiant = json.optBoolean("twoHeadedGiant"),
-                elderOne = json.optStoryName("elderOne"),
-                episode = json.optStoryName("episode"),
                 players = (0 until players.length()).map { i ->
                     val p = players.getJSONObject(i)
                     Player(
                         name = p.getString("name"),
-                        investigator = p.optStoryName("investigator"),
                         demerits = p.optInt("demerits"),
                         extensionsUsed = p.optInt("extensionsUsed"),
                         localId = p.optStringOrNull("localId"),
@@ -232,7 +217,3 @@ internal fun JSONObject.optIntList(key: String): List<Int>? =
     if (!has(key) || isNull(key)) null else getJSONArray(key).let { a -> List(a.length()) { a.getInt(it) } }
 
 internal fun JSONObject.optStringOrNull(key: String): String? = if (!has(key) || isNull(key)) null else getString(key)
-
-/** A Death May Die name (Elder One, episode, investigator): trimmed, bounded, blank as none. */
-private fun JSONObject.optStoryName(key: String): String? =
-    optStringOrNull(key)?.trim()?.take(com.turnhub.android.domain.ElderOneTrack.MAX_NAME)?.takeIf { it.isNotEmpty() }

@@ -55,10 +55,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import com.turnhub.android.standalone.StandaloneGame
-import com.turnhub.android.domain.CooperativeTurn
-import com.turnhub.android.domain.InvestigatorCard
-import com.turnhub.android.domain.InvestigatorCardSlot
-import com.turnhub.android.domain.cooperativeTurn
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
@@ -189,8 +185,8 @@ internal fun placements(count: Int): Placement {
 internal fun lifeSteps(profile: GameProfile): Pair<Int, Int> =
     when (profile) {
         GameProfile.YUGIOH -> 100 to 1000
-        // Pokémon counts Prize cards, Lorcana lore and Death May Die wounds, one at a time.
-        GameProfile.POKEMON, GameProfile.LORCANA, GameProfile.DEATH_MAY_DIE -> 1 to 1
+        // Pokémon counts Prize cards and Lorcana lore, one at a time.
+        GameProfile.POKEMON, GameProfile.LORCANA -> 1 to 1
         else -> 1 to 5
     }
 
@@ -226,7 +222,7 @@ internal fun TabletTable(
     controls: (suspend TableControls.() -> Unit) -> Unit,
     reduceMotion: Boolean,
     onClose: () -> Unit,
-    /** Local rule authority: applies local countdowns/cooperative rules; Atlas supplies its own. */
+    /** Local rule authority: applies local countdowns and rules; Atlas supplies its own. */
     standalone: Boolean = false,
     /** Optional full-record caption override; otherwise share the host's finished snapshot. */
     onShareResult: ((android.graphics.Bitmap) -> Unit)? = null,
@@ -253,11 +249,6 @@ internal fun TabletTable(
     // One player's menu at a time, full screen and turned to face that player.
     var playerMenu by remember { mutableStateOf<String?>(null) }
     var manualRemoval by rememberSaveable(summary.bootId, summary.game) { mutableStateOf<Int?>(null) }
-    var passToTurn by remember { mutableStateOf<CooperativeTurn?>(null) }
-    val cooperativeTurn = summary.cooperativeTurn()
-    LaunchedEffect(cooperativeTurn, summary.nextTurnPlayerNumber) {
-        if (passToTurn != cooperativeTurn || summary.nextTurnPlayerNumber != null) passToTurn = null
-    }
     val partners = rememberSaveable(summary.atlasId, summary.bootId, summary.game,
         saver = listSaver<SnapshotStateList<Int>, Int>(save = { it.toList() }, restore = { it.toMutableStateList() })) {
         mutableStateListOf<Int>()
@@ -286,16 +277,14 @@ internal fun TabletTable(
             playerMenu = null
             menuOpen = false
             manualRemoval = null
-            passToTurn = null
             gathering.values.forEach { it.cancel() }
             gathering.clear()
             unsent.clear()
             sent.clear()
         }
     }
-    BackHandler(enabled = passToTurn != null || playerMenu != null || menuOpen || showBag) {
-        if (passToTurn != null) passToTurn = null
-        else if (playerMenu != null || menuOpen) {
+    BackHandler(enabled = playerMenu != null || menuOpen || showBag) {
+        if (playerMenu != null || menuOpen) {
             playerMenu = null
             menuOpen = false
         } else dismissBag()
@@ -310,20 +299,7 @@ internal fun TabletTable(
     fun send(seat: TabletSeat?, action: String) {
         if (readOnly) return
         seat ?: return
-        if (standalone && action == "pass" && current.settings.profile.cooperative) {
-            run {
-                val turn = current.cooperativeTurn()
-                val next = current.nextTurnPlayerNumber
-                if (turn != null && next != null) {
-                    haptics.tick()
-                    controls { passTo(turn, next) }
-                } else passToTurn = turn
-                playerMenu = null
-                menuOpen = false
-            }
-            return
-        }
-        if (standalone && action in listOf("rematch", "sean-mode") && !current.settings.profile.deathMayDie) {
+        if (standalone && action in listOf("rematch", "sean-mode")) {
             pendingStart = seat to action; startCountdown(); return
         }
         haptics.tick()
@@ -363,9 +339,8 @@ internal fun TabletTable(
     }
 
     val allUnits = tableUnits(summary)
-    val soloOffered = !summary.settings.profile.cooperative
     // In one player's view a win claim's current confirmer joins it, so they can answer here.
-    val selectedSolo = soloKey?.takeIf { soloOffered && allUnits.any { unit -> unit.key == it } }
+    val selectedSolo = soloKey?.takeIf { allUnits.any { unit -> unit.key == it } }
     val selectedPass = passKeys.filter { key -> allUnits.any { it.key == key } }
     val units = gameCardUnits(allUnits, selectedSolo, selectedPass.takeIf { phoneView }.orEmpty(),
         summary.pending.winConfirmationPlayer)
@@ -389,8 +364,8 @@ internal fun TabletTable(
     BoxWithConstraints(Modifier.fillMaxSize().then(observation)) {
         val landscape = maxWidth >= maxHeight || units.size <= 2
         val star = !upright && starLayout.on && summary.settings.profile.starCommander && units.size == StarCommander.PLAYERS
-        // A cooperative table reads as one upright list, top to bottom, under a slim menu bar.
-        val list = phoneView || summary.settings.profile.cooperative
+        // A phone reads the table as one upright list, top to bottom, under a slim menu bar.
+        val list = phoneView
         // Emperor: each team along one side, its emperor's bigger panel in the middle.
         val emperorTable = summary.emperor && !solo && units.size == com.turnhub.android.domain.Emperor.PLAYERS
         val plan = if (emperorTable) EMPEROR_PLACEMENT else placements(units.size)
@@ -441,12 +416,6 @@ internal fun TabletTable(
                             haptics.tick()
                             controls { counter(member.seat(), kind, value, 1) }
                         },
-                        onSkillLevel = { member, slot, level ->
-                            controls { counter(member.seat(), StandaloneGame.SKILL_KIND, level, slot + 1) }
-                        },
-                        onEditSkills = { member, skills -> controls { investigatorSkills(member.seat(), skills) } },
-                        onInvestigatorCard = { member, slot, card -> controls { investigatorCard(member.seat(), slot, card) } },
-                        investigatorFocused = index == focused,
                         onRespond = { seat, id, accept ->
                             controls { this.respondLife(seat, id, accept) }
                         },
@@ -475,21 +444,18 @@ internal fun TabletTable(
                         menuOpen = true
                     }
                     if (units.isNotEmpty()) {
-                        val showOtherCards = !phoneView || summary.settings.profile.cooperative
+                        val showOtherCards = !phoneView
                         key(units[focused].key) {
                             BoxWithConstraints(Modifier.weight(if (showOtherCards && units.size > 1) .70f else 1f).fillMaxWidth()) {
                                 val cardHeight = maxHeight
                                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                                    panel(focused, 0, Modifier.fillMaxWidth().then(
-                                        if (summary.settings.profile.deathMayDie) Modifier.heightIn(min = cardHeight)
-                                        else Modifier.height(cardHeight.coerceAtLeast(300.dp))))
+                                    panel(focused, 0, Modifier.fillMaxWidth().height(cardHeight.coerceAtLeast(300.dp)))
                                 }
                             }
                         }
                         val others = units.indices.filter { showOtherCards && it != focused }
                         if (others.isNotEmpty()) Column(Modifier.weight(.30f).fillMaxWidth().verticalScroll(rememberScrollState())) {
-                            others.forEach { panel(it, 0, Modifier.fillMaxWidth().then(
-                                if (summary.settings.profile.deathMayDie) Modifier else Modifier.height(300.dp))) }
+                            others.forEach { panel(it, 0, Modifier.fillMaxWidth().height(300.dp)) }
                         }
                     }
                 }
@@ -562,21 +528,9 @@ internal fun TabletTable(
                         controls { counter(member.seat(), kind, value, commander) }
                     },
                     onLife = { member, delta -> controls { life(member.seat(), delta) } },
-                    onEditSkills = { member, skills -> controls { investigatorSkills(member.seat(), skills) } },
-                    onInvestigatorCard = { member, slot, card -> controls { investigatorCard(member.seat(), slot, card) } },
                     offlineCommander = { _, _, _ -> 0 },
                 )
             }
-        }
-
-        passToTurn?.takeIf { it == cooperativeTurn }?.let { turn ->
-            CooperativePassDialog(summary, turn, onDismiss = { passToTurn = null }, onChoose = { target ->
-                passToTurn = null
-                if (current.cooperativeTurn() == turn && target in current.passPlayerNumbers) {
-                    haptics.confirm()
-                    controls { passTo(turn, target) }
-                }
-            })
         }
 
         val manualVictim = summary.players.firstOrNull { it.playerNumber == manualRemoval && !it.eliminated }
@@ -621,12 +575,10 @@ internal fun TabletTable(
                 val winners = allUnits.filter { u -> u.members.any { summary.isWinner(it.playerNumber) } }
                 val names = winners.joinToString(" and ") { it.name }
                 val star = summary.settings.profile.starCommander
-                val together = summary.settings.profile.cooperative
                 val emperorTeam = winners.firstOrNull()?.members?.first()?.playerNumber?.takeIf { summary.emperor }
                     ?.let { com.turnhub.android.domain.Emperor.teamName(com.turnhub.android.domain.Emperor.team(it - 1)) }
                 Overlay(
                     when {
-                        together -> if (winners.isEmpty()) "The investigators lost" else "The investigators win"
                         winners.isEmpty() -> "Game over"
                         star -> "Star Commander victory"
                         emperorTeam != null -> "Team $emperorTeam wins"
@@ -634,7 +586,6 @@ internal fun TabletTable(
                         else -> "$names ${if (winners.single().members.size > 1) "win" else "wins"}"
                     },
                     when {
-                        together -> summary.round?.let { "The game ended in round $it." }
                         winners.isEmpty() -> "The game ended as a draw."
                         emperorTeam != null -> "The other emperor is out. $names share the victory."
                         winners.size > 1 -> "$names share the victory."
@@ -658,7 +609,7 @@ internal fun TabletTable(
                     if (onShareCsv != null) ToneButton("Export CSV", onShareCsv, Modifier.fillMaxWidth())
                     OverlayButtons {
                         ToneButton("New players", { send(anySeat, "reset") }, Modifier.weight(1f))
-                        AccentButton(if (standalone && summary.settings.profile.deathMayDie) "Set up rematch" else "Rematch", { send(anySeat, "rematch") }, Modifier.weight(1f))
+                        AccentButton("Rematch", { send(anySeat, "rematch") }, Modifier.weight(1f))
                     }
                     // The Sean Mode easter egg: the same five, reseated so allies become enemies.
                     if (standalone && summary.star) {
@@ -678,7 +629,7 @@ internal fun TabletTable(
             summary.pending.winClaimPlayer == null && summary.pending.winConfirmationPlayer == null &&
             summary.pending.eliminationTargetPlayer == null) {
                 Overlay("Game menu", null, onDismiss = { menuOpen = false }) {
-                    if (phoneView && soloOffered) {
+                    if (phoneView) {
                         DisclosureCard("Game card · " + (selectedSolo?.let { key -> allUnits.first { it.key == key }.name }
                             ?: "Pass and play")) {
                             Column(Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState()),
@@ -713,7 +664,6 @@ internal fun TabletTable(
                     if (summary.doomBag != null) AccentButton("Bag of Doom · ${summary.players.count { !it.eliminated && summary.doomBag.contains(it.playerNumber) }} at risk", {
                         menuOpen = false; if (attribution != null) sourceOpen = true else bagPrompt = bagPrompt.open()
                     }, Modifier.fillMaxWidth())
-                    if (summary.settings.profile.deathMayDie) DeathMayDieTurnPhasesButton()
                     val paused = summary.state == TableState.PAUSED
                     AccentButton(if (paused) "Resume game" else "Pause game", {
                         menuOpen = false; send(activeSeat, "pause")
@@ -726,7 +676,7 @@ internal fun TabletTable(
                         }
                     }
                     // Atlas reverses turns in Magic formats (the ones it reports day/night for).
-                    if ((standalone || summary.dayNight != null) && !summary.settings.profile.cooperative) {
+                    if (standalone || summary.dayNight != null) {
                         val reversed = summary.turnOrderReversed
                         DisclosureCard(if (reversed) "Turn order · Reversed" else "Turn order") {
                             Text(if (reversed) "↺ Turns go counterclockwise until you set them back."
@@ -753,14 +703,12 @@ internal fun TabletTable(
                         com.turnhub.android.ui.components.GameSoundControls()
                         PublicDisplayButton()
                         ToneButton("Turn panels around", { flipped = !flipped; menuOpen = false }, Modifier.fillMaxWidth())
-                        if (soloOffered) {
-                            Text("Show on this device", color = p.muted, style = MaterialTheme.typography.titleSmall)
-                            ToneButton(if (soloKey == null) "✓ Whole table" else "Whole table", { soloKey = null; menuOpen = false },
-                                Modifier.fillMaxWidth())
-                            allUnits.forEach { unit ->
-                                ToneButton(if (soloKey == unit.key) "✓ Only ${unit.name}" else "Only ${unit.name}",
-                                    { soloKey = unit.key; menuOpen = false }, Modifier.fillMaxWidth())
-                            }
+                        Text("Show on this device", color = p.muted, style = MaterialTheme.typography.titleSmall)
+                        ToneButton(if (soloKey == null) "✓ Whole table" else "Whole table", { soloKey = null; menuOpen = false },
+                            Modifier.fillMaxWidth())
+                        allUnits.forEach { unit ->
+                            ToneButton(if (soloKey == unit.key) "✓ Only ${unit.name}" else "Only ${unit.name}",
+                                { soloKey = unit.key; menuOpen = false }, Modifier.fillMaxWidth())
                         }
                         if (summary.settings.profile.starCommander) {
                             SetupSwitch("Star layout", STAR_LAYOUT_HINT, starLayout.on, true, starLayout.set)
@@ -772,7 +720,7 @@ internal fun TabletTable(
                         ToneButton("Back to the app", { menuOpen = false; onClose() }, Modifier.fillMaxWidth())
                     }
                     if (standalone) DisclosureCard("Finish game") {
-                        ArmedButton(if (summary.settings.profile.cooperative) "The investigators lost" else "End without a winner",
+                        ArmedButton("End without a winner",
                             "Tap again to end the game", Tone.BAD) {
                             menuOpen = false
                             send(anySeat, "draw")
@@ -818,7 +766,7 @@ private fun Hub(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit) {
     ) {
         Text(if (summary.state == TableState.PAUSED) "Paused" else clock, color = p.text,
             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text(if (summary.players.any { it.eliminationPending }) "Eliminated by?" else if (summary.doomBag?.pending == true) "Bag check due" else summary.round?.let { "Round $it" } ?: com.turnhub.android.ui.components.dayNightLabel(summary.dayNight) ?: "Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
+        Text(if (summary.players.any { it.eliminationPending }) "Eliminated by?" else if (summary.doomBag?.pending == true) "Bag check due" else com.turnhub.android.ui.components.dayNightLabel(summary.dayNight) ?: "Game menu", color = p.muted, style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -838,14 +786,7 @@ private fun HubBar(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        summary.round?.let { Text("Round $it", color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
         Text(if (summary.state == TableState.PAUSED) "Paused" else clock, color = p.muted, style = MaterialTheme.typography.titleSmall)
-        // Death May Die: where the Elder One stands, once the table tracks it.
-        summary.elder?.takeIf { it.inUse }?.let { elder ->
-            Text(if (elder.summoned) com.turnhub.android.domain.ElderOneTrack.stageName(elder.stage)
-                else "Track ${elder.space}/${com.turnhub.android.domain.ElderOneTrack.LAST_SPACE}",
-                color = p.muted, style = MaterialTheme.typography.titleSmall, maxLines = 1)
-        }
         com.turnhub.android.ui.components.dayNightLabel(summary.dayNight)?.let {
             Text(it, color = p.muted, style = MaterialTheme.typography.titleSmall, maxLines = 1)
         }
@@ -920,10 +861,6 @@ internal fun PlayerPanel(
     onControl: (TabletSeat, String) -> Unit,
     /** Pokémon and Lorcana: marks a once-per-turn action or Special Condition (see [TurnPanelLines]). */
     onTurnMark: (TablePlayer, String, Int) -> Unit,
-    onSkillLevel: (TablePlayer, Int, Int) -> Unit,
-    onEditSkills: (TablePlayer, List<com.turnhub.android.domain.InvestigatorSkill>) -> Unit,
-    onInvestigatorCard: (TablePlayer, InvestigatorCardSlot, InvestigatorCard?) -> Unit,
-    investigatorFocused: Boolean,
     onRespond: (TabletSeat, Long, Boolean) -> Unit,
     offlineCommander: (Long, Int, Int) -> Int,
     haptics: TurnHubHaptics,
@@ -933,13 +870,7 @@ internal fun PlayerPanel(
     observerOnly: Boolean = false,
     sector: Boolean = false,
 ) {
-    val tracks = summary.settings.profile.deathMayDie
-    val investigatorArt = rememberInvestigatorArt(unit.members.first().investigator.takeIf { tracks })
-    val investigatorCard = if (tracks) rememberCommanderArt(unit.members.first().commander, unit.members.first().commanderArt) else null
-    val dashboardArt = investigatorArt ?: investigatorCard
-    val cards = unit.members.map { member ->
-        if (tracks) dashboardArt else rememberCommanderArt(member.commander, member.commanderArt)
-    }
+    val cards = unit.members.map { member -> rememberCommanderArt(member.commander, member.commanderArt) }
     val hasArtwork = cards.any { it != null } || unit.members.any {
         it.tileBackground.style == com.turnhub.android.domain.TileBackgroundStyle.IMAGE && it.tileBackground.image != null
     }
@@ -954,8 +885,8 @@ internal fun PlayerPanel(
     val recentDelta = rememberRecentLifeChange(life, summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)
     val (small, big) = lifeSteps(summary.settings.profile)
     val name = unit.name
-    // The commanders a team or player named (Death May Die: their investigator), shown under the name.
-    val commanders = unit.members.mapNotNull { if (summary.settings.profile.deathMayDie) it.investigator else it.namedCommander }
+    // The commanders a team or player named, shown under the name.
+    val commanders = unit.members.mapNotNull { it.namedCommander }
         .takeIf { it.isNotEmpty() }?.joinToString(" & ")
     // The active panel's edge breathes slowly; steady when motion is reduced. The value is
     // read only while drawing, so the pulse redraws the edge without recomposing the panel.
@@ -979,7 +910,7 @@ internal fun PlayerPanel(
     MaterialTheme(colorScheme = p.toColorScheme()) {
     BoxWithConstraints(
         Modifier
-            .then(if (tracks) Modifier.fillMaxWidth() else Modifier.fillMaxSize())
+            .fillMaxSize()
             .then(if (sector) Modifier else Modifier.clip(shape).background(p.surface))
             .then(
                 if (sector) Modifier
@@ -1006,17 +937,10 @@ internal fun PlayerPanel(
         // Team panels share space; each player's chosen background gets an equal share.
         Row(Modifier.matchParentSize()) {
             unit.members.forEachIndexed { index, member ->
-                // Death May Die: the investigator's picture, when there is one, before any tile card.
                 PlayerTileBackground(member.tileBackground,
                     com.turnhub.android.ui.components.playerColor(member.color, p.avatarColor(member.playerNumber)),
-                    Modifier.weight(1f).fillMaxHeight(), art = cards[index], showCredit = !tracks)
+                    Modifier.weight(1f).fillMaxHeight(), art = cards[index])
             }
-        }
-        if (tracks) {
-            if (investigatorFocused) InvestigatorPanelContent(unit, summary, life, onBump, onTurnMark, onOpenMenu,
-                onControl, onRespond, onSkillLevel, onEditSkills, onInvestigatorCard, dashboardArt, observerOnly)
-            else CompactInvestigatorPanel(unit, summary, life, onOpenMenu, onTurnMark, dashboardArt, observerOnly)
-            return@BoxWithConstraints
         }
         val nameMax = maxWidth * .6f
         val panelWidth = maxWidth
@@ -1273,100 +1197,6 @@ private fun StarPlayerContent(unit: TableUnit, summary: TableSummary, life: Int,
                 { onTurnMark(member, StandaloneGame.RAD_KIND, it) }, Modifier)
         }
     }
-}
-
-/** A cooperative card grows with its counters and text, including wrapped rows and large type. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun InvestigatorPanelContent(
-    unit: TableUnit,
-    summary: TableSummary,
-    wounds: Int,
-    onWound: (Int) -> Unit,
-    onMark: (TablePlayer, String, Int) -> Unit,
-    onOpenMenu: () -> Unit,
-    onControl: (TabletSeat, String) -> Unit,
-    onRespond: (TabletSeat, Long, Boolean) -> Unit,
-    onSkillLevel: (TablePlayer, Int, Int) -> Unit,
-    onEditSkills: (TablePlayer, List<com.turnhub.android.domain.InvestigatorSkill>) -> Unit,
-    onInvestigatorCard: (TablePlayer, InvestigatorCardSlot, InvestigatorCard?) -> Unit,
-    art: TileArt?,
-    observerOnly: Boolean = false,
-) {
-    val p = palette
-    val member = unit.members.first()
-    val active = summary.hasTurn(member.playerNumber) && summary.state != TableState.GAME_OVER
-    val details: @Composable () -> Unit = {
-      Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-            AdaptivePlayerHeading(unit.members, member.label, member.investigator, buildList {
-                if (active) add(PanelMarker("Turn", p.active, p.onActive))
-                if (unit.out) add(PanelMarker(if (member.conceded) "Conceded" else "Eliminated", p.bad, p.surface))
-            }, nameMax = maxWidth, panelWidth = maxWidth, panelHeight = maxWidth,
-                reserveCredit = false, artwork = art != null)
-        }
-        InvestigatorTracks(unit, summary, wounds, onWound, onMark,
-            Modifier.fillMaxWidth().alpha(if (unit.out) .45f else 1f)) { who, action -> onControl(who.seat(), action) }
-        if (observerOnly) PublicPanelStats(unit, summary)
-        else FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-            MenuButton(member.label, true, onOpenMenu)
-            if (active && !unit.out) {
-                TurnClock(summary)
-                if (summary.state == TableState.RUNNING) {
-                    ToneButton("Pass", { onControl(member.seat(), "pass") })
-                }
-            }
-        }
-        DeathMayDieTurnPhasesButton()
-        InvestigatorArtCredit(art)
-        if (!observerOnly) Prompt(unit, summary, onControl, onRespond, Modifier)
-      }
-    }
-    val abilities: @Composable () -> Unit = {
-        InvestigatorAbilities(member, summary,
-            onInsanity = { onMark(member, StandaloneGame.INSANITY_KIND, it) },
-            onLevel = { slot, level -> onSkillLevel(member, slot, level) },
-            onEdit = { onEditSkills(member, it) }, onCard = { slot, card -> onInvestigatorCard(member, slot, card) })
-    }
-    BoxWithConstraints(Modifier.fillMaxWidth().padding(16.dp)) {
-        if (maxWidth >= 600.dp) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Column(Modifier.weight(.38f)) { details() }
-            Column(Modifier.weight(.62f)) { abilities() }
-        } else Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            details()
-            abilities()
-        }
-    }
-}
-
-@Composable
-private fun CompactInvestigatorPanel(unit: TableUnit, summary: TableSummary, wounds: Int,
-    onOpenMenu: () -> Unit, onMark: (TablePlayer, String, Int) -> Unit, art: TileArt?, observerOnly: Boolean = false) {
-    val member = unit.members.first()
-    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column(Modifier.weight(1f)) {
-                Text(member.label, color = palette.text, fontWeight = FontWeight.SemiBold)
-                member.investigator?.let { Text(it, color = palette.muted, style = MaterialTheme.typography.labelMedium) }
-                if (unit.out) Text(if (member.conceded) "Conceded" else "Eliminated", color = palette.bad,
-                    style = MaterialTheme.typography.labelMedium)
-                Text("Wounds $wounds · Stress ${member.stress} · Insanity ${member.dashboard.insanity}",
-                    color = palette.text, style = MaterialTheme.typography.labelMedium)
-            }
-            if (!observerOnly) MenuButton(member.label, true, onOpenMenu)
-        }
-        if (observerOnly) PublicPanelStats(unit, summary)
-        InvestigatorArtCredit(art)
-        TurnPanelLines(unit, summary, onMark, Modifier.fillMaxWidth())
-    }
-}
-
-@Composable
-private fun InvestigatorArtCredit(art: TileArt?) {
-    if (art == null) return
-    Text("Art: ${art.artist}", color = palette.muted, style = MaterialTheme.typography.labelSmall,
-        modifier = Modifier.semantics { contentDescription = "${art.cardName} art by ${art.artist}, from ${art.source}" })
 }
 
 @Composable
@@ -1721,8 +1551,6 @@ internal fun PlayerMenu(
     onCommander: (TablePlayer, Int, Int, Int) -> Unit,
     onCounter: (TablePlayer, String, Int, Int) -> Unit,
     onLife: (TablePlayer, Int) -> Unit,
-    onEditSkills: (TablePlayer, List<com.turnhub.android.domain.InvestigatorSkill>) -> Unit,
-    onInvestigatorCard: (TablePlayer, InvestigatorCardSlot, InvestigatorCard?) -> Unit,
     offlineCommander: (Long, Int, Int) -> Int,
     controlsEnabled: Boolean = true,
 ) {
@@ -1771,15 +1599,6 @@ internal fun PlayerMenu(
                 }),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            if (summary.settings.profile.deathMayDie) {
-                val member = unit.members.first()
-                InvestigatorTracks(unit, summary, member.life ?: 0, { onLife(member, it) },
-                    { who, kind, value -> onCounter(who, kind, value, 1) }, Modifier.fillMaxWidth()) { who, action -> onControl(who.seat(), action) }
-                InvestigatorAbilities(member, summary,
-                    onInsanity = { onCounter(member, StandaloneGame.INSANITY_KIND, it, 1) },
-                    onLevel = { slot, level -> onCounter(member, StandaloneGame.SKILL_KIND, level, slot + 1) },
-                    onEdit = { onEditSkills(member, it) }, onCard = { slot, card -> onInvestigatorCard(member, slot, card) })
-            }
             PublicDisplayButton()
             PlayerMenuItems(unit, summary, partners, onControl, onEliminate, onCommander, onCounter, offlineCommander)
         }
@@ -1804,8 +1623,7 @@ private fun PlayerMenuItems(
     DisclosureCard(if (!playing) "Turn & tools" else if (unit.members.size > 1) "Turn, team counters & status" else "Turn, counters & status",
         initiallyExpanded = true) {
         val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
-        // A cooperative game is won together, from its own card below.
-        if (actor != null && summary.state == TableState.RUNNING && !summary.settings.profile.cooperative) {
+        if (actor != null && summary.state == TableState.RUNNING) {
             ArmedButton("I won the game", "Tap again to confirm your win", Tone.GOOD) { onControl(actor.seat(), "win") }
         }
         val rules = summary.localTimerRules

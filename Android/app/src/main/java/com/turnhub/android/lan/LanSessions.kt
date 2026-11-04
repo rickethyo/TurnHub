@@ -28,14 +28,14 @@ internal class LanSessions(
     private data class Client(val guest: LanGuest, val joinId: String, var seen: Long,
         val receipts: LinkedHashMap<String, Receipt> = linkedMapOf())
     private val clients = linkedMapOf<String, Client>()
-    /** Investigators whose player left the lobby: told once, then forgotten. */
+    /** Players who left the lobby: told once, then forgotten. */
     private val released = mutableSetOf<String>()
     /** Wrong keys in the last minute. A short join code must not be guessable by trying them all. */
     private val failures = ArrayDeque<Long>()
     val guests: List<LanGuest> get() { reseat(); return clients.values.map { it.guest } }
     fun revoke(token: String) { clients.remove(token) }
 
-    /** Follow each investigator's player by name as the lobby adds, removes or reorders players. */
+    /** Follow each player by name as the lobby adds, removes or reorders players. */
     private fun reseat() {
         val players = game().players
         clients.values.toList().forEach { client ->
@@ -94,8 +94,7 @@ internal class LanSessions(
         val role = request.text("role")
         val player = request.integer("player").also { require(it in 0..10) }.toInt()
         val players = game().players
-        require(if (sharedProfile.deathMayDie) role == "elder" && player == 0 || role == "investigator" && player in 1..players.size
-            else role == "player" && player in 1..players.size || role == "planes" && player == 0 && sharedProfile.magicRules)
+        require(role == "player" && player in 1..players.size || role == "planes" && player == 0 && sharedProfile.magicRules)
         val name = if (player == 0) null else players[player - 1].name
         clients.entries.removeAll { now() - it.value.seen > 5 * 60_000 }
         val repeated = clients.values.firstOrNull { it.joinId == id }
@@ -112,7 +111,7 @@ internal class LanSessions(
     }
 
     private fun command(client: Client, request: JSONObject): JSONObject {
-        val seat = if (sharedProfile.deathMayDie) "investigator" else "player"
+        val seat = "player"
         val planesDisplay = client.guest.role == "planes" && request.optString("kind").startsWith(PLANAR_KIND)
         if (client.guest.role != seat && !planesDisplay) return reply("forbidden")
         val id = request.text("actionId")

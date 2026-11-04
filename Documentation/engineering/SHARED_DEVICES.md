@@ -14,7 +14,7 @@ restores access on reconnect. A member sitting out a game stays in the room.
 Stable profile IDs bind members to current participants; equal names never
 establish identity. Explicit account merging remains separate.
 
-Table, Planes and Elder views are read-only by default. Shared table controllers
+Table and Planes views are read-only by default. Shared table controllers
 can act for all normal gameplay panels. The host can grant game-master access to
 a device for editable public views. Room grants confer no Atlas administration
 or private-statistics permissions. Special decisions outside the LAN command

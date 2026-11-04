@@ -359,9 +359,8 @@ Atlas/web/dist/
 # Board setup output: this PC's boards (tools/setup-boards.cmd)
 tools/boards.local.md
 
-# Death May Die: CMON licensing keeps its content off GitHub and out of released
-# builds. These stay on the owner's PC only; the app falls back to the empty
-# stand-in in Android/app/src/dmdStub when they're absent (build.gradle.kts).
+# Local-only licensed content: never commit (CLAUDE.md). Kept here until the
+# owner's checkout excludes it locally; see STAGED_CHANGES.md "Local-only content split".
 Android/app/src/dmd/
 Android/app/src/testDmd/
 data/death-may-die/

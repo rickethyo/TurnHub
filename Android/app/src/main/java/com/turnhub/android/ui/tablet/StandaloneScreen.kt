@@ -108,8 +108,8 @@ internal fun LocalTable(state: StandaloneState, table: StandaloneTable, reduceMo
     // aren't redrawn every tick.
     rememberNowMs(ticking = game.state == TableState.RUNNING, intervalMs = 500)
     val phase = game.turnTimer(System.currentTimeMillis()).phase
-    val summary = remember(game, phase, state.library.players, state.library.investigatorReferences) { game.toSummary(System.currentTimeMillis(), TableClock.nowMs(),
-        state.library.players.associate { it.localId to it.personalization }).copy(investigatorReferences = state.library.investigatorReferences) }
+    val summary = remember(game, phase, state.library.players) { game.toSummary(System.currentTimeMillis(), TableClock.nowMs(),
+        state.library.players.associate { it.localId to it.personalization }) }
     var rolling by remember { mutableStateOf(false) }
     var rollGame by remember { mutableStateOf(game) }
     if (rolling) PlanarRollDialog(effectiveReduceMotion, onRoll = {
@@ -190,7 +190,7 @@ fun EmbeddedTable(
     val lobby = game.state == TableState.LOBBY
     // A new practice table whenever the lobby changes, or the practice game returns to setup.
     var practiceRound by rememberSaveable { mutableStateOf(0) }
-    val practice = remember(lobby, game.players, game.profile, game.twoHeadedGiant, game.startingLife, game.useRelics, practiceRound) {
+    val practice = remember(lobby, game.players, game.profile, game.twoHeadedGiant, game.startingLife, practiceRound) {
         if (lobby) practiceTable(game, state.library) else null
     }
     val practiceState = practice?.state?.collectAsState()?.value
@@ -236,13 +236,8 @@ internal fun TablePreview(summary: TableSummary, reduceMotion: Boolean, card: @C
 /** The lobby as a table: a short roster gets placeholder seats, then a started game. */
 internal fun StandaloneGame.preview(paused: Boolean = true): StandaloneGame {
     var seats = this
-    fun practiceAssignments(game: StandaloneGame) = if (!game.profile.deathMayDie) game else game.copy(
-        players = game.players.mapIndexed { i, player -> player.copy(investigator = player.investigator ?: "Practice investigator ${i + 1}") }.map { it.copy(dashboard = it.dashboard.copy(
-            sanityCondition = it.dashboard.sanityCondition ?: com.turnhub.android.domain.InvestigatorCard("Practice condition"),
-            relic = if (game.useRelics) it.dashboard.relic ?: com.turnhub.android.domain.InvestigatorCard("Practice relic") else null)) })
-    seats = practiceAssignments(seats)
     while (!seats.canStart && seats.players.size < StandaloneGame.MAX_PLAYERS) {
-        seats = practiceAssignments(seats.copy(players = seats.players + LocalPlayer("Player ${seats.players.size + 1}")))
+        seats = seats.copy(players = seats.players + LocalPlayer("Player ${seats.players.size + 1}"))
     }
     val started = seats.start(System.currentTimeMillis(), "practice", kotlin.random.Random(0))
     return if (paused) started.togglePause(System.currentTimeMillis()) else started
@@ -264,8 +259,8 @@ fun StandaloneLobby(
     remoteProfiles: List<com.turnhub.android.protocol.ProfileSummary> = emptyList(),
 ) {
     val game = state.game
-    val summary = remember(game, state.library.players, state.library.investigatorReferences) {
-        game.toSummary(0, 0, state.library.players.associate { it.localId to it.personalization }).copy(investigatorReferences = state.library.investigatorReferences)
+    val summary = remember(game, state.library.players) {
+        game.toSummary(0, 0, state.library.players.associate { it.localId to it.personalization })
     }
     var editingLocalId by rememberSaveable { mutableStateOf<String?>(null) }
     state.library.players.firstOrNull { it.localId == editingLocalId }?.let { account ->
@@ -296,11 +291,6 @@ fun StandaloneLobby(
             timerRules = table::setTimerRules,
             savedCommanders = { player -> state.library.players.firstOrNull { it.localId == game.players.getOrNull(player.playerNumber - 1)?.localId }?.commanders.orEmpty() },
             commander = { player, name, art, cardOnly -> table.setCommander(player.playerNumber - 1, name, art, cardOnly) },
-            investigator = { player, name -> table.setInvestigator(player.playerNumber - 1, name) },
-            dealInvestigatorCards = { player, slot -> table.dealInvestigatorCards(player.playerNumber - 1, slot) },
-            investigatorCard = { player, slot, card -> table.setInvestigatorCard(player.playerNumber - 1, slot, card) },
-            elderOne = table::setElderOne,
-            episode = table::setEpisode,
             zeroLife = table::setZeroLifeElimination,
             houseRules = table::setHouseRules,
             chooseStarter = { table.chooseStarter(it.playerNumber - 1) },
@@ -327,16 +317,8 @@ fun StandaloneLobby(
         embedded = embedded,
         phoneHosted = true,
         startReady = game.canStart,
-        startHint = deathMayDieStartHint(game),
+        startHint = null,
         extraSettings = {
-            if (game.profile.deathMayDie) {
-                SetupSwitch("Use relics", "Turn on when playing with relics. Assign one to every investigator before starting.",
-                    game.useRelics, true, table::setUseRelics)
-                SetupSwitch("Draw two, pick one", "House rule for sanity conditions and enabled relics. Deal a pair in the app or enter two physical draws.",
-                    game.drawTwoCards, true, table::setDrawTwoCards)
-                DeathMayDieTurnPhasesButton()
-                InvestigatorReferenceReviewButton(state.library.investigatorReferences, table::saveInvestigatorReference)
-            }
             if (game.profile.magicRules) {
                 val planar = game.planechase
                 val digital = planar.source == com.turnhub.android.standalone.PlanarDeckSource.DIGITAL
@@ -352,15 +334,4 @@ fun StandaloneLobby(
             }
         },
     )
-}
-
-/**
- * Death May Die: Start stays off until every player has an investigator, a sanity condition
- * and (with relics on) a relic; this names who still needs what.
- */
-internal fun deathMayDieStartHint(game: StandaloneGame): String? {
-    val missing = game.setupMissing.takeIf { it.isNotEmpty() } ?: return null
-    val needs = if (game.useRelics) "an investigator, a sanity condition and a relic" else "an investigator and a sanity condition"
-    return "Every player needs $needs before starting. Still to choose: " +
-        missing.joinToString("; ") { (name, items) -> "$name: ${items.joinToString(", ")}" } + "."
 }

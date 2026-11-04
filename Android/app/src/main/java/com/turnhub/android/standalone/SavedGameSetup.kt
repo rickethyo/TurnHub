@@ -24,12 +24,10 @@ internal fun freshSetup(game: StandaloneGame): StandaloneGame = StandaloneGame(
     autoEliminateAtCommanderDamage = game.autoEliminateAtCommanderDamage, poisonLimit = game.poisonLimit,
     turnTimerMs = game.turnTimerMs, timerRules = game.timerRules,
     twoHeadedGiant = game.twoHeadedGiant, houseRules = game.houseRules,
-    useRelics = game.useRelics, drawTwoCards = game.drawTwoCards,
     players = game.players.map { LocalPlayer(name = it.name, localId = it.localId, profileId = it.profileId,
         guest = it.guest, commander = it.commander, commanderArt = it.commanderArt,
-        cardOnly = it.cardOnly, investigator = it.investigator) },
+        cardOnly = it.cardOnly) },
     starter = game.starter,
     planechase = Planechase(enabled = game.planechase.enabled, source = game.planechase.source,
         selection = game.planechase.selection, phenomena = game.planechase.phenomena),
-    elder = com.turnhub.android.domain.ElderOneTrack(elderOne = game.elder.elderOne, episode = game.elder.episode),
 )

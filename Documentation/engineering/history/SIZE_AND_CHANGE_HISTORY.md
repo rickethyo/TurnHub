@@ -1025,15 +1025,6 @@ release-download or installed-size estimate). Decoded planar art retains at
 most 12 cached images while browsing; persisted catalogue and image cache
 remain on the phone.
 
-### 2026-10-17 / Android Death May Die investigator dashboard
-
-Checkpoint: `d4fe209`. The active investigator receives 70% of the play area;
-skill levels, sanity loss and editable ability references persist with the
-phone-hosted game. The change adds 642 lines and removes 29 across 15 files;
-the new dashboard domain/reference, editor and regression-test files total
-22,813 raw bytes. No firmware version, protocol or runtime dependency changes.
-
-
 ## 2026-10-19: Ten-player app and elimination attribution
 
 Baseline `726e1b1`; Atlas 0.6.6 / Sigil 0.9.8 versions unchanged. Source snapshot
@@ -1069,15 +1060,6 @@ the extra flags; no media or dependency was added. CI Atlas compile target on
 1,966,080 bytes (65.5%): +232 bytes RAM / +2,800 bytes flash against Bag of Doom.
 These are board-less compile measurements; physical-device performance and
 acceptance remain unverified.
-
-## 2026-10-20: Android Death May Die shared devices
-
-Baseline `65e0c41`. Android adds a phone-hosted LAN session, pinned TLS transport,
-QR/paste invitations and guest Elder One/investigator screens. It reuses the
-standalone game/storage/history engine, with synchronous commits for remote
-commands. No firmware, radio payload, checkpoint format, new runtime dependency
-or bundled artwork changes. Android binary/heap and real-device network
-performance are not measured; physical acceptance remains open.
 
 ## 2026-10-28: Atlas 0.7.16, guests and per-player import receipts
 

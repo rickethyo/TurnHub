@@ -220,7 +220,7 @@ class LanRoomTest {
 
     @Test fun `public views and planes are read only until explicitly granted`() = runBlocking {
         val f = Fixture()
-        for (role in listOf("display", "planes", "elder")) {
+        for (role in listOf("display", "planes")) {
             val joined = f.join(role)
             assertEquals("forbidden", f.room.handle(f.action(joined)).text("code"))
             assertEquals("forbidden", f.room.handle(f.action(joined, "planar-roll")).text("code"))

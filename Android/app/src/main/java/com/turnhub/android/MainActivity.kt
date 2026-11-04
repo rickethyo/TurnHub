@@ -525,9 +525,6 @@ class MainActivity : ComponentActivity() {
                             localPlanesContent = {
                                 com.turnhub.android.ui.tablet.PlanesTab(localState, standaloneViewModel.table)
                             },
-                            localElderContent = {
-                                com.turnhub.android.ui.tablet.ElderOneTab(localState, standaloneViewModel.table, reduceMotion)
-                            },
                             localHistoryContent = {
                                 com.turnhub.android.ui.tablet.LocalLibraryScreen(localState, onClose = {},
                                     embeddedSection = com.turnhub.android.ui.tablet.LibrarySection.GAMES,

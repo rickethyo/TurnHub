@@ -35,13 +35,13 @@ Every envelope includes integer `v: 2` and string `session` (the room ID).
 | `preview` | `key` | Invitation |
 | `join` | `key`, UUID `joinId`, `role`, optional profile fields and `deviceName` | Invitation plus initial profile proof |
 | `poll` | `token`, optional `looksId`, `deviceName` | Saved room membership |
-| `presentation` | `token`, `displayTarget`, boolean `displayAllUpright` | Player/investigator/shared-table membership or game master |
+| `presentation` | `token`, `displayTarget`, boolean `displayAllUpright` | Player/shared-table membership or game master |
 | `command` | `token`, `epoch`, UUID `actionId`, `match`, `revision`, `kind`, `value`, `slot`, optional `source`, `target` | Membership and room capability |
 | `leave` | `token` | Membership; explicitly removes this device |
 
-Roles are `player`, `investigator`, `display`, `table`, `planes` and `elder`.
+Roles are `player`, `display`, `table` and `planes`.
 Public displays are read-only. `table` grants ordinary shared-seat gameplay with
-no personal account. Player/investigator membership binds to a stable profile
+no personal account. Player membership binds to a stable profile
 ID, independently of seat number/name. Removing a participant from a game leaves
 the member connected with player 0, waiting for their next game. Multiple devices
 may control the same participant. Up to 16 device memberships are retained;
@@ -71,8 +71,8 @@ boolean `public`, boolean `upright`), the receiver's `displayId`, and its own
 its reconnect token. Join/poll may supply a bounded 64-character `deviceName` for
 labels; it confers no authority.
 
-`presentation` sets an absolute per-target boolean. Any authenticated player,
-investigator or shared-table member can change it, even when sitting out or
+`presentation` sets an absolute per-target boolean. Any authenticated player
+or shared-table member can change it, even when sitting out or
 eliminated; public read-only members need a game-master grant to send edits.
 The hub validates the target and boolean, saves before acknowledging, rolls back
 failed writes, and returns current presentation state. Repeating the same value
@@ -95,7 +95,7 @@ handles and credentials are omitted. Atlas relay snapshots carry Atlas's public
 `/api/v1/state` body in `atlas`, with its names and age. The room also returns
 `epoch`, member `player`, `role`, `master` and the public directory.
 
-Public Table/Planes/Elder views are read-only unless granted game master access;
+Public Table/Planes views are read-only unless granted game master access;
 a shared table controller can change ordinary seat gameplay. The server derives
 a personal command's seat from the saved profile ID and ignores a forged target.
 A shared controller/game master may name a current target. Planar actions allow living seated players and shared controllers while Planechase
@@ -107,7 +107,7 @@ game-master grant. Shared host/table controls act for the active controller. For
 validator rather than carrying old game-specific seat capabilities forward.
 
 Existing local own-seat commands include life, counters, received Commander
-damage, pass, win/confirm/deny/concede/eliminate, pause and DMD investigator
+damage, pass, win/confirm/deny/concede/eliminate, and pause
 commands. Planar commands retain the `planar-` vocabulary; Atlas plane controls
 use bounded `planar-atlas:` actions, and `atlas-screen:<game|table|planes|card>`
 sets the Atlas screen's view for the guest's own seat (Atlas accepts signed-in
