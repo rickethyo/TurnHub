@@ -41,6 +41,41 @@ class LanRoomTest {
             .put("token", joined.text("token")).put("epoch", joined.text("epoch")).put("actionId", UUID.randomUUID().toString())
             .put("match", match).put("revision", revision).put("kind", kind).put("value", -1).put("slot", 0).put("target", target)
     }
+    @Test fun `players target one durable display without changing game or other screens`() = runBlocking {
+        val f = Fixture()
+        val player = f.join()
+        val display = f.join("display")
+        val target = display.text("displayId")
+        val publicTarget = (0 until display.getJSONArray("displayTargets").length()).map { display.getJSONArray("displayTargets").getJSONObject(it) }
+            .single { it.text("id") == target }
+        assertEquals("Public table display", publicTarget.text("name"))
+        assertTrue(publicTarget.getBoolean("public"))
+        fun presentation(joined: JSONObject, id: String, value: Any) = f.base("presentation").put("token", joined.text("token"))
+            .put("displayTarget", id).put("displayAllUpright", value)
+        assertFalse(player.getBoolean("displayAllUpright"))
+        assertEquals("ok", f.room.handle(presentation(player, target, true)).text("code"))
+        assertTrue(f.room.handle(f.poll(display.text("token"))).getBoolean("displayAllUpright"))
+        assertFalse(f.room.handle(f.poll(player.text("token"))).getBoolean("displayAllUpright"))
+        assertFalse(f.room.displayAllUpright("host"))
+        val sequence = f.record.getLong("sequence")
+        assertEquals("ok", f.room.handle(presentation(player, target, true)).text("code"))
+        assertEquals(sequence, f.record.getLong("sequence"))
+        assertEquals(0, f.changes)
+        assertFalse(f.room.guests.first().master)
+        val restored = Fixture(JSONObject(f.record.toString()))
+        assertTrue(restored.room.handle(restored.poll(display.text("token"))).getBoolean("displayAllUpright"))
+        assertEquals("forbidden", f.room.handle(presentation(display, target, false)).text("code"))
+        assertEquals("unauthorized", f.room.handle(presentation(JSONObject().put("token", "unknown"), target, false)).text("code"))
+        assertNotEquals("ok", f.room.handle(presentation(player, target, "true")).text("code"))
+        assertNotEquals("ok", f.room.handle(presentation(player, "missing", true)).text("code"))
+        f.writable = false
+        assertEquals("unavailable", f.room.handle(presentation(player, target, false)).text("code"))
+        assertTrue(f.room.displayAllUpright(target))
+        f.writable = true
+        assertEquals("ok", f.room.handle(presentation(player, target, false)).text("code"))
+        assertFalse(f.room.displayAllUpright(target))
+    }
+
     @Test fun `PIN is needed on first link but never on reconnect`() = runBlocking {
         val f = Fixture()
         assertEquals("pin-required", f.join(pin = "wrong").text("code"))

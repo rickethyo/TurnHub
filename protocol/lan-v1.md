@@ -33,8 +33,9 @@ Every envelope includes integer `v: 2` and string `session` (the room ID).
 | Operation | Fields | Authorization |
 | --- | --- | --- |
 | `preview` | `key` | Invitation |
-| `join` | `key`, UUID `joinId`, `role`, optional profile fields | Invitation plus initial profile proof |
-| `poll` | `token`, optional `looksId` | Saved room membership |
+| `join` | `key`, UUID `joinId`, `role`, optional profile fields and `deviceName` | Invitation plus initial profile proof |
+| `poll` | `token`, optional `looksId`, `deviceName` | Saved room membership |
+| `presentation` | `token`, `displayTarget`, boolean `displayAllUpright` | Player/investigator/shared-table membership or game master |
 | `command` | `token`, `epoch`, UUID `actionId`, `match`, `revision`, `kind`, `value`, `slot`, optional `source`, `target` | Membership and room capability |
 | `leave` | `token` | Membership; explicitly removes this device |
 
@@ -61,6 +62,30 @@ Reopening/reconnecting uses its saved token, without PIN entry or host approval.
 The member's selected view is device-local saved state. Hosts can explicitly
 revoke devices or grant/revoke room game-master access. These grants do not
 confer Atlas Admin permissions or access to another profile's private statistics.
+
+## Public display orientation
+
+Room snapshots include `displayTargets` (public `id`, friendly `name`, device `detail`,
+boolean `public`, boolean `upright`), the receiver's `displayId`, and its own
+`displayAllUpright`. A target ID is `host` or a member's non-secret `joinId`, never
+its reconnect token. Join/poll may supply a bounded 64-character `deviceName` for
+labels; it confers no authority.
+
+`presentation` sets an absolute per-target boolean. Any authenticated player,
+investigator or shared-table member can change it, even when sitting out or
+eliminated; public read-only members need a game-master grant to send edits.
+The hub validates the target and boolean, saves before acknowledging, rolls back
+failed writes, and returns current presentation state. Repeating the same value
+is idempotent. Other targets retain their values. Room `displayOrientations`
+persists across reconnects/restart and travels with the existing Atlas room backup.
+This does not alter game revisions, seat order, rules or gameplay permissions.
+
+Android displays render only their own setting. All panels upright ignores local
+seat-facing/half-turn rotations; Face each player restores the existing layout.
+The picker identifies the screen separately from the direction choice. Without a
+room, Android stores this device's orientation in its local UI preferences.
+Atlas-relayed Android displays use the same room presentation contract; the
+physical Atlas overview already renders its player text upright.
 
 ## State, controls and receipts
 

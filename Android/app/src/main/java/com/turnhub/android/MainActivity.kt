@@ -435,6 +435,8 @@ class MainActivity : ComponentActivity() {
                 TurnHubTheme(choice = theme) {
                     val dark = palette.dark
                     LaunchedEffect(dark) { matchSystemBars(dark) }
+                    val publicDisplayState by lanViewModel.state.collectAsStateWithLifecycle()
+                    com.turnhub.android.ui.tablet.PublicDisplayScope(publicDisplayState, lanViewModel) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background,
@@ -625,6 +627,7 @@ class MainActivity : ComponentActivity() {
                                 onSignIn = homeViewModel::onPlayFromPhoneClicked,
                             ),
                         ) }
+                    }
                     }
                 }
             }

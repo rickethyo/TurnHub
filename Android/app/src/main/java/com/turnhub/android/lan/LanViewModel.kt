@@ -29,6 +29,8 @@ internal data class LanHosting(val code: String? = null, val qr: String? = null,
     /** Relaying the connected Atlas game rather than sharing this device's own. */
     val atlas: Boolean = false)
 
+internal data class RoomDisplay(val id: String, val name: String, val upright: Boolean, val detail: String = "", val public: Boolean = false)
+
 internal data class RoomProfile(val id: String, val name: String, val hasPin: Boolean)
 
 internal data class LanUiState(
@@ -50,6 +52,9 @@ internal data class LanUiState(
     /** The host's public look for each seat, by player index, so guest panels match the table. */
     val looks: List<LocalPersonalization?> = emptyList(),
     val looksId: String = "",
+    val displayAllUpright: Boolean = false,
+    val displayId: String = "host",
+    val displayTargets: List<RoomDisplay> = emptyList(),
     /** The Atlas game a hub relays, in place of [preview] or [remote] (Atlas decides it, not the hub). */
     val previewAtlas: com.turnhub.android.domain.TableSummary? = null,
     val atlas: com.turnhub.android.domain.TableSummary? = null,
@@ -150,8 +155,10 @@ internal class LanViewModel(
                         remote.optString("ownerKey") == record.text("ownerKey") && remote.optLong("sequence") > record.optLong("sequence")) {
                         record.put("members", remote.optJSONArray("members") ?: org.json.JSONArray())
                         record.put("sequence", remote.optLong("sequence"))
+                        remote.optJSONObject("displayOrientations")?.let { record.put("displayOrientations", it) }
                     }
                 }
+                record.put("hostDeviceName", android.os.Build.MODEL.take(64))
                 check(store.write("host", record))
                 hostRecord = record
                 val session = record.text("session")
@@ -207,7 +214,7 @@ internal class LanViewModel(
                         val listening = LanServer(socket) { request -> runBlocking(Dispatchers.Main.immediate) {
                             if (!foreground && !fromAtlas) table.tick()
                             val answer = if (room === core) core.handle(request) else baseRequest("ended").put("code", "ended")
-                            _state.update { it.copy(guests = core.guests) }
+                            _state.update { it.copy(guests = core.guests, displayAllUpright = core.displayAllUpright("host"), displayId = "host", displayTargets = readDisplays(core.displayTargets())) }
                             answer
                         } }
                         opened = listening
@@ -218,7 +225,7 @@ internal class LanViewModel(
                 }
                 server = opened
                 _state.update { it.copy(host = LanHosting(key.takeUnless { record.optBoolean("qrOnly") }, invitation.encode(), fromAtlas),
-                    guests = core.guests, busy = false, preview = null, previewAtlas = null, resumable = true) }
+                    guests = core.guests, displayAllUpright = core.displayAllUpright("host"), displayId = "host", displayTargets = readDisplays(core.displayTargets()), busy = false, preview = null, previewAtlas = null, resumable = true) }
                 if (fromAtlas) mirrorRoom(record)
             } catch (error: Exception) {
                 opened?.close(); room = null; advertiser?.close(); advertiser = null
@@ -331,7 +338,7 @@ internal class LanViewModel(
         val choice = listOf(role, player, targetId, localId).joinToString("|")
         val body = joinRequest?.takeIf { joinChoice == choice }
             ?: base(invitation, "join").put("key", invitation.key).put("role", role).put("player", player)
-                .put("joinId", UUID.randomUUID().toString()).also { joinRequest = it; joinChoice = choice }
+                .put("joinId", UUID.randomUUID().toString()).put("deviceName", android.os.Build.MODEL.take(64)).also { joinRequest = it; joinChoice = choice }
         body.put("pin", pin)
         if (targetId != null) body.put("profileId", targetId)
         if (own != null) {
@@ -368,6 +375,8 @@ internal class LanViewModel(
                 _state.update { it.copy(remote = game, atlas = atlas, role = role, player = reply.optInt("player", player), preview = null,
                     previewAtlas = null, online = true, busy = false, master = reply.optBoolean("master"),
                     view = if (role == "planes") "planes" else if (role in setOf("display", "table")) "table" else if (role == "elder") "elder" else "personal",
+                    displayId = reply.optString("displayId", "host"), displayAllUpright = reply.optBoolean("displayAllUpright"),
+                    displayTargets = reply.optJSONArray("displayTargets")?.let(::readDisplays).orEmpty(),
                     message = viewOnlyNote(reply)).withLooks(reply) }
                 val remembered = saveGuest()
                 startPolling(generation)
@@ -387,7 +396,7 @@ internal class LanViewModel(
                 val invitation = invite ?: break
                 val credential = token ?: break
                 try {
-                    val reply = request(invitation, base(invitation, "poll").put("token", credential).put("looksId", _state.value.looksId))
+                    val reply = request(invitation, base(invitation, "poll").put("deviceName", android.os.Build.MODEL.take(64)).put("token", credential).put("looksId", _state.value.looksId))
                     if (epoch == generation) receive(reply)
                 } catch (error: Exception) {
                     if (error is CancellationException) throw error
@@ -397,6 +406,34 @@ internal class LanViewModel(
                     }
                 }
             }
+        }
+    }
+
+    /** Absolute, idempotent presentation preference; never a gameplay action or seat grant. */
+    fun setDisplayAllUpright(target: String, value: Boolean) {
+        val core = room
+        if (core != null) {
+            val saved = runCatching { core.setDisplayAllUpright(target, value) }
+            _state.update { it.copy(displayAllUpright = core.displayAllUpright("host"), displayId = "host", displayTargets = readDisplays(core.displayTargets()),
+                message = if (saved.isFailure) "Couldn't save the display setting. Try again." else null) }
+            return
+        }
+        val state = _state.value
+        val invitation = invite ?: return
+        if (!state.online || state.busy || state.uncertain || state.role !in setOf("player", "investigator", "table") && !state.master) return
+        val g = generation
+        _state.update { it.copy(busy = true) }
+        viewModelScope.launch {
+            try {
+                val reply = request(invitation, base(invitation, "presentation").put("token", token).put("displayTarget", target).put("displayAllUpright", value))
+                if (g == generation) receive(reply)
+            } catch (e: CancellationException) { throw e }
+              catch (_: Exception) {
+                if (g == generation) _state.update { it.copy(message = "Display reply unavailable. Check the setting before trying again.") }
+            } finally { if (g == generation) {
+                _state.update { it.copy(busy = false) }
+                drainActions()
+            } }
         }
     }
 
@@ -501,6 +538,9 @@ internal class LanViewModel(
             player = reply.optInt("player", before.player),
             role = reply.optString("role", before.role ?: "display"),
             master = reply.optBoolean("master", before.master),
+            displayAllUpright = reply.optBoolean("displayAllUpright", before.displayAllUpright),
+            displayId = reply.optString("displayId", before.displayId),
+            displayTargets = reply.optJSONArray("displayTargets")?.let(::readDisplays) ?: before.displayTargets,
             reconnecting = before.reconnecting && game == null && atlas == null,
             directory = if (reply.has("directory")) readDirectory(reply) else before.directory,
             remote = game?.takeIf { before.remote == null || it.gameId != before.remote.gameId || it.revision >= before.remote.revision } ?: before.remote,
@@ -533,6 +573,11 @@ internal class LanViewModel(
             }
         }
     }
+    private fun readDisplays(rows: org.json.JSONArray): List<RoomDisplay> = (0 until rows.length()).map { i ->
+        val row = rows.getJSONObject(i)
+        RoomDisplay(row.text("id"), row.text("name"), row.getBoolean("upright"), row.optString("detail"), row.optBoolean("public"))
+    }
+
     private fun readDirectory(reply: JSONObject): List<RoomProfile> {
         val array = reply.optJSONArray("directory") ?: return emptyList()
         return (0 until minOf(array.length(), 128)).map { array.getJSONObject(it).let { p ->

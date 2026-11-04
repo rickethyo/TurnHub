@@ -34,6 +34,34 @@ internal class LanRoom(
         record.put("sequence", old + 1)
         if (!save(record)) { record.put("sequence", old); error("Room could not be saved") }
     }
+    private val orientations = record.optJSONObject("displayOrientations") ?: JSONObject().also { record.put("displayOrientations", it) }
+    fun displayAllUpright(target: String): Boolean = orientations.optBoolean(target)
+    fun displayTargets(): JSONArray = JSONArray().put(JSONObject().put("id", "host")
+        .put("name", "Host screen").put("detail", friendlyDisplayDevice(record.optString("hostDeviceName")))
+        .put("public", true).put("upright", displayAllUpright("host"))).also { targets ->
+        (0 until members.length()).forEach { i ->
+            val m = members.getJSONObject(i)
+            val id = m.text("joinId")
+            val role = m.text("role")
+            val name = when (role) {
+                "display", "table" -> "Public table display"
+                "planes" -> "Planes display"
+                "elder" -> "Elder One display"
+                else -> m.optString("name").takeIf { it.isNotBlank() }?.let { "$it's screen" } ?: "Player screen"
+            }
+            targets.put(JSONObject().put("id", id).put("name", name)
+                .put("detail", friendlyDisplayDevice(m.optString("deviceName")))
+                .put("public", role in setOf("display", "table", "planes", "elder"))
+                .put("upright", displayAllUpright(id)))
+        }
+    }
+    fun setDisplayAllUpright(target: String, value: Boolean) {
+        require(target == "host" || (0 until members.length()).any { members.getJSONObject(it).text("joinId") == target })
+        val old = displayAllUpright(target)
+        if (old == value) return
+        orientations.put(target, value)
+        try { persist() } catch (e: Exception) { orientations.put(target, old); throw e }
+    }
     fun revoke(token: String) {
         val i = (0 until members.length()).firstOrNull { sameSecret(members.getJSONObject(it).text("token"), token) } ?: return
         val old = members.remove(i)
@@ -51,7 +79,9 @@ internal class LanRoom(
         val f = snapshot()
         if (f.optString("code") != "ok") return f.put("epoch", epoch)
         f.put("code", code).put("epoch", epoch)
-        f.put("directory", profiles())
+        f.put("directory", profiles()).put("displayTargets", displayTargets())
+            .put("displayId", m?.text("joinId") ?: "host")
+            .put("displayAllUpright", displayAllUpright(m?.text("joinId") ?: "host"))
         if (m != null) f.put("player", seat(m)).put("role", m.text("role")).put("master", m.optBoolean("master")).put("epoch", memberEpoch(m))
         return f
     }
@@ -73,7 +103,25 @@ internal class LanRoom(
             else -> {
                 val m = member(r.text("token"))
                 if (m == null) reply("unauthorized") else when (r.text("op")) {
-                    "poll" -> frame("ok", m)
+                    "poll" -> {
+                        // Backfill model labels for memberships created before display targeting.
+                        val device = r.optString("deviceName").take(64)
+                        if (device.isNotBlank() && device != m.optString("deviceName")) {
+                            val old = m.optString("deviceName")
+                            m.put("deviceName", device)
+                            try { persist() } catch (e: Exception) { m.put("deviceName", old); throw e }
+                        }
+                        frame("ok", m)
+                    }
+                    "presentation" -> commandLock.withLock {
+                        if (member(m.text("token")) == null) reply("unauthorized")
+                        else if (m.text("role") !in setOf("player", "investigator", "table") && !m.optBoolean("master")) frame("forbidden", m)
+                        else {
+                            val upright = r.get("displayAllUpright").also { require(it is Boolean) } as Boolean
+                            setDisplayAllUpright(r.text("displayTarget"), upright)
+                            frame("ok", m)
+                        }
+                    }
                     "leave" -> { revoke(m.text("token")); reply("ok") }
                     "command" -> commandLock.withLock { if (member(m.text("token")) == null) reply("unauthorized") else act(r, m) }
                     else -> reply("invalid")
@@ -106,7 +154,7 @@ internal class LanRoom(
             .firstOrNull { it.optString("profileId") == identity }?.optString("name").orEmpty()
         val m = JSONObject().put("token", randomLanSecret()).put("joinId", id).put("role", role)
             .put("identity", identity).put("name", seats().firstOrNull { it.identity == identity }?.name ?: name)
-            .put("master", false)
+            .put("master", false).put("deviceName", r.optString("deviceName").take(64))
         members.put(m)
         try { persist() } catch (e: Exception) { members.remove(members.length() - 1); throw e }
         return frame("ok", m).put("token", m.text("token")).put("profileLink", r.optJSONObject("_profileLink")).put("profile", r.optJSONObject("_profile"))
