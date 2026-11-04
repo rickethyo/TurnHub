@@ -45,6 +45,10 @@ the one allowed file until the PC follow-up in STAGED_CHANGES. Codex: please
 don't reintroduce mentions in notes or commits. Validation: shared-core
 scenarios and `check_docs.py` pass locally; Android compile and JVM tests run
 in CI.
+Follow-up 2026-11-04, Claude: the local app exists on the owner's PC (own
+repo, no remote, builds and passes its tests); the ignore lines moved to that
+checkout's `.git/info/exclude`, so `.gitignore` no longer names them and the
+check has no allowlist.
 
 2026-11-03, Claude: `LVGL/` is gone (owner's request, on `claude/master`).
 `LVGL/` moved into `shared/`: `simulator/`,
