@@ -156,7 +156,19 @@ void entriesFromJson() {
 
 }  // namespace
 
+// A Sigil joins the hub's setup as a guest bound by its localId (hosted-v1.md);
+// a guest still can't carry a profile.
+void sigilGuestJoins() {
+  ZeroRandom random;
+  Game g;
+  g = g.addPlayer("Sigil 1", "", "sigil:0:1", true);
+  check(g.players.size() == 1 && g.players[0].localId == "sigil:0:1" && g.players[0].guest, "a Sigil guest joins setup");
+  check(g.addPlayer("Sigil 1", "", "sigil:0:1", true).players.size() == 1, "the same Sigil seat joins once");
+  check(g.addPlayer("Ana", "profile-1", "", true).players.size() == 1, "a guest has no profile");
+}
+
 int main() {
+  sigilGuestJoins();
   mergesPhonesInTimeOrder();
   timeoutsFallDueBetweenEntries();
   seatActionsActOnTheMergedGame();

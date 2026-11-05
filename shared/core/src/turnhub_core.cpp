@@ -248,7 +248,8 @@ std::optional<int> Game::winConfirmer() const {
 // --- the lobby -------------------------------------------------------------
 
 Game Game::addPlayer(const std::string &rawName, const std::string &profileId, const std::string &localId, bool guest) const {
-  if (guest && (!profileId.empty() || !localId.empty())) return *this;
+  // A guest has no profile; a Sigil seat binds a guest by its localId ("sigil:<id>:<slot>").
+  if (guest && !profileId.empty()) return *this;
   const std::string name = trimTake(rawName, MAX_NAME);
   if (state != TableState::Lobby || name.empty() || static_cast<int>(players.size()) >= MAX_PLAYERS) return *this;
   for (const auto &p : players) {
