@@ -10,6 +10,12 @@ Atlas never decides anything about a hosted game. All routes need a signed-in
 session (`X-TurnHub-Token`), including the shared table tablet's. Bodies are
 form fields, like the rest of `http-v1.md`.
 
+The app shows its game automatically after connecting and signing in, unless
+the player has stopped showing it. Completing Atlas setup restores sign-in
+after Atlas restarts. Temporary claim or state-push failures retry while the
+connection is usable; another hub's live lease is respected. Disconnecting or
+signing out stops publication until the connection and session are ready again.
+
 ## Lease: one hub per table
 
 `POST /api/hosted/claim` takes the table, or renews it for the same session.

@@ -867,7 +867,7 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
   }
 }
 
-// A presence code a signed-in phone asked for: the digits, typed into the app.
+// A presence code a signed-in phone asked for: scan it or type the digits.
 // Only that phone's profile can use it; Cancel takes it off the screen.
 void formatCode(AtlasScreen &screen, uint32_t nowMs) {
   const PresenceRequest *request = pendingPresenceCode(nowMs);
@@ -883,7 +883,8 @@ void formatCode(AtlasScreen &screen, uint32_t nowMs) {
       name.length() ? who : "a signed-in phone", static_cast<unsigned long>(leftS));
   snprintf(screen.code, sizeof(screen.code), "%03lu %03lu",
       static_cast<unsigned long>(request->code / 1000), static_cast<unsigned long>(request->code % 1000));
-  snprintf(screen.qrCaption, sizeof(screen.qrCaption), "Enter it on that phone");
+  snprintf(screen.qr, sizeof(screen.qr), "%06lu", static_cast<unsigned long>(request->code));
+  snprintf(screen.qrCaption, sizeof(screen.qrCaption), "Scan or enter on that phone");
 }
 
 // The pairing code for the first waiting Sigil, to compare with its screen.

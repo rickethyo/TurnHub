@@ -99,6 +99,10 @@ class HomeViewModel(
         _hostedResume.value = null
         val table = standalone ?: return
         if (!on) return
+        if (playerSession.state.value !is PlayerSessionState.SignedIn) {
+            onPlayFromPhoneClicked()
+            return
+        }
         hostedJob = viewModelScope.launch {
             // Another phone's unfinished game on Atlas: offer it first, unless this phone is mid-game.
             val underway = table.state.value.game.state.let {
@@ -143,13 +147,13 @@ class HomeViewModel(
     private fun observeAutoHost() {
         autoHostObserver?.cancel()
         autoHostObserver = viewModelScope.launch {
-            // A game Atlas still runs itself keeps the table until it ends.
-            combine(repository.connectionState, repository.offlineSinceMs, playerSession.state,
-                repository.tableSummary.map { it?.state?.underway() == true }) { state, since, session, atlasGame ->
-                state == AtlasConnectionState.CONNECTED && since == null && session is PlayerSessionState.SignedIn && !atlasGame
+            combine(repository.connectionState, repository.offlineSinceMs, playerSession.state) { state, since, session ->
+                state == AtlasConnectionState.CONNECTED && since == null && session is PlayerSessionState.SignedIn
             }.distinctUntilChanged().collect { ready ->
                 if (!ready) {
                     if (repository.connectionState.value == AtlasConnectionState.DISCONNECTED) hostingStopped = false
+                    hostedJob?.cancel()
+                    hostedJob = null
                     return@collect
                 }
                 if (!hostingStopped && hostedJob?.isActive != true && _hostedResume.value == null &&

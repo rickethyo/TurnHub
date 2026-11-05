@@ -16,6 +16,7 @@ struct PadLabels {
   const char *text[KEY_COUNT] = {};
   const char *note[KEY_COUNT] = {};  // Small second line ("HOLD", a tag).
   bool accent[KEY_COUNT] = {};
+  bool pair = false;
 };
 
 class LvglSigilDisplay : public SigilDisplay {

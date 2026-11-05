@@ -1973,3 +1973,32 @@ Host and shared-core sanitizer suites passed. The failing step was
 by hand instead of regenerated from the verified Word sources. Regenerated
 that asset with its owning exporter; no firmware or application logic change.
 Validation: exporter freshness, manual parser JVM tests, documentation links, licensed-content guard and whitespace checks pass locally.
+
+## Setup, pairing and game roster corrections — 2026-11-04, Codex
+
+Owner requests the six-digit verification QR on Atlas, working Sigil screen
+pairing, active phone games shown on Atlas, and game setup with Add Guest,
+retained profile picker, Add profile and saved-guest deletion. Branch
+`codex/master`, baseline `ffdc1716`; clean tree and no open PR at startup.
+Scope: presence-screen QR, independent local Pair touch routing, hosted-game
+connection lifecycle, shared lobby roster controls and local guest persistence;
+reuse profile creation and deletion safeguards. The phone remains game/state
+owner, Atlas remains relay and rendering client. No protocol or dependency
+addition; accessible labeled buttons and deletion confirmation. Validate real
+Atlas host scenarios, Sigil touch/menu tests, Android JVM/build, firmware builds,
+and owning manual/docs. Hardware acceptance remains separate; no feature-branch
+flash or merge authorized.
+
+Validation: all 476 Android JVM tests and Preview debug APK build pass. Atlas
+host, storage, profile and OTA suites pass; adapters, client contracts, manual
+freshness, documentation links, licensed-content and whitespace checks pass.
+Atlas S3 and Sigil firmware builds pass. Real LVGL presence QR previews decode
+as 001234 in both themes. Sigil real-renderer assertions cover dedicated Pair
+hit regions and held-contact cancellation across search/timeout frames.
+The Windows application-control policy blocks the Sigil native menu executable;
+its host suite remains for CI. Manual rendered through native Word (bundled
+LibreOffice unavailable); all 18 pages reviewed with roster pages at full size.
+Observed live Atlas has home Wi-Fi up but hub:null; publishing fixes address
+setup sign-out, hidden sign-in, transient retries and serialized lease restart.
+End-to-end hardware retest remains after integration/reflash; no live game input,
+feature-branch flash, merge or release was performed.

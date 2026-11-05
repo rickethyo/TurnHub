@@ -293,6 +293,20 @@ class StandaloneTable(
 
     // --- the lobby ------------------------------------------------------------------
 
+    /** A quick seat without creating a persistent profile or asking for a name. */
+    fun addGuest() {
+        val names = _state.value.game.players.map { it.name }.toSet()
+        val number = generateSequence(1) { it + 1 }.first { "Guest $it" !in names }
+        addGuest("Guest $number")
+    }
+
+    /** Forget a saved guest choice; existing seats and match history keep their names. */
+    fun forgetGuest(name: String): Boolean {
+        val before = _state.value
+        if (name !in before.library.guestNames) return false
+        return publish(before.copy(library = before.library.copy(guestNames = before.library.guestNames - name)))
+    }
+
     fun addGuest(name: String) {
         val clean = name.trim().take(StandaloneGame.MAX_NAME)
         val before = _state.value

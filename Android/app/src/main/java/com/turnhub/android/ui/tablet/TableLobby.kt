@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -16,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
@@ -38,7 +36,7 @@ internal data class LobbySavedPlayer(val id: String, val name: String, val displ
 
 /** The two authorities supply actions; all setup layout and input behavior lives here. */
 internal data class TableLobbyActions(
-    val add: (String) -> Unit,
+    val add: () -> Unit,
     val select: (LobbySavedPlayer) -> Unit,
     val remove: (TablePlayer) -> Unit,
     val canRemove: (TablePlayer) -> Boolean,
@@ -48,6 +46,8 @@ internal data class TableLobbyActions(
     val timer: (Long) -> Unit,
     val zeroLife: (Boolean) -> Unit,
     val start: () -> Unit,
+    val addProfile: (() -> Unit)? = null,
+    val forgetGuest: ((String) -> Unit)? = null,
     val background: ((TablePlayer) -> Unit)? = null,
     val canEditBackground: (TablePlayer) -> Boolean = { true },
     /** Picks who goes first; null hides the choice. */
@@ -106,6 +106,14 @@ internal fun TableLobby(
     var guided by rememberSaveable { mutableStateOf(false) }
     var advanced by rememberSaveable { mutableStateOf(false) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
+    var deletingGuest by rememberSaveable { mutableStateOf<String?>(null) }
+    deletingGuest?.let { guest ->
+        AlertDialog(onDismissRequest = { deletingGuest = null },
+            title = { Text("Delete saved guest $guest?") },
+            text = { Text("Removes this guest from the picker. Current players and game history are kept.") },
+            confirmButton = { TextButton(onClick = { actions.forgetGuest?.invoke(guest); deletingGuest = null }, enabled = enabled) { Text("Delete guest") } },
+            dismissButton = { TextButton(onClick = { deletingGuest = null }) { Text("Cancel") } })
+    }
     if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false },
         title = { Text("Remove everyone from setup?") },
         text = { Text("Saved players and game history will be kept.") },
@@ -143,32 +151,28 @@ internal fun TableLobby(
                 Eyebrow("2. Players") {
                     TextButton(onClick = { confirmClear = true }, enabled = enabled && players.any(actions.canRemove)) { Text("Remove all") }
                 }
-                // The picker comes first: players added from it fill in below, so the
-                // name field and saved chips never move under a finger (owner, 2026-10-19).
-                var name by rememberSaveable { mutableStateOf("") }
-                val add = {
-                    if (enabled && canAdd && name.isNotBlank()) { actions.add(name.trim()); name = "" }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(name, { name = it.take(StandaloneGame.MAX_NAME) }, label = { Text("Player's name") },
-                        supportingText = { Text("${name.length}/${StandaloneGame.MAX_NAME} characters") },
-                        singleLine = true, enabled = enabled && canAdd,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { add() }),
-                        modifier = Modifier.weight(1f))
-                    ToneButton("Add", add, enabled = enabled && canAdd && name.isNotBlank())
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ToneButton("Add Guest", actions.add, enabled = enabled && canAdd)
+                    actions.addProfile?.let { create ->
+                        ToneButton("Add profile", create, enabled = enabled)
+                    }
                 }
                 if (savedPlayers.isNotEmpty()) {
                     Text(savedTitle, color = p.muted, style = MaterialTheme.typography.labelLarge)
                     Text(identityHint, color = p.faint, style = MaterialTheme.typography.bodySmall)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         savedPlayers.forEach { player ->
-                            SuggestionChip(onClick = { actions.select(player) }, label = {
-                                Column {
-                                    Text(player.name.ifBlank { "Unnamed" })
-                                    Text(if (player.guest) "Guest" else "Saved player", style = MaterialTheme.typography.bodySmall)
-                                }
-                            },
-                                enabled = enabled && canAdd)
+                            Column {
+                                SuggestionChip(onClick = { actions.select(player) }, label = {
+                                    Column {
+                                        Text(player.name.ifBlank { "Unnamed" })
+                                        Text(if (player.guest) "Guest" else "Saved player", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }, enabled = enabled && canAdd)
+                                if (player.guest && actions.forgetGuest != null) TextButton(
+                                    onClick = { deletingGuest = player.name }, enabled = enabled,
+                                    modifier = Modifier.semantics { contentDescription = "Delete saved guest ${player.name}" }) { Text("Delete guest") }
+                            }
                         }
                     }
                 }

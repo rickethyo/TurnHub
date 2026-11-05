@@ -530,6 +530,17 @@ class HomeViewModelTest {
     // --- playing from this phone ------------------------------------------------
 
     @Test
+    fun `show on Atlas asks for sign in when no session is available`() = runTest {
+        val vm = connectedViewModel(table("state-idle.response.json", 1))
+        vm.standalone = com.turnhub.android.standalone.StandaloneTable(com.turnhub.android.standalone.MemoryStandaloneStore(
+            com.turnhub.android.standalone.StandaloneGame(), com.turnhub.android.standalone.LocalLibrary()))
+        vm.onHostOnAtlas(true)
+        assertNotNull(vm.uiState.value.signIn)
+        assertEquals(sessionTransport.profileChoices, vm.uiState.value.signIn!!.profiles)
+        assertEquals(com.turnhub.android.data.HostedAtlasLink.Status.Off, vm.hostedStatus.value)
+    }
+
+    @Test
     fun `device play cancels a background probe before it can complete`() = runTest {
         store.save(defaultCredentials)
         val gate = CompletableDeferred<Unit>()

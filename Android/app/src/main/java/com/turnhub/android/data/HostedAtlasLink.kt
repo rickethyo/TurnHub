@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 
 /**
@@ -38,6 +40,7 @@ class HostedAtlasLink(
     }
 
     private val _status = MutableStateFlow<Status>(Status.Off)
+    private val hostMutex = Mutex()
     val status: StateFlow<Status> = _status.asStateFlow()
 
     /** One input from Atlas's own controls (a Sigil key, later the Atlas screen). */
@@ -47,9 +50,12 @@ class HostedAtlasLink(
      * Runs until cancelled. [games] is the core's game JSON, newest last; [apply] gets each
      * input Atlas's controls queued, once, for this phone's rules to accept or ignore.
      */
-    suspend fun host(games: Flow<JSONObject>, apply: suspend (Input) -> Unit = {}) {
+    suspend fun host(games: Flow<JSONObject>, apply: suspend (Input) -> Unit = {}) = hostMutex.withLock {
         try {
-            if (!claim()) return
+            while (!claim()) {
+                if (_status.value is Status.Busy) return@withLock
+                delay(renewMs)
+            }
             coroutineScope {
                 launch { pollInputs(apply) }
                 games.distinctUntilChanged { a, b -> a.toString() == b.toString() }.collectLatest { game ->
@@ -57,7 +63,7 @@ class HostedAtlasLink(
                     // A push renews the lease; while nothing changes, re-send to keep it.
                     while (true) {
                         currentCoroutineContext().ensureActive()
-                        if (!publish(latest)) return@collectLatest
+                        if (!publish(latest) && _status.value is Status.Busy) return@collectLatest
                         delay(renewMs)
                     }
                 }

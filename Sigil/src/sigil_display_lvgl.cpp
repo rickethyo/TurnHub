@@ -447,7 +447,8 @@ void LvglSigilDisplay::pad(const PadLabels &labels) {
         (static_cast<uint32_t>(touchMap_.lifeRequest) << 16);
     if (layout_ == Layout::Menu && i == left) menuClose(labels.text[i], rects[i], meaning);
     else if (layout_ == Layout::Menu) menuRow(labels.text[i], labels.note[i], rects[i], i, menu_.compass[i], meaning);
-    else button(labels.text[i], labels.note[i], rects[i], i, labels.accent[i], meaning);
+    else button(labels.text[i], labels.note[i], rects[i], labels.pair && i == select ? TOUCH_PAIR : i,
+        labels.accent[i], labels.pair && i == select ? TOUCH_PAIR : meaning);
   }
   navigation(page_);
   setPressedKey(pressed_);
@@ -643,6 +644,7 @@ void LvglSigilDisplay::showUnpaired() {
   // Tap the on-screen Pair button to open pairing while unpaired.
   l.text[static_cast<uint8_t>(Key::Select)] = menu_.pairing ? nullptr : "Pair";
   l.accent[static_cast<uint8_t>(Key::Select)] = true;
+  l.pair = true;
   statusScreen(menu_.pairing ? "Pairing" : "Unpaired",
       menu_.pairing ? "Searching for Atlas" : "Tap Pair, then confirm", "the code on Atlas", 0xFF, l);
 }

@@ -247,6 +247,10 @@ class AtlasSetupAssistantTest {
         assertTrue(atlas.uploadApprovalRequired)
         assertEquals("Home" to "pinned", host.saved)
         assertEquals(SetupStep.DONE, assistant.state.value.step)
+        // Atlas cleared its sessions on restart: setup restores the authenticated
+        // session so automatic game hosting can begin without another sign-in.
+        assertEquals(1, atlas.tokens.size)
+        assertEquals(atlas.admin, atlas.tokens.values.single())
 
         assistant.close()
         assertFalse(assistant.state.value.visible)
