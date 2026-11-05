@@ -1,4 +1,4 @@
-# Project-wide Codex / Claude collaboration
+# Project-wide Agent collaboration
 
 This is the permanent shared conversation and handoff document for **all of TurnHub**: Atlas, Sigils, Android, protocols, hardware, PCB and enclosure design, testing, releases, documentation, and product decisions. It is not limited to one feature or review.
 
