@@ -13,10 +13,11 @@ reports are described below.
 
 ## What the app stores and where
 
-- **On your Atlas.** Paired phones automatically send public player copies
-  (stable ID, name, color and preset avatar) and finished game records. Pairing
-  allows that phone to read the table's player totals and archived games. Local
-  profile PINs, pictures and tile backgrounds are excluded from these copies.
+- **On your Atlas.** Paired phones automatically exchange player copies
+  (stable ID, name, color, preset avatar, creation/update times and salted
+  PIN/password verifier) and finished game records. Pairing allows that phone
+  to read these copies, player totals and archived games. Plaintext profile
+  PINs/passwords, private account-link keys, pictures and tile backgrounds are excluded.
   Basic identities and totals use internal storage; appearance and detailed
   history need a microSD card. The separate Atlas account system stores
   your profile name, a PIN or password (stored hashed),
@@ -33,12 +34,16 @@ reports are described below.
   choose sharing: Android's own backup, if you have it turned on, may copy
   them to your Google account (saved Atlas passwords and sign-in secrets are
   excluded, along with phone pairing keys); pairing with an Atlas also copies
-  public player metadata and game records there automatically. Shared games also send the current match to guests you
+  player copies and game records there automatically. Shared games also send the current match to guests you
   invite on your Wi-Fi, as described below.
 - **On your phone, with an Atlas.** The app remembers its device pairing key
   in private storage, excluded from cloud backup and device transfer. Atlas
   stores only a hash of that key. Forget paired phones on Atlas revokes all
-  phone keys. The app also remembers the Atlas Wi-Fi password and, if you
+  phone keys. Copied profiles stay on the receiving device by default, including
+  offline. The device owner may turn off retaining automatic copies; unused
+  copies are then removed after 24 hours disconnected, while current/saved
+  setups and match records stay. Copying does not unlock account settings or
+  detailed statistics, and never grants device Admin. The app also remembers the Atlas Wi-Fi password and, if you
   turn on automatic sign-in, your profile's PIN or password. That secret is
   encrypted with a key Android releases only after your fingerprint, face or
   screen lock.

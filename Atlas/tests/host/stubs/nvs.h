@@ -23,16 +23,18 @@ extern std::map<std::string, std::vector<uint8_t>> testBlobs;
 // OptionalPreferences probes and their independent error-injection contract.
 constexpr nvs_handle_t RECOVERY_HANDLE = 2;
 constexpr nvs_handle_t ROOM_HANDLE = 3;
+constexpr nvs_handle_t PROFILE_COPIES_HANDLE = 4;
 extern esp_err_t checkpointReadError;
 inline const char *esp_err_to_name(int) { return "test error"; }
 inline int nvs_open(const char *name, int, nvs_handle_t *handle) {
-  *handle=strcmp(name,"th_game_v1")==0 ? RECOVERY_HANDLE : strcmp(name,"th_room_v2")==0 ? ROOM_HANDLE : 1;
+  *handle=strcmp(name,"th_game_v1")==0 ? RECOVERY_HANDLE : strcmp(name,"th_room_v2")==0 ? ROOM_HANDLE :
+      strcmp(name,"phone-copies")==0 ? PROFILE_COPIES_HANDLE : 1;
   return openError;
 }
 inline void nvs_close(nvs_handle_t) {}
 inline int nvs_get_str(uint32_t,const char*,char*,size_t*) { return readError; }
 inline int nvs_get_blob(uint32_t handle,const char *key,void *out,size_t *size) {
-  if (handle != RECOVERY_HANDLE && handle != ROOM_HANDLE) return readError;
+  if (handle != RECOVERY_HANDLE && handle != ROOM_HANDLE && handle != PROFILE_COPIES_HANDLE) return readError;
   if (checkpointReadError != ESP_OK) return checkpointReadError;
   auto found = testBlobs.find(key);
   if (found == testBlobs.end()) return ESP_ERR_NVS_NOT_FOUND;

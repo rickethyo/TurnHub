@@ -56,6 +56,13 @@ MenuView menu(std::initializer_list<std::pair<Key, uint8_t>> keys, bool life = f
 
 uint8_t A(SigilAction a) { return static_cast<uint8_t>(a); }
 
+bool hasText(lv_obj_t *obj, const char *wanted) {
+  if (lv_obj_check_type(obj, &lv_label_class) && !strcmp(lv_label_get_text(obj), wanted)) return true;
+  for (uint32_t i = 0; i < lv_obj_get_child_count(obj); ++i)
+    if (hasText(lv_obj_get_child(obj, i), wanted)) return true;
+  return false;
+}
+
 GameDisplayPacket game(const char *name, int32_t life, bool active, uint8_t turn) {
   GameDisplayPacket g{};
   g.version = VERSION;
@@ -142,6 +149,23 @@ int main() {
     d.setMenuView(menu({{Key::Up, MENU_LOCAL_DEVICE_MENU}, {Key::Select, A(SigilAction::StartGame)},
         {Key::Left, A(SigilAction::AddSeatB)}, {Key::Right, A(SigilAction::CycleStarter)}}));
     d.showState(2, DisplayMode::Lobby, 1, 0, 0, DISPLAY_FLAG_STARTER); save("lobby" + suffix);
+    {
+      auto shared = game("Michael", 40, false, 0);
+      snprintf(shared.secondary.name, sizeof(shared.secondary.name), "Ricky");
+      shared.state = encodeDisplayState(DisplayMode::Lobby, 1, 2, 0);
+      d.setSeatName(0, ""); d.setSeatName(1, "");
+      assert(validGameDisplay(shared));
+      d.showGame(shared);
+      save("hosted-shared-lobby" + suffix);
+      assert(hasText(lv_screen_active(), "Michael") && hasText(lv_screen_active(), "Ricky"));
+      assert(!hasText(lv_screen_active(), "Guest"));
+      shared.state = encodeDisplayState(DisplayMode::Starting, 2, 1, 0, DISPLAY_FLAG_PRIMARY_B);
+      snprintf(shared.primary.name, sizeof(shared.primary.name), "Ricky");
+      snprintf(shared.secondary.name, sizeof(shared.secondary.name), "Michael");
+      d.showGame(shared);
+      save("hosted-shared-starting" + suffix);
+      assert(hasText(lv_screen_active(), "Michael") && hasText(lv_screen_active(), "Ricky"));
+    }
     d.setMenuView(menu({{Key::Up, MENU_LOCAL_DEVICE_MENU}, {Key::Select, A(SigilAction::Pass)}}, true));
     d.showGame(game("Ricky", 40, true, 5));
     nowMs += 400; lv_timer_handler(); save("turn-banner" + suffix);

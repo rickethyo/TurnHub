@@ -126,11 +126,68 @@ class StandaloneTable(
         return publish(before.copy(library = before.library.copy(gameSetups = setups)), durable = true)
     }
 
-    fun tick() { if (_state.value.storageProblem == null) edit { it.applyTurnTimeout(wallClock()) } }
+    fun tick() { if (_state.value.storageProblem == null) { maintainCopiedProfiles(); edit { it.applyTurnTimeout(wallClock()) } } }
     fun setTimerRules(rules: com.turnhub.android.domain.LocalTimerRules) { edit { it.setTimerRules(rules) } }
 
     private val deliveryMutex = Mutex()
     private val unlockedAccounts = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+    private var connectedCopyAtlas: String? = null
+
+    /** Copies never unlock a profile or grant this device's Admin role. */
+    fun receiveSharedProfiles(atlasId: String, copies: List<JSONObject>): Boolean {
+        val before = _state.value
+        val incoming = runCatching { copies.map { SharedProfileCopy.decode(it, newId()) } }.getOrNull() ?: return false
+        if (incoming.map { it.profileId }.distinct().size != incoming.size) return false
+        var players = before.library.players
+        val relock = mutableListOf<String>()
+        for (copy in incoming) {
+            val old = players.firstOrNull { it.profileId == copy.profileId }
+            if (old == null) players = players + copy.copy(copiedFromAtlas = atlasId)
+            else if (copy.lastActivityMs > old.lastActivityMs || (old.credential == null && copy.credential != null && copy.lastActivityMs == old.lastActivityMs)) {
+                if (old.credential != copy.credential) relock += old.localId
+                val merged = old.copy(name = copy.name, credential = copy.credential,
+                    lastActivityMs = copy.lastActivityMs,
+                    createdAtMs = old.createdAtMs.takeIf { it > 0 } ?: copy.createdAtMs,
+                    personalization = old.personalization.copy(color = copy.personalization.color,
+                        avatar = copy.personalization.avatar, reduceMotion = copy.personalization.reduceMotion))
+                players = players.map { if (it.localId == old.localId) merged else it }
+            }
+        }
+        if (players == before.library.players) return true
+        val saved = publish(before.copy(library = before.library.copy(players = players)), durable = true)
+        if (saved) unlockedAccounts.removeAll(relock.toSet())
+        return saved
+    }
+
+    fun keepCopiedProfiles(keep: Boolean): Boolean {
+        val before = _state.value
+        if (before.library.deviceAdmin?.let { !accountUnlocked(it) } == true) return false
+        return publish(before.copy(library = before.library.copy(keepCopiedProfiles = keep)), durable = true)
+    }
+
+    /** A persisted 24-hour grace period; never removes a current or saved setup's player. */
+    fun observeCopyConnection(atlasId: String?) {
+        connectedCopyAtlas = atlasId
+        maintainCopiedProfiles()
+    }
+
+    internal fun maintainCopiedProfiles() {
+        val before = _state.value
+        if (before.storageProblem != null) return
+        val library = before.library
+        val now = wallClock()
+        val sources = library.players.mapNotNull { it.copiedFromAtlas }.toSet()
+        val disconnected = library.atlasDisconnectedAtMs.filterKeys { it in sources && it != connectedCopyAtlas }.toMutableMap()
+        sources.filter { it != connectedCopyAtlas }.forEach { disconnected.putIfAbsent(it, now) }
+        val inUse = (before.game.players + library.gameSetups.flatMap { it.game.players }).mapNotNull { it.localId }.toSet()
+        val players = if (library.keepCopiedProfiles) library.players else library.players.filter { player ->
+            val since = disconnected[player.copiedFromAtlas]
+            since == null || now - since < 24 * 60 * 60 * 1000L ||
+                player.localId in inUse || player.localId == library.deviceAdmin
+        }
+        val next = library.copy(players = players, atlasDisconnectedAtMs = disconnected)
+        if (next != library) publish(before.copy(library = next), durable = true)
+    }
     fun accountUnlocked(localId: String): Boolean = _state.value.library.players.firstOrNull { it.localId == localId }
         ?.let { it.credential == null || localId in unlockedAccounts } == true
     fun unlockAccount(localId: String, secret: String): Boolean {
@@ -143,7 +200,7 @@ class StandaloneTable(
         if (!accountUnlocked(localId)) return false
         val before = _state.value
         val saved = publish(before.copy(library = before.library.copy(players = before.library.players.map {
-            if (it.localId == localId) it.copy(credential = credential) else it })))
+            if (it.localId == localId) it.copy(credential = credential, lastActivityMs = maxOf(wallClock(),it.lastActivityMs+1)) else it })))
         // Whoever just chose the PIN stays signed in to the account, as after createAccount.
         if (saved) unlockedAccounts += localId
         return saved
@@ -157,7 +214,7 @@ class StandaloneTable(
         // The device's Admin account keeps its PIN or password.
         if (before.library.isDeviceAdmin(localId)) return false
         return publish(before.copy(library = before.library.copy(players = before.library.players.map {
-            if (it.localId == localId) it.copy(credential = null) else it })))
+            if (it.localId == localId) it.copy(credential = null, lastActivityMs = maxOf(wallClock(),it.lastActivityMs+1)) else it })))
     }
 
     /**

@@ -173,7 +173,7 @@ void LedRenderer::renderHosted(const turnhub::Game &game, uint32_t nowMs, uint16
     const uint8_t primaryNumber = primary >= 0 ? static_cast<uint8_t>(primary + 1) : 0;
     const uint8_t secondaryNumber = secondary >= 0 ? static_cast<uint8_t>(secondary + 1) : 0;
     const int32_t payload = encodeDisplayState(mode, primaryNumber, secondaryNumber, 0, flags);
-    if (inGame && primary >= 0) {
+    if (primary >= 0) {
       GameDisplayPacket snapshot{};
       snapshot.version = VERSION;
       snapshot.type = PacketType::GameDisplay;

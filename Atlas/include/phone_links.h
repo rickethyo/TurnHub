@@ -42,6 +42,7 @@ struct Request {
   char id[REQUEST_ID_LENGTH + 1] = {};
   char name[NAME_LENGTH + 1] = {};
   uint32_t code = 0;          // six digits, shown on both screens
+  char homeCode[15] = {};     // Home Wi-Fi: TLS fingerprint, shown during the same approval.
   uint32_t startedMs = 0;
   RequestState state = RequestState::Waiting;
   char phoneId[PHONE_ID_LENGTH + 1] = {};
@@ -55,11 +56,12 @@ const Phone *phone(uint8_t index);
 
 // A phone asks to pair. Refused (nullptr) while another request waits or the
 // list is full; name is cleaned to printable ASCII.
-const Request *ask(const char *name, uint32_t nowMs);
+const Request *ask(const char *name, uint32_t nowMs, const char *tlsPin = nullptr);
 // The request waiting for Allow on the screen, or nullptr.
 const Request *waiting(uint32_t nowMs);
 // Allow (saves the phone, issues its key) or refuse the waiting request.
 bool decide(bool allow, uint32_t nowMs);
+bool cancel(const char *requestId, uint32_t nowMs);
 // The phone's poll: its request's state; an Allowed request hands over the
 // phone ID and key once (later polls see Unknown).
 RequestState collect(const char *requestId, uint32_t nowMs, char (&phoneId)[PHONE_ID_LENGTH + 1],

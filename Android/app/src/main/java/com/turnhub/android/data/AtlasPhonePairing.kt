@@ -59,18 +59,25 @@ class AtlasPhonePairing(
     fun paired(atlasId: String?): Boolean = atlasId != null && keys.key(atlasId) != null
 
     /** Asks Atlas to pair and waits for the Atlas screen's answer; true once the key is saved. */
-    suspend fun pair(endpoint: AtlasEndpoint, atlasId: String, phoneName: String): Boolean {
-        if (paired(atlasId)) { _state.value = State.Paired; return true }
+    suspend fun pair(endpoint: AtlasEndpoint, atlasId: String, phoneName: String, requireApproval: Boolean = false): Boolean {
+        if (!requireApproval && paired(atlasId)) { _state.value = State.Paired; return true }
         val transport = transports.create(endpoint)
+        var requestId: String? = null
         try {
-            val asked = transport.raw("POST", "/api/phones/pair", "", listOf("name" to phoneName.take(32)))
+            val asked = transport.raw("POST", "/api/phones/pair", "", listOf("name" to phoneName.take(32)) +
+                if (endpoint.secure) listOf("home" to "1") else emptyList())
             if (!asked.ok) {
                 _state.value = State.Failed(message(asked, "Atlas couldn't start pairing. Try again."))
                 return false
             }
             val ask = JSONObject(asked.body)
             val request = ask.getString("request")
-            _state.value = State.Asking(ask.getString("code"))
+            requestId = request
+            // On first discovery, compare the actual pinned TLS key with Atlas's
+            // own key on its approval screen. Never trust a code supplied by an
+            // unverified endpoint to establish that endpoint's identity.
+            _state.value = State.Asking(endpoint.tlsPin?.take(12)?.uppercase()?.chunked(4)?.joinToString(" ")
+                ?: ask.getString("code"))
             val until = System.currentTimeMillis() + ask.optLong("waitMs", 60_000) + 5_000
             while (System.currentTimeMillis() < until) {
                 delay(pollMs)
@@ -92,6 +99,11 @@ class AtlasPhonePairing(
             _state.value = State.Failed("Pairing timed out. Try again.")
             return false
         } catch (e: CancellationException) {
+            requestId?.let { request -> kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                kotlinx.coroutines.withTimeoutOrNull(3_000) {
+                    runCatching { transport.raw("POST","/api/phones/pair/cancel","",listOf("request" to request)) }
+                }
+            } }
             if (_state.value is State.Asking) _state.value = State.Idle
             throw e
         } catch (_: Exception) {

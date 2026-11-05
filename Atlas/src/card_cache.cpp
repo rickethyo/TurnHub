@@ -444,9 +444,11 @@ void writeCard(TurnHubHistory::ArchiveFiles *f, Job &job) {
   bool ok;
   if (job.jpegSize) ok = writeFile(f, planePath(job.id, ".jpg"), reinterpret_cast<const char *>(job.jpeg), job.jpegSize);
   else ok = f->remove(planePath(job.id, ".jpg").c_str());
-  if (ok) noteFile(key, false, true, job.jpegSize > 0);
+  noteFile(key, false, true, ok && job.jpegSize > 0);
+  if (!ok) f->remove(planePath(job.id, ".jpg").c_str());
   if (ok) ok = writeFile(f, planePath(job.id, ".txt"), job.text, job.textSize);
   noteFile(key, true, false, ok);
+  if (!ok) f->remove(planePath(job.id, ".txt").c_str());
   {
     Guard guard;
     ++cardsWritten;
@@ -682,6 +684,13 @@ bool readPlaneArt(const char *id, uint8_t *out, size_t capacity, size_t &size) {
     if (!f->readAt(name.c_str(), size, reinterpret_cast<char *>(out) + size, total - size, got) || !got)
       return false;
     size += got;
+  }
+  if (size < 4 || out[0] != 0xFF || out[1] != 0xD8 || out[size - 2] != 0xFF || out[size - 1] != 0xD9) {
+    // An interrupted SD write can leave a file the directory index found.
+    // Withdraw its art claim so the phone/direct downloader can replace it.
+    noteFile(stemKey(id), false, true, false);
+    size = 0;
+    return false;
   }
   return true;
 }

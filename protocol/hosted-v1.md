@@ -25,9 +25,18 @@ instead of signing in, the way a Sigil does.
   characters) answers `{"request": "<16 hex>", "code": "123 456", "waitMs": 60000}`.
   The Atlas screen shows "Allow this phone?" with the phone's name and the same
   code. `409` while another phone is asking, or when eight phones are paired.
+  Home-network clients also send `home=1`: the code is the first 12 hexadecimal
+  digits of Atlas's TLS key fingerprint, formatted in groups of four. The app
+  derives its display from the endpoint's actual pin, never the returned code.
+  Atlas automatically shows its own fingerprint in the same phone approval.
+  A single Allow establishes TLS trust and the phone pairing; discovery alone
+  never persists trust. Hotspot pairing retains its six-digit code.
 - `GET /api/phones/pair?request=<id>` answers `{"state": "waiting"}`, then
   `"allowed"` with `"phone"`, `"key"` and `"owner"` exactly once, or
   `"refused"`, `"expired"` (60 s without an answer) or `"unknown"`.
+- `POST /api/phones/pair/cancel` with `request` cancels that waiting request only;
+  it cannot revoke an already approved phone. The app sends it when its
+  full-screen approval is cancelled.
 - The phone then sends `X-TurnHub-Token: phone:<phone>:<key>` on the hosted and
   plane, player-copy and finished-record routes. Atlas keeps only a hash of the key (NVS `phones`). The first
   phone paired is the owner. A `401` means Atlas forgot the phone: pair again.
@@ -39,16 +48,27 @@ A phone's lease is keyed on its phone ID and named after the phone.
 ## Player copies and records
 
 These routes require a valid paired phone credential; a player sign-in is not
-needed. `401` means pair again. Pairing grants access to the table's public
+needed. `401` means pair again. Pairing grants access to the table's shared
 profile copies, totals and archived match records, including other players in
-those records. It does not grant access to PINs or private moderation history.
+those records. Profile copies include salted PIN verifiers, never plaintext
+PINs or private moderation history. The receiving device keeps account settings
+and detailed statistics locked until the profile is unlocked locally.
 
 - `POST /api/player-copies`: form `profileId` (8 hexadecimal characters),
   `name` (1–32 UTF-8 bytes), `color` (`none` or `#RRGGBB`), and `avatar`
   (0 for none, or a preset ID from `/api/avatars`). Creates or updates the copy
   under that exact ID. Same-name players with different IDs remain separate.
-  Unknown credential fields do not set a PIN or permission. The phone sends no
-  PIN verifier, custom picture or tile background.
+  `copy` carries the schema-2 profile subset: `copySchema`, `profileId`, `name`,
+  `lastActivityMs`, `createdAtMs`, `personalization` (color, preset avatar and
+  reduced motion), and `credential` (null or base64 salt/hash, 16/32 bytes).
+  Atlas stores this in NVS namespace `phone-copies`, keyed by the profile ID.
+  Extra device-role/link/history/image fields are discarded. Newer updates win;
+  at equal timestamps an existing verifier can only be filled, not replaced.
+- `GET /api/player-copies` returns `{"copies":[...]}` only to paired phones.
+  Phones check every 15 seconds and commit copies locally without unlocking
+  them or changing their device Admin. Copies persist offline by default. A
+  device-owner opt-out removes unused automatic copies after 24 hours offline,
+  preserving current/saved setups and match records; reconnect resets the grace.
 - Success: `{"ok":true,"appearanceStored":true}`. With no usable SD card,
   appearance can fail independently: `appearanceStored:false` still permits
   basic record credit using the identity in NVS. `400` rejects malformed

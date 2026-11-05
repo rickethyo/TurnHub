@@ -16,6 +16,8 @@ data class SavedLocalPlayer(
     /** Original UTC creation time; 0 means unknown, never the date of a later import. */
     val createdAtMs: Long = 0,
     val commanders: List<Pair<String, String?>> = emptyList(),
+    /** Only automatically received profiles are eligible for disconnected-copy cleanup. */
+    val copiedFromAtlas: String? = null,
 )
 
 enum class DeliveryStatus { NEEDS_LINKING, PENDING, IMPORTED, REJECTED }
@@ -66,6 +68,8 @@ data class LocalLibrary(
     /** The owner chose "Not now" when asked to set up the device's Admin account. */
     val adminPromptDismissed: Boolean = false,
     val gameSetups: List<SavedGameSetup> = emptyList(),
+    val keepCopiedProfiles: Boolean = true,
+    val atlasDisconnectedAtMs: Map<String, Long> = emptyMap(),
 ) {
     fun isDeviceAdmin(localId: String) = deviceAdmin == localId
 
@@ -168,6 +172,8 @@ data class LocalLibrary(
     fun toJson(): JSONObject = JSONObject().apply {
         put("gameSetups", JSONArray().apply { gameSetups.forEach { put(it.toJson()) } })
         put("schema", SCHEMA)
+        put("keepCopiedProfiles", keepCopiedProfiles)
+        put("atlasDisconnectedAtMs", JSONObject(atlasDisconnectedAtMs))
         put("guestNames", JSONArray(guestNames))
         put("players", JSONArray().apply {
             players.forEach { p -> put(JSONObject().put("localId", p.localId).put("name", p.name)
@@ -178,6 +184,7 @@ data class LocalLibrary(
                     put(JSONObject().put("name", name).put("art", art ?: JSONObject.NULL)) } })
                 .put("lastActivityMs", p.lastActivityMs)
                 .put("createdAtMs", p.createdAtMs)
+                .put("copiedFromAtlas", p.copiedFromAtlas ?: JSONObject.NULL)
                 .put("credential", p.credential?.let { JSONObject().put("salt", it.salt).put("hash", it.hash) } ?: JSONObject.NULL)) }
         })
         put("planarDecks", JSONArray().apply { planarDecks.forEach { put(it.toJson()) } })
@@ -204,6 +211,10 @@ data class LocalLibrary(
             val deliveries = json.getJSONArray("deliveries")
             val decks = json.optJSONArray("planarDecks") ?: JSONArray()
             return LocalLibrary(
+                keepCopiedProfiles = json.optBoolean("keepCopiedProfiles", true),
+                atlasDisconnectedAtMs = json.optJSONObject("atlasDisconnectedAtMs")?.let { times ->
+                    times.keys().asSequence().associateWith { times.getLong(it).coerceAtLeast(0) }
+                }.orEmpty(),
                 gameSetups = json.optJSONArray("gameSetups")?.let { setups ->
                     (0 until setups.length()).map { SavedGameSetup.fromJson(setups.getJSONObject(it)) }
                 }.orEmpty(),
@@ -229,7 +240,8 @@ data class LocalLibrary(
                             require(name.isNotBlank() && name.length <= StandaloneGame.MAX_COMMANDER)
                             require(art == null || com.turnhub.android.data.TileCardGame.valid(art))
                             name to art
-                        }.also { require(it.size <= 6) } }.orEmpty())
+                        }.also { require(it.size <= 6) } }.orEmpty(),
+                        it.optStringOrNull("copiedFromAtlas"))
                 } },
                 history = (0 until history.length()).map { i ->
                     requireNotNull(GameRecord.fromJson(history.getJSONObject(i))) { "Invalid match" }

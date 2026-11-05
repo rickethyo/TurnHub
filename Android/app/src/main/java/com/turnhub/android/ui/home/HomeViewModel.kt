@@ -228,6 +228,25 @@ class HomeViewModel(
             standaloneObserver?.cancel()
             if (value != null && autoHost) observeAutoHost()
             if (value != null) standaloneObserver = viewModelScope.launch {
+                launch {
+                    combine(repository.connectionState, repository.offlineSinceMs, repository.tableSummary) { connection, offline, summary ->
+                        summary?.atlasId?.takeIf { connection == AtlasConnectionState.CONNECTED && offline == null }
+                    }.distinctUntilChanged().collect { value.observeCopyConnection(it) }
+                }
+                if (phonePairing != null) launch {
+                    while (true) {
+                        delay(15_000)
+                        val (endpoint, atlasId) = pairedAtlas() ?: continue
+                        if (repository.connectionState.value != AtlasConnectionState.CONNECTED || repository.offlineSinceMs.value != null || localImportJob?.isActive == true) continue
+                        val copies = com.turnhub.android.data.AtlasPlayerCopies { method, path, fields ->
+                            if (repository.endpoint.value != endpoint || repository.tableSummary.value?.atlasId != atlasId) null
+                            else runCatching { hubRaw(method,path,fields) }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it; null }
+                        }
+                        copies.pullDirectory(value,atlasId)?.let { profiles ->
+                            _localImport.value = _localImport.value.copy(atlasId=atlasId,profiles=profiles,paired=true)
+                        }
+                    }
+                }
                 combine(value.state.map { it.library.history.map { r -> r.recordId } to it.library.players }.distinctUntilChanged(),
                     repository.tableSummary.map { it?.atlasId to it?.bootId }.distinctUntilChanged(),
                     playerSession.state.map { (it as? PlayerSessionState.SignedIn)?.profileId }.distinctUntilChanged(),
@@ -253,7 +272,7 @@ class HomeViewModel(
         localImportRequested = false
         if (pairedAtlas() != null) {
             val table = standalone ?: return
-            _localImport.value = com.turnhub.android.standalone.LocalImportState(atlasId = summary.atlasId, busy = true, paired = true)
+            _localImport.value = _localImport.value.copy(atlasId = summary.atlasId, busy = true, paired = true)
             localImportJob = viewModelScope.launch {
                 try {
                     val copies = com.turnhub.android.data.AtlasPlayerCopies { method, path, fields ->
@@ -1179,10 +1198,10 @@ class HomeViewModel(
         wifiJoinJob = viewModelScope.launch {
             disconnectJob?.join()
             local.update { it.copy(discovery = Discovery.Searching) }
-            // A fresh app may find an Atlas already on home Wi-Fi; trusting it still needs the App link code.
+            // First discovery combines key verification with the phone's on-Atlas approval.
             val candidate = link.pairingCandidate()
             currentCoroutineContext().ensureActive()
-            local.update { it.copy(discovery = Discovery.Idle, homePairing = candidate) }
+            approveDiscoveredHome(candidate)
             if (candidate == null) joinThenConnect(AtlasEndpoint.DEFAULT, factoryDefault)
         }
     }
@@ -1191,7 +1210,8 @@ class HomeViewModel(
     private fun idle(): Boolean {
         val screen = local.value
         return repository.connectionState.value == AtlasConnectionState.DISCONNECTED &&
-            screen.joiningSsid == null && screen.wifiPrompt == null && screen.homePairing == null && !screen.wifiOff && !screen.rejoining
+            screen.joiningSsid == null && screen.wifiPrompt == null && screen.homePairing == null &&
+            phonePairing?.state?.value !is com.turnhub.android.data.AtlasPhonePairing.State.Asking && !screen.wifiOff && !screen.rejoining
     }
 
     private suspend fun rejoinSavedTable() {
@@ -1204,7 +1224,7 @@ class HomeViewModel(
             local.update { it.copy(discovery = Discovery.Searching, failure = null) }
             val candidate = link.pairingCandidate()
             currentCoroutineContext().ensureActive()
-            local.update { it.copy(discovery = Discovery.Idle, homePairing = candidate) }
+            approveDiscoveredHome(candidate)
             return
         }
         if (!wifiLink.wifiEnabled()) return askToTurnOnWifi { onSearchAgain() }
@@ -1298,11 +1318,23 @@ class HomeViewModel(
             local.update { it.copy(discovery = Discovery.Idle) }
             when {
                 home != null -> connectRepository(home)
-                candidate != null -> local.update { it.copy(homePairing = candidate) }
+                candidate != null -> approveDiscoveredHome(candidate)
                 link.hasSavedAtlas() -> local.update { it.copy(discovery = Discovery.NotFound) }
                 else -> joinAtlasWifi(endpoint)
             }
         }
+    }
+
+    private suspend fun approveDiscoveredHome(candidate: com.turnhub.android.data.SavedHomeAtlas?) {
+        local.update { it.copy(discovery = Discovery.Idle) }
+        if (candidate == null) return
+        val pairing = phonePairing
+        if (pairing == null) { local.update { it.copy(homePairing = candidate) }; return }
+        if (!pairing.pair(candidate.endpoint, candidate.atlasId, phoneName, requireApproval = true)) return
+        currentCoroutineContext().ensureActive()
+        val endpoint = homeLink?.confirmPairing(candidate)
+        if (endpoint != null) connectRepository(endpoint)
+        else local.update { it.copy(failure = AtlasFailure.Rejected("Atlas could not be saved. Search again to retry.")) }
     }
 
     fun onDismissHomePairing() {

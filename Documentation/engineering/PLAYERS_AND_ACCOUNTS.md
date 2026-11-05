@@ -7,14 +7,25 @@ HTTP routes are in `protocol/http-v1.md` and the route table in
 
 ## Phone-owned profile copies
 
-A paired phone hosts and exchanges public player copies and records without a
-player sign-in. Copies contain stable ID, name, colour and a preset avatar;
-local profile PINs and pictures remain on the phone. Basic identities/totals
+A paired phone hosts and exchanges player copies and records without a
+player sign-in. Copies contain stable ID, name, colour, preset avatar,
+creation/update times and the salted PIN/password verifier. No PIN entry is
+required to copy or play; settings and detailed statistics retain their local
+unlock gate. Copies never unlock accounts or grant device Admin. Plaintext
+secrets, private link keys, pictures and tile backgrounds are excluded. Basic identities/totals
 use NVS, while appearance, detailed statistics and archived history use SD.
 The phone sends records after copies are acknowledged and reads back totals and
 same-ID history. Names never establish identity. Pairing grants access to the
 table's player totals and archived game records; it does not reveal private
 moderation data. The wire contract is in [Hosted games](../../protocol/hosted-v1.md#player-copies-and-records).
+
+Paired devices check the directory every 15 seconds and keep copies in their
+local library, including offline. Newer profile updates win; names never merge
+different IDs, and stale copies cannot clear an existing PIN verifier. Device
+owners can turn off **Keep profiles copied from Atlas** in More > Settings.
+Only automatic copies become eligible for removal after 24 hours disconnected;
+reconnection resets the grace period. Current rosters, saved setups, original
+device profiles, device Admin and all retained match records are preserved.
 
 ## Profiles and sign-in
 
@@ -58,6 +69,8 @@ mid-game Sigil joins, the Atlas screen's Add player and tablet mode's
   the selection. `sigilSeat` binds the controller independently of the player's
   identity and phone memberships; detaching leaves the player seated. Guests
   create no account or personal statistics, only their match participation.
+    Lobby and starting screens display names from the hub's player snapshot,
+    independently of Atlas's stored seat-profile bindings.
 - **Additional phones** join through a player-scoped invitation created on
   an already connected player phone. It uses the persistent room address and
   a separate bearer key restricted to that player. Phone-claimed profiles
@@ -235,7 +248,7 @@ future LCD layouts; those firmware targets and their radio transfer are pending.
 ### One profile directory and two game views
 
 Players is one identity-based list with location labels: This device, Atlas,
-or both. Names alone never merge identities. Public gameplay references can
-be copied to the device without a PIN; this copies no credential, private
-history, privileged role or private-history link key. Game shows the hub's own game, hosted on Atlas or not.
+or both. Names alone never merge identities. Paired automatic copies retain
+the profile's salted verifier without unlocking it. Public gameplay references
+remain distinct from private account-copy links and device roles. Game shows the hub's own game, hosted on Atlas or not.
 Private statistics and administration remain under PIN-verified profile access.

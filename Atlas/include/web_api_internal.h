@@ -160,6 +160,8 @@ void handleInfo(WebServer &server);
 void handleState(WebServer &server);
 // Phone-hosted games (web_hosted_api.cpp, protocol/hosted-v1.md).
 void handlePlayerCopy(WebServer &server);
+void handlePlayerCopies(WebServer &server);
+void handlePhonePairCancel(WebServer &server);
 void handlePlayerCopyStats(WebServer &server);
 void handlePlayerCopyHistory(WebServer &server);
 void handleHostedClaim(WebServer &server);

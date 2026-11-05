@@ -261,7 +261,7 @@ const lv_image_dsc_t *actionIcon(TouchAction a) {
     case TouchAction::OpenQr: return &th_icon_qr_24;
     case TouchAction::UnpairSigils: return &th_icon_link_24;
     case TouchAction::FactoryResetAtlas: return &th_icon_power_24;
-    case TouchAction::UsbDrive: return &th_icon_download_24;
+    case TouchAction::UsbDrive: case TouchAction::OpenStorage: return &th_icon_download_24;
     case TouchAction::PassTurn: return &th_icon_pass_24;
     case TouchAction::ThemeGraphite: case TouchAction::SleepAtlas: return &th_icon_moon_24;
     case TouchAction::ThemeDaylight: return &th_icon_sun_24;
@@ -675,7 +675,7 @@ void drawManaTap(lv_obj_t *root, const AtlasScreen &s) {
 
 // Home, like the app's home card: the table's state in a pill, a headline
 // and a line, the players' tokens in seat order (the turn ringed), then
-// three tiles counting players and Sigils and naming the game.
+// three flat counters counting players and Sigils and naming the game.
 void drawHome(lv_obj_t *root, const AtlasScreen &s) {
   constexpr int16_t cardH = 152;
   const bool playing = strcmp(s.badge, "PLAYING") == 0;
@@ -704,25 +704,26 @@ void drawHome(lv_obj_t *root, const AtlasScreen &s) {
     snprintf(more, sizeof(more), "+%u", static_cast<unsigned>(s.playerCount - shown));
     text(status, more, &th_semi_16, pal().textSecondary, 14 + shown * step, cardH - side - 12 + 6, 40);
   }
-  // The tiles.
+  // Read-only counters: no raised surfaces or glossy icon badges like buttons.
   char players[6], sigils[6];
   snprintf(players, sizeof(players), "%u", static_cast<unsigned>(s.playerCount));
   snprintf(sigils, sizeof(sigils), "%u", static_cast<unsigned>(s.sigilsOnline));
   const struct { const lv_image_dsc_t *glyph; uint32_t tint; const char *value; const char *caption; } tiles[] = {
       {&th_icon_users_24, pal().info, players, s.playerCount == 1 ? "PLAYER" : "PLAYERS"},
-      {&th_icon_sigil_24, pal().accent, sigils, "SIGILS ONLINE"},
+      {&th_icon_sigil_24, pal().accent, sigils, "SIGILS"},
       {&th_icon_cards_24, pal().good, s.lineCount > 2 ? s.lines[2] : "", s.lineCount > 3 ? s.lines[3] : ""}};
   constexpr int16_t gap = 8, tileH = 86;
   const int16_t tileW = (W - 16 - 2 * gap) / 3, tileY = SCREEN_BODY_Y + cardH + 10;
   for (uint8_t i = 0; i < 3; ++i) {
     lv_obj_t *tile = box(root, 8 + i * (tileW + gap), tileY, tileW, tileH);
-    card(tile, pal().surface2, pal().separator, 14);
-    lift(tile);
-    lv_obj_t *chip = box(tile, 10, 10, 30, 30);
-    orb(chip, tiles[i].tint, 30, 9);
-    icon(chip, tiles[i].glyph, 2, 2, 0xFFFFFF);
-    text(tile, tiles[i].value, &th_semi_20, pal().text, 10, 44, tileW - 20);
-    text(tile, tiles[i].caption, &th_eyebrow_13, pal().textTertiary, 10, 66, tileW - 20);
+    if (i) {
+      lv_obj_t *divider = box(tile, 0, 8, 1, tileH - 16);
+      lv_obj_set_style_bg_color(divider, rgb(pal().separator), 0);
+      lv_obj_set_style_bg_opa(divider, LV_OPA_COVER, 0);
+    }
+    icon(tile, tiles[i].glyph, 10, 6, tiles[i].tint);
+    text(tile, tiles[i].value, &th_semi_20, pal().text, 10, 36, tileW - 12);
+    text(tile, tiles[i].caption, &th_eyebrow_13, pal().textTertiary, 10, 62, tileW - 12);
   }
 }
 
@@ -979,16 +980,21 @@ void drawPlaneCard(lv_obj_t *root, const AtlasScreen &s) {
 void drawSyncToast(lv_obj_t *root, const AtlasScreen &s, int16_t width, int16_t y) {
   if (!s.sync[0]) return;
   const int16_t w = width - 24;
-  lv_obj_t *toast = box(root, 12, y, w, 44);
-  card(toast, pal().surface1, pal().accent, 22);
+  const int16_t textW = w - 56;
+  const bool twoLines = textWidth(s.sync, &th_semi_16) > textW;
+  const int16_t h = twoLines ? 60 : 44;
+  lv_obj_t *toast = box(root, 12, y, w, h);
+  card(toast, pal().surface1, pal().accent, 16);
   lv_obj_set_style_border_width(toast, 2, 0);
   lift(toast);
-  lv_obj_t *chip = box(toast, 8, 7, 28, 28);
+  lv_obj_t *chip = box(toast, 8, (h - 28) / 2, 28, 28);
   lv_obj_set_style_radius(chip, LV_RADIUS_CIRCLE, 0);
   lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
   lv_obj_set_style_bg_color(chip, rgb(pal().accent), 0);
   icon(chip, &th_icon_download_24, 2, 2, pal().onAccent);
-  text(toast, s.sync, &th_semi_16, pal().text, 44, 11, w - 56);
+  lv_obj_t *label = text(toast, s.sync, &th_semi_16, pal().text, 44, twoLines ? 8 : 11, textW);
+  lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
+  lv_obj_set_height(label, twoLines ? 44 : 24);
 }
 
 // No game yet: a glossy orb with the table's cards over the steps to start
@@ -1031,7 +1037,7 @@ void drawBody(lv_obj_t *root, const AtlasScreen &s) {
     // Code on top, the QR code centred under it, then its caption and lines.
     int16_t y = SCREEN_BODY_Y;
     if (s.code[0]) {
-      text(root, s.code, digitsOnly(s.code) ? &th_num_64 : &th_bold_28, pal().accent, 12, y - 6, W - 24,
+      text(root, s.code, digitsOnly(s.code) && strlen(s.code) <= 7 ? &th_num_64 : &th_bold_28, pal().accent, 12, y - 6, W - 24,
            LV_TEXT_ALIGN_CENTER);
       y += 76;
     }

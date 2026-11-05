@@ -206,7 +206,7 @@ const char *faceUpPlaneId(const turnhub::Json &planes) {
 bool shownScreen(ScreenKind kind) {
   switch (kind) {
     case ScreenKind::Home: case ScreenKind::Status: case ScreenKind::Qr: case ScreenKind::Menu:
-    case ScreenKind::Device: case ScreenKind::Power: case ScreenKind::Themes: case ScreenKind::ManaTap:
+    case ScreenKind::Device: case ScreenKind::Power: case ScreenKind::Themes: case ScreenKind::ManaTap: case ScreenKind::Storage:
       return true;
     case ScreenKind::Planes: return hostedPlanechase(millis()) != nullptr;
     // The card view needs a digital plane to show.
@@ -274,19 +274,15 @@ void layoutMenu(AtlasScreen &screen) {
 // during a match). Unpair and Factory reset ask first in the popup; they
 // stand in for the BOOT button's held gestures.
 void layoutDevice(AtlasScreen &screen) {
-  const bool usbWanted = sdCardUsbShareWanted();
   ButtonSpec rows[6];
   uint8_t n = 0;
   rows[n++] = {TouchAction::OpenPower, "Sound, screen, sleep", 0, 1};
-  rows[n++] = {TouchAction::UsbDrive, usbWanted ? "USB drive: on" : "USB drive: off", 0, 1};
+  rows[n++] = {TouchAction::OpenStorage, "Storage & USB drive", 0, 1};
   if (!matchInProgress()) rows[n++] = {TouchAction::SleepAtlas, "Sleep", 0, 1};
   if (betweenGames(millis())) rows[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", ASK, 1};
   if (TurnHubPhones::count()) rows[n++] = {TouchAction::ForgetPhones, "Forget paired phones", ASK, 1};
   if (!matchInProgress()) rows[n++] = {TouchAction::FactoryResetAtlas, "Factory reset", ASK, 1};
   addList(screen, rows, n);
-  for (uint8_t i = 0; i < screen.buttonCount; ++i) {
-    if (screen.buttons[i].action == TouchAction::UsbDrive) screen.buttons[i].selected = usbWanted;
-  }
   const ButtonSpec back[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
   addRow(screen, BUTTON_ROW_Y, back, 1);
 }
@@ -419,6 +415,12 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
       layoutDevice(screen);
       return;
     case ScreenKind::Power: layoutPower(screen); return;
+    case ScreenKind::Storage: {
+      const ButtonSpec row[] = {{TouchAction::UsbDrive, sdCardUsbShareWanted() ? "USB drive: on" : "USB drive: off", 0, 1},
+          {TouchAction::CloseScreen, "Back", 0, 1}};
+      addRow(screen, BUTTON_ROW_Y, row, 2);
+      return;
+    }
     case ScreenKind::Qr: {
       const ButtonSpec row[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
       addRow(screen, BUTTON_ROW_Y, row, 1);
@@ -525,6 +527,7 @@ const char *actionName(TouchAction action) {
     case TouchAction::SetupPair: return "SETUP_PAIR";
     case TouchAction::SetupDone: return "SETUP_DONE";
     case TouchAction::OpenDevice: return "OPEN_DEVICE";
+    case TouchAction::OpenStorage: return "OPEN_STORAGE";
     case TouchAction::OpenThemes: return "OPEN_THEMES";
     case TouchAction::InvertDisplay: return "INVERT_DISPLAY";
     case TouchAction::UsbDrive: return "USB_DRIVE";
@@ -602,9 +605,10 @@ bool navigate(TouchAction action) {
       return true;
     }
     case TouchAction::OpenDevice: openScreen = ScreenKind::Device; return true;
+    case TouchAction::OpenStorage: openScreen = ScreenKind::Storage; return true;
     case TouchAction::OpenPower: openScreen = ScreenKind::Power; return true;
     case TouchAction::CloseScreen: {
-      if (openScreen == ScreenKind::Power) {
+      if (openScreen == ScreenKind::Power || openScreen == ScreenKind::Storage) {
         openScreen = ScreenKind::Device;
         return true;
       }
@@ -1008,6 +1012,7 @@ void formatPhonePair(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.detail, sizeof(screen.detail), "%.32s (%lu s)", request->name, static_cast<unsigned long>(leftS));
   snprintf(screen.code, sizeof(screen.code), "%03lu %03lu", static_cast<unsigned long>(request->code / 1000),
       static_cast<unsigned long>(request->code % 1000));
+  if (request->homeCode[0]) snprintf(screen.code, sizeof(screen.code), "%s", request->homeCode);
   snprintf(screen.lines[0], sizeof(screen.lines[0]), "Same code on the phone?");
   snprintf(screen.lines[1], sizeof(screen.lines[1]), "%s", TurnHubPhones::count() ? "It can then host games here."
       : "It becomes this Atlas's owner.");
@@ -1035,6 +1040,23 @@ void formatDevice(AtlasScreen &screen) {
   snprintf(screen.badge, sizeof(screen.badge), "DEVICE");
   snprintf(screen.title, sizeof(screen.title), "Atlas device");
   snprintf(screen.detail, sizeof(screen.detail), "TurnHub Atlas v%s", TurnHubFirmware::VERSION);
+}
+
+void formatStorage(AtlasScreen &screen) {
+  const auto info = turnhub::Json::parse(sdCardDiagnosticsJson().c_str());
+  const std::string state = info.get("state").asString();
+  const bool usb = sdCardOnUsb();
+  const bool ready = sdCardReady();
+  snprintf(screen.badge, sizeof(screen.badge), "STORAGE");
+  snprintf(screen.title, sizeof(screen.title), "microSD card");
+  snprintf(screen.detail, sizeof(screen.detail), "%s", usb ? "Shared with your computer" : ready ? "Ready for Atlas" : "Storage unavailable");
+  if (info.has("cardMB")) {
+    snprintf(screen.lines[screen.lineCount++], sizeof(screen.lines[0]), "Card: %s", info.get("type").asString().c_str());
+    snprintf(screen.lines[screen.lineCount++], sizeof(screen.lines[0]), "Capacity: %lld MB", static_cast<long long>(info.get("cardMB").asInt()));
+    snprintf(screen.lines[screen.lineCount++], sizeof(screen.lines[0]), "Used at mount: %lld MB", static_cast<long long>(info.get("usedKB").asInt() / 1024));
+  }
+  snprintf(screen.lines[screen.lineCount++], sizeof(screen.lines[0]), "%s", usb ? "Eject on PC, then turn USB off." : ready ? "Plane cards and records available." : state == "no_card" ? "Insert a microSD card." : "Card check failed; reinsert card.");
+  if (usb) snprintf(screen.lines[screen.lineCount++], sizeof(screen.lines[0]), "Atlas cannot use files during USB.");
 }
 
 // Home: the table at a glance, like the app's home card. The status card
@@ -1242,6 +1264,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
       snprintf(screen.detail, sizeof(screen.detail), "Choose the look for this Atlas");
       break;
     case ScreenKind::Device: formatDevice(screen); break;
+    case ScreenKind::Storage: formatStorage(screen); break;
     case ScreenKind::Power:
       snprintf(screen.badge, sizeof(screen.badge), "POWER");
       snprintf(screen.title, sizeof(screen.title), "Sound, screen, sleep");

@@ -15,6 +15,7 @@
 #include "serial_log.h"
 #include "game_profile.h"
 #include "touch_controls.h"
+#include "sd_card.h"
 
 namespace TurnHubWebApi {
 namespace internal {
@@ -185,8 +186,13 @@ void handlePlaneCard(WebServer &server) {
       sendError(server, 503, "Atlas is still saving the last plane cards. Try again in a moment");
       return;
     case TurnHubCards::CardQueue::NoCard:
-      TurnHubAtlas::showSyncStatus(millis(), "Plane cards need a microSD card");
-      sendError(server, 409, "Atlas keeps plane cards on its microSD card: insert one");
+      if (TurnHubAtlas::sdCardOnUsb() || TurnHubAtlas::sdCardUsbShareWanted()) {
+        TurnHubAtlas::showSyncStatus(millis(), "USB drive on: plane cards paused");
+        sendError(server, 409, "Eject Atlas on the computer and turn USB drive off to save plane cards");
+      } else {
+        TurnHubAtlas::showSyncStatus(millis(), "SD unavailable: check Storage");
+        sendError(server, 409, "Atlas cannot use its microSD card: check Settings > Device > Storage & USB drive");
+      }
       return;
     case TurnHubCards::CardQueue::Invalid:
       TurnHubAtlas::showSyncStatus(millis(), "Couldn't save a plane card");

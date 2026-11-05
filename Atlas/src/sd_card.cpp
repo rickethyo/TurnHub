@@ -667,7 +667,7 @@ String sdCardDiagnosticsJson() {
   const CardState state = cardState.load();
   String json = String("{\"state\":\"") + cardStateName(state) + "\"";
   if (state == CardState::Mounted || state == CardState::StoreError ||
-      state == CardState::SelfTestError) {
+        state == CardState::SelfTestError || state == CardState::UsbDrive) {
     json += String(",\"type\":\"") + mountedType + "\"";
     json += ",\"cardMB\":" + String(cardMB);
     json += ",\"totalMB\":" + String(totalMB);

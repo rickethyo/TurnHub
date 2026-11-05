@@ -67,11 +67,11 @@ enum class TouchAction : uint8_t {
   ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast,
   OpenPlanes, PlanarRoll, PlanarWalk, PlanarResolve, OpenPlaneCard, PlaneCardBack,
   // A phone asking to pair (phone_links.h), and Settings > Device's Forget phones.
-  PhoneAllow, PhoneRefuse, ForgetPhones
+  PhoneAllow, PhoneRefuse, ForgetPhones, OpenStorage
 };
 
 // Main pages and overlays that the touch producer can actually build.
-enum class ScreenKind : uint8_t { Home, Status, Qr, Code, Menu, PairCode, Setup, Device, Power, Themes, Confirm, ManaTap, Planes, PlaneCard, PhonePair };
+enum class ScreenKind : uint8_t { Home, Status, Qr, Code, Menu, PairCode, Setup, Device, Power, Themes, Confirm, ManaTap, Planes, PlaneCard, PhonePair, Storage };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -212,7 +212,7 @@ struct AtlasScreen {
   uint8_t lineCount = 0;
   char qr[256] = {};
   char qrCaption[40] = {};
-  char code[8] = {};      // Presence code as "123 456" (Code screen).
+  char code[16] = {};     // Presence digits, or the home-network pairing fingerprint.
 
   // Mana Tap: a copy of the game (ManaTap screen only), and whether it
   // paused itself because a turn passed.

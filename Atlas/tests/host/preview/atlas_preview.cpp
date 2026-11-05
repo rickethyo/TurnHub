@@ -100,12 +100,12 @@ void players(AtlasScreen &s, int count, bool game) {
 }
 
 void renderShell(AtlasScreen &s,const ScreenStyle &style,bool keepBanner=false) {
-  if(s.kind!=ScreenKind::Code && s.kind!=ScreenKind::PairCode && s.kind!=ScreenKind::Setup && s.kind!=ScreenKind::Confirm) {
+  if(s.kind!=ScreenKind::Code && s.kind!=ScreenKind::PairCode && s.kind!=ScreenKind::PhonePair && s.kind!=ScreenKind::Setup && s.kind!=ScreenKind::Confirm) {
     // As touch_controls.cpp's layoutButtons: Home, Game, Planes (in a Planechase game), Settings.
     const TouchAction actions[]={TouchAction::OpenHome,TouchAction::OpenGame,TouchAction::OpenPlanes,TouchAction::OpenSettings};
     const char *names[]={"Home","Game","Planes","Settings"};
     const uint8_t selected=s.kind==ScreenKind::Home||s.kind==ScreenKind::ManaTap?0:s.kind==ScreenKind::Planes?2:
-        s.kind==ScreenKind::Menu||s.kind==ScreenKind::Device||s.kind==ScreenKind::Themes?3:1;
+        s.kind==ScreenKind::Menu||s.kind==ScreenKind::Device||s.kind==ScreenKind::Themes||s.kind==ScreenKind::Storage||s.kind==ScreenKind::Power?3:1;
     const uint8_t count=s.planes.on?4:3; const int16_t w=WIDTH/count; uint8_t slot=0;
     for(uint8_t i=0;i<4;++i) {
       if(i==2&&!s.planes.on) continue;
@@ -167,6 +167,13 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     renderShell(s, style); save("ready" + suffix);
   }
   {
+    auto s=base("STORAGE","microSD card","Shared with your computer");s.kind=ScreenKind::Storage;s.sdOnUsb=true;
+    const char *lines[]={"Card: SDHC/SDXC","Capacity: 7580 MB","Used at mount: 12 MB","Eject on PC, then turn USB off.","Atlas cannot use files during USB."};
+    for(auto *line:lines) snprintf(s.lines[s.lineCount++],40,"%s",line);
+    row(s,BUTTON_ROW_Y,{{TouchAction::UsbDrive,"USB drive: on"},{TouchAction::CloseScreen,"Back"}});
+    renderShell(s,style);save("storage-usb"+suffix);
+  }
+  {
     AtlasScreen s = base("SETTINGS", "Settings", "Pair Sigils, share codes, the look");
     s.kind = ScreenKind::Menu;
     list(s, {{TouchAction::OpenSetup, "Setup"}, {TouchAction::Pair, "Pair a Sigil"}, {TouchAction::OpenQr, "QR codes"},
@@ -176,7 +183,7 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
   {
     AtlasScreen s = base("DEVICE", "Atlas device", "Unpair and Factory reset ask first");
     s.kind = ScreenKind::Device;
-    list(s, {{TouchAction::UsbDrive, "USB drive: off"}, {TouchAction::SleepAtlas, "Sleep"},
+    list(s, {{TouchAction::OpenStorage, "Storage & USB drive"}, {TouchAction::SleepAtlas, "Sleep"},
         {TouchAction::UnpairSigils, "Unpair Sigils"}, {TouchAction::FactoryResetAtlas, "Factory reset"}});
     s.buttons[2].confirm = s.buttons[3].confirm = true;
     row(s, BUTTON_ROW_Y, {{TouchAction::CloseScreen, "Back"}});
@@ -220,6 +227,14 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     renderShell(s, style); save("verification-code" + suffix);
   }
   {
+    auto s=base("PHONE","Allow this phone?","Samsung tablet (60 s)");s.kind=ScreenKind::PhonePair;
+    snprintf(s.code,sizeof(s.code),"F833 0888 859D");
+    snprintf(s.lines[s.lineCount++],40,"Same code on the phone?");
+    snprintf(s.lines[s.lineCount++],40,"It can then host games here.");
+    row(s,BUTTON_ROW_Y,{{TouchAction::PhoneAllow,"Allow"},{TouchAction::PhoneRefuse,"Refuse"}},{3,2});
+    renderShell(s,style);save("phone-approval"+suffix);
+  }
+  {
     // Planechase: the Planes screen (digital deck, a phenomenon, the players'
     // own planes), then the planar die rolling over the game.
     auto planes = [&](AtlasScreen &s) {
@@ -233,6 +248,8 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     s.planes.deckLeft = 31; s.planes.planeswalks = 4; s.planes.chaos = 2; s.planes.counters = 3; s.planes.rollCost = 1;
     planes(s);
     renderShell(s, style); save("planes" + suffix);
+    snprintf(s.sync,sizeof(s.sync),"USB drive on: plane cards paused");
+    renderShell(s,style);save("planes-storage-warning"+suffix);
     AtlasScreen ph = base("PLANES", "Planechase", "Phenomenon: resolve it first");
     ph.planes = s.planes; ph.planes.phenomenon = true; ph.planes.counters = 0;
     snprintf(ph.planes.plane, sizeof(ph.planes.plane), "Interplanar Tunnel");

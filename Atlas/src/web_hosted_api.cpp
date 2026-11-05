@@ -5,6 +5,8 @@
 #include <stdlib.h>
 
 #include "hosted_game.h"
+#include "home_tls.h"
+#include "nvs_blob_store.h"
 #include "phone_links.h"
 #include "profile_store.h"
 #include "avatars.h"
@@ -16,6 +18,27 @@ namespace TurnHubWebApi {
 namespace internal {
 
 namespace {
+
+TurnHubStorage::NvsBlobStore sharedProfiles;
+constexpr size_t SHARED_PROFILE_BYTES = 1024;
+
+bool verifierField(const std::string &value, size_t length, size_t padding) {
+  if (value.size() != length) return false;
+  for (size_t i = 0; i < length; ++i) {
+    const char c = value[i];
+    if (i >= length - padding) { if (c != '=') return false; }
+    else if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '+' || c == '/')) return false;
+  }
+  return true;
+}
+
+turnhub::Json storedSharedProfile(const char *id) {
+  if (sharedProfiles.begin("phone-copies") != TurnHubStorage::Status::Ok) return {};
+  char bytes[SHARED_PROFILE_BYTES + 1]; size_t size = 0;
+  if (sharedProfiles.read(id, bytes, SHARED_PROFILE_BYTES, size) != TurnHubStorage::Status::Ok) return {};
+  bytes[size] = 0;
+  return turnhub::Json::parse(bytes);
+}
 
 // Who hosts: a paired phone (its device key, phone_links.h) or a signed-in
 // session. The lease keys on "phone:<id>" or the session token.
@@ -123,6 +146,46 @@ void handlePlayerCopy(WebServer &server) {
       !validColor || !parseBoundedNumber(avatar, 0, TurnHubAvatars::AVATAR_COUNT, icon)) {
     sendError(server, 400, "Supply a profile ID, name, color and preset avatar"); return;
   }
+  turnhub::Json copy;
+  if (server.hasArg("copy")) {
+    const auto incoming = turnhub::Json::parse(server.arg("copy").c_str());
+    const auto &credential = incoming.get("credential");
+    if (!incoming.isObject() || incoming.get("copySchema").asInt() != 2 ||
+        incoming.get("profileId").asString() != id.c_str() || incoming.get("name").asString() != name.c_str() ||
+        incoming.get("lastActivityMs").asInt(-1) < 0 || incoming.get("createdAtMs").asInt(-1) < 0 ||
+        (!credential.isNull() && (!credential.isObject() || !verifierField(credential.get("salt").asString(),24,2) ||
+            !verifierField(credential.get("hash").asString(),44,1)))) {
+      sendError(server, 400, "Invalid shared profile copy"); return;
+    }
+    copy = turnhub::Json::object();
+    copy.set("copySchema", 2); copy.set("profileId", std::string(id.c_str())); copy.set("name", std::string(name.c_str()));
+    copy.set("lastActivityMs", incoming.get("lastActivityMs")); copy.set("createdAtMs", incoming.get("createdAtMs"));
+    auto safeCredential = turnhub::Json();
+    if (!credential.isNull()) {
+      safeCredential = turnhub::Json::object();
+      safeCredential.set("salt", credential.get("salt")); safeCredential.set("hash", credential.get("hash"));
+    }
+    copy.set("credential", safeCredential);
+    auto look = turnhub::Json::object();
+    look.set("color", color == "none" ? turnhub::Json() : turnhub::Json(color.c_str()));
+    const auto *preset = TurnHubAvatars::presetAvatar(static_cast<uint8_t>(icon));
+    look.set("avatar", preset ? preset->key : "none");
+    look.set("reduceMotion", incoming.get("personalization").get("reduceMotion").asBool());
+    copy.set("personalization", look);
+    const auto old = storedSharedProfile(id.c_str());
+    // Same timestamps keep the existing copy; a protected copy cannot be cleared
+    // by a stale phone. A newly arriving verifier can fill an unprotected copy.
+    if (old.isObject() && old != copy && (old.get("lastActivityMs").asInt() > copy.get("lastActivityMs").asInt() ||
+        (old.get("lastActivityMs").asInt() == copy.get("lastActivityMs").asInt() &&
+         !(old.get("credential").isNull() && !credential.isNull())))) {
+      sendJson(server, 200, "{\"ok\":true,\"appearanceStored\":true}"); return;
+    }
+    const std::string bytes = copy.dump();
+    if (bytes.size() > SHARED_PROFILE_BYTES || sharedProfiles.begin("phone-copies") != TurnHubStorage::Status::Ok ||
+        (old != copy && sharedProfiles.write(id.c_str(),bytes.data(),bytes.size()) != TurnHubStorage::Status::Ok)) {
+      sendError(server,503,"Atlas could not keep the shared profile"); return;
+    }
+  }
   if ((!TurnHubProfiles::profileExists(id) && TurnHubProfiles::createProfileWithName(name, id) != id) ||
       (TurnHubProfiles::nameForProfile(id) != name && !TurnHubProfiles::setNameForProfile(id, name))) {
     sendError(server, 503, "Atlas could not save the player copy; check its storage"); return;
@@ -136,6 +199,22 @@ void handlePlayerCopy(WebServer &server) {
   // Identity and basic totals remain useful without SD; appearance can retry.
   sendJson(server, 200, String("{\"ok\":true,\"appearanceStored\":") +
       (colorStored && avatarStored ? "true}" : "false}"));
+}
+
+void handlePlayerCopies(WebServer &server) {
+  if (!TurnHubPhones::verify(server.header("X-TurnHub-Token").c_str())) {
+    sendError(server, 401, "Pair this phone with Atlas first"); return;
+  }
+  auto body = turnhub::Json::object(); auto copies = turnhub::Json::array();
+  char ids[TurnHubProfiles::MAX_LOGIN_PROFILES][9] = {};
+  const size_t count = TurnHubProfiles::listProfileIds(ids, TurnHubProfiles::MAX_LOGIN_PROFILES);
+  for (size_t i = 0; i < count; ++i) {
+    if (TurnHubProfiles::mergedProfileFor(ids[i]) != String(ids[i])) continue;
+    const auto copy = storedSharedProfile(ids[i]);
+    if (copy.isObject()) copies.push(copy);
+  }
+  body.set("copies", copies);
+  sendJson(server,200,body.dump().c_str());
 }
 
 void handleHostedPublish(WebServer &server) {
@@ -207,16 +286,22 @@ void handleHostedInputs(WebServer &server) {
 // screen shows "Allow this phone?" with the code; 409 while another phone is
 // asking or eight are paired.
 void handlePhonePair(WebServer &server) {
-  const TurnHubPhones::Request *request = TurnHubPhones::ask(server.arg("name").c_str(), millis());
+  const bool home = server.arg("home") == "1";
+  if (home && strlen(TurnHubAtlas::homeTlsPin()) != 64) {
+    sendError(server, 503, "Atlas is preparing its connection key. Try again."); return;
+  }
+  const TurnHubPhones::Request *request = TurnHubPhones::ask(server.arg("name").c_str(), millis(),
+      home ? TurnHubAtlas::homeTlsPin() : nullptr);
   if (!request) {
     sendError(server, 409, TurnHubPhones::count() >= TurnHubPhones::MAX_PHONES
         ? "Atlas has eight paired phones: forget them in Settings > Device first"
         : "Another phone is asking to pair. Try again in a minute");
     return;
   }
-  char code[8];
+  char code[15];
   snprintf(code, sizeof(code), "%03lu %03lu", static_cast<unsigned long>(request->code / 1000),
       static_cast<unsigned long>(request->code % 1000));
+  if (request->homeCode[0]) snprintf(code, sizeof(code), "%s", request->homeCode);
   turnhub::Json body = turnhub::Json::object();
   body.set("request", std::string(request->id));
   body.set("code", std::string(code));
@@ -240,6 +325,11 @@ void handlePhonePairPoll(WebServer &server) {
     body.set("owner", phone && phone->owner);
   }
   sendJson(server, 200, body.dump().c_str());
+}
+
+void handlePhonePairCancel(WebServer &server) {
+  const bool cancelled = TurnHubPhones::cancel(server.arg("request").c_str(),millis());
+  sendJson(server,cancelled ? 200 : 404,cancelled ? "{\"ok\":true}" : "{\"ok\":false}");
 }
 
 }  // namespace internal
