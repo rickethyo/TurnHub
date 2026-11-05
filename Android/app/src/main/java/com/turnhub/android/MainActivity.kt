@@ -100,6 +100,11 @@ class MainActivity : ComponentActivity() {
             // The Atlas screen's Planechase: the planes this phone downloaded.
             planeCatalog = { com.turnhub.android.ui.tablet.PlaneLibrary.known(applicationContext)?.values?.toList() },
             planeArt = { com.turnhub.android.ui.tablet.PlaneLibrary.source(applicationContext).art(it) },
+            // Pairing replaces signing in: Allow on the Atlas screen once per phone.
+            phonePairing = com.turnhub.android.data.AtlasPhonePairing(
+                com.turnhub.android.data.PreferencesAtlasPhoneKeyStore(applicationContext), sessionTransports),
+            phoneName = android.provider.Settings.Global.getString(contentResolver, "device_name")
+                ?.takeIf { it.isNotBlank() } ?: android.os.Build.MODEL ?: "A phone",
         )
     }
 
@@ -489,6 +494,7 @@ class MainActivity : ComponentActivity() {
                             sharedGameCode = lanState.host?.code,
                             hostedStatus = homeViewModel.hostedStatus.collectAsStateWithLifecycle().value,
                             hostedPlanesMessage = homeViewModel.hostedPlanesMessage.collectAsStateWithLifecycle().value,
+                            phonePairing = homeViewModel.phonePairingState.collectAsStateWithLifecycle().value,
                             onHostOnAtlas = homeViewModel::onHostOnAtlas,
                             hostedResumeHost = homeViewModel.hostedResume.collectAsStateWithLifecycle().value?.host,
                             onResumeHosted = homeViewModel::onResumeHosted,

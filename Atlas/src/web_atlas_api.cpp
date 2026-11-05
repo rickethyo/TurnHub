@@ -41,11 +41,11 @@ bool parseBoundedNumber(const String &text, int32_t min, int32_t max, int32_t &v
 }
 
 namespace {
-// Sends 401 and returns null when the request has no valid session.
-WebSession *requireSession(WebServer &server) {
-  WebSession *session = sessionForRequest(server);
-  if (!session) sendError(server, 401, "Sign in first");
-  return session;
+// Sends 401 unless the request has a valid session or a paired phone's key.
+bool requireSession(WebServer &server) {
+  if (sessionOrPairedPhone(server)) return true;
+  sendError(server, 401, "Pair this phone with Atlas first");
+  return false;
 }
 
 }  // namespace
@@ -215,8 +215,8 @@ void handlePlanesCatalog(WebServer &server) {
 
 // GET ?profileId= (a tablet, for a seated player) or the session's own profile.
 void handleSavedCommanders(WebServer &server) {
-  WebSession *session = requireSession(server);
-  if (!session) return;
+  WebSession *session = sessionForRequest(server);
+  if (!session) { sendError(server, 401, "Sign in first"); return; }
   const String profile = server.hasArg("profileId") ? server.arg("profileId") : String(session->profileId);
   TurnHubCards::SavedCommanders saved;
   if (!TurnHubProfiles::profileExists(profile) || !TurnHubCards::loadCommanders(profile, saved)) {

@@ -190,6 +190,7 @@ const char *chipTag(const ScreenPlayer &p) {
 
 bool codeLayout(const AtlasScreen &s) {
   return s.kind == ScreenKind::Qr || s.kind == ScreenKind::Code || s.kind == ScreenKind::PairCode ||
+      s.kind == ScreenKind::PhonePair ||
       (s.kind == ScreenKind::Setup && s.qr[0]);
 }
 
@@ -201,7 +202,7 @@ bool buttonsUseBody(const AtlasScreen &s) {
 bool primaryAction(TouchAction a) {
   switch (a) {
     case TouchAction::StartGame: case TouchAction::Resume: case TouchAction::Pair: case TouchAction::SetupPair:
-    case TouchAction::PairConfirm: case TouchAction::PlanarRoll: return true;
+    case TouchAction::PairConfirm: case TouchAction::PlanarRoll: case TouchAction::PhoneAllow: return true;
     default:
       return false;
   }
@@ -212,6 +213,7 @@ bool primaryAction(TouchAction a) {
 bool dangerAction(TouchAction a) {
   switch (a) {
     case TouchAction::UnpairSigils: case TouchAction::FactoryResetAtlas: case TouchAction::PairReject: case TouchAction::ConfirmYes:
+    case TouchAction::PhoneRefuse: case TouchAction::ForgetPhones:
       return true;
     default:
       return false;
@@ -265,7 +267,8 @@ const lv_image_dsc_t *actionIcon(TouchAction a) {
     case TouchAction::ThemeDaylight: return &th_icon_sun_24;
     case TouchAction::ThemeBrass: case TouchAction::OpenThemes: return &th_icon_palette_24;
     case TouchAction::ThemeContrast: case TouchAction::InvertDisplay: return &th_icon_contrast_24;
-    case TouchAction::PairReject: return &th_icon_close_24;
+    case TouchAction::PairReject: case TouchAction::PhoneRefuse: return &th_icon_close_24;
+    case TouchAction::ForgetPhones: return &th_icon_link_24;
     case TouchAction::OpenDevice: return &th_icon_hub_24;
     case TouchAction::Pause: return &th_icon_pause_24;
     case TouchAction::Resume: case TouchAction::StartGame: return &th_icon_play_24;
@@ -277,7 +280,7 @@ const lv_image_dsc_t *actionIcon(TouchAction a) {
     case TouchAction::PowerAutoSleep: return &th_icon_moon_24;
     case TouchAction::ConfirmYes: return &th_icon_check_24;
     case TouchAction::ConfirmNo: return &th_icon_close_24;
-    case TouchAction::PairConfirm: case TouchAction::SetupDone: return &th_icon_check_24;
+    case TouchAction::PairConfirm: case TouchAction::SetupDone: case TouchAction::PhoneAllow: return &th_icon_check_24;
     case TouchAction::CloseScreen: case TouchAction::CancelCode: return &th_icon_chevron_left_24;
     default: return nullptr;
   }

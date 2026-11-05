@@ -9,6 +9,7 @@
 
 #include "account_access.h"
 #include "login_limiter.h"
+#include "phone_links.h"
 #include "serial_log.h"
 #include "web_api_internal.h"
 #include "wall_clock.h"
@@ -168,6 +169,10 @@ WebSession *sessionForToken(const String &token, uint32_t nowMs) {
 
 WebSession *sessionForRequest(WebServer &server) {
   return sessionForToken(server.header(TOKEN_HEADER), millis());
+}
+
+bool sessionOrPairedPhone(WebServer &server) {
+  return TurnHubPhones::verify(server.header(TOKEN_HEADER).c_str()) || sessionForRequest(server);
 }
 
 WebSession *createProfileSession(const String &profileId, uint32_t nowMs, bool pinVerified) {

@@ -65,11 +65,13 @@ enum class TouchAction : uint8_t {
   PowerScreenOff, Resume, SetupDone, SetupPair, SkipSetup, SleepAtlas,
   SpeakerVolume, StartGame, UnpairSigils, UsbDrive,
   ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast,
-  OpenPlanes, PlanarRoll, PlanarWalk, PlanarResolve, OpenPlaneCard, PlaneCardBack
+  OpenPlanes, PlanarRoll, PlanarWalk, PlanarResolve, OpenPlaneCard, PlaneCardBack,
+  // A phone asking to pair (phone_links.h), and Settings > Device's Forget phones.
+  PhoneAllow, PhoneRefuse, ForgetPhones
 };
 
 // Main pages and overlays that the touch producer can actually build.
-enum class ScreenKind : uint8_t { Home, Status, Qr, Code, Menu, PairCode, Setup, Device, Power, Themes, Confirm, ManaTap, Planes, PlaneCard };
+enum class ScreenKind : uint8_t { Home, Status, Qr, Code, Menu, PairCode, Setup, Device, Power, Themes, Confirm, ManaTap, Planes, PlaneCard, PhonePair };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;

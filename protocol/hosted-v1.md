@@ -6,15 +6,35 @@ Atlas becomes the table accessory that shows it, drives the Sigils and keeps
 records. Plan and later slices: `Documentation/engineering/STAGED_CHANGES.md`
 ("Phone-hosted games").
 
-Atlas never decides anything about a hosted game. All routes need a signed-in
-session (`X-TurnHub-Token`), including the shared table tablet's. Bodies are
-form fields, like the rest of `http-v1.md`.
+Atlas never decides anything about a hosted game. All routes need a paired
+phone's key or a signed-in session in `X-TurnHub-Token` (see "Pairing" below).
+Bodies are form fields, like the rest of `http-v1.md`.
 
-The app shows its game automatically after connecting and signing in, unless
-the player has stopped showing it. Completing Atlas setup restores sign-in
+The app shows its game automatically after connecting (pairing first if this
+phone has no key for that Atlas), unless the player has stopped showing it. Completing Atlas setup restores sign-in
 after Atlas restarts. Temporary claim or state-push failures retry while the
 connection is usable; another hub's live lease is respected. Disconnecting or
 signing out stops publication until the connection and session are ready again.
+
+## Pairing: no account needed
+
+*Experimental* (owner, 2026-11-05): Atlas is an accessory, so a phone pairs once
+instead of signing in, the way a Sigil does.
+
+- `POST /api/phones/pair` with `name` (the phone's name, printable ASCII, 32
+  characters) answers `{"request": "<16 hex>", "code": "123 456", "waitMs": 60000}`.
+  The Atlas screen shows "Allow this phone?" with the phone's name and the same
+  code. `409` while another phone is asking, or when eight phones are paired.
+- `GET /api/phones/pair?request=<id>` answers `{"state": "waiting"}`, then
+  `"allowed"` with `"phone"`, `"key"` and `"owner"` exactly once, or
+  `"refused"`, `"expired"` (60 s without an answer) or `"unknown"`.
+- The phone then sends `X-TurnHub-Token: phone:<phone>:<key>` on the hosted and
+  plane routes. Atlas keeps only a hash of the key (NVS `phones`). The first
+  phone paired is the owner. A `401` means Atlas forgot the phone: pair again.
+- Only the Atlas screen allows a phone or forgets them all (Settings > Device >
+  Forget paired phones).
+
+A phone's lease is keyed on its phone ID and named after the phone.
 
 ## Lease: one hub per table
 

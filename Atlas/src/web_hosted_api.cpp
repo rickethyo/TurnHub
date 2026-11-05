@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 #include "hosted_game.h"
+#include "phone_links.h"
 #include "profile_store.h"
 #include "turnhub_json.h"
 #include "web_api_internal.h"
@@ -14,21 +15,36 @@ namespace internal {
 
 namespace {
 
-const WebSession *hubSession(WebServer &server) {
-  const WebSession *session = sessionForRequest(server);
-  if (!session) sendError(server, 401, "Sign in first");
-  return session;
-}
+// Who hosts: a paired phone (its device key, phone_links.h) or a signed-in
+// session. The lease keys on "phone:<id>" or the session token.
+struct Hub {
+  std::string token;
+  std::string profileId;
+  std::string name;
+};
 
-std::string hubName(WebServer &server, const WebSession &session) {
-  if (session.profileId[0]) {
-    const String name = TurnHubProfiles::nameForProfile(session.profileId);
-    if (name.length()) return name.c_str();
+bool hubFor(WebServer &server, Hub &hub) {
+  if (const TurnHubPhones::Phone *phone = TurnHubPhones::verify(server.header(TOKEN_HEADER).c_str())) {
+    hub.token = std::string(TurnHubPhones::CREDENTIAL_PREFIX) + phone->id;
+    hub.profileId.clear();
+    hub.name = phone->name;
+    return true;
   }
-  String name = server.arg("name");
-  name.trim();
-  if (name.length() && name.length() <= turnhub::Game::MAX_NAME) return name.c_str();
-  return "A phone";
+  const WebSession *session = sessionForRequest(server);
+  if (!session) {
+    sendError(server, 401, "Pair this phone with Atlas first");
+    return false;
+  }
+  hub.token = session->token;
+  hub.profileId = session->profileId;
+  hub.name.clear();
+  if (session->profileId[0]) hub.name = TurnHubProfiles::nameForProfile(session->profileId).c_str();
+  if (hub.name.empty()) {
+    String name = server.arg("name");
+    name.trim();
+    hub.name = name.length() && name.length() <= turnhub::Game::MAX_NAME ? name.c_str() : "A phone";
+  }
+  return true;
 }
 
 void sendHolder(WebServer &server, int status, bool ok) {
@@ -45,33 +61,34 @@ void sendHolder(WebServer &server, int status, bool ok) {
 }  // namespace
 
 void handleHostedClaim(WebServer &server) {
-  const WebSession *session = hubSession(server);
-  if (!session) return;
-  const auto claim = TurnHubHosted::hostedTable().claim(session->token, session->profileId, hubName(server, *session), millis());
+  Hub hub;
+  if (!hubFor(server, hub)) return;
+  const auto claim = TurnHubHosted::hostedTable().claim(hub.token, hub.profileId, hub.name, millis());
   sendHolder(server, claim == TurnHubHosted::Claim::Granted ? 200 : 409, claim == TurnHubHosted::Claim::Granted);
 }
 
 void handleHostedRelease(WebServer &server) {
-  const WebSession *session = hubSession(server);
-  if (!session) return;
-  const bool released = TurnHubHosted::hostedTable().release(session->token);
+  Hub hub;
+  if (!hubFor(server, hub)) return;
+  const bool released = TurnHubHosted::hostedTable().release(hub.token);
   sendHolder(server, released ? 200 : 409, released);
 }
 
 void handleHostedPublish(WebServer &server) {
-  const WebSession *session = hubSession(server);
-  if (!session) return;
+  Hub hub;
+  if (!hubFor(server, hub)) return;
   std::string error;
-  if (!TurnHubHosted::hostedTable().publish(session->token, server.arg("state").c_str(), millis(), error)) {
-    sendError(server, TurnHubHosted::hostedTable().holds(session->token, millis()) ? 400 : 409, error.c_str());
+  if (!TurnHubHosted::hostedTable().publish(hub.token, server.arg("state").c_str(), millis(), error)) {
+    sendError(server, TurnHubHosted::hostedTable().holds(hub.token, millis()) ? 400 : 409, error.c_str());
     return;
   }
   sendHolder(server, 200, true);
 }
 
-// Anyone signed in may watch: the same facts the table screen shows.
+// Any paired phone or signed-in session may watch: the same facts the table screen shows.
 void handleHostedState(WebServer &server) {
-  if (!hubSession(server)) return;
+  Hub hub;
+  if (!hubFor(server, hub)) return;
   const TurnHubHosted::HostedTable &hosted = TurnHubHosted::hostedTable();
   const uint32_t now = millis();
   String json = "{\"live\":";
@@ -97,10 +114,10 @@ void handleHostedState(WebServer &server) {
 }
 
 void handleHostedInputs(WebServer &server) {
-  const WebSession *session = hubSession(server);
-  if (!session) return;
+  Hub hub;
+  if (!hubFor(server, hub)) return;
   const TurnHubHosted::HostedTable &hosted = TurnHubHosted::hostedTable();
-  if (!hosted.holds(session->token, millis())) {
+  if (!hosted.holds(hub.token, millis())) {
     sendError(server, 409, "Another phone hosts this table");
     return;
   }
@@ -118,6 +135,45 @@ void handleHostedInputs(WebServer &server) {
   turnhub::Json body = turnhub::Json::object();
   body.set("inputs", list);
   body.set("last", static_cast<int64_t>(hosted.lastSeq()));
+  sendJson(server, 200, body.dump().c_str());
+}
+
+// POST name=<the phone's name>: a phone asks to pair (no sign-in). The Atlas
+// screen shows "Allow this phone?" with the code; 409 while another phone is
+// asking or eight are paired.
+void handlePhonePair(WebServer &server) {
+  const TurnHubPhones::Request *request = TurnHubPhones::ask(server.arg("name").c_str(), millis());
+  if (!request) {
+    sendError(server, 409, TurnHubPhones::count() >= TurnHubPhones::MAX_PHONES
+        ? "Atlas has eight paired phones: forget them in Settings > Device first"
+        : "Another phone is asking to pair. Try again in a minute");
+    return;
+  }
+  char code[8];
+  snprintf(code, sizeof(code), "%03lu %03lu", static_cast<unsigned long>(request->code / 1000),
+      static_cast<unsigned long>(request->code % 1000));
+  turnhub::Json body = turnhub::Json::object();
+  body.set("request", std::string(request->id));
+  body.set("code", std::string(code));
+  body.set("waitMs", static_cast<int64_t>(TurnHubPhones::REQUEST_MS));
+  sendJson(server, 200, body.dump().c_str());
+}
+
+// GET request=<id>: "waiting", "refused", "expired", "unknown", or "allowed"
+// with the phone's ID and key, once. The phone then sends
+// X-TurnHub-Token: phone:<id>:<key>.
+void handlePhonePairPoll(WebServer &server) {
+  char phoneId[TurnHubPhones::PHONE_ID_LENGTH + 1], key[TurnHubPhones::KEY_LENGTH + 1];
+  const auto state = TurnHubPhones::collect(server.arg("request").c_str(), millis(), phoneId, key);
+  static const char *const NAMES[] = {"waiting", "allowed", "refused", "expired", "unknown"};
+  turnhub::Json body = turnhub::Json::object();
+  body.set("state", std::string(NAMES[static_cast<uint8_t>(state)]));
+  if (state == TurnHubPhones::RequestState::Allowed) {
+    body.set("phone", std::string(phoneId));
+    body.set("key", std::string(key));
+    const TurnHubPhones::Phone *phone = TurnHubPhones::verify((std::string(TurnHubPhones::CREDENTIAL_PREFIX) + phoneId + ":" + key).c_str());
+    body.set("owner", phone && phone->owner);
+  }
   sendJson(server, 200, body.dump().c_str());
 }
 

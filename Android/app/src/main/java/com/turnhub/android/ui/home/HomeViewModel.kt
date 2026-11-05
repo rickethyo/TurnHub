@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -80,6 +81,9 @@ class HomeViewModel(
     /** The planes downloaded on this phone, for the Atlas screen's Planechase; null in tests. */
     private val planeCatalog: (() -> List<com.turnhub.android.data.PlaneInfo>?)? = null,
     private val planeArt: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray? = { null },
+    /** Pairing replaces signing in for hosting (protocol/hosted-v1.md); null in tests (sign-in only). */
+    private val phonePairing: com.turnhub.android.data.AtlasPhonePairing? = null,
+    private val phoneName: String = "A phone",
 ) : ViewModel() {
 
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
@@ -89,7 +93,35 @@ class HomeViewModel(
      * mapping; connected profiles never become local identity by name.
      */
     /** Phone-hosted games (protocol/hosted-v1.md): this phone's game shown on Atlas. */
-    private val hostedLink = com.turnhub.android.data.HostedAtlasLink({ method, path, fields -> playerSession.raw(method, path, fields) })
+    private val hostedLink = com.turnhub.android.data.HostedAtlasLink({ method, path, fields -> hubRaw(method, path, fields) })
+    val phonePairingState: StateFlow<com.turnhub.android.data.AtlasPhonePairing.State> =
+        phonePairing?.state ?: MutableStateFlow(com.turnhub.android.data.AtlasPhonePairing.State.Idle)
+
+    /** This Atlas's paired-phone key when there is one, else the signed-in session. */
+    private fun pairedAtlas(): Pair<com.turnhub.android.data.AtlasEndpoint, String>? {
+        val pairing = phonePairing ?: return null
+        val endpoint = repository.endpoint.value ?: return null
+        val atlasId = repository.tableSummary.value?.atlasId ?: return null
+        return if (pairing.paired(atlasId)) endpoint to atlasId else null
+    }
+
+    private suspend fun hubRaw(method: String, path: String, fields: List<Pair<String, String>>): com.turnhub.android.data.RawResponse? =
+        pairedAtlas()?.let { (endpoint, atlasId) -> phonePairing?.raw(endpoint, atlasId, method, path, fields) }
+            ?: playerSession.raw(method, path, fields)
+
+    private suspend fun hubRawText(path: String, fields: List<Pair<String, String>>, body: String): com.turnhub.android.data.RawResponse? =
+        pairedAtlas()?.let { (endpoint, atlasId) -> phonePairing?.rawText(endpoint, atlasId, path, fields, body) }
+            ?: playerSession.rawText(path, fields, body)
+
+    /** Pairs this phone with the connected Atlas (Allow on its screen); true once paired. */
+    private suspend fun pairWithAtlas(): Boolean {
+        val pairing = phonePairing ?: return false
+        val endpoint = repository.endpoint.value ?: return false
+        val atlasId = kotlinx.coroutines.withTimeoutOrNull(10_000) {
+            repository.tableSummary.map { it?.atlasId }.first { it != null }
+        } ?: return false
+        return pairing.pair(endpoint, atlasId, phoneName)
+    }
     val hostedStatus: StateFlow<com.turnhub.android.data.HostedAtlasLink.Status> = hostedLink.status
     private val _hostedPlanesMessage = MutableStateFlow<String?>(null)
     val hostedPlanesMessage: StateFlow<String?> = _hostedPlanesMessage.asStateFlow()
@@ -104,11 +136,17 @@ class HomeViewModel(
         _hostedResume.value = null
         val table = standalone ?: return
         if (!on) return
-        if (playerSession.state.value !is PlayerSessionState.SignedIn) {
+        val signedIn = playerSession.state.value is PlayerSessionState.SignedIn
+        if (phonePairing == null && !signedIn) {
             onPlayFromPhoneClicked()
             return
         }
         hostedJob = viewModelScope.launch {
+            // No account needed: a paired phone hosts with its device key.
+            if (pairedAtlas() == null && !signedIn) {
+                phonePairing?.clearMessage()
+                if (!pairWithAtlas()) return@launch
+            }
             // Another phone's unfinished game on Atlas: offer it first, unless this phone is mid-game.
             val underway = table.state.value.game.state.let {
                 it == com.turnhub.android.protocol.TableState.STARTING || it == com.turnhub.android.protocol.TableState.RUNNING ||
@@ -136,8 +174,8 @@ class HomeViewModel(
     private suspend fun host(table: com.turnhub.android.standalone.StandaloneTable): Unit = kotlinx.coroutines.coroutineScope {
         // The Atlas screen's Planes tab: the game's digital planes, while this phone holds the table.
         val planes = planeCatalog?.let { catalog ->
-            val sync = com.turnhub.android.data.HostedPlaneSync({ method, path, fields -> playerSession.raw(method, path, fields) },
-                { path, fields, body -> playerSession.rawText(path, fields, body) }, catalog, planeArt, report = { _hostedPlanesMessage.value = it })
+            val sync = com.turnhub.android.data.HostedPlaneSync({ method, path, fields -> hubRaw(method, path, fields) },
+                { path, fields, body -> hubRawText(path, fields, body) }, catalog, planeArt, report = { _hostedPlanesMessage.value = it })
             launch {
                 sync.run(combine(table.state, hostedLink.status) { state, status ->
                     if (status == com.turnhub.android.data.HostedAtlasLink.Status.Hosting)
@@ -160,14 +198,15 @@ class HomeViewModel(
 
     /**
      * Phone-hosted games are the one way to play with Atlas (owner, 2026-11-04):
-     * once this phone is connected and signed in, it shows its game on Atlas
-     * without a tap, unless the player stopped it. Leaving the Atlas resets that.
+     * once this phone is connected (and paired, or signed in), it shows its game
+     * on Atlas without a tap, unless the player stopped it. An unpaired phone asks
+     * to pair first. Leaving the Atlas resets that.
      */
     private fun observeAutoHost() {
         autoHostObserver?.cancel()
         autoHostObserver = viewModelScope.launch {
             combine(repository.connectionState, repository.offlineSinceMs, playerSession.state) { state, since, session ->
-                state == AtlasConnectionState.CONNECTED && since == null && session is PlayerSessionState.SignedIn
+                state == AtlasConnectionState.CONNECTED && since == null && (phonePairing != null || session is PlayerSessionState.SignedIn)
             }.distinctUntilChanged().collect { ready ->
                 if (!ready) {
                     if (repository.connectionState.value == AtlasConnectionState.DISCONNECTED) hostingStopped = false
@@ -1428,6 +1467,8 @@ class HomeViewModel(
             homeLink: com.turnhub.android.data.AtlasHomeLink? = null,
             planeCatalog: (() -> List<com.turnhub.android.data.PlaneInfo>?)? = null,
             planeArt: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray? = { null },
+            phonePairing: com.turnhub.android.data.AtlasPhonePairing? = null,
+            phoneName: String = "A phone",
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val releases = GitHubFirmwareReleases()
@@ -1435,6 +1476,7 @@ class HomeViewModel(
                     repositoryFactory, wifiLink, credentialStore, playerSession, releases,
                     AtlasUpdateWatcher(playerSession, releases, updateCheckIntervalMs),
                     vault, homeLink, autoHost = true, planeCatalog = planeCatalog, planeArt = planeArt,
+                    phonePairing = phonePairing, phoneName = phoneName,
                 )
             }
         }

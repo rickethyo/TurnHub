@@ -75,6 +75,20 @@ Follow-ups left by slices 5 and 6:
   screen, open the card view (rotation and touch), and watch the art arrive.
   Verify direct fallback with phone transfer interrupted, plus router/internet
   loss, card removal and recovery while controls and Sigils remain responsive.
+- Atlas holds no accounts (owner, 2026-11-05; approved design "Atlas as an
+  accessory: phones own profiles"). Steps, each a flash-and-test round:
+  1. **Pairing replaces sign-in** (implemented, `claude/master`): a phone
+     pairs once (Allow on the Atlas screen, same code on both), its device
+     key hosts games and sends planes, and the app pairs and shows its game
+     on connect without signing in (`phone_links.h`, `AtlasPhonePairing.kt`,
+     `protocol/hosted-v1.md` "Pairing"). Sign-in still works as a fallback.
+     Open checks: pair a phone, host and send planes without an account,
+     refuse one, reboot Atlas and host again, forget phones.
+  2. **Copies, not accounts**: the hub sends each seated player's profile
+     copy (ID, name, colour, avatar) and Atlas keeps stats by that profile ID.
+  3. **Remove Atlas accounts**: PINs, sessions, `/api/profiles/*` and sign-in
+     go; a factory reset clears the old accounts (no migration before release).
+  4. Docs and manuals (App and Hardware Manuals: pairing, no Atlas sign-in).
 - `/api/accounts` still reports `nudgeMuted` and the Game Master moderation
   bits (Reset connections, Remove player), which only the app's People sheet
   shows now; decide whether Game Master still means anything on Atlas before

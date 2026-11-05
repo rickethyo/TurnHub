@@ -31,6 +31,7 @@
 // modules it binds are linked from ../../src, not copied rules.
 #include "../../src/main.cpp"
 #include "hosted_game.h"
+#include "phone_links.h"
 #include "hosted_sigils.h"
 #include "touch_controls.h"
 #include "../../../Sigil/include/received_packet.h"
@@ -2885,6 +2886,61 @@ static void hostedPlanechaseScreen() {
   ProfileFixture::profiles.erase(anaId.c_str());
 }
 
+// Pairing replaces signing in (owner, 2026-11-05): a phone asks, the Atlas
+// screen shows Allow with the code, and the key it gets hosts a game.
+static void phonePairing() {
+  using namespace TurnHub;
+  freshTable(); testNow=60000;
+  static MemoryBlobs blobs; blobs.blobs.clear(); blobs.failWrites=false;
+  TurnHubPhones::setStoreForTests(&blobs);
+  auto &hosted=TurnHubHosted::hostedTable(); hosted.clear();
+  assert(request("/api/hosted/claim","phone:0123abcd:00000000000000000000000000000000")==401);
+  assert(request("/api/phones/pair","",{{"name","  Ricky's Fold\x01  "}})==200);
+  const String requestId=responseField("request"); assert(requestId.length()==16);
+  const std::string code=server.body.substr(server.body.find("\"code\":\"")+8,7);
+  assert(request("/api/phones/pair","",{{"name","Other"}})==409);  // one at a time
+  assert(request("/api/phones/pair","",{{"request",requestId}},HTTP_GET)==200 && server.body.find("\"waiting\"")!=std::string::npos);
+  AtlasScreen screen=currentScreen();
+  assert(screen.kind==ScreenKind::PhonePair && screenButton(screen,TouchAction::PhoneAllow) && screenButton(screen,TouchAction::PhoneRefuse));
+  assert(strstr(screen.detail,"Ricky's Fold") && !strcmp(screen.code,code.c_str()));
+  tapButton(TouchAction::PhoneAllow);
+  assert(currentScreen().kind!=ScreenKind::PhonePair && TurnHubPhones::count()==1 && TurnHubPhones::phone(0)->owner);
+  assert(request("/api/phones/pair","",{{"request",requestId}},HTTP_GET)==200 && server.body.find("\"allowed\"")!=std::string::npos);
+  assert(server.body.find("\"owner\":true")!=std::string::npos);
+  const String key=String("phone:")+responseField("phone")+":"+responseField("key");
+  // The key leaves Atlas once.
+  assert(request("/api/phones/pair","",{{"request",requestId}},HTTP_GET)==200 && server.body.find("\"unknown\"")!=std::string::npos);
+  // It hosts without an account, under the phone's name, and sends planes.
+  assert(request("/api/hosted/claim",key)==200 && server.body.find("\"host\":\"Ricky's Fold\"")!=std::string::npos);
+  assert(request("/api/hosted/state",key,{{"state",hostedState("p1",1,"RUNNING",0,40).c_str()}})==200);
+  assert(request("/api/hosted/inputs",key,{},HTTP_GET)==200);
+  assert(request("/api/planes",key,{},HTTP_GET)!=401);
+  std::string wrong=key.c_str(); wrong.back()=wrong.back()=='0'?'1':'0';
+  assert(request("/api/hosted/claim",wrong.c_str())==401);
+  // A second phone is a player, and a refused one gets nothing.
+  assert(request("/api/phones/pair","",{{"name","Tab"}})==200);
+  const String refused=responseField("request");
+  tapButton(TouchAction::PhoneRefuse);
+  assert(request("/api/phones/pair","",{{"request",refused}},HTTP_GET)==200 && server.body.find("\"refused\"")!=std::string::npos);
+  assert(TurnHubPhones::count()==1);
+  assert(request("/api/phones/pair","",{{"name","Tab"}})==200);
+  const String expired=responseField("request");
+  testNow+=TurnHubPhones::REQUEST_MS;
+  assert(currentScreen().kind!=ScreenKind::PhonePair);
+  assert(request("/api/phones/pair","",{{"request",expired}},HTTP_GET)==200 && server.body.find("\"expired\"")!=std::string::npos);
+  // Saved: a reboot keeps the phone and its key.
+  TurnHubPhones::resetForTests(); TurnHubPhones::load();
+  assert(TurnHubPhones::count()==1 && TurnHubPhones::verify(key.c_str()));
+  // Only the Atlas screen allows or forgets phones.
+  Intent forget; forget.type=IntentType::PhonePairing; forget.payload.value=PHONE_FORGET_ALL;
+  forget.actor.origin=IntentOrigin::Browser;
+  assert(TurnHubAtlas::intents.dispatch(forget).status==IntentStatus::Unauthorized && TurnHubPhones::count()==1);
+  forget.actor.origin=IntentOrigin::AtlasHardware;
+  assert(TurnHubAtlas::intents.dispatch(forget).accepted() && TurnHubPhones::count()==0);
+  assert(request("/api/hosted/claim",key)==401 && blobs.blobs.empty());
+  hosted.clear(); TurnHubPhones::setStoreForTests(nullptr);
+}
+
 static void phoneHostedGame() {
   freshTable(); testNow=50000;
   auto &hosted=TurnHubHosted::hostedTable(); hosted.clear();
@@ -3171,6 +3227,7 @@ int main() {
   manaTapOnAtlas(); std::cout<<"PASS Mana Tap on Atlas: touch play, pause on leaving or a pass, record, no table state\n";
   deliberatePairing(); std::cout<<"PASS deliberate pairing authorization, radio failure, timeout, rollover and gameplay exclusion\n";
   virtualProfileFlow(); std::cout<<"PASS profile registration/login, phone-only game, companion sessions, authorization and throttling\n";
+  phonePairing(); std::cout<<"PASS phone pairing: Allow on the screen, key once, hosting without an account, refuse, expiry, reboot, forget\n";
   phoneHostedGame(); std::cout<<"PASS phone-hosted game: lease, revisions, Atlas screen controls queue inputs, input queue, expiry\n";
   hostedPlanechaseScreen(); std::cout<<"PASS hosted Planechase: Planes tab, face-up plane, planar commands queued, card view\n";
   hostedResume(); std::cout<<"PASS phone-hosted resume: a quiet or departed hub leaves its unfinished game for another phone\n";

@@ -90,7 +90,7 @@ class HostedPlaneSync(
 
     private fun failed(response: RawResponse?) {
         report(when (response?.code) {
-            401 -> "Sign in to Atlas to send planes."
+            401 -> "Pair this phone with Atlas to send planes."
             409 -> "Atlas couldn't save the planes. Check its microSD card; retrying automatically."
             else -> "Atlas couldn't receive the planes. Retrying automatically."
         })

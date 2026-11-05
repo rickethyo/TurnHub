@@ -25,6 +25,7 @@
 #include "hosted_game.h"
 #include "hosted_sigils.h"
 #include "optional_preferences.h"
+#include "phone_links.h"
 #include "profile_store.h"
 #include "sd_card.h"
 #include "serial_log.h"
@@ -224,6 +225,8 @@ ScreenKind baseScreen(uint32_t nowMs) {
       ? ScreenKind::Planes : ScreenKind::Status;
   if (pendingPresenceCode(nowMs) != nullptr) return ScreenKind::Code;
   if (waitingPairSlot() != INVALID_ID) return ScreenKind::PairCode;
+  // A phone asking to pair waits for Allow over any screen, as a Sigil's code does.
+  if (TurnHubPhones::waiting(nowMs)) return ScreenKind::PhonePair;
   if (openScreen == ScreenKind::Status && setupScreenDue()) return ScreenKind::Setup;
   return openScreen;
 }
@@ -272,12 +275,13 @@ void layoutMenu(AtlasScreen &screen) {
 // stand in for the BOOT button's held gestures.
 void layoutDevice(AtlasScreen &screen) {
   const bool usbWanted = sdCardUsbShareWanted();
-  ButtonSpec rows[5];
+  ButtonSpec rows[6];
   uint8_t n = 0;
   rows[n++] = {TouchAction::OpenPower, "Sound, screen, sleep", 0, 1};
   rows[n++] = {TouchAction::UsbDrive, usbWanted ? "USB drive: on" : "USB drive: off", 0, 1};
   if (!matchInProgress()) rows[n++] = {TouchAction::SleepAtlas, "Sleep", 0, 1};
   if (betweenGames(millis())) rows[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", ASK, 1};
+  if (TurnHubPhones::count()) rows[n++] = {TouchAction::ForgetPhones, "Forget paired phones", ASK, 1};
   if (!matchInProgress()) rows[n++] = {TouchAction::FactoryResetAtlas, "Factory reset", ASK, 1};
   addList(screen, rows, n);
   for (uint8_t i = 0; i < screen.buttonCount; ++i) {
@@ -322,6 +326,7 @@ const char *confirmLabel(TouchAction action) {
   switch (action) {
     case TouchAction::UnpairSigils: return "Unpair all";
     case TouchAction::FactoryResetAtlas: return "Erase Atlas";
+    case TouchAction::ForgetPhones: return "Forget phones";
     default: return "Confirm";
   }
 }
@@ -401,6 +406,11 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
       addRow(screen, BUTTON_ROW_Y, row, 2);
       return;
     }
+    case ScreenKind::PhonePair: {
+      const ButtonSpec row[] = {{TouchAction::PhoneAllow, "Allow", 0, 3}, {TouchAction::PhoneRefuse, "Refuse", 0, 2}};
+      addRow(screen, BUTTON_ROW_Y, row, 2);
+      return;
+    }
     case ScreenKind::Menu:
       layoutMenu(screen);
       return;
@@ -451,8 +461,8 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
 void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
   layoutContentButtons(screen, nowMs);
   const auto kind = activeScreen(nowMs);
-  if (kind == ScreenKind::Code || kind == ScreenKind::PairCode || kind == ScreenKind::Setup ||
-      kind == ScreenKind::Confirm || kind == ScreenKind::PlaneCard) return;
+  if (kind == ScreenKind::Code || kind == ScreenKind::PairCode || kind == ScreenKind::PhonePair ||
+      kind == ScreenKind::Setup || kind == ScreenKind::Confirm || kind == ScreenKind::PlaneCard) return;
   // Planes joins the tabs while the hub's game plays Planechase, as on the app.
   const bool planesTab = hostedPlanechase(nowMs) != nullptr;
   const TouchAction actions[] = {TouchAction::OpenHome, TouchAction::OpenGame, TouchAction::OpenPlanes, TouchAction::OpenSettings};
@@ -503,6 +513,9 @@ const char *actionName(TouchAction action) {
     case TouchAction::Resume: return "RESUME";
     case TouchAction::CancelCode: return "CANCEL_CODE";
     case TouchAction::PairConfirm: return "PAIR_CONFIRM";
+    case TouchAction::PhoneAllow: return "PHONE_ALLOW";
+    case TouchAction::PhoneRefuse: return "PHONE_REFUSE";
+    case TouchAction::ForgetPhones: return "FORGET_PHONES";
     case TouchAction::PairReject: return "PAIR_REJECT";
     case TouchAction::OpenQr: return "OPEN_QR";
     case TouchAction::CloseScreen: return "CLOSE_SCREEN";
@@ -690,6 +703,18 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       result = IntentResult::accept("Code canceled");
       break;
     // The owner compared the Sigil's code with this screen's.
+    // A phone asking to pair: Allow gives it a device key (phone_links.h).
+    case TouchAction::PhoneAllow:
+    case TouchAction::PhoneRefuse:
+    case TouchAction::ForgetPhones: {
+      Intent intent;
+      intent.type = IntentType::PhonePairing;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
+      intent.payload.value = action == TouchAction::PhoneAllow ? TurnHub::PHONE_ALLOW
+          : action == TouchAction::PhoneRefuse ? TurnHub::PHONE_REFUSE : TurnHub::PHONE_FORGET_ALL;
+      result = intents.dispatch(intent);
+      break;
+    }
     case TouchAction::PairConfirm:
     case TouchAction::PairReject: {
       Intent intent;
@@ -972,6 +997,23 @@ void formatPairCode(AtlasScreen &screen, uint32_t nowMs) {
   screen.lineCount = 2;
 }
 
+// A phone asking to pair: its name and the code it shows, to compare.
+void formatPhonePair(AtlasScreen &screen, uint32_t nowMs) {
+  const TurnHubPhones::Request *request = TurnHubPhones::waiting(nowMs);
+  if (!request) return;
+  snprintf(screen.badge, sizeof(screen.badge), "PHONE");
+  snprintf(screen.title, sizeof(screen.title), "Allow this phone?");
+  const uint32_t elapsed = nowMs - request->startedMs;
+  const uint32_t leftS = elapsed >= TurnHubPhones::REQUEST_MS ? 0 : (TurnHubPhones::REQUEST_MS - elapsed + 999) / 1000;
+  snprintf(screen.detail, sizeof(screen.detail), "%.32s (%lu s)", request->name, static_cast<unsigned long>(leftS));
+  snprintf(screen.code, sizeof(screen.code), "%03lu %03lu", static_cast<unsigned long>(request->code / 1000),
+      static_cast<unsigned long>(request->code % 1000));
+  snprintf(screen.lines[0], sizeof(screen.lines[0]), "Same code on the phone?");
+  snprintf(screen.lines[1], sizeof(screen.lines[1]), "%s", TurnHubPhones::count() ? "It can then host games here."
+      : "It becomes this Atlas's owner.");
+  screen.lineCount = 2;
+}
+
 // "Update available", in words, for the on-board LED's blue blink.
 void formatUpdateLine(char *out, size_t size, TurnHub::UpdateKind kind) {
   snprintf(out, size, "%s: use the app", TurnHub::updateKindText(kind));
@@ -1078,6 +1120,10 @@ void formatConfirm(AtlasScreen &screen) {
     case TouchAction::FactoryResetAtlas:
       snprintf(screen.title, sizeof(screen.title), "Erase this Atlas?");
       snprintf(screen.detail, sizeof(screen.detail), "Profiles, stats and settings are deleted.");
+      break;
+    case TouchAction::ForgetPhones:
+      snprintf(screen.title, sizeof(screen.title), "Forget paired phones?");
+      snprintf(screen.detail, sizeof(screen.detail), "Each phone must pair again to host.");
       break;
     default:
       snprintf(screen.title, sizeof(screen.title), "Are you sure?");
@@ -1188,6 +1234,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
     case ScreenKind::Qr: formatQr(screen, nowMs); break;
     case ScreenKind::Code: formatCode(screen, nowMs); break;
     case ScreenKind::PairCode: formatPairCode(screen, nowMs); break;
+    case ScreenKind::PhonePair: formatPhonePair(screen, nowMs); break;
     case ScreenKind::Menu: formatMenu(screen); break;
     case ScreenKind::Themes:
       snprintf(screen.badge, sizeof(screen.badge), "THEME");

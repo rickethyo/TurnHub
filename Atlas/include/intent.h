@@ -50,6 +50,10 @@ enum class IntentType : uint8_t {
   ConfigureTableCode,
   ConfigureUploadApproval,
 
+  // At the Atlas screen only: payload.value = PHONE_ALLOW or PHONE_REFUSE for
+  // the phone asking to pair, or PHONE_FORGET_ALL (phone_links.h).
+  PhonePairing,
+
   Count,
 };
 
@@ -79,6 +83,10 @@ constexpr int32_t FACTORY_RESET_ATLAS = -1;
 // when the owner says the codes match (without it: reject). From the Atlas
 // touchscreen, or an Admin's phone with moderatorId (as for ForgetPairing).
 constexpr int32_t PAIR_CONFIRM_ACCEPT = 0x100;
+// PhonePairing payload values.
+constexpr int32_t PHONE_REFUSE = 0;
+constexpr int32_t PHONE_ALLOW = 1;
+constexpr int32_t PHONE_FORGET_ALL = 2;
 
 struct IntentPayload {
   int32_t value = 0;
@@ -142,6 +150,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::Sleep: return "SLEEP";
     case IntentType::ConfigureTableCode: return "CONFIGURE_TABLE_CODE";
     case IntentType::ConfigureUploadApproval: return "CONFIGURE_UPLOAD_APPROVAL";
+    case IntentType::PhonePairing: return "PHONE_PAIRING";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

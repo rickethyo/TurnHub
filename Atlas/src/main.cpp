@@ -10,6 +10,7 @@
 #include "atlas_app.h"
 #include "card_cache.h"
 #include "hosted_game.h"
+#include "phone_links.h"
 #include "json_text.h"
 #include "sigil_update_service.h"
 #include "sigil_menu.h"
@@ -223,6 +224,7 @@ bool configureIntentHandlers() {
       {IntentType::PairRequest, handlePairRequestIntent},
       {IntentType::ForgetPairing, handleForgetPairingIntent},
       {IntentType::PairConfirm, handlePairConfirmIntent},
+      {IntentType::PhonePairing, handlePhonePairingIntent},
       {IntentType::ConfigurePairing, handleConfigurePairingIntent},
       {IntentType::ConfigureSpeaker, handleConfigureSpeakerIntent},
       {IntentType::ConfigurePower, handleConfigurePowerIntent},
@@ -428,6 +430,9 @@ void setup() {
   } else if (powerStatus != TurnHubStorage::Status::NotFound) {
     serialLog.println("ATLAS|POWER|STORAGE_ERROR");
   }
+  // Phones paired to host games without signing in.
+  TurnHubPhones::load();
+  serialLog.printf("ATLAS|PHONE|LOADED|%u\n", static_cast<unsigned>(TurnHubPhones::count()));
   // The table code is an optional extra step; a missing or unreadable
   // setting keeps it off.
   bool codeRequired = TurnHub::DEFAULT_TABLE_CODE_REQUIRED;
