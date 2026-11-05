@@ -32,8 +32,8 @@ TurnHubStorage::BlobStore *store() {
 }
 
 void randomHex(char *out, size_t length) {
-  static const char HEX[] = "0123456789abcdef";
-  for (size_t i = 0; i < length; ++i) out[i] = HEX[esp_random() & 15];
+  static const char DIGITS[] = "0123456789abcdef";  // HEX is an Arduino macro
+  for (size_t i = 0; i < length; ++i) out[i] = DIGITS[esp_random() & 15];
   out[length] = '\0';
 }
 
