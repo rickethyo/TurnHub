@@ -7,6 +7,7 @@
 #include "hosted_game.h"
 #include "phone_links.h"
 #include "profile_store.h"
+#include "serial_log.h"
 #include "turnhub_json.h"
 #include "web_api_internal.h"
 
@@ -74,6 +75,33 @@ void handleHostedRelease(WebServer &server) {
   sendHolder(server, released ? 200 : 409, released);
 }
 
+namespace {
+// Profiles live on the phones (owner, 2026-11-05); Atlas keeps a copy of each
+// profiled player the hub shows it (same profileId, the phone's name) so its
+// statistics have someone to belong to. Only a new or renamed player is
+// written: the hub re-sends its state every 10 s.
+std::string copiedRoster;
+
+void keepProfileCopies(const turnhub::Game &game) {
+  std::string roster;
+  for (const auto &p : game.players) {
+    if (p.profileId.empty() || p.guest) continue;
+    roster += p.profileId; roster += '\t'; roster += p.name; roster += '\n';
+  }
+  if (roster == copiedRoster) return;
+  bool all = true;
+  for (const auto &p : game.players) {
+    if (p.profileId.empty() || p.guest || p.name.empty()) continue;
+    const String id(p.profileId.c_str()), name(p.name.c_str());
+    if (!TurnHubProfiles::profileExists(id)) all = TurnHubProfiles::createProfileWithName(name, id) == id && all;
+    else if (TurnHubProfiles::nameForProfile(id) != name) all = TurnHubProfiles::setNameForProfile(id, name) && all;
+  }
+  // A refusal (full store, bad id) is tried again on the next new roster only.
+  if (!all) TurnHub::serialLog.printf("ATLAS|PROFILE_COPY|PARTIAL\n");
+  copiedRoster = roster;
+}
+}  // namespace
+
 void handleHostedPublish(WebServer &server) {
   Hub hub;
   if (!hubFor(server, hub)) return;
@@ -82,6 +110,7 @@ void handleHostedPublish(WebServer &server) {
     sendError(server, TurnHubHosted::hostedTable().holds(hub.token, millis()) ? 400 : 409, error.c_str());
     return;
   }
+  keepProfileCopies(TurnHubHosted::hostedTable().game());
   sendHolder(server, 200, true);
 }
 
