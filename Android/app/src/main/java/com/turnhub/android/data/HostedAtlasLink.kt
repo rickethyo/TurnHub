@@ -36,12 +36,14 @@ class HostedAtlasLink(
         data object Hosting : Status
         /** Another phone holds this table. */
         data class Busy(val host: String?) : Status
+        data class Following(val host:String?) : Status
         data class Failed(val message: String) : Status
     }
 
     private val _status = MutableStateFlow<Status>(Status.Off)
     private val hostMutex = Mutex()
     val status: StateFlow<Status> = _status.asStateFlow()
+    fun followingRoom(host:String?) { if(_status.value!=Status.Hosting) _status.value=Status.Following(host) }
 
     /** One input from Atlas's own controls (a Sigil key, later the Atlas screen). */
     data class Input(val seq: Long, val id: String, val player: Int, val action: JSONObject)
@@ -71,7 +73,7 @@ class HostedAtlasLink(
         } finally {
             withContext(NonCancellable) {
                 if (_status.value == Status.Hosting) runCatching { call("POST", "/api/hosted/release", emptyList()) }
-                if (_status.value !is Status.Busy) _status.value = Status.Off
+                if (_status.value !is Status.Busy && _status.value !is Status.Following) _status.value = Status.Off
             }
         }
     }

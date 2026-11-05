@@ -11,6 +11,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -29,7 +30,8 @@ internal data class LanHosting(val code: String? = null, val qr: String? = null)
 
 internal data class RoomDisplay(val id: String, val name: String, val upright: Boolean, val detail: String = "", val public: Boolean = false, val view: String? = null)
 
-internal data class RoomProfile(val id: String, val name: String, val hasPin: Boolean)
+internal data class RoomProfile(val id: String, val name: String, val hasPin: Boolean,
+    val color: String? = null, val avatar: String = "none")
 
 internal data class LanUiState(
     val host: LanHosting? = null,
@@ -60,6 +62,7 @@ internal data class LanUiState(
     val planarRollFeedback: PlanarRollFeedback? = null,
     /** The last history exchange with the host, in words ("3 games synced"); null when nothing moved. */
     val historyNote: String? = null,
+    val atlasRoom: Boolean = false,
 ) {
     /** Seated or displaying a shared game. */
     val joined: Boolean get() = reconnecting || remote != null
@@ -69,7 +72,46 @@ internal class LanViewModel(
     context: Context,
     private val table: StandaloneTable,
     private val hostingAccess: LanHostingAccess = LanHostingAccess { true },
-) : ViewModel() {
+) : ViewModel(), com.turnhub.android.data.AtlasRoomLink {
+    var atlasCall: (suspend (String,String,List<Pair<String,String>>) -> com.turnhub.android.data.RawResponse?)? = null
+    private var atlasMode=false
+    override val isAtlasGuest get() = atlasMode && (_state.value.preview!=null || _state.value.joined || _state.value.busy)
+    private val atlasChecks=linkedMapOf<String,Pair<Long,String>>()
+    private suspend fun verifyAtlas(field:String,value:String):String? {
+        val key="$field:$value";val now=System.currentTimeMillis()
+        atlasChecks[key]?.takeIf { now-it.first<5000 }?.let { return it.second }
+        val response=atlasCall?.invoke("POST","/api/hosted/controller",listOf(field to value))
+            ?: error("Atlas controller check unavailable")
+        if(response.code==403) return null
+        check(response.ok) { "Atlas controller check unavailable" }
+        val phone=JSONObject(response.body).optString("phone").takeIf { it.matches(Regex("[0-9a-fA-F]{8}")) } ?: return null
+        if(atlasChecks.size>=32) atlasChecks.remove(atlasChecks.keys.first())
+        atlasChecks[key]=now to phone;return phone
+    }
+    override suspend fun publishedInvitation():String? {
+        if(token!=null) return null
+        if(server==null) startHosting(true)
+        val ready=withTimeoutOrNull(8000) { state.first { it.host!=null || !it.busy } } ?: return null
+        return ready.host?.qr?.let { LanInvite.parse(it).copy(key="0".repeat(64)).encode() }
+    }
+    override fun offerAtlasRoom(invitation:String,ticket:String) {
+        val offered=runCatching { LanInvite.parse(invitation).copy(key=ticket).also { require(ticket.matches(Regex("[0-9a-f]{64}"))) } }.getOrNull() ?: return
+        if(server!=null || hostRecord!=null) { _state.update { it.copy(message="This device is sharing another room. End that room before joining the Atlas table.") };return }
+        if(_state.value.busy) return
+        if(atlasMode && token!=null && invite?.session==offered.session) {
+            val changed=invite?.address!=offered.address || invite?.port!=offered.port || invite?.pin!=offered.pin
+            invite=offered
+            if(changed) { saveGuest();generation++;startPolling(generation) }
+            return
+        }
+        if(invite?.session==offered.session && invite?.pin==offered.pin) {
+            if(token!=null) return
+            if(_state.value.preview!=null) { invite=offered;joinRequest=null;return }
+        }
+        if(token!=null) leave()
+        atlasMode=true;preview(offered.encode());_state.update { it.copy(atlasRoom=true) }
+    }
+    fun joinAtlasProfile(profileId:String) { join("player",0,profileId=profileId) }
     private val context = context.applicationContext
     private val _state = MutableStateFlow(LanUiState())
     val state = _state.asStateFlow()
@@ -123,7 +165,7 @@ internal class LanViewModel(
         val invitation = invite ?: return false
         val credential = token ?: return false
         return store.write("guest", JSONObject().put("invite", invitation.encode()).put("token", credential)
-            .put("role", _state.value.role).put("view", _state.value.view).put("syncProfile", syncProfile ?: JSONObject.NULL))
+            .put("role", _state.value.role).put("view", _state.value.view).put("syncProfile", syncProfile ?: JSONObject.NULL).put("atlasRoom",atlasMode))
     }
     fun resumeRoom() {
         if (_state.value.busy || server != null || token != null) return
@@ -132,10 +174,11 @@ internal class LanViewModel(
         val saved = store.read("guest") ?: return
         invite = runCatching { LanInvite.parse(saved.text("invite")) }.getOrNull() ?: return
         token = saved.text("token")
+        atlasMode=saved.optBoolean("atlasRoom")
         syncProfile = saved.optString("syncProfile").takeIf { id -> savedPlayers().any { it.profileId == id } }
         historyOffered.clear()
         _state.update { it.copy(role = saved.optString("role"), view = saved.optString("view", "personal"),
-            reconnecting = true, resumable = true, message = "Reconnecting to your room…") }
+            reconnecting = true, resumable = true, atlasRoom=atlasMode, message = "Reconnecting to your room…") }
         generation++
         startPolling(generation)
     }
@@ -162,6 +205,8 @@ internal class LanViewModel(
                 fun baseRequest(op: String) = JSONObject().put("v", LAN_VERSION).put("session", session).put("op", op).put("key", key)
                 suspend fun snapshot(): JSONObject = localCore().handle(baseRequest("preview"))
                 val core = LanRoom(record, save = { next -> store.write("host", next) },
+                    atlasTicket={ verifyAtlas("ticket",it) },atlasMember={ verifyAtlas("phone",it)!=null },
+                    attachAtlas=table::attachAtlasRoomProfile,
                     planesAvailable = { table.state.value.game.planechase.enabled },
                     planarPlayerAllowed = { player -> table.state.value.game.players.getOrNull(player - 1)?.eliminated == false },
                     planarRollAllowed = { player ->
@@ -242,7 +287,7 @@ internal class LanViewModel(
         val scanned = if (code == null) runCatching { LanInvite.parse(text) }.getOrNull() else null
         if (code == null && scanned == null) { _state.update { it.copy(message = "Enter the host's join code, like abc-123.") }; return }
         invite = null; joinRequest = null
-        _state.update { it.copy(busy = true, preview = null, message = null) }
+        _state.update { it.copy(busy = true, preview = null, message = null, atlasRoom=atlasMode) }
         viewModelScope.launch {
             try {
                 val candidates = scanned?.let(::listOf) ?: withContext(Dispatchers.IO) {
@@ -293,7 +338,10 @@ internal class LanViewModel(
         _state.update { it.copy(busy = true, message = null) }
         viewModelScope.launch {
             try {
-                val reply = request(invitation, body)
+                var reply = request(invitation, body)
+                if(atlasMode) repeat(2) {
+                    if(reply.optString("code")=="unavailable") { delay(500);reply=request(invitation,body) }
+                }
                 if (reply.text("code") != "ok") {
                     _state.update { it.copy(busy = false, message = if (reply.text("code") == "claimed")
                         "That player is already controlled by another device." else if (reply.text("code") == "pin-required") "Enter the profile PIN to authorize this link." else "Couldn't join. Check the profile and room invitation.") }
@@ -313,7 +361,7 @@ internal class LanViewModel(
                     }
                 }
                 joinRequest = null
-                syncProfile = (own?.profileId ?: targetId)?.takeIf { id -> savedPlayers().any { it.profileId == id } }
+                syncProfile = (own?.profileId ?: targetId)?.takeIf { id -> !atlasMode && savedPlayers().any { it.profileId == id } }
                     .takeIf { role == "player" }
                 historyOffered.clear()
                 generation++
@@ -457,6 +505,7 @@ internal class LanViewModel(
         act(next.kind, next.value, next.slot, next.source, next.target)
     }
     fun leave() {
+        atlasMode=false
         queued.clear()
         val saved = store.read("guest")
         val invitation = invite ?: saved?.optString("invite")?.let { runCatching { LanInvite.parse(it) }.getOrNull() }
@@ -588,7 +637,9 @@ internal class LanViewModel(
     private fun readDirectory(reply: JSONObject): List<RoomProfile> {
         val array = reply.optJSONArray("directory") ?: return emptyList()
         return (0 until minOf(array.length(), 128)).map { array.getJSONObject(it).let { p ->
-            RoomProfile(p.text("profileId"), p.text("name"), p.optBoolean("hasPin"))
+            RoomProfile(p.text("profileId"), p.text("name"), p.optBoolean("hasPin"),
+                p.optString("color").takeIf { it.matches(Regex("#[0-9a-fA-F]{6}")) },
+                p.optString("avatar").takeIf { it in com.turnhub.android.standalone.LocalPersonalization.AVATARS } ?: "none")
         } }
     }
     private suspend fun request(invitation: LanInvite, body: JSONObject): JSONObject = exchange.withLock {

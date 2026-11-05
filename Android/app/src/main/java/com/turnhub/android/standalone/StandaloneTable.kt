@@ -190,6 +190,8 @@ class StandaloneTable(
     }
     fun accountUnlocked(localId: String): Boolean = _state.value.library.players.firstOrNull { it.localId == localId }
         ?.let { it.credential == null || localId in unlockedAccounts } == true
+    fun lockAccount(localId: String) { unlockedAccounts.remove(localId) }
+
     fun unlockAccount(localId: String, secret: String): Boolean {
         val player = _state.value.library.players.firstOrNull { it.localId == localId } ?: return false
         if (player.credential?.verifies(secret) == false) return false
@@ -388,7 +390,21 @@ class StandaloneTable(
     /** Public room directory; credentials and history never leave through a snapshot. */
     internal fun roomProfiles() = org.json.JSONArray(_state.value.library.players.map { p ->
         org.json.JSONObject().put("profileId", p.profileId).put("name", p.name).put("hasPin", p.credential != null)
+            .put("color", p.personalization.color ?: org.json.JSONObject.NULL).put("avatar", p.personalization.avatar)
     })
+
+    /** A paired Atlas controller may play an existing identity, never unlock its private data. */
+    internal fun attachAtlasRoomProfile(request: JSONObject): String? {
+        val id=request.optString("profileId")
+        val player=_state.value.library.players.firstOrNull { it.profileId==id } ?: return null
+        val game=_state.value.game
+        if(game.players.none { it.localId==player.localId }) {
+            if(game.state!=TableState.LOBBY) return null
+            val added=game.addPlayer(player.name,localId=player.localId)
+            if(added===game || !publishGame(added,durable=true)) return null
+        }
+        return id
+    }
 
     /** A first room link proves its PIN; subsequent connections use the room credential. */
     internal fun attachRoomProfile(request: org.json.JSONObject): String? {
@@ -944,7 +960,12 @@ class StandaloneTable(
                 "sigil-join" -> {
                     if (sigil !in 0..7 || slot !in 1..2) return false
                     val binding = "sigil:$sigil:$slot"
-                    if (game.players.any { it.sigilSeat == binding || it.localId == binding }) return false
+                    val previous = action.optInt("previousPlayer", -1)
+                    if (previous >= 0 && game.players.getOrNull(previous)?.sigilSeat != binding) return false
+                    if (previous < 0 && game.players.any { it.sigilSeat == binding || it.localId == binding }) return false
+                    val available = if (previous >= 0) game.copy(players = game.players.mapIndexed { index, p ->
+                        if(index == previous) p.copy(sigilSeat = null) else p
+                    }) else game
                     val target = action.optString("target")
                     val profile = action.optString("profileId")
                     val mode = action.optString("mode", "guest")
@@ -957,7 +978,7 @@ class StandaloneTable(
                             if (candidate.localId.orEmpty() != target || (_state.value.library.players.firstOrNull { it.localId == candidate.localId }?.profileId ?: candidate.profileId).orEmpty() != profile ||
                                 candidate.name != action.optString("name")) return false
                             if (index < 0 || game.players[index].sigilSeat != null) return false
-                            game.copy(players = game.players.mapIndexed { i, p -> if (i == index) p.copy(sigilSeat = binding) else p },
+                            available.copy(players = available.players.mapIndexed { i, p -> if (i == index) p.copy(sigilSeat = binding) else p },
                                 revision = game.revision + 1)
                         }
                         "profile" -> {
@@ -970,15 +991,15 @@ class StandaloneTable(
                                 library = library.copy(players = library.players + saved)
                             }
                             if (game.players.any { it.localId == saved.localId || it.profileId == profile }) return false
-                            val added = game.addPlayer(saved.name, profileId = profile, localId = saved.localId)
-                            if (added === game) return false
+                            val added = available.addPlayer(saved.name, profileId = profile, localId = saved.localId)
+                            if (added === available) return false
                             added.copy(players = added.players.dropLast(1) + added.players.last().copy(sigilSeat = binding))
                         }
                         "guest" -> {
                             val name = action.optString("name").trim().take(StandaloneGame.MAX_NAME)
                                 .ifBlank { "Sigil ${sigil + 1}" + if (slot == 2) " B" else "" }
-                            val added = game.addPlayer(name, guest = true)
-                            if (added === game) return false
+                            val added = available.addPlayer(name, guest = true)
+                            if (added === available) return false
                             added.copy(players = added.players.dropLast(1) + added.players.last().copy(sigilSeat = binding))
                         }
                         else -> return false

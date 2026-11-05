@@ -32,7 +32,7 @@ fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destina
     var unlockSecret by remember(player.localId) { mutableStateOf("") }
     var credentialBusy by remember { mutableStateOf(false) }
     var credentialError by remember { mutableStateOf<String?>(null) }
-    if (!unlocked) {
+    if (!unlocked || !table.accountUnlocked(player.localId)) {
         OutlinedTextField(unlockSecret, { unlockSecret = it.take(ProfileSecret.MAX_CHARS) }, label = { Text("Account PIN or password") },
             visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
         ToneButton("Unlock account settings", {
@@ -57,89 +57,102 @@ fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destina
     // Avatar, motion and image changes say so when they don't save, like the name and color.
     fun saveStyle(next: LocalPersonalization) { styleError = !table.saveAccount(player.localId, player.name, next) }
     val icon = remember(prefs) { prefs.icon() }
-    PlayerAvatar(player.name, 1, icon, size = 56.dp, color = playerColor(prefs.color, palette.avatarColor(1)))
-    Text("Account ID ${player.profileId}", color = palette.muted)
-    OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) }, label = { Text("Display name (up to 32 characters)") },
-        singleLine = true, modifier = Modifier.fillMaxWidth())
-    ToneButton("Save name", { saveError = !table.saveAccount(player.localId, name, prefs) },
-        enabled = name.isNotBlank() && name.trim() != player.name)
-    Text("Player color", color = palette.text)
-    ColorPicker(prefs.color, { chosen ->
-        saveError = !table.saveAccount(player.localId, player.name, prefs.copy(color = chosen))
-    }, palette.avatarColor(1))
-    if (saveError) Text("Couldn’t save. Try again.", color = palette.warn)
-    var newSecret by remember(player.localId) { mutableStateOf("") }
-    OutlinedTextField(newSecret, { newSecret = it.take(ProfileSecret.MAX_CHARS) },
-        label = { Text(if (player.credential == null) "Set a PIN or password" else "Change PIN or password") },
-        visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
-    ToneButton("Save PIN or password", {
-        scope.launch {
-            credentialBusy = true
-            val credential = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { LocalCredential.create(newSecret) }
-            val saved = table.setAccountCredential(player.localId, credential)
-            newSecret = ""; credentialBusy = false
-            credentialError = if (saved) "PIN or password saved." else "Could not save the PIN or password."
-        }
-    }, enabled = !credentialBusy && ProfileSecret.isValid(newSecret))
-    if (player.credential != null) ToneButton("Remove PIN or password", {
-        credentialError = if (table.clearAccountCredential(player.localId)) "PIN or password removed. Anyone can open these settings."
-            else "Could not remove the PIN or password."
-    }, enabled = !credentialBusy)
-    credentialError?.let { Text(it, color = palette.muted) }
-    Text("Avatar", color = palette.text)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        LocalPersonalization.AVATARS.forEach { key ->
-            FilterChip(prefs.avatar == key && prefs.image == null,
-                { saveStyle(prefs.copy(avatar = key, image = null)) },
-                label = { Text(key.replaceFirstChar { it.uppercase() }) })
+    var section by rememberSaveable(player.localId) { mutableStateOf("Profile") }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        PlayerAvatar(name.ifBlank { player.name }, 1, icon, size = 56.dp,
+            color = playerColor(prefs.color, palette.avatarColor(player.profileId.hashCode())))
+        Column {
+            Text(name.ifBlank { player.name }, style = MaterialTheme.typography.titleLarge)
+            Text("Profile preview", color = palette.muted)
         }
     }
-    ToneButton("Reduced motion: ${if (prefs.reduceMotion) "On" else "Off"}", {
-        saveStyle(prefs.copy(reduceMotion = !prefs.reduceMotion)) })
-    AvatarUploadControls(Personalization(prefs.color, 0, true,
-        customAvatar = if (prefs.image == null) "" else "local", customImage = icon?.image,
-        uploadApprovalRequired = false), false,
-        upload = { bytes, thumbnail -> saveStyle(prefs.copy(image = Base64.getEncoder().encodeToString(bytes), thumbnail = thumbnail)) },
-        remove = { saveStyle(prefs.copy(image = null, thumbnail = null)) }, localOnly = true)
-    if (styleError) Text("Couldn’t save. Try again.", color = palette.warn)
-    TileBackgroundEditor(player, table)
-    if (destination.paired) {
-        Text("Atlas keeps a copy of this player's name, color, preset avatar and results. The PIN and pictures stay on this device.", color = palette.muted)
-        destination.atlasTotals[player.localId]?.let { (played, won) ->
-            Text("On this Atlas: $played played · $won won", color = palette.muted)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("Profile", "Appearance", "Security", "Manage").forEach { label ->
+            FilterChip(section == label, { section = label }, label = { Text(label) })
         }
     }
-    if (canLink && !destination.paired && destination.atlasId != null) {
-        val link = player.links.firstOrNull { it.atlasId == destination.atlasId }
-        link?.let { Text("Linked to Atlas account ${it.profileId}. Matching games import automatically when signed in.", color = palette.muted) }
-        var target by rememberSaveable(player.localId, destination.atlasId) { mutableStateOf("") }
-        // Secrets deliberately do not survive saved instance state.
-        var secret by remember(player.localId, destination.atlasId) { mutableStateOf("") }
-        var expanded by remember { mutableStateOf(false) }
-        Box {
-            TextButton({ expanded = true }) { Text(destination.profiles.firstOrNull { it.profileId == target }
-                ?.let { "Link to ${it.name} · ${it.profileId}" } ?: "Create this account on Atlas") }
-            DropdownMenu(expanded, { expanded = false }) {
-                DropdownMenuItem({ Text("Create this account on Atlas") }, { target = ""; expanded = false })
-                destination.profiles.forEach { account ->
-                    DropdownMenuItem({ Text("${account.name} · ${account.profileId}${if (account.hasPin) "" else " · set PIN"}") }, { target = account.profileId; expanded = false })
-                }
+    if (player.credential != null) ToneButton("Lock profile settings", {
+        table.lockAccount(player.localId); unlocked = false; unlockSecret = ""; credentialError = null
+    })
+    if (section == "Profile") {
+        OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) }, label = { Text("Display name (up to 32 characters)") },
+            singleLine = true, modifier = Modifier.fillMaxWidth())
+        ToneButton("Save name", { saveError = !table.saveAccount(player.localId, name, prefs) },
+            enabled = name.isNotBlank() && name.trim() != player.name)
+        Text("This name appears in games. Renaming keeps the same profile ID and history.", color = palette.muted)
+    }
+    if (section == "Appearance") {
+        Text("Player color", color = palette.text)
+        ColorPicker(prefs.color, { chosen ->
+            saveError = !table.saveAccount(player.localId, player.name, prefs.copy(color = chosen))
+        }, palette.avatarColor(player.profileId.hashCode()))
+        if (saveError) Text("Couldn’t save. Try again.", color = palette.warn)
+        Text("Avatar", color = palette.text)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            LocalPersonalization.AVATARS.forEach { key ->
+                FilterChip(prefs.avatar == key && prefs.image == null,
+                    { saveStyle(prefs.copy(avatar = key, image = null, thumbnail = null)) },
+                    label = { Text(if (key == "none") "Initials" else key.replaceFirstChar { it.uppercase() }) },
+                    leadingIcon = { PlayerAvatar(player.name, 1, prefs.copy(avatar = key, image = null, thumbnail = null).icon(),
+                        size = 28.dp, color = playerColor(prefs.color, palette.avatarColor(player.profileId.hashCode()))) })
             }
         }
-        Text(if (target.isBlank()) if (player.credential == null) "Choose a PIN or password for the new Atlas account." else "Enter this local account's PIN or password to preserve it on Atlas."
-            else "Enter that Atlas account's PIN or password to merge future imports. Both histories are retained; Atlas personalization stays unchanged.", color = palette.muted)
-        OutlinedTextField(secret, { secret = it.take(ProfileSecret.MAX_CHARS) }, label = { Text("PIN or password") },
-            visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
-        ToneButton(if (target.isBlank()) "Import account to Atlas" else "Verify and link account", {
-            onLink(player.localId, target.ifBlank { null }, secret); secret = ""
-        }, enabled = !destination.busy && ProfileSecret.isValid(secret))
-        Text(ProfileSecret.RULE, color = palette.muted)
+        ToneButton("Reduced motion: ${if (prefs.reduceMotion) "On" else "Off"}", {
+            saveStyle(prefs.copy(reduceMotion = !prefs.reduceMotion)) })
+        AvatarUploadControls(Personalization(prefs.color, 0, true,
+            customAvatar = if (prefs.image == null) "" else "local", customImage = icon?.image,
+            uploadApprovalRequired = false), false,
+            upload = { bytes, thumbnail -> saveStyle(prefs.copy(image = Base64.getEncoder().encodeToString(bytes), thumbnail = thumbnail)) },
+            remove = { saveStyle(prefs.copy(image = null, thumbnail = null)) }, localOnly = true)
+        if (styleError) Text("Couldn’t save. Try again.", color = palette.warn)
+        TileBackgroundEditor(player, table)
     }
-    DeviceAdminControls(player, table)
-    var sharing by remember(player.localId) { mutableStateOf(false) }
-    ToneButton("Use on another device", { sharing = true }, Modifier.fillMaxWidth())
-    if (sharing) ShareAccountDialog(player, table) { sharing = false }
-    DeleteLocalAccount(player, table)
+    if (section == "Security") {
+        Text("Playing does not require a PIN. A PIN or password protects settings and detailed statistics.", color = palette.muted)
+        var newSecret by remember(player.localId) { mutableStateOf("") }
+        var confirmSecret by remember(player.localId) { mutableStateOf("") }
+        OutlinedTextField(newSecret, { newSecret = it.take(ProfileSecret.MAX_CHARS) },
+            label = { Text(if (player.credential == null) "Set a PIN or password" else "Change PIN or password") },
+            visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(confirmSecret, { confirmSecret = it.take(ProfileSecret.MAX_CHARS) },
+            label = { Text("Confirm PIN or password") }, visualTransformation = PasswordVisualTransformation(),
+            singleLine = true, modifier = Modifier.fillMaxWidth())
+        ToneButton("Save PIN or password", {
+            scope.launch {
+                credentialBusy = true
+                val credential = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { LocalCredential.create(newSecret) }
+                val saved = table.setAccountCredential(player.localId, credential)
+                newSecret = ""; confirmSecret = ""; credentialBusy = false
+                credentialError = if (saved) "PIN or password saved." else "Could not save the PIN or password."
+            }
+        }, enabled = !credentialBusy && ProfileSecret.isValid(newSecret) && newSecret == confirmSecret)
+        var removingProtection by remember(player.localId) { mutableStateOf(false) }
+        val deviceAdmin = table.state.value.library.isDeviceAdmin(player.localId)
+        if (deviceAdmin) Text("The device Admin must keep a PIN or password.", color = palette.muted)
+        if (player.credential != null && !deviceAdmin) ToneButton("Remove PIN or password", {
+            removingProtection = true
+        }, enabled = !credentialBusy)
+        if (removingProtection) AlertDialog(onDismissRequest = { removingProtection = false },
+            title = { Text("Remove profile protection?") },
+            text = { Text("Anyone using this device will be able to open these settings and detailed statistics.") },
+            confirmButton = { TextButton({
+                credentialError = if (table.clearAccountCredential(player.localId)) "PIN or password removed."
+                    else "Could not remove the PIN or password."
+                removingProtection = false
+            }) { Text("Remove protection") } },
+            dismissButton = { TextButton({ removingProtection = false }) { Text("Cancel") } })
+        credentialError?.let { Text(it, color = palette.muted) }
+    }
+    if (section == "Manage") {
+        Text("Atlas automatically copies profile names, colors, preset avatars and PIN verifiers between paired devices. Pictures and Device Admin permissions stay local.", color = palette.muted)
+        Text("Profile ID ${player.profileId}", color = palette.muted)
+        DeviceAdminControls(player, table)
+        var sharing by remember(player.localId) { mutableStateOf(false) }
+        ToneButton("Use on another device", { sharing = true }, Modifier.fillMaxWidth())
+        if (sharing) ShareAccountDialog(player, table) { sharing = false }
+        DeleteLocalAccount(player, table)
+    }
+
 }
 
 /**

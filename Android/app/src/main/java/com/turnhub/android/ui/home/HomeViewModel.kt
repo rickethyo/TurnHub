@@ -87,6 +87,11 @@ class HomeViewModel(
 ) : ViewModel() {
 
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
+    var atlasRoomLink: com.turnhub.android.data.AtlasRoomLink? = null
+    suspend fun atlasRoomRequest(method:String,path:String,fields:List<Pair<String,String>>):com.turnhub.android.data.RawResponse? {
+        if(repository.connectionState.value!=AtlasConnectionState.CONNECTED || repository.offlineSinceMs.value!=null) return null
+        return try { hubRaw(method,path,fields) } catch(e:kotlinx.coroutines.CancellationException) { throw e } catch(_:Exception) { null }
+    }
 
     /**
      * Local game/library owner. Atlas delivery requires an explicit per-match
@@ -142,6 +147,7 @@ class HomeViewModel(
         _hostedResume.value = null
         val table = standalone ?: return
         if (!on) return
+        if(atlasRoomLink?.isAtlasGuest==true) return
         val signedIn = playerSession.state.value is PlayerSessionState.SignedIn
         if (phonePairing == null && !signedIn) {
             onPlayFromPhoneClicked()
@@ -178,6 +184,16 @@ class HomeViewModel(
     }
 
     private suspend fun host(table: com.turnhub.android.standalone.StandaloneTable): Unit = kotlinx.coroutines.coroutineScope {
+        val controllerRoom=if(atlasRoomLink!=null) launch {
+            hostedLink.status.collectLatest { status ->
+                if(status==com.turnhub.android.data.HostedAtlasLink.Status.Hosting) while(true) {
+                    atlasRoomLink?.publishedInvitation()?.let { invitation ->
+                        atlasRoomRequest("POST","/api/hosted/room",listOf("invite" to invitation))
+                    }
+                    delay(10_000)
+                }
+            }
+        } else null
         // The Atlas screen's Planes tab: the game's digital planes, while this phone holds the table.
         val planes = planeCatalog?.let { catalog ->
             val sync = com.turnhub.android.data.HostedPlaneSync({ method, path, fields -> hubRaw(method, path, fields) },
@@ -195,7 +211,7 @@ class HomeViewModel(
                 // Atlas's Sigils and screen: this phone's rules decide.
                 table.applyHostedInput(input.player, input.action)
             }
-        } finally { planes?.cancel() }
+        } finally { planes?.cancel();controllerRoom?.cancel() }
         Unit
     }
 
@@ -234,6 +250,22 @@ class HomeViewModel(
             standaloneObserver?.cancel()
             if (value != null && autoHost) observeAutoHost()
             if (value != null) standaloneObserver = viewModelScope.launch {
+                if(phonePairing!=null) launch {
+                    while(true) {
+                        delay(2000)
+                        if(hostedLink.status.value==com.turnhub.android.data.HostedAtlasLink.Status.Hosting || atlasRoomLink==null) continue
+                        val game=value.state.value.game
+                        if(!atlasRoomLink!!.isAtlasGuest && game.state in setOf(com.turnhub.android.protocol.TableState.STARTING,
+                                com.turnhub.android.protocol.TableState.RUNNING,com.turnhub.android.protocol.TableState.PAUSED)) continue
+                        val response=atlasRoomRequest("GET","/api/hosted/room",emptyList()) ?: continue
+                        if(!response.ok) continue
+                        runCatching { val body=org.json.JSONObject(response.body)
+                            if(!body.isNull("room")) {
+                                atlasRoomLink?.offerAtlasRoom(body.getString("room"),body.getString("ticket"))
+                                if(atlasRoomLink?.isAtlasGuest==true) hostedLink.followingRoom(body.optString("host"))
+                            } }
+                    }
+                }
                 launch {
                     combine(repository.connectionState, repository.offlineSinceMs, repository.tableSummary) { connection, offline, summary ->
                         summary?.atlasId?.takeIf { connection == AtlasConnectionState.CONNECTED && offline == null }

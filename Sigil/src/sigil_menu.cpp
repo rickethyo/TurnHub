@@ -26,6 +26,7 @@ constexpr SigilAction MENU_ORDER[] = {
     SigilAction::Resume, SigilAction::ClaimWin, SigilAction::BeginElimination,
     SigilAction::AddPartner, SigilAction::DropPartner, SigilAction::RandomStarter,
     SigilAction::CycleStarter, SigilAction::AddSeatB, SigilAction::RemoveSeatB, SigilAction::Leave,
+    SigilAction::ChangePlayer, SigilAction::ChangeSeatB,
     SigilAction::Rematch, SigilAction::ResetTable, SigilAction::SwitchSeat,
     SigilAction::Pass, SigilAction::CancelPass, SigilAction::Join, SigilAction::StartGame,
     SigilAction::CancelStart, SigilAction::ConfirmWin, SigilAction::DenyWin, SigilAction::Eliminate,
@@ -92,7 +93,9 @@ const char *sigilActionLabel(SigilAction action) {
     case SigilAction::CancelElimination: return "Cancel";
     case SigilAction::Rematch: return "Rematch";
     case SigilAction::ResetTable: return "Reset table";
-    case SigilAction::Leave: return "Leave lobby";
+    case SigilAction::Leave: return "Release";
+    case SigilAction::ChangePlayer: return "Change A";
+    case SigilAction::ChangeSeatB: return "Change B";
     case SigilAction::AdjustLife: return "Change life";
     case SigilAction::CommanderDamage: return "Cmd damage";
     case SigilAction::UndoCommanderHit: return "Undo hit";

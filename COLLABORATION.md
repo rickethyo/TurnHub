@@ -34,6 +34,71 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-11-05, Codex, baseline `4c8ca922`, codex/master: owner asks to continue
+profile settings/picker and add to PR #211. Both app editors now separate Profile,
+Appearance, Security and Manage; preview, graphical preset choices, PIN confirmation,
+explicit settings lock and deliberate protection removal retain existing backend
+authorization. The saved name is already the public display name; IDs/history stay
+stable. Remove the obsolete Atlas account-linking controls from this editor.
+Game pickers use saved colors/avatars and stable-ID fallback hues, omit location
+suffixes, and show IDs only for equal names. Atlas room directory adds preset
+appearance only, never private images or credential material. Local counterpart
+stays in its separate repository; existing unrelated source edits are preserved.
+
+Validation: 514 main-app and 211 local-app JVM tests, zero failures; both Preview
+2003 builds. Installed main preview on the three then-connected physical devices,
+and local counterpart on the Samsung and emulator. Samsung disconnected during
+visual acceptance; LG editor and Fold Atlas room picker inspected, plus isolated
+emulator profile color/avatar save-to-picker and PIN save/lock/unlock. The isolated
+test profile was deleted; no real profile appearance/name/PIN was changed. Final
+builds and diff/docs/content/design-token guards pass. Latest feedback/text build
+installed on Fold, newly connected phone and emulator; LG and Samsung disconnected
+before that final install. No firmware change; manuals remain deferred per owner.
+Remaining owner notes stay staged.
+
+2026-11-05, Codex, baseline `4f54f1b0`, codex/master: owner authorizes next
+controller/profile slices. Start with atomic Sigil player switching in setup,
+then profile settings parity and appearance before Game picker polish. Keep
+manual edits/export/render deferred until the end per owner instruction.
+Preserve the separate local app's unrelated working changes and content boundary.
+Sigil switching implementation: setup menu Change A/B opens the identity picker
+without first clearing the existing seat; confirmation sends the previous seat
+index to the hub, which validates it and commits release/attachment atomically.
+Cancellation and rejected targets preserve the old binding; both players and
+other phone memberships remain. Release wording explains that players stay.
+Validation: 512 Android JVM tests, Preview 2002, Atlas and Sigil host suites,
+both firmware builds/uploads, three Android installs; Sigil serial reports secure
+session ready and Atlas restored. Protocol/adapter/docs/content/diff checks pass.
+Physical touchscreen switching still needs acceptance; no synthetic radio event
+or completed-game result was sent. Profile settings and picker work remain next.
+
+2026-11-05, Codex, baseline `9d290076`, codex/master: owner supplied experience
+notes, requests staged planning, then authorizes first-slice build/flash/device
+tests and explicitly prioritizes the automatic Atlas room. Roadmap recorded in
+STAGED_CHANGES.md; first scope is connecting paired phones to the hub's existing
+room rather than competing for its lease. Preserve one hub authority, participant
+identity, protected data and explicit takeover. Connected devices are unlocked.
+No smaller Sigil/UI slice takes priority over the room. Implemented Android hub
+publication, paired-only Atlas ticket delivery and Game profile attachment through
+the existing LAN room. Gameplay access does not unlock accounts/private history
+or mint controller invitations; confirmed phone revocation is enforced. Temporary
+verification failure returns unavailable, preserving membership; repeated joins
+reuse the phone/profile membership. Contract: protocol/hosted-v1.md.
+
+Validation: 511 Android JVM tests, zero failures; Preview 2001 build; Atlas host
+suite (54 PASS lines plus storage/profile/OTA suites), Atlas build and both board
+uploads (COM18 Atlas, COM26 Sigil). Installed Preview on LG Q70, SM-T970 and Pixel
+Fold. LG hosts, Fold joins Ricky and tablet joins Michael with no code/PIN;
+host starts the lobby, both follow running state, Fold life input reaches LG.
+Both controllers recover their selected profiles after app updates/restarts;
+Atlas refreshes the same room's port/certificate through the paired descriptor.
+Manual App V0.22 rendered with Word (18 pages), all page sheets and changed page
+14 inspected. Contract/adapter/docs/licensed-content/diff guards pass. Longer
+host-loss/revocation/Sigil acceptance and intentional hub handoff remain open;
+no completed-match statistics or endurance result is claimed.
+The avatar-mask guard needs canonical Git SVG bytes on this Windows CRLF
+checkout; canonical source and artifact hashes pass, with no asset changes.
+
 2026-11-05, Codex review of Copilot audit at `3574132d`, on the owner-selected
 `VSCodeCopilot/Master` branch. Owner authorizes fixes and merge when safe.
 Confirmed HTTPS-only remote boundary and loopback HTTP backend. Atlas host,

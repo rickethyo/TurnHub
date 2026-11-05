@@ -130,6 +130,9 @@ const Route ROUTES[] = {
   {"/api/hosted/state", HTTP_POST, handleHostedPublish},
   {"/api/hosted/state", HTTP_GET, handleHostedState},
   {"/api/hosted/inputs", HTTP_GET, handleHostedInputs},
+  {"/api/hosted/room", HTTP_POST, handleControllerRoomPublish},
+  {"/api/hosted/room", HTTP_GET, handleControllerRoom},
+  {"/api/hosted/controller", HTTP_POST, handleControllerVerify},
 
   // Accounts and administration.
   {"/api/accounts/setup", HTTP_GET, accountSetupStatus},

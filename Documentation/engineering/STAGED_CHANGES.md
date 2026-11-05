@@ -19,6 +19,86 @@ Pre-release compatibility policy belongs in `CLAUDE.md` and
 
 ## Open work
 
+### Owner experience roadmap (2026-11-05)
+
+These are product suggestions to refine during design, not immutable UI
+requirements. The owner prioritizes the Atlas room as the first implementation
+slice and authorizes building, flashing and testing it on connected unlocked
+devices. Each slice gets its own reviewable implementation and acceptance round.
+
+Owner-approved sequence: Sigil switching first, then profile settings across both
+apps (display names, color/avatar controls and PIN protection), then Game picker
+appearance and removal of location suffixes. Picker polish depends on the profile
+settings work. Batch remaining user-manual edits into one update at the end.
+
+1. **Atlas automatically connects one shared room (first priority).** Android
+   implementation and three-device smoke test are complete; contract and privacy
+   boundaries live in [Phone-hosted games](../../protocol/hosted-v1.md#automatic-atlas-room).
+   Remaining acceptance: prolonged outage/host loss, pairing revocation on hardware,
+   concurrent Sigil attachment, and exactly-once final match records. Explicit hub
+   handoff and iOS room counterpart remain later work. One hub
+   phone runs both the rules and the existing Play together room; Atlas only
+   relays discovery/attachment and hardware inputs. Pairing/connecting additional
+   phones must attach them to that room, not automatically contend for the hub
+   lease or leave them on unrelated local games with an Atlas busy error. The
+   Game profile picker joins or attaches the selected profile through the same
+   validated membership path as Play together. The hub can arrange the lobby
+   first; later devices and Sigils attach without duplicating participants or
+   statistics. No room-code entry for phones already paired to this Atlas.
+   Preserve player/table/display roles, protected account settings, scoped
+   credentials, revocation, reconnect behavior and explicit hub handoff. Define
+   how the first hub is chosen and expose intentional takeover separately from
+   joining. Test three real phones/tablets plus Sigil: concurrent connection,
+   same/different profiles, host-prepared lobby, reconnect, host loss, stale room
+   credentials, private statistics and exactly one game authority. Include the
+   initial-permission race in QR account sharing if the same connection boundary
+   needs it; otherwise make it the next focused repair.
+2. **Controller identity and profile picking.** Let a Sigil release/change its
+   player in setup without rebooting, keeping the person and other controllers
+   intact. Simplify Game profile rows by removing repeated device/location text;
+   show location where it helps a decision instead. Differentiate profiles with
+   their avatar/colour/initials, retaining readable names and non-colour cues.
+   Add optional display names with stable IDs unchanged; distinguish display
+   names from account identity and decide how history records names at play time.
+   Implemented on the active branch: setup Change A/B, grouped profile settings in
+   both apps, visual preset avatars, explicit lock/PIN confirmation and Game picker
+   color/avatar/initials with location suffixes removed. Saved names already serve
+   as public display names; renaming keeps the ID and historical name snapshots.
+   A separate optional nickname field remains a proposal, not a new account type.
+   Physical Sigil switching acceptance remains open; manual updates are batched.
+3. **Profile/account parity and new-device onboarding.** Review and remove
+   obsolete account controls before adding missing ones. Preserve offline copies,
+   PIN gates for settings/detailed statistics, retention preferences and device
+   roles. Initial app setup should offer pulling profiles and suitable settings
+   from an existing Atlas. To install device Admin, offer eligible accounts and
+   require that account's PIN approval, or create a new Admin. Do not infer or
+   transfer device Admin from an ordinary copied profile or Atlas pairing. Resolve
+   this against the account-removal work below before deleting authorization
+   routes it still needs. Reuse the resulting profile contract across products.
+4. **Device-focused settings and contextual codes.** Group Atlas, Sigil and phone
+   settings with the appropriate pairing, unpair/forget and reset actions in each
+   device section. Use tabs only if they improve the small-screen layout. Remove
+   the permanent QR-code destination; show each code at the step that needs it,
+   with an accessible text alternative. Put themes under the relevant device;
+   let Atlas request Sigil settings and reflect edits made on the Sigil. Keep a
+   single canonical setting per device, with acknowledgements/retries rather
+   than conflicting bidirectional stores. Destructive actions name their exact
+   scope and retain confirmation. Implement phone and Atlas counterparts together.
+5. **Atlas Players tab.** Add a dedicated profile/statistics view using the same
+   stable-ID directory. Keep public/basic totals visible as appropriate and
+   detailed statistics behind the profile's unlock gate. Account for no SD,
+   disconnected hub, duplicate names, paging and touchscreen accessibility.
+6. **Desktop exploration, not a build commitment.** Compare a Windows companion,
+   browser interface and desktop-hosted hub for profile editing and statistics.
+   Separate a read-only viewer from authenticated editing or game hosting;
+   evaluate existing contracts, offline sync, PIN handling, packaging and cost
+   before selecting a platform. Do not create another independent rules authority.
+
+Immediate acceptance gate for slice 1: current HTTPS setup and physical trust,
+loopback isolation and reconnect must work on the devices. Builds/tests do not
+replace this gate. Smaller follow-ups may be reordered when they unblock room
+acceptance; do not expand the first slice into a complete settings redesign.
+
 ### Phone-hosted games (owner, 2026-11-04)
 
 The hub phone or tablet runs every game with the shared core; Atlas shows it,
@@ -29,7 +109,8 @@ the hub. Contract: `protocol/hosted-v1.md`. Slices, each a flash-and-test round:
 1. **Hosted contract and hub push** (implemented, `claude/master`): lease,
    state and input routes; read-only hosted view on the Atlas screen; the
    app's "Show on Atlas". Open check: push a running game from a phone and
-   watch the Atlas screen follow; a second phone sees "Atlas busy".
+   watch the Atlas screen follow; other paired phones discover the hub's room
+   and select a profile on Game (the automatic room slice above).
 2. **Sigils** (implemented, `claude/master`): a Sigil joins the hub's setup
    from its menu (bound by `localId`), shows the hub's game, and its menu
    choices and life keys are queued for the hub, which polls every 300 ms.

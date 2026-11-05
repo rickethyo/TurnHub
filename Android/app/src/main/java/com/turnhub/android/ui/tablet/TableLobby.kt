@@ -32,7 +32,8 @@ import com.turnhub.android.ui.components.DisclosureCard
 import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.theme.palette
 
-internal data class LobbySavedPlayer(val id: String, val name: String, val displayId: String = id, val guest: Boolean = false)
+internal data class LobbySavedPlayer(val id: String, val name: String, val displayId: String = id, val guest: Boolean = false,
+    val color: String? = null, val avatar: com.turnhub.android.protocol.AvatarIcon? = null)
 
 /** The two authorities supply actions; all setup layout and input behavior lives here. */
 internal data class TableLobbyActions(
@@ -166,8 +167,12 @@ internal fun TableLobby(
                                 SuggestionChip(onClick = { actions.select(player) }, label = {
                                     Column {
                                         Text(player.name.ifBlank { "Unnamed" })
-                                        Text(if (player.guest) "Guest" else "Saved player", style = MaterialTheme.typography.bodySmall)
+                                        if (player.guest) Text("Guest", style = MaterialTheme.typography.bodySmall)
+                                        else if (savedPlayers.count { it.name == player.name } > 1) Text(player.displayId, style = MaterialTheme.typography.bodySmall)
                                     }
+                                }, icon = {
+                                    com.turnhub.android.ui.components.PlayerAvatar(player.name, player.displayId.hashCode(), player.avatar,
+                                        size = 32.dp, color = com.turnhub.android.ui.components.playerColor(player.color, p.avatarColor(player.displayId.hashCode())))
                                 }, enabled = enabled && canAdd)
                                 if (player.guest && actions.forgetGuest != null) TextButton(
                                     onClick = { deletingGuest = player.name }, enabled = enabled,

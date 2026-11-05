@@ -2939,6 +2939,14 @@ static void phonePairing() {
   assert(request("/api/hosted/claim",key)==200 && server.body.find("\"host\":\"Ricky's Fold\"")!=std::string::npos);
   assert(request("/api/hosted/state",key,{{"state",hostedState("p1",1,"RUNNING",0,40).c_str()}})==200);
   assert(request("/api/hosted/inputs",key,{},HTTP_GET)==200);
+  const std::string roomEndpoint="turnhub://join/2/192.168.1.20/12345/"+std::string(64,'a')+"/"+std::string(32,'b')+"/"+std::string(64,'0');
+  assert(request("/api/hosted/room","",{},HTTP_GET)==401);
+  assert(request("/api/hosted/room",key,{{"invite",roomEndpoint.c_str()}})==200);
+  assert(request("/api/hosted/room",key,{},HTTP_GET)==200);
+  const String roomTicket=responseField("ticket");assert(roomTicket.length()==64 && responseField("room")==roomEndpoint.c_str());
+  assert(request("/api/hosted/controller",key,{{"ticket",roomTicket}})==200 && responseField("phone")==TurnHubPhones::phone(0)->id);
+  assert(request("/api/hosted/controller",key,{{"ticket",String(std::string(64,'f').c_str())}})==403);
+  assert(request("/api/hosted/controller","",{{"ticket",roomTicket}})==401);
   assert(request("/api/planes",key,{},HTTP_GET)!=401);
   // Paired phones keep public identity copies and read totals without a PIN.
   assert(request("/api/player-copies", "", {{"profileId","A1B2C3D4"},{"name","Alex"},{"color","#123ABC"},{"avatar","2"}})==401);
@@ -3000,6 +3008,8 @@ static void phonePairing() {
   testNow+=TurnHubPhones::REQUEST_MS;
   assert(currentScreen().kind!=ScreenKind::PhonePair);
   assert(request("/api/phones/pair","",{{"request",expired}},HTTP_GET)==200 && server.body.find("\"expired\"")!=std::string::npos);
+  assert(request("/api/hosted/room",key,{},HTTP_GET)==200 && server.body=="{\"room\":null}");
+  assert(request("/api/hosted/controller",key,{{"ticket",roomTicket}})==409);
   // Saved: a reboot keeps the phone and its key.
   TurnHubPhones::resetForTests(); TurnHubPhones::load();
   assert(TurnHubPhones::count()==1 && TurnHubPhones::verify(key.c_str()));
@@ -3175,6 +3185,23 @@ static void hostedSigils() {
   roster.push(turnhub::Json::parse(R"({"name":"Ricky","localId":"person-r","sigilSeat":"sigil:0:2"})"));
   setupState.set("players", roster);
   assert(request("/api/hosted/state",ana,{{"state",setupState.dump().c_str()}})==200);
+  {
+    using namespace TurnHubProtocol;
+    const auto actions=TurnHubAtlas::hostedSigilMenu(0).actions;
+    assert(actions & sigilActionBit(SigilAction::ChangePlayer));
+    assert(actions & sigilActionBit(SigilAction::ChangeSeatB));
+    const auto before=hosted.inputsAfter(0).size();
+    const auto change=[&] { TurnHubAtlas::handleHostedSigilEvent(0,PacketType::SelectAction,
+        encodeSelectAction(SigilAction::ChangePlayer,sigilMenuRevision(0))); };
+    const auto key=[&](PickerKeyCode k) { TurnHubAtlas::handleHostedSigilEvent(0,PacketType::PickerKey,
+        encodePickerKey(k,TurnHub::sentPickers[0].revision)); };
+    change();key(PickerKeyCode::Left);
+    assert(hosted.inputsAfter(0).size()==before && hosted.game().players[0].sigilSeat=="sigil:0:1");
+    change();key(PickerKeyCode::Up);key(PickerKeyCode::Select);
+    const auto switched=turnhub::Json::parse(hosted.inputsAfter(0).back().action);
+    assert(switched.get("previousPlayer").asInt()==0 && switched.get("slot").asInt()==1);
+    assert(hosted.game().players[0].sigilSeat=="sigil:0:1"); // Only the hub can commit the move.
+  }
   leds.invalidateAll(); leds.renderHosted(hosted.game(),testNow,0x3);
   assert(TurnHubProtocol::displayMode(TurnHub::sentGameDisplays[0].state)==TurnHubProtocol::DisplayMode::Lobby);
   assert(!strcmp(TurnHub::sentGameDisplays[0].primary.name,"Michael"));

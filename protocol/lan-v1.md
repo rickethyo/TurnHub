@@ -48,7 +48,9 @@ the member connected with player 0, waiting for their next game. Multiple device
 may control the same participant. Up to 16 device memberships are retained;
 idle/disconnected devices are not automatically removed.
 
-The directory contains public `profileId`, `name`, and `hasPin` only. A first
+The directory contains public `profileId`, `name`, and `hasPin`, with optional
+`color` (`#RRGGBB`) and preset `avatar` key for profile picking. No private image,
+PIN verifier, privilege or history travels in these appearance fields. A first
 profile link supplies `profileId` and its optional `pin`. An injected local
 `profile` carries its public ID, name, original creation time, activity timestamp,
 look and salted credential verifier; no other Atlas links, private history,

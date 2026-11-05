@@ -169,6 +169,9 @@ void handleHostedRelease(WebServer &server);
 void handleHostedPublish(WebServer &server);
 void handleHostedState(WebServer &server);
 void handleHostedInputs(WebServer &server);
+void handleControllerRoomPublish(WebServer &server);
+void handleControllerRoom(WebServer &server);
+void handleControllerVerify(WebServer &server);
 // Next-game settings from the request over the current ones; sends 400 when invalid.
 // Cards Atlas keeps (card_cache.h): the planar catalog and saved commanders.
 void handlePlanesCatalogInfo(WebServer &server);
