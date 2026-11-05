@@ -339,14 +339,19 @@ private fun RoomPicker(state: LanUiState, model: LanViewModel, requestNetwork: (
         OutlinedTextField(value = newName, onValueChange = { newName = it.take(32) }, label = { Text("New player name") },
             singleLine = true, modifier = Modifier.fillMaxWidth())
         ToneButton("Join as a new player", { requestNetwork { model.joinNewProfile(newName) } }, enabled = !state.busy && newName.isNotBlank())
-        Text("Your profiles on this device", color = p.muted)
-        model.savedPlayers().forEach { player ->
-            SeatRow({ PlayerAvatar(player.name, 1, null) }, player.name, "Bring your profile into this room", !state.busy) {
+        // One row per profile ID: a profile on this device that the table already has is the same account.
+        val mine = model.savedPlayers()
+        val atTable = state.directory.map { it.id }.toSet()
+        val others = state.directory.filter { profile -> mine.none { it.profileId == profile.id } }
+        if (mine.isNotEmpty()) Text("Your profiles on this device", color = p.muted)
+        mine.forEach { player ->
+            SeatRow({ PlayerAvatar(player.name, 1, null) }, player.name,
+                if (player.profileId in atTable) "Already at this table · games sync" else "Bring your profile into this room", !state.busy) {
                 local = player; selected = null; pin = ""; sourcePin = ""
             }
         }
-        Text("Profiles at this table", color = p.muted)
-        state.directory.forEach { profile ->
+        if (others.isNotEmpty()) Text("Profiles at this table", color = p.muted)
+        others.forEach { profile ->
             SeatRow({ PlayerAvatar(profile.name, 1, null) }, profile.name, "Use this profile" + if (profile.hasPin) " · PIN on first link" else "", !state.busy) {
                 selected = profile; local = null; pin = ""
             }
