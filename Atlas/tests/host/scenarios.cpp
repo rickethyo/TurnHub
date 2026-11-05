@@ -3325,6 +3325,8 @@ static void directHostedPlanes() {
 }
 
 int main() {
+  assert(server.listenAddress == IPAddress(127, 0, 0, 1));
+  std::cout << "PASS Atlas HTTP backend is bound to loopback only\n";
   directHostedPlanes(); std::cout<<"PASS direct hosted planes: metadata, URL limits, fallback grace/retry, IDs and artwork fitting\n";
   utcBookkeepingClock();
   // Most scenarios inspect the interactive Game destination explicitly.

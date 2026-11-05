@@ -34,6 +34,25 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-11-05, Copilot: TLS-only Atlas access and setup trust, active on
+`VSCodeCopilot/Master`, baseline `14c72481`. Scope: expose Atlas only through
+HTTPS, keep its HTTP backend loopback-only, bootstrap the self-signed key only
+after an explicit physical fingerprint comparison, and remove Sigil OTA's
+cleartext download. Keep the requested readability refactor tightly coupled to
+this boundary; defer any wholesale documentation rebuild. `gh` is unauthenticated,
+so open-PR status could not be checked. No merge or release.
+Implementation is complete in the working tree; no commit yet. Passed:
+`.\gradlew.bat testDebugUnitTest assembleDebug` (Android, 509 tests),
+`pio run -e atlas-s3`, `pio run -e sigil`, `tests\host\run-gcc.ps1` (Sigil),
+`python Android\tools\export_manual.py --check`,
+`python tools\scripts\check_docs.py`, and `python design\build_tokens.py --check`.
+Atlas host tests remain unverified: the installed GCC 5.1 lacks `<optional>`,
+the MSVC runner rejects GNU `__attribute__((packed))`, and NDK Clang has no
+available C++ standard-library headers. iOS tests were not run (no Swift
+toolchain); TLS setup, loopback isolation and Sigil OTA still need hardware
+acceptance. The deferred queue-overflow, PIN-verifier and radio-replay items
+were not changed.
+
 2026-11-05, Codex: owner photo follow-up, baseline `87a18077`, codex/master.
 Scope: flatten noninteractive Atlas Home counters and fix hosted lobby/starting
 Sigil names (old seat-profile chunks remain empty while the hub roster is right).
@@ -257,6 +276,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-036 | TLS-only Atlas access and setup trust | Atlas, Sigil, Android, docs | Active on `VSCodeCopilot/Master` | Copilot / implement and validate; owner / review |
 | TH-035 | Phone-hosted games: Atlas becomes the table accessory | Atlas, Android, protocol, invariants | Owner decision 2026-11-04; slice 1 on `claude/master` | Claude / slice 2 (Sigils); Codex: no new gameplay in Atlas's old engine |
 | TH-032 | TCG shared player controls and read-only table | Android LAN, table UI | Implemented; local/device validation | Codex / review and tablet preview |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |

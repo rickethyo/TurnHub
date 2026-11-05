@@ -5,13 +5,15 @@ import com.turnhub.android.testing.Fixtures
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertSame
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.net.HttpURLConnection
 import java.net.InetSocketAddress
 import java.net.ServerSocket
+import java.net.URL
 
 /** Exercises the real [HttpURLConnection] path against the JDK's local HTTP server. */
 class HttpAtlasTransportTest {
@@ -56,7 +58,10 @@ class HttpAtlasTransportTest {
     }
 
     private fun transport(port: Int = server.address.port, readTimeoutMs: Int = 2_000) = HttpAtlasTransport(
-        endpoint = AtlasEndpoint.parse("http://127.0.0.1:$port").getOrThrow(),
+        endpoint = AtlasEndpoint.parse("https://127.0.0.1:$port").getOrThrow(),
+        baseOpener = HttpConnectionOpener { url ->
+            URL(url.toString().replaceFirst("https://", "http://")).openConnection() as HttpURLConnection
+        },
         readTimeoutMs = readTimeoutMs,
     )
 
@@ -158,5 +163,35 @@ class HttpAtlasTransportTest {
         val failure = failureOf { transport(readTimeoutMs = 200).getState() }
         assertTrue(failure is AtlasFailure.Timeout)
         assertTrue(failure.technicalDetail!!.startsWith("SocketTimeoutException"))
+    }
+
+    @Test
+    fun `setup TLS refuses a connection opener that downgrades to HTTP`() {
+        routes["/api/v1/info"] = Triple(200, Fixtures.text("info.response.json"), 0)
+        val client = HttpAtlasTransport(
+            endpoint = AtlasEndpoint.DEFAULT,
+            baseOpener = HttpConnectionOpener {
+                URL("http://127.0.0.1:${server.address.port}/api/v1/info")
+                    .openConnection() as HttpURLConnection
+            },
+        )
+
+        assertTrue(failureOf { client.getInfo() } is AtlasFailure.TlsIdentity)
+    }
+
+    @Test
+    fun `setup TLS blocks ordinary API routes before opening a connection`() {
+        var opened = false
+        val client = HttpAtlasTransport(
+            endpoint = AtlasEndpoint.DEFAULT,
+            baseOpener = HttpConnectionOpener {
+                opened = true
+                throw java.io.IOException("Should not be opened")
+            },
+        )
+
+        assertTrue(failureOf { client.raw("GET", "/api/profiles", "", emptyList()) } is AtlasFailure.InvalidEndpoint)
+        assertTrue(failureOf { client.getState() } is AtlasFailure.InvalidEndpoint)
+        assertFalse(opened)
     }
 }

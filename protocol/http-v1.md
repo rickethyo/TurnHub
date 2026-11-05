@@ -7,10 +7,15 @@ hosted-game routes are in [hosted-v1.md](hosted-v1.md); this file covers the
 rest. Responses use `Cache-Control: no-store`. Discovery, events and the
 generic JSON Intent envelope remain unimplemented.
 
+The HTTP API is carried over HTTPS on every network interface. Plain HTTP is
+not an external Atlas endpoint. During first setup, the Android app uses a
+restricted TLS bootstrap and does not use the wider API until the user compares
+the presented key fingerprint with Atlas and confirms it in the app.
+
 ## Joining Atlas's network
 
 During first-time provisioning only, Atlas serves this API at
-http://192.168.4.1 on the WPA2 setup hotspot TurnHub-Atlas. Welcome shows a
+https://192.168.4.1 on the WPA2 setup hotspot TurnHub-Atlas. Welcome shows a
 standard Wi-Fi QR with its current password (default TurnHub-Setup). After
 setup, Atlas uses home-network HTTPS and never starts a hotspot, even during
 router outages. See [Atlas setup](../Documentation/engineering/FIRST_RUN_SETUP.md).
@@ -25,7 +30,8 @@ router outages. See [Atlas setup](../Documentation/engineering/FIRST_RUN_SETUP.m
    HTTPS port and `tlsPin` (lower-case hex SHA-256 of the key's
    SubjectPublicKeyInfo), or `null` when Atlas is not on one. Over HTTPS on the
    home network the API is the same; clients trust exactly that key, learned
-   only over Atlas's own hotspot ([Home Wi-Fi](../Documentation/engineering/HOME_WIFI.md)).
+   only over a physically verified TLS connection to the setup endpoint
+   ([Home Wi-Fi](../Documentation/engineering/HOME_WIFI.md)).
    No Wi-Fi password, PIN, profile data or session token is included.
 2. `GET /api/v1/state` returns Atlas's own status
    ([atlas-state-v1.schema.json](atlas-state-v1.schema.json)): identity, boot
@@ -91,7 +97,7 @@ for its "Update available" card.
 
 ## First-run setup (2026-09-30)
 
-One flow for the Android app and the portal
+One flow for the Android app
 ([First-run setup](../Documentation/engineering/FIRST_RUN_SETUP.md)).
 
 - `GET /api/setup` (no sign-in): `{"stage":"welcome"|"finished"|"complete",
@@ -419,4 +425,3 @@ Saved commanders: up to six per profile on the microSD card (`d<profileId>`).
 `GET /api/profiles/commanders` (the session's own, or `?profileId=`) answers
 `commanders: [{slot, name, art}]`, newest first. Choosing a commander for a
 game is the hub's; the match record carries it.
-

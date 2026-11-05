@@ -247,6 +247,7 @@ void updateOffers() {
   offer.minor = 9;
   offer.patch = 0;
   offer.packageSize = 900000;
+  offer.certificateFingerprint[0] = 0xA5;
   for (uint8_t i = 0; i < UPDATE_TOKEN_BYTES; ++i) offer.token[i] = static_cast<uint8_t>(0xF0 + i);
   strcpy(offer.ssid, "TurnHub-Atlas");
   strcpy(offer.password, "secret");

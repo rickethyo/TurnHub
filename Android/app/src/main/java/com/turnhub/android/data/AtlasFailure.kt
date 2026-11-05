@@ -28,8 +28,9 @@ sealed class AtlasFailure(val userMessage: String, val technicalDetail: String? 
         technicalDetail,
     )
 
-    class CleartextBlocked(host: String) : AtlasFailure(
-        "Android only allows unencrypted HTTP to the Atlas access point (192.168.4.1), not $host.",
+    class TlsIdentity(technicalDetail: String?) : AtlasFailure(
+        "Atlas's HTTPS identity could not be verified. Compare the fingerprint with the code on Atlas; do not continue if they differ.",
+        technicalDetail,
     )
 
     class HttpStatus(val code: Int, detail: String) : AtlasFailure("$detail (HTTP $code)")

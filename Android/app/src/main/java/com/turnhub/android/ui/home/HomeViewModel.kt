@@ -122,6 +122,11 @@ class HomeViewModel(
         } ?: return false
         return pairing.pair(endpoint, atlasId, phoneName)
     }
+
+    fun onConfirmPhoneFingerprint() {
+        phonePairing?.confirmFingerprint()
+    }
+
     val hostedStatus: StateFlow<com.turnhub.android.data.HostedAtlasLink.Status> = hostedLink.status
     private val _hostedPlanesMessage = MutableStateFlow<String?>(null)
     val hostedPlanesMessage: StateFlow<String?> = _hostedPlanesMessage.asStateFlow()
@@ -1492,8 +1497,25 @@ class HomeViewModel(
         connectJob?.cancel()
         connectJob = viewModelScope.launch {
             disconnectJob?.join()
-            repository.connect(endpoint)
-            learnHome(endpoint)
+            val trustedEndpoint = if (endpoint.bootstrapTls && phonePairing != null) {
+                val trusted = phonePairing.trustSetupEndpoint(endpoint, phoneName) ?: return@launch
+                trusted
+            } else {
+                null
+            }
+            val target = trustedEndpoint?.endpoint ?: endpoint
+            repository.connect(target)
+            val connectedAtlasId = repository.tableSummary.value?.atlasId
+            if (trustedEndpoint != null && connectedAtlasId != null &&
+                !connectedAtlasId.equals(trustedEndpoint.atlasId, ignoreCase = true)
+            ) {
+                repository.disconnect()
+                local.update {
+                    it.copy(failure = AtlasFailure.Rejected("The verified TLS key answered as a different Atlas. No connection was saved."))
+                }
+                return@launch
+            }
+            learnHome(target)
         }
     }
 

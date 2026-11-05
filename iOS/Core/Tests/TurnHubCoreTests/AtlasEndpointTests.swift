@@ -3,8 +3,8 @@ import XCTest
 
 final class AtlasEndpointTests: XCTestCase {
     func testDefaultAndOriginNormalization() throws {
-        XCTAssertEqual(AtlasEndpoint.defaultAtlas.origin.absoluteString, "http://192.168.4.1")
-        XCTAssertEqual(try AtlasEndpoint("http://192.168.4.1/"), .defaultAtlas)
+        XCTAssertEqual(AtlasEndpoint.defaultAtlas.origin.absoluteString, "https://192.168.4.1")
+        XCTAssertEqual(try AtlasEndpoint("https://192.168.4.1/"), .defaultAtlas)
         XCTAssertEqual(try AtlasEndpoint("https://atlas.local:8443/").origin.absoluteString,
                        "https://atlas.local:8443")
     }

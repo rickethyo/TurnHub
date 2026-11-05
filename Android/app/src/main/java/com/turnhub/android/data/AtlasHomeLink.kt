@@ -50,10 +50,10 @@ class PreferencesHomeAtlasStore(context: Context) : HomeAtlasStore {
 /**
  * Atlas on the home network, Atlas's primary path (Documentation/engineering/HOME_WIFI.md).
  *
- * The app learns where Atlas is and which key it holds only over Atlas's own
- * hotspot ([learn]), the network it already trusts. Later it tries that
+ * The app learns where Atlas is and which key it holds only after the setup
+ * certificate has been compared with Atlas ([learn]). Later it tries that
  * pinned HTTPS address first ([find]), then looks for the same key on the
- * home network by mDNS, and only then falls back to joining the hotspot.
+ * home network by mDNS.
  */
 class AtlasHomeLink(
     private val store: HomeAtlasStore,
@@ -81,9 +81,9 @@ class AtlasHomeLink(
         return candidate.endpoint
     }
 
-    /** Over the hotspot only: remember Atlas's home address and key. */
+    /** Over a physically verified, pinned setup connection: remember home and its key. */
     suspend fun learn(endpoint: AtlasEndpoint): Boolean {
-        if (endpoint != AtlasEndpoint.DEFAULT) return false
+        if (!endpoint.isSetupAccessPoint || endpoint.tlsPin == null) return false
         val current = runCatching { info(endpoint) }.getOrNull() ?: return false
         val home = current.home ?: return false
         store.save(saved(current.atlasId, home))

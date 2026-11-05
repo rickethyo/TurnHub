@@ -39,6 +39,19 @@ object PinnedTls {
     }
 
     private val factories = HashMap<String, SSLSocketFactory>()
+    private val bootstrapFactory: SSLSocketFactory by lazy {
+        val bootstrapTrust = object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) =
+                throw CertificateException("Atlas never asks for a client certificate")
+
+            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+        }
+        SSLContext.getInstance("TLS").apply {
+            init(null, arrayOf(bootstrapTrust), SecureRandom())
+        }.socketFactory
+    }
 
     /** One factory per pin, so TLS sessions resume across requests. */
     @Synchronized
@@ -60,6 +73,20 @@ object PinnedTls {
             if (connection is HttpsURLConnection) {
                 connection.sslSocketFactory = socketFactory(pin)
                 connection.hostnameVerifier = pinnedHost(pin)
+            }
+        }
+    }
+
+    /**
+     * Temporarily accepts Atlas's self-signed setup certificate. The transport
+     * must restrict this opener to read-only discovery and phone pairing, and
+     * the caller must compare the observed key with Atlas before saving it.
+     */
+    fun bootstrapOpener(base: HttpConnectionOpener): HttpConnectionOpener = HttpConnectionOpener { url ->
+        base.open(url).also { connection ->
+            if (connection is HttpsURLConnection) {
+                connection.sslSocketFactory = bootstrapFactory
+                connection.hostnameVerifier = HostnameVerifier { _, _ -> true }
             }
         }
     }

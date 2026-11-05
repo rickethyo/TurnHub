@@ -71,6 +71,12 @@ private fun unsupported(): Nothing =
  * [AtlasFailure.Rejected].
  */
 interface AtlasSessionTransport : AvatarImageTransport {
+    /** SPKI SHA-256 observed from the active HTTPS connection, when available. */
+    val tlsPeerPin: String? get() = null
+
+    /** `GET /api/v1/info`; used to identify a setup endpoint before it is trusted. */
+    suspend fun getInfo(): AtlasInfo = unsupported()
+
     /** `GET /api/profiles` (public). */
     suspend fun getProfiles(): List<ProfileSummary>
 

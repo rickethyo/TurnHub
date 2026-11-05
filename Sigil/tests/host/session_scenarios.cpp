@@ -172,6 +172,7 @@ void updatePackets() {
   offer.sigilId = 3;
   offer.product = 2;
   offer.packageSize = 900000;
+  offer.certificateFingerprint[0] = 0xA5;
   strcpy(offer.ssid, "TurnHub-Atlas");
   strcpy(offer.password, "TurnHub-Setup");
   assert(validUpdateOffer(offer));
@@ -188,6 +189,9 @@ void updatePackets() {
   assert(!validUpdateOffer(bad));
   bad = offer;
   bad.packageSize = 128;
+  assert(!validUpdateOffer(bad));
+  bad = offer;
+  memset(bad.certificateFingerprint, 0, sizeof(bad.certificateFingerprint));
   assert(!validUpdateOffer(bad));
   bad = offer;
   bad.ssid[0] = '\0';

@@ -10,19 +10,20 @@ class AtlasEndpointAndCompatibilityTest {
 
     @Test
     fun `default endpoint is the Atlas access point`() {
-        assertEquals("http://192.168.4.1", AtlasEndpoint.DEFAULT.baseUrl)
+        assertEquals("https://192.168.4.1", AtlasEndpoint.DEFAULT.baseUrl)
+        assertTrue(AtlasEndpoint.DEFAULT.bootstrapTls)
     }
 
     @Test
-    fun `accepts bare hosts, trailing slashes and ports`() {
-        assertEquals("http://192.168.4.1", AtlasEndpoint.parse("192.168.4.1").getOrThrow().baseUrl)
-        assertEquals("http://192.168.4.1", AtlasEndpoint.parse(" http://192.168.4.1/ ").getOrThrow().baseUrl)
-        assertEquals("http://atlas.local:8080", AtlasEndpoint.parse("HTTP://Atlas.local:8080").getOrThrow().baseUrl)
+    fun `accepts bare hosts and HTTPS origins`() {
+        assertEquals("https://192.168.4.1", AtlasEndpoint.parse("192.168.4.1").getOrThrow().baseUrl)
+        assertEquals("https://192.168.4.1", AtlasEndpoint.parse(" https://192.168.4.1/ ").getOrThrow().baseUrl)
+        assertEquals("https://atlas.local:8080", AtlasEndpoint.parse("HTTPS://Atlas.local:8080").getOrThrow().baseUrl)
     }
 
     @Test
-    fun `rejects anything that is not a bare http origin`() {
-        listOf("", "   ", "https://192.168.4.1", "ftp://x", "http://192.168.4.1/api", "http://bad host", "http://h?q=1")
+    fun `rejects plaintext HTTP and anything that is not a bare HTTPS origin`() {
+        listOf("", "   ", "http://192.168.4.1", "ftp://x", "https://192.168.4.1/api", "https://bad host", "https://h?q=1")
             .forEach { text ->
                 val failure = (AtlasEndpoint.parse(text).exceptionOrNull() as? AtlasException)?.failure
                 assertTrue("'$text' -> $failure", failure is AtlasFailure.InvalidEndpoint)

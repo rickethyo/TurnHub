@@ -145,3 +145,8 @@ void TurnHubAtlas::serviceHomeWifi(uint32_t) {}
 void TurnHubAtlas::startHomeTls() {}
 bool TurnHubAtlas::homeTlsRunning() { return fixtureHomeTlsReady; }
 const char *TurnHubAtlas::homeTlsPin() { return fixtureHomeTlsReady ? "1111111111111111111111111111111111111111111111111111111111111111" : ""; }
+bool TurnHubAtlas::homeTlsCertificateFingerprint(uint8_t out[TurnHub::HOME_TLS_CERTIFICATE_FINGERPRINT_SIZE]) {
+  if (!fixtureHomeTlsReady || out == nullptr) return false;
+  memset(out, 0xA5, TurnHub::HOME_TLS_CERTIFICATE_FINGERPRINT_SIZE);
+  return true;
+}

@@ -1,17 +1,17 @@
 #pragma once
 
-// HTTPS for phones on the home network (Ricky, 2026-11-03; HOME_WIFI.md,
-// "Home Wi-Fi as primary", slice 2). Atlas makes its own ECDSA P-256 key and a
+// HTTPS for setup and home-network clients (HOME_WIFI.md). Atlas makes its
+// own ECDSA P-256 key and a
 // self-signed certificate once (NVS `atlas-tls`, erased by factory reset) and
 // serves HTTPS on HOME_TLS_PORT. There is no CA: the app pins the SHA-256 of
-// the key (its SubjectPublicKeyInfo), learned over the hotspot or the Atlas
-// screen's QR, and accepts that key on any address.
+// the key (its SubjectPublicKeyInfo) only after comparing it with the code on
+// Atlas. Sigil OTA receives the certificate fingerprint over the sealed radio
+// session and checks it before requesting a package.
 //
 // The TLS side terminates in front of the existing HTTP routes: each HTTPS
-// connection is piped to Atlas's own web server over loopback, so every route,
-// session and permission check is the same code as on the hotspot. Arduino's
-// WebServer closes the connection after each response, so TLS session
-// resumption (tickets and a session cache) keeps later requests cheap.
+// connection is piped to Atlas's own web server, which is bound only to
+// loopback. Arduino's WebServer closes the connection after each response, so
+// TLS session resumption (tickets and a session cache) keeps later requests cheap.
 //
 // home_tls_server.cpp is firmware only (mbedTLS and sockets); the host tests
 // stub these functions in test_globals.cpp.
@@ -31,6 +31,7 @@ constexpr uint32_t HOME_TLS_HANDSHAKE_MS = 8000;
 constexpr int HOME_TLS_BACKLOG = 4;
 // 64 hex digits and the terminator.
 constexpr size_t HOME_TLS_PIN_HEX_SIZE = 65;
+constexpr size_t HOME_TLS_CERTIFICATE_FINGERPRINT_SIZE = 32;
 
 // Lower-case hex of a SHA-256 digest, as the app and mDNS show it.
 inline void homeTlsPinHex(const uint8_t digest[32], char out[HOME_TLS_PIN_HEX_SIZE]) {
@@ -42,14 +43,14 @@ inline void homeTlsPinHex(const uint8_t digest[32], char out[HOME_TLS_PIN_HEX_SI
 
 namespace TurnHubAtlas {
 
-// Starts the HTTPS listener (once; later calls do nothing). Called when Atlas
-// first joins the home network, so a table without home Wi-Fi spends no RAM
-// on TLS. Making the key the first time takes a moment and happens in the
-// server's own task.
+// Starts the HTTPS listener (once; later calls do nothing). It runs during
+// setup over the Atlas access point and after a completed device joins home Wi-Fi.
 void startHomeTls();
 // True once the key is loaded and the listener is accepting.
 bool homeTlsRunning();
 // The pinned key's SHA-256 in lower-case hex, or "" before it exists.
 const char *homeTlsPin();
+// The SHA-256 fingerprint of the leaf certificate, for sealed Sigil OTA offers.
+bool homeTlsCertificateFingerprint(uint8_t out[TurnHub::HOME_TLS_CERTIFICATE_FINGERPRINT_SIZE]);
 
 }  // namespace TurnHubAtlas

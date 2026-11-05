@@ -104,6 +104,8 @@ constexpr char HOME_WIFI_PREF_PASS[] = "home-pass";
 // WIFI_CHANNEL.
 constexpr char TABLE_CHANNEL_PREF_KEY[] = "chan";
 
-constexpr uint16_t HTTP_PORT = 80;
+// HTTP is an internal backend for the TLS proxy and binds only to loopback.
+// Plaintext backend for the HTTPS proxy only; main.cpp binds it to loopback.
+constexpr uint16_t HTTP_BACKEND_PORT = 80;
 
 }  // namespace AtlasConfig

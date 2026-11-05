@@ -42,9 +42,10 @@ Completed devices never start a fallback hotspot.
   `POST /api/updates/latest`. Nothing installs by itself. TLS is not
   certificate-checked: the feed is unsigned anyway and can only light the
   update notice, which the public POST can do too (CA checking is staged).
-- **HTTPS** (`home_tls.h`, `home_tls_server.cpp`; slice 2). On first joining
-  the home network Atlas starts an HTTPS listener on port 443
-  (`HOME_TLS_PORT`). The first time, it makes an ECDSA P-256 key and a
+- **HTTPS-only network access** (`home_tls.h`, `home_tls_server.cpp`). Atlas
+  starts its TLS listener during setup on the setup access point and keeps
+  using it after joining the home network, on port 443 (`HOME_TLS_PORT`). The
+  first time, it makes an ECDSA P-256 key and a
   self-signed certificate (CN `atlas-<mac>`, valid to 2099) and keeps both in
   NVS `atlas-tls` (factory reset erases them; a new key means phones pin
   again). There is no CA: the app is to pin the SHA-256 of the key's
@@ -52,8 +53,9 @@ Completed devices never start a fallback hotspot.
   `ATLAS|HOME_TLS|READY|port=443|pin=...`, and mDNS `fp`) and accept that key
   on any address. TLS 1.2 (mbedTLS 2.28), with session tickets and a session
   cache (both in Arduino-ESP32 2.0.17's mbedTLS). That build's mbedTLS allocates from internal RAM by default (about 35 KB per connection with its 16 KB record buffers), which left the release-feed check about 28 KB and failed its handshake, so `startHomeTls()` points mbedTLS at PSRAM first, internal RAM only as a fallback, and logs `HOME_TLS|PSRAM` and `HOME_TLS|HEAP` with the internal free and largest block (*Needs verification* on the board). Each decrypted connection is piped over
-  loopback to Atlas's own web server on port 80, so routes, sessions and
-  permissions are the same code as on the hotspot; that server closes after
+  loopback to Atlas's existing web server on port 80. That backend is bound
+  only to `127.0.0.1` and is not reachable over Wi-Fi; routes, sessions and
+  permissions stay in the same code. The backend closes after
   each response, so resumption keeps repeat requests cheap. One connection is
   served at a time (four queue), in a task on core 0, apart from loop() and
   the Sigils. A connection quiet for `HOME_TLS_IDLE_MS` (10 s) closes; a
@@ -62,11 +64,15 @@ Completed devices never start a fallback hotspot.
 - **Found by name.** On joining, Atlas advertises mDNS `atlas-<mac>.local`
   with service `_turnhub-atlas._tcp` on port 443 (TXT `id=THA-<mac>`,
   `api=1`, `tls=1`, and `fp=<pin>` once the key exists).
-- **The app on the home network** (`AtlasHomeLink`, `PinnedTls`; slice 3).
+- **The app on the home network** (`AtlasHomeLink`, `PinnedTls`).
   `/api/v1/info` carries `home` {`address`, `tlsPort`, `tlsPin`} while Atlas
   is connected with its key ready. The app remembers it (with the `atlasId`)
-  only when it read it over the hotspot (`http://192.168.4.1`), the network it
-  already trusts; never from the home network itself. On start-up, Search
+  only after reading it through a pinned, physically verified TLS connection
+  to the setup endpoint; never from the home network itself. Initial setup
+  uses `https://192.168.4.1` with a restricted bootstrap that permits only
+  public identity discovery and phone-pairing routes. The phone and Atlas show
+  matching prefixes of the TLS key fingerprint; the user taps Allow on Atlas
+  and confirms the comparison in the app before the pin is saved. On start-up, Search
   again and Connect it first tries `https://<saved address>`, trusting only a
   server key whose SPKI SHA-256 is the pin (a trust manager and a hostname
   check by key, since the address changes) and only an `atlasId` that matches.
@@ -75,17 +81,17 @@ Completed devices never start a fallback hotspot.
   A saved home Atlas never falls back to setup Wi-Fi, even if old hotspot
   credentials are saved. A mismatched key fails the handshake; the app never
   re-pins from the home network. Setup Wi-Fi is entered explicitly for a new Atlas.
-  Android's cleartext rule stays limited to 192.168.4.1.
+  Android cleartext traffic is disabled globally.
 - **First-time home pairing.** On the current home Wi-Fi, **Find Atlas on
   Wi-Fi**, Connect, Search again and new-table setup also discover an Atlas
   when no trusted key is saved. NSD requires a valid ID, TLS flag and full key
   fingerprint; pinned HTTPS must answer with that same ID. Discovery alone
-  saves no trust. The app requests phone approval immediately. Atlas automatically
-  shows its own 12-hex-digit key fingerprint on that approval screen; the app's
-  full-screen overlay derives the matching code from its pinned TLS endpoint,
-  independently of the response body. One tap on Atlas's Allow verifies the
-  connection and approves the phone. No Settings lookup or second confirmation.
-  Only after approval does the app save the full key and connect. Cancel saves no trust
+  saves no trust. The app requests phone approval immediately. Atlas shows its
+  12-hex-digit key fingerprint on that approval screen; the app derives the
+  matching code from the TLS peer, independently of the response body. The
+  user compares them, taps Allow on Atlas and confirms the match in the app.
+  Only after both confirmations does the app save the full key and connect.
+  Cancel saves no trust
   and does not join a hotspot. An existing saved key is never replaced through
   discovery. Background discovery only reconnects previously trusted tables.
 - **Sigils find Atlas on any channel** (`Sigil/include/channel_search.h`).

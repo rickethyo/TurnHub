@@ -24,7 +24,7 @@ struct FoundationHomeView: View {
 
                 Section("Development status") {
                     Text("App foundation only. Gameplay and Atlas connection are coming next.")
-                    Text("Atlas HTTP API \(AtlasCompatibility.apiVersion)")
+                    Text("Atlas HTTPS API \(AtlasCompatibility.apiVersion)")
                         .foregroundStyle(.secondary)
                 }
             }

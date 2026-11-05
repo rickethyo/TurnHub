@@ -147,11 +147,12 @@ development flow.
   evaluate `NEHotspotConfigurationManager` and its entitlement/consent flow on
   physical devices. Atlas has no internet; cellular reachability is not proof
   that Atlas is reachable. Store a passphrase only with explicit need and consent.
-- **HTTP/ATS:** Atlas currently serves cleartext HTTP to a numeric LAN address.
-  Test the narrow ATS/local-network configuration on a real phone during stage
-  4; a hostname exception must not be assumed to cover `192.168.4.1`. Document
-  any required allowance and keep authenticated requests endpoint-scoped.
-  No broad `NSAllowsArbitraryLoads` switch is added to this shell.
+- **HTTPS and key pinning:** Atlas's API uses HTTPS, including at the setup
+  address `192.168.4.1`, with a self-signed certificate. Before stage 4, define
+  an iOS equivalent of the Android app's restricted first-contact flow:
+  discovery and pairing only until the key fingerprint has been physically
+  compared and explicitly confirmed. Keep authenticated requests pinned to the
+  selected Atlas; do not add a broad ATS exception or disable certificate checks.
 - **Lifecycle:** stop polling/cancel work when a scene leaves the foreground.
   Reconnect with identity/boot/revision checks and a fresh snapshot. No continuous
   background LAN polling promise. Do not deduplicate snapshots by revision

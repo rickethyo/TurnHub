@@ -1,6 +1,7 @@
 #include "sigil_update_service.h"
 #include "atlas_app.h"
 #include "sigil_update_jobs.h"
+#include "home_tls.h"
 #include "firmware_package_mbedtls.h"
 #include "firmware_signing_key.h"
 #include "web_api_internal.h"
@@ -190,6 +191,8 @@ TurnHub::IntentResult handleUpdateSigilIntent(const TurnHub::Intent &intent, voi
   }
   if (!betweenGames() || factoryResetScheduled() || sleepScheduled() || ota.inProgress() || sigilUpdatesBusy())
     return IntentResult::reject(IntentStatus::Conflict, "Update between games with no other update running");
+  if (!homeTlsRunning())
+    return IntentResult::reject(IntentStatus::Conflict, "Atlas HTTPS is not ready for a Sigil update");
   const int32_t id = intent.payload.value;
   const auto *r = id >= 0 && id < MAX_PHYSICAL_SIGILS ? sigilBus.record(id) : nullptr;
   if (!r || !r->helloInfoValid || !r->session.ready() || !sigilBus.isOnline(id, millis()))
@@ -226,6 +229,10 @@ void serviceSigilUpdates(uint32_t nowMs) {
   memcpy(offer.token, jobs.token(), sizeof(offer.token));
   memcpy(offer.ssid, apSsid, sizeof(offer.ssid));
   memcpy(offer.password, apPassword, sizeof(offer.password));
+  if (!homeTlsCertificateFingerprint(offer.certificateFingerprint)) {
+    TurnHubSecureLink::wipe(&offer, sizeof(offer));
+    return;
+  }
   sigilBus.sendUpdateOffer(offer);
   TurnHubSecureLink::wipe(&offer, sizeof(offer));
 }
