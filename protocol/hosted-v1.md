@@ -131,3 +131,29 @@ index response confirms artwork. Text-only cards keep retrying missing art;
 a restarted Atlas is checked again. The phone shows transfer/wait/error text
 near its On Atlas control. Atlas retries a temporarily missing JPEG in an open
 card view instead of caching the missing image for the life of that plane.
+
+### Direct Scryfall fallback on Atlas
+
+While a digital hosted game is running or paused, Atlas may fill missing card
+text/art from Scryfall over its configured home Wi-Fi. Only the hub's face-up
+card IDs and next three deck IDs are eligible; physical cards cause no requests.
+Atlas gives the phone 15 seconds to fill the cache first, fetches one card at a
+time, and waits at least 60 seconds before retrying that missing ID. No card
+storage or home connection means no fetch. These are card-cache operations,
+never game actions, deck changes or die rolls.
+
+The separate network task checks TLS chains/hostnames using GTS/ISRG roots,
+permits only the fixed Scryfall API and its HTTPS art-crop host, sends User-Agent
+and Accept headers, spaces requests by 150 ms, and bounds handshake/read/body
+times and allocations. Metadata is limited to 16 KiB, source JPEG to 256 KiB
+and dimensions to 2048. The JPEG-only stb adapter converts progressive images
+in PSRAM to 480x320 baseline JPEG, at most 96 KiB, before the normal SD write
+queue accepts them. The existing HTTP upload limit stays 96 KiB. Text can save
+before art; missing art retries. The public card ID is the only lookup input;
+Atlas sends no player profiles, PINs, game history or private game state.
+
+Direct metadata adds that plane to the existing bounded catalog without
+replacing the phone's other entries (at capacity, the last entry is replaced;
+cached files remain). A changed/ended game discards an obsolete in-flight
+result. Network and conversion run off loop() and off the SD worker, so the
+screen, input and radio services continue. Stored cards still work offline.

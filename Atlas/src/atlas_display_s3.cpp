@@ -25,6 +25,7 @@
 #include "atlas_battery.h"
 #include "atlas_screen_lvgl.h"
 #include "card_cache.h"
+#include "plane_art_fit.h"
 #include "config.h"
 #include "firmware_version.h"
 #include "optional_preferences.h"
@@ -273,6 +274,7 @@ struct JpegSource {
   const uint8_t *data;
   size_t size, at;
   uint16_t *out;
+  PlaneArtFit fit;
 };
 
 size_t jpegInput(JDEC *jd, uint8_t *buff, size_t n) {
@@ -289,9 +291,15 @@ int jpegOutput(JDEC *jd, void *bitmap, JRECT *rect) {
   const uint8_t *rgb = static_cast<const uint8_t *>(bitmap);
   for (int y = rect->top; y <= rect->bottom; ++y) {
     for (int x = rect->left; x <= rect->right; ++x, rgb += 3) {
-      if (x >= TurnHubCards::PLANE_ART_WIDTH || y >= TurnHubCards::PLANE_ART_HEIGHT) continue;
-      src->out[y * TurnHubCards::PLANE_ART_WIDTH + x] =
-          static_cast<uint16_t>((rgb[0] & 0xF8) << 8 | (rgb[1] & 0xFC) << 3 | rgb[2] >> 3);
+      const auto &f = src->fit;
+      if (x < f.x || x >= f.x + f.w || y < f.y || y >= f.y + f.h) continue;
+      const int dx0 = (x - f.x) * TurnHubCards::PLANE_ART_WIDTH / f.w;
+      const int dx1 = (x - f.x + 1) * TurnHubCards::PLANE_ART_WIDTH / f.w;
+      const int dy0 = (y - f.y) * TurnHubCards::PLANE_ART_HEIGHT / f.h;
+      const int dy1 = (y - f.y + 1) * TurnHubCards::PLANE_ART_HEIGHT / f.h;
+      const uint16_t color = static_cast<uint16_t>((rgb[0] & 0xF8) << 8 | (rgb[1] & 0xFC) << 3 | rgb[2] >> 3);
+      for (int dy = dy0; dy < dy1; ++dy)
+        for (int dx = dx0; dx < dx1; ++dx) src->out[dy * TurnHubCards::PLANE_ART_WIDTH + dx] = color;
     }
   }
   return 1;
@@ -321,12 +329,16 @@ const uint16_t *planeArtPixels(const char *planeId) {
   size_t size = 0;
   if (!pixels || !jpeg || !TurnHubCards::readPlaneArt(planeId, jpeg, TurnHubCards::MAX_PLANE_ART_BYTES, size)) return nullptr;
   memset(pixels, 0, pixelBytes);
-  JpegSource src{jpeg, size, 0, pixels};
+  JpegSource src{jpeg, size, 0, pixels, {0, 0, 0, 0}};
   static uint8_t work[4096];
   JDEC jd;
   const uint32_t startedMs = millis();
   JRESULT rc = jd_prepare(&jd, jpegInput, work, sizeof(work), &src);
-  if (rc == JDR_OK) rc = jd_decomp(&jd, jpegOutput, 0);
+  if (rc == JDR_OK) {
+    src.fit = planeArtFit(jd.width, jd.height);
+    if (!src.fit.w) return nullptr;
+    rc = jd_decomp(&jd, jpegOutput, 0);
+  }
   char line[72];
   snprintf(line, sizeof(line), "ATLAS|DISPLAY|PLANE_ART|%s|%u|MS|%lu", rc == JDR_OK ? "OK" : "BAD", static_cast<unsigned>(rc),
            static_cast<unsigned long>(millis() - startedMs));

@@ -8,6 +8,7 @@ This is a working development record, not a substitute for the complete license 
 
 | Component | Copyright / project owner | Use in TurnHub | Upstream license | Distribution note |
 | --- | --- | --- | --- | --- |
+| stb_image / stb_image_write | Sean Barrett and contributors | Atlas direct-download JPEG conversion, JPEG-only decoder | MIT (selected dual-license option) | Preserve [full license](Atlas/third_party/stb/LICENSE) and pinned source notices. |
 | LVGL 9.3.0 | LVGL Kft and contributors | Desktop UI simulator and the S3 Atlas screen | MIT | Preserve [full upstream license](shared/licenses/LVGL-MIT.txt) with desktop and S3 Atlas firmware distribution; not in legacy firmware. |
 | LovyanGFX 1.2.30 | lovyan03 and contributors (with Adafruit and Bodmer code) | S3 Atlas panel and touch drivers | FreeBSD (BSD-2-Clause) | Preserve its combined `license.txt` notices with S3 Atlas firmware. |
 | LVGL default font glyphs | Montserrat and Font Awesome projects | Bundled internal fallback in LVGL 9.3; visible UI uses Inter/Cinzel | SIL OFL 1.1 for font glyphs | Preserve [Montserrat OFL](shared/licenses/OFL-Montserrat.txt) and [Font Awesome font notice](shared/licenses/FontAwesome-Free.txt). |

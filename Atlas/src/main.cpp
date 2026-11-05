@@ -32,6 +32,7 @@
 #include "table_code_setting.h"
 #include "upload_approval.h"
 #include "home_wifi.h"
+#include "plane_download.h"
 #include "wifi_password_store.h"
 
 #if defined(ARDUINO_ARCH_ESP32)
@@ -523,6 +524,7 @@ void loop() {
   LOOP_STEP(updatePairingWindow(nowMs));
   LOOP_STEP(updateBootButton(digitalRead(AtlasConfig::BOOT_BUTTON_PIN) == LOW, nowMs));
   LOOP_STEP(showPlaneCardProgress(nowMs));
+  LOOP_STEP(serviceHostedPlaneDownload(nowMs));
   LOOP_STEP(serviceAtlasDisplay(nowMs));
   LOOP_STEP(serviceFactoryReset(nowMs));
   LOOP_STEP(serviceAutoSleep(nowMs));

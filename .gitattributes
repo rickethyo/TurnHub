@@ -65,3 +65,6 @@
 # Shared contracts and generated display assets are byte-stable on Windows/Linux.
 protocol/examples/*.csv text eol=lf
 shared/display/** text eol=lf
+
+# Preserve pinned upstream source hashes across Windows/Linux checkouts.
+Atlas/third_party/stb/** text eol=lf

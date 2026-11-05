@@ -327,7 +327,7 @@ A connected, signed-in phone shows its game on Atlas by itself; **Show on Atlas*
 
 While the phone or tablet is still in game setup and showing on Atlas, choose Join game on a paired Sigil. It takes a device seat in that game without creating a saved account. Join a second seat from the Sigil menu if needed. Join before starting; a running game does not accept a new Sigil seat. Sigil and Atlas presses go to the hub, which decides them. Other phones join through Play together.
 
-Planechase on Atlas: the hub sends the face-up plane and upcoming cards to Atlas, including text and artwork. Atlas needs a working microSD card to keep the cards. The phone shows transfer progress or a problem near On Atlas. Missing artwork retries automatically when the connection or card recovers; you do not need to roll again. On Atlas, open Planes for the die and card controls. Card opens the landscape view; tap it to return.
+Planechase on Atlas: the hub sends the face-up plane and upcoming cards to Atlas, including text and artwork. Atlas needs a working microSD card to keep the cards. The phone shows transfer progress or a problem near On Atlas. Missing artwork retries automatically when the connection or card recovers; you do not need to roll again. On Atlas, open Planes for the die and card controls. Card opens the landscape view; tap it to return. If home Wi-Fi has internet access, Atlas can fetch a missing plane directly from Scryfall when the phone transfer fails. Downloaded cards are kept on its microSD card for offline use; the phone still controls the deck and rolls.
 
 If the hub stops hosting or drops off in the middle of a game, Atlas keeps that game until it restarts. Another signed-in phone with no game under way that taps **Show on Atlas** is offered **Resume** that host's game, or **Show mine instead**. A finished hosted game is added to the players' Atlas statistics like any local game.
 
@@ -379,7 +379,7 @@ Everything you do in the app stays on this device: players, PINs (stored only as
 
 - **An Atlas, over your home Wi-Fi after provisioning, only when you connect.**
 
-- **Scryfall**, only for commander names and art you look up and for the Planechase library. Only what you type is sent; turn Commander card art off in Settings to stop it.
+- Scryfall supplies commander searches and art, the Planechase library, and missing cards fetched directly by a home-Wi-Fi Atlas. Requests contain card searches or card IDs, never player profiles or game history. Turn Commander card art off in Settings to stop its lookups.
 
 - **Google Forms**, only when you choose to send a bug report.
 
@@ -842,7 +842,7 @@ New TurnHub hardware is in development on the ESP32-S3:
 
 - **The touchscreen Atlas and Sigil open on Home, with Game, Table and Settings navigation. On the new hardware the game runs on a phone or tablet, the game's hub: Atlas shows the hub's game on its screen and Sigils, sends their presses to the hub, which decides them, and keeps accounts and statistics (see the App Manual, "Your Game on the Atlas"). Table shows everyone read only. Device settings are on the Settings tab: theme, touch calibration, Unpair and Factory reset. The Sigil stays awake while powered, with no Sleep option; between games its screen turns off after two minutes without a touch, and a touch lights it again without pressing anything. Its BOOT button still provides pairing, unpair and factory reset. On the new hardware nothing is held: a tap does it, and actions that are hard to undo ask Cancel or confirm in a popup.**
 
-On the phone-hosted hardware, choose Join game on a paired Sigil while the hub is still in setup and showing on Atlas. Planechase adds a Planes tab and a landscape card view on Atlas. The hub sends text and artwork to its microSD card and retries missing artwork automatically; transfer status appears on the phone near On Atlas. Tap the full-screen card to return to Planes.
+On the phone-hosted hardware, choose Join game on a paired Sigil while the hub is still in setup and showing on Atlas. Planechase adds a Planes tab and a landscape card view on Atlas. The hub sends text and artwork to its microSD card and retries missing artwork automatically; transfer status appears on the phone near On Atlas. Tap the full-screen card to return to Planes. If home Wi-Fi has internet access, Atlas can fetch a missing plane directly from Scryfall when the phone transfer fails. Downloaded cards are kept on its microSD card for offline use; the phone still controls the deck and rolls.
 
 The current prototype boards keep the behavior in this manual: they run the game themselves, with their Sigils and screen. The newest app no longer plays a game these boards run; it plays its own game, which the new Atlas shows. This manual will be revised when the new hardware arrives.
 

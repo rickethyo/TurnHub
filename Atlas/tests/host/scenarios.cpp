@@ -6,6 +6,10 @@
 #include "home_tls.h"
 #include "wall_clock.h"
 #include "card_cache.h"
+#include "plane_download.h"
+#include "plane_art_fit.h"
+#include "plane_image.h"
+#include "../../third_party/stb/stb_image.h"
 #include "profile_statistics.h"
 #include "standalone_import.h"
 #include "match_archive.h"
@@ -2609,6 +2613,17 @@ static void cardCacheOnAtlas() {
     testNow+=SYNC_TOAST_MS+1; assert(!currentScreen().sync[0]);
     TurnHubCards::setCardFilesForTests(nullptr);
   }
+  // Direct fallback adds one requested plane without losing the phone catalog;
+  // the same SD worker persists it, and malformed names cannot inject rows.
+  assert(TurnHubCards::rememberHostedPlane("44444444-4444-4444-4444-444444444444", "Test Spires", false));
+  assert(TurnHubCards::planeCount()==4 && TurnHubCards::findPlane("22222222-2222-2222-2222-222222222222"));
+  assert(!TurnHubCards::rememberHostedPlane("55555555-5555-5555-5555-555555555555", "Bad\nname", false));
+  assert(TurnHubCards::planeCount()==4);
+  while (TurnHubCards::servicePlaneStorage(1)) {}
+  assert(TurnHubCards::loadPlanes() && TurnHubCards::planeCount()==4 &&
+      TurnHubCards::findPlane("44444444-4444-4444-4444-444444444444"));
+  const std::string tooBig(4*((TurnHubCards::MAX_PLANE_UPLOAD_BYTES+3)/3), 'A');
+  assert(request("/api/planes/card",a,{{"plain",String(tooBig.c_str())}})==413);
   assert(request("/api/atlas/screen",a,{{"view","card"}})==404);
   TurnHubCards::setStoreForTests(nullptr);
   TurnHubCards::SavedCommanders none;
@@ -3058,7 +3073,77 @@ static void atlasStateContract() {
   assert(request("/api/v1/state","",{},HTTP_GET)==200 && server.body.find("\"hub\":null")!=std::string::npos);
 }
 
+static void directHostedPlanes() {
+  using namespace TurnHubAtlas;
+  const std::string id = "00000000-0000-0000-0000-000000000001";
+  DownloadedPlane parsed;
+  const std::string card = "{\"object\":\"card\",\"id\":\"" + id +
+      "\",\"name\":\"Test Spires\",\"type_line\":\"Plane - Test\",\"artist\":\"Test artist\","
+      "\"oracle_text\":\"First rule.\\nWhenever chaos ensues, draw.\","
+      "\"image_uris\":{\"art_crop\":\"https://cards.scryfall.io/art_crop/front/test.jpg\"}}";
+  assert(parseScryfallPlane(card, id, parsed));
+  assert(parsed.name == "Test Spires" && parsed.text == "First rule." && parsed.chaos == "Whenever chaos ensues, draw.");
+  assert(parsed.artUrl.find("https://cards.scryfall.io/") == 0);
+  assert(!parseScryfallPlane(card, "../bad", parsed));
+  assert(!parseScryfallPlane(card, "00000000-0000-0000-0000-000000000002", parsed));
+  std::string other = card;
+  other.replace(other.find("Plane - Test"), 12, "Planeswalker");
+  assert(!parseScryfallPlane(other, id, parsed));
+  other = card;
+  other.replace(other.find("https://cards.scryfall.io/art_crop/front/test.jpg"), 46, "http://192.168.1.1/private");
+  assert(parseScryfallPlane(other, id, parsed) && parsed.artUrl.empty());
+  assert(!parseScryfallPlane(std::string(16385, 'x'), id, parsed));
+  PlaneDownloadSchedule schedule;
+  assert(!schedule.due(id, 1000) && !schedule.due(id, 15999));
+  assert(schedule.due(id, 16000)); schedule.started(16000);
+  assert(!schedule.due(id, 75999) && schedule.due(id, 76000));
+  assert(!schedule.due("", 77000)); // The phone filled the cache: no backup request.
+  assert(!schedule.due(id, 78000) && schedule.due(id, 93000));
+  PlaneDownloadSchedule wrap;
+  assert(!wrap.due(id, UINT32_MAX - 1000));
+  assert(wrap.due(id, 14000)); // Millisecond wrap does not strand a pending plane.
+  turnhub::Game game;
+  game.state = turnhub::TableState::Running;
+  bool ok = false;
+  game.planechase = turnhub::Json::parse("{\"enabled\":true,\"faceUp\":[{\"id\":\"" + id +
+      "\"}],\"deck\":[{\"id\":\"" + id + "\"},{\"id\":\"00000000-0000-0000-0000-000000000002\"}]}", &ok);
+  assert(ok && hostedPlaneIds(game).size() == 2 && hostedPlaneIds(game)[0] == id);
+  game.state = turnhub::TableState::Lobby; assert(hostedPlaneIds(game).empty());
+  game.state = turnhub::TableState::Running;
+  game.planechase = turnhub::Json::parse("{\"enabled\":true,\"faceUp\":[]}", &ok);
+  assert(hostedPlaneIds(game).empty()); // Physical cards never cause web downloads.
+  for (const auto dims : {std::pair<int,int>{480,320}, {626,457}, {146,204}, {1000,200}, {1024,2048}}) {
+    const auto fit = planeArtFit(dims.first, dims.second);
+    assert(fit.w && fit.h && fit.x >= 0 && fit.y >= 0 && fit.x + fit.w <= dims.first && fit.y + fit.h <= dims.second);
+    int area = 0;
+    for (int y = 0; y < fit.h; ++y) for (int x = 0; x < fit.w; ++x)
+      area += ((x+1)*480/fit.w-x*480/fit.w) * ((y+1)*320/fit.h-y*320/fit.h);
+    assert(area == 480*320);
+  }
+  assert(!planeArtFit(2049, 320).w && !planeArtFit(0, 320).w);
+  // Synthetic progressive JPEG, not downloaded card artwork: normalize the
+  // actual format Scryfall serves to the baseline format the TFT decodes.
+  std::ifstream fixture("fixtures/progressive-plane.jpg", std::ios::binary);
+  const std::string bytes((std::istreambuf_iterator<char>(fixture)), std::istreambuf_iterator<char>());
+  uint8_t *encoded = nullptr; size_t encodedSize = 0;
+  assert(normalizePlaneImage(reinterpret_cast<const uint8_t *>(bytes.data()), bytes.size(), encoded, encodedSize));
+  assert(encodedSize > 4 && encodedSize <= TurnHubCards::MAX_PLANE_ART_BYTES);
+  bool baseline = false;
+  for (size_t i = 0; i + 1 < std::min<size_t>(1024, encodedSize); ++i)
+    if (encoded[i] == 0xFF && encoded[i + 1] == 0xC0) baseline = true;
+  assert(baseline);
+  int width = 0, height = 0, channels = 0;
+  unsigned char *pixels = stbi_load_from_memory(encoded, static_cast<int>(encodedSize), &width, &height, &channels, 3);
+  assert(pixels && width == 480 && height == 320);
+  const auto center = pixels + (160 * 480 + 240) * 3;
+  assert(center[0] < 40 && center[1] > 180 && center[2] < 40);
+  stbi_image_free(pixels); free(encoded);
+  assert(!normalizePlaneImage(reinterpret_cast<const uint8_t *>("bad"), 3, encoded, encodedSize) && !encoded && !encodedSize);
+
+}
+
 int main() {
+  directHostedPlanes(); std::cout<<"PASS direct hosted planes: metadata, URL limits, fallback grace/retry, IDs and artwork fitting\n";
   utcBookkeepingClock();
   // Most scenarios inspect the interactive Game destination explicitly.
   resetTouchControls();

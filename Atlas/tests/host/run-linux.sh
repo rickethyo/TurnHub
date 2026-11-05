@@ -18,7 +18,7 @@ application_sources=(
   ../../src/sigil_update_jobs.cpp ../../src/web_admin_api.cpp ../../src/profile_statistics.cpp
   ../../src/ota_manager.cpp ../../src/intent_dispatcher.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp
   ../../src/match_archive.cpp ../../src/hosted_game.cpp ../../src/hosted_sigils.cpp ../../src/web_hosted_api.cpp
-  ../../src/card_cache.cpp ../../../shared/core/src/turnhub_json.cpp ../../../shared/core/src/turnhub_core.cpp
+  ../../src/card_cache.cpp ../../src/plane_image.cpp ../../../shared/core/src/turnhub_json.cpp ../../../shared/core/src/turnhub_core.cpp
 )
 
 mkdir -p build

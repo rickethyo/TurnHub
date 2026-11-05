@@ -2048,3 +2048,37 @@ Owner follow-up (same slice): add Atlas home-Wi-Fi direct Scryfall fetching as
 a fallback for missing hosted plane cards; retain hub ownership and existing
 phone delivery. Network work must be bounded and off the application/SD loops.
 This fallback is still in progress after the cleanup checkpoint.
+
+
+Direct fallback implementation: single-card HTTPS worker with GTS/ISRG trust
+roots, 15 s phone grace, 60 s retry, metadata/JPEG size and time limits, active
+hosted digital IDs only, and existing catalog/SD job delivery. Live Scryfall
+API/CDN requests succeed with the exact bundled roots. Its real art crop is
+progressive JPEG: added pinned MIT-option stb JPEG decoder/encoder, PSRAM
+allocators, input/dimension limits and 480x320 baseline normalization. A real
+79,746-byte progressive crop normalized to 28,070 bytes and was decoded by the
+actual TJpgDec implementation (result 0, 480x320); no downloaded card assets
+enter Git. Upstream headers are unmodified and hashes/license are recorded.
+Native regressions cover metadata/URL validation, timing/rollover, selected IDs,
+image fitting, synthetic progressive conversion, catalog preservation/reload,
+invalid catalog input and unchanged upload cap. Atlas firmware and all host
+suites pass; physical network/memory/SD/latency acceptance remains open.
+
+
+Fallback final checks: bundled-root TLS requests to Scryfall API and image CDN
+both returned 200. Native host suite passes with the exact JPEG adapter used
+by firmware, including a synthetic progressive fixture; live source image
+conversion was separately accepted by LVGL's TJpgDec. Atlas S3 firmware builds
+with the lowest-priority download worker, checked TLS and bounded PSRAM buffers.
+Sigil readiness wording now distinguishes missing setup from an offered Join.
+Both manual updates rendered and inspected again; page counts remain 18/15.
+No hardware was reflashed and no live match was altered. Next: review the
+codex/master PR, then verify setup joins and phone/direct plane delivery on
+the physical Atlas/Sigil, including network/storage recovery and task memory.
+
+
+Final Sigil firmware passes, but Windows Device Guard also blocks the final
+renderer rerun after shortening its setup hint; the previous renderer run
+verified readiness/Join states and touch assertions. Current shortened text
+is compile-checked; native Sigil checks remain for Linux CI/device acceptance.
+Privacy policy now discloses direct Atlas card-ID requests (no player data).

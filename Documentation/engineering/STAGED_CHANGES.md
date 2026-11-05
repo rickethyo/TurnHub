@@ -69,8 +69,12 @@ Follow-ups left by slices 5 and 6:
   planar commands, and the hub sends plane names, text and art while it
   hosts (`HostedPlaneSync.kt`, `protocol/hosted-v1.md`). Transfers retry while
   the plane stays unchanged and confirm saved artwork from the card index.
+  Home-Wi-Fi Atlas also fetches missing hosted cards from Scryfall after a
+  phone-delivery grace period, converting progressive JPEGs off the main loop.
   Open checks: install the app, flash Atlas, play a digital Planechase game, roll from the Atlas
   screen, open the card view (rotation and touch), and watch the art arrive.
+  Verify direct fallback with phone transfer interrupted, plus router/internet
+  loss, card removal and recovery while controls and Sigils remain responsive.
 - `/api/accounts` still reports `nudgeMuted` and the Game Master moderation
   bits (Reset connections, Remove player), which only the app's People sheet
   shows now; decide whether Game Master still means anything on Atlas before
