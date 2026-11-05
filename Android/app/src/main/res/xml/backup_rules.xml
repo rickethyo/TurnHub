@@ -3,6 +3,7 @@
 <full-backup-content>
     <exclude domain="sharedpref" path="atlas_wifi.xml" />
     <exclude domain="sharedpref" path="profile_vault.xml" />
+        <exclude domain="sharedpref" path="turnhub_atlas_phones.xml" />
         <exclude domain="sharedpref" path="turnhub_rooms.xml" />
         <exclude domain="sharedpref" path="atlas_offline.xml" />
 </full-backup-content>

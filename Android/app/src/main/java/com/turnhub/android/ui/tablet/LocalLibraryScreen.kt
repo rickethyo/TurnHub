@@ -207,7 +207,7 @@ fun LocalLibraryScreen(
                                 Text("Completed games appear here. Start a game from the Game tab.", color = p.muted)
                             }
                         }
-                        if (canImport) item(key = "load-import-accounts") {
+                        if (canImport || importState.paired) item(key = "load-import-accounts") {
                             TextButton(onClick = onLoadProfiles, enabled = !importState.busy && state.storageProblem == null) {
                                 Text("Refresh profiles")
                             }

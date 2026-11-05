@@ -18,7 +18,13 @@ interface AtlasPhoneKeyStore {
 class PreferencesAtlasPhoneKeyStore(context: Context) : AtlasPhoneKeyStore {
     private val prefs = context.getSharedPreferences("turnhub_atlas_phones", Context.MODE_PRIVATE)
     override fun key(atlasId: String): String? = prefs.getString(atlasId, null)
-    override fun save(atlasId: String, credential: String) { prefs.edit().putString(atlasId, credential).apply() }
+    override fun save(atlasId: String, credential: String) {
+        if (!prefs.edit().putString(atlasId, credential).commit()) {
+            // A failed commit still changes SharedPreferences' in-memory map.
+            prefs.edit().remove(atlasId).apply()
+            error("Could not save the Atlas pairing key")
+        }
+    }
     override fun forget(atlasId: String) { prefs.edit().remove(atlasId).apply() }
 }
 

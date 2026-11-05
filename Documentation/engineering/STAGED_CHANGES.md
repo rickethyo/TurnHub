@@ -84,8 +84,13 @@ Follow-ups left by slices 5 and 6:
      `protocol/hosted-v1.md` "Pairing"). Sign-in still works as a fallback.
      Open checks: pair a phone, host and send planes without an account,
      refuse one, reboot Atlas and host again, forget phones.
-  2. **Copies, not accounts**: the hub sends each seated player's profile
-     copy (ID, name, colour, avatar) and Atlas keeps stats by that profile ID.
+  2. **Copies, not accounts** (implemented in PR #207): the hub projects stable
+     profile IDs into its state, sends ID/name/colour/preset-avatar copies with
+     its pairing key, imports records and reads back totals and archived games.
+     PINs and pictures stay on the phone. Identity/basic totals work without SD;
+     appearance and detailed history need SD. Verify on hardware before the
+     account-removal round: two same-name players, finished game, reconnect,
+     same-ID history on a second phone, and missing/reinserted SD.
   3. **Remove Atlas accounts**: PINs, sessions, `/api/profiles/*` and sign-in
      go; a factory reset clears the old accounts (no migration before release).
   4. Docs and manuals (App and Hardware Manuals: pairing, no Atlas sign-in).

@@ -7,6 +7,7 @@
 #include "hosted_game.h"
 #include "phone_links.h"
 #include "profile_store.h"
+#include "avatars.h"
 #include "serial_log.h"
 #include "turnhub_json.h"
 #include "web_api_internal.h"
@@ -96,11 +97,46 @@ void keepProfileCopies(const turnhub::Game &game) {
     if (!TurnHubProfiles::profileExists(id)) all = TurnHubProfiles::createProfileWithName(name, id) == id && all;
     else if (TurnHubProfiles::nameForProfile(id) != name) all = TurnHubProfiles::setNameForProfile(id, name) && all;
   }
-  // A refusal (full store, bad id) is tried again on the next new roster only.
   if (!all) TurnHub::serialLog.printf("ATLAS|PROFILE_COPY|PARTIAL\n");
-  copiedRoster = roster;
+  if (all) copiedRoster = roster;
 }
 }  // namespace
+
+// Phone-owned identity metadata only. Never accept credentials, PINs or account
+// permissions as part of a copy. IDs, not names, join records to players.
+void handlePlayerCopy(WebServer &server) {
+  if (!TurnHubPhones::verify(server.header("X-TurnHub-Token").c_str())) {
+    sendError(server, 401, "Pair this phone with Atlas first"); return;
+  }
+  const String id = server.arg("profileId"), name = server.arg("name");
+  const String color = server.arg("color"), avatar = server.arg("avatar");
+  uint32_t rgb = 0;
+  bool validColor = color == "none" || (color.length() == 7 && color[0] == '#');
+  if (color != "none") for (size_t i = 1; validColor && i < color.length(); ++i) {
+    const char c = color[i];
+    const int digit = c >= '0' && c <= '9' ? c-'0' : c >= 'a' && c <= 'f' ? c-'a'+10 : c >= 'A' && c <= 'F' ? c-'A'+10 : -1;
+    if (digit < 0) validColor = false; else rgb = (rgb << 4) | digit;
+  }
+  int32_t icon = 0;
+  TurnHubIdentity::ProfileId parsed;
+  if (!TurnHubIdentity::ProfileId::parse(id.c_str(), parsed) || !name.length() || name.length() > 32 ||
+      !validColor || !parseBoundedNumber(avatar, 0, TurnHubAvatars::AVATAR_COUNT, icon)) {
+    sendError(server, 400, "Supply a profile ID, name, color and preset avatar"); return;
+  }
+  if ((!TurnHubProfiles::profileExists(id) && TurnHubProfiles::createProfileWithName(name, id) != id) ||
+      (TurnHubProfiles::nameForProfile(id) != name && !TurnHubProfiles::setNameForProfile(id, name))) {
+    sendError(server, 503, "Atlas could not save the player copy; check its storage"); return;
+  }
+  uint32_t savedRgb = 0;
+  const bool hadColor = TurnHubProfiles::jewelColorForProfile(id, savedRgb);
+  const bool colorStored = (hadColor == (color != "none") && (!hadColor || savedRgb == rgb)) ||
+      TurnHubProfiles::saveJewelColorForProfile(id, color != "none", rgb);
+  const bool avatarStored = TurnHubProfiles::avatarForProfile(id) == icon ||
+      TurnHubProfiles::saveAvatarForProfile(id, static_cast<uint8_t>(icon));
+  // Identity and basic totals remain useful without SD; appearance can retry.
+  sendJson(server, 200, String("{\"ok\":true,\"appearanceStored\":") +
+      (colorStored && avatarStored ? "true}" : "false}"));
+}
 
 void handleHostedPublish(WebServer &server) {
   Hub hub;

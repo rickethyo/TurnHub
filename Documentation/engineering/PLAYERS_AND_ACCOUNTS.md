@@ -5,6 +5,17 @@ moderation. Storage keys are in [Storage and Recovery](STORAGE_AND_RECOVERY.md);
 HTTP routes are in `protocol/http-v1.md` and the route table in
 `Atlas/src/web_api.cpp`.
 
+## Phone-owned profile copies
+
+A paired phone hosts and exchanges public player copies and records without a
+player sign-in. Copies contain stable ID, name, colour and a preset avatar;
+local profile PINs and pictures remain on the phone. Basic identities/totals
+use NVS, while appearance, detailed statistics and archived history use SD.
+The phone sends records after copies are acknowledged and reads back totals and
+same-ID history. Names never establish identity. Pairing grants access to the
+table's player totals and archived game records; it does not reveal private
+moderation data. The wire contract is in [Hosted games](../../protocol/hosted-v1.md#player-copies-and-records).
+
 ## Profiles and sign-in
 
 - A profile is a person: ID, name, a PIN (4-8 digits) or password (8-64

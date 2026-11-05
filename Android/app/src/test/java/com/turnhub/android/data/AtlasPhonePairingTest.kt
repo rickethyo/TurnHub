@@ -13,6 +13,19 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AtlasPhonePairingTest {
+    @Test fun failedKeyStorageDoesNotReportPairingSuccess() = runTest {
+        val atlas = PairingAtlas(mutableListOf("""{"state":"allowed","phone":"0a0b0c0d","key":"key"}"""))
+        val keys = object : AtlasPhoneKeyStore {
+            override fun key(atlasId: String): String? = null
+            override fun save(atlasId: String, credential: String) { error("Storage unavailable") }
+            override fun forget(atlasId: String) {}
+        }
+        val pairing = AtlasPhonePairing(keys, { atlas }, pollMs = 1)
+        assertFalse(pairing.pair(AtlasEndpoint.DEFAULT, "THA-1", "Fold"))
+        assertFalse(pairing.paired("THA-1"))
+        assertTrue(pairing.state.value is AtlasPhonePairing.State.Failed)
+    }
+
     private class PairingAtlas(var answers: MutableList<String>) : AtlasSessionTransport {
         val tokens = mutableListOf<String>()
         override suspend fun getProfiles(): List<ProfileSummary> = emptyList()

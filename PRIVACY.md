@@ -13,9 +13,14 @@ reports are described below.
 
 ## What the app stores and where
 
-- **On your Atlas.** Your profile name, a PIN or password (stored hashed),
-  game settings, accessibility preferences and game statistics live on the
-  Atlas, which sits at your table. The app reaches it over your configured home
+- **On your Atlas.** Paired phones automatically send public player copies
+  (stable ID, name, color and preset avatar) and finished game records. Pairing
+  allows that phone to read the table's player totals and archived games. Local
+  profile PINs, pictures and tile backgrounds are excluded from these copies.
+  Basic identities and totals use internal storage; appearance and detailed
+  history need a microSD card. The separate Atlas account system stores
+  your profile name, a PIN or password (stored hashed),
+  game settings, accessibility preferences and game statistics on Atlas. The app reaches it over your configured home
   Wi-Fi; initial setup uses Atlas's own hotspot. Profile data and game history
   are not sent to us or to external card services. Optional card lookups are
   described below. Whoever
@@ -27,10 +32,13 @@ reports are described below.
   are saved in the app's private storage. They leave the phone only when you
   choose sharing: Android's own backup, if you have it turned on, may copy
   them to your Google account (saved Atlas passwords and sign-in secrets are
-  excluded); and you can choose to copy a player and their results to an
-  Atlas. Shared games also send the current match to guests you
+  excluded, along with phone pairing keys); pairing with an Atlas also copies
+  public player metadata and game records there automatically. Shared games also send the current match to guests you
   invite on your Wi-Fi, as described below.
-- **On your phone, with an Atlas.** The app remembers the Atlas Wi-Fi password and, if you
+- **On your phone, with an Atlas.** The app remembers its device pairing key
+  in private storage, excluded from cloud backup and device transfer. Atlas
+  stores only a hash of that key. Forget paired phones on Atlas revokes all
+  phone keys. The app also remembers the Atlas Wi-Fi password and, if you
   turn on automatic sign-in, your profile's PIN or password. That secret is
   encrypted with a key Android releases only after your fingerprint, face or
   screen lock.

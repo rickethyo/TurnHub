@@ -184,7 +184,8 @@ class HomeViewModel(
             }
         }
         try {
-            hostedLink.host(table.state.map { hostedGameJson(it.game) }) { input ->
+            onLoadLocalImportProfiles()
+            hostedLink.host(table.state.map { hostedGameJson(it.game, it.library.players) }) { input ->
                 // Atlas's Sigils and screen: this phone's rules decide.
                 table.applyHostedInput(input.player, input.action)
             }
@@ -227,7 +228,7 @@ class HomeViewModel(
             standaloneObserver?.cancel()
             if (value != null && autoHost) observeAutoHost()
             if (value != null) standaloneObserver = viewModelScope.launch {
-                combine(value.state.map { it.library.history.map { r -> r.recordId } to it.library.players.map { p -> p.links } }.distinctUntilChanged(),
+                combine(value.state.map { it.library.history.map { r -> r.recordId } to it.library.players }.distinctUntilChanged(),
                     repository.tableSummary.map { it?.atlasId to it?.bootId }.distinctUntilChanged(),
                     playerSession.state.map { (it as? PlayerSessionState.SignedIn)?.profileId }.distinctUntilChanged(),
                     combine(repository.connectionState, repository.offlineSinceMs) { state, since -> state == AtlasConnectionState.CONNECTED && since == null }.distinctUntilChanged()) { _, epoch, signedIn, online -> Triple(epoch, signedIn, online) }
@@ -237,6 +238,7 @@ class HomeViewModel(
     private val _localImport = MutableStateFlow(com.turnhub.android.standalone.LocalImportState())
     val localImport: StateFlow<com.turnhub.android.standalone.LocalImportState> = _localImport.asStateFlow()
     private var localImportJob: Job? = null
+    private var localImportRequested = false
 
     private fun supportsExplicitLocalImport(version: String): Boolean =
         runCatching { com.turnhub.android.data.FirmwareVersion.parse(version) }.getOrNull()?.let {
@@ -246,8 +248,29 @@ class HomeViewModel(
     fun onLoadLocalImportProfiles() {
         val summary = repository.tableSummary.value ?: return
         val endpoint = repository.endpoint.value ?: return
-        if (repository.connectionState.value != AtlasConnectionState.CONNECTED ||
-            localImportJob?.isActive == true) return
+        if (repository.connectionState.value != AtlasConnectionState.CONNECTED) return
+        if (localImportJob?.isActive == true) { localImportRequested = true; return }
+        localImportRequested = false
+        if (pairedAtlas() != null) {
+            val table = standalone ?: return
+            _localImport.value = com.turnhub.android.standalone.LocalImportState(atlasId = summary.atlasId, busy = true, paired = true)
+            localImportJob = viewModelScope.launch {
+                try {
+                    val copies = com.turnhub.android.data.AtlasPlayerCopies { method, path, fields ->
+                        if (repository.tableSummary.value?.atlasId != summary.atlasId ||
+                            repository.connectionState.value != AtlasConnectionState.CONNECTED || pairedAtlas() == null) null
+                        else try { hubRaw(method, path, fields) } catch (_: AtlasException) { null }
+                    }
+                    val result = copies.sync(summary.atlasId, table)
+                    if (repository.tableSummary.value?.atlasId == summary.atlasId) _localImport.value = result
+                } finally {
+                    _localImport.value = _localImport.value.copy(busy = false)
+                    localImportJob = null
+                    if (localImportRequested) onLoadLocalImportProfiles()
+                }
+            }
+            return
+        }
         if (!supportsExplicitLocalImport(summary.firmwareVersion)) {
             _localImport.value = com.turnhub.android.standalone.LocalImportState(message = "Update Atlas to 0.7.2 or later before importing. Older firmware can match players by name.")
             return
@@ -277,7 +300,7 @@ class HomeViewModel(
         val table = standalone ?: return
         if (!supportsExplicitLocalImport(summary.firmwareVersion) || choices.atlasId != summary.atlasId || localImportJob?.isActive == true ||
             repository.connectionState.value != AtlasConnectionState.CONNECTED ||
-            playerSession.state.value !is PlayerSessionState.SignedIn) return
+            (pairedAtlas() == null && playerSession.state.value !is PlayerSessionState.SignedIn)) return
         if (!table.queueImport(recordId, summary.atlasId, profileIds, choices.profiles.map { it.profileId }.toSet(),
                 supportsGuestImport(summary.firmwareVersion))) {
             _localImport.value = choices.copy(message = "Choose a different Atlas profile for every player. A pending or imported mapping cannot be changed.")
@@ -289,7 +312,7 @@ class HomeViewModel(
                 table.sendRecords(summary.atlasId) { fields ->
                     if (repository.tableSummary.value?.atlasId != summary.atlasId ||
                         repository.connectionState.value != AtlasConnectionState.CONNECTED) null
-                    else try { playerSession.raw("POST", "/api/standalone/import", fields) }
+                    else try { hubRaw("POST", "/api/standalone/import", fields) }
                     catch (_: AtlasException) { null }
                 }
             } finally {
@@ -1484,5 +1507,16 @@ class HomeViewModel(
 }
 
 /** The core's game JSON, as the shared rules core reads it (NativeGameCore). */
-internal fun hostedGameJson(game: com.turnhub.android.standalone.StandaloneGame): org.json.JSONObject =
-    com.turnhub.android.standalone.StandaloneTable.gameToJson(game).put("profile", game.profile.name)
+internal fun hostedGameJson(
+    game: com.turnhub.android.standalone.StandaloneGame,
+    players: List<com.turnhub.android.standalone.SavedLocalPlayer> = emptyList(),
+): org.json.JSONObject {
+    val json = com.turnhub.android.standalone.StandaloneTable.gameToJson(game).put("profile", game.profile.name)
+    val roster = json.getJSONArray("players")
+    game.players.forEachIndexed { index, seat ->
+        if (!seat.guest) players.firstOrNull { it.localId == seat.localId }?.let {
+            roster.getJSONObject(index).put("profileId", it.profileId)
+        }
+    }
+    return json
+}

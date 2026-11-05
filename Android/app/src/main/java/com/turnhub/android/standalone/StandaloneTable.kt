@@ -498,7 +498,9 @@ class StandaloneTable(
      */
     fun addAtlasRecords(atlasId: String, records: List<org.json.JSONObject>): Int {
         val before = _state.value
-        val local = before.library.players.flatMap { p -> p.links.filter { it.atlasId == atlasId }.map { it.profileId to p } }.toMap()
+        val local = before.library.players.flatMap { p ->
+            p.links.filter { it.atlasId == atlasId }.map { it.profileId to p } + (p.profileId to p)
+        }.toMap()
         var library = before.library
         var added = 0
         for (json in records) {
@@ -574,12 +576,12 @@ class StandaloneTable(
      * a match needs one linked player, and a match already sent here with guests
      * is sent again when another of its players has since been linked.
      */
-    fun queueAutomaticImports(atlasId: String, available: Set<String>, guests: Boolean = false) {
+    fun queueAutomaticImports(atlasId: String, available: Set<String>, guests: Boolean = false, copies: Boolean = false) {
         _state.value.library.history.forEach { record ->
             val delivery = _state.value.library.delivery(record.recordId)
             val again = guests && delivery.status == DeliveryStatus.IMPORTED && delivery.atlasId == atlasId && delivery.hasGuests
             if (delivery.status == DeliveryStatus.NEEDS_LINKING || again) {
-                _state.value.library.automaticMapping(record, atlasId, available, guests)
+                _state.value.library.automaticMapping(record, atlasId, available, guests, copies)
                     ?.let { queueImport(record.recordId, atlasId, it, available, guests) }
             }
         }

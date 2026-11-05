@@ -103,7 +103,13 @@ fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destina
         remove = { saveStyle(prefs.copy(image = null, thumbnail = null)) }, localOnly = true)
     if (styleError) Text("Couldn’t save. Try again.", color = palette.warn)
     TileBackgroundEditor(player, table)
-    if (canLink && destination.atlasId != null) {
+    if (destination.paired) {
+        Text("Atlas keeps a copy of this player's name, color, preset avatar and results. The PIN and pictures stay on this device.", color = palette.muted)
+        destination.atlasTotals[player.localId]?.let { (played, won) ->
+            Text("On this Atlas: $played played · $won won", color = palette.muted)
+        }
+    }
+    if (canLink && !destination.paired && destination.atlasId != null) {
         val link = player.links.firstOrNull { it.atlasId == destination.atlasId }
         link?.let { Text("Linked to Atlas account ${it.profileId}. Matching games import automatically when signed in.", color = palette.muted) }
         var target by rememberSaveable(player.localId, destination.atlasId) { mutableStateOf("") }

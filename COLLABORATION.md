@@ -2082,3 +2082,38 @@ renderer rerun after shortening its setup hint; the previous renderer run
 verified readiness/Join states and touch assertions. Current shortened text
 is compile-checked; native Sigil checks remain for Linux CI/device acceptance.
 Privacy policy now discloses direct Atlas card-ID requests (no player data).
+
+## PR #207 handoff: Atlas profile copies — 2026-11-05, Codex
+
+Owner explicitly hands Claude's unfinished PR to Codex. Baseline `9ad49fd0`,
+clean/fetched claude/master, PR #207. Continue on this handed-off source branch
+to keep one reviewable PR; do not rewrite either permanent branch. Scope:
+finish paired-phone record delivery and profile metadata copies/statistics
+readback, retire Atlas account/sign-in paths, and update current contracts,
+manuals and privacy. Keep local phone profiles/PINs, Planechase and Sigil work.
+The cloud-only plan path in the PR is unavailable locally; the accepted design
+and remaining steps are recorded in STAGED_CHANGES.md. No merge/release or
+live-data reset; test physical behavior separately from host/JVM results.
+
+### PR #207 profile-copy round — Codex
+
+Finished the active step-2 slice from 9ad49fd0: stable IDs in the hub projection,
+paired-only public metadata API, paired record delivery, per-ID totals and
+archived-history readback. Same-name IDs stay distinct; failed copies retry;
+receipt/history deduplication stays in place. Metadata copies contain no local
+PIN/verifier, picture or tile background. Basic identities/totals work without
+SD, and appearance failure is reported independently. Phone pairing keys are
+committed before success and excluded from cloud backup/device transfer.
+
+Validation: Atlas host suite 53 PASS plus storage/profile/OTA suites; Atlas S3
+build; Android JVM suite (490 tests, zero failures) and Preview 1477 APK;
+adapter, contract, docs, licensed
+content and manual-export guards. Both manuals rendered through Word and
+inspected (18 App pages, 15 Hardware pages). No hardware was flashed/reset and
+no live game input was sent during this handoff.
+
+The owner-approved STAGED_CHANGES sequence explicitly calls for one flash/test
+round per step. Step 2 is now ready for that round; step 3 (removing Atlas
+accounts/PINs/sessions/sign-in, including the administration/setup replacement)
+remains open and is not claimed complete. Account-based administration still
+uses its existing authorization. Preserve the active Planechase/Sigil fixes.

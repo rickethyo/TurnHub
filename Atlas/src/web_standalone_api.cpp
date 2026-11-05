@@ -1,5 +1,5 @@
 // The standalone tablet game's finished games (standalone_import.h): the
-// Android app sends each one once it is connected and signed in. Atlas
+// Android app sends each one once it is connected and paired. Atlas
 // imports it once and credits the players that match its profiles.
 
 #include "web_api_internal.h"
@@ -128,7 +128,7 @@ void handleStandaloneImport(WebServer &server) {
     sendError(server, 401, "Pair this phone with Atlas first");
     return;
   }
-  // Hardware scope is mandatory; profile IDs are only unique within one Atlas.
+  // The delivery mapping and receipt are scoped to the destination hardware.
   if (server.arg("atlasId") != atlasHardwareId()) {
     sendError(server, 400, "That record is linked to a different Atlas; review its mapping");
     return;

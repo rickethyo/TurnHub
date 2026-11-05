@@ -13,6 +13,7 @@
 #include "avatar_artwork.h"
 #include "game_profile.h"
 #include "match_archive.h"
+#include "phone_links.h"
 
 namespace TurnHubWebApi {
 namespace internal {
@@ -434,6 +435,35 @@ void handleProfileHistory(WebServer &server) {
   sendJson(server, 200, body);
 }
 
+void handlePlayerCopyHistory(WebServer &server) {
+  if (!TurnHubPhones::verify(server.header("X-TurnHub-Token").c_str())) {
+    sendError(server, 401, "Pair this phone with Atlas first"); return;
+  }
+  const String id = server.arg("profileId");
+  if (!TurnHubProfiles::profileExists(id)) { sendError(server, 404, "Player copy not found"); return; }
+  uint64_t skip = 0, limit = 10;
+  if ((server.hasArg("skip") && !parseMs(server.arg("skip"), skip)) ||
+      (server.hasArg("limit") && (!parseMs(server.arg("limit"), limit) || limit == 0 || limit > 20))) {
+    sendError(server, 400, "skip must be a whole number and limit 1 to 20");
+    return;
+  }
+  std::vector<turnhub::Json> records;
+  bool more = false;
+  if (!TurnHubHistory::historyFor(id, static_cast<size_t>(skip), static_cast<size_t>(limit), records, more)) {
+    sendError(server, 503, "Atlas has no match history without its microSD card");
+    return;
+  }
+  String body = "{\"ok\":true,\"records\":[";
+  for (size_t i = 0; i < records.size(); ++i) {
+    if (i) body += ',';
+    body += records[i].dump().c_str();
+  }
+  body += "],\"more\":";
+  body += jsonBool(more);
+  body += '}';
+  sendJson(server, 200, body);
+}
+
 // Updates the signed-in profile: any of name, pin, clearPin=1. A pin or
 // clearPin on a profile that has a PIN needs currentPin.
 void handleProfile(WebServer &server) {
@@ -745,14 +775,8 @@ void handleSaveAccessibility(WebServer &server) {
   sendAccessibility(server, prefs, true);
 }
 
-void handleProfileStats(WebServer &server) {
-  String profileId;
-  String name;
-  ProfileStats stats{};
-  bool detailed = false;
-  const WebSession *session = loadSessionStats(server, profileId, name, stats, &detailed);
-  if (!session) return;
-
+static void sendProfileStatistics(WebServer &server, const String &profileId, const String &name,
+    const ProfileStats &stats, bool detailed, const WebSession *session = nullptr) {
   String response;
   response.reserve(1100);
   response += "{\"ok\":true,\"profileId\":\"";
@@ -793,9 +817,36 @@ void handleProfileStats(WebServer &server) {
   response += ",\"averageTurnMs\":" + String(averageMs(stats.lastGameTurnMs, stats.lastGameTurns));
   response += ",\"fastestTurnMs\":" + String(stats.lastGameFastestTurnMs);
   response += ",\"longestTurnMs\":" + String(stats.lastGameLongestTurnMs);
-  response += "},\"moderation\":" + moderationJson(*session, profileId);
+  response += "}";
+  if (session) response += ",\"moderation\":" + moderationJson(*session, profileId);
   response += '}';
   sendJson(server, 200, response);
+}
+
+void handleProfileStats(WebServer &server) {
+  String profileId;
+  String name;
+  ProfileStats stats{};
+  bool detailed = false;
+  const WebSession *session = loadSessionStats(server, profileId, name, stats, &detailed);
+  if (!session) return;
+
+  sendProfileStatistics(server, profileId, name, stats, detailed, session);
+}
+
+void handlePlayerCopyStats(WebServer &server) {
+  if (!TurnHubPhones::verify(server.header("X-TurnHub-Token").c_str())) {
+    sendError(server, 401, "Pair this phone with Atlas first"); return;
+  }
+  const String profileId = server.arg("profileId");
+  if (!TurnHubProfiles::profileExists(profileId)) { sendError(server, 404, "Player copy not found"); return; }
+  const String name = TurnHubProfiles::nameForProfile(profileId);
+  ProfileStats stats{};
+  bool detailed = false;
+  if (!TurnHubProfiles::loadStatsForProfile(profileId, stats, &detailed)) {
+    sendError(server, 503, "Player statistics could not be read"); return;
+  }
+  sendProfileStatistics(server, profileId, name, stats, detailed);
 }
 
 void handleProfileStatsExport(WebServer &server) {

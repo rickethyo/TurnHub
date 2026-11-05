@@ -118,6 +118,9 @@ const Route ROUTES[] = {
   {"/api/v1/state", HTTP_GET, handleState},
   // Phone-hosted games: the hub runs the game, Atlas shows it (hosted-v1.md).
   // Pair a phone once instead of signing in (phone_links.h).
+  {"/api/player-copies", HTTP_POST, handlePlayerCopy},
+  {"/api/player-copies/stats", HTTP_GET, handlePlayerCopyStats},
+  {"/api/player-copies/history", HTTP_GET, handlePlayerCopyHistory},
   {"/api/phones/pair", HTTP_POST, handlePhonePair},
   {"/api/phones/pair", HTTP_GET, handlePhonePairPoll},
   {"/api/hosted/claim", HTTP_POST, handleHostedClaim},

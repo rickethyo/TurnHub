@@ -2915,6 +2915,33 @@ static void phonePairing() {
   assert(request("/api/hosted/state",key,{{"state",hostedState("p1",1,"RUNNING",0,40).c_str()}})==200);
   assert(request("/api/hosted/inputs",key,{},HTTP_GET)==200);
   assert(request("/api/planes",key,{},HTTP_GET)!=401);
+  // Paired phones keep public identity copies and read totals without a PIN.
+  assert(request("/api/player-copies", "", {{"profileId","A1B2C3D4"},{"name","Alex"},{"color","#123ABC"},{"avatar","2"}})==401);
+  assert(request("/api/player-copies", key, {{"profileId","not-an-id"},{"name","Alex"},{"color","none"},{"avatar","0"}})==400);
+  assert(request("/api/player-copies", key, {{"profileId","A1B2C3D4"},{"name","Alex"},{"color","#123ABC"},{"avatar","2"}})==200);
+  assert(request("/api/player-copies", key, {{"profileId","A1B2C3D5"},{"name","Alex"},{"color","none"},{"avatar","0"}})==200);
+  assert(TurnHubProfiles::profileExists("A1B2C3D4") && TurnHubProfiles::profileExists("A1B2C3D5"));
+  uint32_t rgb=0;
+  assert(TurnHubProfiles::jewelColorForProfile("A1B2C3D4",rgb) && rgb==0x123ABC && TurnHubProfiles::avatarForProfile("A1B2C3D4")==2);
+  assert(!TurnHubProfiles::hasPinForProfile("A1B2C3D4"));
+  assert(request("/api/player-copies/stats", "", {{"profileId","A1B2C3D4"}}, HTTP_GET)==401);
+  assert(request("/api/player-copies/stats", key, {{"profileId","A1B2C3D4"}}, HTTP_GET)==200);
+  assert(server.body.find("\"gamesPlayed\":0")!=std::string::npos && server.body.find("moderation")==std::string::npos);
+  assert(request("/api/player-copies/stats", key, {{"profileId","A1B2C3D6"}}, HTTP_GET)==404);
+  assert(request("/api/player-copies/history",key,{{"profileId","A1B2C3D4"},{"limit","21"}},HTTP_GET)==400);
+  MemoryBlobs receipts; TurnHubStandalone::useImportStore(&receipts);
+  const std::map<std::string,String> finished={
+    {"recordId","3a2b3c4d-1111-4222-8333-444455556666"},{"atlasId",TurnHubWebApi::internal::atlasHardwareId()},
+    {"gameProfile","mtg_commander"},{"durationMs","1000"},{"players","2"},{"starter","0"},{"winner","0"},
+    {"name0","Alex"},{"profile0","A1B2C3D4"},{"turns0","1"},{"turnMs0","500"},{"fastest0","500"},{"longest0","500"},{"out0","0"},
+    {"name1","Alex"},{"profile1","A1B2C3D5"},{"turns1","1"},{"turnMs1","500"},{"fastest1","500"},{"longest1","500"},{"out1","1"},{"eliminatedBy1","0"},
+  };
+  assert(request("/api/standalone/import",key,finished)==200);
+  assert(request("/api/standalone/import",key,finished)==200 && server.body.find("\"duplicate\":true")!=std::string::npos);
+  assert(request("/api/player-copies/stats",key,{{"profileId","A1B2C3D4"}},HTTP_GET)==200 && server.body.find("\"gamesWon\":1")!=std::string::npos);
+  assert(ProfileFixture::profiles["A1B2C3D4"].stats.gamesPlayed==1 && ProfileFixture::profiles["A1B2C3D5"].stats.gamesPlayed==1);
+  TurnHubStandalone::useImportStore(nullptr);
+  ProfileFixture::profiles.erase("A1B2C3D4"); ProfileFixture::profiles.erase("A1B2C3D5");
   std::string wrong=key.c_str(); wrong.back()=wrong.back()=='0'?'1':'0';
   assert(request("/api/hosted/claim",wrong.c_str())==401);
   // A second phone is a player, and a refused one gets nothing.
