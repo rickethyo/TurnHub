@@ -39,11 +39,13 @@ class AtlasPlayerCopiesTest {
         var attempts = 0
         var online = false
         val sent = mutableListOf<Map<String, String>>()
-        val sync = AtlasPlayerCopies { _, path, fields ->
+        val sync = AtlasPlayerCopies { method, path, fields ->
             when (path) {
                 "/api/player-copies" -> {
+                    if (method == "GET") return@AtlasPlayerCopies RawResponse(200,JSONObject().put("copies",
+                        org.json.JSONArray().apply { players.forEach { put(SharedProfileCopy.encode(it)) } }).toString())
                     val values = fields.toMap(); sent += values
-                    assertEquals(setOf("profileId", "name", "color", "avatar"), values.keys)
+                    assertEquals(setOf("profileId", "name", "color", "avatar", "copy"), values.keys)
                     RawResponse(200, """{"ok":true}""")
                 }
                 "/api/standalone/import" -> {

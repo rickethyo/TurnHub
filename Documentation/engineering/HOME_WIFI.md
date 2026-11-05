@@ -80,9 +80,12 @@ Completed devices never start a fallback hotspot.
   Wi-Fi**, Connect, Search again and new-table setup also discover an Atlas
   when no trusted key is saved. NSD requires a valid ID, TLS flag and full key
   fingerprint; pinned HTTPS must answer with that same ID. Discovery alone
-  saves no trust. The app asks the user to compare its 12-hex-digit code with
-  **App link** in the physical Atlas Settings before saving the full key and
-  connecting. Confirmation rechecks the pinned endpoint. Cancel saves nothing
+  saves no trust. The app requests phone approval immediately. Atlas automatically
+  shows its own 12-hex-digit key fingerprint on that approval screen; the app's
+  full-screen overlay derives the matching code from its pinned TLS endpoint,
+  independently of the response body. One tap on Atlas's Allow verifies the
+  connection and approves the phone. No Settings lookup or second confirmation.
+  Only after approval does the app save the full key and connect. Cancel saves no trust
   and does not join a hotspot. An existing saved key is never replaced through
   discovery. Background discovery only reconnects previously trusted tables.
 - **Sigils find Atlas on any channel** (`Sigil/include/channel_search.h`).

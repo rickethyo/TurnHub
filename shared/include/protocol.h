@@ -288,6 +288,7 @@ struct __attribute__((packed)) DisplayCommanderSource {
   char name[DISPLAY_NAME_MAX_LENGTH + 1];
   int32_t damage[2];
 };
+// Seated player identities in Lobby/Starting as well as live match displays.
 struct __attribute__((packed)) GameDisplayPacket {
   uint8_t version;
   PacketType type;
@@ -356,7 +357,7 @@ inline bool validGameDisplay(const GameDisplayPacket &p) {
         (TurnHubUi::playerControlToggle(i) && p.controls.values[i]>1)) return false;
   if (p.version != VERSION || p.type != PacketType::GameDisplay ||
       p.sigilId >= MAX_SIGILS || p.commander > 1 ||
-      (static_cast<uint32_t>(p.state) & DISPLAY_MODE_MASK) < static_cast<uint8_t>(DisplayMode::Running) ||
+      (static_cast<uint32_t>(p.state) & DISPLAY_MODE_MASK) < static_cast<uint8_t>(DisplayMode::Lobby) ||
       (static_cast<uint32_t>(p.state) & DISPLAY_MODE_MASK) > static_cast<uint8_t>(DisplayMode::GameOver) ||
       p.primary.life < -1000000 || p.primary.life > 1000000 ||
       p.secondary.life < -1000000 || p.secondary.life > 1000000 ||

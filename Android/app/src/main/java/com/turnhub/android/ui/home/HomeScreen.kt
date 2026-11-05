@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
@@ -167,6 +168,29 @@ fun HomeScreen(
     onResumeHosted: (Boolean) -> Unit = {},
 ) {
     PresenceCodeDialog(admin, adminActions)
+    if (phonePairing is com.turnhub.android.data.AtlasPhonePairing.State.Asking) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = onDisconnectClick,
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            androidx.compose.material3.Surface(Modifier.fillMaxSize(), color = palette.bg) {
+                Column(
+                    Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
+                ) {
+                    Text("Approve this phone", style = MaterialTheme.typography.headlineMedium,
+                        modifier = Modifier.semantics { heading() })
+                    Text("Compare this code with the code on Atlas.", textAlign = TextAlign.Center)
+                    Text(phonePairing.code, style = MaterialTheme.typography.displayMedium,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                    Text("If the codes match, tap Allow on Atlas. This screen closes when pairing finishes.",
+                        textAlign = TextAlign.Center)
+                    ToneButton("Cancel pairing", onDisconnectClick, Modifier.fillMaxWidth())
+                }
+            }
+        }
+    }
     uiState.homePairing?.let { atlas ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = discoveryActions.onDismissHomePairing,
@@ -349,7 +373,7 @@ fun HomeScreen(
                 is com.turnhub.android.data.AtlasPhonePairing.State.Failed -> phonePairing.message
                 else -> null
             }
-            if (!setup.visible && tab == HomeTab.GAME && summary != null && pairingLine != null) {
+            if (!setup.visible && phonePairing is com.turnhub.android.data.AtlasPhonePairing.State.Failed && pairingLine != null) {
                 Text(pairingLine, style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(horizontal = 16.dp).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite })
             }
@@ -428,6 +452,16 @@ fun HomeScreen(
                                     if (canDev) com.turnhub.android.ui.components.DisclosureCard("Developer") { DevTab(admin, adminActions) }
                                 }) {
                                     AppearanceCard(theme, reduceMotion, accountActions)
+                                    BrassCard {
+                                        val owner = localState.library.deviceAdmin
+                                        com.turnhub.android.ui.tablet.SetupSwitch("Keep profiles copied from Atlas",
+                                            "Keep copied profiles on this device after disconnecting. If off, unused automatic copies are removed after 24 hours offline; game records stay.",
+                                            localState.library.keepCopiedProfiles,
+                                            localTable != null && (owner == null || localTable.accountUnlocked(owner)),
+                                            { localTable?.keepCopiedProfiles(it) })
+                                        if (owner != null && localTable?.accountUnlocked(owner) != true)
+                                            Text("Unlock this device's Admin profile to change this setting.", color = palette.muted)
+                                    }
                                     BrassCard {
                                         val (artOn, setArt) = com.turnhub.android.ui.tablet.rememberCommanderArtEnabled()
                                         com.turnhub.android.ui.tablet.SetupSwitch("Commander card art",

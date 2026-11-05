@@ -34,6 +34,69 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-11-05, Codex: owner photo follow-up, baseline `87a18077`, codex/master.
+Scope: flatten noninteractive Atlas Home counters and fix hosted lobby/starting
+Sigil names (old seat-profile chunks remain empty while the hub roster is right).
+Use existing GameDisplay identity snapshots for seated lobby/starting players;
+hub retains authority, no new packet layout/dependency or game actions. Validate
+radio producer/validator, shared-seat rendering and real LVGL previews/builds.
+Owner extends this same slice: full-screen phone approval from every tab, then
+one combined home-key/phone approval (no manual App link hunt or second confirm);
+restore Storage & USB drive with capacity/last-mount usage and correct USB/no-SD
+plane warnings. SD ZIP had 76 plane files (38 jpg/38 txt), two truncated image-only
+files and two text-only entries. Add incomplete-art recovery. Owner unlocked all
+three USB Android devices for testing and asks to include Android Studio's AGP
+9.5.1 update in the next commit. Preview 1479 installed with data retained on all
+three physical devices and emulator; Samsung discovery/connection tested; its
+saved fingerprint matches the trusted LG fingerprint and physical USB Atlas MAC.
+Further owner requirement: paired devices automatically copy profiles without PIN
+entry; copy the salted PIN verifier to retain settings/detailed-stats protection.
+Copies persist offline by default. Device-owner opt-out removes only automatically
+copied profiles after 24 hours disconnected, preserving active rosters and records.
+No profile merge by name, no auto Admin transfer, and no plaintext PINs/logged keys.
+In-progress changes and prior tests are local, not yet a PR. Next: finish combined
+pairing and durable profile synchronization/retention, retest, update docs/manuals,
+commit all authorized changes together and open a reviewable PR. No merge/release.
+
+Final validation: 504 Android JVM tests pass; Preview 1480 builds with the
+owner's AGP 9.5.1 update. Atlas host/storage/profile/OTA suites, adapter audit,
+client contracts, docs/licensed-content/manual freshness and whitespace pass.
+Atlas S3 and Sigil firmware builds pass; real LVGL renderers pass, including
+shared lobby/starting names, storage/USB, full warning and phone-approval frames.
+Both edited manuals render through Word (18 App/15 Hardware pages); changed
+pages and page flow inspected. Bundled LibreOffice is absent; native Word was
+the renderer fallback. Three-device copy/PIN/offline/reconnect/cleanup regression
+tests, stale-copy protection and one-approval trust/cancel scenarios pass.
+Latest source/build 1480 is not installed or flashed: physical devices remain
+on Preview 1479 and accepted #208 firmware. Samsung's existing connection was
+tested via ADB; user confirms all three physical devices connected. Hardware
+acceptance of new sync/retention/single approval is next after owner integration.
+No synthetic game input, PIN guessing, account reset, merge or release.
+
+2026-11-05, Codex: photo-reported Sigil join investigation on `codex/master`,
+baseline `8fc65b56`, continuing PR #208. Clean/fetched startup; master is an
+ancestor. Read-only ADB confirms the Pixel Fold and LG hub still run Preview
+1476. Accepted master app ignores picker identity and creates a device-named
+seat; it also omits hostedProfiles. Pending #208 already corrects both paths.
+Add a regression for an empty lobby with two saved profiles and a selected
+profile join preserving its identity. No device installation or game mutation.
+Validation: the new photo-sequence regression and both focused Android suites
+pass (HostedSigilJoinTest and AtlasPlayerCopiesTest); documentation links and
+whitespace checks pass. The running 1476 apps still need the matching #208 app
+update before physical acceptance can test the corrected flow.
+
+Owner merged #208 and authorized all connected device updates. Fetched accepted
+master `ee003db8`; local `c44f0f00` adds only the passing regression and handoff
+notes. Atlas S3 and Sigil builds pass and USB uploads verify their hashes on
+discovered COM18 (native S3) and COM26 (CH340 ESP32, MAC b4:bf:e9:12:85:74).
+No erase/reset of saved data. Preview 1478 built and installed with `adb install
+-r` on LG LMQ620QM61a3e79c1, Samsung R52T30577YX, Pixel Fold
+192.168.1.124:33333 and emulator-5580. All four report 1478 and running app
+processes. Post-flash serial confirms Sigil secure session ready, table snapshot
+and display-profile sync complete; Atlas is responding on serial. Build/upload
+and serial logs are under Private/master-ee003db8-*. The physical profile-picker
+join retest remains owner acceptance; no synthetic join or game action sent.
+
 2026-11-05, Codex: active Sigil join/controller slice on `codex/master`,
 baseline `cfebb986`. Owner requests lobby attachment, saved Atlas/hub profiles,
 and device-named true guests. Multiple phones and a Sigil may control the same

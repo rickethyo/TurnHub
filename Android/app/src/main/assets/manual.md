@@ -311,7 +311,7 @@ Atlas discovery stays on in the background and reconnects to a known Atlas when 
 
 ## Your Atlas Account
 
-**When the app asks to pair, compare the six-digit code on your phone with the code under Allow this phone? on Atlas. Tap Allow on Atlas only if they match. A request expires after one minute. The phone remembers its pairing key and reconnects without signing in to a player account. Settings > Device > Forget paired phones on Atlas removes all phone keys; those phones must pair again.**
+**When a new phone finds Atlas on home Wi-Fi, both screens automatically show the same connection code. The app uses a full-screen approval overlay from any tab. Compare the code, then tap Allow on Atlas once; there is no Settings lookup or second confirmation. The request expires after one minute. The phone remembers its pairing key and reconnects without signing in to a player account. Settings > Device > Forget paired phones removes all phone keys.**
 
 Signed in, this phone can host its game on Atlas (below). Your Atlas account also keeps:
 
@@ -333,13 +333,13 @@ Planechase on Atlas: the hub sends the face-up plane and upcoming cards to Atlas
 
 ## Bringing Local Players and Games to Atlas
 
-**When a paired phone connects, Atlas keeps a copy of each saved player's ID, name, color and preset avatar. A profile's PIN or password, pictures and tile background stay on the phone. Players with the same name stay separate because their IDs differ. The phone's copy supplies its name and look.**
+**Paired phones and tablets automatically exchange saved profiles through Atlas. Copies keep the same profile ID, name, color, preset avatar and salted PIN or password verifier; profiles with the same name remain separate. Copying and playing need no PIN. Account settings and detailed statistics remain locked until the profile is unlocked on that device. Device Admin permissions, private account-link keys, pictures and tile backgrounds are not copied.**
 
 **Finished games upload with the phone's pairing key and credit players by their stable profile ID. Device seats and guests have no saved identity to credit. The phone keeps its original records, and reconnecting retries an interrupted upload without counting the same player twice for one game.**
 
-**Open Edit under Players to see that player's games played and won on this Atlas. Atlas also returns archived games for the same profile ID to the phone's History. A record already on the phone is kept once. Copy a profile directly from another phone when you need its PIN, pictures and settings on a new device.**
+**Open Edit under Players to see that player's games played and won on this Atlas. Atlas also returns archived games for the same profile ID to the phone's History. A record already on the phone is kept once. Use direct account copying for pictures and other device-specific settings.**
 
-**Atlas keeps identity and basic totals in its internal storage. A working microSD card is needed for appearance, detailed statistics and archived history. Missing appearance or history does not stop basic record credit; check the card and reconnect to retry. If an upload or read fails, the app shows a message and keeps the local game.**
+**Atlas keeps identity and basic totals in its internal storage. A working microSD card is needed for appearance, detailed statistics and archived history. Missing appearance or history does not stop basic record credit; check the card and reconnect to retry. If an upload or read fails, the app shows a message and keeps the local game. Copied profiles stay on receiving devices after disconnection by default. The device owner can turn off Keep profiles copied from Atlas in More > Settings. Unused automatic copies are then removed after 24 hours disconnected; reconnecting resets the grace period. Original profiles, current or saved setups, and match records remain.**
 
 ## Roles on an Atlas
 
@@ -524,7 +524,7 @@ Turn on each Sigil. It shows the TurnHub logo, then either its Sigil number (it 
 
 Only a new or factory-reset Atlas creates the TurnHub-Atlas setup network. Its screen shows a Wi-Fi QR including the password. After setup, Atlas and phones use your home Wi-Fi; Sigils link directly to Atlas.
 
-Atlas joins the home network chosen during Atlas setup and reconnects if the router drops it. A new phone on the same network chooses Find Atlas on Wi-Fi, compares its code with App link in Atlas Settings, and confirms. The phone remembers Atlas and uses encrypted connections. The setup hotspot never returns during outages. Sigils follow the router channel automatically.
+Atlas joins the home network chosen during setup and reconnects if the router drops it. A new phone on that network chooses Find Atlas on Wi-Fi. Atlas automatically shows Allow this phone? with the same code as the app overlay. Compare the codes and tap Allow on Atlas once. The phone remembers Atlas and uses encrypted connections. The setup hotspot never returns during outages. Sigils follow the router channel automatically.
 
 ## QR Codes on the Atlas Screen
 
@@ -532,9 +532,9 @@ Welcome shows the setup Wi-Fi QR immediately. Settings > QR codes also shows it 
 
 - **Wi-Fi: joins the temporary TurnHub-Atlas setup network by scanning the on-screen code.**
 
-## Info
+## Storage information
 
-**Info**, under Menu, shows the Wi-Fi name, the portal address, the firmware version, how many Sigils are online, the microSD card status and how long Atlas has been running.
+**Settings > Device > Storage & USB drive shows whether the microSD card is ready, unavailable or shared with a computer, its capacity and usage sampled at the last mount. Eject the disk on the computer before turning USB drive off. Atlas cannot save or display plane artwork from the card while USB drive mode is on.**
 
 # 4. Pairing Sigils
 

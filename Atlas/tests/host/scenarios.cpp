@@ -2189,6 +2189,19 @@ static void touchDeviceScreen() {
   assert(screenButton(s,TouchAction::OpenDevice) && s.buttonCount<=MAX_TOUCH_BUTTONS);
   tapButton(TouchAction::OpenDevice); s=currentScreen();
   assert(s.kind==ScreenKind::Device && String(s.badge)=="DEVICE");
+  assert(screenButton(s,TouchAction::OpenStorage));
+  tapButton(TouchAction::OpenStorage);
+  assert(currentScreen().kind==ScreenKind::Storage && screenButton(currentScreen(),TouchAction::UsbDrive));
+  assert(String(currentScreen().detail)=="Ready for Atlas");
+  fixtureSdCardReady=false;
+  assert(String(currentScreen().detail)=="Storage unavailable");
+  fixtureSdCardReady=true;
+  tapButton(TouchAction::UsbDrive);
+  assert(String(currentScreen().detail)=="Shared with your computer");
+  tapButton(TouchAction::UsbDrive);
+  tapButton(TouchAction::CloseScreen);
+  assert(currentScreen().kind==ScreenKind::Device);
+  s=currentScreen();
   const TouchButton *unpair=screenButton(s,TouchAction::UnpairSigils);
   const TouchButton *reset=screenButton(s,TouchAction::FactoryResetAtlas);
   assert(unpair && reset && screenButton(s,TouchAction::CloseScreen));
@@ -2611,6 +2624,17 @@ static void cardCacheOnAtlas() {
     while (TurnHubCards::servicePlaneStorage(1)) {}
     showPlaneCardProgress(testNow);
     assert(String(currentScreen().sync)=="All 9 plane cards saved");
+    // A truncated JPEG left by an interrupted write must not stay advertised as saved art.
+    const auto jpgPath=std::string("planes/")+stem+".jpg";
+    const auto completeJpeg=cards.files[jpgPath];
+    cards.files[jpgPath]=std::string("\xff\xd8",2)+std::string(4094,'x');
+    assert(TurnHubCards::servicePlaneStorage(2));
+    uint8_t image[8192]; size_t imageSize=0;
+    assert(!TurnHubCards::readPlaneArt(id.c_str(),image,sizeof(image),imageSize) && imageSize==0);
+    assert(TurnHubCards::hasPlaneCard(id.c_str(),art) && !art);
+    cards.files[jpgPath]=completeJpeg;
+    assert(TurnHubCards::servicePlaneStorage(3));
+    assert(TurnHubCards::readPlaneArt(id.c_str(),image,sizeof(image),imageSize) && imageSize==completeJpeg.size());
     testNow+=SYNC_TOAST_MS+1; assert(!currentScreen().sync[0]);
     TurnHubCards::setCardFilesForTests(nullptr);
   }
@@ -2909,6 +2933,7 @@ static void phonePairing() {
   assert(server.body.find("\"owner\":true")!=std::string::npos);
   const String key=String("phone:")+responseField("phone")+":"+responseField("key");
   // The key leaves Atlas once.
+  assert(request("/api/phones/pair/cancel","",{{"request",requestId}})==404 && TurnHubPhones::verify(key.c_str()));
   assert(request("/api/phones/pair","",{{"request",requestId}},HTTP_GET)==200 && server.body.find("\"unknown\"")!=std::string::npos);
   // It hosts without an account, under the phone's name, and sends planes.
   assert(request("/api/hosted/claim",key)==200 && server.body.find("\"host\":\"Ricky's Fold\"")!=std::string::npos);
@@ -2924,6 +2949,19 @@ static void phonePairing() {
   uint32_t rgb=0;
   assert(TurnHubProfiles::jewelColorForProfile("A1B2C3D4",rgb) && rgb==0x123ABC && TurnHubProfiles::avatarForProfile("A1B2C3D4")==2);
   assert(!TurnHubProfiles::hasPinForProfile("A1B2C3D4"));
+  // Shared copies are private to paired phones and keep a verifier without
+  // making the receiving device an Admin or requiring a PIN to copy/play.
+  assert(request("/api/player-copies","",{},HTTP_GET)==401);
+  auto copy=turnhub::Json::parse(R"({"copySchema":2,"profileId":"A1B2C3D4","name":"Alex","lastActivityMs":10,"createdAtMs":1,"credential":{"salt":"AAAAAAAAAAAAAAAAAAAAAA==","hash":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="},"personalization":{"reduceMotion":true},"deviceAdmin":true,"links":["secret"]})");
+  assert(request("/api/player-copies",key,{{"profileId","A1B2C3D4"},{"name","Alex"},{"color","#123ABC"},{"avatar","2"},{"copy",copy.dump().c_str()}})==200);
+  assert(request("/api/player-copies",key,{},HTTP_GET)==200);
+  auto directory=turnhub::Json::parse(server.body);
+  assert(directory.get("copies").size()==1 && directory.get("copies")[0].get("credential").isObject());
+  assert(!directory.get("copies")[0].has("deviceAdmin") && !directory.get("copies")[0].has("links"));
+  copy.set("lastActivityMs",0); copy.set("credential",turnhub::Json());
+  assert(request("/api/player-copies",key,{{"profileId","A1B2C3D4"},{"name","Alex"},{"color","none"},{"avatar","0"},{"copy",copy.dump().c_str()}})==200);
+  assert(request("/api/player-copies",key,{},HTTP_GET)==200);
+  assert(!turnhub::Json::parse(server.body).get("copies")[0].get("credential").isNull());
   assert(request("/api/player-copies/stats", "", {{"profileId","A1B2C3D4"}}, HTTP_GET)==401);
   assert(request("/api/player-copies/stats", key, {{"profileId","A1B2C3D4"}}, HTTP_GET)==200);
   assert(server.body.find("\"gamesPlayed\":0")!=std::string::npos && server.body.find("moderation")==std::string::npos);
@@ -2945,11 +2983,18 @@ static void phonePairing() {
   std::string wrong=key.c_str(); wrong.back()=wrong.back()=='0'?'1':'0';
   assert(request("/api/hosted/claim",wrong.c_str())==401);
   // A second phone is a player, and a refused one gets nothing.
-  assert(request("/api/phones/pair","",{{"name","Tab"}})==200);
+  fixtureHomeTlsReady=true;
+  assert(request("/api/phones/pair","",{{"name","Tab"},{"home","1"}})==200);
+  assert(responseField("code")=="1111 1111 1111" && String(currentScreen().code)=="1111 1111 1111");
+  fixtureHomeTlsReady=false;
   const String refused=responseField("request");
   tapButton(TouchAction::PhoneRefuse);
   assert(request("/api/phones/pair","",{{"request",refused}},HTTP_GET)==200 && server.body.find("\"refused\"")!=std::string::npos);
   assert(TurnHubPhones::count()==1);
+  assert(request("/api/phones/pair","",{{"name","Cancel me"}})==200);
+  const String cancelled=responseField("request");
+  assert(request("/api/phones/pair/cancel","",{{"request","wrong-request-id"}})==404 && currentScreen().kind==ScreenKind::PhonePair);
+  assert(request("/api/phones/pair/cancel","",{{"request",cancelled}})==200 && currentScreen().kind!=ScreenKind::PhonePair);
   assert(request("/api/phones/pair","",{{"name","Tab"}})==200);
   const String expired=responseField("request");
   testNow+=TurnHubPhones::REQUEST_MS;
@@ -3123,6 +3168,29 @@ static void hostedSigils() {
   const auto attach=turnhub::Json::parse(inputs.back().action);
   assert(attach.get("mode").asString()=="attach" && attach.get("target").asString()=="person-ana");
   assert(hosted.game().players[0].localId=="person-ana" && hosted.game().players[0].sigilSeat.empty());
+  // Setup identities must reach the Sigil without any legacy seat-profile binding.
+  auto setupState = turnhub::Json::parse(populated);
+  auto roster = turnhub::Json::array();
+  roster.push(turnhub::Json::parse(R"({"name":"Michael","localId":"person-m","sigilSeat":"sigil:0:1"})"));
+  roster.push(turnhub::Json::parse(R"({"name":"Ricky","localId":"person-r","sigilSeat":"sigil:0:2"})"));
+  setupState.set("players", roster);
+  assert(request("/api/hosted/state",ana,{{"state",setupState.dump().c_str()}})==200);
+  leds.invalidateAll(); leds.renderHosted(hosted.game(),testNow,0x3);
+  assert(TurnHubProtocol::displayMode(TurnHub::sentGameDisplays[0].state)==TurnHubProtocol::DisplayMode::Lobby);
+  assert(!strcmp(TurnHub::sentGameDisplays[0].primary.name,"Michael"));
+  assert(!strcmp(TurnHub::sentGameDisplays[0].secondary.name,"Ricky"));
+  auto invalid = TurnHub::sentGameDisplays[0];
+  invalid.state = TurnHubProtocol::encodeDisplayState(TurnHubProtocol::DisplayMode::Ready,0,0,0);
+  assert(!TurnHubProtocol::validGameDisplay(invalid));
+  // Build a new roster to exercise a same-seat name change.
+  auto renamed = turnhub::Json::array();
+  renamed.push(turnhub::Json::parse(R"({"name":"Mike","localId":"person-m","sigilSeat":"sigil:0:1"})"));
+  renamed.push(roster[1]);
+  setupState.set("players", renamed); setupState.set("state", "STARTING");
+  assert(request("/api/hosted/state",ana,{{"state",setupState.dump().c_str()}})==200);
+  leds.renderHosted(hosted.game(),testNow,0x3);
+  assert(TurnHubProtocol::displayMode(TurnHub::sentGameDisplays[0].state)==TurnHubProtocol::DisplayMode::Starting);
+  assert(!strcmp(TurnHub::sentGameDisplays[0].primary.name,"Mike"));
   // The hub seats Sigils 0 and 1 and starts; Ana (Sigil 0) has the turn.
   const std::string running="{\"gameId\":\"g5\",\"revision\":7,\"state\":\"RUNNING\",\"profile\":\"MTG_COMMANDER\",\"active\":0,"
       "\"players\":[{\"name\":\"Ana\",\"life\":38,\"localId\":\"sigil:0:1\",\"commanderDamage\":{\"1\":[2,0]}},"

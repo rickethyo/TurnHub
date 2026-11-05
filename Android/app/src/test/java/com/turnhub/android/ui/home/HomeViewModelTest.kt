@@ -160,6 +160,31 @@ private class FakeSessionTransport : AtlasSessionTransport {
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
 
+    @Test fun `first discovery uses one Atlas approval and saves no trust before Allow`() = runTest {
+        val candidate=com.turnhub.android.data.SavedHomeAtlas("THA-025448410001","192.168.1.40",443,"a".repeat(64))
+        val homeStore=com.turnhub.android.data.MemoryHomeAtlasStore()
+        val home=com.turnhub.android.data.AtlasHomeLink(homeStore,info={Fixtures.info()},discoverNew={candidate})
+        val allowed=CompletableDeferred<Unit>()
+        val transport=object: AtlasSessionTransport by sessionTransport {
+            override suspend fun raw(method:String,path:String,token:String,fields:List<Pair<String,String>>):com.turnhub.android.data.RawResponse {
+                if(method=="POST") return com.turnhub.android.data.RawResponse(200,"""{"request":"0123456789abcdef","code":"untrusted","waitMs":60000}""")
+                allowed.await()
+                return com.turnhub.android.data.RawResponse(200,"""{"state":"allowed","phone":"0a0b0c0d","key":"test-key"}""")
+            }
+        }
+        val keys=com.turnhub.android.data.MemoryAtlasPhoneKeyStore()
+        val pairing=com.turnhub.android.data.AtlasPhonePairing(keys,{transport},pollMs=1)
+        val vm=HomeViewModel({repository},link,store,playerSession,homeLink=home,phonePairing=pairing)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
+        vm.onSearchAgain()
+        assertEquals(com.turnhub.android.data.AtlasPhonePairing.State.Asking("AAAA AAAA AAAA"),pairing.state.value)
+        assertNull(vm.uiState.value.homePairing)
+        assertNull(homeStore.last());assertTrue(repository.connects.isEmpty())
+        allowed.complete(Unit);advanceTimeBy(2)
+        assertEquals(candidate,homeStore.last());assertEquals(listOf(candidate.endpoint),repository.connects)
+        assertTrue(pairing.paired(candidate.atlasId))
+    }
+
     private val repository = RecordingRepository()
     private val link = FakeWifiLink()
     private val store = MemoryCredentialStore()

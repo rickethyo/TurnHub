@@ -124,7 +124,7 @@ void load() {
 uint8_t count() { return phoneCount; }
 const Phone *phone(uint8_t index) { return index < phoneCount ? &phones[index] : nullptr; }
 
-const Request *ask(const char *name, uint32_t nowMs) {
+const Request *ask(const char *name, uint32_t nowMs, const char *tlsPin) {
   expire(nowMs);
   if ((pending.open && pending.state == RequestState::Waiting) || phoneCount >= MAX_PHONES) return nullptr;
   pending = Request();
@@ -132,6 +132,10 @@ const Request *ask(const char *name, uint32_t nowMs) {
   randomHex(pending.id, REQUEST_ID_LENGTH);
   cleanName(name, pending.name);
   pending.code = esp_random() % 1000000;
+  if (tlsPin && strlen(tlsPin) == 64) {
+    snprintf(pending.homeCode, sizeof(pending.homeCode), "%.4s %.4s %.4s", tlsPin, tlsPin + 4, tlsPin + 8);
+    for (char *c = pending.homeCode; *c; ++c) if (*c >= 'a' && *c <= 'f') *c -= 'a' - 'A';
+  }
   pending.startedMs = nowMs;
   TurnHub::serialLog.print("ATLAS|PHONE|ASK|");
   TurnHub::serialLog.println(pending.name);
@@ -141,6 +145,14 @@ const Request *ask(const char *name, uint32_t nowMs) {
 const Request *waiting(uint32_t nowMs) {
   expire(nowMs);
   return pending.open && pending.state == RequestState::Waiting ? &pending : nullptr;
+}
+
+bool cancel(const char *requestId, uint32_t nowMs) {
+  expire(nowMs);
+  if (!requestId || strlen(requestId) != REQUEST_ID_LENGTH || !pending.open || pending.state != RequestState::Waiting ||
+      !sameText(requestId,pending.id,REQUEST_ID_LENGTH)) return false;
+  pending.state = RequestState::Refused;
+  return true;
 }
 
 bool decide(bool allow, uint32_t nowMs) {

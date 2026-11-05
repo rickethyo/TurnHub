@@ -6,10 +6,22 @@ import com.turnhub.android.standalone.StandaloneTable
 import com.turnhub.android.protocol.ProfileSummary
 import org.json.JSONObject
 
-/** Sends public profile copies and records with a paired phone's credential.
- * Local profile PINs, images and account-copy credentials never enter this API.
+/** Exchanges profile copies and records with a paired phone's credential.
+ * PIN verifiers remain protected by pairing; plaintext PINs and device roles never travel.
  */
 class AtlasPlayerCopies(private val raw: suspend (String, String, List<Pair<String, String>>) -> RawResponse?) {
+    suspend fun pullDirectory(table: StandaloneTable, atlasId: String): List<ProfileSummary>? {
+        val response = raw("GET", "/api/player-copies", emptyList()) ?: return null
+        if (!response.ok) return null
+        return runCatching {
+            val array = JSONObject(response.body).getJSONArray("copies")
+            require(array.length() <= 160)
+            val copies = (0 until array.length()).map { array.getJSONObject(it) }
+            require(table.receiveSharedProfiles(atlasId, copies))
+            copies.map { ProfileSummary(it.getString("profileId"),it.getString("name"),!it.isNull("credential")) }
+        }.getOrNull()
+    }
+
     suspend fun sync(atlasId: String, table: StandaloneTable): LocalImportState {
         val copied = mutableListOf<ProfileSummary>()
         val players = table.state.value.library.players
@@ -20,6 +32,7 @@ class AtlasPlayerCopies(private val raw: suspend (String, String, List<Pair<Stri
                 "profileId" to player.profileId, "name" to player.name,
                 "color" to (look.color ?: "none"),
                 "avatar" to LocalPersonalization.AVATARS.indexOf(look.avatar).coerceAtLeast(0).toString(),
+                "copy" to com.turnhub.android.standalone.SharedProfileCopy.encode(player).toString(),
             ))
             val answer = response?.takeIf { it.ok }?.let { runCatching { JSONObject(it.body) }.getOrNull() }
             if (answer?.optBoolean("ok") == true) {
@@ -27,6 +40,8 @@ class AtlasPlayerCopies(private val raw: suspend (String, String, List<Pair<Stri
                 if (!answer.optBoolean("appearanceStored", true)) failed = true
             } else failed = true
         }
+        val directory = pullDirectory(table, atlasId)
+        if (directory == null) failed = true
         table.queueAutomaticImports(atlasId, copied.map { it.profileId }.toSet(), guests = true, copies = true)
         table.sendRecords(atlasId) { raw("POST", "/api/standalone/import", it) }
         if (table.state.value.library.deliveries.any {
@@ -58,7 +73,7 @@ class AtlasPlayerCopies(private val raw: suspend (String, String, List<Pair<Stri
                 if (skip >= 2000) break
             }
         }
-        return LocalImportState(atlasId, copied, atlasTotals = totals, paired = true,
+        return LocalImportState(atlasId, directory ?: copied, atlasTotals = totals, paired = true,
             message = if (failed) "Some player copies, records or statistics could not be saved or read. Check Atlas storage and reconnect to retry." else null)
     }
 }

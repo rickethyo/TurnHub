@@ -700,8 +700,18 @@ bool LvglSigilDisplay::setSeatName(uint8_t slot, const char *name) {
 }
 
 void LvglSigilDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &g) {
-  page_=TurnHubUi::Page::Game; layout_=Layout::Game; context_=2;
   using namespace TurnHubProtocol;
+  const DisplayMode mode = displayMode(g.state);
+  if (mode == DisplayMode::Lobby || mode == DisplayMode::Starting) {
+    // Hosted identities travel with the state, independently of old seat profiles.
+    const bool primaryB = hasDisplayFlag(g.state, DISPLAY_FLAG_PRIMARY_B);
+    setSeatName(primaryB ? 1 : 0, g.primary.name);
+    setSeatName(primaryB ? 0 : 1, g.secondary.name);
+    showState(g.sigilId, mode, displayPrimaryPlayer(g.state), displaySecondaryPlayer(g.state),
+        displayTurnNumber(g.state), displayFlags(g.state));
+    return;
+  }
+  page_=TurnHubUi::Page::Game; layout_=Layout::Game; context_=2;
   actor_=displayPrimaryPlayer(g.state);
   lifeRequestKey_=static_cast<uint16_t>(life_.request.target << 8) | life_.request.tag;
   if (drawDeviceMenu(g.sigilId,g.primary.name,actor_)) return;
