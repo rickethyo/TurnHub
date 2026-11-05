@@ -34,6 +34,15 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-11-05, Codex, baseline `9d290076`, codex/master: owner supplied experience
+notes, requests staged planning, then authorizes first-slice build/flash/device
+tests and explicitly prioritizes the automatic Atlas room. Roadmap recorded in
+STAGED_CHANGES.md; first scope is connecting paired phones to the hub's existing
+room rather than competing for its lease. Preserve one hub authority, participant
+identity, protected data and explicit takeover. Connected devices are unlocked.
+No smaller Sigil/UI slice takes priority over the room. Planning is documentation
+only; implementation and hardware acceptance are still open.
+
 2026-11-05, Codex review of Copilot audit at `3574132d`, on the owner-selected
 `VSCodeCopilot/Master` branch. Owner authorizes fixes and merge when safe.
 Confirmed HTTPS-only remote boundary and loopback HTTP backend. Atlas host,
