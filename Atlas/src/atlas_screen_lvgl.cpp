@@ -66,6 +66,9 @@ lv_color_t mixRgb(uint32_t a, uint32_t b, uint8_t t) {
 }
 
 // The same mix as a plain 0xRRGGBB value (before any inversion).
+
+
+// The same mix as a plain 0xRRGGBB value (before any inversion).
 uint32_t mixRgbHex(uint32_t a, uint32_t b, uint8_t t) {
   auto ch = [&](int shift) { return (((a >> shift & 0xFF) * t + (b >> shift & 0xFF) * (255 - t)) / 255) << shift; };
   return ch(16) | ch(8) | ch(0);
@@ -191,19 +194,14 @@ bool codeLayout(const AtlasScreen &s) {
 }
 
 bool buttonsUseBody(const AtlasScreen &s) {
-  return s.kind == ScreenKind::Table || s.kind == ScreenKind::Menu || s.kind == ScreenKind::Player ||
-      s.kind == ScreenKind::Device || s.kind == ScreenKind::Power || s.kind == ScreenKind::Themes || s.kind == ScreenKind::Seat ||
-      s.kind == ScreenKind::Name || s.kind == ScreenKind::Pin || s.kind == ScreenKind::Confirm ||
-      s.kind == ScreenKind::NewGame || s.kind == ScreenKind::Planes;
+  return s.kind == ScreenKind::Menu || s.kind == ScreenKind::Device || s.kind == ScreenKind::Power ||
+      s.kind == ScreenKind::Themes || s.kind == ScreenKind::Confirm;
 }
 
 bool primaryAction(TouchAction a) {
   switch (a) {
-    case TouchAction::StartGame: case TouchAction::Rematch:
-    case TouchAction::Resume: case TouchAction::Pair: case TouchAction::SetupPair:
-    case TouchAction::PairConfirm: case TouchAction::NameDone:
-    case TouchAction::PinDone: case TouchAction::OpenNewGame: case TouchAction::PlanarRoll:
-      return true;
+    case TouchAction::StartGame: case TouchAction::Resume: case TouchAction::Pair: case TouchAction::SetupPair:
+    case TouchAction::PairConfirm: case TouchAction::PlanarRoll: return true;
     default:
       return false;
   }
@@ -213,9 +211,7 @@ bool primaryAction(TouchAction a) {
 // (and they ask first in the confirm popup, so colour is never the only warning).
 bool dangerAction(TouchAction a) {
   switch (a) {
-    case TouchAction::EndMatch: case TouchAction::ClearLobby: case TouchAction::RemoveSeat:
-    case TouchAction::Concede: case TouchAction::UnpairSigils: case TouchAction::ResetTable:
-    case TouchAction::FactoryResetAtlas: case TouchAction::PairReject: case TouchAction::ConfirmYes:
+    case TouchAction::UnpairSigils: case TouchAction::FactoryResetAtlas: case TouchAction::PairReject: case TouchAction::ConfirmYes:
       return true;
     default:
       return false;
@@ -254,71 +250,50 @@ const lv_image_dsc_t *actionIcon(TouchAction a) {
   switch (a) {
     case TouchAction::OpenHome: return &th_icon_home_24;
     case TouchAction::OpenGame: return &th_icon_timer_24;
-    case TouchAction::OpenOverview: return &th_icon_table_24;
+    case TouchAction::OpenPlanes: case TouchAction::OpenPlaneCard: return &th_icon_cards_24;
+    case TouchAction::PlanarRoll: return &th_icon_dice_24;
+    case TouchAction::PlanarWalk: case TouchAction::PlanarResolve: return &th_icon_chevron_right_24;
     case TouchAction::OpenSettings: return &th_icon_sliders_24;
     case TouchAction::OpenSetup: return &th_icon_sparkle_24;
     case TouchAction::Pair: case TouchAction::SetupPair: return &th_icon_sigil_24;
     case TouchAction::OpenQr: return &th_icon_qr_24;
-    case TouchAction::ClearLobby: return &th_icon_trash_24;
     case TouchAction::UnpairSigils: return &th_icon_link_24;
     case TouchAction::FactoryResetAtlas: return &th_icon_power_24;
     case TouchAction::UsbDrive: return &th_icon_download_24;
-    case TouchAction::MasterPass: case TouchAction::PassTurn: return &th_icon_pass_24;
-    case TouchAction::BackToSetup: return &th_icon_refresh_24;
+    case TouchAction::PassTurn: return &th_icon_pass_24;
     case TouchAction::ThemeGraphite: case TouchAction::SleepAtlas: return &th_icon_moon_24;
     case TouchAction::ThemeDaylight: return &th_icon_sun_24;
     case TouchAction::ThemeBrass: case TouchAction::OpenThemes: return &th_icon_palette_24;
     case TouchAction::ThemeContrast: case TouchAction::InvertDisplay: return &th_icon_contrast_24;
-    case TouchAction::MoveEarlier: return &th_icon_chevron_up_24;
-    case TouchAction::MoveLater: return &th_icon_chevron_down_24;
-    case TouchAction::RemoveSeat: case TouchAction::PairReject: return &th_icon_close_24;
+    case TouchAction::PairReject: return &th_icon_close_24;
     case TouchAction::OpenDevice: return &th_icon_hub_24;
-    case TouchAction::EndMatch: case TouchAction::Concede: return &th_icon_flag_24;
     case TouchAction::Pause: return &th_icon_pause_24;
     case TouchAction::Resume: case TouchAction::StartGame: return &th_icon_play_24;
-    case TouchAction::OpenTable: return &th_icon_more_24;
-    case TouchAction::OpenNewGame: return &th_icon_sliders_24;
     case TouchAction::OpenManaTap: return &th_icon_dice_24;
     case TouchAction::ManaQuit: return &th_icon_close_24;
-    case TouchAction::GameType: return &th_icon_sparkle_24;
-    case TouchAction::GameMode: return &th_icon_users_24;
-    case TouchAction::GameLife: return &th_icon_plus_24;
-    case TouchAction::GameTimer: return &th_icon_timer_24;
-    case TouchAction::GameHouseRules: return &th_icon_sliders_24;
-    case TouchAction::GamePlanechase: case TouchAction::OpenPlanes: case TouchAction::SeatCommander: return &th_icon_cards_24;
-    case TouchAction::PlanarRoll: return &th_icon_dice_24;
     case TouchAction::SpeakerVolume: return &th_icon_sliders_24;
     case TouchAction::OpenPower: case TouchAction::PowerScreenOff: return &th_icon_sun_24;
     case TouchAction::PowerGameScreen: return &th_icon_timer_24;
     case TouchAction::PowerAutoSleep: return &th_icon_moon_24;
-    case TouchAction::PlanarWalk: case TouchAction::PlanarResolve: return &th_icon_chevron_right_24;
     case TouchAction::ConfirmYes: return &th_icon_check_24;
     case TouchAction::ConfirmNo: return &th_icon_close_24;
-    case TouchAction::OpenSeat: case TouchAction::NewPlayer: return &th_icon_plus_24;
-    case TouchAction::Rematch: return &th_icon_refresh_24;
-    case TouchAction::ResetTable: return &th_icon_trash_24;
-    case TouchAction::PairConfirm: case TouchAction::SetupDone: case TouchAction::NameDone: return &th_icon_check_24;
-    case TouchAction::CloseScreen: case TouchAction::CancelCode:
-    case TouchAction::CancelStart: return &th_icon_chevron_left_24;
-    case TouchAction::SeatMore: return &th_icon_users_24;
+    case TouchAction::PairConfirm: case TouchAction::SetupDone: return &th_icon_check_24;
+    case TouchAction::CloseScreen: case TouchAction::CancelCode: return &th_icon_chevron_left_24;
     default: return nullptr;
   }
 }
 
 bool tabAction(const TouchButton &b) {
   return b.y >= ATLAS_SCREEN_HEIGHT - 48 && (b.action == TouchAction::OpenHome || b.action == TouchAction::OpenGame ||
-      b.action == TouchAction::OpenOverview || b.action == TouchAction::OpenSettings || b.action == TouchAction::OpenPlanes);
+      b.action == TouchAction::OpenSettings || b.action == TouchAction::OpenPlanes);
 }
 
-bool keyAction(TouchAction a) {
-  return a == TouchAction::NameKey || a == TouchAction::PinKey || a == TouchAction::PinBack || a == TouchAction::PinDone;
-}
+
 
 // Full-width buttons in the body are rows of an inset grouped list, as on the
 // app's Settings and Players screens; the bottom row keeps real buttons.
 bool listRow(const AtlasScreen &s, const TouchButton &b) {
-  return !keyAction(b.action) && !tabAction(b) && b.w >= W - 24 && b.y < BUTTON_ROW_Y &&
-      s.kind != ScreenKind::Player && s.kind != ScreenKind::Planes;
+  return !tabAction(b) && b.w >= W - 24 && b.y < BUTTON_ROW_Y;
 }
 
 // The tint of a row's leading icon tile, like the coloured squares in a
@@ -326,15 +301,10 @@ bool listRow(const AtlasScreen &s, const TouchButton &b) {
 uint32_t rowTint(TouchAction a) {
   if (dangerAction(a)) return pal().critical;
   switch (a) {
-    case TouchAction::OpenGame: case TouchAction::MasterPass: case TouchAction::GameTimer: return pal().turn;
-    case TouchAction::Pair: case TouchAction::OpenSetup: case TouchAction::ThemeBrass: case TouchAction::GameType:
-    case TouchAction::OpenThemes:
+    case TouchAction::OpenGame: return pal().turn;
+    case TouchAction::Pair: case TouchAction::OpenSetup: case TouchAction::ThemeBrass: case TouchAction::OpenThemes:
       return pal().accent;
-    case TouchAction::OpenQr: case TouchAction::UsbDrive: case TouchAction::OpenOverview: case TouchAction::ThemeDaylight:
-    case TouchAction::GameMode:
-      return pal().info;
-    case TouchAction::GameLife: return pal().good;
-    case TouchAction::MoveEarlier: case TouchAction::MoveLater: return pal().good;
+    case TouchAction::OpenQr: case TouchAction::UsbDrive: case TouchAction::ThemeDaylight: return pal().info;
     default: return pal().textTertiary;
   }
 }
@@ -588,7 +558,7 @@ lv_obj_t *drawChip(lv_obj_t *root, const ScreenPlayer &p, bool showLife, int16_t
     lv_obj_set_pos(tagPill, 10, h - 30);
     return nullptr;
   }
-  // Life: centred in the area under the band, between - and +.
+  // Life: centred in the area under the name band.
   const int16_t lowerY = CHIP_NAME_BAND_H, lowerH = h - CHIP_NAME_BAND_H;
   char life[12];
   snprintf(life, sizeof(life), "%ld", static_cast<long>(p.life));
@@ -640,116 +610,7 @@ void drawQr(lv_obj_t *root, const char *data, int16_t x, int16_t y, int16_t size
 // with a row per player in turn order: seat, token, name, status and time on
 // turn, and the life total over a bar measured against the table's highest.
 // Read only: nothing here is a touch target.
-void drawStandings(lv_obj_t *root, const AtlasScreen &s) {
-  bool lowerRow = false;
-  for (uint8_t i = 0; i < s.buttonCount; ++i) lowerRow = lowerRow || !tabAction(s.buttons[i]);
-  const int16_t bottom = (lowerRow ? BUTTON_ROW_Y : H - 48) - 8;
-  int16_t y = SCREEN_BODY_Y;
-  const ScreenPlayer *lead = nullptr;
-  int32_t highest = 1;
-  for (uint8_t i = 0; i < s.playerCount; ++i) {
-    const ScreenPlayer &p = s.players[i];
-    if (!lead && (p.flags & (CHIP_WINNER | CHIP_ACTIVE | CHIP_STARTER))) lead = &p;
-    if (!(p.flags & CHIP_OUT) && p.life > highest) highest = p.life;
-  }
-  // The facts strip: three labelled values.
-  lv_obj_t *strip = box(root, 8, y, W - 16, 58);
-  card(strip, pal().surface1, pal().separator);
-  const int16_t colW = (W - 16) / 3;
-  char value[3][20];
-  const char *label[3];
-  if (s.showLife) {
-    label[0] = "ROUND"; label[1] = "MATCH";
-    label[2] = lead && (lead->flags & CHIP_WINNER) ? "WINNER" : "TURN";
-    snprintf(value[0], sizeof(value[0]), s.round ? "%u" : "-", static_cast<unsigned>(s.round));
-    snprintf(value[1], sizeof(value[1]), "%s", s.gameClock[0] ? s.gameClock : "-");
-  } else {
-    label[0] = "PLAYERS"; label[1] = "SIGILS"; label[2] = "STARTS";
-    snprintf(value[0], sizeof(value[0]), "%u", static_cast<unsigned>(s.playerCount));
-    snprintf(value[1], sizeof(value[1]), "%u", static_cast<unsigned>(s.sigilsOnline));
-  }
-  snprintf(value[2], sizeof(value[2]), "%s", lead ? lead->name : "-");
-  for (uint8_t c = 0; c < 3; ++c) {
-    if (c) {
-      lv_obj_t *rule = box(strip, c * colW, 12, 1, 34);
-      card(rule, pal().separator, pal().separator, 0);
-    }
-    text(strip, label[c], &th_eyebrow_13, pal().textTertiary, c * colW, 8, colW, LV_TEXT_ALIGN_CENTER);
-    lv_obj_t *v = text(strip, value[c], &th_semi_20, c == 2 && lead ? pal().turn : pal().text, c * colW + 4, 26,
-        colW - 8, LV_TEXT_ALIGN_CENTER);
-    if (c == 1 && s.showLife) live.gameClock = v;
-  }
-  y += 66;
-  if (s.playerCount == 0) return;
-  int16_t rowH = (bottom - y) / s.playerCount;
-  if (rowH > 62) rowH = 62;
-  const bool roomy = rowH >= 48;
-  lv_obj_t *group = box(root, 8, y, W - 16, rowH * s.playerCount);
-  card(group, pal().surface1, pal().separator);
-  lv_obj_set_style_clip_corner(group, true, 0);
-  const int16_t gw = W - 16, side = roomy ? 32 : 24, nameX = 30 + side + 10, lifeW = 92;
-  for (uint8_t i = 0; i < s.playerCount; ++i) {
-    const ScreenPlayer &p = s.players[i];
-    const bool active = p.flags & CHIP_ACTIVE, out = p.flags & CHIP_OUT, winner = p.flags & CHIP_WINNER;
-    const int16_t top = i * rowH;
-    if (active || winner) {
-      lv_obj_t *band = box(group, 0, top, gw, rowH);
-      lv_obj_set_style_bg_opa(band, LV_OPA_COVER, 0);
-      lv_obj_set_style_bg_color(band, rgb(pal().turnSoft), 0);
-      lv_obj_t *edge = box(group, 0, top, 4, rowH);
-      lv_obj_set_style_bg_opa(edge, LV_OPA_COVER, 0);
-      lv_obj_set_style_bg_color(edge, rgb(pal().turn), 0);
-    } else if (i) {
-      lv_obj_t *rule = box(group, nameX, top, gw - nameX, 1);
-      card(rule, pal().separator, pal().separator, 0);
-    }
-    char seat[4];
-    snprintf(seat, sizeof(seat), "%u", static_cast<unsigned>(p.number));
-    text(group, seat, &th_eyebrow_13, pal().textTertiary, 6, top + (rowH - 16) / 2, 20, LV_TEXT_ALIGN_CENTER);
-    seatToken(group, p, 30, top + (rowH - side) / 2, side, active || winner);
-    const lv_font_t *nameFont = roomy ? &th_semi_20 : &th_semi_16;
-    const char *tag = chipTag(p);
-    const int16_t textW = gw - nameX - lifeW - 8;
-    const int16_t nameY = roomy ? top + 6 : top + (rowH - lv_font_get_line_height(nameFont)) / 2;
-    lv_obj_t *name = text(group, p.name, nameFont, out ? pal().textTertiary : pal().text, nameX, nameY, textW);
-    if (out) lv_obj_set_style_text_decor(name, LV_TEXT_DECOR_STRIKETHROUGH, 0);
-    const int16_t lifeX = gw - lifeW - 12;
-    if (roomy) {
-      // Status in words, then the time on turn, under the name.
-      int16_t x = nameX;
-      if (tag[0]) {
-        text(group, tag, &th_eyebrow_13, active || winner || (p.flags & CHIP_WAITING) ? pal().turn : pal().textSecondary,
-            x, top + 32, textW);
-        x += textWidth(tag, &th_eyebrow_13) + 8;
-      }
-      if (p.turnTime[0]) live.turnTime[i] = text(group, p.turnTime, &th_eyebrow_13, pal().textSecondary, x, top + 32, nameX + textW - x);
-    } else if (p.turnTime[0]) {
-      live.turnTime[i] = text(group, p.turnTime, &th_eyebrow_13, pal().textSecondary, lifeX - 52, top + (rowH - 16) / 2, 48,
-          LV_TEXT_ALIGN_RIGHT);
-    }
-    if (!s.showLife) {
-      if (!roomy && tag[0]) text(group, tag, &th_eyebrow_13, pal().turn, lifeX, top + (rowH - 16) / 2, lifeW, LV_TEXT_ALIGN_RIGHT);
-      continue;
-    }
-    char life[12];
-    snprintf(life, sizeof(life), "%ld", static_cast<long>(p.life));
-    const lv_font_t *lifeFont = rowH >= 56 ? &th_num_40 : rowH >= 40 ? &th_bold_28 : &th_semi_20;
-    text(group, life, lifeFont, out ? pal().textTertiary : active ? pal().turn : pal().text, lifeX,
-        top + (rowH - lv_font_get_line_height(lifeFont)) / 2, lifeW, LV_TEXT_ALIGN_RIGHT);
-    if (roomy && !out) {
-      // Life against the table's highest: who's ahead at a glance.
-      const int16_t barW = textW, fill = p.life <= 0 ? 0 : static_cast<int16_t>(barW * (p.life < highest ? p.life : highest) / highest);
-      lv_obj_t *track = box(group, nameX, top + rowH - 9, barW, 4);
-      card(track, pal().fillStrong, pal().fillStrong, 2);
-      lv_obj_set_style_border_width(track, 0, 0);
-      if (fill > 0) {
-        lv_obj_t *bar = box(track, 0, 0, fill, 4);
-        card(bar, active ? pal().turn : seatColor(p.number), active ? pal().turn : seatColor(p.number), 2);
-        lv_obj_set_style_border_width(bar, 0, 0);
-      }
-    }
-  }
-}
+
 
 // Mana Tap's score, lives and orbs, from the screen's copy of the game.
 void moveManaTap(const AtlasScreen &s) {
@@ -1112,8 +973,6 @@ void drawPlaneCard(lv_obj_t *root, const AtlasScreen &s) {
   lv_obj_set_style_border_color(frame, rgb(edge), 0);
 }
 
-// Data arriving from an app (showSyncStatus): a toast near the top, over
-// whatever is open, with the download mark and the words.
 void drawSyncToast(lv_obj_t *root, const AtlasScreen &s, int16_t width, int16_t y) {
   if (!s.sync[0]) return;
   const int16_t w = width - 24;
@@ -1164,27 +1023,7 @@ void drawReady(lv_obj_t *root, const AtlasScreen &s) {
 }
 
 void drawBody(lv_obj_t *root, const AtlasScreen &s) {
-  if (s.showPlayerControls) {
-    uint8_t ids[TurnHubUi::PLAYER_CONTROL_COUNT];
-    const uint8_t count=TurnHubUi::playerControlRows(s.controls,ids);
-    if (!count) text(root,"No player counters available",&th_semi_16,pal().textSecondary,16,140,W-32);
-    for (uint8_t j=0;j<3 && s.controlsPage*3+j<count;++j) {
-      const uint8_t id=ids[s.controlsPage*3+j]; const int32_t value=s.controls.values[id];
-      const int16_t y=SCREEN_BODY_Y+j*78;
-      auto *row=box(root,8,y,W-16,72); card(row,pal().surface1,pal().separator,12);
-      text(row,TurnHubUi::playerControlLabel(id),&th_semi_16,pal().textSecondary,8,2,W-32);
-      char number[32];
-      if (TurnHubUi::playerControlToggle(id)) snprintf(number,sizeof(number),"%s",value ? "On" : "Off");
-      else snprintf(number,sizeof(number),"%ld",static_cast<long>(value));
-      const bool casts=id==5 || id==6;
-      text(row,number,&th_semi_20,pal().text,64,casts ? 25 : 33,W-144,LV_TEXT_ALIGN_CENTER);
-      if (casts) {
-        char tax[24]; snprintf(tax,sizeof(tax),"Next tax +%ld",static_cast<long>(value*2));
-        text(row,tax,&th_eyebrow_13,pal().textSecondary,64,52,W-144,LV_TEXT_ALIGN_CENTER);
-      }
-    }
-    return;
-  }
+
   if (codeLayout(s)) {
     // Code on top, the QR code centred under it, then its caption and lines.
     int16_t y = SCREEN_BODY_Y;
@@ -1204,19 +1043,14 @@ void drawBody(lv_obj_t *root, const AtlasScreen &s) {
     drawLines(root, s, 16, y, W - 32);
     return;
   }
-  if (s.kind == ScreenKind::Planes) {
-    drawPlanes(root, s);
-    return;
-  }
+
+  if (s.kind == ScreenKind::Planes) { drawPlanes(root, s); return; }
   if (buttonsUseBody(s)) return;
   if (s.kind == ScreenKind::ManaTap) {
     drawManaTap(root, s);
     return;
   }
-  if (s.kind == ScreenKind::Overview) {
-    drawStandings(root, s);
-    return;
-  }
+
   if (s.kind == ScreenKind::Home) {
     drawHome(root, s);
     return;
@@ -1292,7 +1126,6 @@ void drawListRow(lv_obj_t *group, const AtlasScreen &s, const TouchButton &b, in
     lv_obj_set_style_bg_color(rule, rgb(pal().separator), 0);
   }
   // "USB drive: on" reads as the label "USB drive" and the value "On";
-  // "Casey (PIN)" as "Casey" with a lock.
   if (b.action == TouchAction::None && strncmp(b.label, "App link: ", 10) == 0) {
     const int16_t mid = (top + bottom) / 2;
     text(group, "APP LINK", &th_eyebrow_13, pal().textSecondary, 16, mid - 18, w - 32);
@@ -1301,23 +1134,14 @@ void drawListRow(lv_obj_t *group, const AtlasScreen &s, const TouchButton &b, in
   }
   char label[32], value[12] = {};
   snprintf(label, sizeof(label), "%s", b.label);
-  bool locked = false;
   if (char *colon = strstr(label, ": ")) {
     snprintf(value, sizeof(value), "%s", colon + 2);
     if (value[0] >= 'a' && value[0] <= 'z') value[0] -= 'a' - 'A';
     *colon = 0;
   }
-  if (char *pin = strstr(label, " (PIN)")) {
-    *pin = 0;
-    locked = true;
-  }
+
   const int16_t mid = b.y - (b.y - top) + (bottom - top) / 2;
-  if (b.action == TouchAction::SeatProfile) {
-    ScreenPlayer p;
-    p.number = static_cast<uint8_t>(label[0] + b.arg);
-    snprintf(p.name, sizeof(p.name), "%s", label);
-    seatToken(group, p, 12, mid - 16, 32, false);
-  } else if (const lv_image_dsc_t *glyph = actionIcon(b.action)) {
+  if (const lv_image_dsc_t *glyph = actionIcon(b.action)) {
     lv_obj_t *tile = box(group, 12, mid - 16, 32, 32);
     lv_obj_set_style_radius(tile, 9, 0);
     lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
@@ -1339,10 +1163,7 @@ void drawListRow(lv_obj_t *group, const AtlasScreen &s, const TouchButton &b, in
     text(group, value, &th_semi_16, pal().textSecondary, right - tw, mid - 10, tw);
     right -= tw + 8;
   }
-  if (locked) {
-    icon(group, &th_icon_lock_24, right - 24, mid - 12, pal().textSecondary);
-    right -= 28;
-  }
+
   text(group, label, &th_semi_20, ink, 56, mid - 12, right - 56);
 }
 
@@ -1370,33 +1191,28 @@ void drawLists(lv_obj_t *root, const AtlasScreen &s) {
   }
 }
 
-// A real button (the bottom row, keys and the player screen's steps): the
+// A real button (the bottom row): the
 // app's filled primary, the turn colour for Pass, tonal accent for
 // the rest, and the critical colour for anything that ends or erases.
 void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
   const bool pressed = s.pressed == b.action && s.pressedArg == b.arg;
-  // Keyboard keys stay flat (no shadow): thirty of them redraw per key press.
-  const bool key = keyAction(b.action);
   const bool primary = primaryAction(b.action);
   const bool danger = dangerAction(b.action);
   // Pass wears the turn colour, as in the app.
   const bool turn = b.action == TouchAction::PassTurn;
-  const bool tonal = !key && !primary && !turn && !danger;
+  const bool tonal = !primary && !turn && !danger;
   lv_obj_t *o = box(root, b.x, b.y, b.w, b.h);
   const uint32_t base = turn ? (pressed ? pal().turnSoft : pal().turn)
       : pressed ? (primary ? pal().accentPressed : pal().fillStrong)
-      : primary ? pal().accent : key ? pal().surface3 : tonal ? pal().accentSoft : pal().surface2;
+      : primary ? pal().accent : tonal ? pal().accentSoft : pal().surface2;
   const uint32_t frame = b.selected || pressed ? pal().focus : danger ? pal().critical
       : tonal ? mixRgbHex(pal().accent, pal().accentSoft, 110) : pal().separatorStrong;
-  card(o, base, frame, key ? 12 : 16);
+  card(o, base, frame, 16);
   lv_obj_set_style_border_width(o, (primary || turn) && !pressed ? 0 : 1, 0);
   if (!pressed) {
     sheen(o, base);
-    if (!key) {
-      lift(o);
-      // The bubble gloss; strongest on the filled buttons.
-      gloss(o, b.w, b.h, 16, primary || turn);
-    }
+    lift(o);
+    gloss(o, b.w, b.h, 16, primary || turn);
   }
   // Pressed and the shown choice are also marked by a heavier frame.
   if (pressed || b.selected) lv_obj_set_style_border_width(o, 3, 0);
@@ -1407,7 +1223,7 @@ void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
   const char *caption = b.selected && !pressed ? "shown" : "";
   // The largest type that fits on one line; two lines of the small one
   // otherwise. An icon leads the label when there is room for both.
-  const lv_image_dsc_t *glyph = key ? nullptr : actionIcon(b.action);
+  const lv_image_dsc_t *glyph = actionIcon(b.action);
   int16_t room = b.w - 10;
   const lv_font_t *font = textWidth(label, &th_semi_20) <= room ? &th_semi_20 : &th_semi_16;
   if (glyph && textWidth(label, font) + 30 > room) font = &th_semi_16;
@@ -1631,7 +1447,7 @@ void noteRoll(const AtlasScreen &s) {
 }
 
 void noteTurn(const AtlasScreen &s) {
-  if (!s.showLife || s.kind == ScreenKind::Overview) return;
+  if (!s.showLife) return;
   for (uint8_t i = 0; i < s.playerCount; ++i) {
     if (!(s.players[i].flags & CHIP_ACTIVE)) continue;
     const uint8_t turn = s.players[i].number;
@@ -1658,6 +1474,7 @@ void renderAtlasScreen(const AtlasScreen &s, const ScreenStyle &chosen) {
     noteRoll(s);
     return;
   }
+
   drawHeader(root, s);
   if (s.kind == ScreenKind::Confirm) drawConfirm(root, s);
   else drawHero(root, s);

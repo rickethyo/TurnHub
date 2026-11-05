@@ -488,6 +488,7 @@ class MainActivity : ComponentActivity() {
                             sharedGameHosting = lanState.host != null,
                             sharedGameCode = lanState.host?.code,
                             hostedStatus = homeViewModel.hostedStatus.collectAsStateWithLifecycle().value,
+                            hostedPlanesMessage = homeViewModel.hostedPlanesMessage.collectAsStateWithLifecycle().value,
                             onHostOnAtlas = homeViewModel::onHostOnAtlas,
                             hostedResumeHost = homeViewModel.hostedResume.collectAsStateWithLifecycle().value?.host,
                             onResumeHosted = homeViewModel::onResumeHosted,

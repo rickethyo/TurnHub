@@ -14,6 +14,7 @@ import com.turnhub.android.data.ProfileSecret
 import com.turnhub.android.standalone.*
 import com.turnhub.android.ui.components.Tone
 import com.turnhub.android.ui.components.ToneButton
+import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.PlayerAvatar
 import com.turnhub.android.ui.components.ColorPicker
 import com.turnhub.android.ui.components.playerColor
@@ -228,36 +229,40 @@ fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable, onSetU
                         else ProfileSecret.RULE, color = p.muted)
                 }
                 error?.let { Text(it, color = p.warn) }
-                TextButton({ copying = true }, enabled = !saving) { Text("Use my account from another device") }
-                ImportTurnHubButton(table)
+                HorizontalDivider(color = p.line)
+                Text("Other setup options", color = p.muted, style = MaterialTheme.typography.labelLarge)
+                ToneButton("Use my account from another device", { copying = true },
+                    Modifier.fillMaxWidth(), enabled = !saving)
+                ImportTurnHubButton(table, enabled = !saving)
                 Text("Atlas is an optional accessory. You can set it up separately now or later from More.", color = p.muted)
-                TextButton({ if (table.dismissAdminPrompt()) onSetUpAtlas() }, enabled = !saving) {
-                    Text("Set up an Atlas")
-                }
+                ToneButton("Set up an Atlas", { if (table.dismissAdminPrompt()) onSetUpAtlas() },
+                    Modifier.fillMaxWidth(), enabled = !saving)
             }
         },
         confirmButton = {
-            TextButton(enabled = !saving && ready, onClick = {
-                saving = true; error = null
-                scope.launch {
-                    val done = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                        when {
-                            chosen == null -> table.createAdminAccount(name, LocalCredential.create(secret))
-                            unlocking -> table.promoteToDeviceAdmin(chosen.localId, secret)
-                            else -> table.promoteToDeviceAdmin(chosen.localId, null, LocalCredential.create(secret))
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AccentButton(text = when {
+                    saving -> "Saving…"
+                    chosen != null -> "Make ${chosen.name} the Admin"
+                    else -> "Create Admin account"
+                }, modifier = Modifier.fillMaxWidth(), enabled = !saving && ready, onClick = {
+                    saving = true; error = null
+                    scope.launch {
+                        val done = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            when {
+                                chosen == null -> table.createAdminAccount(name, LocalCredential.create(secret))
+                                unlocking -> table.promoteToDeviceAdmin(chosen.localId, secret)
+                                else -> table.promoteToDeviceAdmin(chosen.localId, null, LocalCredential.create(secret))
+                            }
                         }
+                        if (!done) error = if (unlocking) "That PIN or password doesn't match ${chosen!!.name}'s."
+                            else "Could not save your account. Please try again."
+                        saving = false
                     }
-                    if (!done) error = if (unlocking) "That PIN or password doesn't match ${chosen!!.name}'s."
-                        else "Could not save your account. Please try again."
-                    saving = false
-                }
-            }) { Text(when {
-                saving -> "Saving…"
-                chosen != null -> "Make ${chosen.name} the Admin"
-                else -> "Create Admin account"
-            }) }
+                })
+                ToneButton("Not now", { table.dismissAdminPrompt() }, Modifier.fillMaxWidth(), enabled = !saving)
+            }
         },
-        dismissButton = { TextButton({ table.dismissAdminPrompt() }, enabled = !saving) { Text("Not now") } },
     )
 }
 

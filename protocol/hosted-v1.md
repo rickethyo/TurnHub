@@ -64,7 +64,7 @@ A hosted game is the hub's own local game, so its finished record reaches
 Atlas's history and statistics the way every local game does, through
 `POST /api/standalone/import` (`http-v1.md`), once per `recordId` (the
 `gameId`). That happens automatically while the hub is connected and signed in.
-Sigil guests are unlinked players.
+Sigil device seats are unlinked players; they do not create saved accounts.
 
 ## Inputs: Atlas's own controls
 
@@ -84,8 +84,8 @@ Seat actions use the Play together vocabulary (`lan-v1.md`):
 (`pause` value 1 pauses, 0 resumes; `life` value is the signed change).
 Table actions (`player` 0) are applied in setup only:
 
-- `{"kind": "sigil-join", "sigil": id, "slot": 1|2}`: the hub seats a guest
-  bound to that Sigil seat;
+- `{"kind": "sigil-join", "sigil": id, "slot": 1|2}`: the hub adds a device-bound local seat
+  (`guest=false`, `localId="sigil:<id>:<slot>"`), without a saved account;
 - `{"kind": "sigil-leave", "sigil": id, "slot": 0|1|2}`: removes that seat
   (0: both of the Sigil's seats);
 - `{"kind": "start"}`: starts the game.
@@ -123,3 +123,37 @@ catalog version differs) and each face-up plane's card text and art
 (`POST /api/planes/card`, `http-v1.md`), plus the next three deck cards so a
 planeswalk shows at once. Atlas keeps them on its microSD card; without one, the
 Planes tab still shows the counts and rolls.
+
+The hub rechecks the saved card/art index while the desired planes stay the
+same. Network/storage failures and a late phone catalog or art download retry
+without another roll. A 202 response means queued, not saved: only a later
+index response confirms artwork. Text-only cards keep retrying missing art;
+a restarted Atlas is checked again. The phone shows transfer/wait/error text
+near its On Atlas control. Atlas retries a temporarily missing JPEG in an open
+card view instead of caching the missing image for the life of that plane.
+
+### Direct Scryfall fallback on Atlas
+
+While a digital hosted game is running or paused, Atlas may fill missing card
+text/art from Scryfall over its configured home Wi-Fi. Only the hub's face-up
+card IDs and next three deck IDs are eligible; physical cards cause no requests.
+Atlas gives the phone 15 seconds to fill the cache first, fetches one card at a
+time, and waits at least 60 seconds before retrying that missing ID. No card
+storage or home connection means no fetch. These are card-cache operations,
+never game actions, deck changes or die rolls.
+
+The separate network task checks TLS chains/hostnames using GTS/ISRG roots,
+permits only the fixed Scryfall API and its HTTPS art-crop host, sends User-Agent
+and Accept headers, spaces requests by 150 ms, and bounds handshake/read/body
+times and allocations. Metadata is limited to 16 KiB, source JPEG to 256 KiB
+and dimensions to 2048. The JPEG-only stb adapter converts progressive images
+in PSRAM to 480x320 baseline JPEG, at most 96 KiB, before the normal SD write
+queue accepts them. The existing HTTP upload limit stays 96 KiB. Text can save
+before art; missing art retries. The public card ID is the only lookup input;
+Atlas sends no player profiles, PINs, game history or private game state.
+
+Direct metadata adds that plane to the existing bounded catalog without
+replacing the phone's other entries (at capacity, the last entry is replaced;
+cached files remain). A changed/ended game discards an obsolete in-flight
+result. Network and conversion run off loop() and off the SD worker, so the
+screen, input and radio services continue. Stored cards still work offline.

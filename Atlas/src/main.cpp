@@ -8,6 +8,7 @@
 #include <WiFi.h>
 
 #include "atlas_app.h"
+#include "card_cache.h"
 #include "hosted_game.h"
 #include "json_text.h"
 #include "sigil_update_service.h"
@@ -31,6 +32,7 @@
 #include "table_code_setting.h"
 #include "upload_approval.h"
 #include "home_wifi.h"
+#include "plane_download.h"
 #include "wifi_password_store.h"
 
 #if defined(ARDUINO_ARCH_ESP32)
@@ -113,8 +115,7 @@ String loadWifiPassword() {
 }
 
 void handleRoot() {
-  server.sendHeader("Location", "/portal");
-  server.send(302, "text/plain", "TurnHub portal");
+  server.send(200, "text/plain", "TurnHub Atlas accessory. Open the TurnHub app to set up this Atlas or show a game.");
 }
 
 void serveDeveloperJson(const String &json) {
@@ -523,6 +524,7 @@ void loop() {
   LOOP_STEP(updatePairingWindow(nowMs));
   LOOP_STEP(updateBootButton(digitalRead(AtlasConfig::BOOT_BUTTON_PIN) == LOW, nowMs));
   LOOP_STEP(showPlaneCardProgress(nowMs));
+  LOOP_STEP(serviceHostedPlaneDownload(nowMs));
   LOOP_STEP(serviceAtlasDisplay(nowMs));
   LOOP_STEP(serviceFactoryReset(nowMs));
   LOOP_STEP(serviceAutoSleep(nowMs));

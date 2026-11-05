@@ -161,6 +161,10 @@ void handlePlaneCard(WebServer &server) {
     sendError(server, 400, "Send the art as base64");
     return;
   }
+  if (jpeg.size() > TurnHubCards::MAX_PLANE_UPLOAD_BYTES) {
+    sendError(server, 413, "The uploaded plane image is too large");
+    return;
+  }
   const long index = server.arg("index").toInt(), total = server.arg("total").toInt();
   const auto queued = TurnHubCards::savePlaneCard(server.arg("id").c_str(), server.arg("type"), server.arg("artist"),
       server.arg("text"), server.arg("chaos"), jpeg.data(), jpeg.size(),

@@ -134,6 +134,8 @@ int main() {
     pairContact.sample(d.touchMap(),false,0,0);
     assert(pairContact.sample(d.touchMap(),true,120,240)==TOUCH_PAIR);
     d.showPairingCode(4271); save("pairing-code" + suffix);
+    d.setMenuView(menu({{Key::Up, MENU_LOCAL_DEVICE_MENU}}));
+    d.showReady(2); save("waiting-for-setup" + suffix);
     d.setMenuView(menu({{Key::Up, MENU_LOCAL_DEVICE_MENU}, {Key::Select, A(SigilAction::Join)}}));
     d.showReady(2); save("ready" + suffix);
     d.setSeatName(0, "Ricky");

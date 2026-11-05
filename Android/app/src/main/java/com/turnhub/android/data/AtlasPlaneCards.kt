@@ -52,16 +52,20 @@ object AtlasPlaneCards {
     /** Scryfall's art crop, centre-cut to 3:2 and scaled to Atlas's screen, as a baseline JPEG. */
     fun artJpeg(artCrop: ByteArray): ByteArray? {
         val source = BitmapFactory.decodeByteArray(artCrop, 0, artCrop.size) ?: return null
-        val ratio = ART_WIDTH.toFloat() / ART_HEIGHT
-        val (w, h) = if (source.width.toFloat() / source.height > ratio) (source.height * ratio).toInt() to source.height
-            else source.width to (source.width / ratio).toInt()
-        val cut = Bitmap.createBitmap(source, (source.width - w) / 2, (source.height - h) / 2, w, h)
-        val scaled = Bitmap.createScaledBitmap(cut, ART_WIDTH, ART_HEIGHT, true)
-        for (quality in intArrayOf(82, 70, 58, 46, 34)) {
-            val out = ByteArrayOutputStream()
-            scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)
-            if (out.size() <= MAX_ART_BYTES) return out.toByteArray()
+        val owned = mutableListOf(source)
+        try {
+            val ratio = ART_WIDTH.toFloat() / ART_HEIGHT
+            val (w, h) = if (source.width.toFloat() / source.height > ratio) (source.height * ratio).toInt() to source.height
+                else source.width to (source.width / ratio).toInt()
+            val cut = Bitmap.createBitmap(source, (source.width - w) / 2, (source.height - h) / 2, w, h).also { owned += it }
+            val scaled = Bitmap.createScaledBitmap(cut, ART_WIDTH, ART_HEIGHT, true).also { owned += it }
+            for (quality in intArrayOf(82, 70, 58, 46, 34)) {
+                val out = ByteArrayOutputStream()
+                if (scaled.compress(Bitmap.CompressFormat.JPEG, quality, out) && out.size() <= MAX_ART_BYTES) return out.toByteArray()
+            }
+            return null
+        } finally {
+            owned.distinct().forEach { it.recycle() }
         }
-        return null
     }
 }

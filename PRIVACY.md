@@ -1,6 +1,6 @@
 # TurnHub Privacy Policy
 
-Effective 20 October 2026. This policy covers the TurnHub Android app
+Effective 5 November 2026. This policy covers the TurnHub Android app
 (`com.turnhub.android`) and the TurnHub table hardware it controls.
 
 ## The short version
@@ -15,8 +15,10 @@ reports are described below.
 
 - **On your Atlas.** Your profile name, a PIN or password (stored hashed),
   game settings, accessibility preferences and game statistics live on the
-  Atlas, which sits at your table. The app reaches it only over the Atlas's own
-  Wi-Fi network. Nothing on the Atlas is sent to us or to anyone else. Whoever
+  Atlas, which sits at your table. The app reaches it over your configured home
+  Wi-Fi; initial setup uses Atlas's own hotspot. Profile data and game history
+  are not sent to us or to external card services. Optional card lookups are
+  described below. Whoever
   administers that Atlas can remove profiles or factory-reset it, which erases
   this data.
 - **On your phone, without an Atlas.** Players you add on the device (name,
@@ -98,12 +100,19 @@ Magic card lists its printings so you can pick the art.
 When a player turns on Planechase with the digital deck, the app downloads the
 list of planes and phenomena (names, rules text, release membership and art) from
 [Scryfall](https://scryfall.com) once, and each face-up plane's art when it
-is first shown or previewed in the deck browser. Custom deck names and card
-selections are saved only on the phone and are not sent to Scryfall. Nothing
+is first shown or previewed in the deck browser. Custom deck names are not
+uploaded. Card lookups identify the requested cards by their public card IDs;
+complete decks, player profiles and game history are not sent. Nothing
 about the players is sent; Scryfall receives the
 requests (including your IP address) under
 [Scryfall's privacy policy](https://scryfall.com/docs/privacy). The cards are
-kept on the phone. Playing with your own cards downloads nothing.
+kept on the phone. While it shows that game, an Atlas on home Wi-Fi can also
+fetch missing face-up and upcoming cards directly from Scryfall if the phone
+transfer has not delivered them. Those requests contain public card IDs and
+come from Atlas's internet connection; no account, PIN, game history or other
+private game state is included. Atlas stores the fetched text and artwork on
+its microSD card for offline use. Playing with your own physical cards causes
+no plane downloads.
 
 ## Optional bug reports
 

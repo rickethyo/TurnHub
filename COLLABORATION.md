@@ -2002,3 +2002,83 @@ Observed live Atlas has home Wi-Fi up but hub:null; publishing fixes address
 setup sign-out, hidden sign-in, transient retries and serialized lease restart.
 End-to-end hardware retest remains after integration/reflash; no live game input,
 feature-branch flash, merge or release was performed.
+
+## Artifact cleanup and defined setup buttons — 2026-11-04, Codex
+
+Owner authorizes removal of the confirmed scan findings and asks for clear
+button definition in the phone/tablet Admin setup dialog. Branch codex/master,
+baseline 934f82ed; clean tree, fetched origin, no open PRs. Scope: defined
+secondary/primary setup buttons using existing components; remove broken portal
+redirect, unreachable Atlas screen/action definitions and render paths, unused
+app offline-recorder/venue models and disconnected AtlasPlaneCards helper.
+Preserve phone-owned rules, hosted controls, device setup, shared transfer and
+card-storage APIs. No new dependency or wire protocol. Validate Android JVM/APK,
+Atlas host/contracts and firmware, renderer previews and documentation guards.
+No merge, release or device installation.
+
+## Cleanup completion and hosted accessories — 2026-11-05, Codex
+
+Owner authorizes finishing checkpoint `67b41a00` while retaining hosted
+Planechase from accepted master `acc6ba1d`, fixing Atlas plane delivery and
+Sigil joining. Branch codex/master; clean start, origin fetched, no open PRs.
+Merge accepted master into the checkpoint, preserve active hosted Planes/UI
+and card helpers, remove only retired paths, then trace delivery/join from
+phone through Atlas to Sigil. Add targeted regressions, run app/firmware/host
+checks and update owning docs. Hardware acceptance is separate; no merge or
+release authorized by this scope.
+
+
+Cleanup/join/phone-transfer validation: all 484 Android JVM tests pass, with
+focused reruns after transfer and manual changes; Preview APK and Atlas S3/
+Sigil builds pass. Atlas host/storage/profile/OTA suites and adapter/client
+contracts pass with w64devkit. Device Guard blocks the Sigil menu host test;
+leave that suite to CI. Both real LVGL renderers run (including Sigil touch
+assertions); reviewed Planes, phenomenon, landscape art, die and readiness
+previews. Both manual edits rendered through Word and checked, with only the
+intended paragraphs changed; embedded manual regenerated. Docs, licensed-content
+and whitespace guards pass. Root cause of setup joins: a device localId was
+sent with guest=true, which native rules reject. Device seats now use their
+supported local identity without creating an account. Phone plane delivery
+retries quiet-game failures and missing catalog/art, confirms saved artwork
+from Atlas's index, and surfaces progress/errors. Atlas retries failed JPEG
+reads. Owner confirms the failed Sigil join was during setup. Hardware retest
+and release/integration remain separate; no device flash or game input sent.
+
+Owner follow-up (same slice): add Atlas home-Wi-Fi direct Scryfall fetching as
+a fallback for missing hosted plane cards; retain hub ownership and existing
+phone delivery. Network work must be bounded and off the application/SD loops.
+This fallback is still in progress after the cleanup checkpoint.
+
+
+Direct fallback implementation: single-card HTTPS worker with GTS/ISRG trust
+roots, 15 s phone grace, 60 s retry, metadata/JPEG size and time limits, active
+hosted digital IDs only, and existing catalog/SD job delivery. Live Scryfall
+API/CDN requests succeed with the exact bundled roots. Its real art crop is
+progressive JPEG: added pinned MIT-option stb JPEG decoder/encoder, PSRAM
+allocators, input/dimension limits and 480x320 baseline normalization. A real
+79,746-byte progressive crop normalized to 28,070 bytes and was decoded by the
+actual TJpgDec implementation (result 0, 480x320); no downloaded card assets
+enter Git. Upstream headers are unmodified and hashes/license are recorded.
+Native regressions cover metadata/URL validation, timing/rollover, selected IDs,
+image fitting, synthetic progressive conversion, catalog preservation/reload,
+invalid catalog input and unchanged upload cap. Atlas firmware and all host
+suites pass; physical network/memory/SD/latency acceptance remains open.
+
+
+Fallback final checks: bundled-root TLS requests to Scryfall API and image CDN
+both returned 200. Native host suite passes with the exact JPEG adapter used
+by firmware, including a synthetic progressive fixture; live source image
+conversion was separately accepted by LVGL's TJpgDec. Atlas S3 firmware builds
+with the lowest-priority download worker, checked TLS and bounded PSRAM buffers.
+Sigil readiness wording now distinguishes missing setup from an offered Join.
+Both manual updates rendered and inspected again; page counts remain 18/15.
+No hardware was reflashed and no live match was altered. Next: review the
+codex/master PR, then verify setup joins and phone/direct plane delivery on
+the physical Atlas/Sigil, including network/storage recovery and task memory.
+
+
+Final Sigil firmware passes, but Windows Device Guard also blocks the final
+renderer rerun after shortening its setup hint; the previous renderer run
+verified readiness/Join states and touch assertions. Current shortened text
+is compile-checked; native Sigil checks remain for Linux CI/device acceptance.
+Privacy policy now discloses direct Atlas card-ID requests (no player data).

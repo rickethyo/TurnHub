@@ -91,6 +91,8 @@ class HomeViewModel(
     /** Phone-hosted games (protocol/hosted-v1.md): this phone's game shown on Atlas. */
     private val hostedLink = com.turnhub.android.data.HostedAtlasLink({ method, path, fields -> playerSession.raw(method, path, fields) })
     val hostedStatus: StateFlow<com.turnhub.android.data.HostedAtlasLink.Status> = hostedLink.status
+    private val _hostedPlanesMessage = MutableStateFlow<String?>(null)
+    val hostedPlanesMessage: StateFlow<String?> = _hostedPlanesMessage.asStateFlow()
     private var hostedJob: Job? = null
 
     /** Start or stop showing this phone's game on the connected Atlas. The phone keeps running it. */
@@ -135,7 +137,7 @@ class HomeViewModel(
         // The Atlas screen's Planes tab: the game's digital planes, while this phone holds the table.
         val planes = planeCatalog?.let { catalog ->
             val sync = com.turnhub.android.data.HostedPlaneSync({ method, path, fields -> playerSession.raw(method, path, fields) },
-                { path, fields, body -> playerSession.rawText(path, fields, body) }, catalog, planeArt)
+                { path, fields, body -> playerSession.rawText(path, fields, body) }, catalog, planeArt, report = { _hostedPlanesMessage.value = it })
             launch {
                 sync.run(combine(table.state, hostedLink.status) { state, status ->
                     if (status == com.turnhub.android.data.HostedAtlasLink.Status.Hosting)

@@ -93,7 +93,6 @@ class StandaloneTable(
     private val planarPool: () -> List<PlanarCard> = { emptyList() },
     /** Shuffles the planar deck and rolls the planar die. */
     private val planarRandom: kotlin.random.Random = java.security.SecureRandom().asKotlinRandom(),
-    private val offlineRecorder: OfflineRecorder? = null,
 ) : TableControls {
     private val _state = MutableStateFlow(load())
     val state: StateFlow<StandaloneState> = _state.asStateFlow()
@@ -867,7 +866,7 @@ class StandaloneTable(
         if (_state.value.storageProblem != null || current.state in underway) return false
         val game = runCatching { gameFromJson(json) }.getOrNull() ?: return false
         if (game.gameId.isBlank() || game.state !in underway) return false
-        return publishGame(game.copy(offlineRecorder = offlineRecorder), durable = true)
+        return publishGame(game, durable = true)
     }
 
     /**
@@ -887,7 +886,7 @@ class StandaloneTable(
                     if (sigil !in 0..15 || slot !in 1..2) return false
                     val id = "sigil:$sigil:$slot"
                     if (game.players.any { it.localId == id }) return false
-                    val next = game.addPlayer("Sigil ${sigil + 1}" + if (slot == 2) " B" else "", localId = id, guest = true)
+                    val next = game.addPlayer("Sigil ${sigil + 1}" + if (slot == 2) " B" else "", localId = id)
                     next !== game && publishGame(next, durable = true)
                 }
                 "sigil-leave" -> {
@@ -1054,7 +1053,7 @@ class StandaloneTable(
             if (savedLibrary != null && JSONObject(savedLibrary).getInt("schema") == 1) {
                 check(store.saveSnapshot(gameToJson(game).toString(), library.toJson().toString())) { "Could not save upgraded accounts" }
             }
-            StandaloneState(game = game.copy(offlineRecorder = offlineRecorder), library = library)
+            StandaloneState(game = game, library = library)
         } catch (_: Exception) {
             StandaloneState(storageProblem = "Local saved data could not be read. It has been kept untouched. Do not clear app data; recovery needs review.")
         }

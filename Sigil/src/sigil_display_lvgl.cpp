@@ -652,7 +652,9 @@ void LvglSigilDisplay::showUnpaired() {
 void LvglSigilDisplay::showReady(uint8_t sigilId) {
   page_=TurnHubUi::Page::Game; layout_=Layout::Actions; context_=1;
   if (drawDeviceMenu(sigilId)) return;
-  statusScreen("Ready", "Welcome to TurnHub!", "Choose Join game below", sigilId, menuLabels());
+  const bool canJoin = menu_.compass[static_cast<uint8_t>(Key::Select)] == static_cast<uint8_t>(TurnHubProtocol::SigilAction::Join);
+  statusScreen("Ready", canJoin ? "Welcome to TurnHub!" : "Open setup on a phone",
+      canJoin ? "Choose Join game below" : "and show it on Atlas", sigilId, menuLabels());
 }
 
 void LvglSigilDisplay::showAtlasLost(uint8_t sigilId) {
