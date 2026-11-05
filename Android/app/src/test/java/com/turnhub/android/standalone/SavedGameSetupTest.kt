@@ -6,6 +6,21 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SavedGameSetupTest {
+    @Test fun `quick guests use distinct seats and forgetting a choice preserves seats on disk`() {
+        val store = Store()
+        val table = StandaloneTable(store)
+        table.addGuest()
+        table.addGuest()
+        assertEquals(listOf("Guest 1", "Guest 2"), table.state.value.game.players.map { it.name })
+        assertTrue(table.state.value.library.players.isEmpty())
+        assertTrue(table.forgetGuest("Guest 1"))
+        assertFalse(table.forgetGuest("Guest 1"))
+        val reopened = StandaloneTable(store).state.value
+        assertEquals(listOf("Guest 2"), reopened.library.guestNames)
+        assertEquals(listOf("Guest 1", "Guest 2"), reopened.game.players.map { it.name })
+        assertTrue(reopened.game.players.all { it.guest && it.localId == null })
+    }
+
     private class Store : StandaloneStore {
         var game: String? = null
         var library: String? = null

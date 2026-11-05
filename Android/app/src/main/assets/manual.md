@@ -39,7 +39,7 @@ At the top of the app are two small buttons: the bug button reports a bug (secti
 
 # 3. Players and Accounts
 
-Every player at the table is an account saved on this device. Type a new name in the lobby, or choose **Add player** under Players, to create one; choose a saved player to reuse them. Each account has an eight-character account ID (such as 1A2B3C4D), so two players with the same name stay separate.
+In Game setup, Add Guest immediately adds a numbered guest without a profile. Choose a saved profile or guest from the picker to reuse it. Add profile opens a name and optional PIN or password dialog; the new profile is then available in the picker. Each profile has an eight-character account ID (such as 1A2B3C4D), so people with the same name stay separate. Delete guest under a saved guest asks before removing it from the picker; current seats and game history are kept.
 
 On a phone every player is equal: local accounts carry no permissions, and anyone at the table can set up, play and finish a game.
 
@@ -71,7 +71,7 @@ Open **Game**. The table preview shows the seats as players join, even before th
 
 1. Choose **Commander** (40 life) or **Magic · 20 life**, or tap Change for another game.
 
-2. Add everyone: type a guest name, or choose a saved player. Arrange seats by dragging a player onto another seat, or tapping two seats. **Remove all** asks before emptying setup; saved players and history are kept.
+2. Add everyone: tap Add Guest for a numbered guest, or choose a saved profile or guest. Add profile saves a new profile for the picker. Arrange seats by dragging a player onto another seat, or tapping two seats. Remove all asks before emptying setup; saved profiles, guests and history are kept.
 
 3. For variants, house rules, timers, Planechase and guided setup, turn on **Advanced settings**. Turning it off hides the options and keeps your choices. Current life, timer and Magic variant remain visible above the players.
 

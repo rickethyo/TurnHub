@@ -2,8 +2,8 @@ package com.turnhub.android.data
 
 /**
  * The six-digit table-presence code from a scanned Atlas QR: the Admin-code
- * screen encodes `http://192.168.4.1/portal#code=123456`. A bare six-digit
- * text is accepted too. Anything else (the Wi-Fi or portal QR) is null.
+ * screen encodes six digits, including any leading zeros. Code links are
+ * accepted too. Anything else (including the Wi-Fi QR) is null.
  */
 fun presenceCodeFromQr(text: String): String? {
     val trimmed = text.trim()

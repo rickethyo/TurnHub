@@ -1,6 +1,7 @@
 package com.turnhub.android.data
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
@@ -32,6 +33,53 @@ class HostedAtlasLinkTest {
     }, renewMs = 10_000)
 
     private fun game(revision: Long) = JSONObject().put("gameId", "g").put("revision", revision)
+
+    @Test
+    fun `restarting publication waits for the old lease release`() = runTest {
+        val releasing = CompletableDeferred<Unit>()
+        val released = CompletableDeferred<Unit>()
+        val events = mutableListOf<String>()
+        val serialLink = HostedAtlasLink({ _, path, _ ->
+            if (path == "/api/hosted/release") {
+                releasing.complete(Unit)
+                released.await()
+            }
+            events += path
+            RawResponse(200, "{\"ok\":true,\"inputs\":[],\"last\":0}")
+        })
+        val first = launch { serialLink.host(MutableStateFlow(game(1))) }
+        runCurrent()
+        first.cancel()
+        runCurrent()
+        assertTrue(releasing.isCompleted)
+        val second = launch { serialLink.host(MutableStateFlow(game(2))) }
+        runCurrent()
+        assertEquals(1, events.count { it == "/api/hosted/claim" })
+        released.complete(Unit)
+        runCurrent()
+        assertEquals(2, events.count { it == "/api/hosted/claim" })
+        assertEquals(HostedAtlasLink.Status.Hosting, serialLink.status.value)
+        second.cancel()
+    }
+
+    @Test
+    fun `a failed first claim and a failed quiet push recover without another game edit`() = runTest {
+        claimCode = 503
+        val job = launch { link.host(MutableStateFlow(game(1))) }
+        runCurrent()
+        assertTrue(link.status.value is HostedAtlasLink.Status.Failed)
+        claimCode = 200
+        advanceTimeBy(10_001)
+        assertEquals(HostedAtlasLink.Status.Hosting, link.status.value)
+        stateCode = 503
+        advanceTimeBy(10_001)
+        assertTrue(link.status.value is HostedAtlasLink.Status.Failed)
+        stateCode = 200
+        advanceTimeBy(10_001)
+        assertEquals(HostedAtlasLink.Status.Hosting, link.status.value)
+        assertEquals("POST /api/hosted/state 1", calls.last())
+        job.cancel()
+    }
 
     @Test
     fun `claims, pushes each new state, renews while quiet and releases when stopped`() = runTest {

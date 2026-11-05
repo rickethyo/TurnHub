@@ -3,6 +3,7 @@
 // Output: build/preview/<name>.ppm (render-sigil-lvgl.sh converts to PNG).
 
 #include <lvgl.h>
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <string>
@@ -116,11 +117,22 @@ int main() {
     d.setMenuView(device.view());d.showSettings(2);save("settings"+suffix);
     d.setMenuView(MenuView());
     d.showUnpaired(); save("unpaired" + suffix);
+    const auto *pair = d.touchMap().at(120,240);
+    assert(pair && pair->target == TOUCH_PAIR);
+    TouchContact pairContact;
+    assert(pairContact.sample(d.touchMap(),true,120,240)==TOUCH_PAIR);
     MenuView pairing;
     pairing.pairing = true;
     d.setMenuView(pairing);
     d.showUnpaired(); save("pair-search" + suffix);
+    assert(d.touchMap().at(120,240)==nullptr);
+    assert(pairContact.sample(d.touchMap(),true,120,240)==TOUCH_NONE);
+    // Reappearing Pair cannot inherit the contact that started searching.
     d.setMenuView(MenuView());
+    d.showUnpaired();
+    assert(pairContact.sample(d.touchMap(),true,120,240)==TOUCH_NONE);
+    pairContact.sample(d.touchMap(),false,0,0);
+    assert(pairContact.sample(d.touchMap(),true,120,240)==TOUCH_PAIR);
     d.showPairingCode(4271); save("pairing-code" + suffix);
     d.setMenuView(menu({{Key::Up, MENU_LOCAL_DEVICE_MENU}, {Key::Select, A(SigilAction::Join)}}));
     d.showReady(2); save("ready" + suffix);

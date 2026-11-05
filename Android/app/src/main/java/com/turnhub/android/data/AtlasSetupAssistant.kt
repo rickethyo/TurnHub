@@ -438,7 +438,9 @@ class AtlasSetupAssistant(
             if (!response.ok) return@work fail(errorOf(response) ?: "Atlas didn't finish setup.")
             _state.update { it.copy(step = SetupStep.RESTARTING,
                 note = "Atlas is restarting on $ssid. Its setup hotspot is now off. Connect this phone to $ssid if needed.") }
-            if (host.reconnectAfterRestart()) check()
+            if (host.reconnectAfterRestart()) {
+                if (reSignIn()) check()
+            }
             else fail("Join $ssid on this phone, then use Find Atlas on Wi-Fi. Atlas setup is complete and its hotspot is off.")
         }
     }

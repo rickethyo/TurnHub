@@ -2098,6 +2098,8 @@ static void resetTableFromPortal() {
   // Only the phone that asked may use the code.
   assert(request("/api/presence/request",admin)==200);
   { char digits[8]; snprintf(digits,sizeof(digits),"%06lu",static_cast<unsigned long>(pendingPresenceCode(testNow)->code));
+    const AtlasScreen codeScreen=currentScreen();
+    assert(codeScreen.kind==ScreenKind::Code && std::string(codeScreen.qr)==digits);
     assert(request("/api/presence/confirm",player,{{"code",digits}})==409); }
   verifyAtTable(admin);
   assert(request("/api/presence",admin,{},HTTP_GET)==200 && server.body.find("\"verified\":true")!=std::string::npos);

@@ -141,7 +141,7 @@ fun LocalLibraryScreen(
                 when (shownSection) {
                     LibrarySection.PLAYERS -> {
                         item(key = "player-actions") {
-                            if (table != null) ToneButton("Add player", { creatingAccount = true },
+                            if (table != null) ToneButton("Add profile", { creatingAccount = true },
                                 Modifier.fillMaxWidth(), enabled = state.storageProblem == null)
                             if (table != null) TextButton({ copyingAccount = true }, enabled = state.storageProblem == null) {
                                 Text("Copy an account from another device") }
@@ -282,7 +282,7 @@ fun LocalLibraryScreen(
 }
 
 @Composable
-private fun CreateLocalAccountDialog(table: StandaloneTable, storageAvailable: Boolean, onDismiss: () -> Unit) {
+internal fun CreateLocalAccountDialog(table: StandaloneTable, storageAvailable: Boolean, onDismiss: () -> Unit) {
     val p = palette
     var name by rememberSaveable { mutableStateOf("") }
     // Credentials never enter saved instance state.
@@ -294,7 +294,7 @@ private fun CreateLocalAccountDialog(table: StandaloneTable, storageAvailable: B
     AlertDialog(
         onDismissRequest = { if (!creating) onDismiss() },
         containerColor = p.surface,
-        title = { Text("Add player") },
+        title = { Text("Add profile") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) }, label = { Text("Name (up to 32 characters)") },
@@ -330,7 +330,7 @@ private fun CreateLocalAccountDialog(table: StandaloneTable, storageAvailable: B
                         creating = false
                     }
                 }
-            }) { Text(if (creating) "Saving…" else "Add player") }
+            }) { Text(if (creating) "Saving…" else "Add profile") }
         },
         dismissButton = { TextButton(onClick = onDismiss, enabled = !creating) { Text("Cancel") } },
     )

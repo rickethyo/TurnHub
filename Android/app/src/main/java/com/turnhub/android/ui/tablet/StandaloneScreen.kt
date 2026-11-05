@@ -263,6 +263,8 @@ fun StandaloneLobby(
         game.toSummary(0, 0, state.library.players.associate { it.localId to it.personalization })
     }
     var editingLocalId by rememberSaveable { mutableStateOf<String?>(null) }
+    var creatingProfile by rememberSaveable { mutableStateOf(false) }
+    if (creatingProfile) CreateLocalAccountDialog(table, state.storageProblem == null) { creatingProfile = false }
     state.library.players.firstOrNull { it.localId == editingLocalId }?.let { account ->
         LocalTileBackgroundDialog(account, table) { editingLocalId = null }
     }
@@ -276,6 +278,8 @@ fun StandaloneLobby(
         summary = summary,
         actions = TableLobbyActions(
             add = table::addGuest,
+            addProfile = { creatingProfile = true },
+            forgetGuest = { table.forgetGuest(it) },
             select = { choice ->
                 val remote = remoteProfiles.firstOrNull { "atlas:${it.profileId}" == choice.id }
                 if (remote != null && atlasId != null) {
@@ -312,7 +316,7 @@ fun StandaloneLobby(
         enabled = true,
         settingsEnabled = true,
         canAdd = game.players.size < StandaloneGame.MAX_PLAYERS,
-        identityHint = "Choose saved players or add a name.",
+        identityHint = "Choose a profile or add a guest. Guests do not need a profile.",
         savedTitle = "Saved players",
         embedded = embedded,
         phoneHosted = true,

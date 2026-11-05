@@ -334,7 +334,6 @@ void sendHello() {
 bool screenTestPending = false;  // Guarded by displayProfileMux.
 bool screenTestBusy = false;     // Guarded by displayProfileMux.
 void startPairing();
-bool touchPairUsed = false;  // This press already opened a window.
 
 void publishMenuView();
 void publishLifeOverlay();
@@ -391,7 +390,15 @@ void updateTouch(uint32_t nowMs) {
       if (event != TurnHub::ManaEvent::None) publishMana(false);
     }
   } else if (target != previous && target != TurnHubSigil::TOUCH_NONE && target >= TurnHubSigil::TOUCH_NAV) {
-    if (target == TurnHubSigil::TOUCH_MANA_OPEN) {
+    if (target == TurnHubSigil::TOUCH_PAIR) {
+      // The visible Pair control is local even before a game/menu exists.
+      // TouchContact consumes this press; a held touch cannot pair again.
+      if (sigilId == UNASSIGNED_SIGIL_ID && !pairingActive && !sigilMenu.deviceMenuOpen() &&
+          pairingV2.state() != TurnHubSecureLink::SigilPairing::State::AwaitingConfirm) {
+        Serial.println("SIGIL|PAIR|TOUCH");
+        startPairing();
+      }
+    } else if (target == TurnHubSigil::TOUCH_MANA_OPEN) {
       if (selectedPage == TurnHubUi::Page::Home) openManaTap(nowMs);
     } else if (target == TurnHubSigil::TOUCH_MANA_ACTION) {
       if (manaOpen) manaAction(nowMs);
@@ -1750,23 +1757,6 @@ void updateLife(uint32_t nowMs) {
   publishLifeOverlay();
 }
 
-// Tap the on-screen Pair button while unpaired to open the pairing window
-// (nothing is lost by pairing, so it needs no confirm). One window per touch;
-// BOOT remains available for physical recovery.
-void updateTouchPair() {
-  const bool down = keys[static_cast<uint8_t>(TurnHubSigil::Key::Select)].stableState == LOW;
-  if (!down) {
-    touchPairUsed = false;
-    return;
-  }
-  const bool eligible = sigilId == UNASSIGNED_SIGIL_ID && !pairingActive && !sigilMenu.deviceMenuOpen() &&
-      pairingV2.state() != TurnHubSecureLink::SigilPairing::State::AwaitingConfirm;
-  if (!eligible || touchPairUsed) return;
-  touchPairUsed = true;
-  Serial.println("SIGIL|PAIR|TOUCH");
-  startPairing();
-}
-
 // Five-key input: key edges go to the menu, and a finished choice becomes a
 // SelectAction (a hazardous one only after its confirm popup).
 void sendCommanderKey(uint8_t key, bool repeat = false) {
@@ -1912,7 +1902,6 @@ void updateMenuKeys() {
     Serial.println(TurnHubSigil::sigilActionLabel(choice.action));
     sendPacket(PacketType::SelectAction, TurnHubProtocol::encodeSelectAction(choice.action, choice.revision, shownPlayer()));
   }
-  updateTouchPair();
   publishMenuView();
 }
 
