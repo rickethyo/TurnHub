@@ -464,7 +464,7 @@ static void confirmWords(uint8_t action, const char *&question, const char *&det
   else if (action == static_cast<uint8_t>(SigilAction::ClaimWin)) { question = "Claim the win?"; detail = "The table confirms it."; }
   else if (action == static_cast<uint8_t>(SigilAction::Eliminate)) { question = "Confirm you're out?"; detail = "Your game ends."; }
   else if (action == static_cast<uint8_t>(SigilAction::ResetTable)) { question = "Reset the table?"; detail = "Everyone leaves the lobby."; }
-  else if (action == static_cast<uint8_t>(SigilAction::Leave)) { question = "Leave the lobby?"; detail = "Join again to play."; }
+  else if (action == static_cast<uint8_t>(SigilAction::Leave)) { question = "Release players?"; detail = "Players stay at the table. Choose again without restarting."; }
 }
 
 // A popup over whatever was on screen: the screen dims, a card asks, and

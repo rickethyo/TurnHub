@@ -26,6 +26,11 @@ requirements. The owner prioritizes the Atlas room as the first implementation
 slice and authorizes building, flashing and testing it on connected unlocked
 devices. Each slice gets its own reviewable implementation and acceptance round.
 
+Owner-approved sequence: Sigil switching first, then profile settings across both
+apps (display names, color/avatar controls and PIN protection), then Game picker
+appearance and removal of location suffixes. Picker polish depends on the profile
+settings work. Batch remaining user-manual edits into one update at the end.
+
 1. **Atlas automatically connects one shared room (first priority).** Android
    implementation and three-device smoke test are complete; contract and privacy
    boundaries live in [Phone-hosted games](../../protocol/hosted-v1.md#automatic-atlas-room).

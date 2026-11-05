@@ -34,6 +34,22 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-11-05, Codex, baseline `4f54f1b0`, codex/master: owner authorizes next
+controller/profile slices. Start with atomic Sigil player switching in setup,
+then profile settings parity and appearance before Game picker polish. Keep
+manual edits/export/render deferred until the end per owner instruction.
+Preserve the separate local app's unrelated working changes and content boundary.
+Sigil switching implementation: setup menu Change A/B opens the identity picker
+without first clearing the existing seat; confirmation sends the previous seat
+index to the hub, which validates it and commits release/attachment atomically.
+Cancellation and rejected targets preserve the old binding; both players and
+other phone memberships remain. Release wording explains that players stay.
+Validation: 512 Android JVM tests, Preview 2002, Atlas and Sigil host suites,
+both firmware builds/uploads, three Android installs; Sigil serial reports secure
+session ready and Atlas restored. Protocol/adapter/docs/content/diff checks pass.
+Physical touchscreen switching still needs acceptance; no synthetic radio event
+or completed-game result was sent. Profile settings and picker work remain next.
+
 2026-11-05, Codex, baseline `9d290076`, codex/master: owner supplied experience
 notes, requests staged planning, then authorizes first-slice build/flash/device
 tests and explicitly prioritizes the automatic Atlas room. Roadmap recorded in

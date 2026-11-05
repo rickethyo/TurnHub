@@ -5,6 +5,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class HostedSigilJoinTest {
+    @Test fun `switching a Sigil is atomic and preserves both players`() {
+        val table = StandaloneTable(MemoryStandaloneStore(StandaloneGame(), LocalLibrary()))
+        assertTrue(table.applyHostedInput(0, action("sigil-join").put("name", "First")))
+        val first=table.state.value.game.players.single()
+        assertFalse(table.applyHostedInput(0, action("sigil-join").put("previousPlayer", 1).put("name", "Wrong")))
+        assertEquals(first,table.state.value.game.players.single())
+        assertTrue(table.applyHostedInput(0, action("sigil-join").put("previousPlayer", 0).put("name", "Second")))
+        val players=table.state.value.game.players
+        assertEquals(2,players.size)
+        assertEquals(first.copy(sigilSeat=null),players[0])
+        assertEquals("sigil:0:1",players[1].sigilSeat)
+        assertTrue(table.applyHostedInput(0, action("sigil-join").put("previousPlayer",1).put("mode","attach")
+            .put("playerIndex",0).put("target","").put("profileId","").put("name",first.name)))
+        assertEquals(2,table.state.value.game.players.size)
+        assertEquals("sigil:0:1",table.state.value.game.players[0].sigilSeat)
+        assertNull(table.state.value.game.players[1].sigilSeat)
+    }
     private fun action(kind: String, id: Int = 0, slot: Int = 1) = JSONObject()
         .put("kind", kind).put("sigil", id).put("slot", slot)
 

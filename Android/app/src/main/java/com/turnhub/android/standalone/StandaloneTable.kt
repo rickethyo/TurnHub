@@ -957,7 +957,12 @@ class StandaloneTable(
                 "sigil-join" -> {
                     if (sigil !in 0..7 || slot !in 1..2) return false
                     val binding = "sigil:$sigil:$slot"
-                    if (game.players.any { it.sigilSeat == binding || it.localId == binding }) return false
+                    val previous = action.optInt("previousPlayer", -1)
+                    if (previous >= 0 && game.players.getOrNull(previous)?.sigilSeat != binding) return false
+                    if (previous < 0 && game.players.any { it.sigilSeat == binding || it.localId == binding }) return false
+                    val available = if (previous >= 0) game.copy(players = game.players.mapIndexed { index, p ->
+                        if(index == previous) p.copy(sigilSeat = null) else p
+                    }) else game
                     val target = action.optString("target")
                     val profile = action.optString("profileId")
                     val mode = action.optString("mode", "guest")
@@ -970,7 +975,7 @@ class StandaloneTable(
                             if (candidate.localId.orEmpty() != target || (_state.value.library.players.firstOrNull { it.localId == candidate.localId }?.profileId ?: candidate.profileId).orEmpty() != profile ||
                                 candidate.name != action.optString("name")) return false
                             if (index < 0 || game.players[index].sigilSeat != null) return false
-                            game.copy(players = game.players.mapIndexed { i, p -> if (i == index) p.copy(sigilSeat = binding) else p },
+                            available.copy(players = available.players.mapIndexed { i, p -> if (i == index) p.copy(sigilSeat = binding) else p },
                                 revision = game.revision + 1)
                         }
                         "profile" -> {
@@ -983,15 +988,15 @@ class StandaloneTable(
                                 library = library.copy(players = library.players + saved)
                             }
                             if (game.players.any { it.localId == saved.localId || it.profileId == profile }) return false
-                            val added = game.addPlayer(saved.name, profileId = profile, localId = saved.localId)
-                            if (added === game) return false
+                            val added = available.addPlayer(saved.name, profileId = profile, localId = saved.localId)
+                            if (added === available) return false
                             added.copy(players = added.players.dropLast(1) + added.players.last().copy(sigilSeat = binding))
                         }
                         "guest" -> {
                             val name = action.optString("name").trim().take(StandaloneGame.MAX_NAME)
                                 .ifBlank { "Sigil ${sigil + 1}" + if (slot == 2) " B" else "" }
-                            val added = game.addPlayer(name, guest = true)
-                            if (added === game) return false
+                            val added = available.addPlayer(name, guest = true)
+                            if (added === available) return false
                             added.copy(players = added.players.dropLast(1) + added.players.last().copy(sigilSeat = binding))
                         }
                         else -> return false

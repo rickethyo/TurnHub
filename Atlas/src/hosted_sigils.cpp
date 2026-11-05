@@ -104,6 +104,7 @@ struct JoinPicker {
   TurnHubProtocol::ProfilePickerPacket packet{};
   std::vector<JoinChoice> choices;
   uint8_t slot = 1;
+  int previous = -1;
   int selected = -1;
   bool open = false;
   uint8_t closeRetries = 0;
@@ -147,6 +148,7 @@ void sendPicker(uint8_t id) {
 void openPicker(uint8_t id, uint8_t slot) {
   auto &p = pickers[id];
   p.choices.clear(); p.selected = -1; p.slot = slot; p.open = true;
+  p.previous=TurnHubHosted::sigilPlayer(hostedGame(),id,slot);
   p.host = TurnHubHosted::hostedTable().lease().token;
   p.packet.page = 0; p.packet.notice = TurnHubProtocol::PickerNotice::None;
   const auto &game = hostedGame();
@@ -192,6 +194,7 @@ void pickerKey(uint8_t id, int32_t value) {
     action.set("mode", choice.guest ? "guest" : choice.player >= 0 ? "attach" : "profile");
     action.set("name", choice.name); action.set("target", choice.localId); action.set("profileId", choice.profileId);
     action.set("playerIndex", choice.player);
+    if(p.previous>=0) action.set("previousPlayer",p.previous);
     queueInput(id, 0, action.dump());
     p.open = false;
   } else if (p.selected < 0) {
@@ -299,6 +302,8 @@ TurnHubProtocol::MenuStateFields hostedSigilMenu(uint8_t sigilId) {
     case TableState::Lobby:
       if (!seatA && !seatB) { add(SigilAction::Join); break; }
       add(seatB ? SigilAction::RemoveSeatB : SigilAction::AddSeatB);
+      if(seatA) add(SigilAction::ChangePlayer);
+      if(seatB) add(SigilAction::ChangeSeatB);
       if (game.players.size() >= 2) add(SigilAction::StartGame);
       add(SigilAction::Leave);
       break;
@@ -351,6 +356,8 @@ void handleHostedSigilEvent(uint8_t sigilId, TurnHubProtocol::PacketType type, i
   switch (static_cast<SigilAction>(raw)) {
     case SigilAction::Join: openPicker(sigilId, 1); break;
     case SigilAction::AddSeatB: openPicker(sigilId, 2); break;
+    case SigilAction::ChangePlayer: openPicker(sigilId, 1); break;
+    case SigilAction::ChangeSeatB: openPicker(sigilId, 2); break;
     case SigilAction::RemoveSeatB: queueTable(sigilId, "sigil-leave", 2); break;
     case SigilAction::Leave: queueTable(sigilId, "sigil-leave", 0); break;
     case SigilAction::StartGame: queueTable(sigilId, "start"); break;

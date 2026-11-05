@@ -3185,6 +3185,23 @@ static void hostedSigils() {
   roster.push(turnhub::Json::parse(R"({"name":"Ricky","localId":"person-r","sigilSeat":"sigil:0:2"})"));
   setupState.set("players", roster);
   assert(request("/api/hosted/state",ana,{{"state",setupState.dump().c_str()}})==200);
+  {
+    using namespace TurnHubProtocol;
+    const auto actions=TurnHubAtlas::hostedSigilMenu(0).actions;
+    assert(actions & sigilActionBit(SigilAction::ChangePlayer));
+    assert(actions & sigilActionBit(SigilAction::ChangeSeatB));
+    const auto before=hosted.inputsAfter(0).size();
+    const auto change=[&] { TurnHubAtlas::handleHostedSigilEvent(0,PacketType::SelectAction,
+        encodeSelectAction(SigilAction::ChangePlayer,sigilMenuRevision(0))); };
+    const auto key=[&](PickerKeyCode k) { TurnHubAtlas::handleHostedSigilEvent(0,PacketType::PickerKey,
+        encodePickerKey(k,TurnHub::sentPickers[0].revision)); };
+    change();key(PickerKeyCode::Left);
+    assert(hosted.inputsAfter(0).size()==before && hosted.game().players[0].sigilSeat=="sigil:0:1");
+    change();key(PickerKeyCode::Up);key(PickerKeyCode::Select);
+    const auto switched=turnhub::Json::parse(hosted.inputsAfter(0).back().action);
+    assert(switched.get("previousPlayer").asInt()==0 && switched.get("slot").asInt()==1);
+    assert(hosted.game().players[0].sigilSeat=="sigil:0:1"); // Only the hub can commit the move.
+  }
   leds.invalidateAll(); leds.renderHosted(hosted.game(),testNow,0x3);
   assert(TurnHubProtocol::displayMode(TurnHub::sentGameDisplays[0].state)==TurnHubProtocol::DisplayMode::Lobby);
   assert(!strcmp(TurnHub::sentGameDisplays[0].primary.name,"Michael"));
