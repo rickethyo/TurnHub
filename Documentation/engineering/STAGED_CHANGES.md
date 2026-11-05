@@ -64,9 +64,10 @@ the hub. Contract: `protocol/hosted-v1.md`. Slices, each a flash-and-test round:
 
 Follow-ups left by slices 5 and 6:
 
-- The plane catalog and card routes (`/api/planes`, `/api/planes/card`) and
-  the Atlas screen's plane card view stay, but no app client sends cards now:
-  wire `AtlasPlaneCards.kt` into the hosted game, or retire the view.
+- Planechase display parity: add a hosted-state projection and app-driven
+  card delivery before adding an Atlas plane view. The catalog/card storage
+  routes (`/api/planes`, `/api/planes/card`) remain available; the phone owns
+  the deck and rolls.
 - `/api/accounts` still reports `nudgeMuted` and the Game Master moderation
   bits (Reset connections, Remove player), which only the app's People sheet
   shows now; decide whether Game Master still means anything on Atlas before

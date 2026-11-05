@@ -169,10 +169,6 @@ static void dispatcherContract() {
   intent.type=IntentType::ForgetPairing; assert(!dispatcher.dispatch(intent).accepted());
 }
 
-
-
-
-
 static void optionalStorage() {
   TurnHub::OptionalPreferences prefs; assert(prefs.begin("test"));
   loggedErrors=0; readError=ESP_ERR_NVS_NOT_FOUND;
@@ -238,18 +234,6 @@ static String loginPhone(const String &id) {
   return responseField("token");
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
 namespace {
 struct MemoryBlobs : TurnHubStorage::BlobStore {
   std::map<std::string,std::vector<uint8_t>> blobs; bool failWrites=false;
@@ -301,17 +285,7 @@ static void serialLogStream() {
   assert(log.readSince(independent, nullptr, 1, lost) == 0 && independent == cursor);
 }
 
-
-
 // Venue tables: two games side by side on one Atlas (PLANNED_DESIGNS.md).
-
-
-
-
-
-
-
-
 
 // Every Sigil draws its own light: one semantic LedState packet per change
 // (and on invalidation, i.e. every Hello), with the seated player's style.
@@ -330,9 +304,6 @@ namespace TurnHubAccounts { extern std::map<std::string, Account> accounts; }
 
 // Jewel color: the signed-in profile sets or clears it; a seat bound to that
 // profile gets a SeatColor, and a guest seat gets none.
-
-
-
 
 // Sigil menus: availability per state, the default action, MenuState2
 // transport and revisions, and SelectAction dispatching through Intents.
@@ -355,12 +326,8 @@ static void resetBuzzes() {
   for (auto &count : TurnHub::fixtureBuzzes) count = 0;
 }
 
-
-
 // Which cue each Sigil gets. How a cue looks (colors, cadences, the player's
 // style) is the Sigil's job: Sigil/tests/host/led_scenarios.cpp.
-
-
 
 // ActionRequired is two 60 ms notes at 1150 Hz; no other cue uses that tone.
 static bool heardActionRequired(uint8_t id) {
@@ -369,12 +336,6 @@ static bool heardActionRequired(uint8_t id) {
   return false;
 }
 static void clearTones() { drainAudio(); for (auto &tones : TurnHub::fixtureTones) tones.clear(); }
-
-
-
-
-
-
 
 static void sigilReceivePackets() {
   char name[13] = {};
@@ -408,8 +369,6 @@ static void saveClientFixture(const char *name, const String &json) {
   assert(file); file << json.c_str();
 }
 
-
-
 // Drives the touchscreen adapter with screen-coordinate samples.
 static const TouchButton *screenButton(const AtlasScreen &screen, TouchAction action) {
   for (uint8_t i=0;i<screen.buttonCount;++i) if (screen.buttons[i].action==action) return &screen.buttons[i];
@@ -430,120 +389,18 @@ static void openMenuScreen() {
   if (currentScreen().kind!=ScreenKind::Menu) tapButton(TouchAction::OpenSettings);
   assert(currentScreen().kind==ScreenKind::Menu);
 }
-// End match and Master pass live on the in-game Table screen.
-static void openTableScreen() {
-  if (currentScreen().kind!=ScreenKind::Status && currentScreen().kind!=ScreenKind::Table)
-    tapButton(TouchAction::OpenGame);
-  if (!screenButton(currentScreen(),TouchAction::EndMatch)) tapButton(TouchAction::OpenTable);
-}
 // A hazardous button asks first: tap it, then Confirm in the popup.
 static void tapConfirmed(TouchAction action) {
   tapButton(action);
   assert(currentScreen().kind==ScreenKind::Confirm);
   tapButton(TouchAction::ConfirmYes);
 }
-// Taps the on-screen End match button and confirms it.
-static void holdEndMatch() {
-  openTableScreen();
-  tapConfirmed(TouchAction::EndMatch);
-}
-// A player's own PASS from their Sigil (the touchscreen no longer passes).
-
-
-// A Sigil can join Seat B and start a shared-seat match.
-
-
-
-
-// The status screen's chips, the NO SD CARD warning, and the Info and QR
-// screens, which change no table state.
 extern bool fixtureSdCardReady;
 extern TurnHub::BatteryReading fixtureBattery;
 
-
-// Newer firmware (update_notice.h): the app reports the release feed's
-// versions; Atlas counts itself and each paired Sigil that runs something
-// older, and says so on the Menu and Info screens.
-
-
-// The lobby's Start opens New game; Start game there starts the match.
-static void tapStartGame() {
-  if (!screenButton(currentScreen(),TouchAction::StartGame)) tapButton(TouchAction::OpenNewGame);
-  assert(currentScreen().kind==ScreenKind::NewGame);
-  tapButton(TouchAction::StartGame);
-}
-
-// The touchscreen between games: Start (two or more players), Cancel start,
-// Rematch and Reset, all as table actions from the Atlas hardware.
-
-
-// New game (owner 2026-10-30): the app's game options on the touchscreen.
-// Each row steps one setting through ConfigureGame from the table, seated
-// players or not; official games keep their life until House rules.
-
-
-// A key or list row on the touchscreen, by its action and arg.
-static void tapKey(TouchAction action,uint8_t arg) {
-  const AtlasScreen screen=currentScreen();
-  const TouchButton *b=nullptr;
-  for (uint8_t i=0;i<screen.buttonCount;++i) if (screen.buttons[i].action==action && screen.buttons[i].arg==arg) b=&screen.buttons[i];
-  assert(b!=nullptr);
-  const int16_t x=b->x+b->w/2, y=b->y+b->h/2;
-  touchAt(x,y); testNow+=30; touchAt(x,y); touchRelease();
-}
-
-
-// The Add player row whose label starts with `name`, paging with More.
-static bool tapSeatRow(const char *name) {
-  for (uint8_t page=0;page<20;++page) {
-    const AtlasScreen screen=currentScreen();
-    assert(screen.kind==ScreenKind::Seat);
-    for (uint8_t i=0;i<screen.buttonCount;++i) {
-      const TouchButton &b=screen.buttons[i];
-      if (b.action==TouchAction::SeatProfile && startsWith(b.label,name)) { tapKey(TouchAction::SeatProfile,b.arg); return true; }
-    }
-    if (!screenButton(screen,TouchAction::SeatMore)) return false;
-    tapButton(TouchAction::SeatMore);
-  }
-  return false;
-}
-static void typeName(const char *text) {
-  static const char keys[]="ABCDEFGHIJKLMNOPQRSTUVWXYZ-' ";
-  for (const char *c=text;*c;++c) {
-    const char upper=(*c>='a'&&*c<='z')?static_cast<char>(*c-'a'+'A'):*c;
-    tapKey(TouchAction::NameKey,static_cast<uint8_t>(strchr(keys,upper)-keys));
-  }
-}
-static bool keysFit(const AtlasScreen &s) {
-  for (uint8_t i=0;i<s.buttonCount;++i) {
-    const TouchButton &b=s.buttons[i];
-    if (b.w<44 || b.h<44 || b.x<0 || b.y<SCREEN_BODY_Y || b.x+b.w>ATLAS_SCREEN_WIDTH || b.y+b.h>ATLAS_SCREEN_HEIGHT) return false;
-    for (uint8_t j=0;j<i;++j) {
-      const TouchButton &o=s.buttons[j];
-      if (b.x<o.x+o.w && o.x<b.x+b.w && b.y<o.y+o.h && o.y<b.y+b.h) return false;
-    }
-  }
-  return true;
-}
-
-// Add player on the Atlas screen, as the app's shared table seats people:
-// a saved profile that allows it sits at a tap, one that does not asks for
-// its PIN on a keypad, and New player types a name for a PIN-less profile.
-// Each seat is a JoinProfile Intent from AtlasHardware.
-
-
-// Master pass: the Table screen's hold passes a stuck turn at once (no
-// grace), logged as a master pass. Atlas hardware only, running games only,
-// never over an open table decision.
-
-
-
-
-
-
 // First-run guided setup (FIRST_RUN_SETUP.md): the boot stage, the Welcome
 // and "You're all set" screens, and the phone's steps over HTTP, which the
-// Android app and the portal share.
+// Android app uses.
 namespace TurnHub { extern int fixtureSetupStageSaved; }
 namespace TurnHubAccounts { extern String primary; extern std::map<std::string,Account> accounts; }
 // The Hello capability byte carries only what varies (protocol 3).
@@ -565,12 +422,6 @@ struct FakeSpeaker final : TurnHub::ToneOutput {
 };
 static void playQueuedAudio() { for (int i=0;i<300;++i) { testNow+=20; audio.update(testNow); } }
 
-
-
-
-
-
-
 // Factory reset from Device Settings: Admin verified at the table (presence code),
 // between games. A Sigil is told to erase itself and is forgotten; Atlas
 // erases its NVS and restarts after the reply has gone.
@@ -588,9 +439,6 @@ extern bool fixtureSdWipedBeforeErase;
 
 // The portal's pairing-code check: listed in /api/devices, answered by an
 // Admin verified at the table, through PairConfirm.
-
-
-
 
 // The board's BOOT button: quick press pairs, a 3 s hold forgets every Sigil, a
 // 10 s hold factory resets Atlas, even mid-match (the backup for a frozen
@@ -613,9 +461,6 @@ static void bootPress(uint32_t heldMs) {
 // touchscreen only; Atlas sleeps once the notice has been shown.
 extern unsigned fixtureSleeps;
 
-
-
-
 // Auto sleep on the cell (owner 2026-10-08): idle between games, or an empty
 // charge at any time. On USB Atlas never sleeps by itself.
 extern bool fixtureOnBattery;
@@ -631,12 +476,6 @@ static unsigned completionWritesBeforeLoss = 0;
 static void interruptCompletionWrite() {
   if (--completionWritesBeforeLoss == 0) throw CompletionPowerLoss{};
 }
-
-
-
-
-
-
 
 // Fixture reset for device scenarios: radio up, every Sigil paired and
 // online, no hub. Games run on the hub phone (hostedTable()).
@@ -715,9 +554,6 @@ static void stackDiagnostics() {
 // Two-Headed Giant (owner request 2026-10-06): teams of neighbours share one
 // life total, one turn and one elimination.
 
-
-
-
 // Parity with the standalone app (2026-10-14): official modes keep official
 // life, poison and player counts unless house rules are on; nobody chosen to
 // go first means a random starter, and choosing the chosen player again clears it.
@@ -726,9 +562,6 @@ static void stackDiagnostics() {
 // Parity with the standalone app (2026-10-14): Back to setup within three
 // minutes of game time records nothing; a match under a minute waits for the
 // table to count it.
-
-
-
 
 // A standalone tablet game's finished record: imported once, credited to the
 // explicit Atlas-scoped profiles only; invalid mappings never take a receipt.
@@ -764,9 +597,6 @@ struct MemoryArchive : TurnHubHistory::ArchiveFiles {
 // send their queues back (turnhub_offline.h, protocol/http-v1.md).
 namespace TurnHubWebApi { namespace internal { extern char bootId[33]; } }
 // Run inside matchHistory with its two signed-in phones (the profile store is nearly full by then).
-
-
-
 
 // Battery charge from the cell voltage: the LiPo curve, smoothing, the shown
 // percent's hysteresis, the low warning, and /api/devices.
@@ -1041,24 +871,13 @@ struct MemoryCardStore : TurnHubStorage::BlobStore {
 // a digital Planechase deck dealt from the card, and commanders picked from
 // each profile's saved ones on the app, the tablet or the Atlas screen.
 
-
-
-
 // App parity (2026-10-28): treasure and rad, the rad trigger, day/night,
 // reversed turns and Everyone's counters, over HTTP and through recovery.
-
-
-
-
-
 
 // --- Star Commander -------------------------------------------------------------------------
 
 // Seat geometry: for player p (i = p - 1) the neighbours (i+1, i+4) are allies
 // and the two across the table (i+2, i+3) are enemies.
-
-
-
 
 // Sigils at a Star Commander table: five seats, relationships from the
 // lobby order (fixed in play), the Commander picker and refused ally hits.
@@ -1100,16 +919,6 @@ static void tenPlayerImportCredit() {
   useImportStore(nullptr);
 }
 
-
-
-
-
-
-
-
-
-
-
 // Runs the clock until one of Mana Tap's own orbs is well inside the field.
 static const TurnHub::ManaOrb *awaitManaOrb() {
   static AtlasScreen s;
@@ -1130,11 +939,6 @@ static const TurnHub::ManaOrb *awaitManaOrb() {
 
 // Home Wi-Fi's pure parts (home_wifi.h) and its Settings row: the release
 // feed the app reads, when a feed check and a join are due, and the toggle.
-
-
-
-
-
 
 // Phone-hosted games (hosted_game.h, protocol/hosted-v1.md): one hub holds
 // the table, pushes the core's game JSON, and Atlas shows it without deciding.
@@ -1658,6 +1462,10 @@ static void artworkUploads() {
 }
 
 static void atlasScreens() {
+  server.responseHeaders.clear();
+  handleRoot();
+  assert(server.status==200 && server.body.find("TurnHub app")!=std::string::npos &&
+      server.responseHeaders.find("Location")==server.responseHeaders.end());
   resetTouchControls(); endHostedGame(); pairingActive=false;
   tapButton(TouchAction::OpenGame);
   AtlasScreen s=currentScreen();
@@ -1696,8 +1504,7 @@ static void atlasScreens() {
   fixtureBattery=TurnHub::BatteryReading();
   openMenuScreen(); tapButton(TouchAction::OpenQr); s=currentScreen();
   // Completed setup never offers a hotspot QR.
-  assert(s.kind==ScreenKind::Qr && s.qr[0]=='\0' &&
-      !screenButton(s,TouchAction::QrPortal) && !screenButton(s,TouchAction::QrSignIn));
+  assert(s.kind==ScreenKind::Qr && s.qr[0]=='\0');
   // Back steps out of QR codes to Settings.
   tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Menu);
   openMenuScreen();
@@ -2979,7 +2786,7 @@ static void deviceNavigation() {
   assert(currentScreen().kind==ScreenKind::Home);
   for (TouchAction action : {TouchAction::OpenHome,TouchAction::OpenGame,TouchAction::OpenSettings})
     assert(screenButton(currentScreen(),action));
-  assert(!screenButton(currentScreen(),TouchAction::OpenOverview));
+  assert(currentScreen().buttonCount==4); // Mana Tap and three navigation tabs.
   tapButton(TouchAction::OpenGame);
   assert(currentScreen().kind==ScreenKind::Status);
   hostGame();
@@ -3028,7 +2835,7 @@ static void phoneHostedGame() {
     bool pass=false,pause=false;
     for(uint8_t i=0;i<screen.buttonCount;++i) {
       pass|=screen.buttons[i].action==TouchAction::PassTurn; pause|=screen.buttons[i].action==TouchAction::Pause;
-      assert(screen.buttons[i].action!=TouchAction::StartGame && screen.buttons[i].action!=TouchAction::ChipLifeMinus);
+      assert(screen.buttons[i].action!=TouchAction::StartGame);
     }
     assert(pass && pause);
     assert(TurnHubAtlas::queueHostedScreenAction(TurnHubAtlas::HostedScreenAction::Pass));

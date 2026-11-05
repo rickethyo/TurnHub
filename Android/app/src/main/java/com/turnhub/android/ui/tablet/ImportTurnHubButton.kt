@@ -8,7 +8,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -19,6 +18,7 @@ import com.turnhub.android.BuildConfig
 import com.turnhub.android.standalone.PreviewProfileTransfer
 import com.turnhub.android.standalone.StandaloneTable
 import com.turnhub.android.ui.theme.palette
+import com.turnhub.android.ui.components.ToneButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -26,7 +26,7 @@ import org.json.JSONObject
 
 /** User-driven, same-phone import. Missing support in an older Play app is a normal recoverable state. */
 @Composable
-fun ImportTurnHubButton(table: StandaloneTable) {
+fun ImportTurnHubButton(table: StandaloneTable, enabled: Boolean = true) {
     if (BuildConfig.APPLICATION_ID != PreviewProfileTransfer.PREVIEW) return
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -53,7 +53,7 @@ fun ImportTurnHubButton(table: StandaloneTable) {
         }
     }
     Column {
-        TextButton(onClick = {
+        ToneButton(text = if (busy) "Importing from TurnHub…" else "Import accounts from TurnHub", onClick = {
             message = null
             val intent = Intent(PreviewProfileTransfer.ACTION)
                 .setComponent(ComponentName(PreviewProfileTransfer.TURNHUB, PreviewProfileTransfer.ACTIVITY))
@@ -63,9 +63,7 @@ fun ImportTurnHubButton(table: StandaloneTable) {
             } catch (_: SecurityException) {
                 message = "TurnHub could not open the account transfer. Update TurnHub in Google Play, then try again."
             }
-        }, enabled = !busy && table.state.value.storageProblem == null, modifier = Modifier.fillMaxWidth()) {
-            Text(if (busy) "Importing from TurnHub…" else "Import accounts from TurnHub")
-        }
+        }, enabled = enabled && !busy && table.state.value.storageProblem == null, modifier = Modifier.fillMaxWidth())
         message?.let { Text(it, color = palette.muted, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
     }
 }

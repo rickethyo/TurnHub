@@ -18,11 +18,9 @@
 // under Settings.
 
 #include <Arduino.h>
-#include "player_controls.h"
 #include <string.h>
 
 #include "mana_tap.h"
-#include "card_cache.h"
 #include "update_notice.h"
 #include "device_navigation.h"
 
@@ -30,7 +28,6 @@ namespace TurnHubAtlas {
 
 // Portrait screen size in pixels: the S3 Atlas's 4-inch panel, drawn 1:1.
 constexpr int16_t ATLAS_SCREEN_WIDTH = 320;
-// The card view turns the panel to landscape: ATLAS_SCREEN_HEIGHT wide.
 constexpr int16_t ATLAS_SCREEN_HEIGHT = 480;
 
 // A touch counts as released only after this long without contact, because
@@ -49,8 +46,7 @@ constexpr int16_t SCREEN_BODY_Y = 104;      // Players, QR code or info.
 constexpr int16_t BUTTON_ROW_H = 56;        // Well above the 44 px minimum target.
 constexpr int16_t BUTTON_ROW_Y = 368;       // The one row most screens use, at the bottom.
 constexpr int16_t BUTTON_UPPER_ROW_Y = 304; // Second row, just above it (within thumb reach).
-// In a game, the top of a player's tile (token and name) opens their screen;
-// the rest is split into life down (left) and up (right).
+// The player tile's name band above its life total.
 constexpr int16_t CHIP_NAME_BAND_H = 32;
 // The confirm popup's card, and the two buttons inside it.
 constexpr int16_t CONFIRM_CARD_Y = 140;
@@ -59,97 +55,19 @@ constexpr int16_t CONFIRM_BUTTON_Y = CONFIRM_CARD_Y + CONFIRM_CARD_H - BUTTON_RO
 // Settings lists: rows this tall at most, packed into one grouped card.
 constexpr int16_t LIST_ROW_H = 56;
 
+// Local device controls and the hosted game's supported table inputs.
 enum class TouchAction : uint8_t {
-  None, Pair, Pause, Resume, EndMatch,
-  OpenHome, OpenGame, OpenOverview, OpenSettings, OverviewNext,
-  // Between games: start (lobby), cancel the countdown, rematch or reset.
-  StartGame, CancelStart, Rematch, ResetTable,
-  // Lobby: send everyone back out of an unstarted lobby (confirmed).
-  ClearLobby,
-  // In a game: the Table screen and its master pass (a stuck turn).
-  OpenTable, MasterPass,
-  // ...and, within the first three minutes, Back to setup (confirmed): the
-  // app's undo of the start, the same BackToSetup Intent.
-  BackToSetup,
-  OpenPlayerControls, PlayerControlsBack, PlayerControlsPrev, PlayerControlsNext, ControlMinus, ControlPlus,
-  // Presence code screen: cancel the code a phone asked for.
-  CancelCode,
-  // Screens that change no table state.
-  OpenQr, CloseScreen, QrWifi, QrPortal, QrSignIn,
-  // Pairing v2 code check: the codes on the Sigil and Atlas match, or not.
-  PairConfirm, PairReject,
-  // In a game: tap a player's chip for that player's screen, which changes
-  // their life (ChangeLife) and concedes for them (Concede, confirmed).
-  OpenPlayer, LifeMinus5, LifeMinus1, LifePlus1, LifePlus5, Concede,
-  // In the lobby, the same screen sets turn order (MoveSeat).
-  MoveEarlier, MoveLater, SeatBLeft, SeatBRight,
-  // ...and takes that one seat out of the lobby (RemoveSeat, confirmed).
-  RemoveSeat,
-  // First-run setup (FIRST_RUN_SETUP.md). Skip for now hides the Welcome
-  // screen until the next start-up (presentation only); Setup under Settings
-  // brings it back. Pair a Sigil and Done leave "You're all set"
-  // (AdvanceSetup to Complete); Pair a Sigil also opens pairing.
-  SkipSetup, OpenSetup, SetupPair, SetupDone,
-  // Settings > Device: unpair every Sigil (lobby only) or factory reset
-  // Atlas, each confirmed (the BOOT button's held gestures); Sleep until the
-  // screen is touched.
-  OpenDevice, UnpairSigils, FactoryResetAtlas, SleepAtlas,
-  // ...and USB drive (a tap) lends the microSD card to a computer on USB-C,
-  // or takes it back (sd_card.h).
-  UsbDrive,
-  // Settings > Device > Sound, screen, sleep (with the volume): each tap moves its row to the next
-  // choice (ConfigurePower, power_settings.h).
-  OpenPower, PowerScreenOff, PowerGameScreen, PowerAutoSleep,
-  // Settings > Home Wi-Fi: a tap turns home Wi-Fi on or off (home_wifi.h);
-  // the row says when Atlas is connected. The network itself is set in the app.
-  HomeWifi,
-  OpenThemes, ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast, InvertDisplay,
-  // In a game, like the app's table: the lower halves of a player's tile take
-  // a life off or add one (ChangeLife for that player), its name band opens
-  // their screen, and Pass passes the active player's turn (Pass, which keeps
-  // its grace period for the seat to cancel).
-  ChipLifeMinus, ChipLifePlus, PassTurn,
-  // Lobby: seat a player from this screen, as the app's shared table does.
-  // Add player lists the saved profiles not at a table (SeatProfile, arg =
-  // row on the page; More pages on); one that needs a PIN asks for it on a
-  // keypad (PinKey, arg = digit, PinBack, PinDone). New player types a name
-  // (NameKey, arg = character, NameBack, NameDone) for a profile with no
-  // PIN. Each seat is a JoinProfile Intent; Atlas decides.
-  OpenSeat, SeatProfile, SeatMore, NewPlayer, NameKey, NameBack, NameDone, PinKey, PinBack, PinDone,
-  // The confirm popup: do the action it asked about, or not.
-  ConfirmYes, ConfirmNo,
-  // Lobby: Start opens New game, the app's game setup (ConfigureGame from
-  // the table): each row steps its setting, then Start game.
-  OpenNewGame, GameType, GameMode, GameLife, GameTimer, GameHouseRules, GamePlanechase,
-  // Mana Tap (mana_tap.h) from Home: open it, its Start/Pause/Resume/Play
-  // again button, and Quit. Presentation only: no table state changes.
-  OpenManaTap, ManaAction, ManaQuit,
-  // Planechase (when on): the Planes screen from the Game page, its die,
-  // a card's planeswalk, and resolving a phenomenon (the active player's).
-  OpenPlanes, PlanarRoll, PlanarWalk, PlanarResolve,
-  // ...and the card view: the face-up plane full screen in landscape, like
-  // the physical card (art, text, chaos ability); a tap anywhere goes back.
-  OpenPlaneCard, PlaneCardBack,
-  // Lobby, a player's screen: step through their profile's saved commanders.
-  SeatCommander,
-  // Settings > Device: step the speaker volume (off, low, medium, high).
-  SpeakerVolume
+  None, CancelCode, CloseScreen, ConfirmNo, ConfirmYes, FactoryResetAtlas,
+  HomeWifi, InvertDisplay, ManaAction, ManaQuit, OpenDevice, OpenGame, OpenHome,
+  OpenManaTap, OpenPower, OpenQr, OpenSettings, OpenSetup, OpenThemes,
+  Pair, PairConfirm, PairReject, PassTurn, Pause, PowerAutoSleep, PowerGameScreen,
+  PowerScreenOff, Resume, SetupDone, SetupPair, SkipSetup, SleepAtlas,
+  SpeakerVolume, StartGame, UnpairSigils, UsbDrive,
+  ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast
 };
 
-// Home: the table's status and info (version, Wi-Fi, SD card, battery).
-// Code: a presence code a phone asked for, shown over any other screen.
-// Table: in-game controls kept off the main row (master pass, End match).
-// Menu: the Settings tab, one list (Pair a Sigil, QR codes, Theme, Device).
-// PairCode: a Sigil waiting for the owner's pairing-code check (lobby only).
-// Player: one player's screen, from their chip: life and Concede in a game,
-// turn order in the lobby.
-// Setup: first-run setup in the lobby, Welcome or "You're all set".
-// Device: under Settings, USB drive, Sleep, Unpair Sigils and Factory reset.
-// Seat, Name and Pin: Add player's profile list, name keyboard and PIN keypad.
-// Confirm: the popup asking before a hazardous action.
-// NewGame: the lobby's game setup before Start game.
-// ManaTap: the mini game, opened from Home.
-enum class ScreenKind : uint8_t { Home, Overview, Status, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Power, Themes, Seat, Name, Pin, Confirm, NewGame, ManaTap, Planes, PlaneCard };
+// Main pages and overlays that the touch producer can actually build.
+enum class ScreenKind : uint8_t { Home, Status, Qr, Code, Menu, PairCode, Setup, Device, Power, Themes, Confirm, ManaTap };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -160,9 +78,9 @@ struct TouchButton {
   int16_t h = 0;
   // Asks in the confirm popup before it acts (a hazardous action).
   bool confirm = false;
-  // Shown as the current choice (the selected QR code).
+  // Shown as the current choice (a selected tab or theme).
   bool selected = false;
-  // Which key or list row, for actions several buttons share (NameKey...).
+  // Distinguishes buttons that share an action.
   uint8_t arg = 0;
 
   // slop widens the button on every side (for a press already on it).
@@ -171,7 +89,7 @@ struct TouchButton {
   }
 };
 
-// The name keyboard: 29 keys, then Cancel, Delete and Add.
+// Bounded capacity for the content buttons and navigation tabs.
 constexpr uint8_t MAX_TOUCH_BUTTONS = 32;
 constexpr uint8_t SCREEN_NAME_LENGTH = 12;
 constexpr uint8_t MAX_SCREEN_PLAYERS = 8;
@@ -213,37 +131,6 @@ struct ScreenPlayer {
   char turnTime[9] = {};
 };
 
-// Planechase on the screen (a match with Planechase on). The roll fields are
-// set on every screen, so the display rolls its planar die over whatever is
-// open whenever any player rolls (a Sigil, the app, a tablet or this screen);
-// the rest is the Planes screen's plane card. Faces: 0 blank, 1 chaos,
-// 2 planeswalk, as in the hub's game (hosted-v1.md).
-constexpr uint8_t SCREEN_PLANE_NAME_LENGTH = 40;
-struct ScreenPlanes {
-  bool on = false;
-  bool digital = false;      // Atlas's digital deck, else the players' own plane cards.
-  bool phenomenon = false;
-  char plane[SCREEN_PLANE_NAME_LENGTH + 1] = {};  // The face-up card's name (digital).
-  int32_t deckLeft = 0, planeswalks = 0, chaos = 0, counters = 0, rollCost = 0;
-  // The match's latest roll: its number (0 before the first), who, the face,
-  // what it cost and whether a card made it (free).
-  int32_t roll = 0;
-  uint8_t face = 0, cost = 0;
-  bool fromEffect = false;
-  char roller[SCREEN_NAME_LENGTH + 1] = {};
-  // Card view (PlaneCard): the saved card's text and its art, 480x320
-  // RGB565 (nullptr without art). Both stay valid until the plane changes.
-  const TurnHubCards::PlaneCard *card = nullptr;
-  const uint16_t *art = nullptr;
-  bool operator==(const ScreenPlanes &o) const {
-    return on == o.on && digital == o.digital && phenomenon == o.phenomenon && !strcmp(plane, o.plane) &&
-        deckLeft == o.deckLeft && planeswalks == o.planeswalks && chaos == o.chaos && counters == o.counters &&
-        rollCost == o.rollCost && roll == o.roll && face == o.face && cost == o.cost && fromEffect == o.fromEffect &&
-        !strcmp(roller, o.roller) && card == o.card && (!card || !strcmp(card->id, o.card->id)) && art == o.art;
-  }
-  bool operator!=(const ScreenPlanes &o) const { return !(*this == o); }
-};
-
 // Everything the TFT shows. Equal screens need no redraw; atlas_display.cpp
 // compares region by region.
 struct AtlasScreen {
@@ -278,9 +165,6 @@ struct AtlasScreen {
   ScreenPlayer players[MAX_SCREEN_PLAYERS];
   uint8_t playerCount = 0;
   bool showLife = false;
-  bool showPlayerControls = false;
-  uint8_t controlsPage = 0;
-  TurnHubUi::PlayerControls controls{};
 
   // Turn clock: timerPermille is the countdown left (0-1000), or -1 with no
   // countdown; clock is "1:23" (left, or elapsed with no countdown).
@@ -300,7 +184,6 @@ struct AtlasScreen {
   TurnHub::ManaTap mana;
   bool manaTurnPaused = false;
 
-  ScreenPlanes planes;
 
   TouchButton buttons[MAX_TOUCH_BUTTONS];
   uint8_t buttonCount = 0;
@@ -362,10 +245,9 @@ inline bool sameMana(const AtlasScreen &a, const AtlasScreen &b) {
 // times: compare the players' turn times too (otherwise only whether each has one).
 inline bool sameBody(const AtlasScreen &a, const AtlasScreen &b, bool times = true) {
   if (a.mana.phase() != b.mana.phase() || a.manaTurnPaused != b.manaTurnPaused ||
-      a.showPlayerControls != b.showPlayerControls || a.controlsPage != b.controlsPage ||
-      memcmp(&a.controls,&b.controls,sizeof(a.controls)) || a.kind != b.kind || a.playerCount != b.playerCount || a.showLife != b.showLife ||
+      a.kind != b.kind || a.playerCount != b.playerCount || a.showLife != b.showLife ||
       a.lineCount != b.lineCount || !sameScreenText(a.qr, b.qr) || !sameScreenText(a.qrCaption, b.qrCaption) ||
-      !sameScreenText(a.code, b.code) || a.planes != b.planes) {
+      !sameScreenText(a.code, b.code)) {
     return false;
   }
   for (uint8_t i = 0; i < a.lineCount; ++i) if (!sameScreenText(a.lines[i], b.lines[i])) return false;

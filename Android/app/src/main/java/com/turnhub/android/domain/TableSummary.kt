@@ -57,7 +57,6 @@ data class TableSummary(
     val monarchPlayerNumber: Int? = null,
     val initiativePlayerNumber: Int? = null,
     val game: Int = 1,
-    val games: List<com.turnhub.android.protocol.VenueGame> = emptyList(),
     /**
      * Every winner; [winnerPlayerNumber] is the first. Star Commander allies whose
      * enemies are out at once share the victory (a shared victory is never a draw).

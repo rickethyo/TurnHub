@@ -2002,3 +2002,16 @@ Observed live Atlas has home Wi-Fi up but hub:null; publishing fixes address
 setup sign-out, hidden sign-in, transient retries and serialized lease restart.
 End-to-end hardware retest remains after integration/reflash; no live game input,
 feature-branch flash, merge or release was performed.
+
+## Artifact cleanup and defined setup buttons — 2026-11-04, Codex
+
+Owner authorizes removal of the confirmed scan findings and asks for clear
+button definition in the phone/tablet Admin setup dialog. Branch codex/master,
+baseline 934f82ed; clean tree, fetched origin, no open PRs. Scope: defined
+secondary/primary setup buttons using existing components; remove broken portal
+redirect, unreachable Atlas screen/action definitions and render paths, unused
+app offline-recorder/venue models and disconnected AtlasPlaneCards helper.
+Preserve phone-owned rules, hosted controls, device setup, shared transfer and
+card-storage APIs. No new dependency or wire protocol. Validate Android JVM/APK,
+Atlas host/contracts and firmware, renderer previews and documentation guards.
+No merge, release or device installation.

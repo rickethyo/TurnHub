@@ -140,7 +140,6 @@ data class StandaloneGame(
     val radDue: List<Int> = emptyList(),
     val revision: Long = 0,
     /** Runtime-only action journal; never serialized or shared with another table. */
-    val offlineRecorder: OfflineRecorder? = null,
 ) {
     fun gameElapsedMs(nowMs: Long): Long = elapsedMs + (runningSinceMs?.let { (nowMs - it).coerceAtLeast(0) } ?: 0)
 

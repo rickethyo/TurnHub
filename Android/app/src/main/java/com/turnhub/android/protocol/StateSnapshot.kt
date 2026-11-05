@@ -74,6 +74,3 @@ data class PendingDecisions(
     val winConfirmationPlayer: Int?,
     val eliminationTargetPlayer: Int?,
 )
-
-/** One game of a venue overview. Game numbers are 1-based. */
-data class VenueGame(val game: Int, val state: TableState, val players: Int)

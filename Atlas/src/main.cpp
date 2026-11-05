@@ -8,6 +8,7 @@
 #include <WiFi.h>
 
 #include "atlas_app.h"
+#include "card_cache.h"
 #include "hosted_game.h"
 #include "json_text.h"
 #include "sigil_update_service.h"
@@ -113,8 +114,7 @@ String loadWifiPassword() {
 }
 
 void handleRoot() {
-  server.sendHeader("Location", "/portal");
-  server.send(302, "text/plain", "TurnHub portal");
+  server.send(200, "text/plain", "TurnHub Atlas accessory. Open the TurnHub app to set up this Atlas or show a game.");
 }
 
 void serveDeveloperJson(const String &json) {
