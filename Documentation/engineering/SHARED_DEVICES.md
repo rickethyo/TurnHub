@@ -12,7 +12,11 @@ Personal profiles enter the room immediately; the host need not preselect them.
 A protected profile asks for its PIN on first linking, then its saved room token
 restores access on reconnect. A member sitting out a game stays in the room.
 Stable profile IDs bind members to current participants; equal names never
-establish identity. Explicit account merging remains separate.
+establish identity. Explicit account merging remains separate. A player's
+finished games travel with them: on joining, reconnecting and each match end, the
+guest and the hub swap that profile's games and keep the union by record ID
+(`history` in [LAN rooms](../../protocol/lan-v1.md#player-history),
+`HistorySync.kt`), so games played apart merge into the host without duplicates.
 
 Table and Planes views are read-only by default. Shared table controllers
 can act for all normal gameplay panels. The host can grant game-master access to

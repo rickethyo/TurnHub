@@ -73,6 +73,22 @@ Follow-ups left by slices 5 and 6:
   changing the account layout.
 - "Connect a phone to start" on the Atlas screen with no hub (slice 3).
 
+## Games travel with the player (2026-11-05)
+
+Owner ask: a player's profile and games follow them whoever hosts, and games
+played apart merge into the host on first connect or reconnect. Slice 1 (Play
+together `history` exchange, Android) is implemented; device acceptance is open
+(two phones, a game played apart, reconnect after Wi-Fi loss). Next slices:
+
+1. Settings on reconnect: the same exchange carries the profile's name, look and
+   PIN verifier, newest `lastActivityMs` wins, so a change made apart lands
+   without joining again.
+2. Atlas parity: games the hub merged reach Atlas through the existing import;
+   Atlas sends a linked profile's archived games (`games.jsonl`) back to a phone.
+3. Duplicate accounts with different IDs: an explicit "Same person?" merge that
+   keeps the oldest ID, or the Admin's. Never automatic on joining a room.
+4. iOS (with its LAN client) and the owner's local-only apps use the same contract.
+
 ## Saved game setups on Atlas (next parity slice, 2026-10-31)
 
 Android saves named lobby configurations locally (seats/identities, format, rules, timers, Planechase choices). Since 2026-11-04 the hub runs every game, so this may need only Atlas-side storage of the app's setups; revisit before building. Never replay scores/clocks/history or remap identities by name. Existing app lobby simplification and Advanced settings already share presentation across hosts.

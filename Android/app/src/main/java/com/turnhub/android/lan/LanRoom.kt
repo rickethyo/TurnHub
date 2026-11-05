@@ -19,6 +19,8 @@ internal class LanRoom(
     private val planesAvailable: () -> Boolean = { false },
     private val planarPlayerAllowed: (Int) -> Boolean = { false },
     private val planarRollAllowed: (Int) -> Boolean = { false },
+    /** A seated player's games exchange (plans/profile-sync.md): their profile ID and the request; null is unavailable. */
+    private val history: suspend (String, JSONObject) -> JSONObject? = { _, _ -> null },
 ) {
     data class RoomSeat(val identity: String, val number: Int, val name: String)
     private val epoch = randomLanSecret(16)
@@ -155,6 +157,14 @@ internal class LanRoom(
                     }
                     "leave" -> { revoke(m.text("token")); reply("ok") }
                     "command" -> commandLock.withLock { if (member(m.text("token")) == null) reply("unauthorized") else act(r, m) }
+                    "history" -> commandLock.withLock {
+                        val identity = resolveIdentity(m.optString("identity"))
+                        if (member(m.text("token")) == null) reply("unauthorized")
+                        else if (m.text("role") != "player" || identity.isBlank()) reply("forbidden")
+                        else history(identity, r)?.let { extra ->
+                            reply("ok").also { out -> extra.keys().forEach { key -> out.put(key, extra.get(key)) } }
+                        } ?: reply("unavailable")
+                    }
                     else -> reply("invalid")
                 }
             }

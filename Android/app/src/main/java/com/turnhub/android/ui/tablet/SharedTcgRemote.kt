@@ -153,6 +153,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
                 ToneButton("Display", { displaySettings = true })
         }
         state.message?.let { Text(it, color = p.warn) }
+        state.historyNote?.let { Text(it, color = p.muted, style = MaterialTheme.typography.labelLarge) }
         when (summary.state) {
             TableState.LOBBY -> Text("Waiting for the host to start. Your seat stays connected.", color = p.text)
             TableState.PAUSED -> Text(if (summary.doomBag?.pending == true) "Bag check: the host draws from the bag before the next turn."

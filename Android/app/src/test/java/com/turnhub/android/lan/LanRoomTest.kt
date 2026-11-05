@@ -26,7 +26,10 @@ class LanRoomTest {
         var planarRollAllowed = true
         var rollFace = "blank"
         var alias: Pair<String, String>? = null
-        val room = LanRoom(record, planesAvailable = { planesAvailable }, planarPlayerAllowed = { planarPlayerAllowed }, planarRollAllowed = { planarRollAllowed }, save = { if (writable) { record = JSONObject(it.toString()); true } else false },
+        var historyAsked: String? = null
+        val room = LanRoom(record, history = { profile, r -> historyAsked = profile
+                if (r.optString("step") == "index") JSONObject().put("records", JSONArray().put("game-1")) else null },
+            planesAvailable = { planesAvailable }, planarPlayerAllowed = { planarPlayerAllowed }, planarRollAllowed = { planarRollAllowed }, save = { if (writable) { record = JSONObject(it.toString()); true } else false },
             resolveIdentity = { id -> if (id == alias?.first) alias!!.second else id },
             snapshot = { base("ok").put("code", "ok").put("match", match) }, seats = { roster },
             profiles = { JSONArray() }, attach = { if (delayAttach) kotlinx.coroutines.delay(10)
@@ -47,6 +50,21 @@ class LanRoomTest {
         fun action(joined: JSONObject, kind: String = "life", target: Int = 1) = base("command")
             .put("token", joined.text("token")).put("epoch", joined.text("epoch")).put("actionId", UUID.randomUUID().toString())
             .put("match", match).put("revision", revision).put("kind", kind).put("value", -1).put("slot", 0).put("target", target)
+    }
+    @Test fun `only a seated player exchanges history, and only for their own profile`() = runBlocking {
+        val f = Fixture()
+        val player = f.join()
+        fun history(token: String, step: String) = f.base("history").put("token", token).put("step", step)
+        val index = f.room.handle(history(player.text("token"), "index"))
+        assertEquals("ok", index.text("code"))
+        assertEquals("game-1", index.getJSONArray("records").getString(0))
+        assertEquals("PROFILE1", f.historyAsked)
+        assertEquals("unavailable", f.room.handle(history(player.text("token"), "pull")).text("code"))
+        val display = f.join("display")
+        f.historyAsked = null
+        assertEquals("forbidden", f.room.handle(history(display.text("token"), "index")).text("code"))
+        assertNull(f.historyAsked)
+        assertEquals("unauthorized", f.room.handle(history("not-a-member", "index")).text("code"))
     }
     @Test fun `players target one durable display without changing game or other screens`() = runBlocking {
         val f = Fixture()
