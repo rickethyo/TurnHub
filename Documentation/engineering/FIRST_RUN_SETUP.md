@@ -8,19 +8,29 @@ More > Atlas connection.
 
 1. Scan the Wi-Fi QR on Atlas Welcome with your phone camera. It joins
    TurnHub-Atlas without typing a password.
-2. Open TurnHub, choose Set up an Atlas, and create, install or sign into an
-   Atlas Admin account. Confirm the physical table code if requested.
+2. Open TurnHub and choose Set up an Atlas. The app connects to
+   `https://192.168.4.1` using a restricted TLS bootstrap: compare the
+   fingerprint shown on the phone with the code on Atlas, tap Allow on Atlas,
+   then confirm the match in the app. Only then does the app save the key and
+   continue with account setup or sign-in.
 3. Pair Sigils now or later. Prototype firmware updates use USB; choose Later.
 4. Enter the home network name and password, or leave the password blank for
    an open network. Choose upload approval for images.
 5. Atlas joins the home network while its setup hotspot stays available.
-   The app saves the home address and HTTPS key pin over the setup link.
+   The app learns the home address and HTTPS key pin over the already pinned
+   setup connection.
 6. Finish saves the setup stage and restarts Atlas with the hotspot off.
    The app releases the temporary setup connection and reconnects over home
    Wi-Fi. If needed, join that network in Android settings and Find Atlas on Wi-Fi.
 
 Failed joins or missing HTTPS keys leave setup open. Skip postpones setup;
 it does not complete it. There is no browser portal.
+
+All network access to Atlas uses HTTPS, including the setup hotspot. Atlas's
+self-signed certificate is not trusted automatically: the app limits first
+contact to discovery and phone pairing, requires the physical fingerprint
+comparison above, and rejects a later key change. Plain HTTP is not an
+external endpoint.
 
 ## Network policy
 

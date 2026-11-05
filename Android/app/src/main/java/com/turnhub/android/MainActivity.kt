@@ -495,6 +495,7 @@ class MainActivity : ComponentActivity() {
                             hostedStatus = homeViewModel.hostedStatus.collectAsStateWithLifecycle().value,
                             hostedPlanesMessage = homeViewModel.hostedPlanesMessage.collectAsStateWithLifecycle().value,
                             phonePairing = homeViewModel.phonePairingState.collectAsStateWithLifecycle().value,
+                            onConfirmPhoneFingerprint = homeViewModel::onConfirmPhoneFingerprint,
                             onHostOnAtlas = homeViewModel::onHostOnAtlas,
                             hostedResumeHost = homeViewModel.hostedResume.collectAsStateWithLifecycle().value?.host,
                             onResumeHosted = homeViewModel::onResumeHosted,
@@ -618,4 +619,3 @@ class MainActivity : ComponentActivity() {
 
 /** Android 17 (API 37), where ACCESS_LOCAL_NETWORK is enforced for apps targeting it. */
 private const val LOCAL_NETWORK_PERMISSION_SDK = 37
-

@@ -81,7 +81,7 @@ class AtlasHomeLinkTest {
         val home = AtlasEndpoint.home("192.168.1.40", 443, pin.uppercase())
         assertEquals("https://192.168.1.40", home.baseUrl)
         assertEquals(pin, home.tlsPin)
-        assertTrue(home.secure && !AtlasEndpoint.DEFAULT.secure)
+        assertTrue(home.secure && AtlasEndpoint.DEFAULT.secure)
         assertEquals("https://192.168.1.40:8443", AtlasEndpoint.home("192.168.1.40", 8443, pin).baseUrl)
     }
 
@@ -91,14 +91,17 @@ class AtlasHomeLinkTest {
         val asked = mutableListOf<String>()
         val link = AtlasHomeLink(store, info = { endpoint ->
             asked += endpoint.baseUrl
-            if (endpoint.secure && endpoint.host != "192.168.1.40") error("no answer")
             Fixtures.info()
         })
-        link.learn(AtlasEndpoint.home("192.168.1.40", 443, pin))  // Never learned over the home network itself.
+        assertFalse(link.learn(AtlasEndpoint.home("192.168.1.40", 443, pin)))  // Never learned over the home network itself.
         assertNull(store.last())
-        link.learn(AtlasEndpoint.DEFAULT)
+        assertTrue(asked.isEmpty())
+        assertFalse(link.learn(AtlasEndpoint.DEFAULT))
+        assertNull(store.last())
+        assertTrue(link.learn(AtlasEndpoint.DEFAULT.withTlsPin(pin)))
         assertEquals(SavedHomeAtlas("THA-025448410001", "192.168.1.40", 443, pin), store.last())
         assertEquals(AtlasEndpoint.home("192.168.1.40", 443, pin), link.find())
+        assertEquals(listOf(AtlasEndpoint.DEFAULT.baseUrl, "https://192.168.1.40"), asked)
         assertEquals("https://192.168.1.40", asked.last())
     }
 

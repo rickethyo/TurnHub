@@ -420,8 +420,8 @@ for the Internal testing track; see "Android release bundle" in
 
 ## What the app does
 
-The app talks to a physical Atlas over its HTTP API; production always uses
-`HttpAtlasRepository`. It shows the live table, provides automatic restricted game controls without a sign-in prompt, runs first-run setup, and installs firmware
+The app talks to a physical Atlas over its HTTPS-protected HTTP API; production
+always uses `HttpAtlasRepository`. It shows the live table, provides automatic restricted game controls without a sign-in prompt, runs first-run setup, and installs firmware
 updates on Atlas and the Sigils.
 
 1. Open the app to the shared Game tab. Atlas discovery stays in the background.
@@ -430,7 +430,7 @@ updates on Atlas and the Sigils.
    action. A saved table that cannot be reached shows retry/setup controls there;
    it does not replace local play. The app does not scan for nearby Wi-Fi networks.
    Connect still works as before. The address defaults to
-   `http://192.168.4.1` and is under Advanced. For that address the app
+   `https://192.168.4.1` and is under Advanced. For that address the app
    first joins Atlas's Wi-Fi itself (see "Targeted Wi-Fi" below); other
    addresses must already be reachable.
    Anything that restarts Atlas from the app (setup's Finish and updates,

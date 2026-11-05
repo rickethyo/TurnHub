@@ -21,7 +21,11 @@ import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URL
 import java.net.URLEncoder
-import java.net.UnknownServiceException
+import java.security.cert.X509Certificate
+import java.util.concurrent.atomic.AtomicReference
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLException
+import javax.net.ssl.SSLPeerUnverifiedException
 
 /** Opens the connection for a URL; lets Android pick which network carries it. */
 fun interface HttpConnectionOpener {
@@ -34,8 +38,8 @@ fun interface HttpConnectionOpener {
 }
 
 /**
- * [AtlasTransport] over Atlas's existing local HTTP API (protocol/http-v1.md),
- * using the platform [HttpURLConnection] -- no HTTP client dependency.
+ * [AtlasTransport] over Atlas's HTTPS API (protocol/http-v1.md), using the
+ * platform [HttpURLConnection] -- no HTTP client dependency.
  *
  * Also the [AtlasSessionTransport]: all requests go through [request], which
  * handles form bodies and the `X-TurnHub-Token` session header.
@@ -48,8 +52,14 @@ class HttpAtlasTransport(
     private val readTimeoutMs: Int = 3_000,
 ) : AtlasTransport, AtlasSessionTransport {
 
-    // On the home network Atlas answers HTTPS, trusted only with its pin (PinnedTls).
-    private val opener: HttpConnectionOpener = endpoint.tlsPin?.let { PinnedTls.opener(baseOpener, it) } ?: baseOpener
+    private val opener: HttpConnectionOpener = when {
+        endpoint.tlsPin != null -> PinnedTls.opener(baseOpener, endpoint.tlsPin)
+        endpoint.bootstrapTls -> PinnedTls.bootstrapOpener(baseOpener)
+        else -> baseOpener
+    }
+    private val observedPin = AtomicReference<String?>(null)
+
+    override val tlsPeerPin: String? get() = observedPin.get()
 
     override suspend fun getInfo(): AtlasInfo {
         val response = request("GET", "/api/v1/info")
@@ -178,6 +188,7 @@ class HttpAtlasTransport(
     override suspend fun getAvatarImage(path: String, token: String): ByteArray = withContext(ioDispatcher) {
         // Only Atlas-owned paths; metadata cannot redirect the app to another host.
         require(path.matches(Regex("/api/avatar\\?profileId=[a-zA-Z0-9_-]+&revision=[0-9a-f]{8}(&pending=1)?")))
+        ensureBootstrapRoute("GET", path)
         val connection = opener.open(URL(endpoint.baseUrl + path))
         try {
             connection.connectTimeout = connectTimeoutMs
@@ -186,7 +197,9 @@ class HttpAtlasTransport(
             connection.instanceFollowRedirects = false
             connection.useCaches = false
             if (token.isNotEmpty()) connection.setRequestProperty(TOKEN_HEADER, token)
-            if (connection.responseCode != 200 || connection.contentType?.substringBefore(';') != "image/jpeg")
+            val responseCode = connection.responseCode
+            captureTlsPeerPin(connection)
+            if (responseCode != 200 || connection.contentType?.substringBefore(';') != "image/jpeg")
                 throw AtlasException(AtlasFailure.Rejected("Image unavailable"))
             val out = ByteArrayOutputStream()
             connection.inputStream.use { input ->
@@ -224,6 +237,7 @@ class HttpAtlasTransport(
     }
 
     override suspend fun syncWallClock(epochMs: Long) {
+        if (endpoint.bootstrapTls) return
         raw("POST", "/api/time", "", listOf("utcMs" to "$epochMs"))
     }
 
@@ -334,7 +348,9 @@ class HttpAtlasTransport(
         readTimeout: Int = if (path == "/api/avatar/review" || path == "/api/session/avatar" ||
             path.substringBefore('?') == "/api/planes" || path.substringBefore('?') == "/api/planes/card")
             maxOf(readTimeoutMs, ARTWORK_TIMEOUT_MS) else readTimeoutMs,
-    ): Response = withContext(ioDispatcher) {
+    ): Response {
+        ensureBootstrapRoute(method, path)
+        return withContext(ioDispatcher) {
         val connection = try {
             opener.open(URL(endpoint.baseUrl + path))
         } catch (e: IOException) {
@@ -360,12 +376,53 @@ class HttpAtlasTransport(
                 connection.outputStream.use { it.write(rawBody) }
             }
             val code = connection.responseCode
+            captureTlsPeerPin(connection)
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             Response(code, stream?.use { readLimited(it) } ?: "")
         } catch (e: IOException) {
             throw classify(e)
         } finally {
             connection.disconnect()
+        }
+        }
+    }
+
+    private fun ensureBootstrapRoute(method: String, path: String) {
+        if (!endpoint.bootstrapTls) return
+        val route = path.substringBefore('?')
+        val allowed = (method == "GET" && route in setOf("/api/v1/info", "/api/phones/pair")) ||
+            (method == "POST" && route in setOf(
+                "/api/phones/pair",
+                "/api/phones/pair/cancel",
+            ))
+        if (!allowed) {
+            throw AtlasException(
+                AtlasFailure.InvalidEndpoint("Pair Atlas and verify its TLS fingerprint before using this route."),
+            )
+        }
+    }
+
+    private fun captureTlsPeerPin(connection: HttpURLConnection) {
+        val https = connection as? HttpsURLConnection
+        if (https == null) {
+            if (endpoint.bootstrapTls) throw SSLPeerUnverifiedException("Atlas setup requires HTTPS")
+            return
+        }
+        val certificate = https.serverCertificates.firstOrNull() as? X509Certificate
+            ?: throw SSLPeerUnverifiedException("Atlas sent no X.509 certificate")
+        val pin = PinnedTls.pinOf(certificate.publicKey)
+        endpoint.tlsPin?.let {
+            if (!pin.equals(it, ignoreCase = true)) throw SSLPeerUnverifiedException("Atlas TLS key changed")
+        }
+        while (true) {
+            val previous = observedPin.get()
+            if (previous != null) {
+                if (!previous.equals(pin, ignoreCase = true)) {
+                    throw SSLPeerUnverifiedException("Atlas TLS key changed during this connection")
+                }
+                return
+            }
+            if (observedPin.compareAndSet(null, pin)) return
         }
     }
 
@@ -384,14 +441,14 @@ class HttpAtlasTransport(
     }
 
     private fun classify(e: IOException): AtlasException {
-        // e.g. "SocketTimeoutException: failed to connect to /192.168.4.1 (port 80) from /192.168.4.2 ..."
+        // e.g. "SocketTimeoutException: failed to connect to /192.168.4.1 (port 443) ..."
         val detail = "${e.javaClass.simpleName}: ${e.message}"
         return AtlasException(
             when {
                 // Also what Android 17 local-network blocking looks like for TCP.
                 e is SocketTimeoutException -> AtlasFailure.Timeout(detail)
-                e is UnknownServiceException && e.message.orEmpty().contains("CLEARTEXT", ignoreCase = true) ->
-                    AtlasFailure.CleartextBlocked(endpoint.host)
+                // A failed certificate/key check is not a generic network outage.
+                e is SSLException || e.cause is SSLException -> AtlasFailure.TlsIdentity(detail)
                 // Refused, no route, unknown host, reset, ...
                 else -> AtlasFailure.Unreachable(detail)
             },

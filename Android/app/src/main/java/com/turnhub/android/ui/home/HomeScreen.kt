@@ -162,6 +162,7 @@ fun HomeScreen(
     hostedStatus: com.turnhub.android.data.HostedAtlasLink.Status = com.turnhub.android.data.HostedAtlasLink.Status.Off,
     hostedPlanesMessage: String? = null,
     phonePairing: com.turnhub.android.data.AtlasPhonePairing.State = com.turnhub.android.data.AtlasPhonePairing.State.Idle,
+    onConfirmPhoneFingerprint: () -> Unit = {},
     onHostOnAtlas: ((Boolean) -> Unit)? = null,
     /** Atlas kept the last hub's unfinished game: whose it was, while it is offered. */
     hostedResumeHost: String? = null,
@@ -184,8 +185,25 @@ fun HomeScreen(
                     Text("Compare this code with the code on Atlas.", textAlign = TextAlign.Center)
                     Text(phonePairing.code, style = MaterialTheme.typography.displayMedium,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-                    Text("If the codes match, tap Allow on Atlas. This screen closes when pairing finishes.",
+                    Text(
+                        if (phonePairing.requiresFingerprintConfirmation) {
+                            if (phonePairing.fingerprintConfirmed) {
+                                "Fingerprint confirmed. Waiting for Allow on Atlas."
+                            } else {
+                                "If they match, tap Allow on Atlas, then confirm the fingerprint here."
+                            }
+                        } else {
+                            "If the codes match, tap Allow on Atlas. This screen closes when pairing finishes."
+                        },
                         textAlign = TextAlign.Center)
+                    if (phonePairing.requiresFingerprintConfirmation) {
+                        TextButton(
+                            enabled = !phonePairing.fingerprintConfirmed,
+                            onClick = onConfirmPhoneFingerprint,
+                        ) {
+                            Text(if (phonePairing.fingerprintConfirmed) "Fingerprint confirmed" else "Codes match · Trust Atlas")
+                        }
+                    }
                     ToneButton("Cancel pairing", onDisconnectClick, Modifier.fillMaxWidth())
                 }
             }
@@ -709,7 +727,7 @@ private fun ConnectCard(
                 enabled = uiState.endpointEditable,
                 singleLine = true,
                 label = { Text("Atlas address") },
-                supportingText = { Text("Leave it at http://192.168.4.1 unless Atlas joined another network.") },
+                supportingText = { Text("Leave it at https://192.168.4.1 unless Atlas joined another network.") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
                 keyboardActions = KeyboardActions(onGo = { onConnectClick() }),
                 modifier = Modifier.fillMaxWidth(),

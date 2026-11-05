@@ -177,9 +177,11 @@ class HomeViewModelTest {
         val vm=HomeViewModel({repository},link,store,playerSession,homeLink=home,phonePairing=pairing)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
         vm.onSearchAgain()
-        assertEquals(com.turnhub.android.data.AtlasPhonePairing.State.Asking("AAAA AAAA AAAA"),pairing.state.value)
+        assertEquals(com.turnhub.android.data.AtlasPhonePairing.State.Asking("AAAA AAAA AAAA", true, false),pairing.state.value)
         assertNull(vm.uiState.value.homePairing)
         assertNull(homeStore.last());assertTrue(repository.connects.isEmpty())
+        assertNull(keys.key(candidate.atlasId))
+        pairing.confirmFingerprint()
         allowed.complete(Unit);advanceTimeBy(2)
         assertEquals(candidate,homeStore.last());assertEquals(listOf(candidate.endpoint),repository.connects)
         assertTrue(pairing.paired(candidate.atlasId))
@@ -371,7 +373,7 @@ class HomeViewModelTest {
     fun `new Atlas joins with the shipped default, saves it, then connects`() = runTest {
         val viewModel = viewModel()
 
-        assertEquals("http://192.168.4.1", viewModel.uiState.value.endpointText)
+        assertEquals("https://192.168.4.1", viewModel.uiState.value.endpointText)
         viewModel.onConnectClicked()
 
         assertEquals(listOf(defaultCredentials), link.joins)
@@ -499,20 +501,20 @@ class HomeViewModelTest {
         viewModel.onConnectClicked()
 
         assertTrue(link.joins.isEmpty())
-        assertEquals("http://10.0.0.5:8080", repository.connects.single().baseUrl)
-        assertEquals("http://10.0.0.5:8080", viewModel.uiState.value.endpointText)
+        assertEquals("https://10.0.0.5:8080", repository.connects.single().baseUrl)
+        assertEquals("https://10.0.0.5:8080", viewModel.uiState.value.endpointText)
     }
 
     @Test
     fun `invalid endpoint shows an error and does not connect`() = runTest {
         val viewModel = viewModel()
 
-        viewModel.onEndpointChanged("https://192.168.4.1")
+        viewModel.onEndpointChanged("http://192.168.4.1")
         viewModel.onConnectClicked()
 
         assertTrue(repository.connects.isEmpty())
         assertTrue(link.joins.isEmpty())
-        assertTrue(viewModel.uiState.value.errorMessage!!.contains("http://"))
+        assertTrue(viewModel.uiState.value.errorMessage!!.contains("HTTPS"))
 
         viewModel.onEndpointChanged("192.168.4.1")
         assertNull(viewModel.uiState.value.errorMessage)
@@ -954,4 +956,3 @@ class HomeViewModelTest {
         assertEquals(false, state.endpointEditable)
     }
 }
-

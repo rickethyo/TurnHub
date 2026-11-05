@@ -4,6 +4,7 @@
 #include <HTTPClient.h>
 #include <Update.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <esp_ota_ops.h>
 #include <esp_wifi.h>
 
@@ -24,7 +25,25 @@ using TurnHubProtocol::UpdateStage;
 
 constexpr uint32_t WIFI_JOIN_MS = 20000;
 constexpr uint32_t STALL_MS = 15000;
-constexpr const char *PACKAGE_URL = "http://192.168.4.1/api/sigil-package?token=";
+constexpr const char *PACKAGE_URL = "https://192.168.4.1/api/sigil-package?token=";
+constexpr uint16_t TLS_PORT = 443;
+constexpr uint32_t TLS_HANDSHAKE_SEC = 10;
+
+// HTTPClient may reconnect between the initial handshake and GET. Every
+// connection must verify the sealed offer's fingerprint before sending bytes.
+class OfferedTlsClient final : public WiFiClientSecure {
+ public:
+  explicit OfferedTlsClient(const uint8_t *expected) { memcpy(expected_, expected, sizeof(expected_)); }
+  int connect(const char *host, uint16_t port, int32_t timeout) override {
+    if (!WiFiClientSecure::connect(host, port, timeout)) return 0;
+    uint8_t actual[32];
+    if (!getFingerprintSHA256(actual) || memcmp(actual, expected_, sizeof(actual))) { stop(); return 0; }
+    return 1;
+  }
+  int connect(const char *host, uint16_t port) override { return connect(host, port, 10000); }
+ private:
+  uint8_t expected_[32];
+};
 
 // Writes the checked image into the idle app slot. Update keeps the first
 // bytes back until end(), so the slot can't boot until the hash has passed.
@@ -139,17 +158,31 @@ void SigilUpdater::run() {
   char tokenHex[2 * TurnHubProtocol::UPDATE_TOKEN_BYTES + 1];
   updateTokenHex(job_.token, tokenHex);
   snprintf(url, sizeof(url), "%s%s", PACKAGE_URL, tokenHex);
-  WiFiClient client;
+  OfferedTlsClient client(job_.certificateFingerprint);
+  client.setInsecure();
+  client.setHandshakeTimeout(TLS_HANDSHAKE_SEC);
   HTTPClient http;
   http.setTimeout(STALL_MS);
   if (!http.begin(client, url)) {
     fail(static_cast<uint8_t>(UpdateError::Download), "begin");
     return;
   }
+  if (!client.connect("192.168.4.1", TLS_PORT)) {
+    http.end();
+    fail(static_cast<uint8_t>(UpdateError::Download), "tls-connect");
+    return;
+  }
+  uint8_t certificateFingerprint[sizeof(job_.certificateFingerprint)];
+  if (!client.getFingerprintSHA256(certificateFingerprint) ||
+      memcmp(certificateFingerprint, job_.certificateFingerprint, sizeof(certificateFingerprint)) != 0) {
+    http.end();
+    fail(static_cast<uint8_t>(UpdateError::Download), "tls-fingerprint");
+    return;
+  }
   const int code = http.GET();
   const int size = http.getSize();
   if (code != 200 || size != static_cast<int>(job_.packageSize)) {
-    Serial.printf("SIGIL|OTA|HTTP|%d|%d\n", code, size);
+    Serial.printf("SIGIL|OTA|HTTPS|%d|%d\n", code, size);
     http.end();
     fail(static_cast<uint8_t>(UpdateError::Download), "http");
     return;

@@ -132,9 +132,11 @@ signing tools; product 2 is the one Sigil (2026-10-29).
    token and sends `SigilUpdateOffer` sealed in that Sigil's session: product,
    version, size, token, AP SSID and password.
 3. The Sigil checks product and version, shows "Updating", joins Atlas's AP
-   (same channel, ESP-NOW stays up), downloads
-   `http://192.168.4.1/api/sigil-package?token=...` into its idle slot,
-   hashing as it goes, and reports progress in 10% steps.
+   (same channel, ESP-NOW stays up), then downloads
+   `https://192.168.4.1/api/sigil-package?token=...` into its idle slot.
+   The offer carries Atlas's leaf-certificate fingerprint inside the sealed
+   Sigil session; the Sigil checks it before sending the request, then hashes
+   the package as it goes and reports progress in 10% steps.
 4. On failure it aborts (the running slot is untouched) and reports why;
    retry makes a new job. On success it restarts into the new image in
    pending-verify state and marks it valid only once a secure session is up;
@@ -174,9 +176,10 @@ factory needs one USB flash before its first OTA.
 
 - Rollback covers crashes and failed reconnects after the new app starts.
   Don't claim automatic rollback until **U06** passes.
-- Downloads are plain HTTP on Atlas's network: readable (the image is public
-  anyway) but not alterable without breaking the signature. The AP password
-  crosses the radio sealed.
+- Network downloads use HTTPS. The Sigil checks the TLS certificate fingerprint
+  from the sealed update offer before sending the one-time token; the signed
+  package independently protects firmware authenticity and integrity. The AP
+  password crosses the radio sealed.
 - A leaked signing key lets anyone make installable firmware.
 - Keeping older packages on the card for reinstalling is undecided;
   delivery doesn't depend on it. Atlas fetching updates over home Wi-Fi is

@@ -1,4 +1,4 @@
-# Project-wide Codex / Claude collaboration
+# Project-wide Agent collaboration
 
 This is the permanent shared conversation and handoff document for **all of TurnHub**: Atlas, Sigils, Android, protocols, hardware, PCB and enclosure design, testing, releases, documentation, and product decisions. It is not limited to one feature or review.
 
@@ -33,6 +33,36 @@ This file owns cross-agent discussion and coordination. Accepted unfinished engi
 Keep the topic index and active discussions here. Prune by the documentation hygiene rule in [Agent workflow](Documentation/engineering/AGENT_WORKFLOW.md#documentation-hygiene): when a topic closes or its outcome lands in an owning document, move its detailed exchange to `Documentation/engineering/history/` and keep at most a one-line outcome here. Do not archive unresolved questions just to shorten the file.
 
 ## Topic index
+
+2026-11-05, Codex review of Copilot audit at `3574132d`, on the owner-selected
+`VSCodeCopilot/Master` branch. Owner authorizes fixes and merge when safe.
+Confirmed HTTPS-only remote boundary and loopback HTTP backend. Atlas host,
+storage, profile and OTA suites pass with Private/w64devkit GCC. Fixed OTA's
+one-time certificate check by verifying every HTTPClient reconnect, and avoid
+phone-side reconfirmation for an already trusted home endpoint. First-time
+fingerprint comparison remains required; Find Atlas precedes observing the key
+and cannot substitute for that check. Android full tests/APK and Sigil build
+pass; focused trusted-home regression added. Physical TLS isolation/setup/OTA
+acceptance remains separate; iOS has no transport yet. No devices reflashed.
+
+2026-11-05, Copilot: TLS-only Atlas access and setup trust, active on
+`VSCodeCopilot/Master`, baseline `14c72481`. Scope: expose Atlas only through
+HTTPS, keep its HTTP backend loopback-only, bootstrap the self-signed key only
+after an explicit physical fingerprint comparison, and remove Sigil OTA's
+cleartext download. Keep the requested readability refactor tightly coupled to
+this boundary; defer any wholesale documentation rebuild. `gh` is unauthenticated,
+so open-PR status could not be checked. No merge or release.
+Implementation is complete in the working tree; no commit yet. Passed:
+`.\gradlew.bat testDebugUnitTest assembleDebug` (Android, 509 tests),
+`pio run -e atlas-s3`, `pio run -e sigil`, `tests\host\run-gcc.ps1` (Sigil),
+`python Android\tools\export_manual.py --check`,
+`python tools\scripts\check_docs.py`, and `python design\build_tokens.py --check`.
+Atlas host tests remain unverified: the installed GCC 5.1 lacks `<optional>`,
+the MSVC runner rejects GNU `__attribute__((packed))`, and NDK Clang has no
+available C++ standard-library headers. iOS tests were not run (no Swift
+toolchain); TLS setup, loopback isolation and Sigil OTA still need hardware
+acceptance. The deferred queue-overflow, PIN-verifier and radio-replay items
+were not changed.
 
 2026-11-05, Codex: owner photo follow-up, baseline `87a18077`, codex/master.
 Scope: flatten noninteractive Atlas Home counters and fix hosted lobby/starting
@@ -257,6 +287,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-036 | TLS-only Atlas access and setup trust | Atlas, Sigil, Android, docs | Active on `VSCodeCopilot/Master` | Copilot / implement and validate; owner / review |
 | TH-035 | Phone-hosted games: Atlas becomes the table accessory | Atlas, Android, protocol, invariants | Owner decision 2026-11-04; slice 1 on `claude/master` | Claude / slice 2 (Sigils); Codex: no new gameplay in Atlas's old engine |
 | TH-032 | TCG shared player controls and read-only table | Android LAN, table UI | Implemented; local/device validation | Codex / review and tablet preview |
 | TH-024 | Concise bug reports with app diagnostics | Google Form, Android | Ready for review; CI passes | Owner / PR #124 and browser/device acceptance |

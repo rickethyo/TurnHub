@@ -10,6 +10,14 @@
 #define PROGMEM
 #define F(value) value
 using __FlashStringHelper = char;
+struct IPAddress {
+  uint8_t octets[4]{};
+  constexpr IPAddress() = default;
+  constexpr IPAddress(uint8_t a, uint8_t b, uint8_t c, uint8_t d) : octets{a, b, c, d} {}
+  bool operator==(const IPAddress &other) const {
+    return std::memcmp(octets, other.octets, sizeof(octets)) == 0;
+  }
+};
 class String : public std::string {
  public:
   using std::string::string;

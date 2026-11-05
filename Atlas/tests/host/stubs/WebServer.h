@@ -23,6 +23,7 @@ class WebServer {
   std::map<std::string,std::function<void()>> routes;
   std::map<std::string,std::function<void()>> uploads;
   std::vector<RequestHandler *> handlers;
+  IPAddress listenAddress;
   void addHandler(RequestHandler *handler) { handlers.push_back(handler); }
   HTTPUpload uploadState;
   HTTPUpload &upload() { return uploadState; }
@@ -35,7 +36,8 @@ class WebServer {
   String contentType;
   int status = 0;
   String body;
-  explicit WebServer(int) {}
+  explicit WebServer(int) : listenAddress(0,0,0,0) {}
+  WebServer(IPAddress address, int) : listenAddress(address) {}
   void sendHeader(const char *name,const String &value) { responseHeaders[name]=value; }
   void send(int code,const char *type,const String &value) { status=code; contentType=type; body=value; }
   void send_P(int code,const char *type,const char *value) { send(code,type,value); }

@@ -197,8 +197,9 @@ constexpr size_t UPDATE_TOKEN_BYTES = 16;
 constexpr size_t UPDATE_SSID_BYTES = 33;      // 32 + NUL.
 constexpr size_t UPDATE_PASSWORD_BYTES = 65;  // 64 + NUL.
 
-// Atlas -> Sigil, sealed: download http://192.168.4.1/api/sigil-package?token=
-// (hex token) over Atlas's AP and install it. Resent until the Sigil answers.
+// Atlas -> Sigil, sealed: download the signed package over HTTPS at
+// https://192.168.4.1/api/sigil-package?token= (hex token). The certificate
+// fingerprint is delivered inside this authenticated packet.
 struct __attribute__((packed)) SigilUpdateOfferPacket {
   uint8_t version;  // VERSION
   PacketType type;  // SigilUpdateOffer
@@ -211,8 +212,9 @@ struct __attribute__((packed)) SigilUpdateOfferPacket {
   uint8_t token[UPDATE_TOKEN_BYTES];
   char ssid[UPDATE_SSID_BYTES];
   char password[UPDATE_PASSWORD_BYTES];
+  uint8_t certificateFingerprint[32];  // SHA-256 of the Atlas TLS leaf certificate.
 };
-static_assert(sizeof(SigilUpdateOfferPacket) == 125, "Update offer layout changed");
+static_assert(sizeof(SigilUpdateOfferPacket) == 157, "Update offer layout changed");
 
 inline bool terminatedWithin(const char *text, size_t capacity) {
   for (size_t i = 0; i < capacity; ++i) {
@@ -222,7 +224,9 @@ inline bool terminatedWithin(const char *text, size_t capacity) {
 }
 
 inline bool validUpdateOffer(const SigilUpdateOfferPacket &p) {
-  return p.version == VERSION && p.type == PacketType::SigilUpdateOffer &&
+  bool hasCertificateFingerprint = false;
+  for (uint8_t byte : p.certificateFingerprint) hasCertificateFingerprint |= byte != 0;
+  return hasCertificateFingerprint && p.version == VERSION && p.type == PacketType::SigilUpdateOffer &&
       p.sigilId < MAX_SIGILS && p.product == 2 && p.packageSize > 128 &&
       p.ssid[0] != '\0' && terminatedWithin(p.ssid, UPDATE_SSID_BYTES) &&
       terminatedWithin(p.password, UPDATE_PASSWORD_BYTES);
@@ -240,7 +244,7 @@ enum class UpdateStage : uint8_t {
 enum class UpdateError : uint8_t {
   None = 0,
   WifiJoin = 20,
-  Download = 21,     // HTTP error or connection lost.
+  Download = 21,     // HTTPS error or connection lost.
   Timeout = 22,
   FlashBegin = 23,   // No idle slot, or it can't be opened.
   FlashFinish = 24,  // The written image didn't validate or couldn't be set to boot.

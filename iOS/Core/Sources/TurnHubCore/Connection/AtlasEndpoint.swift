@@ -1,6 +1,6 @@
 import Foundation
 
-/// An HTTP(S) origin, never a URL containing credentials or an API path.
+/// An HTTPS origin, never a URL containing credentials or an API path.
 public struct AtlasEndpoint: Equatable, Sendable {
     public let origin: URL
 
@@ -11,7 +11,7 @@ public struct AtlasEndpoint: Equatable, Sendable {
     public init(_ input: String) throws {
         guard var parts = URLComponents(string: input),
               let scheme = parts.scheme?.lowercased(),
-              ["http", "https"].contains(scheme),
+              scheme == "https",
               let host = parts.host, !host.isEmpty,
               parts.user == nil, parts.password == nil,
               parts.query == nil, parts.fragment == nil,
@@ -26,5 +26,5 @@ public struct AtlasEndpoint: Equatable, Sendable {
     }
 
     /// Atlas's default access-point address. Constructed through the same validator.
-    public static let defaultAtlas = try! AtlasEndpoint("http://192.168.4.1")
+    public static let defaultAtlas = try! AtlasEndpoint("https://192.168.4.1")
 }

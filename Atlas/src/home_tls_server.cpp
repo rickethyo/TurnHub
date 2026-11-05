@@ -1,6 +1,6 @@
 #include "home_tls.h"
 
-// The HTTPS listener for the home network (home_tls.h). Firmware only: the
+// The HTTPS listener for setup and home networks (home_tls.h). Firmware only: the
 // host tests stub this file in test_globals.cpp.
 
 #include "config.h"
@@ -44,6 +44,7 @@ constexpr size_t DER_MAX = 1024;
 std::atomic<bool> started{false};
 std::atomic<bool> running{false};
 char pin[TurnHub::HOME_TLS_PIN_HEX_SIZE] = "";
+uint8_t certificateFingerprint[TurnHub::HOME_TLS_CERTIFICATE_FINGERPRINT_SIZE] = {};
 
 mbedtls_entropy_context entropy;
 mbedtls_ctr_drbg_context drbg;
@@ -131,9 +132,10 @@ bool makeIdentity() {
       prefs.putBytes(TLS_KEY, keyDer, keyLength) == static_cast<size_t>(keyLength) &&
       prefs.putBytes(TLS_CERT, certDer, certLength) == static_cast<size_t>(certLength);
   prefs.end();
-  // Unsaved, the key still serves this boot, but the app's pin would break
-  // at the next one; say so in the log.
-  if (!saved) serialLog.println("ATLAS|HOME_TLS|ERROR|SAVE");
+  if (!saved) {
+    serialLog.println("ATLAS|HOME_TLS|ERROR|SAVE");
+    return false;
+  }
   serialLog.println("ATLAS|HOME_TLS|KEY_CREATED");
   return true;
 }
@@ -146,6 +148,11 @@ bool computePin() {
   if (mbedtls_sha256_ret(spki + sizeof(spki) - length, length, digest, 0) != 0) return false;
   TurnHub::homeTlsPinHex(digest, pin);
   return true;
+}
+
+bool computeCertificateFingerprint() {
+  return cert.raw.p != nullptr && cert.raw.len > 0 &&
+      mbedtls_sha256_ret(cert.raw.p, cert.raw.len, certificateFingerprint, 0) == 0;
 }
 
 bool setUp() {
@@ -166,6 +173,10 @@ bool setUp() {
     if (!makeIdentity()) return false;
   }
   if (!computePin()) { serialLog.println("ATLAS|HOME_TLS|ERROR|PIN"); return false; }
+  if (!computeCertificateFingerprint()) {
+    serialLog.println("ATLAS|HOME_TLS|ERROR|CERT_FINGERPRINT");
+    return false;
+  }
 
   rc = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM,
       MBEDTLS_SSL_PRESET_DEFAULT);
@@ -239,7 +250,7 @@ int connectBackend() {
   setTimeout(fd, TurnHub::HOME_TLS_IDLE_MS);
   sockaddr_in to{};
   to.sin_family = AF_INET;
-  to.sin_port = htons(AtlasConfig::HTTP_PORT);
+  to.sin_port = htons(AtlasConfig::HTTP_BACKEND_PORT);
   to.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   if (connect(fd, reinterpret_cast<sockaddr *>(&to), sizeof(to)) != 0) {
     close(fd);
@@ -379,5 +390,10 @@ void startHomeTls() {
 
 bool homeTlsRunning() { return running; }
 const char *homeTlsPin() { return running ? pin : ""; }
+bool homeTlsCertificateFingerprint(uint8_t out[TurnHub::HOME_TLS_CERTIFICATE_FINGERPRINT_SIZE]) {
+  if (!running || out == nullptr) return false;
+  memcpy(out, certificateFingerprint, sizeof(certificateFingerprint));
+  return true;
+}
 
 }  // namespace TurnHubAtlas

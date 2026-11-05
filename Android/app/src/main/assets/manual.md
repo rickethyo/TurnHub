@@ -351,7 +351,7 @@ Some features need a newer Atlas than the current prototype: Star Commander, off
 
 An Admin manages an Atlas from **Settings** in the app or from the administration portal in a browser. Play, personal settings and statistics are in the app; the portal is for setup, maintenance and recovery.
 
-To open the portal, join the Atlas's Wi-Fi and go to http://192.168.4.1/portal, then sign in as an Admin. It works without a microSD card.
+Manage Atlas from the TurnHub app over HTTPS. During first setup, compare the self-signed key fingerprint shown on the phone and Atlas; do not bypass browser certificate warnings.
 
 - **Manage people:** roles, archive and restore accounts, image approval, and merging two accounts that belong to the same person (their statistics are added together, the other account is archived, and phones linked to it follow the account that is kept).
 

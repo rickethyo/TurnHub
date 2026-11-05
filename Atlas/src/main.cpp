@@ -33,6 +33,7 @@
 #include "table_code_setting.h"
 #include "upload_approval.h"
 #include "home_wifi.h"
+#include "home_tls.h"
 #include "plane_download.h"
 #include "wifi_password_store.h"
 
@@ -49,7 +50,7 @@ TURNHUB_FIRMWARE_DESCRIPTOR(atlasFirmwareDescriptor, TurnHubFirmwarePackage::Pro
 
 using TurnHub::serialLog;
 
-WebServer server(AtlasConfig::HTTP_PORT);
+WebServer server(IPAddress(127, 0, 0, 1), AtlasConfig::HTTP_BACKEND_PORT);
 
 namespace TurnHubAtlas {
 
@@ -350,6 +351,7 @@ void startNetworking() {
   beginSigilUpdates(AtlasConfig::WIFI_SSID, wifiPassword.c_str());
   server.onNotFound([]() { server.send(404, "text/plain", "Not found"); });
   server.begin();
+  if (!homeOnly) startHomeTls();
   logHeapStep("WEB");
 
   serialLog.println("ATLAS|WEB|READY");

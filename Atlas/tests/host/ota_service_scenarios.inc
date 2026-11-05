@@ -2,6 +2,7 @@
 #include "firmware_signing_key.h"
 #include "test_package_crypto.h"
 void fixtureConnectOta(TurnHub::SigilRecord &r);
+extern bool fixtureHomeTlsReady;
 
 static std::vector<uint8_t> otaTestPackage(uint8_t product) {
   using namespace TurnHubFirmwarePackage;
@@ -46,11 +47,14 @@ static void otaServiceScenarios() {
   fixtureConnectOta(r);r.sessionGeneration=1;r.confirmedSessionGeneration=1;
   assert(request("/api/sigil-update",admin,{{"module","abc"}})==400);
   hostGame();assert(request("/api/sigil-update",admin,{{"module","0"}})==409);endHostedGame();
+  assert(request("/api/sigil-update",admin,{{"module","0"}})==409); // HTTPS identity is not ready.
+  fixtureHomeTlsReady = true;
   assert(request("/api/sigil-update",admin,{{"module","0"}})==200 && sigilUpdatesBusy());
   serviceSigilUpdates(testNow);
   assert(strcmp(fixtureUpdateOffer.ssid, "OTA test AP")==0);
   assert(strcmp(fixtureUpdateOffer.password, "test-password")==0);
   assert(fixtureUpdateOffer.product==2 && fixtureUpdateOffer.packageSize==otaTestPackage(2).size());
+  assert(fixtureUpdateOffer.certificateFingerprint[0] == 0xA5);
   assert(upload(admin,otaTestPackage(2))==403); // Cannot replace an active package.
   char token[33];for(size_t i=0;i<16;++i)snprintf(token+2*i,3,"%02x",fixtureUpdateOffer.token[i]);
   assert(request("/api/sigil-package","",{{"token","bad"}},HTTP_GET)==403);
@@ -71,5 +75,6 @@ static void otaServiceScenarios() {
     assert(sigilUpdatesBusy() && sigilUpdateNotice(notice,sizeof(notice),testNow));
     testNow+=31000; serviceSigilUpdates(testNow); assert(!sigilUpdatesBusy());
   }
+  fixtureHomeTlsReady = false;
   fixtureRadio=false; resetPresence();
 }
