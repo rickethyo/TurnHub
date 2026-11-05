@@ -115,6 +115,7 @@ IntentResult dispatchSystemIntent(IntentType type);
 IntentResult handlePairRequestIntent(const Intent &intent, void *);
 IntentResult handleForgetPairingIntent(const Intent &intent, void *);
 IntentResult handlePairConfirmIntent(const Intent &intent, void *);
+IntentResult handlePhonePairingIntent(const Intent &intent, void *);
 IntentResult handleConfigurePairingIntent(const Intent &intent, void *);
 IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *);
 IntentResult handleConfigurePowerIntent(const Intent &intent, void *);

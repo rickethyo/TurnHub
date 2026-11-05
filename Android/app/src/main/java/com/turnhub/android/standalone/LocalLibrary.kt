@@ -145,11 +145,15 @@ data class LocalLibrary(
      * Only confirmed links, checked against current Atlas profiles, enable
      * automatic credit. With [guests] (Atlas 0.7.16+) unlinked players go as
      * guests (blank) and one linked player is enough; otherwise all must be linked.
+     * [copies] uses stable IDs acknowledged by the paired-phone copy endpoint;
+     * public ID equality alone never authorizes a legacy Atlas account link.
      */
-    fun automaticMapping(record: GameRecord, atlasId: String, available: Set<String>, guests: Boolean = false): List<String>? {
+    fun automaticMapping(record: GameRecord, atlasId: String, available: Set<String>, guests: Boolean = false, copies: Boolean = false): List<String>? {
         val ids = record.players.map { seat ->
-            val link = players.firstOrNull { it.localId == seat.localId }?.links?.firstOrNull { it.atlasId == atlasId }
-            link?.profileId?.takeIf { it in available } ?: if (guests) "" else return null
+            val player = players.firstOrNull { it.localId == seat.localId }
+            val id = player?.profileId?.takeIf { copies && it in available }
+                ?: player?.links?.firstOrNull { it.atlasId == atlasId }?.profileId
+            id?.takeIf { it in available } ?: if (guests) "" else return null
         }
         val mapped = ids.filter { it.isNotBlank() }
         return ids.takeIf { mapped.isNotEmpty() && mapped.distinct().size == mapped.size }
@@ -277,4 +281,6 @@ data class LocalImportState(
     val message: String? = null,
     /** Each linked local account's totals on this Atlas (local ID to played and won), from the last sync. */
     val atlasTotals: Map<String, Pair<Int, Int>> = emptyMap(),
+    /** The connected Atlas accepts device pairing and public profile copies. */
+    val paired: Boolean = false,
 )

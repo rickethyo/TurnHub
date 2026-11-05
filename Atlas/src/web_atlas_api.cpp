@@ -12,6 +12,7 @@
 #include "protocol.h"
 #include "web_api_internal.h"
 #include "card_cache.h"
+#include "serial_log.h"
 #include "game_profile.h"
 #include "touch_controls.h"
 
@@ -40,11 +41,11 @@ bool parseBoundedNumber(const String &text, int32_t min, int32_t max, int32_t &v
 }
 
 namespace {
-// Sends 401 and returns null when the request has no valid session.
-WebSession *requireSession(WebServer &server) {
-  WebSession *session = sessionForRequest(server);
-  if (!session) sendError(server, 401, "Sign in first");
-  return session;
+// Sends 401 unless the request has a valid session or a paired phone's key.
+bool requireSession(WebServer &server) {
+  if (sessionOrPairedPhone(server)) return true;
+  sendError(server, 401, "Pair this phone with Atlas first");
+  return false;
 }
 
 }  // namespace
@@ -160,10 +161,22 @@ void handlePlaneCard(WebServer &server) {
     sendError(server, 400, "Send the art as base64");
     return;
   }
+  if (jpeg.size() > TurnHubCards::MAX_PLANE_UPLOAD_BYTES) {
+    sendError(server, 413, "The uploaded plane image is too large");
+    return;
+  }
   const long index = server.arg("index").toInt(), total = server.arg("total").toInt();
   const auto queued = TurnHubCards::savePlaneCard(server.arg("id").c_str(), server.arg("type"), server.arg("artist"),
       server.arg("text"), server.arg("chaos"), jpeg.data(), jpeg.size(),
       static_cast<uint16_t>(index > 0 && index < 65536 ? index : 0), static_cast<uint16_t>(total > 0 && total < 65536 ? total : 0));
+  // Every refusal says why on the serial log (and the Developer log), so a
+  // card that never shows can be traced.
+  if (queued != TurnHubCards::CardQueue::Queued) {
+    const char *why = queued == TurnHubCards::CardQueue::Busy ? "BUSY" : queued == TurnHubCards::CardQueue::NoCard ? "NO_SD"
+        : !TurnHubCards::findPlane(server.arg("id").c_str()) ? "NOT_IN_CATALOG" : "BAD_TEXT_OR_ART";
+    TurnHub::serialLog.printf("ATLAS|PLANES|CARD|%s|%s|text=%u|art=%u\n", why, server.arg("id").c_str(),
+        static_cast<unsigned>(server.arg("text").length()), static_cast<unsigned>(jpeg.size()));
+  }
   switch (queued) {
     case TurnHubCards::CardQueue::Queued:
       sendJson(server, 202, String("{\"ok\":true,\"queued\":true,\"art\":") + jsonBool(!jpeg.empty()) + "}");
@@ -172,9 +185,12 @@ void handlePlaneCard(WebServer &server) {
       sendError(server, 503, "Atlas is still saving the last plane cards. Try again in a moment");
       return;
     case TurnHubCards::CardQueue::NoCard:
+      TurnHubAtlas::showSyncStatus(millis(), "Plane cards need a microSD card");
+      sendError(server, 409, "Atlas keeps plane cards on its microSD card: insert one");
+      return;
     case TurnHubCards::CardQueue::Invalid:
       TurnHubAtlas::showSyncStatus(millis(), "Couldn't save a plane card");
-      sendError(server, 409, "Atlas couldn't keep that plane: it needs a catalog plane, plain text and a microSD card");
+      sendError(server, 409, "Atlas couldn't keep that plane: it needs a catalog plane, plain text and a baseline JPEG");
       return;
   }
 }
@@ -199,8 +215,8 @@ void handlePlanesCatalog(WebServer &server) {
 
 // GET ?profileId= (a tablet, for a seated player) or the session's own profile.
 void handleSavedCommanders(WebServer &server) {
-  WebSession *session = requireSession(server);
-  if (!session) return;
+  WebSession *session = sessionForRequest(server);
+  if (!session) { sendError(server, 401, "Sign in first"); return; }
   const String profile = server.hasArg("profileId") ? server.arg("profileId") : String(session->profileId);
   TurnHubCards::SavedCommanders saved;
   if (!TurnHubProfiles::profileExists(profile) || !TurnHubCards::loadCommanders(profile, saved)) {

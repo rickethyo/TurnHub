@@ -153,6 +153,24 @@ const Plane *findPlane(const char *id) {
   for (uint16_t i = 0; i < planesCount; ++i) if (!strcmp(planes[i].id, id)) return &planes[i];
   return nullptr;
 }
+bool rememberHostedPlane(const char *id, const char *name, bool phenomenon) {
+  if (!id || !name || strlen(id) != CARD_ID_LENGTH || !name[0] || strlen(name) > PLANE_NAME_LENGTH) return false;
+  for (size_t i = 0; i < CARD_ID_LENGTH; ++i) if (!idChar(id[i])) return false;
+  for (const char *c = name; *c; ++c) if (*c < 32 || *c > 126) return false;
+  if (findPlane(id)) return true;
+  String row = String(id) + "\t" + name + "\t" + (phenomenon ? "1\n" : "0\n");
+  String lines;
+  if (!lines.reserve((planesCount + 1) * (CARD_ID_LENGTH + PLANE_NAME_LENGTH + 4))) return false;
+  const uint16_t keep = planesCount < MAX_PLANES ? planesCount : MAX_PLANES - 1;
+  for (uint16_t i = 0; i < keep; ++i)
+    lines += String(planes[i].id) + "\t" + planes[i].name + "\t" + (planes[i].phenomenon ? "1\n" : "0\n");
+  lines += row;
+  char nextVersion[VERSION_LENGTH + 1];
+  snprintf(nextVersion, sizeof(nextVersion), "direct-%.8s", id);
+  bool queued = false;
+  return replacePlanes(lines.c_str(), nextVersion, queued);
+}
+
 const char *planesVersion() { return version; }
 
 // --- plane cards ---------------------------------------------------------------

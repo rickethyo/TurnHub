@@ -64,6 +64,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -158,6 +159,8 @@ fun HomeScreen(
     sharedGameCode: String? = null,
     /** Phone-hosted games: this phone's game shown on the connected Atlas. */
     hostedStatus: com.turnhub.android.data.HostedAtlasLink.Status = com.turnhub.android.data.HostedAtlasLink.Status.Off,
+    hostedPlanesMessage: String? = null,
+    phonePairing: com.turnhub.android.data.AtlasPhonePairing.State = com.turnhub.android.data.AtlasPhonePairing.State.Idle,
     onHostOnAtlas: ((Boolean) -> Unit)? = null,
     /** Atlas kept the last hub's unfinished game: whose it was, while it is offered. */
     hostedResumeHost: String? = null,
@@ -338,6 +341,21 @@ fun HomeScreen(
                         })
                     }
                 }
+            }
+            // Pairing replaces signing in: Atlas asks "Allow this phone?" with the same code.
+            val pairingLine = when (phonePairing) {
+                is com.turnhub.android.data.AtlasPhonePairing.State.Asking ->
+                    "Tap Allow on the Atlas screen to pair this phone. Code ${phonePairing.code}"
+                is com.turnhub.android.data.AtlasPhonePairing.State.Failed -> phonePairing.message
+                else -> null
+            }
+            if (!setup.visible && tab == HomeTab.GAME && summary != null && pairingLine != null) {
+                Text(pairingLine, style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 16.dp).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite })
+            }
+            if (hostedStatus == com.turnhub.android.data.HostedAtlasLink.Status.Hosting && hostedPlanesMessage != null) {
+                Text(hostedPlanesMessage, style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = 16.dp).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite })
             }
             // Tabs push sideways in the bar's direction, like slides; none when motion is reduced.
             AnimatedContent(

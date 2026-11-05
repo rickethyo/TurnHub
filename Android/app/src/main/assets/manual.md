@@ -301,7 +301,7 @@ The current game, players, personalization and history survive closing the app, 
 
 # 10. Playing with an Atlas
 
-An Atlas adds Sigils, the Atlas screen and speaker, and shared accounts and statistics for its table. The game always runs on a phone or tablet, the game's hub: with an Atlas connected, the hub shows its game on the Atlas screen and the Sigils, and takes their presses as moves. Atlas keeps the records.
+**An Atlas adds Sigils, the Atlas screen and speaker, and shared player copies, records and statistics for its table. The game runs on a phone or tablet, the game's hub. Atlas shows the hub's game and sends Sigil and screen presses to the hub, which decides them.**
 
 ## Connecting
 
@@ -311,7 +311,7 @@ Atlas discovery stays on in the background and reconnects to a known Atlas when 
 
 ## Your Atlas Account
 
-Sign in with your Atlas account's PIN or password, or choose **New here? Create an account**. An account made without a PIN, for example on a shared tablet, asks for one the first time it signs in on a phone.
+**When the app asks to pair, compare the six-digit code on your phone with the code under Allow this phone? on Atlas. Tap Allow on Atlas only if they match. A request expires after one minute. The phone remembers its pairing key and reconnects without signing in to a player account. Settings > Device > Forget paired phones on Atlas removes all phone keys; those phones must pair again.**
 
 Signed in, this phone can host its game on Atlas (below). Your Atlas account also keeps:
 
@@ -323,21 +323,23 @@ If Atlas stops answering, the app keeps your game going: it is this device's gam
 
 ## Your Game on the Atlas
 
-A connected, signed-in phone shows its game on Atlas by itself; **Show on Atlas** in Game does it by hand, and Stop gives the table back. One phone hosts at a time: if another phone has the table, Game says **Atlas busy**.
+**A connected, paired phone shows its game on Atlas automatically. Show on Atlas in Game starts it by hand, and Stop gives the table back. One phone hosts at a time: if another phone has the table, Game says Atlas busy.**
 
-While the hub is setting up, a Sigil joins from its menu and takes a seat in the hub's game. The Sigils and the Atlas screen show the game, and their presses (such as pass, pause and life changes) go to the hub, which decides them. Other phones join through Play Together.
+While the phone or tablet is still in game setup and showing on Atlas, choose Join game on a paired Sigil. It takes a device seat in that game without creating a saved account. Join a second seat from the Sigil menu if needed. Join before starting; a running game does not accept a new Sigil seat. Sigil and Atlas presses go to the hub, which decides them. Other phones join through Play together.
 
-If the hub stops hosting or drops off in the middle of a game, Atlas keeps that game until it restarts. Another signed-in phone with no game under way that taps **Show on Atlas** is offered **Resume** that host's game, or **Show mine instead**. A finished hosted game is added to the players' Atlas statistics like any local game.
+Planechase on Atlas: the hub sends the face-up plane and upcoming cards to Atlas, including text and artwork. Atlas needs a working microSD card to keep the cards. The phone shows transfer progress or a problem near On Atlas. Missing artwork retries automatically when the connection or card recovers; you do not need to roll again. On Atlas, open Planes for the die and card controls. Card opens the landscape view; tap it to return. If home Wi-Fi has internet access, Atlas can fetch a missing plane directly from Scryfall when the phone transfer fails. Downloaded cards are kept on its microSD card for offline use; the phone still controls the deck and rolls.
+
+**If the hub stops hosting or disconnects during a game, Atlas keeps that game until it restarts. Another paired phone with no game under way can choose Resume that host's game or Show mine instead. The original phone keeps its own game. Finished records are sent to Atlas automatically while paired and connected.**
 
 ## Bringing Local Players and Games to Atlas
 
-A player on this device can be linked to an Atlas account. Connect, open **Players**, load the Atlas accounts and open the local player. **Create this account on Atlas** makes a matching Atlas account with the same account ID and personalization (it needs a PIN or password). To merge with an existing Atlas account instead, pick it and enter its PIN or password. Names alone never link or merge accounts.
+**When a paired phone connects, Atlas keeps a copy of each saved player's ID, name, color and preset avatar. A profile's PIN or password, pictures and tile background stay on the phone. Players with the same name stay separate because their IDs differ. The phone's copy supplies its name and look.**
 
-**Bring players to this table** (in **Players** once the Atlas accounts are loaded) lists every player on this device and where they stand with that Atlas. Players without a PIN go over together in one tap while you're signed in; the first person to sign in to one sets its PIN. A player with a PIN goes over when you enter it. A player whose ID is already on that Atlas is linked from **Edit** with that account's PIN.
+**Finished games upload with the phone's pairing key and credit players by their stable profile ID. Device seats and guests have no saved identity to credit. The phone keeps its original records, and reconnecting retries an interrupted upload without counting the same player twice for one game.**
 
-A linked player stays in sync with that Atlas whenever the app loads its accounts (Atlas 0.7.18 or later). Name, color, avatar and reduced motion follow whichever copy was changed most recently. PINs stay separate on each device, and statistics only travel with games. The player shows how many games they have played and won on that Atlas.
+**Open Edit under Players to see that player's games played and won on this Atlas. Atlas also returns archived games for the same profile ID to the phone's History. A record already on the phone is kept once. Copy a profile directly from another phone when you need its PIN, pictures and settings on a new device.**
 
-Once a player in a finished local game is linked to an account on that Atlas, the game is added to their Atlas statistics automatically (Atlas 0.7.16 or later; older Atlases need every player linked). Players not linked yet count as guests, and get the game added when they're linked later. Other games can be matched to Atlas accounts by hand in History. A local game is never deleted by importing it.
+**Atlas keeps identity and basic totals in its internal storage. A working microSD card is needed for appearance, detailed statistics and archived history. Missing appearance or history does not stop basic record credit; check the card and reconnect to retry. If an upload or read fails, the app shows a message and keeps the local game.**
 
 ## Roles on an Atlas
 
@@ -377,7 +379,7 @@ Everything you do in the app stays on this device: players, PINs (stored only as
 
 - **An Atlas, over your home Wi-Fi after provisioning, only when you connect.**
 
-- **Scryfall**, only for commander names and art you look up and for the Planechase library. Only what you type is sent; turn Commander card art off in Settings to stop it.
+- Scryfall supplies commander searches and art, the Planechase library, and missing cards fetched directly by a home-Wi-Fi Atlas. Requests contain card searches or card IDs, never player profiles or game history. Turn Commander card art off in Settings to stop its lookups.
 
 - **Google Forms**, only when you choose to send a bug report.
 
@@ -415,7 +417,7 @@ Atlas has stopped answering. Your game carries on in the app. Check that Atlas i
 
 ## A Local Game Is Missing From Atlas Statistics
 
-Connect and sign in, then open History. Games whose players are all linked to accounts on that Atlas import by themselves; match the others by hand.
+**Reconnect to Atlas and complete pairing if asked. The phone sends player copies and finished games automatically. Check Players for a storage or transfer message, and check Atlas's microSD card for appearance and detailed history. Local records stay on the phone; retrying does not count them twice.**
 
 # 14. Prototype Limitations
 
@@ -838,7 +840,11 @@ New TurnHub hardware is in development on the ESP32-S3:
 
 - **A new Atlas:** almost entirely capacitive touch, with at most one physical button, and a richer, animated table screen.
 
-- **The touchscreen Atlas and Sigil open on Home, with Game, Table and Settings navigation. On the new hardware the game runs on a phone or tablet, the game's hub: Atlas shows the hub's game on its screen and Sigils, sends their presses to the hub, which decides them, and keeps accounts and statistics (see the App Manual, "Your Game on the Atlas"). Table shows everyone read only. Device settings are on the Settings tab: theme, touch calibration, Unpair and Factory reset. The Sigil stays awake while powered, with no Sleep option; between games its screen turns off after two minutes without a touch, and a touch lights it again without pressing anything. Its BOOT button still provides pairing, unpair and factory reset. On the new hardware nothing is held: a tap does it, and actions that are hard to undo ask Cancel or confirm in a popup.**
+- **The touchscreen Atlas and Sigil open on Home, with Game, Table and Settings navigation. On the new hardware the game runs on a phone or tablet, the game's hub. Atlas shows the game, relays screen and Sigil presses to the hub, and keeps player copies, records and statistics. Table shows everyone read only. Device settings are on Settings: theme, touch calibration, Unpair and Factory reset. A powered Sigil stays awake; between games its screen turns off after two minutes without a touch. A touch lights it without pressing anything. BOOT provides pairing, unpair and factory reset. Screen actions use taps and confirmation popups.**
+
+Pair a phone by comparing the six-digit code on both screens and tapping Allow on Atlas. Pairing lasts through restarts. Forget paired phones in Settings > Device removes every phone key. Paired phones send public player copies and finished records without a player sign-in. IDs keep people with the same name separate; PINs and pictures stay on the phone. Basic totals use internal storage; appearance, detailed statistics and archived history need microSD. Reconnect to retry a transfer. See Your Game on the Atlas in the App Manual.
+
+On the phone-hosted hardware, choose Join game on a paired Sigil while the hub is still in setup and showing on Atlas. Planechase adds a Planes tab and a landscape card view on Atlas. The hub sends text and artwork to its microSD card and retries missing artwork automatically; transfer status appears on the phone near On Atlas. Tap the full-screen card to return to Planes. If home Wi-Fi has internet access, Atlas can fetch a missing plane directly from Scryfall when the phone transfer fails. Downloaded cards are kept on its microSD card for offline use; the phone still controls the deck and rolls.
 
 The current prototype boards keep the behavior in this manual: they run the game themselves, with their Sigils and screen. The newest app no longer plays a game these boards run; it plays its own game, which the new Atlas shows. This manual will be revised when the new hardware arrives.
 

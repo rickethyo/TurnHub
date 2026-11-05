@@ -72,11 +72,6 @@ supported.
 - **House rules** unlock smaller decks, more phenomena, free rolls and Un-
   cards.
 
-**Atlas parity.** Since 2026-11-04 the hub runs Planechase in the shared core
-like every rule; Atlas only shows the face-up plane from the hub's state, with
-art from its plane card cache (`/api/planes/card`). Full text and art stay on
-phones otherwise.
-
 **Two screens.** The plane screen is a separate LVGL view (`PlaneView`) built
 from the same snapshot as the table view. Both send Intents to the one engine.
 

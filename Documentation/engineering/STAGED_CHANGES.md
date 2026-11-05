@@ -67,9 +67,33 @@ Follow-ups left by slices 5 and 6:
 - Planechase on the Atlas screen (implemented 2026-11-05, owner ask): the
   Planes tab and full-screen card read the hub's state, its buttons queue
   planar commands, and the hub sends plane names, text and art while it
-  hosts (`HostedPlaneSync.kt`, `protocol/hosted-v1.md`). Open checks: build
-  the app, flash Atlas, play a digital Planechase game, roll from the Atlas
+  hosts (`HostedPlaneSync.kt`, `protocol/hosted-v1.md`). Transfers retry while
+  the plane stays unchanged and confirm saved artwork from the card index.
+  Home-Wi-Fi Atlas also fetches missing hosted cards from Scryfall after a
+  phone-delivery grace period, converting progressive JPEGs off the main loop.
+  Open checks: install the app, flash Atlas, play a digital Planechase game, roll from the Atlas
   screen, open the card view (rotation and touch), and watch the art arrive.
+  Verify direct fallback with phone transfer interrupted, plus router/internet
+  loss, card removal and recovery while controls and Sigils remain responsive.
+- Atlas holds no accounts (owner, 2026-11-05; approved design "Atlas as an
+  accessory: phones own profiles"). Steps, each a flash-and-test round:
+  1. **Pairing replaces sign-in** (implemented, `claude/master`): a phone
+     pairs once (Allow on the Atlas screen, same code on both), its device
+     key hosts games and sends planes, and the app pairs and shows its game
+     on connect without signing in (`phone_links.h`, `AtlasPhonePairing.kt`,
+     `protocol/hosted-v1.md` "Pairing"). Sign-in still works as a fallback.
+     Open checks: pair a phone, host and send planes without an account,
+     refuse one, reboot Atlas and host again, forget phones.
+  2. **Copies, not accounts** (implemented in PR #207): the hub projects stable
+     profile IDs into its state, sends ID/name/colour/preset-avatar copies with
+     its pairing key, imports records and reads back totals and archived games.
+     PINs and pictures stay on the phone. Identity/basic totals work without SD;
+     appearance and detailed history need SD. Verify on hardware before the
+     account-removal round: two same-name players, finished game, reconnect,
+     same-ID history on a second phone, and missing/reinserted SD.
+  3. **Remove Atlas accounts**: PINs, sessions, `/api/profiles/*` and sign-in
+     go; a factory reset clears the old accounts (no migration before release).
+  4. Docs and manuals (App and Hardware Manuals: pairing, no Atlas sign-in).
 - `/api/accounts` still reports `nudgeMuted` and the Game Master moderation
   bits (Reset connections, Remove player), which only the app's People sheet
   shows now; decide whether Game Master still means anything on Atlas before

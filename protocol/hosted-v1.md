@@ -6,15 +6,73 @@ Atlas becomes the table accessory that shows it, drives the Sigils and keeps
 records. Plan and later slices: `Documentation/engineering/STAGED_CHANGES.md`
 ("Phone-hosted games").
 
-Atlas never decides anything about a hosted game. All routes need a signed-in
-session (`X-TurnHub-Token`), including the shared table tablet's. Bodies are
-form fields, like the rest of `http-v1.md`.
+Atlas never decides anything about a hosted game. All routes need a paired
+phone's key or a signed-in session in `X-TurnHub-Token` (see "Pairing" below).
+Bodies are form fields, like the rest of `http-v1.md`.
 
-The app shows its game automatically after connecting and signing in, unless
-the player has stopped showing it. Completing Atlas setup restores sign-in
-after Atlas restarts. Temporary claim or state-push failures retry while the
+The app shows its game automatically after connecting (pairing first if this
+phone has no key for that Atlas), unless the player has stopped showing it. The
+pairing key survives Atlas restarts. Temporary claim or state-push failures retry while the
 connection is usable; another hub's live lease is respected. Disconnecting or
-signing out stops publication until the connection and session are ready again.
+removing the pairing key stops publication until the phone pairs again.
+
+## Pairing: no account needed
+
+*Experimental* (owner, 2026-11-05): Atlas is an accessory, so a phone pairs once
+instead of signing in, the way a Sigil does.
+
+- `POST /api/phones/pair` with `name` (the phone's name, printable ASCII, 32
+  characters) answers `{"request": "<16 hex>", "code": "123 456", "waitMs": 60000}`.
+  The Atlas screen shows "Allow this phone?" with the phone's name and the same
+  code. `409` while another phone is asking, or when eight phones are paired.
+- `GET /api/phones/pair?request=<id>` answers `{"state": "waiting"}`, then
+  `"allowed"` with `"phone"`, `"key"` and `"owner"` exactly once, or
+  `"refused"`, `"expired"` (60 s without an answer) or `"unknown"`.
+- The phone then sends `X-TurnHub-Token: phone:<phone>:<key>` on the hosted and
+  plane, player-copy and finished-record routes. Atlas keeps only a hash of the key (NVS `phones`). The first
+  phone paired is the owner. A `401` means Atlas forgot the phone: pair again.
+- Only the Atlas screen allows a phone or forgets them all (Settings > Device >
+  Forget paired phones).
+
+A phone's lease is keyed on its phone ID and named after the phone.
+
+## Player copies and records
+
+These routes require a valid paired phone credential; a player sign-in is not
+needed. `401` means pair again. Pairing grants access to the table's public
+profile copies, totals and archived match records, including other players in
+those records. It does not grant access to PINs or private moderation history.
+
+- `POST /api/player-copies`: form `profileId` (8 hexadecimal characters),
+  `name` (1–32 UTF-8 bytes), `color` (`none` or `#RRGGBB`), and `avatar`
+  (0 for none, or a preset ID from `/api/avatars`). Creates or updates the copy
+  under that exact ID. Same-name players with different IDs remain separate.
+  Unknown credential fields do not set a PIN or permission. The phone sends no
+  PIN verifier, custom picture or tile background.
+- Success: `{"ok":true,"appearanceStored":true}`. With no usable SD card,
+  appearance can fail independently: `appearanceStored:false` still permits
+  basic record credit using the identity in NVS. `400` rejects malformed
+  metadata; `503` means the identity/name could not be saved. Clients retry on
+  reconnect and keep their own copy throughout. Unchanged looks avoid writes.
+- `GET /api/player-copies/stats?profileId=<id>` returns `ok`, `profileId`,
+  `name`, `winRate`, `detailed`, `lastGameType`, `lifetime` and `lastGame`, with
+  the same statistics fields as `/api/session/stats`, without `moderation`.
+  `detailed:false` means only basic totals and the last result are available.
+- `GET /api/player-copies/history?profileId=<id>&skip=0&limit=20` returns
+  `{"ok":true,"records":[...],"more":false}`. `skip` is a nonnegative integer;
+  `limit` is 1–20 (default 10). `404` means no such copy; `503` means archived
+  history cannot be read without its SD card.
+
+The Android hub projects saved players' stable profile IDs into hosted state;
+phone-local seat IDs and Sigil device IDs are never substituted for profile IDs.
+On connection and library changes it sends metadata copies, then finished games
+through `/api/standalone/import`, then reads totals and archived history. Only
+acknowledged copy IDs are mapped automatically. Other seats remain guests;
+matching names never create a mapping. Import receipts count each record/player
+once, even after a lost response or later guest mapping. History already on the
+phone is kept once by record ID, and returning players bind by stable ID.
+The phone saves its pairing key before reporting success; Android cloud backup
+and device transfer exclude it.
 
 ## Lease: one hub per table
 
@@ -54,7 +112,7 @@ changes, which keeps the lease.
 
 When a hub releases the table or goes quiet in the middle of a game (started,
 not over), Atlas keeps that game in RAM. While no hub holds the table, `resume`
-carries it: `{"host": "Ana", "game": {...}}`. Another signed-in phone with no
+carries it: `{"host": "Ana", "game": {...}}`. Another paired phone with no
 game under way may adopt it and host it. Any hub that pushes the same
 `gameId` (this phone, or the first one coming back) takes it off the offer. A
 finished game, setup or an Atlas restart leaves nothing to resume; the first
@@ -63,8 +121,8 @@ hub still has its own copy.
 A hosted game is the hub's own local game, so its finished record reaches
 Atlas's history and statistics the way every local game does, through
 `POST /api/standalone/import` (`http-v1.md`), once per `recordId` (the
-`gameId`). That happens automatically while the hub is connected and signed in.
-Sigil guests are unlinked players.
+`gameId`). That happens automatically while the hub is connected and paired.
+Sigil device seats are unlinked players; they do not create saved accounts.
 
 ## Inputs: Atlas's own controls
 
@@ -84,8 +142,8 @@ Seat actions use the Play together vocabulary (`lan-v1.md`):
 (`pause` value 1 pauses, 0 resumes; `life` value is the signed change).
 Table actions (`player` 0) are applied in setup only:
 
-- `{"kind": "sigil-join", "sigil": id, "slot": 1|2}`: the hub seats a guest
-  bound to that Sigil seat;
+- `{"kind": "sigil-join", "sigil": id, "slot": 1|2}`: the hub adds a device-bound local seat
+  (`guest=false`, `localId="sigil:<id>:<slot>"`), without a saved account;
 - `{"kind": "sigil-leave", "sigil": id, "slot": 0|1|2}`: removes that seat
   (0: both of the Sigil's seats);
 - `{"kind": "start"}`: starts the game.
@@ -123,3 +181,37 @@ catalog version differs) and each face-up plane's card text and art
 (`POST /api/planes/card`, `http-v1.md`), plus the next three deck cards so a
 planeswalk shows at once. Atlas keeps them on its microSD card; without one, the
 Planes tab still shows the counts and rolls.
+
+The hub rechecks the saved card/art index while the desired planes stay the
+same. Network/storage failures and a late phone catalog or art download retry
+without another roll. A 202 response means queued, not saved: only a later
+index response confirms artwork. Text-only cards keep retrying missing art;
+a restarted Atlas is checked again. The phone shows transfer/wait/error text
+near its On Atlas control. Atlas retries a temporarily missing JPEG in an open
+card view instead of caching the missing image for the life of that plane.
+
+### Direct Scryfall fallback on Atlas
+
+While a digital hosted game is running or paused, Atlas may fill missing card
+text/art from Scryfall over its configured home Wi-Fi. Only the hub's face-up
+card IDs and next three deck IDs are eligible; physical cards cause no requests.
+Atlas gives the phone 15 seconds to fill the cache first, fetches one card at a
+time, and waits at least 60 seconds before retrying that missing ID. No card
+storage or home connection means no fetch. These are card-cache operations,
+never game actions, deck changes or die rolls.
+
+The separate network task checks TLS chains/hostnames using GTS/ISRG roots,
+permits only the fixed Scryfall API and its HTTPS art-crop host, sends User-Agent
+and Accept headers, spaces requests by 150 ms, and bounds handshake/read/body
+times and allocations. Metadata is limited to 16 KiB, source JPEG to 256 KiB
+and dimensions to 2048. The JPEG-only stb adapter converts progressive images
+in PSRAM to 480x320 baseline JPEG, at most 96 KiB, before the normal SD write
+queue accepts them. The existing HTTP upload limit stays 96 KiB. Text can save
+before art; missing art retries. The public card ID is the only lookup input;
+Atlas sends no player profiles, PINs, game history or private game state.
+
+Direct metadata adds that plane to the existing bounded catalog without
+replacing the phone's other entries (at capacity, the last entry is replaced;
+cached files remain). A changed/ended game discards an obsolete in-flight
+result. Network and conversion run off loop() and off the SD worker, so the
+screen, input and radio services continue. Stored cards still work offline.

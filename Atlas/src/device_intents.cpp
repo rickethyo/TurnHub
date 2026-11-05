@@ -21,6 +21,7 @@
 #include "wifi_password_store.h"
 #include "profile_store.h"
 #include "sd_card.h"
+#include "phone_links.h"
 #include "serial_log.h"
 
 using TurnHub::serialLog;
@@ -140,6 +141,30 @@ IntentResult handlePairConfirmIntent(const Intent &intent, void *) {
   }
   leds.invalidate(static_cast<uint8_t>(slot));
   return IntentResult::accept(confirm ? "Sigil paired securely" : "Pairing rejected");
+}
+
+// A phone asking to pair (phone_links.h): only a tap on the Atlas screen
+// allows or refuses it, so being at the table is the proof; Forget phones is
+// the same tap in Settings > Device.
+IntentResult handlePhonePairingIntent(const Intent &intent, void *) {
+  if (intent.actor.origin != IntentOrigin::AtlasHardware) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Allow phones on the Atlas screen");
+  }
+  const uint32_t nowMs = millis();
+  switch (intent.payload.value) {
+    case TurnHub::PHONE_ALLOW:
+    case TurnHub::PHONE_REFUSE: {
+      if (!TurnHubPhones::waiting(nowMs)) return IntentResult::reject(IntentStatus::InvalidState, "No phone is asking to pair");
+      const bool allow = intent.payload.value == TurnHub::PHONE_ALLOW;
+      if (!TurnHubPhones::decide(allow, nowMs)) return IntentResult::reject(IntentStatus::Rejected, "Could not save the phone");
+      return IntentResult::accept(allow ? "Phone paired" : "Phone refused");
+    }
+    case TurnHub::PHONE_FORGET_ALL:
+      return TurnHubPhones::forgetAll() ? IntentResult::accept("Paired phones forgotten")
+                                        : IntentResult::reject(IntentStatus::Rejected, "Could not forget the phones");
+    default:
+      return IntentResult::reject(IntentStatus::Rejected, "Unknown phone pairing choice");
+  }
 }
 
 // Payload: value = Atlas pairing window in milliseconds (60, 90 or 120 s;

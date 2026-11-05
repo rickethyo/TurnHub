@@ -100,7 +100,7 @@ void players(AtlasScreen &s, int count, bool game) {
 }
 
 void renderShell(AtlasScreen &s,const ScreenStyle &style,bool keepBanner=false) {
-  if(s.kind!=ScreenKind::Code && s.kind!=ScreenKind::PairCode && s.kind!=ScreenKind::Name && s.kind!=ScreenKind::Pin && s.kind!=ScreenKind::Setup && s.kind!=ScreenKind::Confirm) {
+  if(s.kind!=ScreenKind::Code && s.kind!=ScreenKind::PairCode && s.kind!=ScreenKind::Setup && s.kind!=ScreenKind::Confirm) {
     // As touch_controls.cpp's layoutButtons: Home, Game, Planes (in a Planechase game), Settings.
     const TouchAction actions[]={TouchAction::OpenHome,TouchAction::OpenGame,TouchAction::OpenPlanes,TouchAction::OpenSettings};
     const char *names[]={"Home","Game","Planes","Settings"};
@@ -112,30 +112,11 @@ void renderShell(AtlasScreen &s,const ScreenStyle &style,bool keepBanner=false) 
       auto &b=s.buttons[s.buttonCount++];b.action=actions[i];b.label=names[i];b.x=slot*w;b.y=432;b.w=slot+1==count?WIDTH-slot*w:w;b.h=48;b.selected=i==selected;++slot;
     }
   }
-  renderAtlasScreen(s,style);
-  // Only the turn-banner frame shows the banner a pass starts.
-  if(!keepBanner) lv_obj_clean(lv_layer_top());
+  renderAtlasScreen(s, style);
+  if (!keepBanner) lv_obj_clean(lv_layer_top());
 }
 
 void renderAll(const ScreenStyle &style, const std::string &suffix) {
-  for(uint8_t page=0;page<4;++page) {
-    auto s=base("PLAYER","Alexandria","Counters & status"); s.kind=ScreenKind::Player;
-    s.showPlayerControls=true; s.controlsPage=page; s.controls.allowed=(1u<<TurnHubUi::PLAYER_CONTROL_COUNT)-1;
-    s.controls.values[5]=2;
-    uint8_t ids[TurnHubUi::PLAYER_CONTROL_COUNT];const uint8_t n=TurnHubUi::playerControlRows(s.controls,ids);
-    for(uint8_t j=0;j<3 && page*3+j<n;++j) {
-      const uint8_t id=ids[page*3+j];const bool toggle=TurnHubUi::playerControlToggle(id);
-      for(uint8_t plus=0;plus<2;++plus) {
-        if(!plus && id==8) continue;
-        auto &b=s.buttons[s.buttonCount++];b.action=plus ? TouchAction::ControlPlus : TouchAction::ControlMinus;
-        b.arg=id;b.label=toggle ? (plus ? "On" : "Off") : (plus ? "+" : "-");
-        b.x=plus ? 252 : 16;b.y=SCREEN_BODY_Y+j*78+24;b.w=52;b.h=44;
-      }
-    }
-    row(s,BUTTON_ROW_Y,{{TouchAction::PlayerControlsPrev,"Prev"},{TouchAction::PlayerControlsBack,"Done"},{TouchAction::PlayerControlsNext,"Next"}});
-    renderShell(s,style); save("player-counters-"+std::to_string(page)+suffix);
-  }
-
   {
     auto s=base("PLAYING","TurnHub","Your table, Game 1");s.kind=ScreenKind::Home;
     const char *names[]={"Ricky","Avery","Sam","Jordan"};
@@ -169,32 +150,14 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     renderShell(paused,style);save("mana-paused"+suffix);
   }
   {
-    auto s=base("PLAYING","Table","Read only / players 1-8");s.kind=ScreenKind::Overview;players(s,4,true);
-    s.round=3;snprintf(s.gameClock,sizeof(s.gameClock),"42:10");
-    renderShell(s,style);save("table-overview"+suffix);
-  }
-  {
-    auto s=base("PLAYING","Table","Read only / players 1-8");s.kind=ScreenKind::Overview;players(s,8,true);
-    s.round=5;snprintf(s.gameClock,sizeof(s.gameClock),"1:12:40");
-    renderShell(s,style);save("table-overview-8"+suffix);
-  }
-
-  {
     AtlasScreen s = base("SETUP", "Welcome to TurnHub", "Set up this table from a phone");
     s.kind = ScreenKind::Setup;
-    const char *lines[] = {"1. Open the TurnHub app, tap Connect;", "   it joins this table's Wi-Fi itself.",
-        "2. No app? Join Wi-Fi TurnHub-Atlas,", "   password TurnHub-Setup,", "   then open 192.168.4.1"};
+    snprintf(s.qr, sizeof(s.qr), "WIFI:T:WPA;S:TurnHub-Atlas;P:TurnHub-Setup;;");
+    snprintf(s.qrCaption, sizeof(s.qrCaption), "Scan with your phone camera");
+    const char *lines[] = {"Scan to join the setup Wi-Fi.", "Then open TurnHub: Set up Atlas."};
     for (auto *l : lines) snprintf(s.lines[s.lineCount++], 40, "%s", l);
     row(s, BUTTON_ROW_Y, {{TouchAction::Pair, "Pair a Sigil"}, {TouchAction::SkipSetup, "Skip"}, {TouchAction::OpenSettings, "Settings"}}, {3, 2, 2});
     renderShell(s, style); save("setup" + suffix);
-  }
-  {
-    AtlasScreen s = base("LOBBY", "Lobby", "0 players, 2 Sigils");
-    s.batteryPercent = 12; s.batteryLow = true;
-    const char *lines[] = {"Tap Add player to seat someone,", "or join from the app or a Sigil.", "Settings: pair Sigils, QR codes."};
-    for (auto *l : lines) snprintf(s.lines[s.lineCount++], 40, "%s", l);
-    row(s, BUTTON_ROW_Y, {{TouchAction::OpenSeat, "Add player"}, {TouchAction::OpenNewGame, "Start"}}, {3, 3});
-    renderShell(s, style); save("lobby-empty" + suffix);
   }
   {
     // The Game tab with no hub: the steps to start a game.
@@ -204,33 +167,11 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     renderShell(s, style); save("ready" + suffix);
   }
   {
-    AtlasScreen s = base("LOBBY", "Lobby", "4 players, 2 Sigils");
-    players(s, 4, false);
-    row(s, BUTTON_ROW_Y, {{TouchAction::OpenSeat, "Add player"}, {TouchAction::OpenNewGame, "Start"}, {TouchAction::ClearLobby, "Clear"}}, {3, 3, 2});
-    s.buttons[2].confirm = true;
-    renderShell(s, style); save("lobby-4" + suffix);
-  }
-  {
     AtlasScreen s = base("SETTINGS", "Settings", "Pair Sigils, share codes, the look");
     s.kind = ScreenKind::Menu;
     list(s, {{TouchAction::OpenSetup, "Setup"}, {TouchAction::Pair, "Pair a Sigil"}, {TouchAction::OpenQr, "QR codes"},
         {TouchAction::OpenThemes, "Theme: Graphite"}, {TouchAction::OpenDevice, "Device"}}, HEIGHT - 48 - 8);
     renderShell(s, style); save("menu" + suffix);
-  }
-  {
-    // Actions in a game's first three minutes: Back to setup, as in the app.
-    AtlasScreen s = base("PLAYING", "Actions", "For the whole table");
-    s.kind = ScreenKind::Table;
-    list(s, {{TouchAction::MasterPass, "Master pass"}, {TouchAction::BackToSetup, "Back to setup"}, {TouchAction::EndMatch, "End match"}});
-    for (uint8_t i = 0; i < s.buttonCount; ++i) s.buttons[i].confirm = true;
-    row(s, BUTTON_ROW_Y, {{TouchAction::CloseScreen, "Back"}});
-    renderShell(s, style); save("actions" + suffix);
-    // The app sending plane cards: a toast over the game.
-    AtlasScreen g = base("PLAYING", "Sam's turn", "Turn 3");
-    g.round = 3; players(g, 4, true);
-    row(g, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Pass"}, {TouchAction::Pause, "Pause"}, {TouchAction::OpenTable, "Actions"}}, {3, 2, 3});
-    snprintf(g.sync, sizeof(g.sync), "Plane cards: 12 of 86");
-    renderShell(g, style); save("sync-toast" + suffix);
   }
   {
     AtlasScreen s = base("DEVICE", "Atlas device", "Unpair and Factory reset ask first");
@@ -251,77 +192,32 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     renderShell(s, style); save("themes" + suffix);
   }
   {
-    AtlasScreen s = base("NEW GAME", "New game", "4 players. Tap a row to change it");
-    s.kind = ScreenKind::NewGame;
-    list(s, {{TouchAction::GameType, "Game: Commander"}, {TouchAction::GameMode, "Mode: Free-for-all"},
-        {TouchAction::GameLife, "Starting life: 40 (rules)"}, {TouchAction::GameTimer, "Turn timer: off"},
-        {TouchAction::GameHouseRules, "House rules: off"}});
-    row(s, BUTTON_ROW_Y, {{TouchAction::StartGame, "Start game"}, {TouchAction::CloseScreen, "Back"}}, {3, 2});
-    renderShell(s, style); save("new-game" + suffix);
-  }
-  {
-    AtlasScreen s = base("CONFIRM", "End the match?", "It ends for everyone as a draw.");
+    AtlasScreen s = base("CONFIRM", "Unpair every Sigil?", "Each one must pair again to play.");
     s.kind = ScreenKind::Confirm;
-    row(s, CONFIRM_BUTTON_Y, {{TouchAction::ConfirmNo, "Cancel"}, {TouchAction::ConfirmYes, "End match"}});
+    row(s, CONFIRM_BUTTON_Y, {{TouchAction::ConfirmNo, "Cancel"}, {TouchAction::ConfirmYes, "Unpair all"}});
     const int16_t w = (WIDTH - 32 - 24) / 2;
     for (uint8_t i = 0; i < 2; ++i) { s.buttons[i].x = 24 + i * (w + 8); s.buttons[i].w = w; }
     renderShell(s, style); save("confirm" + suffix);
   }
   {
-    AtlasScreen s = base("ADD PLAYER", "Who's playing?", "Tap a name to seat them (1 of 2)");
-    s.kind = ScreenKind::Seat;
-    column(s, {{TouchAction::SeatProfile, "Jordan"}, {TouchAction::SeatProfile, "Casey (PIN)"},
-        {TouchAction::SeatProfile, "Morgan"}, {TouchAction::SeatProfile, "Riley"}});
-    for (uint8_t i = 0; i < 4; ++i) s.buttons[i].arg = i;
-    row(s, BUTTON_ROW_Y, {{TouchAction::NewPlayer, "New player"}, {TouchAction::SeatMore, "More"}, {TouchAction::CloseScreen, "Back"}}, {3, 2, 2});
-    renderShell(s, style); save("seat" + suffix);
-  }
-  {
-    // touch_controls.cpp's layoutName: six 47 x 56 keys a row, Space two wide.
-    AtlasScreen s = base("ADD PLAYER", "Jordan", "Type their name. No PIN needed");
-    s.kind = ScreenKind::Name;
-    static const char *keys[] = {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O",
-        "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "-", "'", "Space"};
-    const int16_t kw = (WIDTH - 16 - 20) / 6, kh = (BUTTON_ROW_Y - 8 - SCREEN_BODY_Y - 16) / 5;
-    for (uint8_t i = 0; i < 29; ++i) {
-      TouchButton &b = s.buttons[s.buttonCount++];
-      b.action = TouchAction::NameKey; b.label = keys[i]; b.arg = i;
-      b.x = 8 + (i % 6) * (kw + 4); b.y = SCREEN_BODY_Y + (i / 6) * (kh + 4); b.w = i == 28 ? 2 * kw + 4 : kw; b.h = kh;
-    }
-    s.pressed = TouchAction::NameKey; s.pressedArg = 13;
-    row(s, BUTTON_ROW_Y, {{TouchAction::CloseScreen, "Cancel"}, {TouchAction::NameBack, "Delete"}, {TouchAction::NameDone, "Add"}});
-    renderShell(s, style); save("name" + suffix);
-  }
-  {
-    AtlasScreen s = base("ADD PLAYER", "Casey's PIN", "* * *");
-    s.kind = ScreenKind::Pin;
-    static const char *keys[] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "Del", "0", "OK"};
-    const int16_t kw = (WIDTH - 16 - 16) / 3, kh = (BUTTON_ROW_Y - 8 - SCREEN_BODY_Y - 24) / 4;
-    for (uint8_t i = 0; i < 12; ++i) {
-      TouchButton &b = s.buttons[s.buttonCount++];
-      b.action = i == 9 ? TouchAction::PinBack : i == 11 ? TouchAction::PinDone : TouchAction::PinKey; b.label = keys[i];
-      b.x = 8 + (i % 3) * (kw + 8); b.y = SCREEN_BODY_Y + (i / 3) * (kh + 8); b.w = kw; b.h = kh;
-    }
-    row(s, BUTTON_ROW_Y, {{TouchAction::CloseScreen, "Cancel"}});
-    renderShell(s, style); save("pin" + suffix);
-  }
-  for (int n : {2, 3, 4, 6, 8}) {
-    AtlasScreen s = base("PLAYING", "Sam's turn", "Turn time 1:23");
-    s.batteryCharging = true;
-    s.round = 3; snprintf(s.gameClock, sizeof(s.gameClock), "42:10"); snprintf(s.clock, sizeof(s.clock), "1:23");
-    s.timerPermille = 600;
-    players(s, n, true);
+    auto s = base("READY", "No game yet", "Connect a phone to show a game");
+    s.kind = ScreenKind::Status;
+    renderShell(s, style); save("no-hub" + suffix);
+    players(s, 4, true); s.round = 3;
+    snprintf(s.badge, sizeof(s.badge), "PLAYING");
+    snprintf(s.title, sizeof(s.title), "Sam's turn");
+    snprintf(s.detail, sizeof(s.detail), "Hosted by Owner");
     row(s, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Pass"}, {TouchAction::Pause, "Pause"}}, {3, 2});
-    renderShell(s, style); save("game-" + std::to_string(n) + suffix);
-    if (n != 4) continue;
-    // The turn banner mid-slide after Sam passes to Alex.
-    s.players[1].flags &= ~CHIP_ACTIVE; s.players[2].flags |= CHIP_ACTIVE;
-    snprintf(s.title, sizeof(s.title), "Alex's turn");
-    renderShell(s, style, true);
-    nowMs += 400; lv_timer_handler();
-    save("turn-banner" + suffix);
-    nowMs += 3000; lv_timer_handler();
-    lv_obj_clean(lv_layer_top());
+    renderShell(s, style); save("hosted-game" + suffix);
+  }
+  {
+    auto s = base("SETUP", "Set up this Atlas", "For Owner (60 s)");
+    s.kind = ScreenKind::Code;
+    snprintf(s.code, sizeof(s.code), "001 234");
+    snprintf(s.qr, sizeof(s.qr), "001234");
+    snprintf(s.qrCaption, sizeof(s.qrCaption), "Scan or enter on that phone");
+    row(s, BUTTON_ROW_Y, {{TouchAction::CancelCode, "Cancel"}});
+    renderShell(s, style); save("verification-code" + suffix);
   }
   {
     // Planechase: the Planes screen (digital deck, a phenomenon, the players'
@@ -351,7 +247,7 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     // The die: Sam rolls planeswalk from a Sigil while the game shows.
     AtlasScreen g = base("PLAYING", "Sam's turn", "Turn 3");
     g.round = 3; players(g, 4, true);
-    row(g, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Pass"}, {TouchAction::Pause, "Pause"}, {TouchAction::OpenTable, "Actions"}}, {3, 2, 3});
+    row(g, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Pass"}, {TouchAction::Pause, "Pause"}}, {3, 2, 3});
     g.planes.on = true; g.planes.roll = 0;
     renderShell(g, style);
     g.planes.roll = 1; g.planes.face = 2; g.planes.cost = 1;
@@ -408,8 +304,7 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     s.kind = ScreenKind::Qr;
     snprintf(s.qr, sizeof(s.qr), "WIFI:T:WPA;S:TurnHub-Atlas;P:TurnHub-Setup;;");
     snprintf(s.qrCaption, sizeof(s.qrCaption), "Wi-Fi TurnHub-Atlas");
-    row(s, BUTTON_ROW_Y, {{TouchAction::QrWifi, "Wi-Fi"}, {TouchAction::QrPortal, "Portal"}, {TouchAction::QrSignIn, "Sign in"}, {TouchAction::CloseScreen, "Back"}});
-    s.buttons[0].selected = true;
+    row(s, BUTTON_ROW_Y, {{TouchAction::CloseScreen, "Back"}});
     renderShell(s, style); save("qr" + suffix);
   }
 }

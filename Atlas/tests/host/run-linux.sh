@@ -5,7 +5,10 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
 compiler="${CXX:-g++}"
 flags=(-std=c++17 -Wall -Wextra -mno-ms-bitfields -g -O1
-       -fsanitize=address,undefined -fno-omit-frame-pointer)
+       -fsanitize=address,undefined -fno-omit-frame-pointer
+       # stb_image_write's JPEG bit writer (unmodified upstream, third_party/stb)
+       # shifts a set bit into an int's sign bit; well-defined on every target we build.
+       -fno-sanitize=shift-base)
 export UBSAN_OPTIONS="${UBSAN_OPTIONS:-halt_on_error=1:print_stacktrace=1}"
 includes=(-Istubs -I../../include -I../../../shared/include -I../../../shared/core/include)
 application_sources=(
@@ -17,8 +20,8 @@ application_sources=(
   ../../src/web_standalone_api.cpp ../../src/standalone_import.cpp ../../src/sigil_update_service.cpp
   ../../src/sigil_update_jobs.cpp ../../src/web_admin_api.cpp ../../src/profile_statistics.cpp
   ../../src/ota_manager.cpp ../../src/intent_dispatcher.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp
-  ../../src/match_archive.cpp ../../src/hosted_game.cpp ../../src/hosted_sigils.cpp ../../src/web_hosted_api.cpp
-  ../../src/card_cache.cpp ../../../shared/core/src/turnhub_json.cpp ../../../shared/core/src/turnhub_core.cpp
+  ../../src/match_archive.cpp ../../src/hosted_game.cpp ../../src/hosted_sigils.cpp ../../src/web_hosted_api.cpp ../../src/phone_links.cpp
+  ../../src/card_cache.cpp ../../src/plane_image.cpp ../../../shared/core/src/turnhub_json.cpp ../../../shared/core/src/turnhub_core.cpp
 )
 
 mkdir -p build

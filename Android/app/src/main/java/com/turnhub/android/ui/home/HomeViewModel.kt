@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -80,6 +81,9 @@ class HomeViewModel(
     /** The planes downloaded on this phone, for the Atlas screen's Planechase; null in tests. */
     private val planeCatalog: (() -> List<com.turnhub.android.data.PlaneInfo>?)? = null,
     private val planeArt: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray? = { null },
+    /** Pairing replaces signing in for hosting (protocol/hosted-v1.md); null in tests (sign-in only). */
+    private val phonePairing: com.turnhub.android.data.AtlasPhonePairing? = null,
+    private val phoneName: String = "A phone",
 ) : ViewModel() {
 
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
@@ -89,8 +93,38 @@ class HomeViewModel(
      * mapping; connected profiles never become local identity by name.
      */
     /** Phone-hosted games (protocol/hosted-v1.md): this phone's game shown on Atlas. */
-    private val hostedLink = com.turnhub.android.data.HostedAtlasLink({ method, path, fields -> playerSession.raw(method, path, fields) })
+    private val hostedLink = com.turnhub.android.data.HostedAtlasLink({ method, path, fields -> hubRaw(method, path, fields) })
+    val phonePairingState: StateFlow<com.turnhub.android.data.AtlasPhonePairing.State> =
+        phonePairing?.state ?: MutableStateFlow(com.turnhub.android.data.AtlasPhonePairing.State.Idle)
+
+    /** This Atlas's paired-phone key when there is one, else the signed-in session. */
+    private fun pairedAtlas(): Pair<com.turnhub.android.data.AtlasEndpoint, String>? {
+        val pairing = phonePairing ?: return null
+        val endpoint = repository.endpoint.value ?: return null
+        val atlasId = repository.tableSummary.value?.atlasId ?: return null
+        return if (pairing.paired(atlasId)) endpoint to atlasId else null
+    }
+
+    private suspend fun hubRaw(method: String, path: String, fields: List<Pair<String, String>>): com.turnhub.android.data.RawResponse? =
+        pairedAtlas()?.let { (endpoint, atlasId) -> phonePairing?.raw(endpoint, atlasId, method, path, fields) }
+            ?: playerSession.raw(method, path, fields)
+
+    private suspend fun hubRawText(path: String, fields: List<Pair<String, String>>, body: String): com.turnhub.android.data.RawResponse? =
+        pairedAtlas()?.let { (endpoint, atlasId) -> phonePairing?.rawText(endpoint, atlasId, path, fields, body) }
+            ?: playerSession.rawText(path, fields, body)
+
+    /** Pairs this phone with the connected Atlas (Allow on its screen); true once paired. */
+    private suspend fun pairWithAtlas(): Boolean {
+        val pairing = phonePairing ?: return false
+        val endpoint = repository.endpoint.value ?: return false
+        val atlasId = kotlinx.coroutines.withTimeoutOrNull(10_000) {
+            repository.tableSummary.map { it?.atlasId }.first { it != null }
+        } ?: return false
+        return pairing.pair(endpoint, atlasId, phoneName)
+    }
     val hostedStatus: StateFlow<com.turnhub.android.data.HostedAtlasLink.Status> = hostedLink.status
+    private val _hostedPlanesMessage = MutableStateFlow<String?>(null)
+    val hostedPlanesMessage: StateFlow<String?> = _hostedPlanesMessage.asStateFlow()
     private var hostedJob: Job? = null
 
     /** Start or stop showing this phone's game on the connected Atlas. The phone keeps running it. */
@@ -102,11 +136,17 @@ class HomeViewModel(
         _hostedResume.value = null
         val table = standalone ?: return
         if (!on) return
-        if (playerSession.state.value !is PlayerSessionState.SignedIn) {
+        val signedIn = playerSession.state.value is PlayerSessionState.SignedIn
+        if (phonePairing == null && !signedIn) {
             onPlayFromPhoneClicked()
             return
         }
         hostedJob = viewModelScope.launch {
+            // No account needed: a paired phone hosts with its device key.
+            if (pairedAtlas() == null && !signedIn) {
+                phonePairing?.clearMessage()
+                if (!pairWithAtlas()) return@launch
+            }
             // Another phone's unfinished game on Atlas: offer it first, unless this phone is mid-game.
             val underway = table.state.value.game.state.let {
                 it == com.turnhub.android.protocol.TableState.STARTING || it == com.turnhub.android.protocol.TableState.RUNNING ||
@@ -134,8 +174,8 @@ class HomeViewModel(
     private suspend fun host(table: com.turnhub.android.standalone.StandaloneTable): Unit = kotlinx.coroutines.coroutineScope {
         // The Atlas screen's Planes tab: the game's digital planes, while this phone holds the table.
         val planes = planeCatalog?.let { catalog ->
-            val sync = com.turnhub.android.data.HostedPlaneSync({ method, path, fields -> playerSession.raw(method, path, fields) },
-                { path, fields, body -> playerSession.rawText(path, fields, body) }, catalog, planeArt)
+            val sync = com.turnhub.android.data.HostedPlaneSync({ method, path, fields -> hubRaw(method, path, fields) },
+                { path, fields, body -> hubRawText(path, fields, body) }, catalog, planeArt, report = { _hostedPlanesMessage.value = it })
             launch {
                 sync.run(combine(table.state, hostedLink.status) { state, status ->
                     if (status == com.turnhub.android.data.HostedAtlasLink.Status.Hosting)
@@ -144,7 +184,8 @@ class HomeViewModel(
             }
         }
         try {
-            hostedLink.host(table.state.map { hostedGameJson(it.game) }) { input ->
+            onLoadLocalImportProfiles()
+            hostedLink.host(table.state.map { hostedGameJson(it.game, it.library.players) }) { input ->
                 // Atlas's Sigils and screen: this phone's rules decide.
                 table.applyHostedInput(input.player, input.action)
             }
@@ -158,14 +199,15 @@ class HomeViewModel(
 
     /**
      * Phone-hosted games are the one way to play with Atlas (owner, 2026-11-04):
-     * once this phone is connected and signed in, it shows its game on Atlas
-     * without a tap, unless the player stopped it. Leaving the Atlas resets that.
+     * once this phone is connected (and paired, or signed in), it shows its game
+     * on Atlas without a tap, unless the player stopped it. An unpaired phone asks
+     * to pair first. Leaving the Atlas resets that.
      */
     private fun observeAutoHost() {
         autoHostObserver?.cancel()
         autoHostObserver = viewModelScope.launch {
             combine(repository.connectionState, repository.offlineSinceMs, playerSession.state) { state, since, session ->
-                state == AtlasConnectionState.CONNECTED && since == null && session is PlayerSessionState.SignedIn
+                state == AtlasConnectionState.CONNECTED && since == null && (phonePairing != null || session is PlayerSessionState.SignedIn)
             }.distinctUntilChanged().collect { ready ->
                 if (!ready) {
                     if (repository.connectionState.value == AtlasConnectionState.DISCONNECTED) hostingStopped = false
@@ -186,7 +228,7 @@ class HomeViewModel(
             standaloneObserver?.cancel()
             if (value != null && autoHost) observeAutoHost()
             if (value != null) standaloneObserver = viewModelScope.launch {
-                combine(value.state.map { it.library.history.map { r -> r.recordId } to it.library.players.map { p -> p.links } }.distinctUntilChanged(),
+                combine(value.state.map { it.library.history.map { r -> r.recordId } to it.library.players }.distinctUntilChanged(),
                     repository.tableSummary.map { it?.atlasId to it?.bootId }.distinctUntilChanged(),
                     playerSession.state.map { (it as? PlayerSessionState.SignedIn)?.profileId }.distinctUntilChanged(),
                     combine(repository.connectionState, repository.offlineSinceMs) { state, since -> state == AtlasConnectionState.CONNECTED && since == null }.distinctUntilChanged()) { _, epoch, signedIn, online -> Triple(epoch, signedIn, online) }
@@ -196,6 +238,7 @@ class HomeViewModel(
     private val _localImport = MutableStateFlow(com.turnhub.android.standalone.LocalImportState())
     val localImport: StateFlow<com.turnhub.android.standalone.LocalImportState> = _localImport.asStateFlow()
     private var localImportJob: Job? = null
+    private var localImportRequested = false
 
     private fun supportsExplicitLocalImport(version: String): Boolean =
         runCatching { com.turnhub.android.data.FirmwareVersion.parse(version) }.getOrNull()?.let {
@@ -205,8 +248,29 @@ class HomeViewModel(
     fun onLoadLocalImportProfiles() {
         val summary = repository.tableSummary.value ?: return
         val endpoint = repository.endpoint.value ?: return
-        if (repository.connectionState.value != AtlasConnectionState.CONNECTED ||
-            localImportJob?.isActive == true) return
+        if (repository.connectionState.value != AtlasConnectionState.CONNECTED) return
+        if (localImportJob?.isActive == true) { localImportRequested = true; return }
+        localImportRequested = false
+        if (pairedAtlas() != null) {
+            val table = standalone ?: return
+            _localImport.value = com.turnhub.android.standalone.LocalImportState(atlasId = summary.atlasId, busy = true, paired = true)
+            localImportJob = viewModelScope.launch {
+                try {
+                    val copies = com.turnhub.android.data.AtlasPlayerCopies { method, path, fields ->
+                        if (repository.tableSummary.value?.atlasId != summary.atlasId ||
+                            repository.connectionState.value != AtlasConnectionState.CONNECTED || pairedAtlas() == null) null
+                        else try { hubRaw(method, path, fields) } catch (_: AtlasException) { null }
+                    }
+                    val result = copies.sync(summary.atlasId, table)
+                    if (repository.tableSummary.value?.atlasId == summary.atlasId) _localImport.value = result
+                } finally {
+                    _localImport.value = _localImport.value.copy(busy = false)
+                    localImportJob = null
+                    if (localImportRequested) onLoadLocalImportProfiles()
+                }
+            }
+            return
+        }
         if (!supportsExplicitLocalImport(summary.firmwareVersion)) {
             _localImport.value = com.turnhub.android.standalone.LocalImportState(message = "Update Atlas to 0.7.2 or later before importing. Older firmware can match players by name.")
             return
@@ -236,7 +300,7 @@ class HomeViewModel(
         val table = standalone ?: return
         if (!supportsExplicitLocalImport(summary.firmwareVersion) || choices.atlasId != summary.atlasId || localImportJob?.isActive == true ||
             repository.connectionState.value != AtlasConnectionState.CONNECTED ||
-            playerSession.state.value !is PlayerSessionState.SignedIn) return
+            (pairedAtlas() == null && playerSession.state.value !is PlayerSessionState.SignedIn)) return
         if (!table.queueImport(recordId, summary.atlasId, profileIds, choices.profiles.map { it.profileId }.toSet(),
                 supportsGuestImport(summary.firmwareVersion))) {
             _localImport.value = choices.copy(message = "Choose a different Atlas profile for every player. A pending or imported mapping cannot be changed.")
@@ -248,7 +312,7 @@ class HomeViewModel(
                 table.sendRecords(summary.atlasId) { fields ->
                     if (repository.tableSummary.value?.atlasId != summary.atlasId ||
                         repository.connectionState.value != AtlasConnectionState.CONNECTED) null
-                    else try { playerSession.raw("POST", "/api/standalone/import", fields) }
+                    else try { hubRaw("POST", "/api/standalone/import", fields) }
                     catch (_: AtlasException) { null }
                 }
             } finally {
@@ -1426,6 +1490,8 @@ class HomeViewModel(
             homeLink: com.turnhub.android.data.AtlasHomeLink? = null,
             planeCatalog: (() -> List<com.turnhub.android.data.PlaneInfo>?)? = null,
             planeArt: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray? = { null },
+            phonePairing: com.turnhub.android.data.AtlasPhonePairing? = null,
+            phoneName: String = "A phone",
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val releases = GitHubFirmwareReleases()
@@ -1433,6 +1499,7 @@ class HomeViewModel(
                     repositoryFactory, wifiLink, credentialStore, playerSession, releases,
                     AtlasUpdateWatcher(playerSession, releases, updateCheckIntervalMs),
                     vault, homeLink, autoHost = true, planeCatalog = planeCatalog, planeArt = planeArt,
+                    phonePairing = phonePairing, phoneName = phoneName,
                 )
             }
         }
@@ -1440,5 +1507,16 @@ class HomeViewModel(
 }
 
 /** The core's game JSON, as the shared rules core reads it (NativeGameCore). */
-internal fun hostedGameJson(game: com.turnhub.android.standalone.StandaloneGame): org.json.JSONObject =
-    com.turnhub.android.standalone.StandaloneTable.gameToJson(game).put("profile", game.profile.name)
+internal fun hostedGameJson(
+    game: com.turnhub.android.standalone.StandaloneGame,
+    players: List<com.turnhub.android.standalone.SavedLocalPlayer> = emptyList(),
+): org.json.JSONObject {
+    val json = com.turnhub.android.standalone.StandaloneTable.gameToJson(game).put("profile", game.profile.name)
+    val roster = json.getJSONArray("players")
+    game.players.forEachIndexed { index, seat ->
+        if (!seat.guest) players.firstOrNull { it.localId == seat.localId }?.let {
+            roster.getJSONObject(index).put("profileId", it.profileId)
+        }
+    }
+    return json
+}

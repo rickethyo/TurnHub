@@ -46,8 +46,8 @@ c++ -std=c++17 -Wall -Wextra -Istubs -I../../include -I../../../shared/include -
     ../../src/web_standalone_api.cpp ../../src/standalone_import.cpp ../../src/sigil_update_service.cpp \
     ../../src/sigil_update_jobs.cpp ../../src/web_admin_api.cpp ../../src/profile_statistics.cpp \
     ../../src/ota_manager.cpp ../../src/intent_dispatcher.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp \
-    ../../src/match_archive.cpp ../../src/hosted_game.cpp ../../src/hosted_sigils.cpp ../../src/web_hosted_api.cpp \
-    ../../src/card_cache.cpp ../../../shared/core/src/turnhub_json.cpp ../../../shared/core/src/turnhub_core.cpp \
+    ../../src/match_archive.cpp ../../src/hosted_game.cpp ../../src/hosted_sigils.cpp ../../src/web_hosted_api.cpp ../../src/phone_links.cpp \
+    ../../src/card_cache.cpp ../../src/plane_image.cpp ../../../shared/core/src/turnhub_json.cpp ../../../shared/core/src/turnhub_core.cpp \
     -o build/scenarios
 ./build/scenarios
 c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include -I../../../shared/include \

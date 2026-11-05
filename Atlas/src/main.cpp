@@ -8,7 +8,9 @@
 #include <WiFi.h>
 
 #include "atlas_app.h"
+#include "card_cache.h"
 #include "hosted_game.h"
+#include "phone_links.h"
 #include "json_text.h"
 #include "sigil_update_service.h"
 #include "sigil_menu.h"
@@ -31,6 +33,7 @@
 #include "table_code_setting.h"
 #include "upload_approval.h"
 #include "home_wifi.h"
+#include "plane_download.h"
 #include "wifi_password_store.h"
 
 #if defined(ARDUINO_ARCH_ESP32)
@@ -113,8 +116,7 @@ String loadWifiPassword() {
 }
 
 void handleRoot() {
-  server.sendHeader("Location", "/portal");
-  server.send(302, "text/plain", "TurnHub portal");
+  server.send(200, "text/plain", "TurnHub Atlas accessory. Open the TurnHub app to set up this Atlas or show a game.");
 }
 
 void serveDeveloperJson(const String &json) {
@@ -222,6 +224,7 @@ bool configureIntentHandlers() {
       {IntentType::PairRequest, handlePairRequestIntent},
       {IntentType::ForgetPairing, handleForgetPairingIntent},
       {IntentType::PairConfirm, handlePairConfirmIntent},
+      {IntentType::PhonePairing, handlePhonePairingIntent},
       {IntentType::ConfigurePairing, handleConfigurePairingIntent},
       {IntentType::ConfigureSpeaker, handleConfigureSpeakerIntent},
       {IntentType::ConfigurePower, handleConfigurePowerIntent},
@@ -427,6 +430,9 @@ void setup() {
   } else if (powerStatus != TurnHubStorage::Status::NotFound) {
     serialLog.println("ATLAS|POWER|STORAGE_ERROR");
   }
+  // Phones paired to host games without signing in.
+  TurnHubPhones::load();
+  serialLog.printf("ATLAS|PHONE|LOADED|%u\n", static_cast<unsigned>(TurnHubPhones::count()));
   // The table code is an optional extra step; a missing or unreadable
   // setting keeps it off.
   bool codeRequired = TurnHub::DEFAULT_TABLE_CODE_REQUIRED;
@@ -523,6 +529,7 @@ void loop() {
   LOOP_STEP(updatePairingWindow(nowMs));
   LOOP_STEP(updateBootButton(digitalRead(AtlasConfig::BOOT_BUTTON_PIN) == LOW, nowMs));
   LOOP_STEP(showPlaneCardProgress(nowMs));
+  LOOP_STEP(serviceHostedPlaneDownload(nowMs));
   LOOP_STEP(serviceAtlasDisplay(nowMs));
   LOOP_STEP(serviceFactoryReset(nowMs));
   LOOP_STEP(serviceAutoSleep(nowMs));

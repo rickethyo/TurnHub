@@ -2,8 +2,8 @@
 
 // Cards Atlas keeps for play without a search: the digital planar deck's
 // catalog (sent by the app, kept on the microSD card) and each profile's saved
-// commanders (also on the card). Atlas never searches for cards itself; it
-// only deals and offers what was saved. Application task only.
+// commanders (also on the card). Direct fallback fetches only the IDs named
+// by the hosting phone; Atlas never chooses a deck. Application task only.
 
 #include <Arduino.h>
 #include <stdint.h>
@@ -35,6 +35,9 @@ bool loadPlanes();
 // are queued for the SD worker (queued true) and written there, never on the
 // loop. False (nothing changed) for a malformed or empty list.
 bool replacePlanes(const char *lines, const char *version, bool &queued);
+// Adds one downloaded hosted plane without replacing the phone's catalog.
+// At capacity, replaces the last catalog entry; cached card files are retained.
+bool rememberHostedPlane(const char *id, const char *name, bool phenomenon);
 uint16_t planeCount();
 const Plane *plane(uint16_t index);
 const Plane *findPlane(const char *id);
@@ -44,7 +47,7 @@ const char *planesVersion();
 //
 // The app sends each catalog plane's rules text, its chaos ability (apart,
 // as the card sets it off), type line and artist, and its art as a 480x320
-// baseline JPEG it cut from Scryfall's art crop. Kept on the microSD card in
+// baseline JPEG normalized from Scryfall's art crop by the phone or Atlas. Kept on the microSD card in
 // Atlas's "planes" folder under 8.3 names, "<hash>.txt" and "<hash>.jpg"
 // (planeFileStem); nothing without a card.
 //
@@ -59,6 +62,7 @@ constexpr size_t PLANE_ARTIST_LENGTH = 47;
 constexpr size_t PLANE_TEXT_LENGTH = 639;
 constexpr size_t PLANE_CHAOS_LENGTH = 319;
 constexpr uint16_t PLANE_ART_WIDTH = 480, PLANE_ART_HEIGHT = 320;
+constexpr size_t MAX_PLANE_UPLOAD_BYTES = 96 * 1024;
 constexpr size_t MAX_PLANE_ART_BYTES = 96 * 1024;
 
 struct PlaneCard {

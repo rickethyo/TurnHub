@@ -122,6 +122,10 @@ void noteProfileChange(const String &profileId);
 // Trims and truncates a user-supplied display name.
 String cleanName(const String &raw);
 
+// A signed-in session or a paired phone (phone_links.h) in the token header.
+bool sessionOrPairedPhone(WebServer &server);
+void handlePhonePair(WebServer &server);
+void handlePhonePairPoll(WebServer &server);
 void handleSessionLogin(WebServer &server);
 void handleSessionMe(WebServer &server);
 void handleLogout(WebServer &server);
@@ -155,6 +159,9 @@ void handleStandaloneImport(WebServer &server);
 void handleInfo(WebServer &server);
 void handleState(WebServer &server);
 // Phone-hosted games (web_hosted_api.cpp, protocol/hosted-v1.md).
+void handlePlayerCopy(WebServer &server);
+void handlePlayerCopyStats(WebServer &server);
+void handlePlayerCopyHistory(WebServer &server);
 void handleHostedClaim(WebServer &server);
 void handleHostedRelease(WebServer &server);
 void handleHostedPublish(WebServer &server);
