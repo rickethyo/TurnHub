@@ -28,6 +28,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -131,12 +132,12 @@ fun SetupScreen(state: SetupState, actions: SetupActions, modifier: Modifier = M
 }
 
 private fun title(step: SetupStep) = when (step) {
-    SetupStep.WELCOME -> "Welcome to TurnHub"
+    SetupStep.WELCOME -> "Set up Atlas"
     SetupStep.ACCOUNT -> "Your account"
     SetupStep.TABLE_CODE -> "Confirm you're at the table"
     SetupStep.SIGILS -> "Pair your Sigils"
     SetupStep.UPDATES -> "Check for updates"
-    SetupStep.WIFI -> "Secure the table's Wi-Fi"
+    SetupStep.WIFI -> "Connect Atlas to Wi-Fi"
     SetupStep.RESTARTING -> "Atlas is restarting"
     SetupStep.DONE -> "You're all set"
 }
@@ -146,7 +147,7 @@ private fun Welcome(actions: SetupActions) {
     val p = palette
     Text(
         "This Atlas is new. Setup takes about five minutes, and you need to stay at the table. You'll make an " +
-            "account, confirm you're at the table, pair your Sigils, install any updates, and give the table its own Wi-Fi password.",
+            "account, confirm you're at the table, pair your Sigils, install any updates, and connect Atlas to your home Wi-Fi. Your app works without an Atlas.",
         color = p.muted,
     )
     AccentButton("Start", { actions.run { next() } }, Modifier.fillMaxWidth())
@@ -413,17 +414,15 @@ private fun ProgressLines(lines: List<UpdateProgress>) {
 @Composable
 private fun Wifi(state: SetupState, actions: SetupActions) {
     val p = palette
-    var password by rememberSaveable { mutableStateOf("") }
-    var confirm by rememberSaveable { mutableStateOf("") }
+    var networkName by rememberSaveable { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
     var approvalRequired by rememberSaveable { mutableStateOf(state.status?.uploadApprovalRequired ?: true) }
     var show by rememberSaveable { mutableStateOf(false) }
-    val ssid = state.status?.ssid?.ifBlank { null } ?: "TurnHub-Atlas"
-    Text(
-        "$ssid still uses the setup password, which anyone can look up. Choose a password of your own " +
-            "(8 to 63 characters). Atlas restarts with the new password and this app rejoins on its own. " +
-            "Other phones will need the new password.",
-        color = p.muted,
-    )
+    Text("Choose the home Wi-Fi Atlas will use. After setup, its hotspot stays off. " +
+        "Your phones and tablets use the same home network; Sigils link directly to Atlas.", color = p.muted)
+    OutlinedTextField(networkName, { networkName = it }, label = { Text("Home Wi-Fi network name") },
+        enabled = !state.busy, singleLine = true, modifier = Modifier.fillMaxWidth())
     Row(Modifier.fillMaxWidth().toggleable(approvalRequired, enabled = !state.busy,
         role = Role.Switch, onValueChange = { approvalRequired = it }),
         verticalAlignment = Alignment.CenterVertically) {
@@ -434,7 +433,7 @@ private fun Wifi(state: SetupState, actions: SetupActions) {
         "Images stay on this local Atlas; TurnHub does not post them online. You can change this later in Device Settings.", color = p.muted)
     val transform = if (show) VisualTransformation.None else PasswordVisualTransformation()
     OutlinedTextField(
-        password, { password = it.take(63) }, label = { Text("New Wi-Fi password") }, singleLine = true,
+        password, { password = it.take(63) }, label = { Text("Home Wi-Fi password (blank for open network)") }, singleLine = true,
         visualTransformation = transform, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         trailingIcon = { TextButton({ show = !show }) { Text(if (show) "Hide" else "Show") } },
         modifier = Modifier.fillMaxWidth(),
@@ -448,9 +447,9 @@ private fun Wifi(state: SetupState, actions: SetupActions) {
     if (password.isNotEmpty() && password.length < 8) Text("At least 8 characters.", color = p.muted)
     AccentButton(
         "Finish setup",
-        { actions.run { finish(password, approvalRequired) } },
+        { actions.run { finish(networkName, password, approvalRequired) } },
         Modifier.fillMaxWidth(),
-        enabled = !state.busy && password.length >= 8 && confirm == password,
+        enabled = !state.busy && networkName.isNotBlank() && (password.isEmpty() || password.length in 8..63) && confirm == password,
     )
 }
 

@@ -1695,8 +1695,8 @@ static void atlasScreens() {
   tapButton(TouchAction::CloseScreen);
   fixtureBattery=TurnHub::BatteryReading();
   openMenuScreen(); tapButton(TouchAction::OpenQr); s=currentScreen();
-  // The shipped default password is public, so its Wi-Fi code shows freely.
-  assert(s.kind==ScreenKind::Qr && String(s.qr)=="WIFI:T:WPA;S:TurnHub-Atlas;P:TurnHub-Setup;;" &&
+  // Completed setup never offers a hotspot QR.
+  assert(s.kind==ScreenKind::Qr && s.qr[0]=='\0' &&
       !screenButton(s,TouchAction::QrPortal) && !screenButton(s,TouchAction::QrSignIn));
   // Back steps out of QR codes to Settings.
   tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Menu);
@@ -1843,6 +1843,22 @@ static void deviceManagement() {
   endHostedGame();
 }
 
+extern bool fixtureHomeConnected;
+extern bool fixtureHomeTlsReady;
+static void setupHotspotPolicy() {
+  const auto previous = setupStage;
+  const unsigned starts = WiFi.apStarts;
+  for (auto stage : {TurnHub::SetupStage::Complete, TurnHub::SetupStage::Finished}) {
+    setupStage = stage;
+    startNetworking();
+    assert(WiFi.lastMode == WIFI_STA && WiFi.apStarts == starts);
+  }
+  setupStage = TurnHub::SetupStage::Welcome;
+  startNetworking();
+  assert(WiFi.lastMode == WIFI_AP_STA && WiFi.apStarts == starts + 1);
+  setupStage = previous;
+}
+
 static void firstRunSetup() {
   using TurnHub::SetupStage;
   TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
@@ -1864,12 +1880,18 @@ static void firstRunSetup() {
   assert(TurnHub::bootSetupStage(TurnHubStorage::Status::IoError,SetupStage::Welcome,false)==SetupStage::Complete);
   assert(TurnHub::bootSetupStage(TurnHubStorage::Status::Corrupt,SetupStage::Welcome,false)==SetupStage::Complete);
 
-  // Welcome, in words: set up from the app (there is no portal). No QR code.
+  // Welcome joins setup Wi-Fi through a camera-readable QR, with no typed password.
   AtlasScreen screen=currentScreen();
   assert(screen.kind==ScreenKind::Setup && strcmp(screen.badge,"SETUP")==0);
-  assert(strcmp(screen.title,"Welcome to TurnHub")==0 && screen.qr[0]=='\0' && screen.lineCount==4);
-  assert(strstr(screen.lines[0],"TurnHub app") && strstr(screen.lines[3],"Set up this Atlas"));
+  assert(strcmp(screen.title,"Welcome to TurnHub")==0 && String(screen.qr)=="WIFI:T:WPA;S:TurnHub-Atlas;P:TurnHub-Setup;;" && screen.lineCount==2);
+  assert(strstr(screen.lines[0],"Scan") && strstr(screen.lines[1],"Set up Atlas"));
   assert(screenButton(screen,TouchAction::SkipSetup) && screenButton(screen,TouchAction::OpenSettings));
+  // QR delimiters and backslashes in saved provisioning passwords are escaped.
+  Preferences::strings()[AtlasConfig::WIFI_PREF_KEY]="semi;colon:comma,slash\\quote\"";
+  testNow+=2100; screen=currentScreen();
+  assert(String(screen.qr)=="WIFI:T:WPA;S:TurnHub-Atlas;P:semi\\;colon\\:comma\\,slash\\\\quote\\\";;");
+  Preferences::strings().erase(AtlasConfig::WIFI_PREF_KEY); testNow+=2100;
+
   // Pairing is part of setup (one update prompt for every device): the
   // Welcome screen opens it and shows the countdown.
   tapButton(TouchAction::Pair);
@@ -1900,14 +1922,14 @@ static void firstRunSetup() {
   assert(request("/api/setup/finish",guest,{{"password","table-pass-1"}})==403);
 
   // Step 3, the Wi-Fi password: never the printed one, 8 to 63 characters.
-  assert(request("/api/setup/finish",owner,{{"password",AtlasConfig::WIFI_DEFAULT_PASSWORD}})==400);
-  assert(request("/api/setup/finish",owner,{{"password","short"}})==400);
+  assert(request("/api/setup/finish",owner,{})==409);
+  assert(request("/api/setup/finish",owner,{})==409);
   assert(setupStage==SetupStage::Welcome);
   // The validator: an Admin with a private password, not the touchscreen.
   Intent advance; advance.type=IntentType::AdvanceSetup; advance.actor.origin=IntentOrigin::Browser;
   strncpy(advance.payload.moderatorId,ownerId.c_str(),8);
   advance.payload.value=static_cast<int32_t>(SetupStage::Finished);
-  assert(intents.dispatch(advance).status==IntentStatus::Rejected);  // Still the printed password.
+  assert(intents.dispatch(advance).status==IntentStatus::Rejected);  // No connected home network.
   advance.actor.origin=IntentOrigin::AtlasHardware;
   assert(intents.dispatch(advance).status==IntentStatus::Unauthorized);
   advance.actor.origin=IntentOrigin::Browser; advance.payload.value=7;
@@ -1915,8 +1937,14 @@ static void firstRunSetup() {
   // Not mid-match (Atlas restarts afterwards). freshLobby rewinds the test
   // clock, which would expire the owner's table code.
   { const uint32_t now=testNow; freshTable(); testNow=now; }
+  // No finish with a saved but unreachable network, or before TLS is ready.
+  assert(TurnHubAtlas::storeHomeWifiNetwork("Home", "home-pass-1"));
+  assert(request("/api/setup/finish",owner,{})==409);
+  fixtureHomeConnected=true;
+  assert(request("/api/setup/finish",owner,{})==409);
+  fixtureHomeTlsReady=true;
   hostGame();
-  assert(request("/api/setup/finish",owner,{{"password","table-pass-1"}})==409 && setupStage==SetupStage::Welcome);
+  assert(request("/api/setup/finish",owner,{})==409);
   // A refused finish leaves the Wi-Fi as it was (the printed password).
   assert(!TurnHub::validWifiPassword(TurnHub::readStoredWifiPassword()));
   endHostedGame();
@@ -1926,11 +1954,11 @@ static void firstRunSetup() {
   assert(request("/api/setup/finish",owner,{{"password","table-pass-1"}})==200);
   assert(server.body.find("\"restarting\":true")!=std::string::npos);
   assert(setupStage==SetupStage::Finished && TurnHub::fixtureSetupStageSaved==1);
-  assert(Preferences::strings()[AtlasConfig::WIFI_PREF_KEY]=="table-pass-1");
+  assert(!TurnHub::validWifiPassword(TurnHub::readStoredWifiPassword()));
   TurnHub::fixtureRadio=previousRadio;
   assert(request("/api/setup/finish",owner,{{"password","table-pass-2"}})==409);
   assert(request("/api/setup","",{},HTTP_GET)==200 && server.body.find("\"stage\":\"finished\"")!=std::string::npos &&
-      server.body.find("\"passwordIsDefault\":false")!=std::string::npos &&
+      server.body.find("\"passwordIsDefault\":true")!=std::string::npos &&
       server.body.find("table-pass-1")==std::string::npos);
   advance.payload.value=static_cast<int32_t>(SetupStage::Welcome);
   assert(intents.dispatch(advance).status==IntentStatus::InvalidState);
@@ -1980,6 +2008,8 @@ static void firstRunSetup() {
     ProfileFixture::profiles.erase(id.c_str()); TurnHubAccounts::accounts.erase(id.c_str());
   }
   TurnHubAccounts::primary=previousPrimary; Preferences::strings().erase(AtlasConfig::WIFI_PREF_KEY);
+  fixtureHomeConnected=fixtureHomeTlsReady=false;
+  TurnHubAtlas::forgetHomeWifiNetwork();
   TurnHub::fixtureSetupStageSaved=-1; setupStage=SetupStage::Complete; pairingActive=false;
   resetPresence(); resetTouchControls(); endHostedGame();
 }
@@ -3210,7 +3240,8 @@ int main() {
   autoSleepOnBattery(); std::cout<<"PASS auto sleep on the cell: idle between games, empty at any time" << std::endl;
   powerSettingsChoices(); std::cout<<"PASS screen and sleep settings: Atlas screen and Admin HTTP" << std::endl;
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
-  firstRunSetup(); std::cout<<"PASS first-run setup: boot stage, Welcome and Skip, account, table code, private Wi-Fi password, finish, all set, Pair a Sigil\n";
+  setupHotspotPolicy();
+  firstRunSetup(); std::cout<<"PASS first-run setup: boot stage, Welcome and Skip, account, table code, home Wi-Fi, QR, finish, all set, Pair a Sigil\n";
   artworkUploads(); std::cout<<"PASS bounded artwork upload, private review, approved public delivery and Atlas thumbnail\n";
   jewelColors(); std::cout<<"PASS personalization: Jewel color and preset avatars, validation, /api/avatars, /api/seats, TFT chips, SeatColor; custom stays private\n";
   serialLogCapture(); std::cout<<"PASS serial log capture, redaction, stream draining, ring overflow and self-describing log lines\n";

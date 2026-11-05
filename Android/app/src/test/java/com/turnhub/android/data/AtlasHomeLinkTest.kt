@@ -5,6 +5,7 @@ import com.turnhub.android.protocol.AtlasWireException
 import com.turnhub.android.protocol.AtlasWireParser
 import com.turnhub.android.testing.Fixtures
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
@@ -15,6 +16,15 @@ import java.security.MessageDigest
 import java.security.cert.CertificateException
 
 class AtlasHomeLinkTest {
+
+    @Test fun `saved home link belongs only to that Atlas during setup reconnect`() {
+        val store = MemoryHomeAtlasStore()
+        store.save(SavedHomeAtlas("THA-cc68c78d84ac", "192.168.1.40", 443, "a".repeat(64)))
+        val link = AtlasHomeLink(store, info = { error("not called") })
+        assertTrue(link.hasSavedAtlas("THA-CC68C78D84AC"))
+        assertFalse(link.hasSavedAtlas("THA-other"))
+        assertFalse(link.hasSavedAtlas(null))
+    }
 
     private val pin = "5f1c0b2a9d7e4c3b8a6f0e1d2c3b4a59687766554433221100ffeeddccbbaa99"
 

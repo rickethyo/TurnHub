@@ -158,7 +158,8 @@ const char *chipTag(const ScreenPlayer &p) {
 }
 
 bool codeLayout(const AtlasScreen &s) {
-  return s.kind == ScreenKind::Qr || s.kind == ScreenKind::Code || s.kind == ScreenKind::PairCode;
+  return s.kind == ScreenKind::Qr || s.kind == ScreenKind::Code || s.kind == ScreenKind::PairCode ||
+      (s.kind == ScreenKind::Setup && s.qr[0]);
 }
 
 bool buttonsUseBody(const AtlasScreen &s) {

@@ -515,8 +515,10 @@ class HomeViewModel(
         object : SetupHost {
             override fun endpoint(): AtlasEndpoint? = repository.endpoint.value
             override fun atlasFirmware(): String? = repository.tableSummary.value?.firmwareVersion
-            override fun wifiPasswordChanged(ssid: String, password: String) =
-                credentialStore.save(WifiCredentials(ssid, password))
+            override suspend fun rememberHomeConnection(): Boolean {
+                val endpoint = repository.endpoint.value ?: return false
+                return if (endpoint.secure) homeLink?.hasSavedAtlas(repository.tableSummary.value?.atlasId) == true else homeLink?.learn(endpoint) == true
+            }
             // Qualified: unqualified, this resolved to this override itself and
             // recursed until the stack overflowed (crash after Finish, 2026-09-30).
             override suspend fun reconnectAfterRestart(): Boolean = this@HomeViewModel.reconnectAfterRestart()
@@ -996,12 +998,13 @@ class HomeViewModel(
     private suspend fun reconnectAfterRestart(): Boolean {
         val endpoint = repository.endpoint.value ?: AtlasEndpoint.DEFAULT
         val oldBoot = repository.tableSummary.value?.bootId
+        val expectedAtlasId = repository.tableSummary.value?.atlasId
         local.update { it.copy(rejoining = true, discovery = Discovery.Idle) }
         val back = try {
             delay(RESTART_GRACE_MS)
             repository.disconnect()
             wifiLink.release()
-            withTimeoutOrNull(RECONNECT_TIMEOUT_MS) { rejoinUntilNewBoot(endpoint, oldBoot) } ?: false
+            withTimeoutOrNull(RECONNECT_TIMEOUT_MS) { rejoinUntilNewBoot(endpoint, oldBoot, expectedAtlasId) } ?: false
         } finally {
             local.update { it.copy(rejoining = false) }
         }
@@ -1011,14 +1014,18 @@ class HomeViewModel(
         return back
     }
 
-    private suspend fun rejoinUntilNewBoot(endpoint: AtlasEndpoint, oldBoot: String?): Boolean {
+    private suspend fun rejoinUntilNewBoot(endpoint: AtlasEndpoint, oldBoot: String?, expectedAtlasId: String?): Boolean {
         while (true) {
-            if (endpoint == AtlasEndpoint.DEFAULT) {
+            val savedHome = homeLink?.hasSavedAtlas(expectedAtlasId) == true
+            val home = if (savedHome) homeLink?.find() else null
+            if (home != null) {
+                repository.connect(home)
+            } else if (endpoint == AtlasEndpoint.DEFAULT && !savedHome) {
                 val ssid = credentialStore.lastSsid() ?: WifiCredentials.DEFAULT_ATLAS_SSID
                 val credentials = credentialStore.load(ssid)
                     ?: WifiCredentials(ssid, WifiCredentials.DEFAULT_ATLAS_PASSPHRASE)
                 if (wifiLink.join(credentials) == WifiJoinResult.Joined) repository.connect(endpoint)
-            } else {
+            } else if (endpoint != AtlasEndpoint.DEFAULT) {
                 repository.connect(endpoint)
             }
             val summary = repository.tableSummary.value
@@ -1047,11 +1054,11 @@ class HomeViewModel(
         discoveryJob = viewModelScope.launch {
             disconnectJob?.join()
             if (!idle()) return@launch
-            // Home Wi-Fi first: Atlas's own network is the fallback.
+            // A provisioned Atlas is reached only over home Wi-Fi.
             val home = homeLink?.find()
             if (home != null && idle()) {
                 repository.connect(home)
-            } else if (idle() && credentialStore.lastSsid() != null) {
+            } else if (idle() && homeLink?.hasSavedAtlas() != true && credentialStore.lastSsid() != null) {
                 repository.connect(AtlasEndpoint.DEFAULT)
                 learnHome(AtlasEndpoint.DEFAULT)
             }
@@ -1122,7 +1129,7 @@ class HomeViewModel(
             connectRepository(home)
             return
         }
-        if (saved == null) { local.update { it.copy(discovery = Discovery.NotFound) }; return }
+        if (saved == null || link?.hasSavedAtlas() == true) { local.update { it.copy(discovery = Discovery.NotFound) }; return }
         val joined = quietJoin(AtlasEndpoint.DEFAULT, saved)
         local.update { it.copy(discovery = if (joined) Discovery.Idle else Discovery.NotFound) }
     }
@@ -1197,7 +1204,7 @@ class HomeViewModel(
         wifiJoinJob?.cancel()
         wifiJoinJob = viewModelScope.launch {
             disconnectJob?.join()
-            // Home Wi-Fi first; Atlas's own network only if it doesn't answer there.
+            // A saved home Atlas never falls back to its retired setup hotspot.
             local.update { it.copy(discovery = Discovery.Searching) }
             val home = link.find()
             currentCoroutineContext().ensureActive()
@@ -1207,6 +1214,7 @@ class HomeViewModel(
             when {
                 home != null -> connectRepository(home)
                 candidate != null -> local.update { it.copy(homePairing = candidate) }
+                link.hasSavedAtlas() -> local.update { it.copy(discovery = Discovery.NotFound) }
                 else -> joinAtlasWifi(endpoint)
             }
         }

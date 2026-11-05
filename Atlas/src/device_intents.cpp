@@ -6,6 +6,8 @@
 #include <string.h>
 
 #include "atlas_app.h"
+#include "home_wifi.h"
+#include "home_tls.h"
 #include "atlas_battery.h"
 #include "atlas_display.h"
 #include "config.h"
@@ -282,8 +284,8 @@ IntentResult handleAdvanceSetupIntent(const Intent &intent, void *) {
   }
   SetupStage next = static_cast<SetupStage>(intent.payload.value);
   if (next == SetupStage::Finished) {
-    // The phone's last step: an Admin at the table who has replaced the
-    // shipped Wi-Fi password. Atlas restarts afterwards, so not mid-match.
+    // The phone's last step: a verified Admin and a working home network.
+    // Atlas restarts afterwards, so not mid-match.
     if (!adminIntent(intent)) {
       return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
     }
@@ -297,9 +299,9 @@ IntentResult handleAdvanceSetupIntent(const Intent &intent, void *) {
     if (!betweenGames(millis())) {
       return IntentResult::reject(IntentStatus::InvalidState, "Finish setup between games");
     }
-    const String password = TurnHub::readStoredWifiPassword();
-    if (!TurnHub::validWifiPassword(password) || password == AtlasConfig::WIFI_DEFAULT_PASSWORD) {
-      return IntentResult::reject(IntentStatus::Rejected, "Choose the table's own Wi-Fi password first");
+    if (!homeWifiEnabled() || !homeWifiConfigured() || !homeWifiConnected() ||
+        !homeTlsRunning() || strlen(homeTlsPin()) != 64) {
+      return IntentResult::reject(IntentStatus::Rejected, "Connect Atlas to your home Wi-Fi before finishing setup");
     }
     // "You're all set" exists to say "Next: pair your Sigils". With Sigils
     // already paired there is nothing left to say (owner, 2026-09-30).

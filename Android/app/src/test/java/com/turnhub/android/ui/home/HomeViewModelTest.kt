@@ -233,15 +233,19 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `try again with only a saved home Atlas that is away says not found instead of joining a hotspot`() = runTest {
+    fun `saved home Atlas never falls back to old setup credentials when away`() = runTest {
         val homeStore = com.turnhub.android.data.MemoryHomeAtlasStore()
         homeStore.save(com.turnhub.android.data.SavedHomeAtlas("THA-025448410001", "192.168.1.40", 443, "a".repeat(64)))
+        store.save(WifiCredentials("TurnHub-Atlas", "old-setup-password"))
         val home = com.turnhub.android.data.AtlasHomeLink(homeStore, info = { error("away") })
         val vm = HomeViewModel({ repository }, link, store, playerSession, homeLink = home)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
         vm.onSearchAgain()
         assertEquals(Discovery.NotFound, vm.uiState.value.discovery)
+        vm.onConnectClicked()
+        vm.onAppStarted()
         assertTrue(link.joins.isEmpty())
+        assertTrue(repository.connects.isEmpty())
     }
 
     @Test

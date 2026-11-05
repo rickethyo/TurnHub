@@ -291,7 +291,7 @@ struct AtlasScreen {
   // Body text lines (info screen, or the lobby's join hint) and a QR code.
   char lines[5][40] = {};
   uint8_t lineCount = 0;
-  char qr[112] = {};
+  char qr[256] = {};
   char qrCaption[40] = {};
   char code[8] = {};      // Presence code as "123 456" (Code screen).
 

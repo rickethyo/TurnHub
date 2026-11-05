@@ -14,7 +14,7 @@ import org.json.JSONException
 import org.json.JSONObject
 import java.io.IOException
 
-/** The app's first-run setup steps (Documentation/engineering/FIRST_RUN_SETUP.md). */
+/** Atlas provisioning steps, separate from app onboarding (Documentation/engineering/FIRST_RUN_SETUP.md). */
 enum class SetupStep(val number: Int) {
     WELCOME(0),
     ACCOUNT(1),
@@ -85,8 +85,8 @@ interface SetupHost {
     /** Atlas's running firmware from `/api/v1/info`, e.g. "0.6.0-dev". */
     fun atlasFirmware(): String?
 
-    /** The table's Wi-Fi now has this password: remember it for rejoining. */
-    fun wifiPasswordChanged(ssid: String, password: String)
+    /** Pin the home endpoint learned over the setup hotspot before it shuts down. */
+    suspend fun rememberHomeConnection(): Boolean
 
     /**
      * Atlas is restarting (update or new password). Rejoin its Wi-Fi and
@@ -110,7 +110,7 @@ interface SetupHost {
 /**
  * Walks a phone through first-run setup: account, table code (which makes the
  * account the Admin), Sigil pairing, one update prompt for every device, and
- * the table's own Wi-Fi password. Atlas validates every step; this class only
+ * the home Wi-Fi connection. Atlas validates every step; this class only
  * sequences requests and says what happened.
  *
  * The PIN typed in the account step stays in memory for the whole setup:
@@ -400,30 +400,46 @@ class AtlasSetupAssistant(
 
     // --- 5. Wi-Fi and finish ----------------------------------------------------
 
-    /** Saves the table's own Wi-Fi password and finishes setup; Atlas restarts onto it. */
-    suspend fun finish(password: String, uploadApprovalRequired: Boolean = _state.value.status?.uploadApprovalRequired ?: true) {
-        if (password.length !in 8..63) return fail("Wi-Fi passwords are 8 to 63 characters.")
-        if (password == WifiCredentials.DEFAULT_ATLAS_PASSPHRASE) {
-            return fail("Choose a password other than the one printed for setup.")
-        }
+    /** Provision home Wi-Fi, learn its key, then close the setup hotspot. */
+    suspend fun finish(ssid: String, password: String,
+        uploadApprovalRequired: Boolean = _state.value.status?.uploadApprovalRequired ?: true) {
+        if (ssid.isBlank() || ssid.toByteArray(Charsets.UTF_8).size > 32)
+            return fail("Enter a Wi-Fi network name of 1 to 32 bytes.")
+        if (password.isNotEmpty() && password.toByteArray(Charsets.UTF_8).size !in 8..63)
+            return fail("Wi-Fi passwords are 8 to 63 bytes, or blank for an open network.")
         work {
-            val response = session.raw("POST", "/api/setup/finish", listOf("password" to password,
+            val network = session.raw("POST", "/api/network/home", listOf("ssid" to ssid, "password" to password))
+                ?: return@work signedOut()
+            if (network.code == 403 && presenceRequired(network)) {
+                afterCode = { finish(ssid, password, uploadApprovalRequired) }
+                requestCodeQuietly(); return@work
+            }
+            if (!network.ok) return@work fail(errorOf(network) ?: "Atlas couldn't save that network.")
+            _state.update { it.copy(note = "Connecting Atlas to $ssid. Keep this phone on the setup Wi-Fi for now.") }
+            var ready = false
+            // Channel changes and certificate creation can briefly interrupt setup polls.
+            for (attempt in 0 until 45) {
+                try {
+                    val response = session.raw("GET", "/api/network")
+                    val home = response?.takeIf { it.ok }?.let { JSONObject(it.body).optJSONObject("home") }
+                    if (home?.optBoolean("connected") == true && home.optJSONObject("tls")?.optBoolean("running") == true &&
+                        host.rememberHomeConnection()) { ready = true; break }
+                } catch (e: AtlasException) { /* Retry while the radio joins. */ }
+                delay(pollMs)
+            }
+            if (!ready) return@work fail("Atlas couldn't join $ssid. Check the network and password, then try again. The setup hotspot is still on.")
+            val response = session.raw("POST", "/api/setup/finish", listOf(
                 "uploadApprovalRequired" to if (uploadApprovalRequired) "1" else "0"))
                 ?: return@work signedOut()
             if (response.code == 403 && presenceRequired(response)) {
-                afterCode = { finish(password, uploadApprovalRequired) }
-                requestCodeQuietly()
-                return@work
+                afterCode = { finish(ssid, password, uploadApprovalRequired) }
+                requestCodeQuietly(); return@work
             }
             if (!response.ok) return@work fail(errorOf(response) ?: "Atlas didn't finish setup.")
-            val ssid = _state.value.status?.ssid?.takeIf { it.isNotBlank() } ?: WifiCredentials.DEFAULT_ATLAS_SSID
-            host.wifiPasswordChanged(ssid, password)
-            _state.update { it.copy(step = SetupStep.RESTARTING, note = "Atlas is restarting with your new Wi-Fi password.") }
-            if (host.reconnectAfterRestart()) {
-                check()
-            } else {
-                fail("Atlas hasn't come back yet. Rejoin $ssid with your new password, then connect again.")
-            }
+            _state.update { it.copy(step = SetupStep.RESTARTING,
+                note = "Atlas is restarting on $ssid. Its setup hotspot is now off. Connect this phone to $ssid if needed.") }
+            if (host.reconnectAfterRestart()) check()
+            else fail("Join $ssid on this phone, then use Find Atlas on Wi-Fi. Atlas setup is complete and its hotspot is off.")
         }
     }
 

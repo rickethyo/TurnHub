@@ -1,128 +1,58 @@
-# First-run Setup
+# Atlas setup
 
-The guided setup for a new or factory-reset Atlas (2026-09-30), in Atlas, the
-Android app and the embedded portal, and in use (owner, 2026-10-02). It is the
-implemented part of the broader provisioning ideas in `Atlas/OOBE.md`.
+Atlas provisioning is separate from first-time app setup. The app works without
+an Atlas. Choose **Set up an Atlas** during app onboarding or later under
+More > Atlas connection.
 
-## Principles
+## Provisioning
 
-- **Local-first:** no cloud account or internet; everything runs on Atlas's
-  own Wi-Fi.
-- **Physical presence:** a new Atlas is claimed by the first account set up on
-  its own Wi-Fi (in range of the table, with the printed password). The
-  six-digit presence code is an optional extra step, off by default since
-  2026-10-08; with it on, the table code step asks for it
-  ([Players and Accounts](PLAYERS_AND_ACCOUNTS.md)). The app skips that step
-  when Atlas reports the account verified.
-- **The public default Wi-Fi password must be replaced** before setup can
-  finish. The default `TurnHub-Setup` lives in `Atlas/include/config.h`
-  (`WIFI_DEFAULT_PASSWORD`) and `WifiCredentials.DEFAULT_ATLAS_PASSPHRASE`;
-  keep them in sync.
-- **Never block play:** **Skip for now** on the Atlas screen lets a table
-  play first; setup comes back at the next start-up and under Menu.
-- **One flow, app first:** Atlas defines the steps and endpoints; the app and
-  the portal both follow them. The app is easiest because it joins Atlas's
-  Wi-Fi by itself. Setup gives the network as typed text and doesn't depend
-  on QR codes.
+1. Scan the Wi-Fi QR on Atlas Welcome with your phone camera. It joins
+   TurnHub-Atlas without typing a password.
+2. Open TurnHub, choose Set up an Atlas, and create, install or sign into an
+   Atlas Admin account. Confirm the physical table code if requested.
+3. Pair Sigils now or later. Prototype firmware updates use USB; choose Later.
+4. Enter the home network name and password, or leave the password blank for
+   an open network. Choose upload approval for images.
+5. Atlas joins the home network while its setup hotspot stays available.
+   The app saves the home address and HTTPS key pin over the setup link.
+6. Finish saves the setup stage and restarts Atlas with the hotspot off.
+   The app releases the temporary setup connection and reconnects over home
+   Wi-Fi. If needed, join that network in Android settings and Find Atlas on Wi-Fi.
 
-## The flow
+Failed joins or missing HTTPS keys leave setup open. Skip postpones setup;
+it does not complete it. There is no browser portal.
 
-```text
-Atlas, stage Welcome: "Welcome to TurnHub"
-  1. Open the TurnHub app and tap Connect (it joins the table's Wi-Fi)
-  2. No app? Wi-Fi TurnHub-Atlas, password TurnHub-Setup, then 192.168.4.1
-  [Pair a Sigil] [Skip for now] [Menu]
+## Network policy
 
-Phone, "Set up this table" (Step n of 5):
-  1. Your account   "Install your admin account as the device admin?" when
-                    the phone has an Admin account (it uploads under its
-                    own ID), or create one or sign in
-  2. At the table   type the code Atlas shows; this account becomes the Admin
-  3. Sigils         pair each one (code check on the Atlas screen), or skip
-  4. Updates        Atlas and every Sigil: running vs available; Install all
-                    or Later. Atlas first, then each Sigil
-  5. Secure Wi-Fi   choose upload approval On (default) or Off, then
-                    choose the table's password (8-63 characters);
-                    Finish saves it and restarts Atlas
+Only SetupStage::Welcome starts the hotspot. Finished and Complete use station
+mode, even if home Wi-Fi is unset, disabled or unreachable. Router outages
+never reopen a hotspot. Sigils use ESP-NOW and find Atlas on the router channel.
+Factory reset at the device returns Atlas to Welcome; it removes accounts,
+records, settings and pairings. A replacement network can be saved while the
+app is connected. An inaccessible Atlas needs physical reset to provision again.
 
-Atlas restarts, stage Finished: "You're all set. Next: pair your Sigils."
-  [Pair a Sigil] [Done]  -> stage Complete
-  (skipped straight to Complete if a real Sigil was already paired)
-```
+## State and API
 
-The app reads `GET /api/setup` after Connect and opens setup while the stage
-is Welcome. After Atlas restarts on the new password, the app rejoins with the
-password it just set. On launch it rejoins its saved table; a phone with none,
-or whose table no longer answers, offers "Set up a new table". The portal
-pack runs steps 1, 2 and 5; pairing and updates stay on the Atlas screen and
-in the app.
+NVS turnhub/setup stores Welcome (0), Finished (1) or Complete (2). A missing
+record with an Admin boots Complete; without an Admin it boots Welcome.
+Unreadable storage boots Complete. setup_stage.h owns storage and
+handleAdvanceSetupIntent in device_intents.cpp validates transitions.
 
-**Updates during setup** use the GitHub release feed
-([Firmware Updates](FIRMWARE_UPDATES.md)). They come after the table code
-(installing needs a verified Admin) and pairing (one prompt for every
-device), and before the password change (so every restart still uses the
-printed password). The app's network specifier leaves the phone's own
-internet as the default network, so downloads go over the phone's connection.
-With no internet the step says so and Continue works. Atlas sessions and
-presence are RAM only, so after Atlas restarts the app signs in again and asks
-for one new code before updating the Sigils.
+- GET /api/setup is public: stage, Admin existence, SSID, passwordIsDefault
+  and upload approval. It never returns a password.
+- POST /api/network/home saves the home network using verified Admin access.
+  GET /api/network reports connection and HTTPS readiness. GET /api/v1/info
+  carries the home endpoint and key for pinning.
+- POST /api/setup/finish accepts uploadApprovalRequired=0|1. A verified Admin,
+  Welcome, no running game, and enabled/configured/connected home Wi-Fi with
+  a ready HTTPS key are required. It advances to Finished (Complete with a
+  paired Sigil), responds with restarting:true, and restarts with the hotspot
+  off. It does not change the hotspot password.
+- AdvanceSetup to Complete acknowledges Finished from the screen or an Admin.
+  Stages never go backwards except through factory reset.
 
-## Stages and storage
-
-`SetupStage` in NVS `turnhub/setup` (`setup_stage.h`):
-
-| Stage | Meaning | Atlas screen |
-|---|---|---|
-| `Welcome` (0) | New or factory-reset | Welcome |
-| `Finished` (1) | The phone finished | "You're all set" once |
-| `Complete` (2) | Normal operation | Ordinary lobby |
-
-No record at boot reads as Complete if an Admin exists, otherwise Welcome. A
-storage failure reads as Complete (logged `ATLAS|SETUP|STAGE|LOAD_FAILED`),
-so a broken NVS never locks the table in setup. Factory reset returns to
-Welcome. Stages never go backwards otherwise.
-
-## Feature gate
-
-1. **State owner:** Atlas (`setup_stage.h`; `beginFirstRunSetup` in `table_intents.cpp` loads it at boot). Skip
-   for now is RAM-only touchscreen state.
-2. **Intent:** `AdvanceSetup`, `value` = target stage. To Finished: a
-   presence-verified Admin from a phone. To Complete: the touchscreen or an
-   Admin.
-3. **Validator:** `handleAdvanceSetupIntent`: to Finished needs a verified
-   Admin, Lobby or Game Over, and an owner-set Wi-Fi password already saved
-   (with a real Sigil paired it stores Complete instead); to Complete needs
-   stage Finished.
-4. **Persistence:** `turnhub/setup`; the Wi-Fi password keeps its own store.
-5. **Rendering:** the touchscreen (`ScreenKind::Setup`), the app's setup
-   steps and the embedded portal.
-6. **Contract:** portal-private routes, not part of `/api/v1`:
-   `GET /api/setup` (no sign-in; stage, `adminExists`, `passwordIsDefault`,
-   SSID, never the password) and `POST /api/setup/finish` (`password=`;
-   accepts `uploadApprovalRequired=0|1` via ConfigureUploadApproval, then
-   saves the password, then the stage, then restarts; a refused
-   `AdvanceSetup` means no restart). If power is cut between the two writes,
-   setup simply runs again.
-7. **Dependencies:** none.
-8. **Accessibility:** every step is text on the Atlas screen and an
-   accessible form on the phone; nothing relies on color, sound or LEDs.
-
-## Status
-
-Host scenario `firstRunSetup`, Android JVM tests (`AtlasSetupAssistantTest`,
-`FirmwareReleasesTest`) and a full owner run on hardware (2026-09-30; an app
-crash on the final reconnect was fixed the same day, log in
-[history/logs](history/logs/README.md)). Still open: a "Setting up a new
-table" section in the user manual, and an Atlas name step later.
-
-## Upload approval choice
-
-The final app/portal startup form includes **Require Admin approval for uploaded
-images**, on by default. Off allows complete, validated new uploads to appear at
-the local table immediately. TurnHub does not post images online. Admins can
-change this later in Device Settings or the embedded portal. Existing pending
-images retain review controls. NVS `imgreview` holds schema 1 `{1,0|1}`; missing,
-corrupt or unreadable storage defaults to on. The selection uses the same
-ConfigureUploadApproval Intent as the later Admin setting. Setup preference,
-Wi-Fi and stage writes are separate commits; a later setup failure may retain
-the selected preference, and the setup status reports its saved value.
+The standard WPA Wi-Fi QR includes the current setup password, escaped for
+punctuation; the shipped password is TurnHub-Setup. Host tests cover boot
+network policy, QR, authorization and incomplete networking. Android tests
+cover provisioning, pin-before-finish, reconnect and failed joins. Physical
+camera scanning and router-outage checks remain hardware acceptance.

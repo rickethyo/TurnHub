@@ -109,11 +109,13 @@ void TurnHubAtlas::setAtlasStatusLed(bool, bool, bool) {}
 // setting and its outcomes are kept here so screens and routes can be tested.
 #include "home_wifi.h"
 bool fixtureHomeWifiOn = false;
+bool fixtureHomeConnected = false;
+bool fixtureHomeTlsReady = false;
 std::string fixtureHomeSsid;
 unsigned fixtureHomeChecks = 0;
 bool TurnHubAtlas::homeWifiEnabled() { return fixtureHomeWifiOn; }
 bool TurnHubAtlas::homeWifiConfigured() { return !fixtureHomeSsid.empty(); }
-bool TurnHubAtlas::homeWifiConnected() { return false; }
+bool TurnHubAtlas::homeWifiConnected() { return fixtureHomeConnected; }
 const char *TurnHubAtlas::homeWifiAddress() { return ""; }
 bool TurnHubAtlas::atlasHotspotOn() { return true; }
 uint8_t TurnHubAtlas::homeWifiNetworkChannel() { return 0; }
@@ -139,5 +141,5 @@ void TurnHubAtlas::serviceHomeWifi(uint32_t) {}
 // HTTPS on the home network is firmware-only (home_tls_server.cpp).
 #include "home_tls.h"
 void TurnHubAtlas::startHomeTls() {}
-bool TurnHubAtlas::homeTlsRunning() { return false; }
-const char *TurnHubAtlas::homeTlsPin() { return ""; }
+bool TurnHubAtlas::homeTlsRunning() { return fixtureHomeTlsReady; }
+const char *TurnHubAtlas::homeTlsPin() { return fixtureHomeTlsReady ? "1111111111111111111111111111111111111111111111111111111111111111" : ""; }

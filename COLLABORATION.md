@@ -1943,3 +1943,33 @@ checks pass. Full Atlas host suites unavailable locally: bundled MinGW lacks
 C++17 optional, and MSVC cannot compile existing GNU packed attributes/POSIX
 headers. Linux sanitizer/core/Atlas suites remain for PR CI. No device flash
 or release is needed for this directory-only change.
+
+## Atlas provisioning hotspot — 2026-11-04, Codex
+
+Owner requests a setup-only Atlas hotspot, a Wi-Fi join QR on its screen,
+and Atlas provisioning separate from app onboarding but launchable from it.
+Baseline `61391429`, clean `codex/master`, origin fetched, no open PRs.
+Scope: remove normal-operation hotspot/fallback; QR-led Welcome; require a
+working home network before completing Atlas setup; app provisioning, trusted
+home reconnect and optional entry from device-account onboarding; tests and
+owning docs. Atlas/Sigil accessory roles remain. No merge, release or flash.
+
+Validation: all 472 Android JVM tests pass; Android debug APK and Atlas S3
+firmware builds pass. All Atlas host suites pass using w64devkit GCC; adapter
+audit and client-contract checks pass. The contract check needed old ignored
+engine-era client JSON outputs moved aside (preserved under Private).
+Documentation links, licensed-content guard and whitespace checks pass.
+Rendered Atlas Welcome with the real LVGL renderer; ZXing decodes its Wi-Fi
+QR correctly. Both Word manuals rendered and reviewed. The Hardware Manual
+already failed native Word open at baseline; repackaged its existing body
+paragraphs and formatting in a valid container and checked all 15 pages.
+Physical camera scan, first-run provisioning and router-outage checks remain
+hardware acceptance. Existing devices remain on accepted master; no flash,
+merge or release. Next owner: review/integrate the codex/master PR.
+
+PR #202 CI follow-up — 2026-11-04, Codex, baseline `4f66425b`:
+Host and shared-core sanitizer suites passed. The failing step was
+`Android/tools/export_manual.py --check`: the embedded manual had been edited
+by hand instead of regenerated from the verified Word sources. Regenerated
+that asset with its owning exporter; no firmware or application logic change.
+Validation: exporter freshness, manual parser JVM tests, documentation links, licensed-content guard and whitespace checks pass locally.
