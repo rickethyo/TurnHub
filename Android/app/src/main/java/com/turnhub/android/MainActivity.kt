@@ -97,6 +97,9 @@ class MainActivity : ComponentActivity() {
                 discover = com.turnhub.android.data.NsdAtlasDiscovery(applicationContext)::find,
                 discoverNew = com.turnhub.android.data.NsdAtlasDiscovery(applicationContext)::findNew,
             ),
+            // The Atlas screen's Planechase: the planes this phone downloaded.
+            planeCatalog = { com.turnhub.android.ui.tablet.PlaneLibrary.known(applicationContext)?.values?.toList() },
+            planeArt = { com.turnhub.android.ui.tablet.PlaneLibrary.source(applicationContext).art(it) },
         )
     }
 
@@ -485,6 +488,7 @@ class MainActivity : ComponentActivity() {
                             sharedGameHosting = lanState.host != null,
                             sharedGameCode = lanState.host?.code,
                             hostedStatus = homeViewModel.hostedStatus.collectAsStateWithLifecycle().value,
+                            hostedPlanesMessage = homeViewModel.hostedPlanesMessage.collectAsStateWithLifecycle().value,
                             onHostOnAtlas = homeViewModel::onHostOnAtlas,
                             hostedResumeHost = homeViewModel.hostedResume.collectAsStateWithLifecycle().value?.host,
                             onResumeHosted = homeViewModel::onResumeHosted,

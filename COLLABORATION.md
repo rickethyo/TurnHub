@@ -2015,3 +2015,36 @@ Preserve phone-owned rules, hosted controls, device setup, shared transfer and
 card-storage APIs. No new dependency or wire protocol. Validate Android JVM/APK,
 Atlas host/contracts and firmware, renderer previews and documentation guards.
 No merge, release or device installation.
+
+## Cleanup completion and hosted accessories — 2026-11-05, Codex
+
+Owner authorizes finishing checkpoint `67b41a00` while retaining hosted
+Planechase from accepted master `acc6ba1d`, fixing Atlas plane delivery and
+Sigil joining. Branch codex/master; clean start, origin fetched, no open PRs.
+Merge accepted master into the checkpoint, preserve active hosted Planes/UI
+and card helpers, remove only retired paths, then trace delivery/join from
+phone through Atlas to Sigil. Add targeted regressions, run app/firmware/host
+checks and update owning docs. Hardware acceptance is separate; no merge or
+release authorized by this scope.
+
+
+Cleanup/join/phone-transfer validation: all 484 Android JVM tests pass, with
+focused reruns after transfer and manual changes; Preview APK and Atlas S3/
+Sigil builds pass. Atlas host/storage/profile/OTA suites and adapter/client
+contracts pass with w64devkit. Device Guard blocks the Sigil menu host test;
+leave that suite to CI. Both real LVGL renderers run (including Sigil touch
+assertions); reviewed Planes, phenomenon, landscape art, die and readiness
+previews. Both manual edits rendered through Word and checked, with only the
+intended paragraphs changed; embedded manual regenerated. Docs, licensed-content
+and whitespace guards pass. Root cause of setup joins: a device localId was
+sent with guest=true, which native rules reject. Device seats now use their
+supported local identity without creating an account. Phone plane delivery
+retries quiet-game failures and missing catalog/art, confirms saved artwork
+from Atlas's index, and surfaces progress/errors. Atlas retries failed JPEG
+reads. Owner confirms the failed Sigil join was during setup. Hardware retest
+and release/integration remain separate; no device flash or game input sent.
+
+Owner follow-up (same slice): add Atlas home-Wi-Fi direct Scryfall fetching as
+a fallback for missing hosted plane cards; retain hub ownership and existing
+phone delivery. Network work must be bounded and off the application/SD loops.
+This fallback is still in progress after the cleanup checkpoint.

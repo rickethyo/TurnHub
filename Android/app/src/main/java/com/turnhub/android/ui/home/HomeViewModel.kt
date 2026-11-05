@@ -77,6 +77,9 @@ class HomeViewModel(
     private val homeLink: com.turnhub.android.data.AtlasHomeLink? = null,
     /** Show this phone's game on Atlas as soon as it is connected and signed in; off in tests. */
     private val autoHost: Boolean = false,
+    /** The planes downloaded on this phone, for the Atlas screen's Planechase; null in tests. */
+    private val planeCatalog: (() -> List<com.turnhub.android.data.PlaneInfo>?)? = null,
+    private val planeArt: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray? = { null },
 ) : ViewModel() {
 
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
@@ -88,6 +91,8 @@ class HomeViewModel(
     /** Phone-hosted games (protocol/hosted-v1.md): this phone's game shown on Atlas. */
     private val hostedLink = com.turnhub.android.data.HostedAtlasLink({ method, path, fields -> playerSession.raw(method, path, fields) })
     val hostedStatus: StateFlow<com.turnhub.android.data.HostedAtlasLink.Status> = hostedLink.status
+    private val _hostedPlanesMessage = MutableStateFlow<String?>(null)
+    val hostedPlanesMessage: StateFlow<String?> = _hostedPlanesMessage.asStateFlow()
     private var hostedJob: Job? = null
 
     /** Start or stop showing this phone's game on the connected Atlas. The phone keeps running it. */
@@ -128,11 +133,25 @@ class HomeViewModel(
         hostedJob = viewModelScope.launch { host(table) }
     }
 
-    private suspend fun host(table: com.turnhub.android.standalone.StandaloneTable) {
-        hostedLink.host(table.state.map { hostedGameJson(it.game) }) { input ->
-            // Atlas's Sigils and screen: this phone's rules decide.
-            table.applyHostedInput(input.player, input.action)
+    private suspend fun host(table: com.turnhub.android.standalone.StandaloneTable): Unit = kotlinx.coroutines.coroutineScope {
+        // The Atlas screen's Planes tab: the game's digital planes, while this phone holds the table.
+        val planes = planeCatalog?.let { catalog ->
+            val sync = com.turnhub.android.data.HostedPlaneSync({ method, path, fields -> playerSession.raw(method, path, fields) },
+                { path, fields, body -> playerSession.rawText(path, fields, body) }, catalog, planeArt, report = { _hostedPlanesMessage.value = it })
+            launch {
+                sync.run(combine(table.state, hostedLink.status) { state, status ->
+                    if (status == com.turnhub.android.data.HostedAtlasLink.Status.Hosting)
+                        com.turnhub.android.data.HostedPlaneSync.wantedPlanes(state.game.planechase) else emptyList()
+                })
+            }
         }
+        try {
+            hostedLink.host(table.state.map { hostedGameJson(it.game) }) { input ->
+                // Atlas's Sigils and screen: this phone's rules decide.
+                table.applyHostedInput(input.player, input.action)
+            }
+        } finally { planes?.cancel() }
+        Unit
     }
 
     /** The player stopped showing this phone's game on the connected Atlas. */
@@ -1407,13 +1426,15 @@ class HomeViewModel(
             updateCheckIntervalMs: Long = AtlasUpdateWatcher.RELEASE_INTERVAL_MS,
             vault: com.turnhub.android.data.ProfileVault? = null,
             homeLink: com.turnhub.android.data.AtlasHomeLink? = null,
+            planeCatalog: (() -> List<com.turnhub.android.data.PlaneInfo>?)? = null,
+            planeArt: suspend (com.turnhub.android.data.PlaneInfo) -> ByteArray? = { null },
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val releases = GitHubFirmwareReleases()
                 HomeViewModel(
                     repositoryFactory, wifiLink, credentialStore, playerSession, releases,
                     AtlasUpdateWatcher(playerSession, releases, updateCheckIntervalMs),
-                    vault, homeLink, autoHost = true,
+                    vault, homeLink, autoHost = true, planeCatalog = planeCatalog, planeArt = planeArt,
                 )
             }
         }

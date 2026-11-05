@@ -99,6 +99,15 @@ loss condition; Commander damage totals alone do not trigger elimination.
 - Lifetime statistics are not yet split by game (staged), apart from the
   Star Commander counters below.
 
+## Planechase on hosted Atlas
+
+The phone owns the deck, rules and rolls. Atlas keeps the hosted Planes tab,
+full-screen landscape card, counters and die animation; its controls queue
+commands for the active player. Plane names, card text and artwork are sent by
+the hosting phone and kept on Atlas's microSD card. Missing downloads retry
+without changing planes. The transfer contract and confirmation rules belong
+in [Hosted games](../../protocol/hosted-v1.md#planechase-on-the-atlas-screen).
+
 ## Elimination credit
 
 Standalone app tables support up to ten players. Atlas's standalone importer

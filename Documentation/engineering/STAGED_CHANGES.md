@@ -64,15 +64,34 @@ the hub. Contract: `protocol/hosted-v1.md`. Slices, each a flash-and-test round:
 
 Follow-ups left by slices 5 and 6:
 
-- Planechase display parity: add a hosted-state projection and app-driven
-  card delivery before adding an Atlas plane view. The catalog/card storage
-  routes (`/api/planes`, `/api/planes/card`) remain available; the phone owns
-  the deck and rolls.
+- Planechase on the Atlas screen (implemented 2026-11-05, owner ask): the
+  Planes tab and full-screen card read the hub's state, its buttons queue
+  planar commands, and the hub sends plane names, text and art while it
+  hosts (`HostedPlaneSync.kt`, `protocol/hosted-v1.md`). Transfers retry while
+  the plane stays unchanged and confirm saved artwork from the card index.
+  Open checks: install the app, flash Atlas, play a digital Planechase game, roll from the Atlas
+  screen, open the card view (rotation and touch), and watch the art arrive.
 - `/api/accounts` still reports `nudgeMuted` and the Game Master moderation
   bits (Reset connections, Remove player), which only the app's People sheet
   shows now; decide whether Game Master still means anything on Atlas before
   changing the account layout.
 - "Connect a phone to start" on the Atlas screen with no hub (slice 3).
+
+## Games travel with the player (2026-11-05)
+
+Owner ask: a player's profile and games follow them whoever hosts, and games
+played apart merge into the host on first connect or reconnect. Slice 1 (Play
+together `history` exchange, Android) is implemented; device acceptance is open
+(two phones, a game played apart, reconnect after Wi-Fi loss). Next slices:
+
+1. Settings on reconnect: the same exchange carries the profile's name, look and
+   PIN verifier, newest `lastActivityMs` wins, so a change made apart lands
+   without joining again.
+2. Atlas parity: games the hub merged reach Atlas through the existing import;
+   Atlas sends a linked profile's archived games (`games.jsonl`) back to a phone.
+3. Duplicate accounts with different IDs: an explicit "Same person?" merge that
+   keeps the oldest ID, or the Admin's. Never automatic on joining a room.
+4. iOS (with its LAN client) and the owner's local-only apps use the same contract.
 
 ## Saved game setups on Atlas (next parity slice, 2026-10-31)
 

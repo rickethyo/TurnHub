@@ -185,12 +185,34 @@ bool setupScreenDue() {
   return !(setupStage == TurnHub::SetupStage::Welcome && setupSkipped);
 }
 
-// Pages that can be selected directly; code, setup and confirmation are overlays.
+// The hub's Planechase, while its game is under way with Planechase on, or nullptr.
+const turnhub::Json *hostedPlanechase(uint32_t nowMs) {
+  if (!hostedShown(nowMs)) return nullptr;
+  const turnhub::Game &game = TurnHubHosted::hostedTable().game();
+  if (game.state != turnhub::TableState::Running && game.state != turnhub::TableState::Paused) return nullptr;
+  if (!game.planechase.get("enabled").asBool()) return nullptr;
+  return &game.planechase;
+}
+
+// The face-up card's catalog ID (Atlas's digital deck), or "" for the players' own cards.
+const char *faceUpPlaneId(const turnhub::Json &planes) {
+  const auto &up = planes.get("faceUp");
+  return up.size() ? up[0].get("id").asString().c_str() : "";
+}
+
+// Screens this Atlas no longer has (the hub runs games) fall back to the Game
+// tab, and so do the Planes screens once the hub's Planechase is over.
 bool shownScreen(ScreenKind kind) {
   switch (kind) {
     case ScreenKind::Home: case ScreenKind::Status: case ScreenKind::Qr: case ScreenKind::Menu:
     case ScreenKind::Device: case ScreenKind::Power: case ScreenKind::Themes: case ScreenKind::ManaTap:
       return true;
+    case ScreenKind::Planes: return hostedPlanechase(millis()) != nullptr;
+    // The card view needs a digital plane to show.
+    case ScreenKind::PlaneCard: {
+      const turnhub::Json *planes = hostedPlanechase(millis());
+      return planes && faceUpPlaneId(*planes)[0];
+    }
     default: return false;
   }
 }
@@ -198,7 +220,8 @@ bool shownScreen(ScreenKind kind) {
 // The screen under any confirm popup. A code a phone asked for shows over
 // whatever screen is open, then a pairing code waiting to be checked.
 ScreenKind baseScreen(uint32_t nowMs) {
-  if (!shownScreen(openScreen)) openScreen = ScreenKind::Status;
+  if (!shownScreen(openScreen)) openScreen = openScreen == ScreenKind::PlaneCard && shownScreen(ScreenKind::Planes)
+      ? ScreenKind::Planes : ScreenKind::Status;
   if (pendingPresenceCode(nowMs) != nullptr) return ScreenKind::Code;
   if (waitingPairSlot() != INVALID_ID) return ScreenKind::PairCode;
   if (openScreen == ScreenKind::Status && setupScreenDue()) return ScreenKind::Setup;
@@ -342,6 +365,31 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
       return;
     }
     case ScreenKind::Confirm: layoutConfirm(screen); return;
+    // The plane fills the body (the display draws it); the die and the
+    // card-says-so planeswalk sit under it within thumb reach. The hub acts
+    // for the active player, as its own Planes tab does.
+    case ScreenKind::Planes: {
+      const HostedScreenActions offered = hostedScreenActions();
+      const bool card = shownScreen(ScreenKind::PlaneCard);
+      if (offered.roll || offered.resolve) {
+        static char roll[32];
+        if (screen.planes.rollCost > 0) snprintf(roll, sizeof(roll), "Roll: %ld mana", static_cast<long>(screen.planes.rollCost));
+        else snprintf(roll, sizeof(roll), "Roll the die: free");
+        const ButtonSpec upper[] = {offered.resolve ? ButtonSpec{TouchAction::PlanarResolve, "Resolve phenomenon", 0, 1}
+                                                    : ButtonSpec{TouchAction::PlanarRoll, roll, 0, 1}};
+        addRow(screen, BUTTON_UPPER_ROW_Y, upper, 1);
+      }
+      ButtonSpec lower[2];
+      uint8_t n = 0;
+      if (offered.walk) lower[n++] = {TouchAction::PlanarWalk, "Planeswalk", 0, 3};
+      if (card) lower[n++] = {TouchAction::OpenPlaneCard, n ? "Card" : "Full screen card", 0, 2};
+      if (n) addRow(screen, BUTTON_ROW_Y, lower, n);
+      return;
+    }
+    // The whole landscape panel is one button back to the Planes page.
+    case ScreenKind::PlaneCard:
+      addKey(screen, TouchAction::PlaneCardBack, "Back", 0, 0, ATLAS_SCREEN_HEIGHT, ATLAS_SCREEN_WIDTH, 0);
+      return;
     case ScreenKind::Code: {
       const ButtonSpec row[] = {{TouchAction::CancelCode, "Cancel", 0, 1}};
       addRow(screen, BUTTON_ROW_Y, row, 1);
@@ -404,16 +452,22 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
   layoutContentButtons(screen, nowMs);
   const auto kind = activeScreen(nowMs);
   if (kind == ScreenKind::Code || kind == ScreenKind::PairCode || kind == ScreenKind::Setup ||
-      kind == ScreenKind::Confirm) return;
-  const TouchAction actions[] = {TouchAction::OpenHome, TouchAction::OpenGame, TouchAction::OpenSettings};
+      kind == ScreenKind::Confirm || kind == ScreenKind::PlaneCard) return;
+  // Planes joins the tabs while the hub's game plays Planechase, as on the app.
+  const bool planesTab = hostedPlanechase(nowMs) != nullptr;
+  const TouchAction actions[] = {TouchAction::OpenHome, TouchAction::OpenGame, TouchAction::OpenPlanes, TouchAction::OpenSettings};
   const char *labels[] = {TurnHubUi::pageTitle(TurnHubUi::Page::Home), TurnHubUi::pageTitle(TurnHubUi::Page::Game),
-      TurnHubUi::pageTitle(TurnHubUi::Page::Settings)};
-  const uint8_t selected = kind == ScreenKind::Home || kind == ScreenKind::ManaTap ? 0 : kind == ScreenKind::Status ? 1 : 2;
-  constexpr uint8_t COUNT = 3;
-  const int16_t w = ATLAS_SCREEN_WIDTH / COUNT;
-  for (uint8_t i = 0; i < COUNT; ++i) {
-    addKey(screen, actions[i], labels[i], i * w, 432, i + 1 == COUNT ? ATLAS_SCREEN_WIDTH - i * w : w, 48, 0);
+      "Planes", TurnHubUi::pageTitle(TurnHubUi::Page::Settings)};
+  const uint8_t selected = kind == ScreenKind::Home || kind == ScreenKind::ManaTap ? 0 : kind == ScreenKind::Status ? 1
+      : kind == ScreenKind::Planes ? 2 : 3;
+  const uint8_t count = planesTab ? 4 : 3;
+  const int16_t w = ATLAS_SCREEN_WIDTH / count;
+  uint8_t slot = 0;
+  for (uint8_t i = 0; i < 4; ++i) {
+    if (i == 2 && !planesTab) continue;
+    addKey(screen, actions[i], labels[i], slot * w, 432, slot + 1 == count ? ATLAS_SCREEN_WIDTH - slot * w : w, 48, 0);
     screen.buttons[screen.buttonCount - 1].selected = i == selected;
+    ++slot;
   }
 }
 
@@ -498,6 +552,9 @@ bool navigate(TouchAction action) {
     case TouchAction::OpenHome: openScreen = ScreenKind::Home; return true;
     case TouchAction::OpenGame: openScreen = ScreenKind::Status; return true;
     case TouchAction::OpenSettings: openScreen = ScreenKind::Menu; return true;
+    case TouchAction::OpenPlanes: openScreen = ScreenKind::Planes; return true;
+    case TouchAction::OpenPlaneCard: openScreen = ScreenKind::PlaneCard; return true;
+    case TouchAction::PlaneCardBack: openScreen = ScreenKind::Planes; return true;
     case TouchAction::ConfirmNo: confirmAction = TouchAction::None; return true;
     case TouchAction::OpenQr: openScreen = ScreenKind::Qr; return true;
     case TouchAction::OpenThemes: openScreen = ScreenKind::Themes; return true;
@@ -612,10 +669,14 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
   }
   // A hosted game: the hub decides, so the tap only queues an input for it.
   if (hostedShown(nowMs) && (action == TouchAction::StartGame || action == TouchAction::PassTurn ||
-      action == TouchAction::Pause || action == TouchAction::Resume)) {
+      action == TouchAction::Pause || action == TouchAction::Resume || action == TouchAction::PlanarRoll ||
+      action == TouchAction::PlanarWalk || action == TouchAction::PlanarResolve)) {
     const HostedScreenAction hosted = action == TouchAction::StartGame ? HostedScreenAction::Start
         : action == TouchAction::PassTurn ? HostedScreenAction::Pass
-        : action == TouchAction::Pause ? HostedScreenAction::Pause : HostedScreenAction::Resume;
+        : action == TouchAction::Pause ? HostedScreenAction::Pause
+        : action == TouchAction::PlanarRoll ? HostedScreenAction::PlanarRoll
+        : action == TouchAction::PlanarWalk ? HostedScreenAction::PlanarWalk
+        : action == TouchAction::PlanarResolve ? HostedScreenAction::PlanarResolve : HostedScreenAction::Resume;
     if (!queueHostedScreenAction(hosted)) showNotice(nowMs, "That is no longer available");
     serialLog.print("ATLAS|TOUCH|HOSTED|");
     serialLog.println(actionName(action));
@@ -747,9 +808,10 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
       snprintf(screen.detail, sizeof(screen.detail), "%u %s online", static_cast<unsigned>(screen.sigilsOnline),
           screen.sigilsOnline == 1 ? "Sigil" : "Sigils");
     }
-    snprintf(screen.lines[0], sizeof(screen.lines[0]), "Start a game in the TurnHub app:");
-    snprintf(screen.lines[1], sizeof(screen.lines[1]), "it shows here and on the Sigils.");
-    snprintf(screen.lines[2], sizeof(screen.lines[2]), "Settings: pair Sigils, QR codes.");
+    // Three steps, drawn as numbered bubbles.
+    snprintf(screen.lines[0], sizeof(screen.lines[0]), "Open TurnHub on your phone");
+    snprintf(screen.lines[1], sizeof(screen.lines[1]), "Start a game: it shows up here");
+    snprintf(screen.lines[2], sizeof(screen.lines[2]), "Pair Sigils in Settings");
     screen.lineCount = 3;
     char update[sizeof(screen.detail)];
     if (sigilUpdateNotice(update, sizeof(update), nowMs)) snprintf(screen.detail, sizeof(screen.detail), "%s", update);
@@ -803,6 +865,62 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
   char update[sizeof(screen.detail)];
   if (!inGame || game.state == turnhub::TableState::GameOver) {
     if (sigilUpdateNotice(update, sizeof(update), nowMs)) snprintf(screen.detail, sizeof(screen.detail), "%s", update);
+  }
+}
+
+// Planechase: the face-up plane (the hub's digital deck) or the players' own,
+// and the latest roll in words (the die animation is never the only place
+// it shows). screen.planes was filled by fillPlanes.
+void formatPlanes(AtlasScreen &screen) {
+  const ScreenPlanes &planes = screen.planes;
+  snprintf(screen.badge, sizeof(screen.badge), "PLANES");
+  snprintf(screen.title, sizeof(screen.title), "Planechase");
+  static const char *const faces[] = {"blank", "chaos", "planeswalk"};
+  if (planes.phenomenon) snprintf(screen.detail, sizeof(screen.detail), "Phenomenon: resolve it first");
+  else if (planes.roll > 0)
+    snprintf(screen.detail, sizeof(screen.detail), "%s rolled %s", planes.roller[0] ? planes.roller : "A player",
+        faces[planes.face < 3 ? planes.face : 0]);
+  else snprintf(screen.detail, sizeof(screen.detail), "The active player rolls");
+}
+
+// The Planechase fields every screen carries in the hub's game (see
+// ScreenPlanes), read from the hub's state. Atlas names a digital plane from
+// the catalog the hub sent it (/api/planes).
+void fillPlanes(AtlasScreen &screen, uint32_t nowMs) {
+  const turnhub::Json *found = hostedPlanechase(nowMs);
+  if (!found) return;
+  const turnhub::Json &planes = *found;
+  const turnhub::Game &game = TurnHubHosted::hostedTable().game();
+  ScreenPlanes &out = screen.planes;
+  out.on = true;
+  const char *id = faceUpPlaneId(planes);
+  out.digital = id[0] != '\0';
+  const auto &up = planes.get("faceUp");
+  for (size_t i = 0; i < up.size(); ++i) out.phenomenon = out.phenomenon || up[i].get("phenomenon").asBool();
+  if (out.digital) {
+    const TurnHubCards::Plane *card = TurnHubCards::findPlane(id);
+    snprintf(out.plane, sizeof(out.plane), "%s", card ? card->name : out.phenomenon ? "A phenomenon" : "A plane");
+  }
+  out.deckLeft = static_cast<int32_t>(planes.get("deck").size());
+  out.planeswalks = static_cast<int32_t>(planes.get("planeswalks").asInt());
+  out.chaos = static_cast<int32_t>(planes.get("chaos").asInt());
+  out.counters = static_cast<int32_t>(planes.get("counters").get(out.digital ? id : "physical").asInt());
+  if (game.active) out.rollCost = static_cast<int32_t>(planes.get("rolls").get(std::to_string(*game.active)).asInt());
+  const auto &roll = planes.get("lastRoll");
+  if (roll.isObject()) {
+    out.roll = static_cast<int32_t>(roll.get("number").asInt());
+    const auto &face = roll.get("face").asString();
+    out.face = face == "planeswalk" ? 2 : face == "chaos" ? 1 : 0;
+    out.cost = static_cast<uint8_t>(std::min<int64_t>(roll.get("cost").asInt(), 255));
+    out.fromEffect = roll.get("fromEffect").asBool();
+    const int64_t player = roll.get("player").asInt(-1);
+    if (player >= 0 && player < static_cast<int64_t>(game.players.size()))
+      snprintf(out.roller, sizeof(out.roller), "%s", game.players[player].name.c_str());
+  }
+  // Only the card view reads the card (from the microSD card, once per plane).
+  if (screen.kind == ScreenKind::PlaneCard && out.digital) {
+    out.card = TurnHubCards::planeCard(id);
+    if (out.card && out.card->art) out.art = planeArtPixels(id);
   }
 }
 
@@ -1058,6 +1176,8 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen.hotspotStations = screen.hotspotOn ? static_cast<uint8_t>(WiFi.softAPgetStationNum()) : 0;
   screen.homeWifiOn = homeWifiEnabled() && homeWifiConfigured();
   screen.homeWifiLinked = screen.homeWifiOn && homeWifiConnected();
+  // Every screen carries the roll, so the planar die shows over any of them.
+  fillPlanes(screen, nowMs);
   switch (screen.kind) {
     case ScreenKind::Home:
       formatHome(screen, nowMs);
@@ -1081,6 +1201,8 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
       snprintf(screen.detail, sizeof(screen.detail), "Deep sleep runs on battery only");
       break;
     case ScreenKind::Setup: formatSetup(screen, nowMs); break;
+    case ScreenKind::Planes: formatPlanes(screen); break;
+    case ScreenKind::PlaneCard: snprintf(screen.title, sizeof(screen.title), "%s", screen.planes.plane); break;
     default: break;
   }
   layoutButtons(screen, nowMs);

@@ -37,6 +37,9 @@ constexpr uint8_t LCD_BACKLIGHT_PIN = 45;  // High = lit.
 // 2 since 2026-10-29: in the case USB-C faces away from the player, so the
 // board sits upside down. Touch follows the rotation. *Needs verification*.
 constexpr uint8_t LCD_ROTATION = 2;
+// The Planechase card view's landscape turn (1 or 3: which long edge is the
+// card's bottom). *Needs verification* on the board.
+constexpr uint8_t LCD_CARD_ROTATION = 3;
 constexpr bool LCD_INVERT = true;
 // FT6336U capacitive touch (I2C 0x38), on the bus the codec will share.
 constexpr int8_t TOUCH_SDA_PIN = 16;

@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "mana_tap.h"
+#include "card_cache.h"
 #include "update_notice.h"
 #include "device_navigation.h"
 
@@ -63,11 +64,12 @@ enum class TouchAction : uint8_t {
   Pair, PairConfirm, PairReject, PassTurn, Pause, PowerAutoSleep, PowerGameScreen,
   PowerScreenOff, Resume, SetupDone, SetupPair, SkipSetup, SleepAtlas,
   SpeakerVolume, StartGame, UnpairSigils, UsbDrive,
-  ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast
+  ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast,
+  OpenPlanes, PlanarRoll, PlanarWalk, PlanarResolve, OpenPlaneCard, PlaneCardBack
 };
 
 // Main pages and overlays that the touch producer can actually build.
-enum class ScreenKind : uint8_t { Home, Status, Qr, Code, Menu, PairCode, Setup, Device, Power, Themes, Confirm, ManaTap };
+enum class ScreenKind : uint8_t { Home, Status, Qr, Code, Menu, PairCode, Setup, Device, Power, Themes, Confirm, ManaTap, Planes, PlaneCard };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -131,6 +133,37 @@ struct ScreenPlayer {
   char turnTime[9] = {};
 };
 
+// Planechase on the screen (a match with Planechase on). The roll fields are
+// set on every screen, so the display rolls its planar die over whatever is
+// open whenever any player rolls (a Sigil, the app, a tablet or this screen);
+// the rest is the Planes screen's plane card. Faces: 0 blank, 1 chaos,
+// 2 planeswalk, as in the hub's game (hosted-v1.md).
+constexpr uint8_t SCREEN_PLANE_NAME_LENGTH = 40;
+struct ScreenPlanes {
+  bool on = false;
+  bool digital = false;      // Atlas's digital deck, else the players' own plane cards.
+  bool phenomenon = false;
+  char plane[SCREEN_PLANE_NAME_LENGTH + 1] = {};  // The face-up card's name (digital).
+  int32_t deckLeft = 0, planeswalks = 0, chaos = 0, counters = 0, rollCost = 0;
+  // The match's latest roll: its number (0 before the first), who, the face,
+  // what it cost and whether a card made it (free).
+  int32_t roll = 0;
+  uint8_t face = 0, cost = 0;
+  bool fromEffect = false;
+  char roller[SCREEN_NAME_LENGTH + 1] = {};
+  // Card view (PlaneCard): the saved card's text and its art, 480x320
+  // RGB565 (nullptr without art). Both stay valid until the plane changes.
+  const TurnHubCards::PlaneCard *card = nullptr;
+  const uint16_t *art = nullptr;
+  bool operator==(const ScreenPlanes &o) const {
+    return on == o.on && digital == o.digital && phenomenon == o.phenomenon && !strcmp(plane, o.plane) &&
+        deckLeft == o.deckLeft && planeswalks == o.planeswalks && chaos == o.chaos && counters == o.counters &&
+        rollCost == o.rollCost && roll == o.roll && face == o.face && cost == o.cost && fromEffect == o.fromEffect &&
+        !strcmp(roller, o.roller) && card == o.card && (!card || !strcmp(card->id, o.card->id)) && art == o.art;
+  }
+  bool operator!=(const ScreenPlanes &o) const { return !(*this == o); }
+};
+
 // Everything the TFT shows. Equal screens need no redraw; atlas_display.cpp
 // compares region by region.
 struct AtlasScreen {
@@ -184,6 +217,8 @@ struct AtlasScreen {
   TurnHub::ManaTap mana;
   bool manaTurnPaused = false;
 
+
+  ScreenPlanes planes;
 
   TouchButton buttons[MAX_TOUCH_BUTTONS];
   uint8_t buttonCount = 0;
@@ -247,7 +282,7 @@ inline bool sameBody(const AtlasScreen &a, const AtlasScreen &b, bool times = tr
   if (a.mana.phase() != b.mana.phase() || a.manaTurnPaused != b.manaTurnPaused ||
       a.kind != b.kind || a.playerCount != b.playerCount || a.showLife != b.showLife ||
       a.lineCount != b.lineCount || !sameScreenText(a.qr, b.qr) || !sameScreenText(a.qrCaption, b.qrCaption) ||
-      !sameScreenText(a.code, b.code)) {
+      !sameScreenText(a.code, b.code) || a.planes != b.planes) {
     return false;
   }
   for (uint8_t i = 0; i < a.lineCount; ++i) if (!sameScreenText(a.lines[i], b.lines[i])) return false;

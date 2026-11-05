@@ -64,7 +64,7 @@ A hosted game is the hub's own local game, so its finished record reaches
 Atlas's history and statistics the way every local game does, through
 `POST /api/standalone/import` (`http-v1.md`), once per `recordId` (the
 `gameId`). That happens automatically while the hub is connected and signed in.
-Sigil guests are unlinked players.
+Sigil device seats are unlinked players; they do not create saved accounts.
 
 ## Inputs: Atlas's own controls
 
@@ -84,8 +84,8 @@ Seat actions use the Play together vocabulary (`lan-v1.md`):
 (`pause` value 1 pauses, 0 resumes; `life` value is the signed change).
 Table actions (`player` 0) are applied in setup only:
 
-- `{"kind": "sigil-join", "sigil": id, "slot": 1|2}`: the hub seats a guest
-  bound to that Sigil seat;
+- `{"kind": "sigil-join", "sigil": id, "slot": 1|2}`: the hub adds a device-bound local seat
+  (`guest=false`, `localId="sigil:<id>:<slot>"`), without a saved account;
 - `{"kind": "sigil-leave", "sigil": id, "slot": 0|1|2}`: removes that seat
   (0: both of the Sigil's seats);
 - `{"kind": "start"}`: starts the game.
@@ -108,3 +108,26 @@ Pause (a living player's turn) and Resume (paused with no open win claim). Each
 is queued for the active player, as the Atlas screen's own controls act for the
 active seat; its input ids start with `atlas-` (Sigils' with `sigil-`). The
 player tiles show only.
+
+## Planechase on the Atlas screen
+
+While the hub's game plays Planechase, the Atlas screen adds a Planes tab: the
+face-up plane, its counters, the die's next cost and the latest roll, and a
+full-screen landscape card view. Its Roll, Planeswalk and Resolve phenomenon
+buttons queue the Play together planar commands (`planar-roll`, `planar-walk`,
+`planar-resolve`) for the active player; the hub rolls the die.
+
+The state names digital planes by ID only, so the hub sends what Atlas needs to
+show them while it hosts: the plane names (`POST /api/planes`, when Atlas's
+catalog version differs) and each face-up plane's card text and art
+(`POST /api/planes/card`, `http-v1.md`), plus the next three deck cards so a
+planeswalk shows at once. Atlas keeps them on its microSD card; without one, the
+Planes tab still shows the counts and rolls.
+
+The hub rechecks the saved card/art index while the desired planes stay the
+same. Network/storage failures and a late phone catalog or art download retry
+without another roll. A 202 response means queued, not saved: only a later
+index response confirms artwork. Text-only cards keep retrying missing art;
+a restarted Atlas is checked again. The phone shows transfer/wait/error text
+near its On Atlas control. Atlas retries a temporarily missing JPEG in an open
+card view instead of caching the missing image for the life of that plane.

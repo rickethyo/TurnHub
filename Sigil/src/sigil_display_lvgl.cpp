@@ -645,14 +645,16 @@ void LvglSigilDisplay::showUnpaired() {
   l.text[static_cast<uint8_t>(Key::Select)] = menu_.pairing ? nullptr : "Pair";
   l.accent[static_cast<uint8_t>(Key::Select)] = true;
   l.pair = true;
-  statusScreen(menu_.pairing ? "Pairing" : "Unpaired",
-      menu_.pairing ? "Searching for Atlas" : "Tap Pair, then confirm", "the code on Atlas", 0xFF, l);
+  if (menu_.pairing) statusScreen("Pairing", "Searching for Atlas", "Then match its code", 0xFF, l);
+  else statusScreen("Not paired", "On Atlas, open Pair a Sigil,", "then tap Pair below", 0xFF, l);
 }
 
 void LvglSigilDisplay::showReady(uint8_t sigilId) {
   page_=TurnHubUi::Page::Game; layout_=Layout::Actions; context_=1;
   if (drawDeviceMenu(sigilId)) return;
-  statusScreen("Ready", "Welcome to TurnHub!", "Choose Join game below", sigilId, menuLabels());
+  const bool canJoin = menu_.compass[static_cast<uint8_t>(Key::Select)] == static_cast<uint8_t>(TurnHubProtocol::SigilAction::Join);
+  statusScreen("Ready", canJoin ? "Welcome to TurnHub!" : "Open setup on a phone",
+      canJoin ? "Choose Join game below" : "and show it on Atlas", sigilId, menuLabels());
 }
 
 void LvglSigilDisplay::showAtlasLost(uint8_t sigilId) {

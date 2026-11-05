@@ -378,6 +378,48 @@ class StandaloneTable(
         return id
     }
 
+    /** Games of [profileId]'s account here, by record ID ([HistorySync]). */
+    internal fun historyIds(profileId: String): List<String> = HistorySync.ids(_state.value.library, profileId)
+
+    /** Up to one page of [profileId]'s games, as they leave this device. */
+    internal fun historyRecords(profileId: String, ids: Collection<String>): org.json.JSONArray =
+        HistorySync.export(_state.value.library, profileId, ids)
+
+    /** Saves another device's copies of [profileId]'s games; null when nothing could be saved. */
+    internal fun mergeHistory(profileId: String, records: org.json.JSONArray): HistorySync.Merge? {
+        val before = _state.value
+        if (before.storageProblem != null) return null
+        val merge = runCatching { HistorySync.merge(before.library, profileId, records) }.getOrNull() ?: return null
+        if (merge.library == before.library) return merge
+        return merge.takeIf { publish(before.copy(library = merge.library), durable = true) }
+    }
+
+    /**
+     * The room's history exchange for a joined member whose identity is [profileId]
+     * (plans/profile-sync.md): `index` lists the games here, `pull` sends asked-for games,
+     * `push` merges the guest's. Null answers "unavailable".
+     */
+    internal fun roomHistory(profileId: String, request: org.json.JSONObject): org.json.JSONObject? {
+        if (!LocalProfileIds.valid(profileId) || _state.value.library.players.none { it.profileId == profileId }) return null
+        val answer = org.json.JSONObject()
+        when (request.optString("step")) {
+            "index" -> answer.put("records", org.json.JSONArray(historyIds(profileId).takeLast(HistorySync.MAX_INDEX)))
+            "pull" -> {
+                val ids = request.getJSONArray("ids")
+                require(ids.length() <= HistorySync.PAGE)
+                answer.put("history", historyRecords(profileId, (0 until ids.length()).map { ids.getString(it) }))
+            }
+            "push" -> {
+                val records = request.getJSONArray("history")
+                require(records.length() <= HistorySync.PAGE)
+                val merge = mergeHistory(profileId, records) ?: return null
+                answer.put("added", merge.added + merge.bound).put("conflicts", merge.conflicts)
+            }
+            else -> throw IllegalArgumentException("Unknown history step")
+        }
+        return answer
+    }
+
     fun selectPlayer(localId: String) {
         val player = _state.value.library.players.firstOrNull { it.localId == localId } ?: return
         edit { it.addPlayer(player.name, localId = player.localId) }
@@ -844,7 +886,7 @@ class StandaloneTable(
                     if (sigil !in 0..15 || slot !in 1..2) return false
                     val id = "sigil:$sigil:$slot"
                     if (game.players.any { it.localId == id }) return false
-                    val next = game.addPlayer("Sigil ${sigil + 1}" + if (slot == 2) " B" else "", localId = id, guest = true)
+                    val next = game.addPlayer("Sigil ${sigil + 1}" + if (slot == 2) " B" else "", localId = id)
                     next !== game && publishGame(next, durable = true)
                 }
                 "sigil-leave" -> {

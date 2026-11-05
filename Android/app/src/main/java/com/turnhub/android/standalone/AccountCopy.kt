@@ -22,10 +22,7 @@ object AccountCopy {
         } })
         .put("history", JSONArray().apply {
             history.filter { record -> record.players.any { it.localId == player.localId } }.forEach { record ->
-                put(record.copy(players = record.players.map { seat ->
-                    if (seat.localId == player.localId) seat.copy(localId = null, profileId = player.profileId)
-                    else seat.copy(localId = null)
-                }).toJson())
+                put(HistorySync.portable(record, player).toJson())
             }
         })
         .put("credential", player.credential?.let { JSONObject().put("salt", it.salt).put("hash", it.hash) } ?: JSONObject.NULL)

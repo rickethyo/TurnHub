@@ -35,4 +35,9 @@ void stayAsleepWithoutUsb();
 // First thing in setup() after that: after a Sleep wake, gives the wake pins
 // back to the digital GPIO driver and releases the held outputs.
 void releaseSleepWakePins();
+// The card view's art for a catalog plane: its JPEG on the microSD card
+// decoded once into a 480x320 RGB565 buffer (PSRAM), kept until another
+// plane is asked for. nullptr without art or memory.
+const uint16_t *planeArtPixels(const char *planeId);
+
 }  // namespace TurnHubAtlas
