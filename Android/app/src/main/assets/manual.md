@@ -353,9 +353,9 @@ To open the portal, join the Atlas's Wi-Fi and go to http://192.168.4.1/portal, 
 
 - **Manage people:** roles, archive and restore accounts, image approval, and merging two accounts that belong to the same person (their statistics are added together, the other account is archived, and phones linked to it follow the account that is kept).
 
-Setup Wi-Fi: available only before Atlas setup finishes. Scan the QR on Welcome; no password typing is needed. Normal use is over home Wi-Fi.
+- **Setup Wi-Fi: available only before Atlas setup finishes. Scan the QR on Welcome; no password typing is needed. Normal use is over home Wi-Fi.**
 
-Home Wi-Fi: Atlas uses the network chosen during its separate setup flow. On a new phone, choose Find Atlas on Wi-Fi and compare its code with App link on Atlas. After setup the hotspot stays off, including during outages. Sigils follow the router channel. A replacement network can be saved while connected; an inaccessible Atlas needs physical factory reset to run setup again.
+- **Home Wi-Fi: Atlas uses the network chosen during its separate setup flow. On a new phone, choose Find Atlas on Wi-Fi and compare its code with App link on Atlas. After setup the hotspot stays off, including during outages. Sigils follow the router channel. A replacement network can be saved while connected; an inaccessible Atlas needs physical factory reset to run setup again.**
 
 - **Table code:** when on, actions that change the table need a code from the Atlas screen.
 
@@ -375,7 +375,7 @@ When the table code is on, changing the Wi-Fi password, naming devices, Return t
 
 Everything you do in the app stays on this device: players, PINs (stored only as secure verifiers), images, games and statistics. There are no ads, analytics or tracking. The app talks to:
 
-An Atlas, over your home Wi-Fi after provisioning, only when you connect.
+- **An Atlas, over your home Wi-Fi after provisioning, only when you connect.**
 
 - **Scryfall**, only for commander names and art you look up and for the Planechase library. Only what you type is sent; turn Commander card art off in Settings to stop it.
 
@@ -444,7 +444,7 @@ Atlas is the central controller for the table. It has a 2.8-inch touchscreen, a 
 
 - Runs the game and keeps its state
 
-Hosts a temporary Wi-Fi setup network; normal phone connections use home Wi-Fi.
+- Hosts a temporary Wi-Fi setup network; normal phone connections use home Wi-Fi.
 
 - Talks to the Sigils by radio, encrypted once they are paired
 
@@ -510,7 +510,7 @@ A new or factory-reset Atlas shows Welcome to TurnHub with a Wi-Fi QR. Scan it w
 
 4. **Updates:** choose Later or Continue; the prototype boards are updated over USB only (section 16).
 
-5. Home Wi-Fi: enter the home network name and password, or leave the password blank for an open network. Choose whether uploaded images need Admin approval. The app waits for Atlas to connect and saves its trusted connection before finishing. Atlas restarts with its hotspot off. Join the home network on your phone if needed.
+5. **Home Wi-Fi: enter the home network name and password, or leave the password blank for an open network. The app waits for Atlas to connect and saves its trusted connection before finishing. Atlas restarts with its hotspot off.**
 
 Setup runs in the app. Skip on the Atlas screen postpones it. After setup, Atlas uses your home Wi-Fi; its hotspot stays off, including when the router is unavailable. Factory reset at Atlas is the only way to reopen hotspot setup, and clears its accounts, records, pairings and settings.
 
@@ -528,10 +528,7 @@ Atlas joins the home network chosen during Atlas setup and reconnects if the rou
 
 Welcome shows the setup Wi-Fi QR immediately. Settings > QR codes also shows it while Atlas setup is unfinished. After setup, that screen explains that the hotspot is off.
 
-Wi-Fi: joins the temporary TurnHub-Atlas setup network by scanning the on-screen code.
-
-
-
+- **Wi-Fi: joins the temporary TurnHub-Atlas setup network by scanning the on-screen code.**
 
 ## Info
 

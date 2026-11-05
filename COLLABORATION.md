@@ -1966,3 +1966,10 @@ paragraphs and formatting in a valid container and checked all 15 pages.
 Physical camera scan, first-run provisioning and router-outage checks remain
 hardware acceptance. Existing devices remain on accepted master; no flash,
 merge or release. Next owner: review/integrate the codex/master PR.
+
+PR #202 CI follow-up — 2026-11-04, Codex, baseline `4f66425b`:
+Host and shared-core sanitizer suites passed. The failing step was
+`Android/tools/export_manual.py --check`: the embedded manual had been edited
+by hand instead of regenerated from the verified Word sources. Regenerated
+that asset with its owning exporter; no firmware or application logic change.
+Validation: exporter freshness, manual parser JVM tests, documentation links, licensed-content guard and whitespace checks pass locally.
