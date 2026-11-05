@@ -37,6 +37,7 @@ Every envelope includes integer `v: 2` and string `session` (the room ID).
 | `poll` | `token`, optional `looksId`, `deviceName` | Saved room membership |
 | `presentation` | `token`, `displayTarget`, boolean `displayAllUpright` | Player/shared-table membership or game master |
 | `command` | `token`, `epoch`, UUID `actionId`, `match`, `revision`, `kind`, `value`, `slot`, optional `source`, `target` | Membership and room capability |
+| `history` | `token`, `step` (`index`, `pull` with `ids`, `push` with `history`) | Player membership; the member's own profile only |
 | `leave` | `token` | Membership; explicitly removes this device |
 
 Roles are `player`, `display`, `table` and `planes`.
@@ -51,7 +52,8 @@ The directory contains public `profileId`, `name`, and `hasPin` only. A first
 profile link supplies `profileId` and its optional `pin`. An injected local
 `profile` carries its public ID, name, original creation time, activity timestamp,
 look and salted credential verifier; no other Atlas links, private history,
-permissions or device-admin designation travels. Protected profiles require
+permissions or device-admin designation travels with it (the player's own games
+follow through `history`, below). Protected profiles require
 verification on first link. Existing same-ID credentials are never replaced by
 an offered verifier. Equal names do not establish identity or merge accounts.
 A private join reply can contain the verified profile's `profileLink` and synced
@@ -62,6 +64,31 @@ Reopening/reconnecting uses its saved token, without PIN entry or host approval.
 The member's selected view is device-local saved state. Hosts can explicitly
 revoke devices or grant/revoke room game-master access. These grants do not
 confer Atlas Admin permissions or access to another profile's private statistics.
+
+## Player history
+
+A player's finished games travel with them whoever hosts (owner, 2026-11-05).
+A player member and the hub swap the games of the member's own profile and keep
+the union, matched by `recordId`:
+
+- `index` answers `records`, the record IDs of that profile's games on the hub
+  (at most 5,000, newest last).
+- `pull` takes `ids` (at most 32) and answers `history`, those games as records
+  without local account IDs; every seat that is an account is named by its public
+  `profileId`.
+- `push` takes `history` (at most 32 records) and answers `added` and `conflicts`.
+  Each pushed record must name the member's profile on exactly one seat.
+
+A record already on a device is never replaced. A copy that differs from it in
+outcome is skipped and counted as a conflict, so nothing counts twice and a bad
+copy cannot overwrite a game. Only the syncing profile's own seat binds to a
+local account; other seats keep their profile IDs and bind when those players
+sync themselves. Statistics are always recomputed from the merged games.
+
+The guest runs the exchange after joining, after every reconnect and when a
+match ends or a new one starts, so games played apart merge on the first
+connection. Display, table and planes members get `forbidden`. The hub answers
+`unavailable` when it can't save, and the guest retries at the next trigger.
 
 ## Public display orientation
 
@@ -167,7 +194,8 @@ same hub to return.
 
 JVM room tests cover PIN-once membership, same-name identity separation, sitting
 out, cross-game continuity, shared controllers, public-view authorization,
-explicit grants, receipt deduplication, old-epoch rejection, write failure,
+explicit grants, history exchange authorization (`LanRoomTest`) and the
+two-way history merge with conflicts (`HistorySyncTest`), receipt deduplication, old-epoch rejection, write failure,
 revocation and repeated join IDs. Existing engine/transport suites still validate
 semantic actions and TLS. Atlas host scenarios cover capability checks, durable
 backup reads, failed writes and room deletion. Real device checks remain necessary

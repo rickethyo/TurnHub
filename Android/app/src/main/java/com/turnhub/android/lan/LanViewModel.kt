@@ -55,6 +55,8 @@ internal data class LanUiState(
     val displayTargets: List<RoomDisplay> = emptyList(),
     val displayView: String? = null,
     val planarRollFeedback: PlanarRollFeedback? = null,
+    /** The last history exchange with the host, in words ("3 games synced"); null when nothing moved. */
+    val historyNote: String? = null,
 ) {
     /** Seated or displaying a shared game. */
     val joined: Boolean get() = reconnecting || remote != null
@@ -87,6 +89,12 @@ internal class LanViewModel(
         val slot: Int, val source: Int, val target: Int)
     private val queued = ArrayDeque<QueuedAction>()
     private var restoreAttempted = false
+    /** This guest's own account in the room, whose games sync with the host (plans/profile-sync.md). */
+    private var syncProfile: String? = null
+    private var historyJob: Job? = null
+    private var historyAgain = false
+    /** Games already offered either way this session; a copy one side declined isn't resent each poll. */
+    private val historyOffered = mutableSetOf<String>()
 
     init {
         _state.update { it.copy(resumable = hostRecord != null || store.read("guest") != null) }
@@ -112,7 +120,7 @@ internal class LanViewModel(
         val invitation = invite ?: return false
         val credential = token ?: return false
         return store.write("guest", JSONObject().put("invite", invitation.encode()).put("token", credential)
-            .put("role", _state.value.role).put("view", _state.value.view))
+            .put("role", _state.value.role).put("view", _state.value.view).put("syncProfile", syncProfile ?: JSONObject.NULL))
     }
     fun resumeRoom() {
         if (_state.value.busy || server != null || token != null) return
@@ -121,6 +129,8 @@ internal class LanViewModel(
         val saved = store.read("guest") ?: return
         invite = runCatching { LanInvite.parse(saved.text("invite")) }.getOrNull() ?: return
         token = saved.text("token")
+        syncProfile = saved.optString("syncProfile").takeIf { id -> savedPlayers().any { it.profileId == id } }
+        historyOffered.clear()
         _state.update { it.copy(role = saved.optString("role"), view = saved.optString("view", "personal"),
             reconnecting = true, resumable = true, message = "Reconnecting to your room…") }
         generation++
@@ -154,7 +164,8 @@ internal class LanViewModel(
                     planarRollAllowed = { player ->
                         table.state.value.game.let { game -> game.state == com.turnhub.android.protocol.TableState.RUNNING &&
                             game.active?.let { player - 1 in game.mates(it) } == true }
-                    }, snapshot = ::snapshot, resolveIdentity = { it }, seats = {
+                    }, history = { profileId, request -> table.roomHistory(profileId, request) },
+                    snapshot = ::snapshot, resolveIdentity = { it }, seats = {
                         val state = table.state.value
                         state.game.players.mapIndexed { i, p ->
                             LanRoom.RoomSeat(state.library.players.firstOrNull { it.localId == p.localId }?.profileId
@@ -298,6 +309,9 @@ internal class LanViewModel(
                     }
                 }
                 joinRequest = null
+                syncProfile = (own?.profileId ?: targetId)?.takeIf { id -> savedPlayers().any { it.profileId == id } }
+                    .takeIf { role == "player" }
+                historyOffered.clear()
                 generation++
                 _state.update { it.copy(remote = game, role = role, player = reply.optInt("player", player), preview = null,
                     online = true, busy = false, master = reply.optBoolean("master"),
@@ -309,6 +323,7 @@ internal class LanViewModel(
                 val remembered = saveGuest()
                 startPolling(generation)
                 if (!remembered) _state.update { it.copy(message = "Joined, but this device couldn't save reconnect access. Keep the app open.") }
+                requestHistorySync()
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 _state.update { it.copy(busy = false, message = "Connection interrupted. Try the same join option again.") }
@@ -444,7 +459,8 @@ internal class LanViewModel(
         val credential = token ?: saved?.optString("token")
         generation++; polling?.cancel(); polling = null
         store.write("guest", null)
-        token = null; pending = null; invite = null; joinRequest = null
+        token = null; pending = null; invite = null; joinRequest = null; syncProfile = null
+        historyJob?.cancel(); historyOffered.clear()
         _state.value = LanUiState()
         if (invitation != null && credential != null) viewModelScope.launch {
             runCatching { request(invitation, base(invitation, "leave").put("token", credential)) }
@@ -470,6 +486,11 @@ internal class LanViewModel(
         }
         val online = code in setOf("ok", "stale", "rejected", "view-only", "forbidden", "interrupted", "renew")
         val game = if (reply.has("game")) readGame(reply) else null
+        val earlier = _state.value
+        // Games travel with the player: after a reconnect, and whenever a match ends or a new one starts.
+        if (online && game != null && (!earlier.online || earlier.remote?.gameId != game.gameId ||
+                game.state == com.turnhub.android.protocol.TableState.GAME_OVER &&
+                earlier.remote?.state != com.turnhub.android.protocol.TableState.GAME_OVER)) requestHistorySync()
         _state.update { before -> before.copy(
             player = reply.optInt("player", before.player),
             role = reply.optString("role", before.role ?: "display"),
@@ -496,6 +517,53 @@ internal class LanViewModel(
                 else -> "This session has ended or access was removed. Ask the host for a new invitation."
             },
         ) }
+    }
+
+    private fun requestHistorySync() {
+        if (syncProfile == null || token == null) return
+        if (historyJob?.isActive == true) { historyAgain = true; return }
+        historyJob = viewModelScope.launch {
+            do {
+                historyAgain = false
+                try { syncHistory() } catch (error: Exception) {
+                    if (error is CancellationException) throw error
+                    // A dropped exchange retries at the next reconnect or match end.
+                }
+            } while (historyAgain)
+        }
+    }
+
+    /** Swaps this guest's games with the host: pull what's missing here, push what's missing there. */
+    private suspend fun syncHistory() {
+        val profileId = syncProfile ?: return
+        val invitation = invite ?: return
+        val credential = token ?: return
+        fun step(name: String) = base(invitation, "history").put("token", credential).put("step", name)
+        val index = request(invitation, step("index"))
+        if (index.text("code") != "ok") return
+        val there = index.getJSONArray("records").let { a ->
+            (0 until minOf(a.length(), com.turnhub.android.standalone.HistorySync.MAX_INDEX)).map { a.getString(it) } }.toSet()
+        val here = table.historyIds(profileId).toSet()
+        var received = 0
+        var sent = 0
+        for (chunk in (there - here - historyOffered).chunked(com.turnhub.android.standalone.HistorySync.PAGE)) {
+            val reply = request(invitation, step("pull").put("ids", org.json.JSONArray(chunk)))
+            if (reply.text("code") != "ok") return
+            val merge = table.mergeHistory(profileId, reply.getJSONArray("history")) ?: return
+            historyOffered += chunk
+            received += merge.added + merge.bound
+        }
+        for (chunk in (here - there - historyOffered).chunked(com.turnhub.android.standalone.HistorySync.PAGE)) {
+            val reply = request(invitation, step("push").put("history", table.historyRecords(profileId, chunk)))
+            if (reply.text("code") != "ok") return
+            historyOffered += chunk
+            sent += reply.optInt("added")
+        }
+        if (received + sent == 0) return
+        fun games(n: Int) = if (n == 1) "1 game" else "$n games"
+        _state.update { it.copy(historyNote = listOfNotNull(
+            games(received).takeIf { received > 0 }?.let { "$it from the host" },
+            games(sent).takeIf { sent > 0 }?.let { "$it sent to the host" }).joinToString(" · ", prefix = "History synced: ")) }
     }
 
     private suspend fun rediscover() {
