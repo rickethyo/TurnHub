@@ -120,7 +120,8 @@ class HomeViewModel(
         val atlasId = kotlinx.coroutines.withTimeoutOrNull(10_000) {
             repository.tableSummary.map { it?.atlasId }.first { it != null }
         } ?: return false
-        return pairing.pair(endpoint, atlasId, phoneName)
+        return pairing.pair(endpoint, atlasId, phoneName,
+            fingerprintAlreadyTrusted = endpoint.tlsPin != null && homeLink?.hasSavedAtlas(atlasId) == true)
     }
 
     fun onConfirmPhoneFingerprint() {

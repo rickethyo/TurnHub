@@ -19,6 +19,14 @@ import org.junit.Test
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class AtlasPhonePairingTest {
+    @Test fun alreadyTrustedHomeKeyNeedsOnlyAtlasApproval() = runTest {
+        val atlas=PairingAtlas(mutableListOf("""{"state":"allowed","phone":"0a0b0c0d","key":"key"}"""))
+        val keys=MemoryAtlasPhoneKeyStore()
+        val pairing=AtlasPhonePairing(keys,{atlas},pollMs=1)
+        assertTrue(pairing.pair(AtlasEndpoint.home("192.168.1.40",443,"a".repeat(64)),"THA-1","Test",
+            fingerprintAlreadyTrusted=true))
+        assertEquals("a".repeat(64),keys.tlsPin("THA-1"))
+    }
     private val endpoint = AtlasEndpoint.parse("https://atlas.local").getOrThrow()
 
     @Test fun cancellingTheOverlayCancelsTheWaitingAtlasRequestWithoutSavingAKey() = runTest {

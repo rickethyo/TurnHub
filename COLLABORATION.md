@@ -34,6 +34,17 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-11-05, Codex review of Copilot audit at `3574132d`, on the owner-selected
+`VSCodeCopilot/Master` branch. Owner authorizes fixes and merge when safe.
+Confirmed HTTPS-only remote boundary and loopback HTTP backend. Atlas host,
+storage, profile and OTA suites pass with Private/w64devkit GCC. Fixed OTA's
+one-time certificate check by verifying every HTTPClient reconnect, and avoid
+phone-side reconfirmation for an already trusted home endpoint. First-time
+fingerprint comparison remains required; Find Atlas precedes observing the key
+and cannot substitute for that check. Android full tests/APK and Sigil build
+pass; focused trusted-home regression added. Physical TLS isolation/setup/OTA
+acceptance remains separate; iOS has no transport yet. No devices reflashed.
+
 2026-11-05, Copilot: TLS-only Atlas access and setup trust, active on
 `VSCodeCopilot/Master`, baseline `14c72481`. Scope: expose Atlas only through
 HTTPS, keep its HTTP backend loopback-only, bootstrap the self-signed key only

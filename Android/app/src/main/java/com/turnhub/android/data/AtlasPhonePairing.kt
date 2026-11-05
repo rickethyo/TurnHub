@@ -143,6 +143,7 @@ class AtlasPhonePairing(
         phoneName: String,
         requireApproval: Boolean = false,
         expectedPin: String? = null,
+        fingerprintAlreadyTrusted: Boolean = false,
     ): Boolean {
         val endpointPin = endpoint.tlsPin
         if (!requireApproval && paired(atlasId) &&
@@ -177,7 +178,7 @@ class AtlasPhonePairing(
                 _state.value = State.Failed("Atlas did not present a verifiable TLS identity.")
                 return false
             }
-            val needsFingerprintConfirmation = actualPin != null &&
+            val needsFingerprintConfirmation = !fingerprintAlreadyTrusted && actualPin != null &&
                 keys.tlsPin(atlasId)?.equals(actualPin, ignoreCase = true) != true
             val code = actualPin?.take(12)?.uppercase()?.chunked(4)?.joinToString(" ")
                 ?: ask.getString("code")

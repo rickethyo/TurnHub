@@ -29,6 +29,22 @@ constexpr const char *PACKAGE_URL = "https://192.168.4.1/api/sigil-package?token
 constexpr uint16_t TLS_PORT = 443;
 constexpr uint32_t TLS_HANDSHAKE_SEC = 10;
 
+// HTTPClient may reconnect between the initial handshake and GET. Every
+// connection must verify the sealed offer's fingerprint before sending bytes.
+class OfferedTlsClient final : public WiFiClientSecure {
+ public:
+  explicit OfferedTlsClient(const uint8_t *expected) { memcpy(expected_, expected, sizeof(expected_)); }
+  int connect(const char *host, uint16_t port, int32_t timeout) override {
+    if (!WiFiClientSecure::connect(host, port, timeout)) return 0;
+    uint8_t actual[32];
+    if (!getFingerprintSHA256(actual) || memcmp(actual, expected_, sizeof(actual))) { stop(); return 0; }
+    return 1;
+  }
+  int connect(const char *host, uint16_t port) override { return connect(host, port, 10000); }
+ private:
+  uint8_t expected_[32];
+};
+
 // Writes the checked image into the idle app slot. Update keeps the first
 // bytes back until end(), so the slot can't boot until the hash has passed.
 class FlashSink final : public TurnHubFirmwarePackage::Sink {
@@ -142,7 +158,7 @@ void SigilUpdater::run() {
   char tokenHex[2 * TurnHubProtocol::UPDATE_TOKEN_BYTES + 1];
   updateTokenHex(job_.token, tokenHex);
   snprintf(url, sizeof(url), "%s%s", PACKAGE_URL, tokenHex);
-  WiFiClientSecure client;
+  OfferedTlsClient client(job_.certificateFingerprint);
   client.setInsecure();
   client.setHandshakeTimeout(TLS_HANDSHAKE_SEC);
   HTTPClient http;
