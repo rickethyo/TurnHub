@@ -107,6 +107,34 @@ void sheen(lv_obj_t *o, uint32_t base) {
   lv_obj_set_style_bg_grad_dir(o, LV_GRAD_DIR_VER, 0);
 }
 
+// The glossy "bubble" highlight of the owner's early-iPhone direction: a
+// soft white pill across the top of a button, token or tile that fades out
+// by its middle. It is small, so the short fade does not band in RGB565.
+void gloss(lv_obj_t *o, int16_t w, int16_t h, int16_t radius, bool strong = false) {
+  const int16_t inset = h >= 40 ? 3 : 2;
+  lv_obj_t *g = box(o, inset, inset, w - 2 * inset - 2, h * 9 / 20);
+  lv_obj_set_style_radius(g, radius > inset ? radius - inset : radius, 0);
+  lv_obj_set_style_bg_opa(g, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(g, lv_color_white(), 0);
+  lv_obj_set_style_bg_grad_color(g, lv_color_white(), 0);
+  lv_obj_set_style_bg_grad_dir(g, LV_GRAD_DIR_VER, 0);
+  lv_obj_set_style_bg_main_opa(g, strong ? (pal().light ? 150 : 96) : (pal().light ? 110 : 56), 0);
+  lv_obj_set_style_bg_grad_opa(g, LV_OPA_TRANSP, 0);
+}
+
+// A glossy orb (seat tokens, icon tiles): lighter at the top, a darker rim,
+// and the bubble highlight, like the app's avatars.
+void orb(lv_obj_t *o, uint32_t color, int16_t side, int16_t radius) {
+  lv_obj_set_style_radius(o, radius, 0);
+  lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(o, mixRgb(color, 0xFFFFFF, 60), 0);
+  lv_obj_set_style_bg_grad_color(o, mixRgb(color, 0x000000, 24), 0);
+  lv_obj_set_style_bg_grad_dir(o, LV_GRAD_DIR_VER, 0);
+  lv_obj_set_style_border_width(o, side >= 28 ? 2 : 1, 0);
+  lv_obj_set_style_border_color(o, mixRgb(color, 0x000000, 80), 0);
+  gloss(o, side, side, radius);
+}
+
 // One line, cut with an ellipsis.
 lv_obj_t *text(lv_obj_t *parent, const char *s, const lv_font_t *font, uint32_t color,
                int16_t x, int16_t y, int16_t w, lv_text_align_t align = LV_TEXT_ALIGN_LEFT) {
@@ -314,9 +342,7 @@ uint32_t rowTint(TouchAction a) {
 // A filled disc in the seat's hue holding the player's initial.
 void seatToken(lv_obj_t *parent, const ScreenPlayer &p, int16_t x, int16_t y, int16_t side, bool ring) {
   lv_obj_t *disc = box(parent, x, y, side, side);
-  lv_obj_set_style_radius(disc, LV_RADIUS_CIRCLE, 0);
-  lv_obj_set_style_bg_opa(disc, LV_OPA_COVER, 0);
-  lv_obj_set_style_bg_color(disc, rgb(seatColor(p.number)), 0);
+  orb(disc, seatColor(p.number), side, LV_RADIUS_CIRCLE);
   if (ring) {
     lv_obj_set_style_border_width(disc, 2, 0);
     lv_obj_set_style_border_color(disc, rgb(pal().turn), 0);
@@ -508,10 +534,10 @@ void drawHero(lv_obj_t *root, const AtlasScreen &s) {
        SCREEN_HERO_Y + 2 + (ring - lv_font_get_line_height(font)) / 2, ring, LV_TEXT_ALIGN_CENTER);
 }
 
-// A player tile, like the app's seat panels: token and name in the top band
-// (it opens the player's screen), the life total in the middle with faint
-// - and + marking the halves that change it, and a status pill. The turn is
-// the one thing that glows.
+// A player tile, like the app's seat panels: token and name in the top band,
+// the life total in the middle and a status pill. Life changes on the hub
+// and the Sigils, so the tile shows no - and +. The turn is the one thing
+// that glows.
 // Returns the turn-time label, if it drew one.
 lv_obj_t *drawChip(lv_obj_t *root, const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_t w, int16_t h) {
   const bool active = p.flags & CHIP_ACTIVE;
@@ -519,9 +545,22 @@ lv_obj_t *drawChip(lv_obj_t *root, const ScreenPlayer &p, bool showLife, int16_t
   const bool winner = p.flags & CHIP_WINNER;
   const bool glow = active || winner;
   lv_obj_t *tile = box(root, x, y, w, h);
-  card(tile, glow ? pal().turnSoft : pal().surface2, glow ? pal().turn : pal().separator);
+  // Each seat's tile wears its colour softly, so the table reads at a glance;
+  // the turn is the one that glows.
+  const uint32_t seat = seatColor(p.number);
+  const uint32_t fill = glow ? pal().turnSoft : out ? pal().surface2 : mixRgbHex(seat, pal().surface2, pal().light ? 34 : 46);
+  card(tile, fill, glow ? pal().turn : out ? pal().separator : mixRgbHex(seat, pal().separator, 120));
   if (glow) lv_obj_set_style_border_width(tile, 2, 0);
   lift(tile);
+  // The name band: a stronger wash of the seat colour with the bubble gloss.
+  if (showLife && !out) {
+    lv_obj_t *band = box(tile, 0, 0, w - 2 * lv_obj_get_style_border_width(tile, 0), CHIP_NAME_BAND_H);
+    lv_obj_set_style_radius(band, 15, 0);
+    lv_obj_set_style_bg_opa(band, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(band, mixRgb(glow ? pal().turn : seat, 0xFFFFFF, pal().light ? 70 : 40), 0);
+    lv_obj_set_style_bg_grad_color(band, rgb(fill), 0);
+    lv_obj_set_style_bg_grad_dir(band, LV_GRAD_DIR_VER, 0);
+  }
   const uint32_t ink = out ? pal().textTertiary : pal().text;
   const bool tall = h >= 90;
   const int16_t side = showLife ? 24 : (tall ? 36 : 28);
@@ -558,11 +597,6 @@ lv_obj_t *drawChip(lv_obj_t *root, const ScreenPlayer &p, bool showLife, int16_t
   const int16_t lh = lv_font_get_line_height(font);
   const int16_t timeRoom = tall && p.turnTime[0] ? 20 : 0;
   text(tile, life, font, lifeInk, 0, lowerY + (lowerH - timeRoom - lh) / 2, w, LV_TEXT_ALIGN_CENTER);
-  if (!out) {
-    const int16_t signY = lowerY + (lowerH - timeRoom - lv_font_get_line_height(&th_bold_28)) / 2;
-    text(tile, "-", &th_bold_28, pal().textTertiary, 12, signY, 24);
-    text(tile, "+", &th_bold_28, pal().textTertiary, w - 30, signY, 24, LV_TEXT_ALIGN_RIGHT);
-  }
   if (!timeRoom) return nullptr;
   return text(tile, p.turnTime, &th_semi_16, pal().textSecondary, 0, h - 24, w, LV_TEXT_ALIGN_CENTER);
 }
@@ -821,8 +855,8 @@ void drawHome(lv_obj_t *root, const AtlasScreen &s) {
     card(tile, pal().surface2, pal().separator, 14);
     lift(tile);
     lv_obj_t *chip = box(tile, 10, 10, 30, 30);
-    card(chip, tiles[i].tint, tiles[i].tint, 9);
-    icon(chip, tiles[i].glyph, 3, 3, pal().bg);
+    orb(chip, tiles[i].tint, 30, 9);
+    icon(chip, tiles[i].glyph, 2, 2, 0xFFFFFF);
     text(tile, tiles[i].value, &th_semi_20, pal().text, 10, 44, tileW - 20);
     text(tile, tiles[i].caption, &th_eyebrow_13, pal().textTertiary, 10, 66, tileW - 20);
   }
@@ -1095,6 +1129,40 @@ void drawSyncToast(lv_obj_t *root, const AtlasScreen &s, int16_t width, int16_t 
   text(toast, s.sync, &th_semi_16, pal().text, 44, 11, w - 56);
 }
 
+// No game yet: a glossy orb with the table's cards over the steps to start
+// one, each in a numbered bubble, so the screen invites play instead of
+// reading like a note.
+void drawReady(lv_obj_t *root, const AtlasScreen &s) {
+  constexpr int16_t side = 84;
+  lv_obj_t *halo = box(root, (W - side - 24) / 2, SCREEN_BODY_Y + 2, side + 24, side + 24);
+  lv_obj_set_style_radius(halo, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_opa(halo, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(halo, rgb(pal().accentSoft), 0);
+  lv_obj_t *ball = box(halo, 12, 12, side, side);
+  orb(ball, pal().accent, side, LV_RADIUS_CIRCLE);
+  lift(ball);
+  lv_obj_t *glyph = icon(ball, &th_icon_cards_24, (side - 4 - 24) / 2, (side - 4 - 24) / 2, pal().onAccent);
+  lv_image_set_scale(glyph, 512);
+  lv_obj_t *plate = box(root, 8, SCREEN_BODY_Y + side + 36, W - 16, 52 * s.lineCount + 12);
+  card(plate, pal().surface1, pal().separator);
+  lift(plate);
+  for (uint8_t i = 0; i < s.lineCount; ++i) {
+    const int16_t y = 8 + i * 52;
+    lv_obj_t *number = box(plate, 12, y + 6, 32, 32);
+    orb(number, i == 0 ? pal().accent : pal().info, 32, LV_RADIUS_CIRCLE);
+    char digit[4];
+    snprintf(digit, sizeof(digit), "%u", static_cast<unsigned>(i + 1));
+    lv_obj_t *l = text(number, digit, &th_semi_16, 0xFFFFFF, 0, 0, 28, LV_TEXT_ALIGN_CENTER);
+    lv_obj_align(l, LV_ALIGN_CENTER, 0, 0);
+    text(plate, s.lines[i], &th_semi_16, pal().text, 56, y + 12, W - 16 - 56 - 12);
+    if (i + 1 < s.lineCount) {
+      lv_obj_t *rule = box(plate, 56, y + 48, W - 16 - 56 - 12, 1);
+      lv_obj_set_style_bg_opa(rule, LV_OPA_COVER, 0);
+      lv_obj_set_style_bg_color(rule, rgb(pal().separator), 0);
+    }
+  }
+}
+
 void drawBody(lv_obj_t *root, const AtlasScreen &s) {
   if (s.showPlayerControls) {
     uint8_t ids[TurnHubUi::PLAYER_CONTROL_COUNT];
@@ -1159,6 +1227,10 @@ void drawBody(lv_obj_t *root, const AtlasScreen &s) {
     live.turnTime[i] = drawChip(root, s.players[i], s.showLife, x, y, w, h);
   }
   if (s.playerCount > 0) return;
+  if (s.kind == ScreenKind::Status && !strcmp(s.badge, "READY") && s.lineCount) {
+    drawReady(root, s);
+    return;
+  }
   const int16_t bodyH = BUTTON_ROW_Y - 8 - SCREEN_BODY_Y;
   if (s.lineCount == 0 && !s.qr[0]) return;
   // A card holding the lines, and any QR code centred under them.
@@ -1320,7 +1392,11 @@ void drawButton(lv_obj_t *root, const AtlasScreen &s, const TouchButton &b) {
   lv_obj_set_style_border_width(o, (primary || turn) && !pressed ? 0 : 1, 0);
   if (!pressed) {
     sheen(o, base);
-    if (!key) lift(o);
+    if (!key) {
+      lift(o);
+      // The bubble gloss; strongest on the filled buttons.
+      gloss(o, b.w, b.h, 16, primary || turn);
+    }
   }
   // Pressed and the shown choice are also marked by a heavier frame.
   if (pressed || b.selected) lv_obj_set_style_border_width(o, 3, 0);

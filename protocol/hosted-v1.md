@@ -108,3 +108,18 @@ Pause (a living player's turn) and Resume (paused with no open win claim). Each
 is queued for the active player, as the Atlas screen's own controls act for the
 active seat; its input ids start with `atlas-` (Sigils' with `sigil-`). The
 player tiles show only.
+
+## Planechase on the Atlas screen
+
+While the hub's game plays Planechase, the Atlas screen adds a Planes tab: the
+face-up plane, its counters, the die's next cost and the latest roll, and a
+full-screen landscape card view. Its Roll, Planeswalk and Resolve phenomenon
+buttons queue the Play together planar commands (`planar-roll`, `planar-walk`,
+`planar-resolve`) for the active player; the hub rolls the die.
+
+The state names digital planes by ID only, so the hub sends what Atlas needs to
+show them while it hosts: the plane names (`POST /api/planes`, when Atlas's
+catalog version differs) and each face-up plane's card text and art
+(`POST /api/planes/card`, `http-v1.md`), plus the next three deck cards so a
+planeswalk shows at once. Atlas keeps them on its microSD card; without one, the
+Planes tab still shows the counts and rolls.

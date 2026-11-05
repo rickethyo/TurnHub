@@ -3001,6 +3001,68 @@ static void deviceNavigation() {
   endHostedGame();resetTouchControls();
 }
 
+// The hub's Planechase on the Atlas screen (owner, 2026-11-05): a Planes tab
+// with the face-up plane named from the catalog the hub sent, its controls
+// queued for the hub as planar commands, and the full screen card view.
+static void hostedPlanechaseScreen() {
+  freshTable(); testNow=60000;
+  auto &hosted=TurnHubHosted::hostedTable(); hosted.clear();
+  String anaId; const String ana=registerPhone("Planes Ana",anaId);
+  bool queued=false;
+  assert(TurnHubCards::replacePlanes("44444444-4444-4444-4444-444444444444\tSokenzan\t0\n"
+      "55555555-5555-5555-5555-555555555555\tInterplanar Tunnel\t1\n","pc1",queued));
+  auto state=[](int revision,const char *planechase) {
+    return std::string("{\"gameId\":\"pc\",\"revision\":")+std::to_string(revision)+",\"state\":\"RUNNING\","
+        "\"profile\":\"MtgCommander\",\"active\":1,\"players\":[{\"name\":\"Ana\",\"life\":40},{\"name\":\"Ben\",\"life\":40}],"
+        "\"planechase\":"+planechase+"}";
+  };
+  const std::string plane="{\"enabled\":true,\"source\":\"digital\",\"phenomena\":true,"
+      "\"deck\":[{\"id\":\"55555555-5555-5555-5555-555555555555\",\"phenomenon\":true}],"
+      "\"faceUp\":[{\"id\":\"44444444-4444-4444-4444-444444444444\",\"phenomenon\":false}],"
+      "\"counters\":{\"44444444-4444-4444-4444-444444444444\":2},\"rolls\":{\"1\":1},"
+      "\"lastRoll\":{\"player\":1,\"face\":\"chaos\",\"cost\":0,\"fromEffect\":false,\"number\":1},\"planeswalks\":0,\"chaos\":1}";
+  assert(request("/api/hosted/claim",ana)==200);
+  // Without Planechase: three tabs.
+  assert(request("/api/hosted/state",ana,{{"state",state(1,"{\"enabled\":false}").c_str()}})==200);
+  resetTouchControls(false);
+  assert(!screenButton(currentScreen(),TouchAction::OpenPlanes));
+  assert(request("/api/hosted/state",ana,{{"state",state(2,plane.c_str()).c_str()}})==200);
+  AtlasScreen screen=currentScreen();
+  assert(screenButton(screen,TouchAction::OpenPlanes) && screen.planes.on && screen.planes.roll==1 && screen.planes.face==1);
+  tapButton(TouchAction::OpenPlanes);
+  screen=currentScreen();
+  assert(screen.kind==ScreenKind::Planes && !strcmp(screen.planes.plane,"Sokenzan") && screen.planes.digital);
+  assert(screen.planes.counters==2 && screen.planes.rollCost==1 && screen.planes.deckLeft==1 && !strcmp(screen.detail,"Ben rolled chaos"));
+  assert(screenButton(screen,TouchAction::PlanarRoll) && screenButton(screen,TouchAction::PlanarWalk) &&
+      screenButton(screen,TouchAction::OpenPlaneCard) && !screenButton(screen,TouchAction::PlanarResolve));
+  // The die and the planeswalk only queue planar commands for Ben (the turn).
+  const uint32_t base=hosted.lastSeq();
+  tapButton(TouchAction::PlanarRoll);
+  tapButton(TouchAction::PlanarWalk);
+  const auto inputs=hosted.inputsAfter(base);
+  assert(inputs.size()==2 && inputs[0].player==2 && inputs[0].action=="{\"kind\":\"planar-roll\",\"value\":0,\"slot\":0,\"source\":0}");
+  assert(inputs[1].action=="{\"kind\":\"planar-walk\",\"value\":0,\"slot\":0,\"source\":0}");
+  // Full screen: the plane alone (no tabs); a touch goes back.
+  tapButton(TouchAction::OpenPlaneCard);
+  screen=currentScreen();
+  assert(screen.kind==ScreenKind::PlaneCard && screen.buttonCount==1 && screen.buttons[0].action==TouchAction::PlaneCardBack);
+  tapButton(TouchAction::PlaneCardBack);
+  assert(currentScreen().kind==ScreenKind::Planes);
+  // A phenomenon is resolved first.
+  std::string phen=plane;
+  phen.replace(phen.find("44444444-4444-4444-4444-444444444444\",\"phenomenon\":false"),56,
+      "55555555-5555-5555-5555-555555555555\",\"phenomenon\":true");
+  assert(request("/api/hosted/state",ana,{{"state",state(3,phen.c_str()).c_str()}})==200);
+  screen=currentScreen();
+  assert(screen.planes.phenomenon && !strcmp(screen.planes.plane,"Interplanar Tunnel"));
+  assert(screenButton(screen,TouchAction::PlanarResolve) && !screenButton(screen,TouchAction::PlanarRoll));
+  // Planechase over (back to setup): the Planes screen gives way to the Game tab.
+  assert(request("/api/hosted/state",ana,{{"state",hostedState("",1,"LOBBY",0,40).c_str()}})==200);
+  assert(currentScreen().kind==ScreenKind::Status && !screenButton(currentScreen(),TouchAction::OpenPlanes));
+  endHostedGame(); resetTouchControls();
+  ProfileFixture::profiles.erase(anaId.c_str());
+}
+
 static void phoneHostedGame() {
   freshTable(); testNow=50000;
   auto &hosted=TurnHubHosted::hostedTable(); hosted.clear();
@@ -3218,6 +3280,7 @@ int main() {
   deliberatePairing(); std::cout<<"PASS deliberate pairing authorization, radio failure, timeout, rollover and gameplay exclusion\n";
   virtualProfileFlow(); std::cout<<"PASS profile registration/login, phone-only game, companion sessions, authorization and throttling\n";
   phoneHostedGame(); std::cout<<"PASS phone-hosted game: lease, revisions, Atlas screen controls queue inputs, input queue, expiry\n";
+  hostedPlanechaseScreen(); std::cout<<"PASS hosted Planechase: Planes tab, face-up plane, planar commands queued, card view\n";
   hostedResume(); std::cout<<"PASS phone-hosted resume: a quiet or departed hub leaves its unfinished game for another phone\n";
   hostedSigils(); std::cout<<"PASS phone-hosted Sigils: join, bound seats drawn from the hub game, menus, keys queued not applied\n";
   profilePolicyFlow(); std::cout<<"PASS profile choices, physical authorization, companion privacy, expiry and claim revalidation\n";

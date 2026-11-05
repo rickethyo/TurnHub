@@ -100,7 +100,19 @@ HostedScreenActions hostedScreenActions() {
   const bool turn = game.active && living(*game.active);
   switch (game.state) {
     case turnhub::TableState::Lobby: actions.start = game.players.size() >= 2; break;
-    case turnhub::TableState::Running: actions.pass = actions.pause = turn; break;
+    case turnhub::TableState::Running: {
+      actions.pass = actions.pause = turn;
+      const turnhub::Json &planes = game.planechase;
+      if (turn && planes.get("enabled").asBool()) {
+        bool phenomenon = false;
+        const auto &up = planes.get("faceUp");
+        for (size_t i = 0; i < up.size(); ++i) phenomenon = phenomenon || up[i].get("phenomenon").asBool();
+        actions.roll = !phenomenon;
+        actions.resolve = phenomenon;
+        actions.walk = !phenomenon;
+      }
+      break;
+    }
     case turnhub::TableState::Paused: actions.resume = turn && !game.openWinClaim(); break;
     default: break;
   }
@@ -126,6 +138,19 @@ bool queueHostedScreenAction(HostedScreenAction action) {
     case HostedScreenAction::Resume:
       if (!offered.resume) return false;
       queueSeat(ATLAS_SCREEN, active, "pause", 0);
+      return true;
+    // The hub rolls the die and acts for the active player (lan-v1.md planar commands).
+    case HostedScreenAction::PlanarRoll:
+      if (!offered.roll) return false;
+      queueSeat(ATLAS_SCREEN, active, "planar-roll");
+      return true;
+    case HostedScreenAction::PlanarWalk:
+      if (!offered.walk) return false;
+      queueSeat(ATLAS_SCREEN, active, "planar-walk");
+      return true;
+    case HostedScreenAction::PlanarResolve:
+      if (!offered.resolve) return false;
+      queueSeat(ATLAS_SCREEN, active, "planar-resolve");
       return true;
   }
   return false;

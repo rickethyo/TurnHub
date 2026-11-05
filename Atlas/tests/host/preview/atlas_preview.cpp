@@ -101,17 +101,16 @@ void players(AtlasScreen &s, int count, bool game) {
 
 void renderShell(AtlasScreen &s,const ScreenStyle &style,bool keepBanner=false) {
   if(s.kind!=ScreenKind::Code && s.kind!=ScreenKind::PairCode && s.kind!=ScreenKind::Name && s.kind!=ScreenKind::Pin && s.kind!=ScreenKind::Setup && s.kind!=ScreenKind::Confirm) {
-    const TouchAction actions[]={TouchAction::OpenHome,TouchAction::OpenGame,TouchAction::OpenOverview,TouchAction::OpenSettings};
-    const uint8_t selected=s.kind==ScreenKind::Home||s.kind==ScreenKind::ManaTap?0:s.kind==ScreenKind::Overview?2:
+    // As touch_controls.cpp's layoutButtons: Home, Game, Planes (in a Planechase game), Settings.
+    const TouchAction actions[]={TouchAction::OpenHome,TouchAction::OpenGame,TouchAction::OpenPlanes,TouchAction::OpenSettings};
+    const char *names[]={"Home","Game","Planes","Settings"};
+    const uint8_t selected=s.kind==ScreenKind::Home||s.kind==ScreenKind::ManaTap?0:s.kind==ScreenKind::Planes?2:
         s.kind==ScreenKind::Menu||s.kind==ScreenKind::Device||s.kind==ScreenKind::Themes?3:1;
-    if (s.planes.on) {
-      // A Planechase match: Home, Game, Table, Planes, Settings.
-      const TouchAction five[]={TouchAction::OpenHome,TouchAction::OpenGame,TouchAction::OpenOverview,TouchAction::OpenPlanes,TouchAction::OpenSettings};
-      const char *names[]={"Home","Game","Table","Planes","Settings"};
-      const uint8_t pick=s.kind==ScreenKind::Planes?3:selected==3?4:selected;
-      for(uint8_t i=0;i<5;++i) { auto &b=s.buttons[s.buttonCount++];b.action=five[i];b.label=names[i];b.x=i*64;b.y=432;b.w=64;b.h=48;b.selected=i==pick; }
-    } else
-    for(uint8_t i=0;i<4;++i) { auto &b=s.buttons[s.buttonCount++];b.action=actions[i];b.label=TurnHubUi::pageTitle(static_cast<TurnHubUi::Page>(i));b.x=i*80;b.y=432;b.w=80;b.h=48;b.selected=i==selected; }
+    const uint8_t count=s.planes.on?4:3; const int16_t w=WIDTH/count; uint8_t slot=0;
+    for(uint8_t i=0;i<4;++i) {
+      if(i==2&&!s.planes.on) continue;
+      auto &b=s.buttons[s.buttonCount++];b.action=actions[i];b.label=names[i];b.x=slot*w;b.y=432;b.w=slot+1==count?WIDTH-slot*w:w;b.h=48;b.selected=i==selected;++slot;
+    }
   }
   renderAtlasScreen(s,style);
   // Only the turn-banner frame shows the banner a pass starts.
@@ -196,6 +195,13 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     for (auto *l : lines) snprintf(s.lines[s.lineCount++], 40, "%s", l);
     row(s, BUTTON_ROW_Y, {{TouchAction::OpenSeat, "Add player"}, {TouchAction::OpenNewGame, "Start"}}, {3, 3});
     renderShell(s, style); save("lobby-empty" + suffix);
+  }
+  {
+    // The Game tab with no hub: the steps to start a game.
+    AtlasScreen s = base("READY", "No game yet", "2 Sigils online");
+    const char *lines[] = {"Open TurnHub on your phone", "Start a game: it shows up here", "Pair Sigils in Settings"};
+    for (auto *l : lines) snprintf(s.lines[s.lineCount++], 40, "%s", l);
+    renderShell(s, style); save("ready" + suffix);
   }
   {
     AtlasScreen s = base("LOBBY", "Lobby", "4 players, 2 Sigils");
@@ -305,7 +311,7 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     s.round = 3; snprintf(s.gameClock, sizeof(s.gameClock), "42:10"); snprintf(s.clock, sizeof(s.clock), "1:23");
     s.timerPermille = 600;
     players(s, n, true);
-    row(s, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Pass"}, {TouchAction::Pause, "Pause"}, {TouchAction::OpenTable, "Actions"}}, {3, 2, 3});
+    row(s, BUTTON_ROW_Y, {{TouchAction::PassTurn, "Pass"}, {TouchAction::Pause, "Pause"}}, {3, 2});
     renderShell(s, style); save("game-" + std::to_string(n) + suffix);
     if (n != 4) continue;
     // The turn banner mid-slide after Sam passes to Alex.
@@ -323,7 +329,7 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     auto planes = [&](AtlasScreen &s) {
       s.kind = ScreenKind::Planes;
       row(s, BUTTON_UPPER_ROW_Y, {{TouchAction::PlanarRoll, "Roll: 1 mana"}});
-      row(s, BUTTON_ROW_Y, {{TouchAction::PlanarWalk, "Planeswalk"}, {TouchAction::CloseScreen, "Back"}}, {3, 2});
+      row(s, BUTTON_ROW_Y, {{TouchAction::PlanarWalk, "Planeswalk"}, {TouchAction::OpenPlaneCard, "Card"}}, {3, 2});
     };
     AtlasScreen s = base("PLANES", "Planechase", "Casey rolled chaos");
     s.planes.on = s.planes.digital = true;
@@ -336,7 +342,7 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     snprintf(ph.planes.plane, sizeof(ph.planes.plane), "Interplanar Tunnel");
     ph.kind = ScreenKind::Planes;
     row(ph, BUTTON_UPPER_ROW_Y, {{TouchAction::PlanarResolve, "Resolve phenomenon"}});
-    row(ph, BUTTON_ROW_Y, {{TouchAction::PlanarWalk, "Planeswalk"}, {TouchAction::CloseScreen, "Back"}}, {3, 2});
+    row(ph, BUTTON_ROW_Y, {{TouchAction::OpenPlaneCard, "Full screen card"}});
     renderShell(ph, style); save("planes-phenomenon" + suffix);
     AtlasScreen own = base("PLANES", "Planechase", "The active player rolls");
     own.planes.on = true; own.planes.planeswalks = 1;

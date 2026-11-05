@@ -25,8 +25,13 @@ struct HostedScreenActions {
   bool pass = false;    // a living player's turn
   bool pause = false;
   bool resume = false;  // paused, with no open win claim
+  // Planechase on, in play: the active player rolls the planar die (no
+  // phenomenon up), resolves a phenomenon, or planeswalks when a card says so.
+  bool roll = false;
+  bool resolve = false;
+  bool walk = false;
 };
-enum class HostedScreenAction : uint8_t { Start, Pass, Pause, Resume };
+enum class HostedScreenAction : uint8_t { Start, Pass, Pause, Resume, PlanarRoll, PlanarWalk, PlanarResolve };
 HostedScreenActions hostedScreenActions();
 // Queues the action for the hub if the hosted game offers it now.
 bool queueHostedScreenAction(HostedScreenAction action);
