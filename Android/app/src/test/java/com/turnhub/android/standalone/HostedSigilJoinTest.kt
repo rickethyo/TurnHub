@@ -8,6 +8,26 @@ class HostedSigilJoinTest {
     private fun action(kind: String, id: Int = 0, slot: Int = 1) = JSONObject()
         .put("kind", kind).put("sigil", id).put("slot", slot)
 
+    @Test fun `empty lobby publishes both saved profiles and joining Ricky preserves his identity`() {
+        val michael = SavedLocalPlayer("local-michael", "Michael", "ABCDEF01")
+        val ricky = SavedLocalPlayer("local-ricky", "Ricky", "ABCDEF02")
+        val table = StandaloneTable(MemoryStandaloneStore(StandaloneGame(),
+            LocalLibrary(players = listOf(michael, ricky))))
+        val state = com.turnhub.android.ui.home.hostedGameJson(table.state.value.game, table.state.value.library.players)
+        assertEquals(0, state.getJSONArray("players").length())
+        val profiles = state.getJSONArray("hostedProfiles")
+        assertEquals(listOf("Michael", "Ricky"), (0 until profiles.length()).map { profiles.getJSONObject(it).getString("name") })
+        val selected = profiles.getJSONObject(1)
+        assertTrue(table.applyHostedInput(0, action("sigil-join").put("mode", "profile")
+            .put("profileId", selected.getString("profileId")).put("name", selected.getString("name"))))
+        val player = table.state.value.game.players.single()
+        assertEquals("Ricky", player.name)
+        assertEquals(ricky.localId, player.localId)
+        assertEquals("sigil:0:1", player.sigilSeat)
+        assertFalse(player.guest)
+        assertEquals(listOf(michael, ricky), table.state.value.library.players)
+    }
+
     @Test fun `device seats join persist publish and leave through real shared rules`() {
         val store = MemoryStandaloneStore(StandaloneGame(), LocalLibrary())
         val table = StandaloneTable(store, wallClock = { 1000 })

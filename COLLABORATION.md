@@ -34,6 +34,18 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-11-05, Codex: photo-reported Sigil join investigation on `codex/master`,
+baseline `8fc65b56`, continuing PR #208. Clean/fetched startup; master is an
+ancestor. Read-only ADB confirms the Pixel Fold and LG hub still run Preview
+1476. Accepted master app ignores picker identity and creates a device-named
+seat; it also omits hostedProfiles. Pending #208 already corrects both paths.
+Add a regression for an empty lobby with two saved profiles and a selected
+profile join preserving its identity. No device installation or game mutation.
+Validation: the new photo-sequence regression and both focused Android suites
+pass (HostedSigilJoinTest and AtlasPlayerCopiesTest); documentation links and
+whitespace checks pass. The running 1476 apps still need the matching #208 app
+update before physical acceptance can test the corrected flow.
+
 2026-11-05, Codex: active Sigil join/controller slice on `codex/master`,
 baseline `cfebb986`. Owner requests lobby attachment, saved Atlas/hub profiles,
 and device-named true guests. Multiple phones and a Sigil may control the same
