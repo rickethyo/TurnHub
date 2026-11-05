@@ -44,6 +44,9 @@ internal data class LanUiState(
     val master: Boolean = false,
     val view: String = "personal",
     val directory: List<RoomProfile> = emptyList(),
+    val claimedProfiles: Set<String> = emptySet(),
+    val profileOnly: String? = null,
+    val controllerInvitation: String? = null,
     val busy: Boolean = false,
     val uncertain: Boolean = false,
     val message: String? = null,
@@ -251,7 +254,8 @@ internal class LanViewModel(
                     answer = reply.text("code")
                     if (answer == "ok") {
                         invite = candidate
-                        _state.update { it.copy(preview = readGame(reply), directory = readDirectory(reply), busy = false) }
+                        _state.update { it.copy(preview = readGame(reply), directory = readDirectory(reply), claimedProfiles = readClaimed(reply),
+                            profileOnly = candidate.profileOnly, busy = false) }
                         return@launch
                     }
                     if (answer == "locked") break
@@ -594,6 +598,23 @@ internal class LanViewModel(
         }
     }
     private fun base(invitation: LanInvite, op: String) = JSONObject().put("v", LAN_VERSION).put("session", invitation.session).put("op", op)
+        .also { if (invitation.profileOnly != null) it.put("profileOnly", invitation.profileOnly) }
+    private fun readClaimed(reply: JSONObject): Set<String> = reply.optJSONArray("claimedProfiles")?.let { a ->
+        (0 until a.length()).map { a.getString(it) }.toSet() }.orEmpty()
+
+    fun inviteController() {
+        val invitation = invite ?: return
+        val credential = token ?: return
+        if (_state.value.role != "player" || !_state.value.online) return
+        viewModelScope.launch {
+            val response = runCatching { request(invitation, base(invitation, "invite-controller").put("token", credential)) }.getOrNull()
+            if (response?.optString("code") == "ok") {
+                val scoped = invitation.copy(key = response.getString("controllerKey"), profileOnly = response.getString("profileOnly"))
+                _state.update { it.copy(controllerInvitation = scoped.encode()) }
+            } else _state.update { it.copy(message = "Couldn't create a player invitation. Reconnect and try again.") }
+        }
+    }
+    fun dismissControllerInvitation() { _state.update { it.copy(controllerInvitation = null) } }
     private fun LanUiState.withLooks(reply: JSONObject) =
         if (reply.has("looks")) copy(looks = readLooks(reply), looksId = reply.optString("looksId")) else this
     /** A look the guest can't read is just the default panel; it never blocks the game. */

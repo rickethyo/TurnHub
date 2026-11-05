@@ -672,7 +672,7 @@ class StandaloneTable(
                     guests: Boolean = false): Boolean {
         val before = _state.value
         val record = before.library.history.firstOrNull { it.recordId == recordId } ?: return false
-        // Atlas can't import a format it doesn't run (Pokémon): those games stay on this device.
+        // Atlas can't import a format it doesn't run (PokÃ©mon): those games stay on this device.
         if (!record.profile.atlasSupported) return false
         val mapped = profileIds.filter { it.isNotBlank() }
         if (atlasId.isBlank() || profileIds.size != record.players.size || mapped.isEmpty() ||
@@ -874,7 +874,7 @@ class StandaloneTable(
     /**
      * Phone-hosted games (protocol/hosted-v1.md): an input from the Atlas this phone hosts on.
      * Atlas only names the seat; this phone's rules decide. Player 0 is a table action:
-     * a Sigil joins or leaves setup (bound by localId "sigil:<id>:<slot>"), or starts the game.
+     * a Sigil attaches or detaches in setup (bound by sigilSeat "sigil:<id>:<slot>"), or starts the game.
      */
     internal fun applyHostedInput(player: Int, action: JSONObject): Boolean {
         val game = _state.value.game
@@ -885,24 +885,58 @@ class StandaloneTable(
             if (game.state != TableState.LOBBY) return false
             return when (action.optString("kind")) {
                 "sigil-join" -> {
-                    if (sigil !in 0..15 || slot !in 1..2) return false
-                    val id = "sigil:$sigil:$slot"
-                    if (game.players.any { it.localId == id }) return false
-                    val next = game.addPlayer("Sigil ${sigil + 1}" + if (slot == 2) " B" else "", localId = id)
-                    next !== game && publishGame(next, durable = true)
+                    if (sigil !in 0..7 || slot !in 1..2) return false
+                    val binding = "sigil:$sigil:$slot"
+                    if (game.players.any { it.sigilSeat == binding || it.localId == binding }) return false
+                    val target = action.optString("target")
+                    val profile = action.optString("profileId")
+                    val mode = action.optString("mode", "guest")
+                    var library = _state.value.library
+                    val next = when (mode) {
+                        "attach" -> {
+                            // Match the identity snapshot, never a mutable player number or name.
+                            val index = action.optInt("playerIndex", -1)
+                            val candidate = game.players.getOrNull(index) ?: return false
+                            if (candidate.localId.orEmpty() != target || (_state.value.library.players.firstOrNull { it.localId == candidate.localId }?.profileId ?: candidate.profileId).orEmpty() != profile ||
+                                candidate.name != action.optString("name")) return false
+                            if (index < 0 || game.players[index].sigilSeat != null) return false
+                            game.copy(players = game.players.mapIndexed { i, p -> if (i == index) p.copy(sigilSeat = binding) else p },
+                                revision = game.revision + 1)
+                        }
+                        "profile" -> {
+                            if (!LocalProfileIds.valid(profile)) return false
+                            var saved = library.players.firstOrNull { it.profileId == profile }
+                            if (saved == null) {
+                                val name = action.optString("name").trim().take(StandaloneGame.MAX_NAME)
+                                if (name.isEmpty()) return false
+                                saved = SavedLocalPlayer(newId(), name, profile)
+                                library = library.copy(players = library.players + saved)
+                            }
+                            if (game.players.any { it.localId == saved.localId || it.profileId == profile }) return false
+                            val added = game.addPlayer(saved.name, profileId = profile, localId = saved.localId)
+                            if (added === game) return false
+                            added.copy(players = added.players.dropLast(1) + added.players.last().copy(sigilSeat = binding))
+                        }
+                        "guest" -> {
+                            val name = action.optString("name").trim().take(StandaloneGame.MAX_NAME)
+                                .ifBlank { "Sigil ${sigil + 1}" + if (slot == 2) " B" else "" }
+                            val added = game.addPlayer(name, guest = true)
+                            if (added === game) return false
+                            added.copy(players = added.players.dropLast(1) + added.players.last().copy(sigilSeat = binding))
+                        }
+                        else -> return false
+                    }
+                    publish(_state.value.copy(game = next, library = library))
                 }
                 "sigil-leave" -> {
-                    if (sigil !in 0..15 || slot !in 0..2) return false
-                    val prefix = if (slot == 0) "sigil:$sigil:" else "sigil:$sigil:$slot"
-                    var next = game
-                    while (true) {
-                        val index = next.players.indexOfFirst { it.localId?.let { id -> if (slot == 0) id.startsWith(prefix) else id == prefix } == true }
-                        if (index < 0) break
-                        val removed = next.removePlayer(index)
-                        if (removed.players.size >= next.players.size) break
-                        next = removed
-                    }
-                    next !== game && publishGame(next, durable = true)
+                    if (sigil !in 0..7 || slot !in 0..2) return false
+                    val prefix = "sigil:$sigil:"
+                    val next = game.copy(players = game.players.map { p ->
+                        if (p.sigilSeat?.let { if (slot == 0) it.startsWith(prefix) else it == "$prefix$slot" } == true)
+                            p.copy(sigilSeat = null) else p
+                    }, revision = game.revision + 1)
+                    // Leaving releases this controller; the player and other phones stay seated.
+                    next.players != game.players && publishGame(next, durable = true)
                 }
                 "start" -> { if (game.players.size < 2) return false; start(); _state.value.game.state != TableState.LOBBY }
                 else -> false
@@ -1105,6 +1139,7 @@ class StandaloneTable(
                         put("name", p.name)
                         put("profileId", p.profileId ?: JSONObject.NULL)
                         put("localId", p.localId ?: JSONObject.NULL)
+                        put("sigilSeat", p.sigilSeat ?: JSONObject.NULL)
                         put("guest", p.guest)
                         put("life", p.life)
                         put("eliminated", p.eliminated)
@@ -1185,11 +1220,14 @@ class StandaloneTable(
                 players = (0 until players.length()).map { i ->
                     val p = players.getJSONObject(i)
                     val damage = p.getJSONObject("commanderDamage")
+                    val legacySigil = p.optStringOrNull("localId")?.takeIf {
+                        it.matches(Regex("sigil:[0-7]:[12]")) && p.optStringOrNull("profileId") == null }
                     LocalPlayer(
                         name = p.getString("name"),
-                        localId = p.optStringOrNull("localId"),
+                        localId = p.optStringOrNull("localId").takeIf { legacySigil == null },
+                        sigilSeat = p.optStringOrNull("sigilSeat") ?: legacySigil,
                         profileId = p.optStringOrNull("profileId"),
-                        guest = p.optBoolean("guest"),
+                        guest = p.optBoolean("guest") || legacySigil != null,
                         life = p.getInt("life"),
                         eliminated = p.getBoolean("eliminated"),
                         conceded = p.optBoolean("conceded"),
@@ -1211,7 +1249,7 @@ class StandaloneTable(
                         commander = p.optStringOrNull("commander"),
                         commanderArt = p.optStringOrNull("commanderArt")?.takeIf { com.turnhub.android.data.TileCardGame.valid(it) },
                         cardOnly = p.optBoolean("cardOnly"),
-                        // Pokémon games saved before Lorcana kept this under "pokemon".
+                        // PokÃ©mon games saved before Lorcana kept this under "pokemon".
                         turn = (p.optJSONObject("turn") ?: p.optJSONObject("pokemon"))?.let { pk ->
                             fun <E : Enum<E>> names(key: String, values: List<E>): Set<E> = pk.optJSONArray(key)?.let { a ->
                                 (0 until a.length()).mapNotNull { i -> values.firstOrNull { it.name == a.getString(i) } }.toSet()

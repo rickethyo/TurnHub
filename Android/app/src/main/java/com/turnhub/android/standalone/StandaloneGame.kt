@@ -46,6 +46,8 @@ data class LocalPlayer(
     /** Commander damage received, by source player index: one total per commander (1 and 2). */
     val commanderDamage: Map<Int, List<Int>> = emptyMap(),
     val localId: String? = null,
+    /** Physical controller; never substitutes for the saved person or phone grants. */
+    val sigilSeat: String? = null,
     val demerits: Int = 0,
     val extensionsEarned: Int = 0,
     val extensionsUsed: Int = 0,
@@ -354,7 +356,7 @@ data class StandaloneGame(
             askEliminationSource = askEliminationSource || profile.bagOfDoom,
             state = TableState.RUNNING,
             // Lorcana counts lore up from 0 to [startingLife].
-            players = players.map { LocalPlayer(it.name, it.profileId, life = if (lorcana) 0 else startingLife, localId = it.localId,
+            players = players.map { LocalPlayer(it.name, it.profileId, life = if (lorcana) 0 else startingLife, localId = it.localId, sigilSeat = it.sigilSeat,
                 commander = it.commander, commanderArt = it.commanderArt, cardOnly = it.cardOnly, guest = it.guest) },
             doomBag = if (profile.bagOfDoom) DoomRules.start(first + 1, (1 shl players.size) - 1, players.size) else com.turnhub.android.protocol.DoomBag(),
             active = first,
@@ -396,7 +398,7 @@ data class StandaloneGame(
             twoHeadedGiant = twoHeadedGiant,
             houseRules = houseRules,
             planechase = planechase.cleared(),
-            players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId, commander = it.commander, commanderArt = it.commanderArt,
+            players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId, sigilSeat = it.sigilSeat, commander = it.commander, commanderArt = it.commanderArt,
                 cardOnly = it.cardOnly, guest = it.guest) },
             revision = revision + 1,
         )

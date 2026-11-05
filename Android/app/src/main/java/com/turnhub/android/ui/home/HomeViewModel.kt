@@ -969,7 +969,7 @@ class HomeViewModel(
         }
     }
 
-    /** Me → "Sign in automatically" off: forgets this table's saved profile on this phone. */
+    /** Me â†’ "Sign in automatically" off: forgets this table's saved profile on this phone. */
     fun onForgetSavedProfile() {
         val atlasId = repository.tableSummary.value?.atlasId ?: return
         vault?.forget(atlasId)
@@ -1512,6 +1512,9 @@ internal fun hostedGameJson(
     players: List<com.turnhub.android.standalone.SavedLocalPlayer> = emptyList(),
 ): org.json.JSONObject {
     val json = com.turnhub.android.standalone.StandaloneTable.gameToJson(game).put("profile", game.profile.name)
+    json.put("hostedProfiles", org.json.JSONArray().apply {
+        players.forEach { put(org.json.JSONObject().put("profileId", it.profileId).put("name", it.name)) }
+    })
     val roster = json.getJSONArray("players")
     game.players.forEachIndexed { index, seat ->
         if (!seat.guest) players.firstOrNull { it.localId == seat.localId }?.let {

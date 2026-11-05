@@ -1,8 +1,8 @@
-<!-- Generated from TurnHub App Manual V0.21.docx and TurnHub Hardware Manual V0.21.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub App Manual V0.22.docx and TurnHub Hardware Manual V0.22.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub App Manual
 
-## Prototype Edition v0.21
+## Prototype Edition v0.22
 
 TurnHub keeps track of the bookkeeping at a tabletop game: whose turn it is, life totals, Commander damage, counters, the turn timer and who won. The TurnHub app runs a whole game on one Android phone or tablet, with saved players, personalization and detailed history. No Atlas, account, internet connection or permission is needed to play.
 
@@ -105,7 +105,7 @@ Official modes (Magic, Commander, Two-Headed Giant, Emperor and Yu-Gi-Oh!) keep 
 
 Open Game > Play together > Host game to open a game-night room. Share its join code or QR with your table. The room stays open through rematches and different game types. The host keeps its screen awake and saves the room; reopening the app resumes it. With Atlas, the hub also backs up room membership on Atlas. Without Atlas, the host saves and serves independently. Keep the host app open for live connections; closing it pauses guest access until it returns.
 
-On the same Wi-Fi, open Game > Play together and enter the code or scan the QR. No host approval is needed. Choose a read-only Table or Planes display, account-free Shared table controls, or your profile. Bring a profile from your device, use an existing table profile, or join as a new player. A protected profile asks for its PIN on first linking; reconnects use saved room access. Players need not be preselected by the host, and sitting out a game does not remove room membership.
+On the same Wi-Fi, open Game > Play together and enter the code or scan the QR. Choose a read-only display, Shared table controls, or your profile. A protected profile asks for its PIN on first linking; reconnects use saved room access. Once a phone joins a profile, that profile disappears from the general selector. To add another phone to the same player, open the connected phone’s menu, choose Add another phone, and scan its player-only invitation. It uses the same persistent room and gives control of that player only. Multiple phones and a Sigil share one player and one stats credit. A Sigil alone does not hide the profile. Sitting out does not remove room membership.
 
 Personal screens control their own player. Table display shows everyone read-only. Shared table controls use facing-seat panels so everyone can change normal gameplay values on a central tablet without signing in. Public views stay read-only unless the host grants that device game master access. Setup and special game decisions outside the remote controls stay on the host. Profile IDs establish identity; matching names do not automatically merge profiles. Read-only player panels show Active turn with its clock (Turn paused while paused), completed turns and a format-specific fact such as commander casts, prizes left or lore instead of Pass and More.
 
@@ -325,7 +325,7 @@ If Atlas stops answering, the app keeps your game going: it is this device's gam
 
 **A connected, paired phone shows its game on Atlas automatically. Show on Atlas in Game starts it by hand, and Stop gives the table back. One phone hosts at a time: if another phone has the table, Game says Atlas busy.**
 
-While the phone or tablet is still in game setup and showing on Atlas, choose Join game on a paired Sigil. It takes a device seat in that game without creating a saved account. Join a second seat from the Sigil menu if needed. Join before starting; a running game does not accept a new Sigil seat. Sigil and Atlas presses go to the hub, which decides them. Other phones join through Play together.
+While the hub is in game setup and showing on Atlas, choose Join game on a paired Sigil. Choose a player already in the lobby to attach to them, a saved profile from Atlas or the hub to add that player, or a true guest named after the Sigil. Guests create no account or personal statistics; their presence stays in the game record. A Sigil and several phones can control the same player. Leaving from the Sigil releases its controller and leaves the player and phones seated. Join a second seat from the Sigil menu if needed. New Sigil attachments are made before starting.
 
 Planechase on Atlas: the hub sends the face-up plane and upcoming cards to Atlas, including text and artwork. Atlas needs a working microSD card to keep the cards. The phone shows transfer progress or a problem near On Atlas. Missing artwork retries automatically when the connection or card recovers; you do not need to roll again. On Atlas, open Planes for the die and card controls. Card opens the landscape view; tap it to return. If home Wi-Fi has internet access, Atlas can fetch a missing plane directly from Scryfall when the phone transfer fails. Downloaded cards are kept on its microSD card for offline use; the phone still controls the deck and rolls.
 
@@ -844,7 +844,7 @@ New TurnHub hardware is in development on the ESP32-S3:
 
 Pair a phone by comparing the six-digit code on both screens and tapping Allow on Atlas. Pairing lasts through restarts. Forget paired phones in Settings > Device removes every phone key. Paired phones send public player copies and finished records without a player sign-in. IDs keep people with the same name separate; PINs and pictures stay on the phone. Basic totals use internal storage; appearance, detailed statistics and archived history need microSD. Reconnect to retry a transfer. See Your Game on the Atlas in the App Manual.
 
-On the phone-hosted hardware, choose Join game on a paired Sigil while the hub is still in setup and showing on Atlas. Planechase adds a Planes tab and a landscape card view on Atlas. The hub sends text and artwork to its microSD card and retries missing artwork automatically; transfer status appears on the phone near On Atlas. Tap the full-screen card to return to Planes. If home Wi-Fi has internet access, Atlas can fetch a missing plane directly from Scryfall when the phone transfer fails. Downloaded cards are kept on its microSD card for offline use; the phone still controls the deck and rolls.
+While the hub is in setup and showing on Atlas, choose Join game on a paired Sigil. Attach to a lobby player, add a saved Atlas or hub profile, or join as a true guest named after the Sigil. Guests keep only their match participation, without an account or personal statistics. The same player may use a Sigil and several phones; leaving the Sigil leaves that player seated. Planechase adds a Planes tab and a landscape card view on Atlas. The hub sends artwork to its microSD card and retries missing transfers. Tap the full-screen card to return to Planes. With internet access, Atlas can fetch missing planes directly from Scryfall; the phone still controls the deck and rolls.
 
 The current prototype boards keep the behavior in this manual: they run the game themselves, with their Sigils and screen. The newest app no longer plays a game these boards run; it plays its own game, which the new Atlas shows. This manual will be revised when the new hardware arrives.
 

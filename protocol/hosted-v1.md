@@ -63,6 +63,17 @@ those records. It does not grant access to PINs or private moderation history.
   `limit` is 1–20 (default 10). `404` means no such copy; `503` means archived
   history cannot be read without its SD card.
 
+Hosted setup also carries `hostedProfiles`, the hub's public saved-profile
+IDs and names, so a Sigil can choose a profile not yet seated or copied to Atlas.
+No credentials travel in that list. Sigil `Join game` opens a paged picker:
+existing lobby players, remaining saved profiles from hub and Atlas, then a
+device-named true guest. Selection queues `sigil-join` with `mode` (`attach`,
+`profile`, `guest`), `sigil`, `slot`, `name`, `profileId`, `target` (local ID)
+and `playerIndex` (attachment only). The hub rechecks the identity snapshot,
+roster, binding and lobby phase. `sigilSeat` holds `sigil:<id>:<slot>` separately
+from `localId`; legacy snapshots using `localId` remain readable. Detaching
+clears only the binding, preserving the participant and phone controllers.
+
 The Android hub projects saved players' stable profile IDs into hosted state;
 phone-local seat IDs and Sigil device IDs are never substituted for profile IDs.
 On connection and library changes it sends metadata copies, then finished games
@@ -142,15 +153,15 @@ Seat actions use the Play together vocabulary (`lan-v1.md`):
 (`pause` value 1 pauses, 0 resumes; `life` value is the signed change).
 Table actions (`player` 0) are applied in setup only:
 
-- `{"kind": "sigil-join", "sigil": id, "slot": 1|2}`: the hub adds a device-bound local seat
-  (`guest=false`, `localId="sigil:<id>:<slot>"`), without a saved account;
-- `{"kind": "sigil-leave", "sigil": id, "slot": 0|1|2}`: removes that seat
-  (0: both of the Sigil's seats);
+- `sigil-join` uses the picker selection fields described under Player copies
+  and records above; it attaches a lobby player or adds a profile/true guest;
+- `{"kind": "sigil-leave", "sigil": id, "slot": 0|1|2}` releases that controller
+  (0: both of the Sigil's seats), preserving the player and other controllers;
 - `{"kind": "start"}`: starts the game.
 
 ## Sigils
 
-A hosted player is bound to a Sigil seat by its `localId`,
+A hosted player is bound to a Sigil seat by its `sigilSeat`,
 `sigil:<sigilId>:<slot>` (slot 1 = seat A, 2 = seat B). The hub sets it; Atlas
 never edits the game. While a hub hosts Game 1, Atlas draws Game 1's Sigils
 from the hub's game (display, table roster and light cues), offers their menu

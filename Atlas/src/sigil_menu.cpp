@@ -72,6 +72,7 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
 }
 
 void syncSigilMenus(uint32_t nowMs) {
+  syncHostedPickers(nowMs);
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     MenuCache &cache = menus[id];
     if (!sigilBus.isOnline(id, nowMs)) {

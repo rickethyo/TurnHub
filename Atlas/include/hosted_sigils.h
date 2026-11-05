@@ -9,6 +9,7 @@
 #include "protocol.h"
 
 namespace TurnHubAtlas {
+void syncHostedPickers(uint32_t nowMs);
 
 // A hub hosts the game.
 bool hostedForSigil(uint8_t sigilId, uint32_t nowMs);

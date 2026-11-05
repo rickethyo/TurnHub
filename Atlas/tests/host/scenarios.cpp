@@ -3090,8 +3090,39 @@ static void hostedSigils() {
   syncSigilMenus(testNow);
   TurnHubAtlas::handleHostedSigilEvent(0,TurnHubProtocol::PacketType::SelectAction,
       TurnHubProtocol::encodeSelectAction(TurnHubProtocol::SigilAction::Join,sigilMenuRevision(0)));
+  assert(hosted.inputsAfter(0).empty()); // Join opens the picker, never adds a player directly.
+  assert(TurnHub::sentPickers[0].mode == TurnHubProtocol::PickerMode::List);
+  // Find the true guest entry; profiles on Atlas are offered on preceding pages.
+  while (!(TurnHub::sentPickers[0].items[TurnHub::sentPickers[0].itemCount-1].flags & TurnHubProtocol::PICKER_ITEM_GUEST))
+    TurnHubAtlas::handleHostedSigilEvent(0,TurnHubProtocol::PacketType::PickerKey,
+        TurnHubProtocol::encodePickerKey(TurnHubProtocol::PickerKeyCode::Select,TurnHub::sentPickers[0].revision));
+  const auto row = TurnHub::sentPickers[0].itemCount-1;
+  const auto key = row == 0 ? TurnHubProtocol::PickerKeyCode::Up : row == 1 ? TurnHubProtocol::PickerKeyCode::Right : TurnHubProtocol::PickerKeyCode::Down;
+  const auto stale = TurnHub::sentPickers[0].revision;
+  TurnHubAtlas::handleHostedSigilEvent(0,TurnHubProtocol::PacketType::PickerKey,TurnHubProtocol::encodePickerKey(key,stale));
+  assert(TurnHub::sentPickers[0].mode == TurnHubProtocol::PickerMode::Confirm);
+  TurnHubAtlas::handleHostedSigilEvent(0,TurnHubProtocol::PacketType::PickerKey,
+      TurnHubProtocol::encodePickerKey(TurnHubProtocol::PickerKeyCode::Select,stale));
+  assert(hosted.inputsAfter(0).empty()); // Duplicate/stale touches cannot confirm a new page.
+  TurnHubAtlas::handleHostedSigilEvent(0,TurnHubProtocol::PacketType::PickerKey,
+      TurnHubProtocol::encodePickerKey(TurnHubProtocol::PickerKeyCode::Select,TurnHub::sentPickers[0].revision));
   auto inputs=hosted.inputsAfter(0); assert(inputs.size()==1 && inputs[0].player==0);
-  assert(inputs[0].action=="{\"kind\":\"sigil-join\",\"sigil\":0,\"slot\":1}");
+  assert(turnhub::Json::parse(inputs[0].action).get("mode").asString()=="guest");
+  // Lobby attachment carries stable identity separately from the physical controller.
+  const std::string populated=R"json({"gameId":"","revision":2,"state":"LOBBY","profile":"MTG_COMMANDER","players":[{"name":"Ana","localId":"person-ana","profileId":"ABCDEF01"}],"hostedProfiles":[{"name":"Ben","profileId":"ABCDEF02"}]})json";
+  assert(request("/api/hosted/state",ana,{{"state",populated.c_str()}})==200);
+  TurnHubAtlas::handleHostedSigilEvent(0,TurnHubProtocol::PacketType::SelectAction,
+      TurnHubProtocol::encodeSelectAction(TurnHubProtocol::SigilAction::Join,sigilMenuRevision(0)));
+  assert(TurnHub::sentPickers[0].items[0].flags & TurnHubProtocol::PICKER_ITEM_PLAYING);
+  assert(std::string(TurnHub::sentPickers[0].items[1].name)=="Ben");
+  TurnHubAtlas::handleHostedSigilEvent(0,TurnHubProtocol::PacketType::PickerKey,
+      TurnHubProtocol::encodePickerKey(TurnHubProtocol::PickerKeyCode::Up,TurnHub::sentPickers[0].revision));
+  TurnHubAtlas::handleHostedSigilEvent(0,TurnHubProtocol::PacketType::PickerKey,
+      TurnHubProtocol::encodePickerKey(TurnHubProtocol::PickerKeyCode::Select,TurnHub::sentPickers[0].revision));
+  inputs=hosted.inputsAfter(0);
+  const auto attach=turnhub::Json::parse(inputs.back().action);
+  assert(attach.get("mode").asString()=="attach" && attach.get("target").asString()=="person-ana");
+  assert(hosted.game().players[0].localId=="person-ana" && hosted.game().players[0].sigilSeat.empty());
   // The hub seats Sigils 0 and 1 and starts; Ana (Sigil 0) has the turn.
   const std::string running="{\"gameId\":\"g5\",\"revision\":7,\"state\":\"RUNNING\",\"profile\":\"MTG_COMMANDER\",\"active\":0,"
       "\"players\":[{\"name\":\"Ana\",\"life\":38,\"localId\":\"sigil:0:1\",\"commanderDamage\":{\"1\":[2,0]}},"

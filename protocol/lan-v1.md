@@ -200,3 +200,18 @@ revocation and repeated join IDs. Existing engine/transport suites still validat
 semantic actions and TLS. Atlas host scenarios cover capability checks, durable
 backup reads, failed writes and room deletion. Real device checks remain necessary
 for discovery, Wi-Fi isolation, process death, shared-panel layout and reconnect.
+
+## Additional phones for one player
+
+An authenticated player member requests `invite-controller`. The host persists a
+separate random `controllerKey` under that membership and returns it with
+`profileOnly`. The existing room URI gains `/PROFILEID` after its bearer key;
+that key is the scoped controller key, never the general room key. Preview and
+join must present both matching values. The host forces the `player` role and
+the issuing member's identity, ignoring requested player, profile or table role.
+It never grants master controls. General joins cannot select phone-claimed
+identities, and the public directory excludes them; Sigil bindings do not affect
+this filter. A member's existing reconnect token continues to work. Invitations
+survive host restarts, and revoking the issuer invalidates its unused invites.
+The room retains its 16-member capacity; several devices sharing a player count
+as several devices, while game identity and stats still count once.
