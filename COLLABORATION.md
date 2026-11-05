@@ -46,6 +46,18 @@ pass (HostedSigilJoinTest and AtlasPlayerCopiesTest); documentation links and
 whitespace checks pass. The running 1476 apps still need the matching #208 app
 update before physical acceptance can test the corrected flow.
 
+Owner merged #208 and authorized all connected device updates. Fetched accepted
+master `ee003db8`; local `c44f0f00` adds only the passing regression and handoff
+notes. Atlas S3 and Sigil builds pass and USB uploads verify their hashes on
+discovered COM18 (native S3) and COM26 (CH340 ESP32, MAC b4:bf:e9:12:85:74).
+No erase/reset of saved data. Preview 1478 built and installed with `adb install
+-r` on LG LMQ620QM61a3e79c1, Samsung R52T30577YX, Pixel Fold
+192.168.1.124:33333 and emulator-5580. All four report 1478 and running app
+processes. Post-flash serial confirms Sigil secure session ready, table snapshot
+and display-profile sync complete; Atlas is responding on serial. Build/upload
+and serial logs are under Private/master-ee003db8-*. The physical profile-picker
+join retest remains owner acceptance; no synthetic join or game action sent.
+
 2026-11-05, Codex: active Sigil join/controller slice on `codex/master`,
 baseline `cfebb986`. Owner requests lobby attachment, saved Atlas/hub profiles,
 and device-named true guests. Multiple phones and a Sigil may control the same
