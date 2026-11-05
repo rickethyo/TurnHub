@@ -12,7 +12,7 @@ import java.util.UUID
 class LanRoomTest {
     private class Fixture(saved: JSONObject? = null) {
         var record = saved ?: JSONObject().put("session", "room").put("key", "abc-123")
-        var roster = listOf(LanRoom.RoomSeat("PROFILE1", 1, "Sam"), LanRoom.RoomSeat("PROFILE2", 2, "Sam"))
+        var roster = listOf(LanRoom.RoomSeat("ABCDEF01", 1, "Sam"), LanRoom.RoomSeat("ABCDEF02", 2, "Sam"))
         var match = "first"
         var revision = 0L
         var changes = 0
@@ -32,7 +32,8 @@ class LanRoomTest {
             planesAvailable = { planesAvailable }, planarPlayerAllowed = { planarPlayerAllowed }, planarRollAllowed = { planarRollAllowed }, save = { if (writable) { record = JSONObject(it.toString()); true } else false },
             resolveIdentity = { id -> if (id == alias?.first) alias!!.second else id },
             snapshot = { base("ok").put("code", "ok").put("match", match) }, seats = { roster },
-            profiles = { JSONArray() }, attach = { if (delayAttach) kotlinx.coroutines.delay(10)
+            profiles = { JSONArray().put(JSONObject().put("profileId", "ABCDEF01").put("name", "Sam"))
+                .put(JSONObject().put("profileId", "ABCDEF02").put("name", "Sam")) }, attach = { if (delayAttach) kotlinx.coroutines.delay(10)
                 if (authorized && it.optString("pin") == "1234") it.optString("profileId") else null },
             command = { r, target ->
                 lastTarget = target
@@ -44,13 +45,40 @@ class LanRoomTest {
                 } }
             })
         fun base(op: String) = JSONObject().put("v", LAN_VERSION).put("session", "room").put("op", op)
-        suspend fun join(role: String = "player", profile: String = "PROFILE1", pin: String = "1234", id: String = UUID.randomUUID().toString()) =
+        suspend fun join(role: String = "player", profile: String = "ABCDEF01", pin: String = "1234", id: String = UUID.randomUUID().toString()) =
             room.handle(base("join").put("key", "abc-123").put("role", role).put("profileId", profile).put("pin", pin).put("joinId", id))
         fun poll(token: String) = base("poll").put("token", token)
         fun action(joined: JSONObject, kind: String = "life", target: Int = 1) = base("command")
             .put("token", joined.text("token")).put("epoch", joined.text("epoch")).put("actionId", UUID.randomUUID().toString())
             .put("match", match).put("revision", revision).put("kind", kind).put("value", -1).put("slot", 0).put("target", target)
     }
+    @Test fun `five phones share one player only through a durable scoped invitation`() = runBlocking {
+        val f = Fixture()
+        val first = f.join()
+        assertEquals("claimed", f.join().text("code"))
+        val link = f.room.handle(f.base("invite-controller").put("token", first.text("token")))
+        val key = link.text("controllerKey")
+        val directory = f.room.handle(f.base("preview").put("key", "abc-123")).getJSONArray("directory")
+        assertEquals(1, directory.length())
+        assertEquals("ABCDEF02", directory.getJSONObject(0).getString("profileId"))
+        repeat(4) {
+            val joined = f.room.handle(f.base("join").put("key", key).put("profileOnly", "ABCDEF01")
+                .put("profileId", "ABCDEF02").put("role", "table").put("joinId", UUID.randomUUID().toString()))
+            assertEquals("ok", joined.text("code"))
+            assertEquals("player", joined.text("role"))
+            assertEquals(1, joined.getInt("player"))
+            assertFalse(joined.getBoolean("master"))
+            assertEquals("ok", f.room.handle(f.action(joined, target = 2)).text("code"))
+            assertEquals(1, f.lastTarget)
+        }
+        assertEquals(5, f.room.guests.size)
+        val rebooted = Fixture(JSONObject(f.record.toString()))
+        assertEquals("ok", rebooted.room.handle(rebooted.base("preview").put("key", key).put("profileOnly", "ABCDEF01")).text("code"))
+        assertEquals("unauthorized", rebooted.room.handle(rebooted.base("preview").put("key", key).put("profileOnly", "ABCDEF02")).text("code"))
+        rebooted.room.revoke(first.text("token"))
+        assertEquals("unauthorized", rebooted.room.handle(rebooted.base("preview").put("key", key).put("profileOnly", "ABCDEF01")).text("code"))
+    }
+
     @Test fun `only a seated player exchanges history, and only for their own profile`() = runBlocking {
         val f = Fixture()
         val player = f.join()
@@ -58,7 +86,7 @@ class LanRoomTest {
         val index = f.room.handle(history(player.text("token"), "index"))
         assertEquals("ok", index.text("code"))
         assertEquals("game-1", index.getJSONArray("records").getString(0))
-        assertEquals("PROFILE1", f.historyAsked)
+        assertEquals("ABCDEF01", f.historyAsked)
         assertEquals("unavailable", f.room.handle(history(player.text("token"), "pull")).text("code"))
         val display = f.join("display")
         f.historyAsked = null
@@ -174,14 +202,14 @@ class LanRoomTest {
     }
     @Test fun `same names bind by identity and members stay when sitting out or changing games`() = runBlocking {
         val f = Fixture()
-        val joined = f.join(profile = "PROFILE2")
+        val joined = f.join(profile = "ABCDEF02")
         val token = joined.text("token")
-        f.roster = listOf(LanRoom.RoomSeat("PROFILE2", 1, "Renamed"))
+        f.roster = listOf(LanRoom.RoomSeat("ABCDEF02", 1, "Renamed"))
         assertEquals(1, f.room.handle(f.poll(token)).getInt("player"))
         f.roster = emptyList()
         f.match = "pokemon"
         assertEquals(0, f.room.handle(f.poll(token)).getInt("player"))
-        f.roster = listOf(LanRoom.RoomSeat("PROFILE2", 2, "Renamed"))
+        f.roster = listOf(LanRoom.RoomSeat("ABCDEF02", 2, "Renamed"))
         assertEquals(2, f.room.handle(f.poll(token)).getInt("player"))
     }
     @Test fun `shared tablet needs no profile PIN and can act for another seat`() = runBlocking {
@@ -277,7 +305,9 @@ class LanRoomTest {
     @Test fun `revocation is durable and multiple devices can share a participant`() = runBlocking {
         val f = Fixture()
         val a = f.join()
-        val b = f.join()
+        val invitation = f.room.handle(f.base("invite-controller").put("token", a.text("token")))
+        val b = f.room.handle(f.base("join").put("key", invitation.text("controllerKey")).put("profileOnly", "ABCDEF01")
+            .put("role", "table").put("profileId", "ABCDEF02").put("joinId", UUID.randomUUID().toString()))
         assertEquals("ok", b.text("code"))
         f.room.revoke(a.text("token"))
         val restored = Fixture(JSONObject(f.record.toString()))
@@ -292,7 +322,7 @@ class LanRoomTest {
         assertEquals(repeated[0].text("token"), repeated[1].text("token"))
         assertEquals(1, f.room.guests.size)
         repeat(14) { assertEquals("ok", f.join("display").text("code")) }
-        val last = listOf(async { f.join() }, async { f.join() }).awaitAll()
+        val last = listOf(async { f.join("display") }, async { f.join("display") }).awaitAll()
         assertEquals(setOf("ok", "full"), last.map { it.text("code") }.toSet())
         assertEquals(16, f.room.guests.size)
     }
@@ -329,8 +359,8 @@ class LanRoomTest {
         val f = Fixture()
         val joined = f.join()
         f.authorized = false
-        f.alias = "PROFILE1" to "PROFILE2"
-        f.roster = listOf(LanRoom.RoomSeat("PROFILE2", 2, "Survivor"))
+        f.alias = "ABCDEF01" to "ABCDEF02"
+        f.roster = listOf(LanRoom.RoomSeat("ABCDEF02", 2, "Survivor"))
         assertEquals(2, f.room.handle(f.poll(joined.text("token"))).getInt("player"))
         assertEquals("ok", f.room.handle(f.action(joined, target = 1)).text("code"))
         assertEquals(2, f.lastTarget)

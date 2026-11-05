@@ -65,6 +65,7 @@ struct Player {
   std::string name;
   std::string profileId;  // Empty: none.
   std::string localId;
+  std::string sigilSeat;  // Controller binding, independent of player identity.
   int life = 0;
   bool eliminated = false;
   bool conceded = false;

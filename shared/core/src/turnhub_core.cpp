@@ -143,7 +143,7 @@ std::string trimTake(const std::string &s, size_t n) {
 
 Player freshPlayer(const Player &p, int life) {
   Player n;
-  n.name = p.name; n.profileId = p.profileId; n.localId = p.localId; n.life = life;
+  n.name = p.name; n.profileId = p.profileId; n.localId = p.localId; n.sigilSeat = p.sigilSeat; n.life = life;
   n.commander = p.commander; n.commanderArt = p.commanderArt; n.cardOnly = p.cardOnly; n.guest = p.guest;
   return n;
 }
@@ -156,7 +156,7 @@ bool Counters::operator==(const Counters &o) const {
 }
 
 bool Player::operator==(const Player &o) const {
-  return name == o.name && profileId == o.profileId && localId == o.localId && life == o.life && eliminated == o.eliminated &&
+  return name == o.name && profileId == o.profileId && localId == o.localId && sigilSeat == o.sigilSeat && life == o.life && eliminated == o.eliminated &&
       conceded == o.conceded && eliminatedBy == o.eliminatedBy && selfEliminated == o.selfEliminated &&
       eliminationPending == o.eliminationPending && counters == o.counters && outOrder == o.outOrder &&
       turnsCompleted == o.turnsCompleted && turnMs == o.turnMs && fastestTurnMs == o.fastestTurnMs &&
@@ -248,7 +248,7 @@ std::optional<int> Game::winConfirmer() const {
 // --- the lobby -------------------------------------------------------------
 
 Game Game::addPlayer(const std::string &rawName, const std::string &profileId, const std::string &localId, bool guest) const {
-  // A guest has no profile; a Sigil seat binds a guest by its localId ("sigil:<id>:<slot>").
+  // A guest has no durable profile; physical controllers use sigilSeat.
   if (guest && !profileId.empty()) return *this;
   const std::string name = trimTake(rawName, MAX_NAME);
   if (state != TableState::Lobby || name.empty() || static_cast<int>(players.size()) >= MAX_PLAYERS) return *this;
@@ -1245,6 +1245,7 @@ Json playerJson(const Player &p) {
   j.set("name", p.name);
   j.set("profileId", optString(p.profileId));
   j.set("localId", optString(p.localId));
+  j.set("sigilSeat", optString(p.sigilSeat));
   j.set("life", p.life);
   j.set("eliminated", p.eliminated);
   j.set("conceded", p.conceded);
@@ -1287,6 +1288,7 @@ Player playerFromJson(const Json &j) {
   for (size_t i = 0; i < j.get("turn").get("conditions").size(); ++i) p.conditions.insert(j.get("turn").get("conditions")[i].asString());
   p.profileId = j.get("profileId").asString();
   p.localId = j.get("localId").asString();
+  p.sigilSeat = j.get("sigilSeat").asString();
   p.life = static_cast<int>(j.get("life").asInt());
   p.eliminated = j.get("eliminated").asBool();
   p.conceded = j.get("conceded").asBool();

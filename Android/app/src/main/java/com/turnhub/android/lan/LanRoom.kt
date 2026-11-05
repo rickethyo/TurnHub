@@ -33,6 +33,17 @@ internal class LanRoom(
         val m = members.getJSONObject(i)
         LanGuest(m.text("token"), m.text("role"), seat(m), m.optString("name"), m.optBoolean("master"))
     }
+    private fun claimed(identity: String) = (0 until members.length()).map { members.getJSONObject(it) }
+        .any { it.text("role") == "player" && resolveIdentity(it.optString("identity")) == resolveIdentity(identity) }
+    private fun joinKeyHash(key: String) = java.security.MessageDigest.getInstance("SHA-256").digest(key.toByteArray()).hex()
+    private fun controllerOwner(key: String) = (0 until members.length()).map { members.getJSONObject(it) }
+        .firstOrNull { it.text("role") == "player" && it.optString("controllerKey").isNotEmpty() && sameSecret(it.optString("controllerKey"), key) }
+    private fun claimedProfiles() = JSONArray((0 until members.length()).map { members.getJSONObject(it) }
+        .filter { it.text("role") == "player" }.map { resolveIdentity(it.optString("identity")) }.distinct())
+    private suspend fun availableProfiles(): JSONArray {
+        val all = profiles()
+        return JSONArray((0 until all.length()).map { all.getJSONObject(it) }.filterNot { claimed(it.optString("profileId")) })
+    }
     private fun seat(m: JSONObject) = seats().firstOrNull { it.identity == resolveIdentity(m.optString("identity")) }?.number ?: 0
     private fun member(token: String) = (0 until members.length()).map { members.getJSONObject(it) }.firstOrNull { sameSecret(it.text("token"), token) }
     private fun persist() {
@@ -102,7 +113,7 @@ internal class LanRoom(
         val f = snapshot()
         if (f.optString("code") != "ok") return f.put("epoch", epoch)
         f.put("code", code).put("epoch", epoch)
-        f.put("directory", profiles()).put("displayTargets", displayTargets())
+        f.put("directory", availableProfiles()).put("claimedProfiles", claimedProfiles()).put("displayTargets", displayTargets())
             .put("displayId", m?.text("joinId") ?: "host")
             .put("displayAllUpright", displayAllUpright(m?.text("joinId") ?: "host"))
             .put("displayView", displayView(m?.text("joinId") ?: "host"))
@@ -120,9 +131,16 @@ internal class LanRoom(
             "preview", "join" -> {
                 while (failures.isNotEmpty() && now() - failures.first() > 60_000) failures.removeFirst()
                 if (failures.size >= 10) reply("locked")
-                else if (!sameSecret(r.text("key"), record.text("key"))) { failures.addLast(now()); reply("unauthorized") }
-                else if (r.text("op") == "preview") frame("ok")
-                else join(r)
+                else {
+                    val owner = controllerOwner(r.text("key"))
+                    val scope = owner?.let { resolveIdentity(it.optString("identity")) }
+                    if (scope == null && !sameSecret(r.text("key"), record.text("key")) ||
+                        scope != null && r.optString("profileOnly") != scope ||
+                        scope == null && r.has("profileOnly")) {
+                        failures.addLast(now()); reply("unauthorized")
+                    } else if (r.text("op") == "preview") frame("ok").also { if (scope != null) it.put("profileOnly", scope) }
+                    else commandLock.withLock { join(r, scope) }
+                }
             }
             else -> {
                 val m = member(r.text("token"))
@@ -155,6 +173,17 @@ internal class LanRoom(
                             frame("ok", m)
                         }
                     }
+                    "invite-controller" -> commandLock.withLock {
+                        if (member(m.text("token")) == null) reply("unauthorized")
+                        else if (m.text("role") != "player" || !m.optString("identity").matches(Regex("[0-9A-F]{8}"))) reply("forbidden")
+                        else {
+                            val old = m.optString("controllerKey")
+                            val key = old.ifEmpty { randomLanSecret() }
+                            m.put("controllerKey", key)
+                            try { if (old.isEmpty()) persist() } catch (e: Exception) { m.remove("controllerKey"); throw e }
+                            reply("ok").put("controllerKey", key).put("profileOnly", resolveIdentity(m.text("identity")))
+                        }
+                    }
                     "leave" -> { revoke(m.text("token")); reply("ok") }
                     "command" -> commandLock.withLock { if (member(m.text("token")) == null) reply("unauthorized") else act(r, m) }
                     "history" -> commandLock.withLock {
@@ -173,21 +202,25 @@ internal class LanRoom(
       catch (_: IllegalArgumentException) { reply("invalid") }
       catch (_: Exception) { reply("unavailable") }
 
-    private suspend fun join(r: JSONObject): JSONObject {
+    private suspend fun join(r: JSONObject, scope: String? = null): JSONObject {
         listOf("_profileLink", "_profile", "_attachError", "_atlasId").forEach(r::remove)
         val id = r.text("joinId").also { require(it.matches(Regex("[0-9a-f-]{36}"))) }
         (0 until members.length()).map { members.getJSONObject(it) }.firstOrNull { it.text("joinId") == id }?.let {
+            if (it.optString("joinKeyHash") != joinKeyHash(r.text("key"))) return reply("unauthorized")
             return frame("ok", it).put("token", it.text("token"))
         }
         if (members.length() >= 16) return reply("full")
-        val role = r.text("role").also { require(it in setOf("player", "display", "table", "planes")) }
-        val identity = if (role == "player") {
-            // PIN/profile authorization is performed once here, never on poll/reconnect.
+        val role = if (scope != null) "player" else r.text("role").also { require(it in setOf("player", "display", "table", "planes")) }
+        val requested = r.optString("profileId").ifBlank { r.optJSONObject("profile")?.optString("profileId").orEmpty() }
+        if (scope == null && role == "player" && requested.isNotEmpty() && claimed(requested)) return reply("claimed")
+        val identity = if (scope != null) scope else if (role == "player") {
             attach(r) ?: run { failures.addLast(now()); return reply(r.optString("_attachError", "pin-required")) }
         } else ""
+        if (scope == null && role == "player" && claimed(identity)) return reply("claimed")
         val directory = profiles()
         // Profile verification/directory reads may suspend. Recheck membership after them.
         (0 until members.length()).map { members.getJSONObject(it) }.firstOrNull { it.text("joinId") == id }?.let {
+            if (it.optString("joinKeyHash") != joinKeyHash(r.text("key"))) return reply("unauthorized")
             return frame("ok", it).put("token", it.text("token"))
         }
         if (members.length() >= 16) return reply("full")
@@ -195,7 +228,7 @@ internal class LanRoom(
             .firstOrNull { it.optString("profileId") == identity }?.optString("name").orEmpty()
         val m = JSONObject().put("token", randomLanSecret()).put("joinId", id).put("role", role)
             .put("identity", identity).put("name", seats().firstOrNull { it.identity == identity }?.name ?: name)
-            .put("master", false).put("deviceName", r.optString("deviceName").take(64))
+            .put("master", false).put("joinKeyHash", joinKeyHash(r.text("key"))).put("deviceName", r.optString("deviceName").take(64))
         members.put(m)
         try { persist() } catch (e: Exception) { members.remove(members.length() - 1); throw e }
         return frame("ok", m).put("token", m.text("token")).put("profileLink", r.optJSONObject("_profileLink")).put("profile", r.optJSONObject("_profile"))

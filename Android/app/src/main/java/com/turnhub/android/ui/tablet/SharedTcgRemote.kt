@@ -144,6 +144,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             }, Modifier.weight(1f))
             ToneButton("Leave", { confirmLeave = true })
         }
+        if (menu && state.role == "player") ToneButton("Add another phone", model::inviteController, enabled = state.online)
         Text("${device?.let { sharedGameTitle(it) } ?: sharedGameTitle(summary.settings.profile)} · ${if (planesView) "Planes" else if (tableView || own == null) if (state.role == "table") "Shared table controls" else "Table · read only" else own.label} · ${if (!state.online) "Disconnected · last update" else if (state.busy) "Sending…" else "Connected"}",
             color = if (state.online) p.muted else p.warn, style = MaterialTheme.typography.labelLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -261,6 +262,14 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             else { localTableView = false; localPlanesChosen = true }
         })
     if (displaySettings) PublicDisplayDialog { displaySettings = false }
+    state.controllerInvitation?.let { invitation ->
+        AlertDialog(onDismissRequest = model::dismissControllerInvitation,
+            title = { Text("Add a phone to your player") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Scan from another phone on this Wi-Fi. It will control only your player in this persistent room.")
+                InviteQr(invitation)
+            } }, confirmButton = { ToneButton("Done", model::dismissControllerInvitation) })
+    }
     if (confirmLeave) AlertDialog(onDismissRequest = { confirmLeave = false }, title = { Text("Leave shared game?") },
         text = { Text(if (state.uncertain) "The last reply is unknown. Check the host before entering that change again."
             else "Your seat is released. The game stays on the host.") },

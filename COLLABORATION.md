@@ -34,6 +34,18 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-11-05, Codex: active Sigil join/controller slice on `codex/master`,
+baseline `cfebb986`. Owner requests lobby attachment, saved Atlas/hub profiles,
+and device-named true guests. Multiple phones and a Sigil may control the same
+participant; controller bindings never replace player identity or duplicate stats.
+Implemented the picker, independent sigilSeat, true guests, persistent player-only
+room invitations and phone-claimed directory filtering. Validation: Android
+495 tests pass and debug APK builds; Atlas host suites, adapter audit and client
+contract pass; atlas-s3 and sigil firmware build. Manuals V0.22 exported to the
+app; Word PDF renders inspected (LibreOffice is absent). Physical acceptance and
+flashing these changes remain pending owner integration.
+
+
 2026-11-04, Claude: one licensed board game left TurnHub for a separate
 local-only app (owner's request, branch `claude/project-thread-i9owxo`). Removed
 its Android code, tests, build hooks and stub source set, its shared-core

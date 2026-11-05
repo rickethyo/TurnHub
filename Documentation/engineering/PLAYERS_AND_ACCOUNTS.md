@@ -53,9 +53,18 @@ mid-game Sigil joins, the Atlas screen's Add player and tablet mode's
 `/api/tablet/*` routes were removed with Atlas's engine.
 
 - One profile has **at most one participant** in a game; statistics count once.
-- **Sigils** join the hub's setup from their menu while a hub holds the
-  table; Atlas binds the Sigil to that hub player (`hosted_sigils.cpp`) and
-  queues its keys for the hub. A Sigil guest is an unlinked player.
+- **Sigils** choose a lobby player to attach to, an unseated saved profile
+  from Atlas or the hub, or a true guest named after the Sigil. The hub applies
+  the selection. `sigilSeat` binds the controller independently of the player's
+  identity and phone memberships; detaching leaves the player seated. Guests
+  create no account or personal statistics, only their match participation.
+- **Additional phones** join through a player-scoped invitation created on
+  an already connected player phone. It uses the persistent room address and
+  a separate bearer key restricted to that player. Phone-claimed profiles
+  disappear from the general room directory; a Sigil alone does not claim one.
+  Several phones and a Sigil can control the same player, with one stats credit.
+  The room keeps its existing 16-device capacity; the Wi-Fi access point's
+  capacity still applies. Revoking the issuing phone invalidates its invitations.
 - **Phone profile selection:** an empty PIN creates a gameplay-only session.
   Entering a valid PIN creates a PIN-verified session for private stats and
   administration. A profile with no saved PIN can choose one for those uses.

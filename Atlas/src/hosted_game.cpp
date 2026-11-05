@@ -131,7 +131,7 @@ std::string sigilLocalId(uint8_t sigilId, uint8_t slot) {
 
 int sigilPlayer(const turnhub::Game &game, uint8_t sigilId, uint8_t slot) {
   const std::string id = sigilLocalId(sigilId, slot);
-  for (size_t i = 0; i < game.players.size(); ++i) if (game.players[i].localId == id) return static_cast<int>(i);
+  for (size_t i = 0; i < game.players.size(); ++i) if (game.players[i].sigilSeat == id || (game.players[i].sigilSeat.empty() && game.players[i].localId == id)) return static_cast<int>(i);
   return -1;
 }
 
@@ -146,7 +146,8 @@ uint8_t sigilPlayers(const turnhub::Game &game, uint8_t sigilId, int out[2]) {
 
 bool playerSigil(const turnhub::Game &game, int index, uint8_t &sigilId, uint8_t &slot) {
   if (index < 0 || index >= static_cast<int>(game.players.size())) return false;
-  const std::string &id = game.players[index].localId;
+  const auto &p = game.players[index];
+  const std::string &id = p.sigilSeat.empty() ? p.localId : p.sigilSeat;
   unsigned parsedId = 0, parsedSlot = 0;
   char tail = 0;
   if (id.rfind("sigil:", 0) != 0 || sscanf(id.c_str() + 6, "%u:%u%c", &parsedId, &parsedSlot, &tail) != 2 ||

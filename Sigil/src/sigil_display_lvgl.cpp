@@ -1118,10 +1118,10 @@ void LvglSigilDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &pa
   PadLabels l;
   const uint8_t left = static_cast<uint8_t>(Key::Left), select = static_cast<uint8_t>(Key::Select);
   if (confirm) {
-    text(s, "Join as", &th_semi_16, pal().textSecondary, M, 50, W - 2 * M, LV_TEXT_ALIGN_CENTER);
+    text(s, (page.items[0].flags & PICKER_ITEM_PLAYING) ? "Attach to player" : "Join as", &th_semi_16, pal().textSecondary, M, 50, W - 2 * M, LV_TEXT_ALIGN_CENTER);
     text(s, page.items[0].name, nameFont(page.items[0].name, W - 2 * M), pal().text, M, 76, W - 2 * M,
         LV_TEXT_ALIGN_CENTER);
-    l.text[select] = "Join";
+    l.text[select] = (page.items[0].flags & PICKER_ITEM_PLAYING) ? "Attach" : "Join";
     l.accent[select] = true;
     l.text[left] = "Back";
   } else {

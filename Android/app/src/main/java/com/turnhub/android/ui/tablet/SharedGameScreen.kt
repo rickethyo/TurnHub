@@ -325,6 +325,11 @@ internal fun InviteQr(text: String,
 @Composable
 private fun RoomPicker(state: LanUiState, model: LanViewModel, requestNetwork: (() -> Unit) -> Unit) {
     val p = palette
+    if (state.profileOnly != null) {
+        Text("This invitation connects another phone to the same player.", color = p.text)
+        AccentButton("Connect to this player", { requestNetwork { model.join("player", 0) } }, enabled = !state.busy)
+        return
+    }
     var selected by remember { mutableStateOf<RoomProfile?>(null) }
     var local by remember { mutableStateOf<com.turnhub.android.standalone.SavedLocalPlayer?>(null) }
     var pin by remember { mutableStateOf("") }
@@ -340,7 +345,7 @@ private fun RoomPicker(state: LanUiState, model: LanViewModel, requestNetwork: (
             singleLine = true, modifier = Modifier.fillMaxWidth())
         ToneButton("Join as a new player", { requestNetwork { model.joinNewProfile(newName) } }, enabled = !state.busy && newName.isNotBlank())
         // One row per profile ID: a profile on this device that the table already has is the same account.
-        val mine = model.savedPlayers()
+        val mine = model.savedPlayers().filterNot { it.profileId in state.claimedProfiles }
         val atTable = state.directory.map { it.id }.toSet()
         val others = state.directory.filter { profile -> mine.none { it.profileId == profile.id } }
         if (mine.isNotEmpty()) Text("Your profiles on this device", color = p.muted)

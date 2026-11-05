@@ -13,6 +13,8 @@
 #include "hosted_game.h"
 #include "serial_log.h"
 #include "sigil_menu.h"
+#include "profile_store.h"
+#include "turnhub_json.h"
 
 namespace TurnHubAtlas {
 
@@ -92,6 +94,117 @@ void queueTable(uint8_t sigilId, const char *kind, uint8_t slot = 0) {
       ",\"slot\":" + std::to_string(slot) + "}");
 }
 
+// Choices are snapshots of public identities. Only the hub may attach or add a player.
+struct JoinChoice {
+  std::string name, localId, profileId;
+  int player = -1;
+  bool guest = false;
+};
+struct JoinPicker {
+  TurnHubProtocol::ProfilePickerPacket packet{};
+  std::vector<JoinChoice> choices;
+  uint8_t slot = 1;
+  int selected = -1;
+  bool open = false;
+  uint8_t closeRetries = 0;
+  uint32_t sentAt = 0;
+  std::string host;
+};
+JoinPicker pickers[MAX_PHYSICAL_SIGILS];
+
+std::string sigilGuestName(uint8_t id, uint8_t slot) {
+  const auto *record = sigilBus.record(id);
+  const String configured = record ? TurnHubProfiles::deviceName(record->mac) : String();
+  std::string name = configured.length() ? configured.c_str() : "Sigil " + std::to_string(id + 1);
+  return name + (slot == 2 ? " B" : "");
+}
+
+void sendPicker(uint8_t id) {
+  auto &p = pickers[id];
+  auto &packet = p.packet;
+  packet.version = TurnHubProtocol::VERSION;
+  packet.type = TurnHubProtocol::PacketType::ProfilePicker;
+  packet.sigilId = id;
+  ++packet.revision;
+  packet.mode = !p.open ? TurnHubProtocol::PickerMode::Closed : p.selected >= 0 ?
+      TurnHubProtocol::PickerMode::Confirm : TurnHubProtocol::PickerMode::List;
+  packet.pageCount = static_cast<uint8_t>((p.choices.size() + 2) / 3);
+  if (!packet.pageCount) packet.pageCount = 1;
+  packet.itemCount = 0;
+  memset(packet.items, 0, sizeof(packet.items));
+  const size_t start = p.selected >= 0 ? p.selected : packet.page * 3;
+  for (size_t i = start; i < p.choices.size() && packet.itemCount < (p.selected >= 0 ? 1 : 3); ++i) {
+    const auto &choice = p.choices[i];
+    auto &item = packet.items[packet.itemCount++];
+    item.flags = choice.guest ? TurnHubProtocol::PICKER_ITEM_GUEST : choice.player >= 0 ? TurnHubProtocol::PICKER_ITEM_PLAYING : 0;
+    snprintf(item.name, sizeof(item.name), "%s", choice.name.c_str());
+  }
+  p.closeRetries = p.open ? 0 : 3;
+  sigilBus.sendProfilePicker(packet);
+  p.sentAt = millis();
+}
+
+void openPicker(uint8_t id, uint8_t slot) {
+  auto &p = pickers[id];
+  p.choices.clear(); p.selected = -1; p.slot = slot; p.open = true;
+  p.host = TurnHubHosted::hostedTable().lease().token;
+  p.packet.page = 0; p.packet.notice = TurnHubProtocol::PickerNotice::None;
+  const auto &game = hostedGame();
+  for (size_t i = 0; i < game.players.size(); ++i) {
+    uint8_t other = 0, seat = 0;
+    const auto &player = game.players[i];
+    if (!TurnHubHosted::playerSigil(game, i, other, seat))
+      p.choices.push_back({player.name, player.localId, player.profileId, static_cast<int>(i), false});
+  }
+  const auto addProfile = [&](const std::string &profile, const std::string &name) {
+    if (profile.size() != 8 || name.empty() || p.choices.size() >= 160) return;
+    for (const auto &player : game.players) if (player.profileId == profile) return;
+    for (const auto &choice : p.choices) if (choice.profileId == profile) return;
+    p.choices.push_back({name, "", profile, -1, false});
+  };
+  const auto state = turnhub::Json::parse(TurnHubHosted::hostedTable().stateJson());
+  const auto &hub = state.get("hostedProfiles");
+  for (size_t i = 0; i < hub.size(); ++i) addProfile(hub[i].get("profileId").asString(), hub[i].get("name").asString());
+  char ids[TurnHubProfiles::MAX_LOGIN_PROFILES][9] = {};
+  const size_t count = TurnHubProfiles::listProfileIds(ids, TurnHubProfiles::MAX_LOGIN_PROFILES);
+  for (size_t i = 0; i < count; ++i) {
+    const String name = TurnHubProfiles::nameForProfile(ids[i]);
+    if (TurnHubProfiles::mergedProfileFor(ids[i]) == String(ids[i])) addProfile(ids[i], name.c_str());
+  }
+  p.choices.push_back({sigilGuestName(id, slot), "", "", -1, true});
+  sendPicker(id);
+}
+
+void pickerKey(uint8_t id, int32_t value) {
+  using namespace TurnHubProtocol;
+  auto &p = pickers[id];
+  if (!p.open) return;
+  if (pickerKeyRevision(value) != p.packet.revision) { sigilBus.sendProfilePicker(p.packet); return; }
+  const auto key = static_cast<PickerKeyCode>(pickerKeyCode(value));
+  if (key == PickerKeyCode::Left) {
+    if (p.selected >= 0) p.selected = -1;
+    else if (p.packet.page > 0) --p.packet.page;
+    else p.open = false;
+  } else if (p.selected >= 0 && key == PickerKeyCode::Select) {
+    const auto &choice = p.choices[p.selected];
+    turnhub::Json action = turnhub::Json::object();
+    action.set("kind", "sigil-join"); action.set("sigil", static_cast<int>(id)); action.set("slot", static_cast<int>(p.slot));
+    action.set("mode", choice.guest ? "guest" : choice.player >= 0 ? "attach" : "profile");
+    action.set("name", choice.name); action.set("target", choice.localId); action.set("profileId", choice.profileId);
+    action.set("playerIndex", choice.player);
+    queueInput(id, 0, action.dump());
+    p.open = false;
+  } else if (p.selected < 0) {
+    if (key == PickerKeyCode::Select && p.packet.page + 1 < p.packet.pageCount) ++p.packet.page;
+    else {
+      const int row = key == PickerKeyCode::Up ? 0 : key == PickerKeyCode::Right ? 1 : key == PickerKeyCode::Down ? 2 : -1;
+      const int index = p.packet.page * 3 + row;
+      if (row >= 0 && index < static_cast<int>(p.choices.size())) p.selected = index;
+    }
+  }
+  sendPicker(id);
+}
+
 }  // namespace
 
 HostedScreenActions hostedScreenActions() {
@@ -156,6 +269,21 @@ bool queueHostedScreenAction(HostedScreenAction action) {
   return false;
 }
 
+void syncHostedPickers(uint32_t nowMs) {
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    auto &p = pickers[id];
+    if (p.open && (!TurnHubHosted::hostedTable().live(nowMs) ||
+        hostedGame().state != turnhub::TableState::Lobby || p.host != TurnHubHosted::hostedTable().lease().token)) {
+      p.open = false; sendPicker(id);
+    }
+    // Retry the exact page (same revision); duplicate keys cannot confirm a newer page.
+    if ((p.open || p.closeRetries) && nowMs - p.sentAt >= 500) {
+      sigilBus.sendProfilePicker(p.packet); p.sentAt = nowMs;
+      if (!p.open) --p.closeRetries;
+    }
+  }
+}
+
 bool hostedForSigil(uint8_t sigilId, uint32_t nowMs) {
   return sigilId < MAX_PHYSICAL_SIGILS && TurnHubHosted::hostedTable().live(nowMs);
 }
@@ -208,7 +336,12 @@ void handleHostedSigilEvent(uint8_t sigilId, TurnHubProtocol::PacketType type, i
     queueSeat(sigilId, index, "life", delta);
     return;
   }
-  if (type != PacketType::SelectAction) return;  // Pickers and controls arrive with later slices.
+  if (sigilId >= MAX_PHYSICAL_SIGILS) return;
+  auto &picker = pickers[sigilId];
+  if (picker.open && (hostedGame().state != turnhub::TableState::Lobby ||
+      picker.host != TurnHubHosted::hostedTable().lease().token)) { picker.open = false; sendPicker(sigilId); return; }
+  if (type == PacketType::PickerKey) { pickerKey(sigilId, value); return; }
+  if (type != PacketType::SelectAction) return;
   const uint8_t raw = TurnHubProtocol::selectedAction(value);
   if (TurnHubProtocol::selectedRevision(value) != sigilMenuRevision(sigilId) ||
       raw >= static_cast<uint8_t>(SigilAction::Count) || (hostedSigilMenu(sigilId).actions & (1u << raw)) == 0) {
@@ -216,8 +349,8 @@ void handleHostedSigilEvent(uint8_t sigilId, TurnHubProtocol::PacketType type, i
     return;
   }
   switch (static_cast<SigilAction>(raw)) {
-    case SigilAction::Join: queueTable(sigilId, "sigil-join", 1); break;
-    case SigilAction::AddSeatB: queueTable(sigilId, "sigil-join", 2); break;
+    case SigilAction::Join: openPicker(sigilId, 1); break;
+    case SigilAction::AddSeatB: openPicker(sigilId, 2); break;
     case SigilAction::RemoveSeatB: queueTable(sigilId, "sigil-leave", 2); break;
     case SigilAction::Leave: queueTable(sigilId, "sigil-leave", 0); break;
     case SigilAction::StartGame: queueTable(sigilId, "start"); break;

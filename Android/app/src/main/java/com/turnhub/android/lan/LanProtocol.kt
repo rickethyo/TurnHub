@@ -13,8 +13,8 @@ internal const val LAN_MAX_FRAME = 512 * 1024
  * short join code in standard joining, or a long random key that only the QR carries in
  * QR-only joining. Never log it; persist only in the encrypted room store.
  */
-internal data class LanInvite(val address: String, val port: Int, val pin: String, val session: String, val key: String) {
-    fun encode(kind: String = "join") = "turnhub://$kind/$LAN_VERSION/$address/$port/$pin/$session/$key"
+internal data class LanInvite(val address: String, val port: Int, val pin: String, val session: String, val key: String, val profileOnly: String? = null) {
+    fun encode(kind: String = "join") = "turnhub://$kind/$LAN_VERSION/$address/$port/$pin/$session/$key" + (profileOnly?.let { "/$it" } ?: "")
     override fun toString() = "LanInvite($address:$port)"
 
     companion object {
@@ -24,10 +24,11 @@ internal data class LanInvite(val address: String, val port: Int, val pin: Strin
             val uri = URI(text.trim())
             require(uri.scheme == "turnhub" && uri.host == kind && uri.rawQuery == null && uri.fragment == null && uri.userInfo == null)
             val p = uri.path.split('/').drop(1)
-            require(p.size == 6 && p[0] == "$LAN_VERSION" && privateIpv4(p[1]))
+            require((p.size == 6 || kind == "join" && p.size == 7) && p[0] == "$LAN_VERSION" && privateIpv4(p[1]))
             val port = p[2].toIntOrNull()?.takeIf { it in 1024..65535 } ?: error("Invalid port")
             require(p[3].matches(Regex("[0-9a-f]{64}")) && p[4].matches(Regex("[0-9a-f]{32}")) && (p[5].matches(Regex("[0-9a-f]{64}")) || kind == "join" && LanJoinCode.normalize(p[5]) == p[5]))
-            return LanInvite(p[1], port, p[3], p[4], p[5])
+            val profile = p.getOrNull(6)?.also { require(it.matches(Regex("[0-9A-F]{8}"))) }
+            return LanInvite(p[1], port, p[3], p[4], p[5], profile)
         }
     }
 }
