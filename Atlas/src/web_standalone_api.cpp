@@ -123,8 +123,9 @@ bool parseGame(WebServer &server, ImportedGame &game) {
 }  // namespace
 
 void handleStandaloneImport(WebServer &server) {
-  if (!sessionForRequest(server)) {
-    sendError(server, 401, "Sign in first");
+  // A paired phone (phone_links.h) or a signed-in session.
+  if (!sessionOrPairedPhone(server)) {
+    sendError(server, 401, "Pair this phone with Atlas first");
     return;
   }
   // Hardware scope is mandatory; profile IDs are only unique within one Atlas.
