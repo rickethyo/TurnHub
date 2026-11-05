@@ -4,77 +4,22 @@
 
 namespace TurnHub {
 
-// Semantic requests sent to the authoritative Atlas application layer.
+// Device requests to Atlas's own application layer: pairing, settings,
+// first-run setup, resets and sleep.
 //
 // An Intent describes what a controller wants to happen. It does NOT describe
-// transport details and it does NOT mutate game state by itself. Physical
-// Sigils, browser sessions, the Atlas master control, native applications,
-// simulators, and future clients should converge on these operations before
-// game rules run.
+// transport details and it does NOT mutate state by itself. Games are not
+// Intents: the hub runs them (hosted_game.h), and Sigil and touchscreen game
+// input is queued for the hub as hosted inputs.
 enum class IntentType : uint8_t {
   None = 0,
 
-  // Core game actions.
-  Pass,
-  Pause,
-  Resume,
-  TogglePause,
-  Concede,
-  ResolveElimination, // targetPlayer, eliminatedBy (0 unknown), flags bit 0: self.
-  DoomBag, // flags: 0 draw, 1 eligibility, 2 elimination credit; requestId: bag cycle.
-  EliminateSeat,  // actor leaves; optional payload.eliminatedBy earns elimination credit.
-  ClaimMonarch,
-  ClaimWin,
-  ConfirmWin,
-  DenyWin,
-
-  // Lobby / lifecycle actions.
-  Join,
-  Leave,
-  SelectStarter,
-  StartGame,
-  Rematch,
-  ResetGame,
-
-  // Game-profile actions. Payload meaning is defined by the handler.
-  ChangeLife,
-  ChangeCounter,
-  // Receiver-owned Commander hit: source, commander and positive amount.
-  RecordCommanderHit,
-  // Reverses the recipient's last Sigil hit; payload identifies that receipt.
-  UndoCommanderHit,
-
-  // Non-state-changing table interaction.
-  NudgePlayer,
-  NudgeTable,
-
-  // Device-management actions. Pairing is table/device state owned by Atlas,
-  // not game state, but it still follows the request -> validate -> mutate rule.
+  // Pairing is table/device state owned by Atlas; it still follows the
+  // request -> validate -> mutate rule.
   PairRequest,
   PairConfirm,
   ForgetPairing,
 
-  // Atlas decision and deferred-transition requests (not radio packet IDs).
-  CancelPass,
-  CommitPass,
-  ArmStart,
-  CancelStart,
-  CompleteStart,
-  BeginElimination,
-  CycleElimination,
-  CancelElimination,
-  Eliminate,
-
-  JoinProfile,
-  LeaveProfile,
-  BindProfile,
-  ConfigureGame,
-  Moderate,
-  RequestLifeChange,
-  RespondLifeChange,
-  ExpireLifeChanges,
-  // Atlas touchscreen hold: end the running or paused match as a draw.
-  EndMatch,
   // Admin: payload.value = pairing window in milliseconds.
   ConfigurePairing,
   // Admin: payload.value = Atlas speaker volume, 0 (off) to 3 (high).
@@ -82,31 +27,14 @@ enum class IntentType : uint8_t {
   // At the Atlas screen, or Admin: payload.value = packed screen-off,
   // screen-in-games and auto-sleep choices (power_settings.h).
   ConfigurePower,
-  // Admin verified at the table (presence code): return the table
-  // to an empty lobby, ending a match in progress as a draw first.
+  // Admin verified at the table (presence code): return the table to its
+  // home screen, releasing a hosted game's lease first.
   ResetTable,
   // Admin at the table, between games: erase a device's saved settings (NVS).
   // payload.value = a Sigil ID, or FACTORY_RESET_ATLAS for Atlas itself.
   FactoryReset,
-  // Atlas touchscreen hold (Table screen): pass the active player's turn at once,
-  // for a stuck turn. Logged as a master pass (ATLAS|GAME|MASTER_PASS).
-  MasterPass,
-  // A player chose a profile in a Sigil's profile picker (payload.profileId;
-  // actor = that Sigil, slot 1 for seat A or slot 2 to add seat B). Checks
-  // the profile's physical-use policy, then joins or attaches it like
-  // BindProfile.
-  PickProfile,
-
   // Presence-verified Admin: payload.value = paired Sigil ID.
   UpdateSigil,
-
-  // Turn order, from the Atlas touchscreen in the lobby only (any player may):
-  // payload.targetPlayer = a lobby seat, payload.value = -1 (earlier) or +1
-  // (later). Swaps A/B within a Sigil, otherwise moves the whole controller.
-  MoveSeat,
-  // Atlas lobby: targetPlayer identifies the Sigil; value 0 = B after A
-  // (right), 1 = B before A (left).
-  SetSeatSide,
 
   // First-run guided setup (setup_stage.h): payload.value = the next stage.
   // To Finished: a presence-verified Admin from a phone (payload.moderatorId).
@@ -117,42 +45,10 @@ enum class IntentType : uint8_t {
   // screen is touched or BOOT is pressed. Waking restarts Atlas.
   Sleep,
 
-  // Commander: a player turns partner commanders on (payload.flags 1) or off
-  // (0) for their own seat (payload.targetPlayer) in this match.
-  SetPartner,
-
-  // Atlas touchscreen hold, lobby only: take one seat out of the lobby
-  // (actor.controllerId + actor.slot; seat A takes its Sigil's seat B too).
-  // Like the player leaving, not moderation: a phone can join again.
-  RemoveSeat,
-
-  // Venue model: a Sigil (actor.controllerId, both seats) moves to another
-  // game on this Atlas, payload.value = that table's index. It leaves its
-  // lobby first; never while it plays in a game.
-  ChooseTable,
-
   // Admin: payload.value = 1 to require a table presence code for protected
   // device actions, 0 to stop (needs a code while it is on).
   ConfigureTableCode,
   ConfigureUploadApproval,
-
-  // A seated player, within UNDO_START_MS of game time: undo the start and go
-  // back to the lobby with the same players and settings. Nothing is recorded.
-  BackToSetup,
-  // A seated player, at game over: count a match that ended within
-  // SHORT_GAME_MS in the players' statistics after all.
-  CountShortGame,
-  // Planechase (physical plane cards): the actor's seat; payload.flags is a
-  // PlanarCommand, value the die face (0 blank, 1 chaos, 2 planeswalk) or the
-  // counter delta, counterSlot 1 when a card made the roll (free).
-  PlanarAction,
-  // Lobby: the actor's seat plays its profile's saved commander number
-  // payload.value (1-based, card_cache.h), or none (0).
-  SetCommander,
-  // Offline play (turnhub_offline.h): a phone's queue of what it did while
-  // Atlas was out of reach. The request itself is too big for a payload; the
-  // web adapter stages it in TurnHubAtlas::pendingOfflineSync for the handler.
-  SyncOffline,
 
   Count,
 };
@@ -161,33 +57,18 @@ enum class IntentOrigin : uint8_t {
   Unknown = 0,
   PhysicalSigil,
   Browser,
-  AndroidApp,
   AtlasHardware,
-  // A table tablet: a browser or app session granted tablet mode with a table
-  // presence code (web_tablet_api.cpp). Allowed what the touchscreen allows
-  // where noted (turn order).
-  TableTablet,
-  Simulator,
   System,
 };
 
-// Identifies the controller/seat making the request. Fields may be unresolved
-// when an adapter first constructs an Intent. Atlas is responsible for mapping
-// device/session identity to the canonical Player where required.
+// Who is asking. Adapters set the origin; account identity travels in the
+// payload (moderatorId, profileId).
 struct IntentActor {
   IntentOrigin origin = IntentOrigin::Unknown;
-  uint8_t controllerId = 0xFF;
-  uint8_t slot = 0;
-  uint8_t playerNumber = 0;
 };
 
 // Fixed-size generic payload keeps the application boundary transport-neutral
-// and heap-free. Each IntentType documents which fields it uses as it is
-// migrated into the dispatcher.
-// SelectStarter payload.value: exact actor seat, cycle the module's seats,
-// or host-requested random choice. Join/Leave actor.slot: 1 = module, 2 =
-// secondary seat. Lifecycle module requests use playerNumber=0 (unresolved).
-enum class StarterSelection : int32_t { ExactSeat = 0, CycleModule = 1, Random = 2 };
+// and heap-free. Each IntentType documents which fields it uses.
 
 // ForgetPairing payload.value: one Sigil ID, or FORGET_ALL_SIGILS. The
 // admin's account ID travels in payload.moderatorId (as for ConfigurePairing).
@@ -196,29 +77,12 @@ constexpr int32_t FORGET_ALL_SIGILS = -1;
 constexpr int32_t FACTORY_RESET_ATLAS = -1;
 // PairConfirm payload.value: the waiting Sigil's slot, plus PAIR_CONFIRM_ACCEPT
 // when the owner says the codes match (without it: reject). From the Atlas
-// touchscreen, or a portal Admin with moderatorId (as for ForgetPairing).
+// touchscreen, or an Admin's phone with moderatorId (as for ForgetPairing).
 constexpr int32_t PAIR_CONFIRM_ACCEPT = 0x100;
 
-// Moderate payload.value. moderatorId and profileId name the accounts.
-enum class ModerationAction : int32_t {
-  ResetConnections = 0,  // Force the target to sign in again.
-  RemovePlayer = 1,      // Leave the lobby, or concede an active game.
-  PassTurn = 2,          // Pass for the active player immediately.
-  MuteNudges = 3,
-  UnmuteNudges = 4,
-};
-
 struct IntentPayload {
-  uint8_t targetPlayer = 0;
   int32_t value = 0;
-  uint32_t flags = 0; // ChangeCounter: CounterKind; ConfigureGame: profile and rule flags.
-  uint32_t requestId = 0; // RespondLifeChange: exact pending approval.
-  uint8_t eliminatedBy = 0; // EliminateSeat: credited opponent, 0 for unknown.
-  uint8_t counterSource = 0; // ChangeCounter: owner of the commander.
-  uint8_t counterSlot = 1; // ChangeCounter: commander 1 or 2.
-  int32_t poisonLimit = 10; // ConfigureGame: live loss threshold.
-  uint32_t durationMs = 0; // ConfigureGame: turn timer (0 = OFF).
-  char moderatorId[9] = {}; // Authenticated account issuing moderation.
+  char moderatorId[9] = {}; // Authenticated account issuing the request.
   char profileId[9] = {}; // Only populated by trusted Atlas authentication adapters.
 };
 
@@ -265,68 +129,19 @@ struct IntentResult {
 inline const char *intentName(IntentType type) {
   switch (type) {
     case IntentType::None: return "NONE";
-    case IntentType::Pass: return "PASS";
-    case IntentType::Pause: return "PAUSE";
-    case IntentType::Resume: return "RESUME";
-    case IntentType::TogglePause: return "TOGGLE_PAUSE";
-    case IntentType::Concede: return "CONCEDE";
-    case IntentType::EliminateSeat: return "ELIMINATE_SEAT";
-    case IntentType::ClaimMonarch: return "CLAIM_MONARCH";
-    case IntentType::ClaimWin: return "CLAIM_WIN";
-    case IntentType::ConfirmWin: return "CONFIRM_WIN";
-    case IntentType::DenyWin: return "DENY_WIN";
-    case IntentType::Join: return "JOIN";
-    case IntentType::Leave: return "LEAVE";
-    case IntentType::SelectStarter: return "SELECT_STARTER";
-    case IntentType::StartGame: return "START_GAME";
-    case IntentType::Rematch: return "REMATCH";
-    case IntentType::ResetGame: return "RESET_GAME";
-    case IntentType::ChangeLife: return "CHANGE_LIFE";
-    case IntentType::RequestLifeChange: return "REQUEST_LIFE_CHANGE";
-    case IntentType::RespondLifeChange: return "RESPOND_LIFE_CHANGE";
-    case IntentType::ExpireLifeChanges: return "EXPIRE_LIFE_CHANGES";
-    case IntentType::ChangeCounter: return "CHANGE_COUNTER";
-    case IntentType::NudgePlayer: return "NUDGE_PLAYER";
-    case IntentType::NudgeTable: return "NUDGE_TABLE";
     case IntentType::PairRequest: return "PAIR_REQUEST";
     case IntentType::PairConfirm: return "PAIR_CONFIRM";
     case IntentType::ForgetPairing: return "FORGET_PAIRING";
-    case IntentType::CancelPass: return "CANCEL_PASS";
-    case IntentType::CommitPass: return "COMMIT_PASS";
-    case IntentType::ArmStart: return "ARM_START";
-    case IntentType::CancelStart: return "CANCEL_START";
-    case IntentType::CompleteStart: return "COMPLETE_START";
-    case IntentType::BeginElimination: return "BEGIN_ELIMINATION";
-    case IntentType::CycleElimination: return "CYCLE_ELIMINATION";
-    case IntentType::CancelElimination: return "CANCEL_ELIMINATION";
-    case IntentType::Eliminate: return "ELIMINATE";
-    case IntentType::JoinProfile: return "JOIN_PROFILE";
-    case IntentType::LeaveProfile: return "LEAVE_PROFILE";
-    case IntentType::BindProfile: return "BIND_PROFILE";
-    case IntentType::ConfigureGame: return "CONFIGURE_GAME";
-    case IntentType::Moderate: return "MODERATE";
-    case IntentType::EndMatch: return "END_MATCH";
     case IntentType::ConfigurePairing: return "CONFIGURE_PAIRING";
     case IntentType::ConfigureSpeaker: return "CONFIGURE_SPEAKER";
     case IntentType::ConfigurePower: return "CONFIGURE_POWER";
-    case IntentType::ConfigureUploadApproval: return "CONFIGURE_UPLOAD_APPROVAL";
-    case IntentType::ConfigureTableCode: return "CONFIGURE_TABLE_CODE";
     case IntentType::ResetTable: return "RESET_TABLE";
     case IntentType::FactoryReset: return "FACTORY_RESET";
-    case IntentType::MasterPass: return "MASTER_PASS";
-    case IntentType::PickProfile: return "PICK_PROFILE";
     case IntentType::UpdateSigil: return "UPDATE_SIGIL";
-    case IntentType::MoveSeat: return "MOVE_SEAT";
     case IntentType::AdvanceSetup: return "ADVANCE_SETUP";
     case IntentType::Sleep: return "SLEEP";
-    case IntentType::SetPartner: return "SET_PARTNER";
-    case IntentType::RemoveSeat: return "REMOVE_SEAT";
-    case IntentType::ChooseTable: return "CHOOSE_TABLE";
-    case IntentType::BackToSetup: return "BACK_TO_SETUP";
-    case IntentType::CountShortGame: return "COUNT_SHORT_GAME";
-    case IntentType::PlanarAction: return "PLANAR_ACTION";
-    case IntentType::SetCommander: return "SET_COMMANDER";
-    case IntentType::SyncOffline: return "SYNC_OFFLINE";
+    case IntentType::ConfigureTableCode: return "CONFIGURE_TABLE_CODE";
+    case IntentType::ConfigureUploadApproval: return "CONFIGURE_UPLOAD_APPROVAL";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

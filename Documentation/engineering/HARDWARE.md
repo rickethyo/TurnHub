@@ -64,11 +64,9 @@ table's state, a headline (whose turn, the winner or who has joined), the
 players' tokens, and tiles for players, Sigils online and the game. It shows
 no clocks; battery, SD card and updates stay in the header, the network on QR
 codes and the firmware version under Device. Pairing codes and update progress temporarily take priority over
-navigation. Atlas Game retains its host controls (lobby: Add player, Start,
-Clear; in play: Pass, Pause, Actions); Actions lists master pass and End match.
-Start opens **New game**, the app's game options as a list (game, mode,
-starting life, turn timer, house rules) above Start game; each row steps its
-setting through `ConfigureGame` from the table. Table is a read-only roster;
+navigation. Atlas Game shows the hub's game (`protocol/hosted-v1.md`) and offers Start
+game (setup, two or more players), Pass, Pause and Resume, each queued for the
+hub; game options are set on the hub. Table is a read-only roster;
 browsing its tiles changes no player or match state. Atlas Settings is one
 list (Setup, Pair a Sigil, QR codes, Theme, Device), with Device and Theme as
 lists of their own; it stays available during play, with destructive Atlas

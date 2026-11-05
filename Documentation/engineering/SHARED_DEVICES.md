@@ -23,8 +23,7 @@ vocabulary remain on the host and show a refusal on a remote controller.
 The hub owns membership writes. Its room and guests' reconnect credentials are
 encrypted in device-private preferences, excluded from OS transfer/backup.
 End room explicitly revokes membership; closing the app preserves it. Guests
-wait for the hub app to return. Atlas's room backup route (`/api/room`) has
-no app client since 2026-11-04.
+wait for the hub app to return; Atlas keeps no copy of the room.
 
 Screen-awake behavior is already enabled for hosts/guests. The existing
 five-minute background hold remains a convenience; persistent membership does

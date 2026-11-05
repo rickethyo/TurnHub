@@ -510,7 +510,7 @@ inline int32_t encodeCommanderKey(uint8_t key, uint16_t revision) {
 inline uint8_t commanderKey(int32_t value) { return static_cast<uint8_t>(value); }
 inline uint16_t commanderKeyRevision(int32_t value) { return static_cast<uint16_t>(static_cast<uint32_t>(value) >> 8); }
 
-// turnNumber is the table round (GameEngine::currentRound, capped at 255),
+// turnNumber is the table round (the hub's round, capped at 255),
 // the same number the Atlas screen shows; Sigils label it as a round.
 inline int32_t encodeDisplayState(
     DisplayMode mode,
@@ -674,9 +674,8 @@ inline LedStateFields decodeLedState(int32_t value) {
 }
 
 // Actions a menu Sigil can offer. Atlas decides which are available for each
-// Sigil (MenuState) and validates every choice through its Intent handlers;
-// the Sigil only lists them. There are up to 29 available actions in the
-// MenuState2 mask.
+// Sigil (MenuState) and queues every choice for the hub, which validates it;
+// the Sigil only lists them. The MenuState2 mask has room for 29 actions.
 enum class SigilAction : uint8_t {
   Join = 0,
   CycleStarter = 1,
@@ -698,23 +697,19 @@ enum class SigilAction : uint8_t {
   CancelElimination = 17,
   Rematch = 18,
   ResetTable = 19,
-  LinkPhone = 20,         // Approve a waiting browser link for this Sigil.
   // This Sigil leaves the lobby, both seats.
-  Leave = 21,
+  Leave = 20,
   // MenuState2 only: Left/Right (when no other action has them) change this
   // Sigil's shown player's life; sent as LifeAdjust, never SelectAction.
-  AdjustLife = 22,
+  AdjustLife = 21,
   // MenuState2 only: a Sigil with two living seats shows (and adjusts the
   // life of) its other seat. View only; Atlas changes no game state.
-  SwitchSeat = 23,
-  CommanderDamage = 24,
-  UndoCommanderHit = 25,
+  SwitchSeat = 22,
+  CommanderDamage = 23,
+  UndoCommanderHit = 24,
   // Commander: turn partner commanders on or off for the shown seat.
-  AddPartner = 26,
-  DropPartner = 27,
-  // Venue model: move this Sigil (both seats) to Atlas's other game. Offered
-  // only outside that Sigil's running game; it leaves its lobby first.
-  SwitchTable = 28,
+  AddPartner = 25,
+  DropPartner = 26,
   Count
 };
 constexpr uint8_t SIGIL_ACTION_NONE = 255;

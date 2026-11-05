@@ -124,7 +124,6 @@ String cleanName(const String &raw);
 
 void handleSessionLogin(WebServer &server);
 void handleSessionMe(WebServer &server);
-void handleRoom(WebServer &server);
 void handleLogout(WebServer &server);
 
 // --- Profiles (web_profile_api.cpp) ----------------------------------------------

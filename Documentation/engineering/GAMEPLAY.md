@@ -484,7 +484,7 @@ and caching, with no new dependency; browsing can download uncached preview art.
 ## Turn timer
 
 - One value, `turnTimerMs`: 0 = off, else 15 s to 60 min in whole seconds.
-  Presets (Off, 1, 2, 3, 5 min, `TURN_TIMER_PRESETS_MS` in `game_profile.h`)
+  Presets (Off, 1, 2, 3, 5 min, in the app)
   are UI shortcuts; a custom value is just as valid.
 - The countdown is derived from the existing turn anchor: pause freezes it,
   a new turn restarts it. Phases, derived per call:

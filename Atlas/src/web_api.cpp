@@ -124,7 +124,6 @@ const Route ROUTES[] = {
   {"/api/hosted/inputs", HTTP_GET, handleHostedInputs},
 
   // Accounts and administration.
-  {"/api/room", HTTP_POST, handleRoom},
   {"/api/accounts/setup", HTTP_GET, accountSetupStatus},
   {"/api/accounts/setup", HTTP_POST, accountSetupCreate},
   {"/api/presence", HTTP_GET, handlePresenceStatus},
