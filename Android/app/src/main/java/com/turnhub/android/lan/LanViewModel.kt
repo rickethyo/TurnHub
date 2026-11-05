@@ -30,7 +30,8 @@ internal data class LanHosting(val code: String? = null, val qr: String? = null)
 
 internal data class RoomDisplay(val id: String, val name: String, val upright: Boolean, val detail: String = "", val public: Boolean = false, val view: String? = null)
 
-internal data class RoomProfile(val id: String, val name: String, val hasPin: Boolean)
+internal data class RoomProfile(val id: String, val name: String, val hasPin: Boolean,
+    val color: String? = null, val avatar: String = "none")
 
 internal data class LanUiState(
     val host: LanHosting? = null,
@@ -636,7 +637,9 @@ internal class LanViewModel(
     private fun readDirectory(reply: JSONObject): List<RoomProfile> {
         val array = reply.optJSONArray("directory") ?: return emptyList()
         return (0 until minOf(array.length(), 128)).map { array.getJSONObject(it).let { p ->
-            RoomProfile(p.text("profileId"), p.text("name"), p.optBoolean("hasPin"))
+            RoomProfile(p.text("profileId"), p.text("name"), p.optBoolean("hasPin"),
+                p.optString("color").takeIf { it.matches(Regex("#[0-9a-fA-F]{6}")) },
+                p.optString("avatar").takeIf { it in com.turnhub.android.standalone.LocalPersonalization.AVATARS } ?: "none")
         } }
     }
     private suspend fun request(invitation: LanInvite, body: JSONObject): JSONObject = exchange.withLock {

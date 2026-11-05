@@ -311,7 +311,8 @@ fun StandaloneLobby(
         ),
         savedPlayers = com.turnhub.android.domain.unifiedProfiles(state.library, atlasId, remoteProfiles)
             .filter { it.local?.localId !in seated }
-            .map { row -> LobbySavedPlayer(row.local?.localId ?: "atlas:${row.atlas!!.profileId}", "${row.name} · ${row.location}", row.local?.profileId ?: row.atlas!!.profileId) } +
+            .map { row -> LobbySavedPlayer(row.local?.localId ?: "atlas:${row.atlas!!.profileId}", row.name, row.local?.profileId ?: row.atlas!!.profileId,
+                color = row.local?.personalization?.color, avatar = row.local?.personalization?.icon()) } +
             state.library.guestNames.map { LobbySavedPlayer("guest:$it", it, guest = true) },
         enabled = true,
         settingsEnabled = true,

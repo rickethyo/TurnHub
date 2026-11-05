@@ -34,6 +34,28 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-11-05, Codex, baseline `4c8ca922`, codex/master: owner asks to continue
+profile settings/picker and add to PR #211. Both app editors now separate Profile,
+Appearance, Security and Manage; preview, graphical preset choices, PIN confirmation,
+explicit settings lock and deliberate protection removal retain existing backend
+authorization. The saved name is already the public display name; IDs/history stay
+stable. Remove the obsolete Atlas account-linking controls from this editor.
+Game pickers use saved colors/avatars and stable-ID fallback hues, omit location
+suffixes, and show IDs only for equal names. Atlas room directory adds preset
+appearance only, never private images or credential material. Local counterpart
+stays in its separate repository; existing unrelated source edits are preserved.
+
+Validation: 514 main-app and 211 local-app JVM tests, zero failures; both Preview
+2003 builds. Installed main preview on the three then-connected physical devices,
+and local counterpart on the Samsung and emulator. Samsung disconnected during
+visual acceptance; LG editor and Fold Atlas room picker inspected, plus isolated
+emulator profile color/avatar save-to-picker and PIN save/lock/unlock. The isolated
+test profile was deleted; no real profile appearance/name/PIN was changed. Final
+builds and diff/docs/content/design-token guards pass. Latest feedback/text build
+installed on Fold, newly connected phone and emulator; LG and Samsung disconnected
+before that final install. No firmware change; manuals remain deferred per owner.
+Remaining owner notes stay staged.
+
 2026-11-05, Codex, baseline `4f54f1b0`, codex/master: owner authorizes next
 controller/profile slices. Start with atomic Sigil player switching in setup,
 then profile settings parity and appearance before Game picker polish. Keep

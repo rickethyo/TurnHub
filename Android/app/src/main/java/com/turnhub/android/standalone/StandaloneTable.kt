@@ -190,6 +190,8 @@ class StandaloneTable(
     }
     fun accountUnlocked(localId: String): Boolean = _state.value.library.players.firstOrNull { it.localId == localId }
         ?.let { it.credential == null || localId in unlockedAccounts } == true
+    fun lockAccount(localId: String) { unlockedAccounts.remove(localId) }
+
     fun unlockAccount(localId: String, secret: String): Boolean {
         val player = _state.value.library.players.firstOrNull { it.localId == localId } ?: return false
         if (player.credential?.verifies(secret) == false) return false
@@ -388,6 +390,7 @@ class StandaloneTable(
     /** Public room directory; credentials and history never leave through a snapshot. */
     internal fun roomProfiles() = org.json.JSONArray(_state.value.library.players.map { p ->
         org.json.JSONObject().put("profileId", p.profileId).put("name", p.name).put("hasPin", p.credential != null)
+            .put("color", p.personalization.color ?: org.json.JSONObject.NULL).put("avatar", p.personalization.avatar)
     })
 
     /** A paired Atlas controller may play an existing identity, never unlock its private data. */

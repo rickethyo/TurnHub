@@ -5,6 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -26,7 +27,18 @@ internal fun AtlasRoomLobby(state:LanUiState,model:LanViewModel) {
         BrassCard {
             Text("Choose your profile",style=MaterialTheme.typography.titleMedium)
             FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                state.directory.forEach { profile -> ToneButton(profile.name,{model.joinAtlasProfile(profile.id)},enabled=!state.busy) }
+                state.directory.forEach { profile ->
+                    SuggestionChip(onClick={model.joinAtlasProfile(profile.id)}, enabled=!state.busy,
+                        label={ Column {
+                            Text(profile.name)
+                            if(state.directory.count { it.name == profile.name } > 1) Text(profile.id)
+                        } }, icon={
+                            com.turnhub.android.ui.components.PlayerAvatar(profile.name,profile.id.hashCode(),
+                                com.turnhub.android.standalone.LocalPersonalization(avatar=profile.avatar).icon(),size=32.dp,
+                                color=com.turnhub.android.ui.components.playerColor(profile.color,
+                                    com.turnhub.android.ui.theme.palette.avatarColor(profile.id.hashCode())))
+                        })
+                }
             }
             if(state.directory.isEmpty()) Text("Waiting for the hub's profiles…")
             state.message?.let { Text(it) }

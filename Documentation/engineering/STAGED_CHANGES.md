@@ -60,6 +60,12 @@ settings work. Batch remaining user-manual edits into one update at the end.
    their avatar/colour/initials, retaining readable names and non-colour cues.
    Add optional display names with stable IDs unchanged; distinguish display
    names from account identity and decide how history records names at play time.
+   Implemented on the active branch: setup Change A/B, grouped profile settings in
+   both apps, visual preset avatars, explicit lock/PIN confirmation and Game picker
+   color/avatar/initials with location suffixes removed. Saved names already serve
+   as public display names; renaming keeps the ID and historical name snapshots.
+   A separate optional nickname field remains a proposal, not a new account type.
+   Physical Sigil switching acceptance remains open; manual updates are batched.
 3. **Profile/account parity and new-device onboarding.** Review and remove
    obsolete account controls before adding missing ones. Preserve offline copies,
    PIN gates for settings/detailed statistics, retention preferences and device
