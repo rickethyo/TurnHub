@@ -1,10 +1,8 @@
 # Home Wi-Fi and the Table Channel
 
-Owner requests: 2026-10-30, an optional way for Atlas to join a home network
-to check for updates (and, later, sync), plus an advanced table-channel
-setting; 2026-11-03, **home Wi-Fi as Atlas's primary network**, with Atlas's
-own hotspot as the fallback and HTTPS for phones on the home network (plan:
-"Home Wi-Fi as primary" below).
+Atlas uses home Wi-Fi for phones and tablets. Its hotspot is available only
+during [Atlas setup](FIRST_RUN_SETUP.md), with a join QR on Welcome.
+Completed devices never start a fallback hotspot.
 
 ## What it does (*Planned* for hardware acceptance; host-tested)
 
@@ -17,9 +15,10 @@ own hotspot as the fallback and HTTPS for phones on the home network (plan:
   (30 s), doubling to `HOME_WIFI_REJOIN_MAX_MS` (5 min); a dropped connection
   retries after 10 s (`HomeWifiRejoin`). Each attempt gives up after
   `HOME_WIFI_JOIN_TIMEOUT_MS` (15 s).
-- **Hotspot fallback.** With `TURNHUB_HOTSPOT_OFF=1`, Atlas disables its
-  hotspot while configured home Wi-Fi is connected; otherwise `TurnHub-Atlas`
-  remains available. A fresh app can link over home Wi-Fi as described below.
+- **Setup-only hotspot.** Only Welcome starts TurnHub-Atlas. Finishing setup
+  requires connected home Wi-Fi and a ready HTTPS key. Finished and Complete
+  use station mode even when the home network is missing or unreachable.
+  Factory reset is the only way back to hotspot provisioning.
 - **One radio, one channel: the router's.** The hotspot, ESP-NOW and the home
   network share the ESP32's radio. While Atlas is on the home network they all
   run on the router's channel; the saved **table channel**
@@ -73,8 +72,9 @@ own hotspot as the fallback and HTTPS for phones on the home network (plan:
   check by key, since the address changes) and only an `atlasId` that matches.
   If that address doesn't answer, it looks for `_turnhub-atlas._tcp` by mDNS
   (Android NSD, 4 s) with a matching `fp`, saves the new address and tries it.
-  Only then does it join the hotspot as before. A mismatched key fails the
-  handshake and the app falls back; it never re-pins from the home network.
+  A saved home Atlas never falls back to setup Wi-Fi, even if old hotspot
+  credentials are saved. A mismatched key fails the handshake; the app never
+  re-pins from the home network. Setup Wi-Fi is entered explicitly for a new Atlas.
   Android's cleartext rule stays limited to 192.168.4.1.
 - **First-time home pairing.** On the current home Wi-Fi, **Find Atlas on
   Wi-Fi**, Connect, Search again and new-table setup also discover an Atlas
@@ -118,30 +118,3 @@ Atlas screen. Both firmware sides log `ATLAS|HOME_WIFI|...` and
 The app already reads the release feed on the phone's own network; this gives
 Atlas the same ability. The settings live in the app's Atlas settings and the
 portal alike (Invariant 12). Sync over the home network is staged.
-
-## Home Wi-Fi as primary (*Planned*)
-
-Owner, 2026-11-03: the home network becomes the primary path for phones too.
-Accepted decisions: the hotspot always stays on; a router channel change may
-move the table mid-match; no cleartext exception for Preview builds, so the
-app moves to the home network only with HTTPS. Slices, each flashed and
-tested:
-
-1. Atlas joins and stays on home Wi-Fi, follows the router's channel and
-   advertises mDNS (*done*, described above).
-2. HTTPS on the home network (*done*, described above): a TLS front piped
-   to the existing web server, and Atlas's own key. Still open: moving large
-   bodies (plane cards) off single urlencoded form fields to raw or multipart
-   and streaming them; the bench numbers (handshake time, poll latency, heap,
-   Sigil latency).
-3. App: the pinned key learned over the hotspot, NSD discovery, and the
-   order saved home address, then mDNS, then the hotspot (*done*, described
-   above). First-time home pairing now uses discovery and a code comparison
-   on the physical Atlas screen; no hotspot visit is required. Still open:
-   an optional QR shortcut and a clear "this isn't your Atlas" message on
-   a saved-key mismatch.
-4. Fallback hardening: switching between home and hotspot mid-match, offline
-   reconcile across both paths, router power-cycle board test.
-5. First-run setup offers home Wi-Fi; the manual and `http-v1.md` follow.
-6. Optional: a sealed radio packet announcing a channel move, and HTTPS on the
-   hotspot.

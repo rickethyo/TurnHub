@@ -4,7 +4,7 @@
 // HOME_WIFI.md). Off until an Admin saves a home network, which turns it on.
 // Once on, Atlas joins the home network soon after start-up and stays on it,
 // rejoining by itself when the router drops it. Its own TurnHub-Atlas hotspot
-// stays up the whole time as the fallback for phones.
+// exists only during first-time setup; normal operation uses home Wi-Fi.
 //
 // One radio serves the hotspot, ESP-NOW and the home network, so all three
 // share a channel: while Atlas is on the home network that is the router's
@@ -204,8 +204,7 @@ bool homeWifiConfigured();
 bool homeWifiConnected();
 // Atlas's address on the home network ("" when not connected).
 const char *homeWifiAddress();
-// Atlas's own hotspot is up (off on the home-only build, TURNHUB_HOTSPOT_OFF
-// in main.cpp, until its fallback brings it back).
+// Atlas's provisioning hotspot is up only during the Welcome setup stage.
 bool atlasHotspotOn();
 // The home network's channel when Atlas last joined it, or 0.
 uint8_t homeWifiNetworkChannel();

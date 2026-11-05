@@ -281,20 +281,8 @@ void handleStatus() {
   server.send(200, "application/json", json);
 }
 
-// Home Wi-Fi only (owner, 2026-11-03, temporary): with TURNHUB_HOTSPOT_OFF
-// Atlas starts without its hotspot when home Wi-Fi is on and a network is
-// stored, so phones and tablets use the home network (HTTPS, home_tls.h) and
-// Sigils ESP-NOW on the router's channel. The hotspot still comes up when home
-// Wi-Fi is off or unset, or hasn't been joined for HOTSPOT_FALLBACK_MS, and
-// then stays up until the next restart, so Atlas is never out of reach. Sigil
-// firmware updates need the hotspot (beginSigilUpdates) and wait for it.
-#ifndef TURNHUB_HOTSPOT_OFF
-#define TURNHUB_HOTSPOT_OFF 0
-#endif
-constexpr uint32_t HOTSPOT_FALLBACK_MS = 90000;
-bool hotspotUp = false;
-uint32_t homeMissingSinceMs = 0;
-
+// Only a new or factory-reset Atlas advertises the provisioning network.
+// Home-network failures never turn it back on after setup.
 bool startHotspot(const String &wifiPassword) {
   constexpr bool HIDDEN_SSID = false;
   constexpr int MAX_STATIONS = 8;
@@ -307,7 +295,6 @@ bool startHotspot(const String &wifiPassword) {
     serialLog.println("ATLAS|WIFI_AP|ERROR");
     return false;
   }
-  hotspotUp = true;
   serialLog.print("ATLAS|WIFI_AP|READY|");
   serialLog.print(AtlasConfig::WIFI_SSID);
   serialLog.print("|");
@@ -328,9 +315,9 @@ void startNetworking() {
     serialLog.println("ATLAS|WIFI_AP|PASSWORD|ERROR");
     return;
   }
-  const bool homeOnly = TURNHUB_HOTSPOT_OFF && homeWifiEnabled() && homeWifiConfigured();
+  const bool homeOnly = setupStage != TurnHub::SetupStage::Welcome;
   WiFi.mode(homeOnly ? WIFI_STA : WIFI_AP_STA);
-  if (homeOnly) serialLog.println("ATLAS|WIFI_AP|OFF|HOME_WIFI_ONLY");
+  if (homeOnly) serialLog.println("ATLAS|WIFI_AP|OFF|SETUP_COMPLETE");
   else if (!startHotspot(wifiPassword)) return;
   // Wi-Fi modem power saving can make the AP answer phones late or drop them
   // (the app timing out back to back, 2026-10-13). Costs some battery.
@@ -492,25 +479,6 @@ void refreshSdLuxuryStore() {
   if (store && TurnHubCards::loadPlanes()) serialLog.printf("ATLAS|PLANES|LOADED|%u\n", TurnHubCards::planeCount());
 }
 
-// Home-Wi-Fi-only builds: the hotspot comes back when home Wi-Fi stays down
-// (TURNHUB_HOTSPOT_OFF, startNetworking).
-void serviceHotspotFallback(uint32_t nowMs) {
-#if TURNHUB_HOTSPOT_OFF
-  if (hotspotUp) return;
-  if (homeWifiConnected()) {
-    homeMissingSinceMs = 0;
-    return;
-  }
-  if (!homeMissingSinceMs) homeMissingSinceMs = nowMs ? nowMs : 1;
-  const bool homeSet = homeWifiEnabled() && homeWifiConfigured();
-  if (homeSet && nowMs - homeMissingSinceMs < HOTSPOT_FALLBACK_MS) return;
-  WiFi.mode(WIFI_AP_STA);
-  if (startHotspot(loadWifiPassword())) serialLog.println("ATLAS|WIFI_AP|FALLBACK");
-#else
-  (void)nowMs;
-#endif
-}
-
 // The SD worker saved (or couldn't save) a plane card: the screen's toast.
 void showPlaneCardProgress(uint32_t nowMs) {
   char line[48];
@@ -555,7 +523,6 @@ void loop() {
   LOOP_STEP(updatePairingWindow(nowMs));
   LOOP_STEP(updateBootButton(digitalRead(AtlasConfig::BOOT_BUTTON_PIN) == LOW, nowMs));
   LOOP_STEP(showPlaneCardProgress(nowMs));
-  LOOP_STEP(serviceHotspotFallback(nowMs));
   LOOP_STEP(serviceAtlasDisplay(nowMs));
   LOOP_STEP(serviceFactoryReset(nowMs));
   LOOP_STEP(serviceAutoSleep(nowMs));

@@ -305,7 +305,7 @@ An Atlas adds Sigils, the Atlas screen and speaker, and shared accounts and stat
 
 ## Connecting
 
-Open **Settings > Atlas connection** and choose **Connect**. The app joins the Atlas's Wi-Fi network (TurnHub-Atlas) by itself: it tries a saved password, then the default TurnHub-Setup, and asks only if neither works. Allow **Nearby devices** when Android asks; without it Android blocks the connection. A new Atlas shows **Welcome to TurnHub**; tap **Set up a new table** in the app and follow the steps (the Hardware Manual describes them).
+Open More > Atlas connection and choose Find Atlas on Wi-Fi. Use the same home network as Atlas. On a new phone, compare the app code with App link in Atlas Settings before confirming. For a new Atlas, scan its Welcome Wi-Fi QR and choose Set up an Atlas. Allow Nearby devices when Android asks.
 
 Atlas discovery stays on in the background and reconnects to a known Atlas when the phone is on its network. Turning it off disconnects. **Game** always shows this device's own game. Players adds Table and Me sections.
 
@@ -353,9 +353,9 @@ To open the portal, join the Atlas's Wi-Fi and go to http://192.168.4.1/portal, 
 
 - **Manage people:** roles, archive and restore accounts, image approval, and merging two accounts that belong to the same person (their statistics are added together, the other account is archived, and phones linked to it follow the account that is kept).
 
-- **Wi-Fi:** the table's own password, 8 to 63 characters. Saving restarts Atlas.
+Setup Wi-Fi: available only before Atlas setup finishes. Scan the QR on Welcome; no password typing is needed. Normal use is over home Wi-Fi.
 
-- **Home Wi-Fi: off until you save your home network's name and password, which turns it on. Atlas then joins your home network and stays on it, rejoining by itself, and checks for updates there; Check now asks for a check at once. On a new phone on the same home Wi-Fi, choose Find Atlas on Wi-Fi. Compare the code in the app with App link in Atlas Settings, then confirm that the codes match. The app remembers that Atlas and connects over home Wi-Fi, trying its hotspot only when it cannot answer there. On your home network, Atlas, its network and the Sigils use your router's channel; Table channel (advanced) picks the channel, 1 to 11, used until Atlas joins. Saving the channel restarts Atlas.**
+Home Wi-Fi: Atlas uses the network chosen during its separate setup flow. On a new phone, choose Find Atlas on Wi-Fi and compare its code with App link on Atlas. After setup the hotspot stays off, including during outages. Sigils follow the router channel. A replacement network can be saved while connected; an inaccessible Atlas needs physical factory reset to run setup again.
 
 - **Table code:** when on, actions that change the table need a code from the Atlas screen.
 
@@ -375,7 +375,7 @@ When the table code is on, changing the Wi-Fi password, naming devices, Return t
 
 Everything you do in the app stays on this device: players, PINs (stored only as secure verifiers), images, games and statistics. There are no ads, analytics or tracking. The app talks to:
 
-- **An Atlas**, over the Atlas's own Wi-Fi, only when you connect.
+An Atlas, over your home Wi-Fi after provisioning, only when you connect.
 
 - **Scryfall**, only for commander names and art you look up and for the Planechase library. Only what you type is sent; turn Commander card art off in Settings to stop it.
 
@@ -444,7 +444,7 @@ Atlas is the central controller for the table. It has a 2.8-inch touchscreen, a 
 
 - Runs the game and keeps its state
 
-- Hosts its own Wi-Fi network for phones, and the administration portal
+Hosts a temporary Wi-Fi setup network; normal phone connections use home Wi-Fi.
 
 - Talks to the Sigils by radio, encrypted once they are paired
 
@@ -500,7 +500,7 @@ The first time Atlas starts, and after a factory reset, it asks you to calibrate
 
 ## Setting Up a New Table
 
-A new Atlas, or one that was factory reset, shows **Welcome to TurnHub** instead of the lobby. Setup takes a few minutes and is easiest with the app: open it and tap **Set up a new table**; it joins Atlas's Wi-Fi by itself. Without the app, join the Wi-Fi network TurnHub-Atlas (password TurnHub-Setup) and open 192.168.4.1 in a browser.
+A new or factory-reset Atlas shows Welcome to TurnHub with a Wi-Fi QR. Scan it with your phone camera to join setup Wi-Fi without typing a password, then open TurnHub and choose Set up an Atlas. Atlas setup is separate from first-time app setup; you can launch it during app onboarding or later under More > Atlas connection.
 
 1. **Your account:** create one or sign in.
 
@@ -510,9 +510,9 @@ A new Atlas, or one that was factory reset, shows **Welcome to TurnHub** instead
 
 4. **Updates:** choose Later or Continue; the prototype boards are updated over USB only (section 16).
 
-5. **Secure Wi-Fi:** choose the table's own Wi-Fi password, 8 to 63 characters, and whether uploaded player images need Admin approval (on by default). Finish saves it and restarts Atlas, and the app rejoins with the new password.
+5. Home Wi-Fi: enter the home network name and password, or leave the password blank for an open network. Choose whether uploaded images need Admin approval. The app waits for Atlas to connect and saves its trusted connection before finishing. Atlas restarts with its hotspot off. Join the home network on your phone if needed.
 
-The browser covers the account, the code and the Wi-Fi password; pairing is on the Atlas screen and in the app. To play first, tap **Skip for now** on the Atlas screen: setup comes back at the next start-up and under Menu. When setup is done, Atlas says You're all set; tap **Pair a Sigil** or **Done**.
+Setup runs in the app. Skip on the Atlas screen postpones it. After setup, Atlas uses your home Wi-Fi; its hotspot stays off, including when the router is unavailable. Factory reset at Atlas is the only way to reopen hotspot setup, and clears its accounts, records, pairings and settings.
 
 ## Power On Your Sigils
 
@@ -520,21 +520,18 @@ Turn on each Sigil. It shows the TurnHub logo, then either its Sigil number (it 
 
 # 3. Joining Atlas from a Phone
 
-Atlas creates its own Wi-Fi network, **TurnHub-Atlas**. Its password is **TurnHub-Setup** until an administrator changes it. The TurnHub app joins it by itself (App Manual, section 10).
+Only a new or factory-reset Atlas creates the TurnHub-Atlas setup network. Its screen shows a Wi-Fi QR including the password. After setup, Atlas and phones use your home Wi-Fi; Sigils link directly to Atlas.
 
-Home Wi-Fi (off until a network is saved): an administrator saves a home network in the app or portal, which turns on Settings > Home Wi-Fi. Atlas then joins it a few seconds after starting and stays connected, rejoining by itself if the router drops it; the row shows Home Wi-Fi: connected. A new phone can connect without joining the Atlas hotspot: on the same home Wi-Fi, choose Find Atlas on Wi-Fi in the app, compare its code with App link in Atlas Settings, and confirm that the codes match. The phone remembers that Atlas and uses encrypted home Wi-Fi connections. The hotspot is the fallback; builds with the hotspot disabled use it only when home Wi-Fi is unavailable. Atlas, its network and the Sigils share one radio channel: your router's while Atlas is on your home network, otherwise the Table channel (6 unless changed). If the router changes channel, the Sigils find Atlas on the new one by themselves within a few seconds. During a game Atlas only rejoins your home network if the router is on the channel it is already using.
+Atlas joins the home network chosen during Atlas setup and reconnects if the router drops it. A new phone on the same network chooses Find Atlas on Wi-Fi, compares its code with App link in Atlas Settings, and confirms. The phone remembers Atlas and uses encrypted connections. The setup hotspot never returns during outages. Sigils follow the router channel automatically.
 
 ## QR Codes on the Atlas Screen
 
-Tap **Menu**, then QR codes, in the lobby or after a game, and choose a code:
+Welcome shows the setup Wi-Fi QR immediately. Settings > QR codes also shows it while Atlas setup is unfinished. After setup, that screen explains that the hotspot is off.
 
-- **Wi-Fi:** joins the TurnHub-Atlas network.
+Wi-Fi: joins the temporary TurnHub-Atlas setup network by scanning the on-screen code.
 
-- **Portal:** opens the administration portal.
 
-- **Sign in:** opens the account sign-in page.
 
-If an administrator has set their own Wi-Fi password, the Wi-Fi code only appears while an administrator is verified at the table, so the password is not shown to everyone.
 
 ## Info
 

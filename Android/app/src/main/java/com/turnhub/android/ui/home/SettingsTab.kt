@@ -91,7 +91,7 @@ fun SettingsTab(info: SessionInfo, admin: AdminState, actions: AdminActions, onS
         AdminMessage(admin, actions)
         PresenceCard(admin, actions)
         UploadApprovalCard(admin, actions)
-        WifiCard(admin, actions)
+        SetupWifiCard()
         HomeWifiCard(admin, actions)
         SigilsCard(admin, actions)
         TableAndAtlasCard(admin, actions)
@@ -277,58 +277,15 @@ private fun PresenceCard(admin: AdminState, actions: AdminActions) {
 }
 
 @Composable
-private fun WifiCard(admin: AdminState, actions: AdminActions) {
-    val p = palette
-    val net = admin.network
-    var password by remember { mutableStateOf("") }
-    var show by remember { mutableStateOf(false) }
-    var confirm by remember { mutableStateOf(false) }
-    if (confirm) {
-        ConfirmDialog(
-            title = "Change the Wi-Fi password?",
-            text = "Atlas restarts and every connected device is disconnected until it rejoins with the new password. " +
-                "This app will need the new password too.",
-            confirm = "Save & restart",
-            onConfirm = { confirm = false; val pw = password; actions.run { saveNetworkPassword(pw) } },
-            onDismiss = { confirm = false },
-        )
-    }
+private fun SetupWifiCard() {
     BrassCard {
-        Eyebrow("Atlas Wi-Fi security")
-        StatusRow("Network", net?.ssid ?: "—")
-        StatusRow("Security", net?.security ?: "—")
-        StatusRow("Connected clients", net?.stations?.toString() ?: "—")
-        StatusRow(
-            "Password",
-            when {
-                net == null -> "—"
-                net.passwordIsDefault -> "Factory default (change it)"
-                else -> "${net.passwordLength} characters"
-            },
-        )
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it.take(63) },
-            label = { Text("New Wi-Fi password (8–63 characters)") },
-            singleLine = true,
-            visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ToneButton("Generate", { password = generatePassword(); show = true }, Modifier.weight(1f))
-            ToneButton(if (show) "Hide" else "Show", { show = !show }, Modifier.weight(1f))
-        }
-        ToneButton("Save & restart Atlas", { confirm = true }, Modifier.fillMaxWidth(), tone = Tone.WARN,
-            enabled = password.length in 8..63 && !admin.busy)
+        Eyebrow("Atlas setup Wi-Fi")
+        Text("The hotspot is available only during Atlas setup. Scan the QR on its Welcome screen to join. " +
+            "After setup, Atlas uses your home Wi-Fi and keeps its hotspot off, including during router outages.",
+            color = palette.muted)
     }
 }
 
-/**
- * Atlas's home Wi-Fi (Atlas/include/home_wifi.h): off until a network is
- * saved, which turns it on. Atlas then joins and stays on the home network,
- * rejoining by itself, and the table moves to the router's channel. Atlas's
- * own network stays up as the fallback for phones and Sigils.
- */
 @Composable
 private fun HomeWifiCard(admin: AdminState, actions: AdminActions) {
     val p = palette
@@ -353,7 +310,7 @@ private fun HomeWifiCard(admin: AdminState, actions: AdminActions) {
     if (confirmForget) {
         ConfirmDialog(
             title = "Forget the home network?",
-            text = "Atlas forgets its name and password and turns home Wi-Fi off.",
+            text = "Atlas forgets its network and disconnects. Its hotspot stays off. You will need to factory reset Atlas at its screen to set it up again.",
             confirm = "Forget",
             onConfirm = { confirmForget = false; ssid = ""; actions.run { forgetHomeNetwork() } },
             onDismiss = { confirmForget = false },
@@ -377,7 +334,7 @@ private fun HomeWifiCard(admin: AdminState, actions: AdminActions) {
                 Text("Use home Wi-Fi", color = p.text)
                 Text(
                     "Saving a network turns this on. Atlas joins your home network and stays on it, rejoining by " +
-                        "itself, and checks for updates there. Its own network stays on as the fallback.",
+                        "itself, and checks for updates there. Its setup hotspot stays off. Turning home Wi-Fi off disconnects the app; turn it back on from the Atlas screen.",
                     color = p.muted,
                     style = MaterialTheme.typography.bodySmall,
                 )

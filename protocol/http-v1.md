@@ -9,15 +9,11 @@ generic JSON Intent envelope remain unimplemented.
 
 ## Joining Atlas's network
 
-Standalone Atlas serves this API at `http://192.168.4.1` on its own WPA2
-access point, SSID `TurnHub-Atlas` (the table channel, 6 unless the owner
-chose another; no internet through it). A new or
-factory-reset Atlas, with no owner-set password stored, uses the shipped
-pre-setup passphrase `TurnHub-Setup` (`AtlasConfig::WIFI_DEFAULT_PASSWORD`).
-It is public by design so a client can join before setup; setup must replace
-it. Once the owner sets a password in the portal, the default no longer
-applies. Clients must therefore fall back to asking the user. The Android app
-does this: it tries a saved password, then this default, then prompts.
+During first-time provisioning only, Atlas serves this API at
+http://192.168.4.1 on the WPA2 setup hotspot TurnHub-Atlas. Welcome shows a
+standard Wi-Fi QR with its current password (default TurnHub-Setup). After
+setup, Atlas uses home-network HTTPS and never starts a hotspot, even during
+router outages. See [Atlas setup](../Documentation/engineering/FIRST_RUN_SETUP.md).
 
 ## Connection and sign-in
 
@@ -103,13 +99,13 @@ One flow for the Android app and the portal
   "uploadApprovalRequired":bool}`.
   Never carries the password. An Atlas from before this route answers 404;
   clients treat that as `complete`.
-- `POST /api/setup/finish` with `uploadApprovalRequired=0|1` and `password` (8 to 63 characters, not the
-  printed default): an Admin verified at the table, stage `welcome`, between
-  games. Stores the Wi-Fi password, moves the stage to `finished`, answers
-  `{"ok":true,"restarting":true,...}` and restarts Atlas onto the new
-  password. 400 for a bad password, 403 (with `presenceRequired` when only
-  the code is missing) and 409 when setup is already finished or the Intent
-  is refused.
+- `POST /api/setup/finish` accepts `uploadApprovalRequired=0|1`. Requires a
+  verified Admin, Welcome, between games, and enabled/configured/connected
+  home Wi-Fi with a ready HTTPS key. The client provisions home Wi-Fi through
+  `/api/network/home` and learns its endpoint/key before Finish. It saves the
+  stage, replies with `restarting:true` and restarts with the hotspot off. No
+  hotspot password change is required. Bad approval is 400, missing access
+  is 403, incomplete networking or a refused stage is 409.
 - Setup also uses `POST /api/profiles/register`, the presence routes above,
   `POST /api/accounts/setup`, `GET /api/devices`, `POST /api/firmware`
   (multipart field `firmware`), `POST /api/sigil-firmware`,

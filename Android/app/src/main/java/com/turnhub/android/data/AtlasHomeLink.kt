@@ -64,6 +64,8 @@ class AtlasHomeLink(
     private val discoverNew: suspend () -> SavedHomeAtlas? = { null },
 ) {
     fun hasSavedAtlas(): Boolean = store.last() != null
+    fun hasSavedAtlas(atlasId: String?): Boolean = atlasId != null &&
+        store.last()?.atlasId?.equals(atlasId, ignoreCase = true) == true
 
     /** Discovery is not trust: nothing is saved until the user compares the physical code. */
     suspend fun pairingCandidate(): SavedHomeAtlas? {
@@ -80,10 +82,12 @@ class AtlasHomeLink(
     }
 
     /** Over the hotspot only: remember Atlas's home address and key. */
-    suspend fun learn(endpoint: AtlasEndpoint) {
-        if (endpoint != AtlasEndpoint.DEFAULT) return
-        val current = runCatching { info(endpoint) }.getOrNull() ?: return
-        current.home?.let { store.save(saved(current.atlasId, it)) }
+    suspend fun learn(endpoint: AtlasEndpoint): Boolean {
+        if (endpoint != AtlasEndpoint.DEFAULT) return false
+        val current = runCatching { info(endpoint) }.getOrNull() ?: return false
+        val home = current.home ?: return false
+        store.save(saved(current.atlasId, home))
+        return true
     }
 
     /** A pinned home endpoint that answers as the saved Atlas, or null. */

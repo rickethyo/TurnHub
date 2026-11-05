@@ -165,7 +165,7 @@ private fun DeviceAdminControls(player: SavedLocalPlayer, table: StandaloneTable
  * "Not now" closes it; an account can still be made Admin from its settings.
  */
 @Composable
-fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable) {
+fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable, onSetUpAtlas: () -> Unit = {}) {
     val p = palette
     val scope = rememberCoroutineScope()
     var name by rememberSaveable { mutableStateOf("") }
@@ -230,6 +230,10 @@ fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable) {
                 error?.let { Text(it, color = p.warn) }
                 TextButton({ copying = true }, enabled = !saving) { Text("Use my account from another device") }
                 ImportTurnHubButton(table)
+                Text("Atlas is an optional accessory. You can set it up separately now or later from More.", color = p.muted)
+                TextButton({ if (table.dismissAdminPrompt()) onSetUpAtlas() }, enabled = !saving) {
+                    Text("Set up an Atlas")
+                }
             }
         },
         confirmButton = {

@@ -25,6 +25,8 @@ private class FakeAtlas : AtlasSessionTransport {
     val verified = mutableSetOf<String>()
     var codeFor: String? = null
     var wifiPassword: String? = null
+    var homeReady = true
+    var homeSsid: String? = null
     var firmware = "0.6.0"
     var sigilFirmware = "0.8.0"
     var stagedSigilPackage = false
@@ -92,10 +94,15 @@ private class FakeAtlas : AtlasSessionTransport {
                 {"id":5,"label":"Harness","online":true,"firmware":"0.1.0","capabilities":208}]}""")
             "POST /api/sigil-update" -> { sigilFirmware = "0.9.0"; RawResponse(200, """{"ok":true}""") }
             "GET /api/sigil-firmware" -> RawResponse(200, """{"stage":"done","message":"Updated"}""")
+            "POST /api/network/home" -> when {
+                id != admin || id !in verified -> RawResponse(403, """{"presenceRequired":true}""")
+                else -> { homeSsid=arg["ssid"]; wifiPassword=arg["password"]; RawResponse(200, "{}") }
+            }
+            "GET /api/network" -> RawResponse(200, """{"home":{"connected":$homeReady,"tls":{"running":$homeReady}}}""")
             "POST /api/setup/finish" -> when {
                 id != admin -> RawResponse(403, """{"error":"Admin permission required"}""")
                 id !in verified -> RawResponse(403, """{"ok":false,"presenceRequired":true,"error":"Verify at the table first"}""")
-                else -> { uploadApprovalRequired = arg["uploadApprovalRequired"] != "0"; wifiPassword = arg["password"]; stage = SetupStage.FINISHED; RawResponse(200, """{"ok":true,"restarting":true}""") }
+                else -> { uploadApprovalRequired = arg["uploadApprovalRequired"] != "0"; stage = SetupStage.FINISHED; RawResponse(200, """{"ok":true,"restarting":true}""") }
             }
             else -> RawResponse(404, """{"error":"no route"}""")
         }
@@ -130,11 +137,12 @@ private class FakeReleases(var feed: FirmwareReleaseFeed?) : FirmwareReleaseSour
 
 private class FakeHost(val atlas: FakeAtlas) : SetupHost {
     var restarts = 0
+    var canRememberHome = true
     var saved: Pair<String, String>? = null
     val holds = mutableListOf<Boolean>()
     override fun endpoint() = AtlasEndpoint.DEFAULT
     override fun atlasFirmware() = atlas.firmware
-    override fun wifiPasswordChanged(ssid: String, password: String) { saved = ssid to password }
+    override suspend fun rememberHomeConnection(): Boolean { if (!canRememberHome) return false; saved = atlas.homeSsid!! to "pinned"; return true }
     override suspend fun reconnectAfterRestart(): Boolean {
         restarts++
         atlas.restart()
@@ -148,6 +156,30 @@ private class FakeHost(val atlas: FakeAtlas) : SetupHost {
 }
 
 class AtlasSetupAssistantTest {
+
+    @Test fun `failed home join keeps setup open and never shuts the hotspot`() = runTest {
+        val (assistant, atlas, host) = setup(releases = FakeReleases(null))
+        assistant.check(); assistant.next(); assistant.createAccount("Owner", "2468")
+        assistant.requestCode(); assistant.confirmCode("123456")
+        atlas.homeReady = false
+        assistant.finish("Home", "home-password")
+        assertEquals(SetupStage.WELCOME, atlas.stage)
+        assertNotNull(assistant.state.value.error)
+        assertEquals(0, host.restarts)
+        assertFalse(atlas.calls.contains("POST /api/setup/finish"))
+    }
+
+    @Test fun `missing home pin never sends finish even with the router connected`() = runTest {
+        val (assistant, atlas, host) = setup(releases = FakeReleases(null))
+        assistant.check(); assistant.next(); assistant.createAccount("Owner", "2468")
+        assistant.requestCode(); assistant.confirmCode("123456")
+        host.canRememberHome = false
+        assistant.finish("Home", "home-password")
+        assertEquals(SetupStage.WELCOME, atlas.stage)
+        assertNotNull(assistant.state.value.error)
+        assertEquals(0, host.restarts)
+        assertFalse(atlas.calls.contains("POST /api/setup/finish"))
+    }
 
     private val feed = FirmwareReleaseFeed(
         "0.9.0",
@@ -208,12 +240,12 @@ class AtlasSetupAssistantTest {
 
         assistant.next()
         assertEquals(SetupStep.WIFI, assistant.state.value.step)
-        assistant.finish(WifiCredentials.DEFAULT_ATLAS_PASSPHRASE)
+        assistant.finish("", "our-table-pw")
         assertEquals(null, atlas.wifiPassword)
-        assistant.finish("our-table-pw")
+        assistant.finish("Home", "our-table-pw")
         assertEquals("our-table-pw", atlas.wifiPassword)
         assertTrue(atlas.uploadApprovalRequired)
-        assertEquals("TurnHub-Atlas" to "our-table-pw", host.saved)
+        assertEquals("Home" to "pinned", host.saved)
         assertEquals(SetupStep.DONE, assistant.state.value.step)
 
         assistant.close()
@@ -301,7 +333,7 @@ class AtlasSetupAssistantTest {
         assistant.skipUpdates()
         assistant.next()
         atlas.verified.clear()
-        assistant.finish("our-table-pw", uploadApprovalRequired = false)
+        assistant.finish("Home", "our-table-pw", uploadApprovalRequired = false)
         assertTrue(assistant.state.value.codeShowing)
         assistant.confirmCode("123456")
         assertEquals("our-table-pw", atlas.wifiPassword)

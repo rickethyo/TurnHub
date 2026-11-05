@@ -624,7 +624,7 @@ void handleHomeNetwork(WebServer &server) {
     }
   }
   sendOkMessage(server, TurnHubAtlas::homeWifiEnabled()
-      ? "Saved. Atlas joins your home network and keeps its own hotspot as a fallback."
+      ? "Saved. Atlas joins your home network. Its hotspot is available only during first-time setup."
       : "Saved. Home Wi-Fi is off.");
 }
 
@@ -692,52 +692,33 @@ void handleSetupStatus(WebServer &server) {
   sendJson(server, 200, json);
 }
 
-// The last step: store the table's own Wi-Fi password, mark setup finished
-// (AdvanceSetup, which Atlas validates) and restart onto the new password.
+// Finish only after the app has learned the connected home endpoint and key.
+// Restart closes the setup hotspot; no outage can reopen it.
 void handleSetupFinish(WebServer &server) {
   if (TurnHubAtlas::sigilUpdatesBusy()) { sendError(server, 409, "Wait for the firmware update to finish"); return; }
-  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
-  if (!requirePhysicalPresence(server)) return;
+  if (!requirePermission(server, TurnHubAccounts::Admin) || !requirePhysicalPresence(server)) return;
   if (readSetupStage && readSetupStage() != static_cast<uint8_t>(TurnHub::SetupStage::Welcome)) {
-    sendError(server, 409, "Setup is already finished");
-    return;
+    sendError(server, 409, "Setup is already finished"); return;
   }
-  const String password = server.arg("password");
+  if (!TurnHubAtlas::homeWifiConnected() || !TurnHubAtlas::homeTlsRunning()) {
+    sendError(server, 409, "Connect Atlas to your home Wi-Fi before finishing setup"); return;
+  }
   if (server.hasArg("uploadApprovalRequired")) {
     const String approval = server.arg("uploadApprovalRequired");
     if (approval != "0" && approval != "1") { sendError(server, 400, "Choose upload approval on or off"); return; }
-    if (!TurnHub::validWifiPassword(password) || password == AtlasConfig::WIFI_DEFAULT_PASSWORD) {
-      sendError(server, 400, "Choose a new Wi-Fi password of 8 to 63 characters"); return;
-    }
     String message = "Device management unavailable";
     if (!deviceHandler || !deviceHandler(sessionForRequest(server)->profileId,
         TurnHub::IntentType::ConfigureUploadApproval, approval.toInt(), message)) {
       sendError(server, 409, message); return;
     }
   }
-  // The validator reads the stored password, so it is written first; if
-  // Atlas then refuses, the previous one goes back, so a refused finish
-  // never changes the Wi-Fi at the next restart.
-  const String previous = TurnHub::readStoredWifiPassword();
-  bool changed = false;
-  if (!storeWifiPassword(server, password, changed)) return;
   String message = "Setup unavailable";
   if (!deviceHandler || !deviceHandler(sessionForRequest(server)->profileId, TurnHub::IntentType::AdvanceSetup,
           static_cast<int32_t>(TurnHub::SetupStage::Finished), message)) {
-    if (changed) {
-      TurnHub::OptionalPreferences prefs;
-      if (prefs.begin(AtlasConfig::WIFI_PREF_NAMESPACE, false)) {
-        // An empty value reads as "no owner password": the printed default.
-        prefs.putString(AtlasConfig::WIFI_PREF_KEY, previous);
-        prefs.end();
-      }
-      serialLog.println("ATLAS|WIFI_AP|PASSWORD_STORE|RESTORED_AFTER_REFUSED_SETUP");
-    }
-    sendError(server, 409, message);
-    return;
+    sendError(server, 409, message); return;
   }
   sendJson(server, 200,
-      "{\"ok\":true,\"restarting\":true,\"message\":\"Setup finished. Atlas is restarting with the new Wi-Fi password.\"}");
+      "{\"ok\":true,\"restarting\":true,\"message\":\"Setup finished. Atlas restarts on your home Wi-Fi with its setup hotspot off.\"}");
   restartSoon();
 }
 

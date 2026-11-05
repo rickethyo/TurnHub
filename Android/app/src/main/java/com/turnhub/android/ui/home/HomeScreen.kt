@@ -618,7 +618,7 @@ private fun ConnectCard(
         uiState.connectionState == AtlasConnectionState.CONNECTED -> "Atlas connected" to "Sigils, shared profiles and table controls are ready."
         !uiState.hasSavedTable -> "Connect to Atlas" to
             "Add Sigils, shared profiles and connected play."
-        else -> "Join your table" to "TurnHub looks on your home Wi-Fi first, then tries the Atlas hotspot."
+        else -> "Join your table" to "Find Atlas on your home Wi-Fi, or set up a new Atlas using its on-screen QR code."
     }
     BrassCard {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -638,11 +638,11 @@ private fun ConnectCard(
                 ToneButton("Disconnect", onDisconnectClick, Modifier.fillMaxWidth())
             uiState.discovery == Discovery.NotFound -> {
                 AccentButton("Try again", discovery.onSearchAgain, Modifier.fillMaxWidth().heightIn(min = 56.dp))
-                ToneButton("Set up a new table", discovery.onSetUpNewTable, Modifier.fillMaxWidth())
+                ToneButton("Set up an Atlas", discovery.onSetUpNewTable, Modifier.fillMaxWidth())
             }
             !uiState.hasSavedTable -> {
                 AccentButton("Find Atlas on Wi-Fi", onConnectClick, Modifier.fillMaxWidth().heightIn(min = 56.dp))
-                ToneButton("Set up a new table", discovery.onSetUpNewTable, Modifier.fillMaxWidth())
+                ToneButton("Set up an Atlas", discovery.onSetUpNewTable, Modifier.fillMaxWidth())
             }
             else -> AccentButton("Connect to Atlas", onConnectClick, Modifier.fillMaxWidth().heightIn(min = 56.dp))
         }

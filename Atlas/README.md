@@ -59,13 +59,13 @@ GET /api/session/stats/export
 The Android app displays and exports profile statistics and holds Atlas's
 administration settings (the embedded portal was removed on 2026-10-30).
 
-## Wi-Fi access point password
+## Setup Wi-Fi
 
-Atlas hosts `TurnHub-Atlas` (WPA2, channel 6). Until an owner sets a password
-(in the app's Atlas settings, or the last step of first-run setup), Atlas uses the shipped passphrase `TurnHub-Setup`
-from `config.h`, which lets the Android app join a new Atlas without asking.
-The default is never written to NVS, so a factory reset returns to it. Boot
-logs `ATLAS|WIFI_AP|PASSWORD_STORE|DEFAULT` or `|LOADED`.
+Only a new or factory-reset Atlas starts TurnHub-Atlas. Welcome shows a
+Wi-Fi QR carrying its password. A phone camera joins without typing. The app
+provisions home Wi-Fi and pins the HTTPS key before finishing. Atlas then
+restarts with its hotspot off; outages never bring it back. See
+[Atlas setup](../Documentation/engineering/FIRST_RUN_SETUP.md).
 
 ## Serial log and browser download
 

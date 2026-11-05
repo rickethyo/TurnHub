@@ -1042,19 +1042,32 @@ const String &customWifiPassword(uint32_t nowMs) {
   return stored;
 }
 
-// First-run setup, all in words (no QR code needed; owner, 2026-09-30):
-// Welcome says how to start from a phone, the app first; after the phone
-// finishes, "You're all set" says what changed and what comes next.
+// The phone camera reads the standard Wi-Fi payload, including the password.
+void setupWifiQr(AtlasScreen &screen, uint32_t nowMs) {
+  const String &stored = customWifiPassword(nowMs);
+  const String password = stored.length() ? stored : String(AtlasConfig::WIFI_DEFAULT_PASSWORD);
+  size_t used = 0;
+  auto append = [&](const char *text, bool escape) {
+    for (; *text && used + 2 < sizeof(screen.qr); ++text) {
+      if (escape && strchr("\\;,:\"", *text)) screen.qr[used++] = '\\';
+      screen.qr[used++] = *text;
+    }
+    screen.qr[used] = '\0';
+  };
+  append("WIFI:T:WPA;S:", false); append(AtlasConfig::WIFI_SSID, true);
+  append(";P:", false); append(password.c_str(), true); append(";;", false);
+  snprintf(screen.qrCaption, sizeof(screen.qrCaption), "Scan with your phone camera");
+}
+
 void formatSetup(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.badge, sizeof(screen.badge), "SETUP");
   if (setupStage == TurnHub::SetupStage::Finished) {
     snprintf(screen.title, sizeof(screen.title), "You're all set");
     snprintf(screen.detail, sizeof(screen.detail), "This table is ready to play");
-    snprintf(screen.lines[0], sizeof(screen.lines[0]), "Its Wi-Fi now has your password.");
-    snprintf(screen.lines[1], sizeof(screen.lines[1]), "The app reconnects by itself; other");
-    snprintf(screen.lines[2], sizeof(screen.lines[2]), "phones rejoin %s.", AtlasConfig::WIFI_SSID);
-    snprintf(screen.lines[3], sizeof(screen.lines[3]), "Next: pair your Sigils, or tap Done.");
-    screen.lineCount = 4;
+    snprintf(screen.lines[0], sizeof(screen.lines[0]), "Atlas uses your home Wi-Fi.");
+    snprintf(screen.lines[1], sizeof(screen.lines[1]), "The setup hotspot is off.");
+    snprintf(screen.lines[2], sizeof(screen.lines[2]), "Next: pair your Sigils, or tap Done.");
+    screen.lineCount = 3;
     return;
   }
   snprintf(screen.title, sizeof(screen.title), "Welcome to TurnHub");
@@ -1065,11 +1078,10 @@ void formatSetup(AtlasScreen &screen, uint32_t nowMs) {
   } else {
     snprintf(screen.detail, sizeof(screen.detail), "Set up this table from a phone");
   }
-  snprintf(screen.lines[0], sizeof(screen.lines[0]), "1. Open the TurnHub app, tap Connect.");
-  snprintf(screen.lines[1], sizeof(screen.lines[1]), "   It joins this table's Wi-Fi itself.");
-  snprintf(screen.lines[2], sizeof(screen.lines[2]), "2. Sign in or make an account,");
-  snprintf(screen.lines[3], sizeof(screen.lines[3]), "   then follow Set up this Atlas.");
-  screen.lineCount = 4;
+  snprintf(screen.lines[0], sizeof(screen.lines[0]), "Scan to join the setup Wi-Fi.");
+  snprintf(screen.lines[1], sizeof(screen.lines[1]), "Then open TurnHub: Set up Atlas.");
+  screen.lineCount = 2;
+  setupWifiQr(screen, nowMs);
 }
 
 // The Wi-Fi code carries the password. The shipped default is public, so it
@@ -1077,20 +1089,16 @@ void formatSetup(AtlasScreen &screen, uint32_t nowMs) {
 void formatQr(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.badge, sizeof(screen.badge), "QR CODES");
   snprintf(screen.title, sizeof(screen.title), "Join the Wi-Fi");
-  const String &stored = customWifiPassword(nowMs);
-  const bool custom = stored.length() > 0;
-  if (custom && !anyPresenceActive(nowMs)) {
-    snprintf(screen.detail, sizeof(screen.detail), "Network: %s", AtlasConfig::WIFI_SSID);
-    snprintf(screen.lines[0], sizeof(screen.lines[0]), "This network has a private");
-    snprintf(screen.lines[1], sizeof(screen.lines[1]), "password. An Admin must verify");
-    snprintf(screen.lines[2], sizeof(screen.lines[2]), "at the table to show its code.");
-    screen.lineCount = 3;
-    return;
+  if (setupStage == TurnHub::SetupStage::Welcome) {
+    snprintf(screen.detail, sizeof(screen.detail), "Scan to join %s", AtlasConfig::WIFI_SSID);
+    setupWifiQr(screen, nowMs);
+  } else {
+    snprintf(screen.title, sizeof(screen.title), "Setup hotspot is off");
+    snprintf(screen.detail, sizeof(screen.detail), "Use your home Wi-Fi");
+    snprintf(screen.lines[0], sizeof(screen.lines[0]), "Open TurnHub and find this Atlas");
+    snprintf(screen.lines[1], sizeof(screen.lines[1]), "on the same Wi-Fi network.");
+    screen.lineCount = 2;
   }
-  const String password = custom ? stored : String(AtlasConfig::WIFI_DEFAULT_PASSWORD);
-  snprintf(screen.detail, sizeof(screen.detail), "Scan to join %s", AtlasConfig::WIFI_SSID);
-  snprintf(screen.qr, sizeof(screen.qr), "WIFI:T:WPA;S:%s;P:%s;;", AtlasConfig::WIFI_SSID, password.c_str());
-  snprintf(screen.qrCaption, sizeof(screen.qrCaption), "%s", AtlasConfig::WIFI_SSID);
 }
 
 }  // namespace
