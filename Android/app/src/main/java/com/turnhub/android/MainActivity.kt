@@ -406,6 +406,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         sharedGameOpen = savedInstanceState?.getBoolean("shared_game_open") == true
+        homeViewModel.atlasRoomLink=lanViewModel
+        lanViewModel.atlasCall=homeViewModel::atlasRoomRequest
         homeViewModel.standalone = standaloneViewModel.table
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -510,6 +512,8 @@ class MainActivity : ComponentActivity() {
                                         androidx.compose.material3.Text(localState.storageProblem!!)
                                         com.turnhub.android.ui.components.ToneButton("Keep old data aside and start fresh", { standaloneViewModel.table.startFresh() })
                                     }
+                                } else if (lanState.atlasRoom && lanState.preview!=null) {
+                                    com.turnhub.android.ui.tablet.AtlasRoomLobby(lanState,lanViewModel)
                                 } else if (localState.game.state == com.turnhub.android.protocol.TableState.LOBBY) {
                                     com.turnhub.android.ui.tablet.StandaloneLobby(localState, standaloneViewModel.table,
                                         embedded = true, onOpenPlanes = openPlanes,

@@ -1,8 +1,9 @@
-// Phone-hosted games over HTTP (protocol/hosted-v1.md): the hub claims the
+// Phone-hosted games over HTTPS (protocol/hosted-v1.md): the hub claims the
 // table, pushes each game state and reads Atlas's queued inputs. Atlas only
 // stores and shows the hub's game; see hosted_game.h.
 
 #include <stdlib.h>
+#include <esp_system.h>
 
 #include "hosted_game.h"
 #include "home_tls.h"
@@ -18,6 +19,17 @@ namespace TurnHubWebApi {
 namespace internal {
 
 namespace {
+
+struct ControllerTicket { std::string phone, value; uint32_t issued = 0; };
+std::string roomOwner, roomInvite;
+uint32_t roomPublished = 0;
+std::vector<ControllerTicket> controllerTickets;
+void expireControllerRoom() {
+  if (!roomOwner.empty() && (!TurnHubHosted::hostedTable().holds(roomOwner,millis()) ||
+      millis()-roomPublished >= TurnHubHosted::LEASE_MS)) {
+    roomOwner.clear();roomInvite.clear();controllerTickets.clear();
+  }
+}
 
 TurnHubStorage::NvsBlobStore sharedProfiles;
 constexpr size_t SHARED_PROFILE_BYTES = 1024;
@@ -330,6 +342,57 @@ void handlePhonePairPoll(WebServer &server) {
 void handlePhonePairCancel(WebServer &server) {
   const bool cancelled = TurnHubPhones::cancel(server.arg("request").c_str(),millis());
   sendJson(server,cancelled ? 200 : 404,cancelled ? "{\"ok\":true}" : "{\"ok\":false}");
+}
+
+void handleControllerRoomPublish(WebServer &server) {
+  Hub hub;if (!hubFor(server,hub)) return;
+  expireControllerRoom();
+  if (!TurnHubHosted::hostedTable().holds(hub.token,millis())) { sendError(server,409,"Only the hub publishes its room");return; }
+  const std::string invite=server.arg("invite").c_str();
+  const std::string suffix="/"+std::string(64,'0');
+  if (invite.size()>512 || invite.size()<suffix.size() || invite.find("turnhub://join/2/")!=0 ||
+      invite.compare(invite.size()-suffix.size(),suffix.size(),suffix)!=0) {
+    sendError(server,400,"Supply a room endpoint without its join secret");return;
+  }
+  if (roomOwner!=hub.token || roomInvite!=invite) controllerTickets.clear();
+  roomOwner=hub.token;roomInvite=invite;roomPublished=millis();sendJson(server,200,"{\"ok\":true}");
+}
+
+void handleControllerRoom(WebServer &server) {
+  const auto *phone=TurnHubPhones::verify(server.header("X-TurnHub-Token").c_str());
+  if (!phone) { sendError(server,401,"Pair this phone first");return; }
+  expireControllerRoom();
+  if (roomInvite.empty() || !TurnHubHosted::hostedTable().live(millis())) { sendJson(server,200,"{\"room\":null}");return; }
+  for(auto it=controllerTickets.begin();it!=controllerTickets.end();) {
+    bool paired=false;
+    for(uint8_t i=0;i<TurnHubPhones::count();++i) paired=paired || it->phone==TurnHubPhones::phone(i)->id;
+    if(!paired) it=controllerTickets.erase(it); else ++it;
+  }
+  ControllerTicket *ticket=nullptr;
+  for(auto &t:controllerTickets) if(t.phone==phone->id) { ticket=&t;break; }
+  if(!ticket) { controllerTickets.push_back({phone->id,"",0});ticket=&controllerTickets.back(); }
+  if(ticket->value.empty() || millis()-ticket->issued>=60000) {
+    ticket->value.clear();static const char hex[]="0123456789abcdef";
+    for(int i=0;i<64;++i) ticket->value+=hex[esp_random()&15];ticket->issued=millis();
+  }
+  auto body=turnhub::Json::object();body.set("room",roomInvite);body.set("ticket",ticket->value);
+  body.set("host",TurnHubHosted::hostedTable().lease().name);sendJson(server,200,body.dump().c_str());
+}
+
+void handleControllerVerify(WebServer &server) {
+  Hub hub;if(!hubFor(server,hub)) return;
+  expireControllerRoom();
+  if(roomOwner!=hub.token || !TurnHubHosted::hostedTable().holds(hub.token,millis())) { sendError(server,409,"Only the hub verifies controllers");return; }
+  const std::string ticket=server.arg("ticket").c_str(),id=server.arg("phone").c_str();
+  for(uint8_t i=0;i<TurnHubPhones::count();++i) {
+    const auto *phone=TurnHubPhones::phone(i);bool allowed=!id.empty() && id==phone->id;
+    if(id.empty() && ticket.size()==64) for(const auto &t:controllerTickets) {
+      if(t.phone!=phone->id || millis()-t.issued>=60000 || t.value.size()!=64) continue;
+      uint8_t diff=0;for(size_t c=0;c<64;++c) diff|=ticket[c]^t.value[c];allowed=allowed || diff==0;
+    }
+    if(allowed) { auto body=turnhub::Json::object();body.set("phone",std::string(phone->id));sendJson(server,200,body.dump().c_str());return; }
+  }
+  sendError(server,403,"Controller pairing or ticket expired");
 }
 
 }  // namespace internal

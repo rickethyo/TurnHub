@@ -26,7 +26,12 @@ requirements. The owner prioritizes the Atlas room as the first implementation
 slice and authorizes building, flashing and testing it on connected unlocked
 devices. Each slice gets its own reviewable implementation and acceptance round.
 
-1. **Atlas automatically connects one shared room (first priority).** One hub
+1. **Atlas automatically connects one shared room (first priority).** Android
+   implementation and three-device smoke test are complete; contract and privacy
+   boundaries live in [Phone-hosted games](../../protocol/hosted-v1.md#automatic-atlas-room).
+   Remaining acceptance: prolonged outage/host loss, pairing revocation on hardware,
+   concurrent Sigil attachment, and exactly-once final match records. Explicit hub
+   handoff and iOS room counterpart remain later work. One hub
    phone runs both the rules and the existing Play together room; Atlas only
    relays discovery/attachment and hardware inputs. Pairing/connecting additional
    phones must attach them to that room, not automatically contend for the hub
@@ -93,7 +98,8 @@ the hub. Contract: `protocol/hosted-v1.md`. Slices, each a flash-and-test round:
 1. **Hosted contract and hub push** (implemented, `claude/master`): lease,
    state and input routes; read-only hosted view on the Atlas screen; the
    app's "Show on Atlas". Open check: push a running game from a phone and
-   watch the Atlas screen follow; a second phone sees "Atlas busy".
+   watch the Atlas screen follow; other paired phones discover the hub's room
+   and select a profile on Game (the automatic room slice above).
 2. **Sigils** (implemented, `claude/master`): a Sigil joins the hub's setup
    from its menu (bound by `localId`), shows the hub's game, and its menu
    choices and life keys are queued for the hub, which polls every 300 ms.

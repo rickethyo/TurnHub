@@ -40,8 +40,26 @@ tests and explicitly prioritizes the automatic Atlas room. Roadmap recorded in
 STAGED_CHANGES.md; first scope is connecting paired phones to the hub's existing
 room rather than competing for its lease. Preserve one hub authority, participant
 identity, protected data and explicit takeover. Connected devices are unlocked.
-No smaller Sigil/UI slice takes priority over the room. Planning is documentation
-only; implementation and hardware acceptance are still open.
+No smaller Sigil/UI slice takes priority over the room. Implemented Android hub
+publication, paired-only Atlas ticket delivery and Game profile attachment through
+the existing LAN room. Gameplay access does not unlock accounts/private history
+or mint controller invitations; confirmed phone revocation is enforced. Temporary
+verification failure returns unavailable, preserving membership; repeated joins
+reuse the phone/profile membership. Contract: protocol/hosted-v1.md.
+
+Validation: 511 Android JVM tests, zero failures; Preview 2001 build; Atlas host
+suite (54 PASS lines plus storage/profile/OTA suites), Atlas build and both board
+uploads (COM18 Atlas, COM26 Sigil). Installed Preview on LG Q70, SM-T970 and Pixel
+Fold. LG hosts, Fold joins Ricky and tablet joins Michael with no code/PIN;
+host starts the lobby, both follow running state, Fold life input reaches LG.
+Both controllers recover their selected profiles after app updates/restarts;
+Atlas refreshes the same room's port/certificate through the paired descriptor.
+Manual App V0.22 rendered with Word (18 pages), all page sheets and changed page
+14 inspected. Contract/adapter/docs/licensed-content/diff guards pass. Longer
+host-loss/revocation/Sigil acceptance and intentional hub handoff remain open;
+no completed-match statistics or endurance result is claimed.
+The avatar-mask guard needs canonical Git SVG bytes on this Windows CRLF
+checkout; canonical source and artifact hashes pass, with no asset changes.
 
 2026-11-05, Codex review of Copilot audit at `3574132d`, on the owner-selected
 `VSCodeCopilot/Master` branch. Owner authorizes fixes and merge when safe.

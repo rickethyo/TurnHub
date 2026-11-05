@@ -27,6 +27,8 @@ class LanRoomTest {
         var rollFace = "blank"
         var alias: Pair<String, String>? = null
         var historyAsked: String? = null
+        var atlasEnabled=false
+        var atlasUnavailable=false
         val room = LanRoom(record, history = { profile, r -> historyAsked = profile
                 if (r.optString("step") == "index") JSONObject().put("records", JSONArray().put("game-1")) else null },
             planesAvailable = { planesAvailable }, planarPlayerAllowed = { planarPlayerAllowed }, planarRollAllowed = { planarRollAllowed }, save = { if (writable) { record = JSONObject(it.toString()); true } else false },
@@ -35,6 +37,8 @@ class LanRoomTest {
             profiles = { JSONArray().put(JSONObject().put("profileId", "ABCDEF01").put("name", "Sam"))
                 .put(JSONObject().put("profileId", "ABCDEF02").put("name", "Sam")) }, attach = { if (delayAttach) kotlinx.coroutines.delay(10)
                 if (authorized && it.optString("pin") == "1234") it.optString("profileId") else null },
+            atlasTicket={ if(atlasEnabled && it=="ticket") "phone001" else null },
+            atlasMember={ check(!atlasUnavailable); atlasEnabled && it=="phone001" },attachAtlas={ it.optString("profileId").takeIf { id -> roster.any { p -> p.identity==id } } },
             command = { r, target ->
                 lastTarget = target
                 if (delayCommand) kotlinx.coroutines.delay(10)
@@ -51,6 +55,24 @@ class LanRoomTest {
         fun action(joined: JSONObject, kind: String = "life", target: Int = 1) = base("command")
             .put("token", joined.text("token")).put("epoch", joined.text("epoch")).put("actionId", UUID.randomUUID().toString())
             .put("match", match).put("revision", revision).put("kind", kind).put("value", -1).put("slot", 0).put("target", target)
+    }
+    @Test fun `Atlas paired controllers share a player without PIN but cannot read history or mint invitations`() = runBlocking {
+        val f=Fixture();f.atlasEnabled=true
+        suspend fun attach()=f.room.handle(f.base("join").put("key","ticket").put("role","player")
+            .put("profileId","ABCDEF01").put("joinId",UUID.randomUUID().toString()))
+        val first=attach();val second=attach()
+        assertEquals("ok",first.text("code"));assertEquals("ok",second.text("code"))
+        assertEquals(1,first.getInt("player"));assertEquals(1,second.getInt("player"))
+        assertEquals(first.text("token"),second.text("token"))
+        assertEquals("forbidden",f.room.handle(f.base("history").put("token",first.text("token")).put("step","index")).text("code"))
+        assertEquals("forbidden",f.room.handle(f.base("invite-controller").put("token",first.text("token"))).text("code"))
+        f.atlasUnavailable=true
+        assertEquals("unavailable",f.room.handle(f.poll(first.text("token"))).text("code"))
+        f.atlasUnavailable=false
+        assertEquals("ok",f.room.handle(f.poll(first.text("token"))).text("code"))
+        f.atlasEnabled=false
+        assertEquals("unauthorized",f.room.handle(f.poll(first.text("token"))).text("code"))
+        assertEquals("unauthorized",attach().text("code"))
     }
     @Test fun `five phones share one player only through a durable scoped invitation`() = runBlocking {
         val f = Fixture()

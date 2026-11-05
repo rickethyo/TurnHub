@@ -390,6 +390,19 @@ class StandaloneTable(
         org.json.JSONObject().put("profileId", p.profileId).put("name", p.name).put("hasPin", p.credential != null)
     })
 
+    /** A paired Atlas controller may play an existing identity, never unlock its private data. */
+    internal fun attachAtlasRoomProfile(request: JSONObject): String? {
+        val id=request.optString("profileId")
+        val player=_state.value.library.players.firstOrNull { it.profileId==id } ?: return null
+        val game=_state.value.game
+        if(game.players.none { it.localId==player.localId }) {
+            if(game.state!=TableState.LOBBY) return null
+            val added=game.addPlayer(player.name,localId=player.localId)
+            if(added===game || !publishGame(added,durable=true)) return null
+        }
+        return id
+    }
+
     /** A first room link proves its PIN; subsequent connections use the room credential. */
     internal fun attachRoomProfile(request: org.json.JSONObject): String? {
         val before = _state.value

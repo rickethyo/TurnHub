@@ -363,6 +363,9 @@ fun HomeScreen(
                             Text("Resume " + (hostedResumeHost.takeIf { it.isNotBlank() }?.let { "$it's" } ?: "Atlas") + " game")
                         }
                         TextButton(onClick = { onResumeHosted(false) }) { Text("Show mine instead") }
+                    } else if (hostedStatus is com.turnhub.android.data.HostedAtlasLink.Status.Following) {
+                        Text("Atlas table" + (hostedStatus.host?.let { " · $it" } ?: ""),
+                            modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.labelLarge)
                     } else if (onHostOnAtlas != null && summary != null) {
                         val hosting = hostedStatus == com.turnhub.android.data.HostedAtlasLink.Status.Hosting
                         TextButton(onClick = { onHostOnAtlas(!hosting) },
@@ -370,6 +373,7 @@ fun HomeScreen(
                             Text(when (val status = hostedStatus) {
                                 com.turnhub.android.data.HostedAtlasLink.Status.Hosting -> "On Atlas · Stop"
                                 is com.turnhub.android.data.HostedAtlasLink.Status.Busy -> "Atlas busy" + (status.host?.let { " · $it" } ?: "")
+                                is com.turnhub.android.data.HostedAtlasLink.Status.Following -> "Atlas table" + (status.host?.let { " · $it" } ?: "")
                                 is com.turnhub.android.data.HostedAtlasLink.Status.Failed -> "Show on Atlas · Retry"
                                 com.turnhub.android.data.HostedAtlasLink.Status.Off -> "Show on Atlas"
                             })

@@ -307,7 +307,7 @@ The current game, players, personalization and history survive closing the app, 
 
 Open More > Atlas connection and choose Find Atlas on Wi-Fi. Use the same home network as Atlas. On a new phone, compare the app code with App link in Atlas Settings before confirming. For a new Atlas, scan its Welcome Wi-Fi QR and choose Set up an Atlas. Allow Nearby devices when Android asks.
 
-Atlas discovery stays on in the background and reconnects to a known Atlas when the phone is on its network. Turning it off disconnects. **Game** always shows this device's own game. Players adds Table and Me sections.
+Atlas discovery stays on in the background and reconnects to a known Atlas when the phone is on its network. Turning it off disconnects. Game shows your local game or the shared Atlas table. Players adds Table and Me sections.
 
 ## Your Atlas Account
 
@@ -323,7 +323,7 @@ If Atlas stops answering, the app keeps your game going: it is this device's gam
 
 ## Your Game on the Atlas
 
-**A connected, paired phone shows its game on Atlas automatically. Show on Atlas in Game starts it by hand, and Stop gives the table back. One phone hosts at a time: if another phone has the table, Game says Atlas busy.**
+**A connected, paired phone shows its game on Atlas and hosts its Play together room automatically. Other paired phones on the same Wi-Fi open Game and choose a profile to join that table, without a room code or profile PIN. The hub can prepare the lobby first; multiple phones can control the same profile. Account settings and private history stay locked. Keep the hub app open. An independent running game or another shared room is preserved.**
 
 While the hub is in game setup and showing on Atlas, choose Join game on a paired Sigil. Choose a player already in the lobby to attach to them, a saved profile from Atlas or the hub to add that player, or a true guest named after the Sigil. Guests create no account or personal statistics; their presence stays in the game record. A Sigil and several phones can control the same player. Leaving from the Sigil releases its controller and leaves the player and phones seated. Join a second seat from the Sigil menu if needed. New Sigil attachments are made before starting.
 

@@ -16,6 +16,36 @@ pairing key survives Atlas restarts. Temporary claim or state-push failures retr
 connection is usable; another hub's live lease is respected. Disconnecting or
 removing the pairing key stops publication until the phone pairs again.
 
+## Automatic Atlas room
+
+The hub phone also hosts the existing version-2 Play together room. Other
+paired Android phones on the same Wi-Fi discover it through Atlas and choose
+a profile from the Game tab, without entering a room code. Choosing an existing
+seated profile attaches a controller; choosing an unseated profile adds it while
+the hub is in the lobby. Multiple controllers may use the same profile. Atlas
+does not run the room or its game rules. An independent running local game or
+another shared room is preserved rather than replaced automatically.
+
+- `POST /api/hosted/room`: the current hub publishes `invite`, a version-2
+  invitation whose join-secret field is 64 zeroes. The ordinary invitation
+  secret is never published. The descriptor expires after 30 seconds without
+  renewal or when the hub loses its lease.
+- `GET /api/hosted/room`: paired phones receive `room`, `host`, and a random
+  per-phone `ticket`, or `room:null`. Tickets last 60 seconds and are delivered
+  only over the paired HTTPS connection.
+- `POST /api/hosted/controller`: only the descriptor's current lease holder
+  can verify a `ticket` or recheck a joined `phone`. A valid check returns that
+  phone's ID. A revoked pairing or expired ticket returns 403; another hub gets
+  409. Controllers pause during unavailable checks rather than being removed.
+
+The hub validates the ticket before admission and rechecks pairing during
+controller requests (positive checks may be cached for five seconds). Atlas
+membership authorizes gameplay only: no PIN prompt, account unlock, Device Admin
+grant, private history exchange, or controller-invitation minting. Existing
+ordinary room invitations retain their separate profile authorization rules.
+The room's TLS certificate remains pinned by its invitation. Host loss preserves
+the local game; Atlas never creates a second rules authority.
+
 ## Pairing: no account needed
 
 *Experimental* (owner, 2026-11-05): Atlas is an accessory, so a phone pairs once
