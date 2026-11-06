@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "atlas_app.h"
+#include "atlas_notifications.h"
 #include "home_wifi.h"
 #include "home_tls.h"
 #include "atlas_battery.h"
@@ -157,6 +158,8 @@ IntentResult handlePhonePairingIntent(const Intent &intent, void *) {
       if (!TurnHubPhones::waiting(nowMs)) return IntentResult::reject(IntentStatus::InvalidState, "No phone is asking to pair");
       const bool allow = intent.payload.value == TurnHub::PHONE_ALLOW;
       if (!TurnHubPhones::decide(allow, nowMs)) return IntentResult::reject(IntentStatus::Rejected, "Could not save the phone");
+      TurnHubActivity::add(allow ? TurnHubActivity::Level::Success : TurnHubActivity::Level::Info,
+          allow ? "Phone paired" : "Phone refused", "Confirmed on the Atlas screen", nowMs);
       return IntentResult::accept(allow ? "Phone paired" : "Phone refused");
     }
     case TurnHub::PHONE_FORGET_ALL:

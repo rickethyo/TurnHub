@@ -244,3 +244,12 @@ History exposes **Sync games with Atlas** to connected paired phones without an
 Atlas account sign-in. It invokes the same player-copy, delivery and history
 readback path as automatic sync, reports progress/errors, and enables saved
 mapping retries in each game's Details. Offline devices show the connection hint.
+
+### Import archive policy
+
+Paired-phone record import reads a profile's archive policy independently of
+the primary Admin bootstrap. A malformed legacy Admin selection must not reject
+an otherwise valid player mapping. Missing per-profile policy means unarchived;
+an explicitly archived profile is rejected. Corrupt or unreadable per-profile
+policy fails closed with a storage error. This read never changes Admin roles,
+credentials, profile identity or stored account policy.

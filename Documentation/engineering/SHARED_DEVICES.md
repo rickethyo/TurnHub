@@ -75,3 +75,19 @@ An explicit Admin profile merge publishes old IDs as aliases of the survivor.
 Room members follow those identities without name matching or new PIN entry;
 linked devices follow the authenticated profile-sync redirect. This does not
 merge device-local histories or grant account permissions.
+
+## Atlas notifications
+
+Atlas keeps the latest 12 sync, pairing, transfer and hosted-game status events
+in a RAM-only journal. Swipe down from the top edge or tap **Notifications** on
+Home to open the shelf. Swipe up or tap Back to return. Newer and Older page
+through two events at a time; Clear empties the shelf. The header marks unread
+activity; opening the shelf marks existing entries read. Confirmation and pairing
+overlays take precedence, and opening the shelf cannot activate an underlying
+control. All actions have full-size button alternatives; severity uses text as
+well as color, with no required animation.
+
+A paired phone's History shows **Atlas notifications** after syncing. The API
+contract is in [hosted-v1.md](../../protocol/hosted-v1.md#atlas-activity-shelf).
+The shelf is temporary status feedback; saved games and statistics remain in
+their existing stores. Restarting Atlas clears notifications.

@@ -11,6 +11,7 @@
 
 #include "atlas_app.h"
 #include "hosted_game.h"
+#include "atlas_notifications.h"
 #include "serial_log.h"
 #include "sigil_menu.h"
 #include "profile_store.h"
@@ -298,8 +299,16 @@ void presentHostedAudio(const turnhub::Game &before, const turnhub::Game &after)
   // A changed match is a start only from setup or the just-finished match.
   const bool start = after.state == TableState::Running &&
       (before.state == TableState::Lobby || before.state == TableState::Starting || before.state == TableState::GameOver);
-  if (start) { audio.gameStart(mask); return; }
+  if (start) {
+    TurnHubActivity::add(TurnHubActivity::Level::Info,"Game started","The hub started a new match",millis());
+    audio.gameStart(mask); return;
+  }
   if (before.gameId != after.gameId) return;
+  if (after.state != before.state) {
+    const char *title = after.state == TableState::GameOver ? "Game finished" : after.state == TableState::Paused ? "Game paused" :
+        after.state == TableState::Running ? "Game resumed" : "Back to setup";
+    TurnHubActivity::add(TurnHubActivity::Level::Info,title,"Confirmed by the hub",millis());
+  }
   if (after.state == TableState::GameOver && before.state != TableState::GameOver) audio.gameOver(mask);
   else if (after.state == TableState::Paused && before.state == TableState::Running) audio.pause(mask);
   else if (after.state == TableState::Running && before.state == TableState::Paused) audio.resume(mask);

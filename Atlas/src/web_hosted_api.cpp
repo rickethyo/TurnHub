@@ -6,6 +6,7 @@
 #include <esp_system.h>
 
 #include "hosted_game.h"
+#include "atlas_notifications.h"
 #include "home_tls.h"
 #include "nvs_blob_store.h"
 #include "phone_links.h"
@@ -97,10 +98,42 @@ void sendHolder(WebServer &server, int status, bool ok) {
 
 }  // namespace
 
+void handleActivityReport(WebServer &server) {
+  Hub hub;
+  if (!hubFor(server,hub)) return;
+  const String event = server.arg("event");
+  const bool started = event == "sync-start", complete = event == "sync-complete", failed = event == "sync-failed";
+  if (!started && !complete && !failed) { sendError(server,400,"Unknown activity event"); return; }
+  char detail[80]; snprintf(detail,sizeof(detail),"%.32s / %s",hub.name.c_str(),
+      started ? "Copying players and games" : failed ? "Check the app for details" : "Player and game exchange complete");
+  TurnHubActivity::add(failed ? TurnHubActivity::Level::Warning : complete ? TurnHubActivity::Level::Success : TurnHubActivity::Level::Info,
+      started ? "Sync started" : failed ? "Sync needs attention" : "Sync complete",detail,millis());
+  sendJson(server,200,"{\"ok\":true}");
+}
+
+void handleActivity(WebServer &server) {
+  if (!sessionOrPairedPhone(server)) { sendError(server,401,"Pair this phone with Atlas first"); return; }
+  const auto &journal = TurnHubActivity::journal();
+  turnhub::Json items = turnhub::Json::array();
+  const uint32_t now = millis();
+  for (uint8_t i=0;i<journal.count;++i) {
+    const auto &event = journal.entries[i];
+    auto item = turnhub::Json::object();
+    item.set("id", static_cast<int64_t>(event.id));
+    item.set("level",TurnHubActivity::levelName(event.level));
+    item.set("title",event.title); item.set("detail",event.detail);
+    item.set("ageMs",static_cast<int64_t>(now-event.atMs)); items.push(item);
+  }
+  auto body = turnhub::Json::object(); body.set("events",items);
+  sendJson(server,200,body.dump().c_str());
+}
+
 void handleHostedClaim(WebServer &server) {
   Hub hub;
   if (!hubFor(server, hub)) return;
   const auto claim = TurnHubHosted::hostedTable().claim(hub.token, hub.profileId, hub.name, millis());
+  if (claim == TurnHubHosted::Claim::Granted && !TurnHubHosted::hostedTable().hasGame())
+    TurnHubActivity::add(TurnHubActivity::Level::Info,"Hub connected","A phone is hosting the table",millis());
   sendHolder(server, claim == TurnHubHosted::Claim::Granted ? 200 : 409, claim == TurnHubHosted::Claim::Granted);
 }
 

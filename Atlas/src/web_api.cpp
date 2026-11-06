@@ -112,6 +112,8 @@ struct Route {
 // about 140 bytes of heap each (handler object, URI object, path copy):
 // roughly 10 KB for these routes.
 const Route ROUTES[] = {
+  {"/api/activity", HTTP_GET, handleActivity},
+  {"/api/activity", HTTP_POST, handleActivityReport},
   // Client contract (protocol/http-v1.md).
   {"/api/v1/info", HTTP_GET, handleInfo},
   {"/api/time", HTTP_POST, handleClockSync},

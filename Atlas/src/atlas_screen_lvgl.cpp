@@ -435,7 +435,8 @@ void drawHeader(lv_obj_t *root, const AtlasScreen &s) {
   lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_BOTTOM, 0);
   lv_obj_set_style_border_width(bar, 1, 0);
   lv_obj_set_style_border_color(bar, rgb(pal().separator), 0);
-  text(bar, s.badge, &th_eyebrow_13, pal().accent, 14, 10, 110);
+  char badge[32]; snprintf(badge,sizeof(badge),"v %s%s",s.badge,s.notificationUnread ? " *" : "");
+  text(bar, badge, &th_eyebrow_13, pal().accent, 8, 10, 110);
   char right[64];
   headerRight(s, right, sizeof(right));
   const int16_t battery = drawBattery(bar, s);
@@ -1053,6 +1054,7 @@ void drawBody(lv_obj_t *root, const AtlasScreen &s) {
     return;
   }
 
+  if (s.kind == ScreenKind::Notifications) { drawLines(root,s,16,SCREEN_BODY_Y+12,W-32); return; }
   if (s.kind == ScreenKind::Planes) { drawPlanes(root, s); return; }
   if (buttonsUseBody(s)) return;
   if (s.kind == ScreenKind::ManaTap) {

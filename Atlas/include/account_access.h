@@ -74,6 +74,8 @@ inline TurnHubStorage::Status write(TurnHubStorage::BlobStore &store, const char
 }
 
 bool load(const String &id, Account &account);
+// Record credit needs only archival policy, never the Admin bootstrap or permissions.
+bool archiveStatus(const String &id, bool &archived);
 bool save(const String &id, const Account &account);
 // Missing bootstrap record is distinct from unreadable storage.
 bool primaryAdmin(String &id);

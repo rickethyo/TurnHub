@@ -7,6 +7,7 @@
 #include "game_profile.h"
 #include "match_archive.h"
 #include "standalone_import.h"
+#include "atlas_notifications.h"
 
 namespace TurnHubWebApi {
 namespace internal {
@@ -160,9 +161,11 @@ void handleStandaloneImport(WebServer &server) {
       sendError(server, 400, "That game record is not valid");
       return;
     case ImportStatus::BadMapping:
+      TurnHubActivity::add(TurnHubActivity::Level::Error,"Game sync refused","Missing, archived or repeated player",millis());
       sendError(server, 400, "A player is linked to a missing, archived or repeated Atlas profile, or no player is linked; review the mapping");
       return;
     case ImportStatus::StorageError:
+      TurnHubActivity::add(TurnHubActivity::Level::Error,"Game sync failed","Player policy or record storage unreadable",millis());
       sendError(server, 503, "Atlas couldn't save that game; try again");
       return;
     default:
@@ -170,6 +173,12 @@ void handleStandaloneImport(WebServer &server) {
   }
   // Statistics are credited either way; the history needs a card.
   const char *history = hasRecord ? TurnHubHistory::keepStatusName(TurnHubHistory::keep(kept)) : "not_sent";
+  char notice[80];
+  snprintf(notice,sizeof(notice),"Match %.8s: %u credited / %u saved",game.recordId.c_str(),result.credited,result.already);
+  TurnHubActivity::add(TurnHubActivity::Level::Success,"Game synced",notice,millis());
+  if (hasRecord && strcmp(history,"kept") && strcmp(history,"already_kept"))
+    TurnHubActivity::add(TurnHubActivity::Level::Warning,"Match archive needs attention",
+        !strcmp(history,"no_card") ? "Stats saved; insert a microSD for history" : "Stats saved; history write failed",millis());
   String body = "{\"ok\":true,\"duplicate\":";
   body += result.status == ImportStatus::Duplicate ? "true" : "false";
   body += ",\"credited\":";
