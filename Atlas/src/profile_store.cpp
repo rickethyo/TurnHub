@@ -658,6 +658,18 @@ String accountKey(const String &id) {
 
 }  // namespace
 
+bool archiveStatus(const String &id, bool &archived) {
+  archived = false;
+  if (!TurnHubProfiles::profileExists(id)) return false;
+  TurnHubStorage::NvsBlobStore store;
+  if (store.begin("turnhub") != Status::Ok) return false;
+  Account account;
+  const Status status = read(store, accountKey(id).c_str(), account);
+  if (status != Status::Ok && status != Status::NotFound) return false;
+  archived = status == Status::Ok && account.archived;
+  return true;
+}
+
 bool load(const String &id, Account &account) {
   if (!TurnHubProfiles::profileExists(id)) return false;
   TurnHubStorage::NvsBlobStore store;

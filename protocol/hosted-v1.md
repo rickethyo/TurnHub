@@ -276,3 +276,21 @@ replacing the phone's other entries (at capacity, the last entry is replaced;
 cached files remain). A changed/ended game discards an obsolete in-flight
 result. Network and conversion run off loop() and off the SD worker, so the
 screen, input and radio services continue. Stored cards still work offline.
+
+## Atlas activity shelf
+
+`GET /api/activity` requires a paired-phone token or an authenticated session. It
+returns `{ "events": [...] }`, newest first, with at most 12 entries containing
+`id`, `level` (`Info`, `OK`, `Warning`, `Error`), `title` (31 bytes), `detail`
+(79 bytes), and `ageMs`. IDs and ages are scoped to the current Atlas boot.
+
+`POST /api/activity` uses the same paired-phone/session authorization as hosted
+requests, without claiming the game lease. Its form field `event` accepts only
+`sync-start`, `sync-complete`, or `sync-failed`; other values return 400. Atlas
+constructs the displayed message from this event and the authenticated phone.
+No arbitrary message or game mutation is accepted. Notification delivery is
+optional feedback and cannot block the app's record synchronization.
+
+The journal is a bounded RAM-only presentation surface, cleared on reboot.
+Identical events within 30 seconds are coalesced. Clear and read state are local
+to Atlas and do not change saved games, statistics, pairing or authorization.

@@ -22,7 +22,14 @@ class AtlasPlayerCopies(private val raw: suspend (String, String, List<Pair<Stri
         }.getOrNull()
     }
 
+    private suspend fun report(event: String) {
+        try { raw("POST", "/api/activity", listOf("event" to event)) }
+        catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { /* Presentation feedback cannot block record delivery. */ }
+    }
+
     suspend fun sync(atlasId: String, table: StandaloneTable): LocalImportState {
+        report("sync-start")
         val copied = mutableListOf<ProfileSummary>()
         val players = table.state.value.library.players
         var failed = false
@@ -73,8 +80,22 @@ class AtlasPlayerCopies(private val raw: suspend (String, String, List<Pair<Stri
                 if (skip >= 2000) break
             }
         }
-        return LocalImportState(atlasId, directory ?: copied, atlasTotals = totals, paired = true,
-            message = if (failed) "Some player copies, records or statistics could not be saved or read. Check each game’s Details and Atlas storage, then sync again."
+        report(if (failed) "sync-failed" else "sync-complete")
+        val activity = try {
+            val response = raw("GET", "/api/activity", emptyList())?.takeIf { it.ok }
+            val events = response?.let { JSONObject(it.body).optJSONArray("events") } ?: org.json.JSONArray()
+            require(events.length() <= 12)
+            (0 until events.length()).map { index -> events.getJSONObject(index).let { event ->
+                com.turnhub.android.standalone.AtlasActivity(event.getLong("id"), event.getString("level").take(12),
+                    event.getString("title").take(32), event.getString("detail").take(80))
+            } }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+          catch (_: Exception) { emptyList() }
+        val deliveryError = table.state.value.library.deliveries.firstOrNull {
+            it.atlasId == atlasId && it.status == com.turnhub.android.standalone.DeliveryStatus.REJECTED
+        }?.reason
+        return LocalImportState(atlasId, directory ?: copied, atlasTotals = totals, paired = true, activity = activity,
+            message = if (failed) deliveryError ?: "Some player copies, records or statistics could not be saved or read. Check each game's Details and Atlas storage, then sync again."
                 else "Atlas sync complete. Your games remain saved on this device.")
     }
 }

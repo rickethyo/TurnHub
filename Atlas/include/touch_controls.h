@@ -67,11 +67,11 @@ enum class TouchAction : uint8_t {
   ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast,
   OpenPlanes, PlanarRoll, PlanarWalk, PlanarResolve, OpenPlaneCard, PlaneCardBack,
   // A phone asking to pair (phone_links.h), and Settings > Device's Forget phones.
-  PhoneAllow, PhoneRefuse, ForgetPhones, OpenStorage, Rematch, ResetGame
+  PhoneAllow, PhoneRefuse, ForgetPhones, OpenStorage, Rematch, ResetGame, OpenNotifications, ClearNotifications, OlderNotifications, NewerNotifications
 };
 
 // Main pages and overlays that the touch producer can actually build.
-enum class ScreenKind : uint8_t { Home, Status, Qr, Code, Menu, PairCode, Setup, Device, Power, Themes, Confirm, ManaTap, Planes, PlaneCard, PhonePair, Storage };
+enum class ScreenKind : uint8_t { Home, Status, Qr, Code, Menu, PairCode, Setup, Device, Power, Themes, Confirm, ManaTap, Planes, PlaneCard, PhonePair, Storage, Notifications };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -184,6 +184,7 @@ struct AtlasScreen {
   bool batteryCharging = false;  // On USB: a lightning bolt over the cell icon.
   TurnHub::UpdateKind update = TurnHub::UpdateKind::None;  // Header pill: "Update available".
   uint8_t sigilsOnline = 0;
+  uint8_t notificationUnread = 0;
   // Header link icons (owner, 2026-11-03), each a shape with its own colour
   // and letter, so none relies on colour alone: the TurnHub hotspot (A, lit
   // while a phone is on it), home Wi-Fi (H, slashed while joining, hidden
@@ -248,7 +249,7 @@ inline bool sameHeader(const AtlasScreen &a, const AtlasScreen &b) {
   return sameScreenText(a.badge, b.badge) && a.sdMissing == b.sdMissing && a.sdOnUsb == b.sdOnUsb &&
       a.batteryPercent == b.batteryPercent && a.batteryLow == b.batteryLow &&
       a.batteryCharging == b.batteryCharging &&
-      a.update == b.update && a.sigilsOnline == b.sigilsOnline &&
+      a.update == b.update && a.sigilsOnline == b.sigilsOnline && a.notificationUnread == b.notificationUnread &&
       a.hotspotOn == b.hotspotOn && a.hotspotStations == b.hotspotStations && a.homeWifiOn == b.homeWifiOn && a.homeWifiLinked == b.homeWifiLinked &&
       a.round == b.round;
 }

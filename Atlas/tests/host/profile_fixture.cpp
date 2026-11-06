@@ -228,6 +228,7 @@ bool saveModerationStatsForProfile(const String &id,const ModerationStats &stats
 namespace TurnHubAccounts {
 std::map<std::string,Account> accounts;
 String primary;
+bool archiveStatus(const String &id,bool &archived){if(!TurnHubProfiles::profileExists(id))return false;archived=accounts[id].archived;return true;}
 bool load(const String &id,Account &a){if(!TurnHubProfiles::profileExists(id))return false;a=accounts[id];return true;}
 bool save(const String &id,const Account &a){if(!TurnHubProfiles::profileExists(id))return false;accounts[id]=a;return true;}
 bool primaryAdmin(String &id){id=primary;return true;}

@@ -2387,3 +2387,63 @@ selection/PIN on opening the app; direct launch verification was obstructed by
 the devices' sleeping/locked screens. The isolated emulator render test verifies
 the required flow. Existing Admins remain assigned. No firmware change, merge or
 release in this follow-up; continue the same PR #212.
+
+
+## LG record delivery and Atlas notification shelf — 2026-11-05, Codex
+
+Owner reports LG History sync rejects its saved games and requests a swipe-open
+Atlas notification shelf. Branch codex/master, baseline 13f01572, clean/fetched,
+no open PR. LG has three preserved records rejected as BadMapping although all
+three exact profile IDs are present in Atlas's paired directory. Trace real
+archive-policy storage rather than changing identities or clearing data.
+
+Feature gate: Atlas owns a bounded RAM-only event journal; existing accepted
+sync/device/game operations append presentation events, never game mutations.
+Swipe down from the top, a full-size Home button, buttons for paging,
+Back and Clear provide access. Pairing/confirmation overlays outrank it. Existing
+authorization validates producers; paired GET activity mirrors it in the app's
+History, while Clear remains an Atlas-local presentation action. Events are
+reconstructible status, not an audit/history authority; reboot clears them.
+No dependency or radio change. Labeled severity and text, tap alternatives to
+swipes, both themes and reduced motion are required. Preserve records/settings,
+validate real store + host gestures/rendering + Android + physical LG retries.
+No merge/release; all connected devices remain authorized by the owner.
+
+Isolation: another chat switched the shared checkout to codex/atlas-sigil-cleanup
+with unfinished API cleanup. Its work is preserved. The owner canceled a managed
+worktree request; this slice builds from a clean master source export in Private.
+Only this scope is committed through an alternate index to codex/master.
+
+Physical LG validation: all three original records imported, each crediting both
+players, with all local history retained. The fault was Admin bootstrap coupling
+in the archive-policy read, not missing player identities. Real profile-store and
+Atlas host regressions pass; final Android unit tests and Preview build pass.
+Final firmware builds successfully. No merge or release is authorized.
+
+Final acceptance: 523 JVM tests (zero failures/errors/skips), all Atlas host suites,
+firmware/Preview builds, adapter and JSON contract guards, docs/manual export and
+licensed-content checks pass. Both manuals rendered through Word and inspected;
+notification screens inspected in Graphite, Brass and Daylight. Final Preview
+installed data-preserving on tester Fold, LG, Tab S7+, owner Fold, Pixel 10 Pro XL
+and emulator. Clean-export firmware upload succeeded and the LG's manual History
+sync returned success; the phone displays Atlas sync-start/completed events.
+Pinned HTTPS verifies all three records remain Imported and each player retains
+two games after repeated retries, without duplicate credit.
+
+Final scope review restored an unrelated unused formatClock helper removed by
+the overlapping cleanup. Host suites and firmware rebuild pass after restoration.
+A redundant upload then lost the Atlas USB port during the reset handshake; no
+flash write started. The already installed feature build remains reachable over
+HTTPS and reports live sync events. No unrelated cleanup is included in this PR.
+
+## Copilot branch maintenance — 2026-11-06, Codex
+
+Owner requests the new persistent agent master in CI maintenance. Scope on
+codex/master, baseline `7912807f`: add exact-case `VSCodeCopilot/Master` to
+the explicit allowlist, update regression coverage and branch documentation.
+Preserve non-force, divergence, missing-branch and concurrent-update handling.
+Shared checkout still owns separate unfinished cleanup; commit this isolated
+source export through an alternate index. No merge or release.
+
+Validation: all six branch-maintenance tests pass, including exact-case Copilot
+fast-forward and exclusions, divergence, missing branches and race protection.

@@ -8,7 +8,7 @@ import subprocess
 # Explicit allowlist, never a codex/* or other prefix match.
 # codex/esp32-s3-lvgl and legacy/gen1 stay independent: legacy/gen1 never takes
 # master's changes.
-BRANCHES = ("codex/master", "claude/master")
+BRANCHES = ("codex/master", "claude/master", "VSCodeCopilot/Master")
 
 
 def api(path, method="GET", payload=None):

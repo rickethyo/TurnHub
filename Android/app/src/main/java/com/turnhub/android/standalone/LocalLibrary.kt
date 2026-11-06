@@ -282,6 +282,8 @@ data class LocalLibrary(
 }
 
 /** Ephemeral profile choices fetched from one connected Atlas, never cached as local identity. */
+data class AtlasActivity(val id: Long, val level: String, val title: String, val detail: String)
+
 data class LocalImportState(
     val atlasId: String? = null,
     val profiles: List<com.turnhub.android.protocol.ProfileSummary> = emptyList(),
@@ -291,4 +293,5 @@ data class LocalImportState(
     val atlasTotals: Map<String, Pair<Int, Int>> = emptyMap(),
     /** The connected Atlas accepts device pairing and public profile copies. */
     val paired: Boolean = false,
+    val activity: List<AtlasActivity> = emptyList(),
 )

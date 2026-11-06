@@ -65,11 +65,6 @@ Status writeTaken(TurnHubStorage::BlobStore &blobs, const Taken &taken) {
   return blobs.write(IMPORTED_KEY, data, IMPORTED_HEADER + taken.count * 8u);
 }
 
-bool archived(const String &profileId) {
-  TurnHubAccounts::Account account;
-  return !TurnHubAccounts::load(profileId, account) || account.archived;
-}
-
 TurnHubProfiles::LastGameResult resultFor(const ImportedGame &game, uint8_t index) {
   using TurnHubProfiles::LastGameResult;
   if (game.winner == static_cast<int8_t>(index) || (game.winners & (1u << index)) ||
@@ -160,7 +155,15 @@ ImportResult importGame(const ImportedGame &game) {
     if (!bad && (seen(receiptHash(game.recordId, id)) || seen(receiptHash(game.recordId, game.players[i].profileId)))) {
       ++result.already;
     } else {
-      bad = bad || !TurnHubProfiles::profileExists(id) || archived(id);
+      bad = bad || !TurnHubProfiles::profileExists(id);
+      if (!bad) {
+        bool archived = false;
+        if (!TurnHubAccounts::archiveStatus(id, archived)) {
+          result.status = ImportStatus::StorageError;
+          return result;
+        }
+        bad = archived;
+      }
       fresh[i] = true;
     }
     if (bad) {

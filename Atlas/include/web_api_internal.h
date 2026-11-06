@@ -159,6 +159,8 @@ void handleStandaloneImport(WebServer &server);
 void handleInfo(WebServer &server);
 void handleState(WebServer &server);
 // Phone-hosted games (web_hosted_api.cpp, protocol/hosted-v1.md).
+void handleActivity(WebServer &server);
+void handleActivityReport(WebServer &server);
 void handlePlayerCopy(WebServer &server);
 void handlePlayerCopies(WebServer &server);
 void handlePhonePairCancel(WebServer &server);

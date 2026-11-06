@@ -1,4 +1,5 @@
 #include <cassert>
+#include "atlas_notifications.h"
 #include <iostream>
 #include <fstream>
 #include <Arduino.h>
@@ -2841,7 +2842,7 @@ static void deviceNavigation() {
   assert(currentScreen().kind==ScreenKind::Home);
   for (TouchAction action : {TouchAction::OpenHome,TouchAction::OpenGame,TouchAction::OpenSettings})
     assert(screenButton(currentScreen(),action));
-  assert(currentScreen().buttonCount==4); // Mana Tap and three navigation tabs.
+  assert(currentScreen().buttonCount==5); // Mana Tap, Notifications and three tabs.
   tapButton(TouchAction::OpenGame);
   assert(currentScreen().kind==ScreenKind::Status);
   hostGame();
@@ -3384,6 +3385,35 @@ static void directHostedPlanes() {
 
 }
 
+static void notificationShelf() {
+  using namespace TurnHubActivity;
+  using namespace TurnHubAtlas;
+  endHostedGame(); resetTouchControls(true); clear();
+  for (int i=0;i<15;++i) { char title[32]; snprintf(title,sizeof(title),"Event %d",i); add(Level::Info,title,"Details",testNow+i); }
+  assert(journal().count==CAPACITY && !strcmp(journal().entries[0].title,"Event 14"));
+  const uint32_t seq=journal().sequence;
+  add(Level::Info,"Event 14","Details",testNow+20); assert(journal().sequence==seq);
+  AtlasScreen screen; buildAtlasScreen(testNow,screen); assert(screen.notificationUnread==CAPACITY);
+  updateTouchControls(testNow,true,150,5); updateTouchControls(testNow+40,true,151,100);
+  updateTouchControls(testNow+120,false,0,0); testNow+=121;
+  buildAtlasScreen(testNow,screen); assert(screen.kind==ScreenKind::Notifications && screen.lineCount==4 && unread()==0);
+  tapButton(TouchAction::OlderNotifications); buildAtlasScreen(testNow,screen); assert(strstr(screen.lines[0],"Event 12"));
+  tapButton(TouchAction::ClearNotifications); assert(journal().count==0);
+  buildAtlasScreen(testNow,screen); assert(screen.kind==ScreenKind::Notifications && screen.lineCount==1);
+  updateTouchControls(testNow,true,150,200); updateTouchControls(testNow+40,true,150,100);
+  updateTouchControls(testNow+120,false,0,0); testNow+=121;
+  buildAtlasScreen(testNow,screen); assert(screen.kind==ScreenKind::Home);
+  tapButton(TouchAction::OpenNotifications); buildAtlasScreen(testNow,screen); assert(screen.kind==ScreenKind::Notifications);
+  tapButton(TouchAction::CloseScreen); buildAtlasScreen(testNow,screen); assert(screen.kind==ScreenKind::Home);
+  assert(request("/api/activity","",{},HTTP_GET)==401);
+  String activityId; const String activityPhone=registerPhone("Activity phone",activityId);
+  assert(request("/api/activity",activityPhone,{{"event","arbitrary-text"}})==400);
+  assert(request("/api/activity",activityPhone,{{"event","sync-complete"}})==200);
+  assert(request("/api/activity",activityPhone,{},HTTP_GET)==200 && server.body.find("Sync complete")!=std::string::npos);
+  ProfileFixture::profiles.erase(activityId.c_str());
+  clear(); resetTouchControls();
+}
+
 int main() {
   assert(server.listenAddress == IPAddress(127, 0, 0, 1));
   std::cout << "PASS Atlas HTTP backend is bound to loopback only\n";
@@ -3398,6 +3428,7 @@ int main() {
   assert(configureIntentHandlers());
   intents.setObserver(observeIntent);
   registerWebCallbacks(); TurnHubWebApi::begin(server);
+  notificationShelf();
   dispatcherContract(); std::cout<<"PASS dispatcher contract\n";
   optionalStorage(); std::cout<<"PASS optional storage error policy\n";
   stackDiagnostics(); std::cout<<"PASS stack watermark semantics, warning rate limit, rollover and request tracing\n";

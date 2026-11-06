@@ -317,6 +317,15 @@ void renderAll(const ScreenStyle &style, const std::string &suffix) {
     s.planes = ScreenPlanes(); s.kind = ScreenKind::Status; renderShell(s, style);
   }
   {
+    AtlasScreen n = base("ACTIVITY", "Notifications", "Recent events / swipe up to close");
+    n.kind = ScreenKind::Notifications; n.notificationUnread = 2;
+    snprintf(n.lines[n.lineCount++],sizeof(n.lines[0]),"OK: Game synced");
+    snprintf(n.lines[n.lineCount++],sizeof(n.lines[0]),"Match a1b2c3d4: 2 credited / 0 saved");
+    snprintf(n.lines[n.lineCount++],sizeof(n.lines[0]),"Warning: Match archive needs attention");
+    snprintf(n.lines[n.lineCount++],sizeof(n.lines[0]),"Stats saved; history write failed");
+    row(n,BUTTON_UPPER_ROW_Y,{{TouchAction::NewerNotifications,"Newer"},{TouchAction::OlderNotifications,"Older"}});
+    row(n,BUTTON_ROW_Y,{{TouchAction::ClearNotifications,"Clear"},{TouchAction::CloseScreen,"Back"}});
+    renderShell(n,style); save("notifications"+suffix);
     AtlasScreen s = base("QR", "Join this table", "Scan with a phone camera");
     s.kind = ScreenKind::Qr;
     snprintf(s.qr, sizeof(s.qr), "WIFI:T:WPA;S:TurnHub-Atlas;P:TurnHub-Setup;;");
