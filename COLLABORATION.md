@@ -2499,3 +2499,28 @@ devices. Baseline df267906 on codex/master, clean/fetched. Inspect live pinned
 HTTPS timing and boot continuity, polling/hosting traffic and retry UI. Preserve
 game state, device data and TLS trust; do not replay ambiguous game writes.
 No merge or release. Current workspace moved beneath TurnHub-Main.
+
+The interruption checkpoint was published as 68cdaef8 (Usage Limit Commit),
+including the shared per-origin request lane, longer request budgets, quiet
+transient poll failures and stable connection telemetry. This follow-up preserves
+that checkpoint and finishes per-phone authorization coalescing: cache lifetime
+starts after a successful response, cached phones do not wait behind another
+phone's network check, and failures/refusals never create authorization grants.
+Room/history/artwork feedback overlays content; uncertain actions keep the exact
+receipt and expose Retry last action in the lobby as well as the running game.
+
+Validation: 540 JVM tests pass. LG and tester Fold pass isolated pinned-TLS room
+poll recovery, lost-reply receipt deduplication and slow Atlas authorization tests.
+Both pass 1.3x text layout checks with identical game and battery bounds through
+Connected, Retrying, Reconnecting and recovery. The LG accessibility check waits
+for the Snackbar action separately because it appears after the status label.
+Read-only live Atlas sampling on the Fold succeeds 6/6 (427–1643 ms), with one
+boot ID throughout that sample; this is a bounded check, not a soak test.
+Documentation links, licensed-content guard and diff whitespace checks pass.
+
+The preview APK is installed with data preserved on LG LMQ620QM61a3e79c1,
+tester Fold 38091FDHS001WD and tablet R52T30577YX. The wireless Pixel disappeared
+before final installation and remains outstanding. Real LG lobby is restored,
+Connected, with two guests joined and no host-away banner in the final capture.
+Tests use memory games and isolated preferences. No firmware flash, merge or
+release. Logs and screenshots remain in the sibling Private directory.

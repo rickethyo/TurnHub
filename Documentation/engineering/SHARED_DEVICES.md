@@ -109,3 +109,23 @@ expand through Change; Planechase appears only for Magic. **Rules** is always
 available as a collapsed section, without an Advanced settings switch. Saved
 setups follow the start/rules controls. Atlas sharing can be stopped or started
 under More > Atlas connection.
+
+## Retry presentation and Atlas authorization
+
+One or two unavailable room polls retry silently with the last snapshot. Three
+consecutive failures expose the outage and disable remote controls; a successful
+poll restores the connection. Authorization refusal and ended rooms are handled
+immediately. Network rediscovery starts after confirmed failure rather than on
+every missed poll.
+
+Shared-room errors and history feedback use the app's snackbar overlay, including
+in setup and Planes. An unconfirmed command keeps its exact receipt and offers
+**Retry last action**; a successful background poll cannot clear that uncertainty.
+Only the receipt response resolves it. Feedback never shifts the game layout.
+
+Atlas controller verification coalesces concurrent checks per field/value. A
+pending check cannot delay another phone's valid cache hit. Successful results
+remain cached for five seconds of monotonic time measured from completion, in
+a bounded 32-entry cache. Errors and refusals create no grant; callers share the
+same in-flight result, and cancelling one caller does not cancel other callers'
+verification. Expired grants require a new successful check.

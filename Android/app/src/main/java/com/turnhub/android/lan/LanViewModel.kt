@@ -78,19 +78,15 @@ internal class LanViewModel(
     var atlasCall: (suspend (String,String,List<Pair<String,String>>) -> com.turnhub.android.data.RawResponse?)? = null
     private var atlasMode=false
     override val isAtlasGuest get() = atlasMode && (_state.value.preview!=null || _state.value.joined || _state.value.busy)
-    private val atlasChecks=linkedMapOf<String,Pair<Long,String>>()
-    private val atlasCheckMutex = Mutex()
-    private suspend fun verifyAtlas(field:String,value:String):String? = atlasCheckMutex.withLock {
-        val key="$field:$value";val now=android.os.SystemClock.elapsedRealtime()
-        atlasChecks[key]?.takeIf { now-it.first<5000 }?.let { return@withLock it.second }
-        val response=atlasCall?.invoke("POST","/api/hosted/controller",listOf(field to value))
+    private val atlasChecks = AtlasControllerChecks(viewModelScope, android.os.SystemClock::elapsedRealtime) { field,value ->
+        val response = atlasCall?.invoke("POST", "/api/hosted/controller", listOf(field to value))
             ?: error("Atlas controller check unavailable")
-        if(response.code==403) return@withLock null
-        check(response.ok) { "Atlas controller check unavailable" }
-        val phone=JSONObject(response.body).optString("phone").takeIf { it.matches(Regex("[0-9a-fA-F]{8}")) } ?: return@withLock null
-        if(atlasChecks.size>=32) atlasChecks.remove(atlasChecks.keys.first())
-        atlasChecks[key]=android.os.SystemClock.elapsedRealtime() to phone;phone
+        if (response.code == 403) null else {
+            check(response.ok) { "Atlas controller check unavailable" }
+            JSONObject(response.body).optString("phone").takeIf { it.matches(Regex("[0-9a-fA-F]{8}")) }
+        }
     }
+    private suspend fun verifyAtlas(field:String,value:String):String? = atlasChecks.verify(field,value)
     override suspend fun publishedInvitation():String? {
         if(token!=null) return null
         if(server==null) startHosting(true)
@@ -270,7 +266,7 @@ internal class LanViewModel(
     }
     fun atTable(summary: com.turnhub.android.domain.TableSummary): Boolean =
         _state.value.remote?.let { it.gameId == summary.bootId } ?: false
-    fun dismissMessage() { _state.update { it.copy(message = null) } }
+    fun dismissMessage() { _state.update { it.copy(message = null, historyNote = null) } }
     fun unsupportedAction() { _state.update { it.copy(message = "Use the host for this game setup or decision.") } }
     fun stopHosting() {
         if (hostRecord == null) { leave(); return }

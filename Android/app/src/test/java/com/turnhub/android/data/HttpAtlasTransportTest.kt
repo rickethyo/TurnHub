@@ -3,6 +3,7 @@ package com.turnhub.android.data
 import com.sun.net.httpserver.HttpServer
 import com.turnhub.android.testing.Fixtures
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,6 +20,9 @@ import java.net.URL
 class HttpAtlasTransportTest {
 
     private lateinit var server: HttpServer
+    private lateinit var workers: java.util.concurrent.ExecutorService
+    private val active = java.util.concurrent.atomic.AtomicInteger()
+    private val peak = java.util.concurrent.atomic.AtomicInteger()
     private val routes = mutableMapOf<String, Triple<Int, String, Long>>()
 
     /** "METHOD path token body" for each request the server received. */
@@ -28,7 +32,12 @@ class HttpAtlasTransportTest {
     @Before
     fun start() {
         server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        workers = java.util.concurrent.Executors.newCachedThreadPool()
+        server.executor = workers
         server.createContext("/") { exchange ->
+            val count = active.incrementAndGet()
+            peak.updateAndGet { maxOf(it, count) }
+            try {
             queries += exchange.requestURI.rawQuery.orEmpty()
             val requestBody = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
             received += listOf(
@@ -44,12 +53,13 @@ class HttpAtlasTransportTest {
             if (code in 300..399) exchange.responseHeaders.add("Location", "http://example.invalid/")
             exchange.sendResponseHeaders(code, if (bytes.isEmpty()) -1 else bytes.size.toLong())
             exchange.responseBody.use { it.write(bytes) }
+            } finally { active.decrementAndGet() }
         }
         server.start()
     }
 
     @After
-    fun stop() = server.stop(0)
+    fun stop() { server.stop(0); workers.shutdownNow() }
 
     @Test fun `raw GET includes encoded receipt lookup fields`() = runBlocking {
         routes["GET /api/action-receipt"] = Triple(200, "{}", 0L)
@@ -194,4 +204,14 @@ class HttpAtlasTransportTest {
         assertTrue(failureOf { client.getState() } is AtlasFailure.InvalidEndpoint)
         assertFalse(opened)
     }
+    @Test fun `transport instances share one request lane for an Atlas`() = runBlocking {
+        routes["/slow"] = Triple(200, "{}", 150L)
+        kotlinx.coroutines.coroutineScope {
+            val one = async(kotlinx.coroutines.Dispatchers.IO) { transport().raw("GET", "/slow", "", emptyList()) }
+            val two = async(kotlinx.coroutines.Dispatchers.IO) { transport().raw("GET", "/slow", "", emptyList()) }
+            assertTrue(one.await().ok); assertTrue(two.await().ok)
+        }
+        assertEquals(1, peak.get())
+    }
+
 }
