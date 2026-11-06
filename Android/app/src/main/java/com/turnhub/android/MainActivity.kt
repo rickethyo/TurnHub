@@ -468,9 +468,11 @@ class MainActivity : ComponentActivity() {
                         LaunchedEffect(standalone, localStats) {
                             homeViewModel.onPresentationForeground(!standalone && !localStats && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
                         }
-                        // First-time setup: this device's Admin account (owner, 2026-10-29).
+                        val atlasSetup by homeViewModel.setupState.collectAsStateWithLifecycle()
+                        val localImports by homeViewModel.localImport.collectAsStateWithLifecycle()
+                        // Old skipped setups must also choose a protected device Admin.
                         if (localState.storageProblem == null && localState.library.deviceAdmin == null &&
-                            !localState.library.adminPromptDismissed && !lanState.joined)
+                            !atlasSetup.visible)
                             com.turnhub.android.ui.tablet.DeviceAdminSetupDialog(localState.library, standaloneViewModel.table) {
                                 standalone = false; localStats = false; requestedHomeTab = "MORE"
                                 requestAtlas(AtlasAction.SETUP)
@@ -550,7 +552,8 @@ class MainActivity : ComponentActivity() {
                                 com.turnhub.android.ui.tablet.LocalLibraryScreen(localState, onClose = {},
                                     embeddedSection = com.turnhub.android.ui.tablet.LibrarySection.GAMES,
                                     table = standaloneViewModel.table,
-                                    canImport = uiState.connectionState == AtlasConnectionState.CONNECTED && uiState.player?.signedIn == true,
+                                    canImport = uiState.connectionState == AtlasConnectionState.CONNECTED &&
+                                        (localImports.paired || uiState.player?.signedIn == true),
                                     importState = homeViewModel.localImport.collectAsStateWithLifecycle().value,
                                     onLoadProfiles = homeViewModel::onLoadLocalImportProfiles,
                                     onImport = homeViewModel::onImportLocalRecord,

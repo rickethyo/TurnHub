@@ -144,8 +144,9 @@ class StandaloneTable(
             val old = players.firstOrNull { it.profileId == copy.profileId }
             if (old == null) players = players + copy.copy(copiedFromAtlas = atlasId)
             else if (copy.lastActivityMs > old.lastActivityMs || (old.credential == null && copy.credential != null && copy.lastActivityMs == old.lastActivityMs)) {
-                if (old.credential != copy.credential) relock += old.localId
-                val merged = old.copy(name = copy.name, credential = copy.credential,
+                val credential = if (before.library.isDeviceAdmin(old.localId) && copy.credential == null) old.credential else copy.credential
+                if (old.credential != credential) relock += old.localId
+                val merged = old.copy(name = copy.name, credential = credential,
                     lastActivityMs = copy.lastActivityMs,
                     createdAtMs = old.createdAtMs.takeIf { it > 0 } ?: copy.createdAtMs,
                     personalization = old.personalization.copy(color = copy.personalization.color,
@@ -227,15 +228,12 @@ class StandaloneTable(
     fun deleteAccount(localId: String): Boolean {
         if (!accountUnlocked(localId)) return false
         val before = _state.value
-        if (before.library.players.none { it.localId == localId }) return false
+        if (before.library.isDeviceAdmin(localId) || before.library.players.none { it.localId == localId }) return false
         val game = before.game
         if (game.state != TableState.LOBBY && game.players.any { it.localId == localId }) return false
         var lobby = game
         lobby.players.indexOfFirst { it.localId == localId }.takeIf { it >= 0 }?.let { lobby = lobby.removePlayer(it) }
-        // Deleting the Admin account leaves the device without one, so setup asks again.
-        val library = before.library.copy(players = before.library.players.filterNot { it.localId == localId },
-            deviceAdmin = before.library.deviceAdmin.takeIf { it != localId },
-            adminPromptDismissed = before.library.adminPromptDismissed && !before.library.isDeviceAdmin(localId))
+        val library = before.library.copy(players = before.library.players.filterNot { it.localId == localId })
         val saved = publish(before.copy(game = lobby, library = library))
         if (saved) unlockedAccounts -= localId
         return saved
@@ -252,26 +250,49 @@ class StandaloneTable(
         if (current == localId) return true
         if (before.library.players.none { it.localId == localId && it.credential != null } || !accountUnlocked(localId) ||
             (current != null && !accountUnlocked(current))) return false
-        return publish(before.copy(library = before.library.copy(deviceAdmin = localId)))
+        return publish(before.copy(library = before.library.copy(deviceAdmin = localId)), durable = true)
     }
 
     /** First-time setup: a new account with its PIN or password, made the device's Admin. */
     fun createAdminAccount(name: String, credential: LocalCredential): Boolean {
-        if (_state.value.library.deviceAdmin != null || !createAccount(name, credential)) return false
-        val created = _state.value.library.players.last()
-        return setDeviceAdmin(created.localId)
+        val before = _state.value
+        val clean = name.trim().take(StandaloneGame.MAX_NAME)
+        if (before.library.deviceAdmin != null || clean.isBlank()) return false
+        var player = SavedLocalPlayer(newId(), clean, credential = credential, createdAtMs = wallClock())
+        while (before.library.players.any { it.profileId == player.profileId }) player = player.copy(profileId = LocalProfileIds.create())
+        val saved = publish(before.copy(library = before.library.copy(players = before.library.players + player,
+            deviceAdmin = player.localId)), durable = true)
+        if (saved) unlockedAccounts += player.localId
+        return saved
     }
 
-    /**
-     * First-time setup on a device that already has accounts: makes one of them the Admin. An
-     * account with a PIN or password unlocks with [secret]; one without gets [newCredential].
-     */
+    /** Explicit owner choice: verify the existing credential or give an unprotected account one. */
     fun promoteToDeviceAdmin(localId: String, secret: String?, newCredential: LocalCredential? = null): Boolean {
-        if (_state.value.library.deviceAdmin != null) return false
-        val player = _state.value.library.players.firstOrNull { it.localId == localId } ?: return false
-        val ready = if (player.credential != null) secret != null && unlockAccount(localId, secret)
-            else newCredential != null && setAccountCredential(localId, newCredential)
-        return ready && setDeviceAdmin(localId)
+        val before = _state.value
+        if (before.library.deviceAdmin != null) return false
+        val player = before.library.players.firstOrNull { it.localId == localId } ?: return false
+        val credential = player.credential?.also { if (secret == null || !it.verifies(secret)) return false }
+            ?: newCredential ?: return false
+        val saved = publish(before.copy(library = before.library.copy(deviceAdmin = localId,
+            players = before.library.players.map { if (it.localId == localId) it.copy(credential = credential) else it })), durable = true)
+        if (saved) unlockedAccounts += localId
+        return saved
+    }
+
+    /** Only called after explicit Atlas setup authenticated this account; ordinary copies never grant Admin. */
+    fun installAtlasSetupAdmin(profileId: String, name: String, secret: String): Boolean {
+        val before = _state.value
+        if (before.library.deviceAdmin != null) return true
+        if (!LocalProfileIds.valid(profileId) || name.isBlank() || name.length > StandaloneGame.MAX_NAME ||
+            !com.turnhub.android.data.ProfileSecret.isValid(secret)) return false
+        val existing = before.library.players.firstOrNull { it.profileId == profileId }
+        if (existing != null) return promoteToDeviceAdmin(existing.localId, secret,
+            if (existing.credential == null) LocalCredential.create(secret) else null)
+        val player = SavedLocalPlayer(newId(), name.trim(), profileId, credential = LocalCredential.create(secret), createdAtMs = wallClock())
+        val saved = publish(before.copy(library = before.library.copy(players = before.library.players + player,
+            deviceAdmin = player.localId)), durable = true)
+        if (saved) unlockedAccounts += player.localId
+        return saved
     }
 
     enum class CopyResult { ADDED, ALREADY_HERE, NOT_SAVED }
@@ -329,24 +350,22 @@ class StandaloneTable(
         if (existing != null) {
             val originalDate = listOf(existing.createdAtMs, player.createdAtMs).filter { it > 0 }.minOrNull() ?: 0
             library = library.copy(players = library.players.map { if (it.localId == existing.localId) it.copy(createdAtMs = originalDate) else it })
+            if (admin && before.library.deviceAdmin == null && existing.credential != null)
+                library = library.copy(deviceAdmin = existing.localId)
             if (library == before.library) return CopyResult.ALREADY_HERE
-            return if (publish(before.copy(library = library))) CopyResult.ADDED else CopyResult.NOT_SAVED
+            val saved = publish(before.copy(library = library), durable = true)
+            if (saved) unlockedAccounts += existing.localId
+            return if (saved) CopyResult.ADDED else CopyResult.NOT_SAVED
         }
         // Another local account may already hold one of its Atlas links; this device keeps that one.
         val links = player.links.filterNot { l -> before.library.players.any { p -> p.links.any { it.atlasId == l.atlasId && it.profileId == l.profileId } } }
         val added = player.copy(links = links)
         val makeAdmin = admin && added.credential != null && before.library.deviceAdmin == null
         val saved = publish(before.copy(library = library.copy(players = before.library.players + added,
-            deviceAdmin = if (makeAdmin) added.localId else before.library.deviceAdmin)))
+            deviceAdmin = if (makeAdmin) added.localId else before.library.deviceAdmin)), durable = true)
         if (!saved) return CopyResult.NOT_SAVED
         unlockedAccounts += added.localId
         return CopyResult.ADDED
-    }
-
-    /** "Not now" on the Admin account prompt; it stays available from the accounts list. */
-    fun dismissAdminPrompt(): Boolean {
-        val before = _state.value
-        return publish(before.copy(library = before.library.copy(adminPromptDismissed = true)))
     }
 
     // --- the lobby ------------------------------------------------------------------

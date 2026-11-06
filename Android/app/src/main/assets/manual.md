@@ -4,7 +4,7 @@
 
 ## Prototype Edition v0.22
 
-TurnHub keeps track of the bookkeeping at a tabletop game: whose turn it is, life totals, Commander damage, counters, the turn timer and who won. The TurnHub app runs a whole game on one Android phone or tablet, with saved players, personalization and detailed history. No Atlas, account, internet connection or permission is needed to play.
+TurnHub keeps track of the bookkeeping at a tabletop game: whose turn it is, life totals, Commander damage, counters, the turn timer and who won. The TurnHub app runs a whole game on one Android phone or tablet, with saved players, personalization and detailed history. No Atlas or internet connection is needed to play.
 
 An Atlas (the TurnHub table controller) adds what one device cannot: physical Sigil controllers, the Atlas screen and speaker, and shared accounts and statistics for the table. This manual covers the app and the Atlas administration portal. Atlas and the Sigils have their own manual, the TurnHub Hardware Manual, which the app carries after this one.
 
@@ -39,6 +39,8 @@ At the top of the app are two small buttons: the bug button reports a bug (secti
 
 # 3. Players and Accounts
 
+Every phone or tablet needs a device Admin with a PIN or password. Choose an existing profile or create one; setup cannot be skipped. If Atlas setup verifies your account on a device without an Admin, that account becomes its device Admin too. Existing Admin assignments stay in place. Transfer the role to another protected account before deleting the current Admin.
+
 In Game setup, Add Guest immediately adds a numbered guest without a profile. Choose a saved profile or guest from the picker to reuse it. Add profile opens a name and optional PIN or password dialog; the new profile is then available in the picker. Each profile has an eight-character account ID (such as 1A2B3C4D), so people with the same name stay separate. Delete guest under a saved guest asks before removing it from the picker; current seats and game history are kept.
 
 On a phone every player is equal: local accounts carry no permissions, and anyone at the table can set up, play and finish a game.
@@ -63,7 +65,7 @@ Images are cropped and compressed on this device to at most 512 by 512 pixels an
 
 ## Deleting an Account
 
-**Delete account** removes a player from this device. It is not available while the player is in a game in progress. Their finished games stay in History under the name they played with.
+**Delete account** removes a player from this device. It is not available while the player is in a game in progress. Their finished games stay in History under the name they played with. The device Admin must first transfer the role to another protected account.
 
 # 4. Setting Up a Game
 
@@ -281,7 +283,7 @@ The game-over card offers:
 
 # 8. History and Statistics
 
-**History** lists every finished game with its winner, mode, starting life, and each player's final life, turns and how they went out. Tap a game for its details.
+**History** lists every finished game with its winner, mode, starting life, and each player's final life, turns and how they went out. Tap a game for its details. To copy saved games to Atlas or retrieve matching archived games, connect and pair this phone, then tap Sync games with Atlas in History. No Atlas profile sign-in is required. Progress and errors appear above the games; open Details to retry a failed copy with its saved player mapping.
 
 **Statistics** lists every saved player, most wins first. Anyone at the table can open it; no PIN is needed. Tap a player for games played and won, draws, starts, eliminations, concessions, turns, total and average game and turn times, fastest and longest turns and their last game. **Share** sends their statistics as text. Opponents eliminated counts explicitly credited removals across all game modes. Credit stays in history and shared results and imports with the match.
 
@@ -417,7 +419,7 @@ Atlas has stopped answering. Your game carries on in the app. Check that Atlas i
 
 ## A Local Game Is Missing From Atlas Statistics
 
-**Reconnect to Atlas and complete pairing if asked. The phone sends player copies and finished games automatically. Check Players for a storage or transfer message, and check Atlas's microSD card for appearance and detailed history. Local records stay on the phone; retrying does not count them twice.** Saved on this device confirms local history. If the Atlas copy needs attention, retry from Details or reconnect. True guests keep no profile statistics.
+**Reconnect to Atlas and complete pairing if asked. The phone sends player copies and finished games automatically. Check Players for a storage or transfer message, and check Atlas's microSD card for appearance and detailed history. Local records stay on the phone; retrying does not count them twice.** Saved on this device confirms local history. Tap Sync games with Atlas in History; open Details if a game needs attention. True guests keep no profile statistics.
 
 # 14. Prototype Limitations
 

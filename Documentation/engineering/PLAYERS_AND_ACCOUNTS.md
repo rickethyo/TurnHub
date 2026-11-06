@@ -195,21 +195,27 @@ on Atlas first.
 
 ## Device Admin account (owner, 2026-10-29)
 
-*Implemented in the app; host/JVM tests only, device checks open.* Every
+Every
 device has one Admin account: its owner's account type. On Atlas it is the
 first-run Admin with Admin permissions. On a phone or tablet,
 `LocalLibrary.deviceAdmin` names it; it needs a PIN or password and gives no
 extra powers, so phone players stay equal. First launch asks the owner to
 create it or choose an account already on the device (its PIN unlocks it, or
-one without a PIN chooses one first). "Not now" closes the prompt; any account
-with a PIN can be made Admin from its settings, and handing it on needs the
-current Admin unlocked.
-Deleting it leaves the device without one, and the prompt returns.
+one without a PIN chooses one first). Setup cannot be skipped; older skipped
+setups must choose an Admin on reopening. Assignment and credentials commit
+together. Handing the role on needs the current Admin and target account
+unlocked. The assigned Admin cannot be deleted until the role is transferred,
+and ordinary profile copies cannot remove its protection or grant the role.
 
 The type stays on its home device: uploads, merges and syncs carry no
 permissions. Atlas first-run setup offers "Install your admin account as the
 device admin?", which uploads the phone's Admin under its own ID (or signs in
 to it if already there); the table-code step then makes it Atlas's Admin.
+When Atlas-led setup authenticates an account on a phone without an Admin,
+the phone saves/promotes that exact profile as its protected local Admin before
+setup advances. An existing local Admin is retained. Device roles remain local;
+ordinary pairing, room joins and automatic profile copies never assign them.
+
 One person's account can live on several of their phones and tablets ("Use
 on another device", `AccountCopy`): the device holding it shows a QR code with
 a one-time invitation in Play together's format (`turnhub://account/...`), and

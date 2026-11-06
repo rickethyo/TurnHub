@@ -341,7 +341,58 @@ class LocalAccountsTest {
         assertTrue(runCatching { LocalCredential.create("123") }.isFailure)
     }
 
-    @Test fun `one device Admin account needs a PIN, keeps it, survives restart and is cleared when deleted`() {
+    @Test fun `a newer public copy cannot remove the device Admin credential or assign the role`() {
+        val store = Store()
+        val table = StandaloneTable(store)
+        table.createAdminAccount("Owner", LocalCredential.create("2468"))
+        val owner = table.state.value.library.players.single()
+        val unprotected = owner.copy(credential = null, lastActivityMs = owner.lastActivityMs + 100)
+        assertTrue(table.receiveSharedProfiles("atlas", listOf(SharedProfileCopy.encode(unprotected))))
+        val restored = StandaloneTable(store)
+        assertEquals(owner.localId, restored.state.value.library.deviceAdmin)
+        assertTrue(restored.unlockAccount(owner.localId, "2468"))
+        val empty = StandaloneTable(Store())
+        assertTrue(empty.receiveSharedProfiles("atlas", listOf(SharedProfileCopy.encode(owner))))
+        assertNull(empty.state.value.library.deviceAdmin)
+    }
+
+    @Test fun `Atlas setup promotes an exact verified identity and preserves the chosen Admin`() {
+        val store = Store()
+        val table = StandaloneTable(store)
+        table.createAccount("Owner", LocalCredential.create("2468"))
+        table.createAccount("Owner", LocalCredential.create("1357"))
+        val (first, second) = table.state.value.library.players
+        assertFalse(table.installAtlasSetupAdmin(first.profileId, first.name, "9999"))
+        assertNull(table.state.value.library.deviceAdmin)
+        assertTrue(table.installAtlasSetupAdmin(second.profileId, second.name, "1357"))
+        val saved = StandaloneTable(store).state.value.library
+        assertEquals(second.localId, saved.deviceAdmin)
+        assertEquals(2, saved.players.size)
+        assertTrue(table.installAtlasSetupAdmin(first.profileId, first.name, "2468"))
+        assertEquals(second.localId, table.state.value.library.deviceAdmin)
+    }
+
+    @Test fun `Atlas setup creates a protected Admin atomically and old skip flags cannot suppress setup`() {
+        val store = Store()
+        val library = LocalLibrary().toJson().put("adminPromptDismissed", true)
+        store.library = library.toString()
+        val table = StandaloneTable(store)
+        assertNull(table.state.value.library.deviceAdmin)
+        assertFalse(table.state.value.library.toJson().has("adminPromptDismissed"))
+        assertTrue(table.installAtlasSetupAdmin("ABCDEF01", "Owner", "2468"))
+        val restored = StandaloneTable(store)
+        val player = restored.state.value.library.players.single()
+        assertEquals("ABCDEF01", player.profileId)
+        assertEquals(player.localId, restored.state.value.library.deviceAdmin)
+        assertTrue(restored.unlockAccount(player.localId, "2468"))
+        val failing = Store().apply { fail = true }
+        val blocked = StandaloneTable(failing)
+        assertFalse(blocked.createAdminAccount("Owner", LocalCredential.create("2468")))
+        assertNull(StandaloneTable(failing).state.value.library.deviceAdmin)
+        assertTrue(StandaloneTable(failing).state.value.library.players.isEmpty())
+    }
+
+    @Test fun `one device Admin account needs a PIN, survives restart and must be transferred before deletion`() {
         val store = Store()
         val table = StandaloneTable(store, shortGameMs = 0)
         assertTrue(table.createAccount("Guest"))
@@ -357,7 +408,6 @@ class LocalAccountsTest {
 
         val restored = StandaloneTable(store)
         assertEquals(ricky.localId, restored.state.value.library.deviceAdmin)
-        assertFalse(restored.state.value.library.adminPromptDismissed)
         // Handing Admin on needs the current Admin unlocked.
         assertTrue(restored.createAccount("Ana", LocalCredential.create("2468")))
         val ana = restored.state.value.library.players.last()
@@ -366,11 +416,12 @@ class LocalAccountsTest {
         assertTrue(restored.setDeviceAdmin(ana.localId))
         assertTrue(restored.clearAccountCredential(ricky.localId))
 
-        assertTrue(restored.dismissAdminPrompt())
+        assertFalse(restored.deleteAccount(ana.localId))
+        assertEquals(ana.localId, StandaloneTable(store).state.value.library.deviceAdmin)
+        assertTrue(restored.setAccountCredential(ricky.localId, LocalCredential.create("1234")))
+        assertTrue(restored.setDeviceAdmin(ricky.localId))
         assertTrue(restored.deleteAccount(ana.localId))
-        assertNull(restored.state.value.library.deviceAdmin)
-        assertFalse(restored.state.value.library.adminPromptDismissed)
-        assertNull(StandaloneTable(store).state.value.library.deviceAdmin)
+        assertEquals(ricky.localId, StandaloneTable(store).state.value.library.deviceAdmin)
     }
 
     @Test fun `an account already on the device can be promoted to its Admin`() {

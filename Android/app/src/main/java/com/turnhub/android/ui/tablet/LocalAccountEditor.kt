@@ -182,7 +182,7 @@ private fun DeviceAdminControls(player: SavedLocalPlayer, table: StandaloneTable
 /**
  * First-time setup on a phone or tablet: the owner's account becomes the device's Admin account,
  * either a new one or one already here (devices set up before Admin accounts existed).
- * "Not now" closes it; an account can still be made Admin from its settings.
+ * Setup finishes only after an account has been durably assigned.
  */
 @Composable
 fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable, onSetUpAtlas: () -> Unit = {}) {
@@ -197,6 +197,7 @@ fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable, onSetU
     var confirm by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var continueWithAtlas by rememberSaveable { mutableStateOf(false) }
     var copying by remember { mutableStateOf(false) }
     if (copying) {
         CopyAccountDialog(table, admin = true) { copying = false }
@@ -254,7 +255,7 @@ fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable, onSetU
                     Modifier.fillMaxWidth(), enabled = !saving)
                 ImportTurnHubButton(table, enabled = !saving)
                 Text("Atlas is an optional accessory. You can set it up separately now or later from More.", color = p.muted)
-                ToneButton("Set up an Atlas", { if (table.dismissAdminPrompt()) onSetUpAtlas() },
+                ToneButton("Set up an Atlas after saving Admin", { continueWithAtlas = true },
                     Modifier.fillMaxWidth(), enabled = !saving)
             }
         },
@@ -277,9 +278,9 @@ fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable, onSetU
                         if (!done) error = if (unlocking) "That PIN or password doesn't match ${chosen!!.name}'s."
                             else "Could not save your account. Please try again."
                         saving = false
+                        if (done && continueWithAtlas) onSetUpAtlas()
                     }
                 })
-                ToneButton("Not now", { table.dismissAdminPrompt() }, Modifier.fillMaxWidth(), enabled = !saving)
             }
         },
     )
@@ -290,6 +291,10 @@ fun DeviceAdminSetupDialog(library: LocalLibrary, table: StandaloneTable, onSetU
 private fun DeleteLocalAccount(player: SavedLocalPlayer, table: StandaloneTable) {
     var confirming by remember(player.localId) { mutableStateOf(false) }
     var refused by remember(player.localId) { mutableStateOf(false) }
+    if (table.state.value.library.isDeviceAdmin(player.localId)) {
+        Text("Make another protected account the device Admin before deleting this account.", color = palette.muted)
+        return
+    }
     ToneButton("Delete account", { confirming = true }, Modifier.fillMaxWidth(), tone = Tone.BAD)
     if (refused) Text("Finish or end the current game first, then delete the account.", color = palette.warn)
     if (confirming) AlertDialog(

@@ -2336,3 +2336,36 @@ Sigil secured radio handshake/display-profile sync and paired HTTPS Atlas pin
 verification pass after boot. No active-game duration/touch acceptance run was
 claimed; round progression, physical speaker audibility and multi-minute screen
 wake remain useful live-play acceptance. No merge or release performed.
+
+## Required device Admin and visible history sync — 2026-11-05, Codex
+
+Owner requires an Admin on every device, including Atlas-led setup, and an
+obvious way to sync saved games. Continue PR #212 on codex/master, baseline
+92e9805f; clean/fetched, accepted master unchanged. Remove permanent onboarding
+skip, make verified Atlas setup select/promote a local Admin when absent,
+prevent deleting the assigned Admin before transfer, and recover old skipped
+setups by requiring account selection. Never arbitrarily promote a copied profile
+or transfer device roles over profile sync. Expose paired-phone History sync,
+progress/errors and saved-mapping retry. No new dependency or firmware protocol;
+no release/merge. Device credential selection remains with the owner.
+
+Required-Admin/sync follow-up validation: 521 JVM tests pass; Preview and
+androidTest APK builds pass. Regressions cover exact-ID verified Atlas setup
+promotion, failed local Admin save blocking wizard advancement, durable first
+Admin creation, Admin transfer-before-delete, old skip flags ignored, and public
+copies unable to grant the role or strip the assigned Admin credential. The
+emulator UI test confirms no Not now action, taps History's Sync games with Atlas,
+then expands Details and invokes Retry Atlas copy with the unchanged saved
+mapping and no Atlas profile sign-in. Reviewed both UI screenshots and the
+19-page App Manual rendered through Word; manual export/docs/licensed-content/
+whitespace guards pass. Fixed two non-UTF-8 punctuation bytes spotted in render QA.
+
+Installed the final Preview APK on all four authorized physical Android devices,
+preserving their data. Inventory before installation confirmed tester Fold and
+Tab S7+ each had eight profiles but no Admin and the old skip flag; owner Fold
+and Pixel 10 Pro XL already had Admins. No arbitrary account was promoted and no
+owner credential was entered. The two missing assignments now require owner
+selection/PIN on opening the app; direct launch verification was obstructed by
+the devices' sleeping/locked screens. The isolated emulator render test verifies
+the required flow. Existing Admins remain assigned. No firmware change, merge or
+release in this follow-up; continue the same PR #212.

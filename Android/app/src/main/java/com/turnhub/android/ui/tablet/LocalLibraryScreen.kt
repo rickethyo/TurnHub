@@ -207,10 +207,10 @@ fun LocalLibraryScreen(
                                 Text("Completed games appear here. Start a game from the Game tab.", color = p.muted)
                             }
                         }
-                        if (canImport || importState.paired) item(key = "load-import-accounts") {
-                            TextButton(onClick = onLoadProfiles, enabled = !importState.busy && state.storageProblem == null) {
-                                Text("Refresh profiles")
-                            }
+                        item(key = "sync-games") {
+                            ToneButton(if (importState.busy) "Syncing gamesâ€¦" else "Sync games with Atlas", onLoadProfiles,
+                                Modifier.fillMaxWidth(), enabled = canImport && !importState.busy && state.storageProblem == null)
+                            if (!canImport) Text("Connect and pair with Atlas to sync your saved games.", color = p.muted)
                         }
                         items(state.library.history.asReversed(), key = { "match-${it.recordId}" }) { record ->
                             val delivery = state.library.delivery(record.recordId)
@@ -231,9 +231,9 @@ fun LocalLibraryScreen(
                                 Text(when (delivery.status) {
                                     DeliveryStatus.NEEDS_LINKING -> if (record.profile.atlasSupported) "Saved on this device"
                                         else "Saved on this device (Atlas doesn't import ${record.profile.displayName()} games yet)"
-                                    DeliveryStatus.PENDING -> "Saved on this device · Atlas copy pending"
+                                    DeliveryStatus.PENDING -> "Saved on this device Â· Atlas copy pending"
                                     DeliveryStatus.IMPORTED -> "Imported to Atlas"
-                                    DeliveryStatus.REJECTED -> "Saved on this device · Atlas copy needs attention"
+                                    DeliveryStatus.REJECTED -> "Saved on this device Â· Atlas copy needs attention"
                                 }, color = if (delivery.status == DeliveryStatus.REJECTED) p.warn else p.muted,
                                     style = MaterialTheme.typography.labelMedium)
                                 TextButton(onClick = { open = !open }, modifier = Modifier.align(Alignment.End).semantics {
@@ -270,7 +270,7 @@ fun LocalLibraryScreen(
                         item(key = "saved-games-help") {
                             DisclosureCard("About saved games") {
                                 Text("Results stay on this device, including after Atlas import. Clearing app data or uninstalling removes them. Backup is not available yet.", color = p.muted)
-                                Text("Link a player to an Atlas account in Edit player to import matching games automatically. Older games can be linked from Details and import.", color = p.muted)
+                                Text("Pair this device with Atlas, then tap Sync games with Atlas. Saved profiles and matching games sync automatically; Details offers retry or player mapping when a copy needs attention.", color = p.muted)
                             }
                         }
                     }

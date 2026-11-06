@@ -239,3 +239,8 @@ True guest match-record entries carry participation and result only; the archive
 accepts them without profile statistics or counters. A rejected Atlas delivery
 never removes the phone's history. A confirmed player-copy exchange can requeue
 rejected records with exact IDs, and History offers retry with the saved mapping.
+
+History exposes **Sync games with Atlas** to connected paired phones without an
+Atlas account sign-in. It invokes the same player-copy, delivery and history
+readback path as automatic sync, reports progress/errors, and enables saved
+mapping retries in each game's Details. Offline devices show the connection hint.

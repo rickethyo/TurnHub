@@ -105,6 +105,9 @@ interface SetupHost {
 
     /** The phone's Admin account is now on this Atlas under its own ID: remember the link. */
     fun deviceAdminInstalled(localId: String, profileId: String, linkKey: String?) {}
+    fun needsDeviceAdminSetup(): Boolean = false
+    /** This account has just been verified by Atlas in the explicit setup flow. */
+    fun installVerifiedSetupAdmin(profile: ProfileSummary, pin: String): Boolean = !needsDeviceAdminSetup()
 }
 
 /**
@@ -186,7 +189,7 @@ class AtlasSetupAssistant(
         val signedIn = session.state.value as? PlayerSessionState.SignedIn
         val info = signedIn?.info
         val next = when {
-            signedIn == null -> SetupStep.ACCOUNT
+            signedIn == null || host.needsDeviceAdminSetup() && account == null -> SetupStep.ACCOUNT
             info?.has(AccountPermission.ADMIN) != true || !verified() -> SetupStep.TABLE_CODE
             !sigilsPassed -> SetupStep.SIGILS
             !updatesPassed -> SetupStep.UPDATES
@@ -213,7 +216,9 @@ class AtlasSetupAssistant(
         work {
             session.register(endpoint, clean, pin)
             val id = (session.state.value as? PlayerSessionState.SignedIn)?.profileId ?: return@work
-            account = ProfileSummary(id, clean, hasPin = true) to pin
+            val profile = ProfileSummary(id, clean, hasPin = true)
+            if (!host.installVerifiedSetupAdmin(profile, pin)) return@work fail("Could not save this device's Admin. Choose or unlock a local Admin account before continuing.")
+            account = profile to pin
             next()
         }
     }
@@ -243,6 +248,7 @@ class AtlasSetupAssistant(
             }
             val profile = ProfileSummary(admin.profileId, admin.name, hasPin = true)
             session.signIn(endpoint, profile, pin)
+            if (!host.installVerifiedSetupAdmin(profile, pin)) return@work fail("Could not save this device's Admin. Choose or unlock a local Admin account before continuing.")
             account = profile to pin
             next()
         }
@@ -253,6 +259,7 @@ class AtlasSetupAssistant(
         if (!ProfileSecret.isValid(pin)) return fail(ProfileSecret.RULE)
         work {
             session.signIn(endpoint, profile, pin)
+            if (!host.installVerifiedSetupAdmin(profile, pin)) return@work fail("Could not save this device's Admin. Choose or unlock a local Admin account before continuing.")
             account = profile to pin
             next()
         }
@@ -428,6 +435,7 @@ class AtlasSetupAssistant(
                 delay(pollMs)
             }
             if (!ready) return@work fail("Atlas couldn't join $ssid. Check the network and password, then try again. The setup hotspot is still on.")
+            if (host.needsDeviceAdminSetup()) return@work fail("Set up this device's Admin account before finishing Atlas setup.")
             val response = session.raw("POST", "/api/setup/finish", listOf(
                 "uploadApprovalRequired" to if (uploadApprovalRequired) "1" else "0"))
                 ?: return@work signedOut()
