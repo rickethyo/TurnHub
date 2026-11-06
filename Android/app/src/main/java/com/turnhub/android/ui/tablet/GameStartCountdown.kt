@@ -15,9 +15,10 @@ import kotlinx.coroutines.delay
 
 /** A local pre-start presentation. No engine action or clock starts until it finishes. */
 @Composable
-internal fun rememberGameStartCountdown(state: TableState, enabled: Boolean = true, onStart: () -> Unit): () -> Unit {
+internal fun rememberGameStartCountdown(state: TableState, enabled: Boolean = true, revision: Long? = null, onStart: () -> Unit): () -> Unit {
     var active by remember { mutableStateOf(false) }
     var expected by remember { mutableStateOf(state) }
+    var expectedRevision by remember { mutableStateOf(revision) }
     var seconds by remember { mutableIntStateOf(3) }
     val start by rememberUpdatedState(onStart)
     val owner = LocalLifecycleOwner.current
@@ -26,9 +27,9 @@ internal fun rememberGameStartCountdown(state: TableState, enabled: Boolean = tr
         owner.lifecycle.addObserver(observer)
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
-    LaunchedEffect(active, state, enabled) {
+    LaunchedEffect(active, state, enabled, revision) {
         if (!active) return@LaunchedEffect
-        if (!enabled || state != expected) { active = false; return@LaunchedEffect }
+        if (!enabled || state != expected || revision != expectedRevision) { active = false; return@LaunchedEffect }
         for (n in 3 downTo 1) { seconds = n; delay(1000) }
         if (active && owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
             active = false
@@ -43,6 +44,6 @@ internal fun rememberGameStartCountdown(state: TableState, enabled: Boolean = tr
         confirmButton = { TextButton({ active = false }) { Text("Cancel") } },
     )
     return { if (!active && enabled && state in listOf(TableState.LOBBY, TableState.GAME_OVER)) {
-        expected = state; seconds = 3; active = true
+        expected = state; expectedRevision = revision; seconds = 3; active = true
     } }
 }

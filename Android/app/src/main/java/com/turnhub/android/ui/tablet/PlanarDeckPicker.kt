@@ -69,7 +69,7 @@ internal fun PlanarDeckPicker(state: StandaloneState, table: StandaloneTable, ca
 }
 
 @Composable
-private fun PlanarDeckBrowser(cards: List<PlaneInfo>, choice: PlanarSelection, onSave: (PlanarSelection) -> Boolean, onClose: () -> Unit) {
+internal fun PlanarDeckBrowser(cards: List<PlaneInfo>, choice: PlanarSelection, onSave: (PlanarSelection) -> Boolean, onClose: () -> Unit) {
     var selected by rememberSaveable { mutableStateOf<List<String>>((choice.cardIds ?: cards.map { it.id }).toList()) }
     var name by rememberSaveable { mutableStateOf(if (choice.cardIds == null) "My planar deck" else choice.name) }
     var query by rememberSaveable { mutableStateOf("") }

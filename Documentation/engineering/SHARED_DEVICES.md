@@ -21,7 +21,12 @@ guest and the hub swap that profile's games and keep the union by record ID
 Table and Planes views are read-only by default. Shared table controllers
 can act for all normal gameplay panels. The host can grant game-master access to
 a device for editable public views. Room grants confer no Atlas administration
-or private-statistics permissions. Personal phones can name their own commander in setup or play. After game over,
+or private-statistics permissions. Joined players and shared-table controllers use the same Game-tab lobby as the
+hub: seat drag/tap swaps, players, game/variant, Planechase, rules, timers, saved
+setups and Start. Lobby edits are validated and saved by the hub; old revisions
+are rejected. A setup change cancels either phone's start countdown. Read-only
+displays retain their permissions. During play, personal phones can name their
+own commander. After game over,
 seated players (including eliminated seats) and shared controllers can request
 Rematch or Reset from the hub. The profile picker keeps the table visible behind
 it. Special decisions outside the LAN command
@@ -91,3 +96,16 @@ A paired phone's History shows **Atlas notifications** after syncing. The API
 contract is in [hosted-v1.md](../../protocol/hosted-v1.md#atlas-activity-shelf).
 The shelf is temporary status feedback; saved games and statistics remain in
 their existing stores. Restarting Atlas clears notifications.
+
+## Compact Game setup
+
+The app header gives connection, Atlas battery and link icons the full row below
+the brand and help buttons. Battery percentages stay on one line, with wrapping
+between status items on narrow screens. Play together is a compact, full-row
+link to its invitation and member controls.
+
+The Game tab begins with **1. Game**. Its selected game and Magic variant each
+expand through Change; Planechase appears only for Magic. **Rules** is always
+available as a collapsed section, without an Advanced settings switch. Saved
+setups follow the start/rules controls. Atlas sharing can be stopped or started
+under More > Atlas connection.

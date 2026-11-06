@@ -22,6 +22,7 @@ internal class LanSessions(
     private val secret: () -> String = { randomLanSecret() },
     /** Each seat's color, avatar and panel background, in player order (null: the default look). */
     private val looks: () -> List<LocalPersonalization?> = { emptyList() },
+    private val profileIds: () -> List<String?> = { emptyList() },
 ) {
     private val sharedProfile = game().profile
     private data class Receipt(val payload: String, val code: String)
@@ -140,14 +141,15 @@ internal class LanSessions(
     private fun snapshot(code: String): JSONObject {
         val current = game()
         // Only this public match and the seats' looks leave the host; never its library,
-        // credentials, profile links, historical games or local account IDs. The commander
+        // credentials, profile links, historical games or local account IDs. Public profile IDs
+        // match the room directory and never grant a seat. The commander
         // printing is a public card reference, so guests draw the same commander art. Of
         // Planechase only the face-up cards, counters and die go: the deck order stays hidden.
-        val public = current.copy(planechase = current.planechase.copy(deck = emptyList(),
-                selection = com.turnhub.android.standalone.PlanarSelection()),
+        val ids = profileIds()
+        val public = current.copy(planechase = current.planechase.copy(deck = emptyList()),
             // A Bag of Doom name is public only once drawn.
             doomBag = current.doomBag.copy(selected = 0),
-            players = current.players.map { it.copy(localId = null, profileId = null) })
+            players = current.players.mapIndexed { index, player -> player.copy(localId = null, profileId = ids.getOrNull(index) ?: player.profileId) })
         val reply = reply(code).put("game", StandaloneTable.gameToJson(public))
             .put("claimed", org.json.JSONArray(guests.map { it.player }.filter { it > 0 }))
         val (id, encoded) = publicLooks(current.players.size)

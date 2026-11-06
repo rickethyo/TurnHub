@@ -457,6 +457,9 @@ class MainActivity : ComponentActivity() {
                         val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
                         val localState by standaloneViewModel.table.state.collectAsStateWithLifecycle()
                         val lanState by lanViewModel.state.collectAsStateWithLifecycle()
+                        LaunchedEffect(lanState.remote != null) {
+                            if (lanState.remote != null) { sharedGameOpen = false; requestedHomeTab = "GAME" }
+                        }
                         if (lanState.remote == null) com.turnhub.android.ui.components.GameSoundEffect(
                             localState.game.toSummary(0, 0), available = localState.storageProblem == null)
 
@@ -478,7 +481,7 @@ class MainActivity : ComponentActivity() {
                                 requestAtlas(AtlasAction.SETUP)
                             }
                         val shellState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
-                        if (sharedGameOpen || lanState.joined) {
+                        if (sharedGameOpen) {
                             com.turnhub.android.ui.tablet.SharedGameScreen(lanState, localState.game, lanViewModel,
                                 ::requestSharedNetwork, reduceMotion, onClose = { sharedGameOpen = false })
                         } else if (localStats) {
@@ -494,9 +497,13 @@ class MainActivity : ComponentActivity() {
                         } else shellState.SaveableStateProvider("home") { HomeScreen(
                             requestedTab = requestedHomeTab,
                             onTabRequestHandled = { requestedHomeTab = null },
-                            localState = localState,
+                            localState = localState.copy(game = lanState.remote ?: localState.game),
                             localTable = standaloneViewModel.table,
                             onOpenSharedGame = { sharedGameOpen = true },
+                            sharedRoomHeader = {
+                                lanState.host?.let { com.turnhub.android.ui.tablet.SharedCodeBanner(it, lanState.guests.size) { sharedGameOpen = true } }
+                                if (lanState.remote != null) com.turnhub.android.ui.tablet.SharedRoomBanner(lanState, lanViewModel)
+                            },
                             sharedGameHosting = lanState.host != null,
                             sharedGameCode = lanState.host?.code,
                             hostedStatus = homeViewModel.hostedStatus.collectAsStateWithLifecycle().value,
@@ -510,13 +517,17 @@ class MainActivity : ComponentActivity() {
                             onAtlasEnabled = ::chooseAtlasEnabled,
                             onPlayOnDevice = ::playOnDevice,
                             localGameContent = { openTable, openPlanes, running -> androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
-                                lanState.host?.let { com.turnhub.android.ui.tablet.SharedCodeBanner(it, lanState.guests.size) { sharedGameOpen = true } }
                                 androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {
                                 if (localState.storageProblem != null) {
                                     androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
                                         androidx.compose.material3.Text(localState.storageProblem!!)
                                         com.turnhub.android.ui.components.ToneButton("Keep old data aside and start fresh", { standaloneViewModel.table.startFresh() })
                                     }
+                                } else if (lanState.remote != null) {
+                                    if (lanState.remote!!.state == com.turnhub.android.protocol.TableState.LOBBY)
+                                        com.turnhub.android.ui.tablet.SharedRoomLobby(lanState, lanViewModel, openPlanes)
+                                    else com.turnhub.android.ui.tablet.SharedTcgRemote(lanState, lanViewModel, reduceMotion,
+                                        embedded = true, initialView = "personal", onLeave = { lanViewModel.leave() })
                                 } else if (lanState.atlasRoom && lanState.preview!=null) {
                                     com.turnhub.android.ui.tablet.AtlasRoomLobby(lanState,lanViewModel)
                                 } else if (localState.game.state == com.turnhub.android.protocol.TableState.LOBBY) {
@@ -528,9 +539,10 @@ class MainActivity : ComponentActivity() {
                                 }
                             } },
                             localTableContent = { onSetUp, onOpenPlanes -> androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
-                                lanState.host?.let { com.turnhub.android.ui.tablet.SharedCodeBanner(it, lanState.guests.size) { sharedGameOpen = true } }
                                 androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {
-                                com.turnhub.android.ui.tablet.EmbeddedTable(localState, standaloneViewModel.table, reduceMotion,
+                                if (lanState.remote != null) com.turnhub.android.ui.tablet.SharedTcgRemote(lanState, lanViewModel, reduceMotion,
+                                    embedded = true, initialView = "table", onLeave = { lanViewModel.leave() })
+                                else com.turnhub.android.ui.tablet.EmbeddedTable(localState, standaloneViewModel.table, reduceMotion,
                                     onFullScreen = ::playOnDevice, onSetUp = onSetUp, onOpenPlanes = onOpenPlanes)
                                 }
                             } },
@@ -546,7 +558,9 @@ class MainActivity : ComponentActivity() {
                                     onRestoreAccount = homeViewModel::onRestoreAccount)
                             },
                             localPlanesContent = {
-                                com.turnhub.android.ui.tablet.PlanesTab(localState, standaloneViewModel.table)
+                                if (lanState.remote != null) com.turnhub.android.ui.tablet.SharedTcgRemote(lanState, lanViewModel, reduceMotion,
+                                    embedded = true, initialView = "planes", onLeave = { lanViewModel.leave() })
+                                else com.turnhub.android.ui.tablet.PlanesTab(localState, standaloneViewModel.table)
                             },
                             localHistoryContent = {
                                 com.turnhub.android.ui.tablet.LocalLibraryScreen(localState, onClose = {},

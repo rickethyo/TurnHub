@@ -290,7 +290,12 @@ fun LocalLibraryScreen(
 }
 
 @Composable
-internal fun CreateLocalAccountDialog(table: StandaloneTable, storageAvailable: Boolean, onDismiss: () -> Unit) {
+internal fun CreateLocalAccountDialog(table: StandaloneTable, storageAvailable: Boolean, onDismiss: () -> Unit) =
+    CreateProfileDialog(storageAvailable, table::createAccount, onDismiss)
+
+@Composable
+internal fun CreateProfileDialog(storageAvailable: Boolean,
+    create: (String, LocalCredential?) -> Boolean, onDismiss: () -> Unit) {
     val p = palette
     var name by rememberSaveable { mutableStateOf("") }
     // Credentials never enter saved instance state.
@@ -330,7 +335,7 @@ internal fun CreateLocalAccountDialog(table: StandaloneTable, storageAvailable: 
                         val credential = if (submittedSecret.isEmpty()) null else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                             LocalCredential.create(submittedSecret)
                         }
-                        if (table.createAccount(submittedName, credential)) {
+                        if (create(submittedName, credential)) {
                             secret = ""
                             onDismiss()
                         } else error = "Could not save this player. Please try again."
