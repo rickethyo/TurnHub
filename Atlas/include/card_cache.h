@@ -137,9 +137,5 @@ struct SavedCommanders {
 // printing ID of letters, digits, '-', ':' and '.' (or empty).
 bool validCommander(const String &name, const String &art);
 bool loadCommanders(const String &profileId, SavedCommanders &out);
-// Adds (or moves to the front) one commander; the oldest drops off when full.
-// Returns the slot (1-based) it is in, or 0 when the card can't save it.
-uint8_t rememberCommander(const String &profileId, const String &name, const String &art);
-bool forgetCommander(const String &profileId, uint8_t slot);
 
 }  // namespace TurnHubCards

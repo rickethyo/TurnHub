@@ -22,7 +22,7 @@ struct LifeOverlay {
   // none), so every Sigil can show it, not only the passer's.
   uint8_t passingPlayer = 0;
   // UpdateNotice: 0 none, 1 an update for Atlas, 2 an update for a Sigil.
-  // Drawn as a words line on every screen that has room (updateNoticeText).
+  // Available to renderers alongside the current state.
   uint8_t update = 0;
   bool operator==(const LifeOverlay &o) const {
     return avatar[0] == o.avatar[0] && avatar[1] == o.avatar[1] &&
@@ -35,11 +35,6 @@ struct LifeOverlay {
   bool operator!=(const LifeOverlay &o) const { return !(*this == o); }
 };
 
-// The words for LifeOverlay::update, short enough for a 20-column row, or
-// nullptr for none.
-inline const char *updateNoticeText(uint8_t update) {
-  return update == 1 ? "Update for Atlas" : (update == 2 ? "Update available" : nullptr);
-}
 
 // Presentation only. Atlas owns these snapshots; implementations must not send
 // packets, interpret inputs, or mutate/persist game or pairing state.
@@ -56,9 +51,8 @@ class SigilDisplay {
   void setAtlasLink(uint8_t link) { atlasLink_ = link; }
   bool inverted() const { return inverted_; }
   TurnHubTheme::Id theme() const { return theme_; }
-  bool ornamental() const { return theme_ == TurnHubTheme::Id::Brass; }
   virtual void showBooting() = 0;
-  virtual void showHardwareTest() {}
+  virtual void showHardwareTest() = 0;
   virtual void showUnpaired() = 0;
   virtual void showReady(uint8_t sigilId) = 0;
   // The paired Atlas stopped answering (atlas_link.h). Replaces every other
@@ -101,14 +95,11 @@ class SigilDisplay {
 
   // Display task snapshot of the touch action labels and hold progress.
   void setMenuView(const MenuView &view) { menu_ = view; }
-  const MenuView &menuView() const { return menu_; }
   void setLifeOverlay(const LifeOverlay &life) { life_ = life; }
 
   // LVGL timers and pressed-button feedback run on the display task.
   virtual uint32_t idleWorkDueInMs(uint32_t nowMs) const { (void)nowMs; return UINT32_MAX; }
   virtual void idleWork(uint32_t nowMs) { (void)nowMs; }
-  // A bench serial command for the display; true if handled.
-  virtual bool handleCommand(const char *line) { (void)line; return false; }
 
  protected:
   TurnHubTheme::Id theme_ = TurnHubTheme::Id::Graphite;

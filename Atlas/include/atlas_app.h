@@ -105,11 +105,6 @@ String clientSnapshot(const String &atlasId, const char *bootId);
 void handleStatus();
 void startNetworking();
 
-// --- app_context.cpp ---------------------------------------------------------
-
-const char *intentOriginName(IntentOrigin origin);
-IntentResult dispatchSystemIntent(IntentType type);
-
 // --- device_intents.cpp ------------------------------------------------------
 
 IntentResult handlePairRequestIntent(const Intent &intent, void *);

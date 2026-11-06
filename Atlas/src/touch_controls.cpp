@@ -820,16 +820,6 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
 
 // --- Content ------------------------------------------------------------------
 
-void formatClock(char *out, size_t size, uint32_t ms) {
-  const uint32_t seconds = ms / 1000;
-  if (seconds >= 3600) {
-    snprintf(out, size, "%lu:%02lu:%02lu", static_cast<unsigned long>(seconds / 3600),
-        static_cast<unsigned long>(seconds / 60 % 60), static_cast<unsigned long>(seconds % 60));
-  } else {
-    snprintf(out, size, "%lu:%02lu", static_cast<unsigned long>(seconds / 60),
-        static_cast<unsigned long>(seconds % 60));
-  }
-}
 
 // The Game tab: the hub's game (names, life, whose turn), or how to start one.
 void formatStatus(AtlasScreen &screen, uint32_t nowMs) {

@@ -734,40 +734,4 @@ bool loadCommanders(const String &profileId, SavedCommanders &out) {
   return true;
 }
 
-namespace {
-bool saveCommanders(const String &profileId, const SavedCommanders &saved) {
-  TurnHubStorage::BlobStore *s = store();
-  if (!s) return false;
-  String text;
-  for (uint8_t i = 0; i < saved.count; ++i) {
-    text += saved.slots[i].name; text += '\t'; text += saved.slots[i].art; text += '\n';
-  }
-  if (!text.length()) {
-    const Status removed = s->remove(commanderKey(profileId).c_str());
-    return removed == Status::Ok || removed == Status::NotFound;
-  }
-  return s->write(commanderKey(profileId).c_str(), text.c_str(), text.length()) == Status::Ok;
-}
-}  // namespace
-
-uint8_t rememberCommander(const String &profileId, const String &name, const String &art) {
-  SavedCommanders saved;
-  if (!validCommander(name, art) || !loadCommanders(profileId, saved)) return 0;
-  SavedCommanders next;
-  Commander &first = next.slots[next.count++];
-  snprintf(first.name, sizeof(first.name), "%s", name.c_str());
-  snprintf(first.art, sizeof(first.art), "%s", art.c_str());
-  for (uint8_t i = 0; i < saved.count && next.count < COMMANDER_SLOTS; ++i)
-    if (!String(saved.slots[i].name).equalsIgnoreCase(name)) next.slots[next.count++] = saved.slots[i];
-  return saveCommanders(profileId, next) ? 1 : 0;
-}
-
-bool forgetCommander(const String &profileId, uint8_t slot) {
-  SavedCommanders saved;
-  if (!loadCommanders(profileId, saved) || slot < 1 || slot > saved.count) return false;
-  for (uint8_t i = slot; i < saved.count; ++i) saved.slots[i - 1] = saved.slots[i];
-  --saved.count;
-  return saveCommanders(profileId, saved);
-}
-
 }  // namespace TurnHubCards

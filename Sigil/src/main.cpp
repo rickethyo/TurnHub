@@ -732,6 +732,9 @@ void updateDisplay() {
   portEXIT_CRITICAL(&displayProfileMux);
   if (testScreen) {
     sigilDisplay.showHardwareTest();
+    // Only the display task waits; radio and input tasks keep running.
+    // Inputs remain suppressed by screenTestBusy until the snapshot returns.
+    vTaskDelay(pdMS_TO_TICKS(3000));
     portENTER_CRITICAL(&displayProfileMux);
     screenTestBusy = false;
     portEXIT_CRITICAL(&displayProfileMux);
@@ -2149,7 +2152,7 @@ void readSerialCommands() {
       if (length && strcmp(line, "touch cal") == 0) {
         TurnHubSigil::sigilTouchStartCalibration();
       } else if (length && TurnHubSigil::ringHandleCommand(line)) {
-      } else if (length && !sigilDisplay.handleCommand(line)) {
+      } else if (length) {
         Serial.print("SIGIL|SERIAL|UNKNOWN|");
         Serial.println(line);
       }
