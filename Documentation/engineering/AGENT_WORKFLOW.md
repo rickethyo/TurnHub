@@ -7,9 +7,10 @@
 | `master` | Accepted integration baseline; existing push CI and Play internal upload | Project owner |
 | `codex/master` | Codex's continuing work across chats | Codex |
 | `claude/master` | Claude's continuing work across chats | Claude |
+| `VSCodeCopilot/Master` | VS Code Copilot's continuing work across chats | VS Code Copilot |
 | `legacy/gen1` | Frozen current-generation ESP32 Atlas/Sigil firmware, test harness, Sigil v1 PCB and enclosures; Gen 1 bug fixes only | Project owner |
 
-All four branches are permanent. Codex and Claude keep separate branches so
+All five branches are permanent. Codex and Claude keep separate branches so
 concurrent work never overwrites the other's. `agent/experimental` was retired
 on 2026-10-13 (unused, identical to master). Separate worktrees prevent one
 chat or GitHub Desktop from switching another chat's checkout.
@@ -113,8 +114,8 @@ specific cross-agent handoff.
 
 `Agent branch maintenance` runs on pushes to `master` and can be run manually
 from Actions after its workflow has reached master. It snapshots the current
-master tip and checks only the explicit allowlist: `codex/master` and
-`claude/master`. It never enumerates `codex/*` or other
+master tip and checks only the explicit allowlist: `codex/master`,
+`claude/master` and `VSCodeCopilot/Master`. It never enumerates `codex/*` or other
 branch prefixes. `codex/esp32-s3-lvgl` is excluded even when it would be eligible
 for a fast-forward; both automatic and manual workflow runs leave it alone.
 

@@ -2417,3 +2417,15 @@ the overlapping cleanup. Host suites and firmware rebuild pass after restoration
 A redundant upload then lost the Atlas USB port during the reset handshake; no
 flash write started. The already installed feature build remains reachable over
 HTTPS and reports live sync events. No unrelated cleanup is included in this PR.
+
+## Copilot branch maintenance — 2026-11-06, Codex
+
+Owner requests the new persistent agent master in CI maintenance. Scope on
+codex/master, baseline `7912807f`: add exact-case `VSCodeCopilot/Master` to
+the explicit allowlist, update regression coverage and branch documentation.
+Preserve non-force, divergence, missing-branch and concurrent-update handling.
+Shared checkout still owns separate unfinished cleanup; commit this isolated
+source export through an alternate index. No merge or release.
+
+Validation: all six branch-maintenance tests pass, including exact-case Copilot
+fast-forward and exclusions, divergence, missing branches and race protection.

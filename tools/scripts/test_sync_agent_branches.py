@@ -33,11 +33,11 @@ class MaintenanceTests(unittest.TestCase):
         return result, writes
 
     def test_only_ancestor_is_updated_without_force(self):
-        (_, rows), writes = self.run_sync(dict(zip(sync.BRANCHES, ("ahead", "diverged"))))
+        (_, rows), writes = self.run_sync(dict(zip(sync.BRANCHES, ("ahead", "diverged", "identical"))))
         self.assertEqual(writes, [("repos/owner/repo/git/refs/heads/codex/master",
                                    {"sha": "master-sha", "force": False})])
         self.assertIn("Diverged", rows[1][1])
-        (_, rows), writes = self.run_sync(dict(zip(sync.BRANCHES, ("behind", "behind"))))
+        (_, rows), writes = self.run_sync(dict.fromkeys(sync.BRANCHES, "behind"))
         self.assertEqual(writes, [])
         self.assertTrue(all("preserved" in message for _, message in rows))
 
@@ -47,11 +47,19 @@ class MaintenanceTests(unittest.TestCase):
         excluded = ("codex/esp32-s3-lvgl", "legacy/gen1", "agent/experimental")
         statuses = dict.fromkeys((*sync.BRANCHES, *excluded), "ahead")
         (_, rows), writes = self.run_sync(statuses)
-        allowed = {"codex/master", "claude/master"}
+        allowed = {"codex/master", "claude/master", "VSCodeCopilot/Master"}
         self.assertEqual({branch for branch, _ in rows}, allowed)
         self.assertEqual({path for path, _ in writes},
                          {f"repos/owner/repo/git/refs/heads/{branch}" for branch in allowed})
         self.assertTrue(all(name not in path for name in excluded for path, _ in writes))
+
+    def test_copilot_master_is_updated_using_its_exact_case(self):
+        statuses = dict.fromkeys(sync.BRANCHES, "identical")
+        statuses["VSCodeCopilot/Master"] = "ahead"
+        (_, rows), writes = self.run_sync(statuses)
+        self.assertEqual(writes, [("repos/owner/repo/git/refs/heads/VSCodeCopilot/Master",
+                                   {"sha": "master-sha", "force": False})])
+        self.assertEqual(rows[-1][0], "VSCodeCopilot/Master")
 
     def test_identical_and_missing_are_left_alone(self):
         statuses = dict.fromkeys(sync.BRANCHES, "identical")
