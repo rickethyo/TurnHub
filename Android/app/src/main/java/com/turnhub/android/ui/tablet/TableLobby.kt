@@ -7,6 +7,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -70,7 +72,7 @@ internal data class TableLobbyActions(
     val savedCommanders: (TablePlayer) -> List<Pair<String, String?>> = { emptyList() },
 )
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun TableLobby(
     summary: TableSummary,
@@ -99,6 +101,15 @@ internal fun TableLobby(
 ) {
     val p = palette
     val players = summary.players.sortedBy { it.playerNumber }
+    val newestPlayer = remember { BringIntoViewRequester() }
+    var previousCount by remember { mutableIntStateOf(players.size) }
+    LaunchedEffect(players.size) {
+        if (players.size > previousCount) {
+            withFrameNanos { }
+            newestPlayer.bringIntoView()
+        }
+        previousCount = players.size
+    }
     val settings = summary.settings
     // Official modes keep the official values unless house rules are on.
     val officialMode = officialRules(settings.profile, settings.twoHeadedGiant)
@@ -216,7 +227,8 @@ internal fun TableLobby(
                         actions.savedCommanders(player)) { namingCommander = null } }
                 }
                 players.forEach { player ->
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(Modifier.fillMaxWidth().then(if (player == players.lastOrNull()) Modifier.bringIntoViewRequester(newestPlayer) else Modifier),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         // Top-aligned: the number sits beside the name, whatever the buttons under the name hold.
                         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             val hue = com.turnhub.android.ui.components.playerColor(player.color, p.avatarColor(player.playerNumber))

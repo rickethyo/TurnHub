@@ -483,7 +483,8 @@ class MainActivity : ComponentActivity() {
                         val shellState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
                         if (sharedGameOpen) {
                             com.turnhub.android.ui.tablet.SharedGameScreen(lanState, localState.game, lanViewModel,
-                                ::requestSharedNetwork, reduceMotion, onClose = { sharedGameOpen = false })
+                                ::requestSharedNetwork, reduceMotion, onClose = { sharedGameOpen = false },
+                                onStopShowingOnAtlas = { homeViewModel.onHostOnAtlas(false) })
                         } else if (localStats) {
                             com.turnhub.android.ui.tablet.StatsScreen(localState, onClose = { localStats = false },
                                 onShareStats = ::shareStats)
@@ -500,6 +501,7 @@ class MainActivity : ComponentActivity() {
                             localState = localState.copy(game = lanState.remote ?: localState.game),
                             localTable = standaloneViewModel.table,
                             onOpenSharedGame = { sharedGameOpen = true },
+                            sharedGameJoined = lanState.joined,
                             sharedRoomFeedback = { com.turnhub.android.ui.tablet.RoomFeedback(lanState, lanViewModel) },
                             sharedRoomHeader = {
                                 lanState.host?.let { com.turnhub.android.ui.tablet.SharedCodeBanner(it, lanState.guests.size) { sharedGameOpen = true } }

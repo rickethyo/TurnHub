@@ -2539,3 +2539,46 @@ serial is quiet (no data); its continuity evidence comes from HTTPS boot IDs.
 These are bounded bench checks, not proof against future network interruptions.
 The opt-in Android live probe accepts atlasSamples (6–600, default 6) and now
 requires every requested read to succeed. Production APK is unchanged.
+
+## Phone usability fixes — 2026-11-06, Codex
+
+Implemented the owner's supplied casual-player review against 3cf6893f on
+codex/master (master includes PR #217). F1: foreground hold release is delivered
+after a pending start instead of cancelling it before Android's notification
+deadline. F2/I1: unjoined phones have a Play together entry; existing hosts have
+an explicit Join another table confirmation which disconnects guests and stops
+Atlas broadcast while preserving local setup. Manual room choice/join is not
+replaced by background discovery, and a joined phone cannot claim Atlas on
+reconnect. Profile-picker connection waits are explained.
+
+F3: action receipt outcomes name the edit and persist independently of polls.
+Refused edits cancel queued changes explicitly; ambiguous replies keep their
+exact receipt, and host restarts do not falsely prove an original edit failed.
+F4/I4: readable Saved on this phone and Atlas, distinct sign-in/create-account
+choices, profile/account explanation and regenerated current-route help.
+I2: added guests scroll into view, expanded controls reveal their content, and
+seat dragging requires a deliberate hold while tap-to-swap remains available.
+I3: fixed-height table status sits outside game controls, with Details/Retry;
+routine artwork chatter stays in Atlas connection settings. Atlas labels name
+hardware and show Wi-Fi/Sigil words instead of H/S alone.
+A1/A2: visible Hold to pass, progress and tap-plus-confirm alternative; win/end/
+concede confirmations wait without a short deadline. A3: Commander damage & tax
+appears before collapsed optional counters. Edit players and free planar-roll
+labels describe their outcomes. The review's personal presentation preferences
+were not treated as defects or used to redesign the table.
+
+Validation: 541 JVM tests pass. Ten unique device checks pass on both LG and
+Fold: five usability checks (including host-to-join and visible new guest),
+four pinned-TLS receipt/poll/authorization checks, and 1.3x layout stability.
+The opt-in live Atlas sampling test is skipped in the acceptance suite; this
+slice does not claim a fresh long-duration radio/network soak. Service tests
+exercise 20 immediate start/releases and wait past Android's crash deadline.
+Documentation, generated-manual, licensed-content and whitespace checks pass.
+Manual source edits preserve formatting runs. The packaged LibreOffice renderer
+is unavailable here; Word exported PDFs and bundled PDFium produced inspected
+page images. QA evidence remains under sibling Private.
+
+Final preview installed data-preserving on USB LG LMQ620QM61a3e79c1, tester Fold
+38091FDHS001WD and tablet R52T30577YX. Wireless devices are absent this turn.
+Tests use memory games and isolated room preferences. Existing accounts/history,
+pairing and actual game setup were retained; no firmware flash, merge or release.

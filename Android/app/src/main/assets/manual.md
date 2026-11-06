@@ -19,7 +19,7 @@ The app needs no account and asks for no permission to play on one device. It as
 
 # 2. Finding Your Way Around
 
-The app has the same tabs with or without an Atlas:
+The app has the same tabs with or without an Atlas: To join or rejoin, choose Game > Play together · Join or host a table, then scan the host QR or enter their code.
 
 - **Game:** set up the next game: players, game mode, starting life, turn timer and options.
 
@@ -73,7 +73,7 @@ Open **Game**. The table preview shows the seats as players join, even before th
 
 1. Choose **Commander** (40 life) or **Magic · 20 life**, or tap Change for another game.
 
-2. Add everyone: tap Add Guest for a numbered guest, or choose a saved profile or guest. Add profile saves a new profile for the picker. Arrange seats by dragging a player onto another seat, or tapping two seats. Remove all asks before emptying setup; saved profiles, guests and history are kept.
+2. Add everyone: tap Add Guest for a numbered guest, or choose a saved profile or guest. Add profile saves a new profile for the picker. Arrange seats by tapping two seats, or holding a seat before dragging it. Remove all asks before emptying setup; saved profiles, guests and history are kept.
 
 3. Under 1. Game, tap Change for the game or Magic mode. Planechase appears only for Magic. Expand Rules below Start for starting life, house rules, timers and elimination. Guided setup and Saved game setups remain available below.
 
@@ -111,7 +111,7 @@ On the same Wi-Fi, open Game > Play together and enter the code or scan the QR. 
 
 Joined players and shared-table controllers use the host's setup in Game: swap seats, add players, change the game, Magic mode, Planechase or Rules, and Start. Saved setups stay on the host. Game, Table and Planes use the app tabs. Changes save on the host; a changed setup cancels Start's countdown. Read-only displays keep their limits.
 
-Personal screens control their own player. Table display shows everyone read-only. Shared table controls use facing-seat panels so everyone can change normal gameplay values on a central tablet without signing in. Public views stay read-only unless the host grants that device game master access. Special game decisions outside the remote controls stay on the host. Profile IDs establish identity; matching names do not automatically merge profiles. Read-only player panels show Active turn with its clock (Turn paused while paused), completed turns and a format-specific fact such as commander casts, prizes left or lore instead of Pass and More. On your player phone, Name commander sets your own commander. After game over, Rematch starts the same players again; New players returns everyone to setup.
+Personal screens control their own player. Table display shows everyone read-only. Shared table controls use facing-seat panels so everyone can change normal gameplay values on a central tablet without signing in. Public views stay read-only unless the host grants that device game master access. Special game decisions outside the remote controls stay on the host. Profile IDs establish identity; matching names do not automatically merge profiles. Read-only player panels show Active turn with its clock (Turn paused while paused), completed turns and a format-specific fact such as commander casts, prizes left or lore instead of Pass and More. On your player phone, Name commander sets your own commander. After game over, Rematch starts the same players again; Edit players returns everyone to setup.
 
 Display settings: open Display on a connected player screen, or Display settings in any player menu or the table menu > Sound & display. The heading names the screen being changed. Choose another screen selects a Public table display, Host screen or named player screen, with friendly device names underneath. Choose All panels upright for a TV or wall display, or Face each player for a screen in the middle of the table. Only the selected device changes. Any connected player can change this setting without game master permission, including after conceding. The room saves each display choice across reconnects and host restart. Outside a room, it changes only this device. For a public Table or Planes display, Show on this screen switches that selected device between Table and Planes. Planes is available when Planechase is enabled. The room saves this choice; it does not change seats or gameplay permissions.
 
@@ -201,13 +201,13 @@ On the **Game** tab, open **Game card** to show **Only** a chosen player or team
 
 - **Life:** use the minus and plus halves of the area above the bottom action strip; hold to repeat the bigger step. Steps are 1 and 5 (100 and 1000 for Yu-Gi-Oh!). On rotated panels, minus is always on the player's left and plus on their right. The action strip and the gap immediately above it do not change life, so a near-miss around Pass does nothing. Moving a life gesture out of its area cancels it.
 
-- **Pass:** the active player holds Pass for 0.6 seconds. It has a larger target in the separate bottom action strip. Small panels show the turn clock inside Pass; Planechase may use a second action row. While it says Passing… tap to keep, a tap undoes the pass.
+- **Pass:** the active player holds Pass for 0.6 seconds. It has a larger target in the separate bottom action strip. Small panels show the turn clock inside Pass; Planechase may use a second action row. While it says Passing… tap to keep, a tap undoes the pass. Alternatively, tap Hold to pass and confirm Pass turn. Win, concede and end-game dialogs wait until you confirm or cancel, without a deadline.
 
 - **Planar die:** in Planechase, beside Pass (section 6).
 
 ## The Game Menu
 
-The control in the middle of the table opens the game menu. During the first three minutes, **Back to setup** appears first with its remaining time. It returns to setup with the same players and settings and saves nothing; tap again to confirm. **Pause game** (or **Resume game**) is directly below the game clock. The menu also holds:
+The control in the middle of the table opens the game menu. During the first three minutes, **Back to setup** appears first with its remaining time. It returns to setup with the same players and settings and saves nothing; confirm or cancel in the dialog. **Pause game** (or **Resume game**) is directly below the game clock. The menu also holds:
 
 - **Table tools:** dice from d4 to d20 (more under **More dice**), a coin and a random player.
 
@@ -225,15 +225,15 @@ The control in the middle of the table opens the game menu. During the first thr
 
 **More** on a panel holds everything else for that player. It stays available while the game is paused.
 
-- **Turn, counters & status:** poison, energy and experience (minus corrects or spends a counter); I'm the monarch; I have the initiative; I have the city's blessing.
+- **Other counters & status:** poison, energy and experience (minus corrects or spends a counter); I'm the monarch; I have the initiative; I have the city's blessing.
 
-- **Commander · tax & damage** groups your own commander tax and received damage, with separate labels. **Commander tax · your casts:** count each commander's casts from the command zone. The next cast costs two more generic mana per earlier cast; minus corrects a mistake.
+- **Commander damage** & tax groups your own commander tax and received damage, with separate labels. **Commander tax · your casts:** count each commander's casts from the command zone. The next cast costs two more generic mana per earlier cast; minus corrects a mistake.
 
 - **Commander damage received** in the same card: record damage this player received from each opponent's commander. Each hit also comes off their life, and a correction gives it back. Turn on **Partner commanders** for a second commander's casts and damage.
 
 - **Pick an opponent:** chooses a random opponent, never a teammate, an ally or a player who is out.
 
-- **Claim the win**, **Concede** and **Eliminate:** tap again to confirm.
+- **Claim the win**, **Concede** and **Eliminate:** confirm or cancel in the dialog.
 
 Only one player can be monarch, and only one can have the initiative; claiming either moves it. Any number of players can have the city's blessing. When a holder leaves the game, the monarch and the initiative pass to the player whose turn it is, or the next player in turn order. Players resolve the cards' own effects themselves.
 
@@ -277,7 +277,7 @@ The game-over card offers:
 
 - **Rematch:** the same players again. The starting player is chosen at random.
 
-- **New players:** back to setup.
+- **Edit players:** back to setup.
 
 - **Share result:** a picture of the final table with the result and a game overview, sent to any app on the share sheet.
 
@@ -307,11 +307,11 @@ The current game, players, personalization and history survive closing the app, 
 
 # 10. Playing with an Atlas
 
-**An Atlas adds Sigils, the Atlas screen and speaker, and shared player copies, records and statistics for its table. The game runs on a phone or tablet, the game's hub. Atlas shows the hub's game and sends Sigil and screen presses to the hub, which decides them.**
+**An Atlas adds Sigils, the Atlas screen and speaker, and shared player copies, records and statistics for its table. The game runs on a phone or tablet, the game's hub. Atlas shows the hub's game and sends Sigil and screen presses to the hub, which decides them. Atlas status refers to hardware. Table status above the app tabs refers to the game host; tap Details for messages.**
 
 ## Connecting
 
-Open More > Atlas connection and choose Find Atlas on Wi-Fi. Use the same home network as Atlas. On a new phone, compare the app code with App link in Atlas Settings before confirming. For a new Atlas, scan its Welcome Wi-Fi QR and choose Set up an Atlas. Allow Nearby devices when Android asks.
+Open More > Atlas > Atlas connection and enable Discover Atlas. Use the same home network as Atlas. When pairing a new phone, compare the code shown by the app and Atlas, then tap Allow on Atlas. For a new Atlas, scan its Welcome Wi-Fi QR and choose Set up an Atlas. Allow Nearby devices when Android asks.
 
 Atlas discovery stays on in the background and reconnects to a known Atlas when the phone is on its network. Turning it off disconnects. Game shows your local game or the shared Atlas table. Players adds Table and Me sections.
 
@@ -325,7 +325,7 @@ Signed in, this phone can host its game on Atlas (below). Your Atlas account als
 
 - **Personalization:** upload a player image to Atlas (it needs a microSD card in Atlas, and an Admin approves it unless approval is turned off).
 
-If Atlas stops answering, the app keeps your game going: it is this device's game. The Atlas connection shows **Offline: reconnecting to Atlas** and carries on when Atlas answers.
+If Atlas stops answering, the app keeps your game going: it is this device's game. The Atlas connection shows **Atlas reconnecting** and carries on when Atlas answers.
 
 ## Your Game on the Atlas
 
@@ -363,7 +363,7 @@ Manage Atlas from the TurnHub app over HTTPS. During first setup, compare the se
 
 - **Setup Wi-Fi: available only before Atlas setup finishes. Scan the QR on Welcome; no password typing is needed. Normal use is over home Wi-Fi.**
 
-- **Home Wi-Fi: Atlas uses the network chosen during its separate setup flow. On a new phone, choose Find Atlas on Wi-Fi and compare its code with App link on Atlas. After setup the hotspot stays off, including during outages. Sigils follow the router channel. A replacement network can be saved while connected; an inaccessible Atlas needs physical factory reset to run setup again.**
+- **Home Wi-Fi: Atlas uses the network chosen during its separate setup flow. On a new phone, choose Discover Atlas and compare the code on both screens and tap Allow on Atlas. After setup the hotspot stays off, including during outages. Sigils follow the router channel. A replacement network can be saved while connected; an inaccessible Atlas needs physical factory reset to run setup again.**
 
 - **Table code:** when on, actions that change the table need a code from the Atlas screen.
 
@@ -415,7 +415,7 @@ Art not yet downloaded needs internet. The rest of the deck works offline after 
 
 ## The App Can't Connect to Atlas
 
-Check that Atlas is on and the phone is nearby, and that the app has the Nearby devices permission (Android Settings > Apps > TurnHub > Permissions). Choose Connect in Settings > Atlas connection again.
+Check that Atlas is on and the phone is nearby, and that the app has the Nearby devices permission (Android Settings > Apps > TurnHub > Permissions). Choose Connect in More > Atlas > Atlas connection again.
 
 ## The App Says Offline: Reconnecting to Atlas
 
@@ -508,7 +508,7 @@ The first time Atlas starts, and after a factory reset, it asks you to calibrate
 
 ## Setting Up a New Table
 
-A new or factory-reset Atlas shows Welcome to TurnHub with a Wi-Fi QR. Scan it with your phone camera to join setup Wi-Fi without typing a password, then open TurnHub and choose Set up an Atlas. Atlas setup is separate from first-time app setup; you can launch it during app onboarding or later under More > Atlas connection.
+A new or factory-reset Atlas shows Welcome to TurnHub with a Wi-Fi QR. Scan it with your phone camera to join setup Wi-Fi without typing a password, then open TurnHub and choose Set up an Atlas. Atlas setup is separate from first-time app setup; you can launch it during app onboarding or later under More > Atlas > Atlas connection.
 
 1. **Your account:** create one or sign in.
 
@@ -530,7 +530,7 @@ Turn on each Sigil. It shows the TurnHub logo, then either its Sigil number (it 
 
 Only a new or factory-reset Atlas creates the TurnHub-Atlas setup network. Its screen shows a Wi-Fi QR including the password. After setup, Atlas and phones use your home Wi-Fi; Sigils link directly to Atlas.
 
-Atlas joins the home network chosen during setup and reconnects if the router drops it. A new phone on that network chooses Find Atlas on Wi-Fi. Atlas automatically shows Allow this phone? with the same code as the app overlay. Compare the codes and tap Allow on Atlas once. The phone remembers Atlas and uses encrypted connections. The setup hotspot never returns during outages. Sigils follow the router channel automatically.
+Atlas joins the home network chosen during setup and reconnects if the router drops it. A new phone on that network chooses Discover Atlas. Atlas automatically shows Allow this phone? with the same code as the app overlay. Compare the codes and tap Allow on Atlas once. The phone remembers Atlas and uses encrypted connections. The setup hotspot never returns during outages. Sigils follow the router channel automatically.
 
 ## QR Codes on the Atlas Screen
 

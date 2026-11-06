@@ -62,6 +62,8 @@ internal data class LanUiState(
     val planarRollFeedback: PlanarRollFeedback? = null,
     /** The last history exchange with the host, in words ("3 games synced"); null when nothing moved. */
     val historyNote: String? = null,
+    /** An action receipt outcome, retained independently of background poll messages. */
+    val actionNote: String? = null,
     val atlasRoom: Boolean = false,
     val setupNames: List<String> = emptyList(),
     val guestNames: List<String> = emptyList(),
@@ -77,7 +79,10 @@ internal class LanViewModel(
 ) : ViewModel(), com.turnhub.android.data.AtlasRoomLink {
     var atlasCall: (suspend (String,String,List<Pair<String,String>>) -> com.turnhub.android.data.RawResponse?)? = null
     private var atlasMode=false
+    private var manualRoomChoice = false
+    fun chooseManualRoom() { if (!_state.value.joined) manualRoomChoice = true }
     override val isAtlasGuest get() = atlasMode && (_state.value.preview!=null || _state.value.joined || _state.value.busy)
+    override val hasJoinedRoom get() = token != null || _state.value.joined
     private val atlasChecks = AtlasControllerChecks(viewModelScope, android.os.SystemClock::elapsedRealtime) { field,value ->
         val response = atlasCall?.invoke("POST", "/api/hosted/controller", listOf(field to value))
             ?: error("Atlas controller check unavailable")
@@ -95,7 +100,8 @@ internal class LanViewModel(
     }
     override fun offerAtlasRoom(invitation:String,ticket:String) {
         val offered=runCatching { LanInvite.parse(invitation).copy(key=ticket).also { require(ticket.matches(Regex("[0-9a-f]{64}"))) } }.getOrNull() ?: return
-        if(server!=null || hostRecord!=null) { _state.update { it.copy(message="This device is sharing another room. End that room before joining the Atlas table.") };return }
+        // Discovery is an offer, not permission to replace the player's chosen room.
+        if(manualRoomChoice || server!=null || hostRecord!=null || token!=null && !atlasMode) return
         if(_state.value.busy) return
         if(atlasMode && token!=null && invite?.session==offered.session) {
             val changed=invite?.address!=offered.address || invite?.port!=offered.port || invite?.pin!=offered.pin
@@ -108,7 +114,7 @@ internal class LanViewModel(
             if(_state.value.preview!=null) { invite=offered;joinRequest=null;return }
         }
         if(token!=null) leave()
-        atlasMode=true;preview(offered.encode());_state.update { it.copy(atlasRoom=true) }
+        preview(offered.encode(), fromAtlas = true)
     }
     fun joinAtlasProfile(profileId:String) { join("player",0,profileId=profileId) }
     private val context = context.applicationContext
@@ -266,7 +272,7 @@ internal class LanViewModel(
     }
     fun atTable(summary: com.turnhub.android.domain.TableSummary): Boolean =
         _state.value.remote?.let { it.gameId == summary.bootId } ?: false
-    fun dismissMessage() { _state.update { it.copy(message = null, historyNote = null) } }
+    fun dismissMessage() { _state.update { it.copy(message = null, historyNote = null, actionNote = null) } }
     fun unsupportedAction() { _state.update { it.copy(message = "Use the host for this game setup or decision.") } }
     fun stopHosting() {
         if (hostRecord == null) { leave(); return }
@@ -284,12 +290,14 @@ internal class LanViewModel(
         _state.update { it.copy(guests = room?.guests.orEmpty(), message = if (result.isFailure) "Couldn't save this permission. Try again." else null) }
     }
     /** [text] is a typed join code, or the invitation text a QR scan read. */
-    fun preview(text: String) {
+    fun preview(text: String, fromAtlas: Boolean = false) {
         if (_state.value.busy || token != null || server != null) return
         if (hostRecord != null) { _state.update { it.copy(message = "Resume or end your saved room before joining another.") }; return }
         val code = LanJoinCode.normalize(text)
         val scanned = if (code == null) runCatching { LanInvite.parse(text) }.getOrNull() else null
         if (code == null && scanned == null) { _state.update { it.copy(message = "Enter the host's join code, like abc-123.") }; return }
+        atlasMode = fromAtlas
+        if (!fromAtlas) manualRoomChoice = true
         invite = null; joinRequest = null
         _state.update { it.copy(busy = true, preview = null, message = null, atlasRoom=atlasMode) }
         viewModelScope.launch {
@@ -325,6 +333,7 @@ internal class LanViewModel(
     fun join(role: String, player: Int, profileId: String? = null, pin: String = "", localId: String? = null, sourcePin: String? = null) {
         val invitation = invite ?: return
         if (_state.value.busy || _state.value.preview == null) return
+        if (atlasMode) manualRoomChoice = false
         val own = savedPlayers().firstOrNull { it.localId == localId }
         val targetId = profileId
         val choice = listOf(role, player, targetId, localId).joinToString("|")
@@ -502,7 +511,7 @@ internal class LanViewModel(
         val invitation = invite ?: return
         if (_state.value.busy) return
         val epoch = generation
-        _state.update { it.copy(busy = true, uncertain = true, message = null) }
+        _state.update { it.copy(busy = true, uncertain = true, message = null, actionNote = null) }
         if (isPlanarRollKind(body.optString("kind"))) _state.update { it.copy(planarRollFeedback = PlanarRollFeedback(body.text("actionId"), "pending")) }
         viewModelScope.launch {
             try {
@@ -510,6 +519,18 @@ internal class LanViewModel(
                 if (epoch != generation) return@launch
                 if (reply.text("code") != "unavailable") pending = null
                 receive(reply)
+                val label = actionLabel(body)
+                val outcome = when (reply.text("code")) {
+                    "ok" -> "$label saved."
+                    "stale" -> "$label was not applied because the table changed. Review the latest values before trying again."
+                    "rejected", "forbidden", "view-only", "invalid" -> "$label was not applied. This change is not available here."
+                    "interrupted" -> "$label could not be confirmed after the host restarted. Check current values before entering another change."
+                    "renew" -> "$label was not applied because the connection was renewed. Review the latest values before trying again."
+                    else -> null
+                }
+                val cancelled = if (pending == null && reply.text("code") != "ok") queued.size.also { queued.clear() } else 0
+                if (outcome != null) _state.update { it.copy(actionNote = outcome +
+                    if (cancelled > 0) " $cancelled waiting ${if (cancelled == 1) "change was" else "changes were"} cancelled." else "", message = null) }
                 if (isPlanarRollKind(body.optString("kind"))) _state.update {
                     it.copy(planarRollFeedback = confirmedPlanarFeedback(body.text("actionId"), reply))
                 }
@@ -519,9 +540,17 @@ internal class LanViewModel(
                 if (error is CancellationException) throw error
                 if (epoch == generation) _state.update { it.copy(busy = false, online = false, uncertain = true,
                     planarRollFeedback = if (isPlanarRollKind(body.optString("kind"))) PlanarRollFeedback(body.text("actionId"), "uncertain") else it.planarRollFeedback,
-                    message = "The reply was lost. Retry the same action to find out whether the host saved it.") }
+                    message = "${actionLabel(body)} is unconfirmed. Retry to check whether the host saved it; don't enter it again.") }
             }
         }
+    }
+
+    private fun actionLabel(body: JSONObject): String = when (body.optString("kind")) {
+        "life" -> "${if (body.optInt("value") > 0) "+" else ""}${body.optInt("value")} life"
+        "setup" -> "Setup change"
+        "pass" -> "Pass turn"
+        "win" -> "Win confirmation"
+        else -> "Your change"
     }
 
     private fun drainActions() {

@@ -46,6 +46,7 @@ class AtlasRetryDeviceTest {
         val badPolls = AtomicInteger()
         val polls = AtomicInteger()
         val loseCommandReply = AtomicBoolean()
+        val refuseCommand = AtomicBoolean()
         private val session = "a".repeat(32)
         private val key = "b".repeat(64)
         private fun base(op: String) = JSONObject().put("v", LAN_VERSION).put("session", session).put("op", op)
@@ -54,10 +55,19 @@ class AtlasRetryDeviceTest {
             snapshot = { core().handle(base("preview").put("key", key)) },
             seats = { table.state.value.game.players.mapIndexed { i,p -> LanRoom.RoomSeat(p.localId ?: "guest:$i", i+1, p.name) } },
             profiles = { table.roomProfiles() }, attach = { table.state.value.game.players.first().localId },
-            command = { _,_ -> JSONObject().put("code", "forbidden") }, setup = table::applyRoomSetup)
+            command = { request, target ->
+                val applied = withContext(Dispatchers.Main) { table.applyLanAction(LanAction(
+                    request.getString("match"), request.getLong("revision"), target,
+                    request.getString("kind"), request.getInt("value"), request.getInt("slot"), request.optInt("source"))) }
+                JSONObject().put("code", if (applied) "ok" else "rejected")
+            }, setup = table::applyRoomSetup)
         private val tls = lanServerContext()
         private val socket = tls.first.serverSocketFactory.createServerSocket().apply { bind(InetSocketAddress("0.0.0.0", 0)) }
         private val server = LanServer(socket) { request -> runBlocking {
+            if (request.optString("op") == "command" && refuseCommand.getAndSet(false)) {
+                val poll = JSONObject(request.toString()).put("op", "poll")
+                return@runBlocking room.handle(poll).put("code", "stale")
+            }
             if (request.optString("op") == "poll") {
                 polls.incrementAndGet()
                 if (badPolls.getAndUpdate { maxOf(0, it-1) } > 0) return@runBlocking base("poll").put("code", "unavailable")
@@ -81,6 +91,9 @@ class AtlasRetryDeviceTest {
     @Test fun shortPollFailuresStayQuietAndConfirmedOutagesRecover() {
         Peer(app).use { peer ->
             join(peer)
+            main { peer.guest.offerAtlasRoom(peer.invitation.copy(session = "f".repeat(32)).encode(), "c".repeat(64)) }
+            assertTrue("Atlas discovery must preserve a manually joined room", peer.guest.state.value.joined)
+            assertFalse(peer.guest.state.value.atlasRoom)
             val before = peer.guest.state.value.remote
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
             val wentOffline = AtomicBoolean()
@@ -115,6 +128,29 @@ class AtlasRetryDeviceTest {
             assertEquals(3, peer.table.state.value.game.players.size)
             assertEquals(3, peer.guest.state.value.remote!!.players.size)
             assertNull(peer.guest.state.value.message)
+            assertEquals("Setup change saved.", peer.guest.state.value.actionNote)
+        }
+    }
+
+    @Test fun aRefusedLifeChangeStaysExplicitAfterBackgroundPolls() {
+        Peer(app).use { peer ->
+            peer.table.start()
+            join(peer)
+            val before = peer.table.state.value.game.players.first().life
+            peer.refuseCommand.set(true)
+            main { peer.guest.act("life", 1, target = 1); peer.guest.act("life", 1, target = 1) }
+            waitFor("The refusal must name the unapplied edit") {
+                peer.guest.state.value.actionNote?.startsWith("+1 life was not applied") == true
+            }
+            val observed = peer.polls.get()
+            waitFor("Missing background poll") { peer.polls.get() > observed }
+            assertTrue(peer.guest.state.value.actionNote!!.startsWith("+1 life was not applied"))
+            assertTrue(peer.guest.state.value.actionNote!!.contains("1 waiting change was cancelled"))
+            assertEquals(before, peer.table.state.value.game.players.first().life)
+            assertFalse(peer.guest.state.value.uncertain)
+            main { peer.guest.act("life", 1, target = 1) }
+            waitFor("A fresh life edit must succeed") { peer.guest.state.value.actionNote == "+1 life saved." }
+            assertEquals(before + 1, peer.table.state.value.game.players.first().life)
         }
     }
 

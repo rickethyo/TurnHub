@@ -86,7 +86,7 @@ class AtlasRetryLayoutTest {
                     room = if (phase == "Retrying") room.copy(uncertain = true, message = "The host has not confirmed this action.") else room.copy(uncertain = false, message = null)
                     planesMessage = if (phase == "Connected") "Plane artwork transfer complete" else null
                 }
-                val changed = waitFor(phase)
+                val changed = waitFor("Atlas " + phase.lowercase())
                 assertEquals("Game moved during $phase",gameRect,position(changed,"1. GAME"))
                 assertEquals("Battery moved during $phase",batteryRect,position(changed,"100%"))
                 if (phase == "Retrying") waitFor("Retry last action")

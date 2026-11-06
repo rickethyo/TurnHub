@@ -16,6 +16,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -27,10 +34,16 @@ import com.turnhub.android.ui.theme.palette
 
 /** Secondary controls stay one tap away without competing with the main task. */
 @Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 fun DisclosureCard(title: String, initiallyExpanded: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     var expanded by rememberSaveable { mutableStateOf(initiallyExpanded) }
+    var reveal by remember { mutableStateOf(false) }
+    val requester = remember { BringIntoViewRequester() }
+    LaunchedEffect(expanded) {
+        if (expanded && reveal) { withFrameNanos { }; requester.bringIntoView() }
+    }
     BrassCard(contentPadding = PaddingValues(8.dp)) {
-        FilledTonalButton(onClick = { expanded = !expanded },
+        FilledTonalButton(onClick = { reveal = true; expanded = !expanded },
             shape = RoundedCornerShape(if (palette.ornament) 12.dp else DesignTokens.Radius.md),
             colors = ButtonDefaults.filledTonalButtonColors(containerColor = palette.fillStrong, contentColor = palette.text),
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics {
@@ -42,6 +55,9 @@ fun DisclosureCard(title: String, initiallyExpanded: Boolean = false, content: @
                     contentDescription = null, tint = palette.muted)
             }
         }
-        if (expanded) content()
+        if (expanded) {
+            Spacer(Modifier.fillMaxWidth().height(1.dp).bringIntoViewRequester(requester))
+            content()
+        }
     }
 }

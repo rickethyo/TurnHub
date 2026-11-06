@@ -66,11 +66,14 @@ import com.turnhub.android.ui.theme.palette
 /** A distinct screen prevents a guest's snapshot entering local play/history. */
 @Composable
 internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: LanViewModel,
-    requestNetwork: (() -> Unit) -> Unit, reduceMotion: Boolean, onClose: () -> Unit) {
+    requestNetwork: (() -> Unit) -> Unit, reduceMotion: Boolean, onClose: () -> Unit,
+    onStopShowingOnAtlas: () -> Unit = {}) {
     val context = LocalContext.current
     var invitation by remember { mutableStateOf("") }
     var scanning by remember { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
+    var confirmSwitch by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { model.chooseManualRoom() }
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { scanning = it }
     fun close() { if (!state.busy) { if (state.joined) confirmLeave = true else onClose() } }
     fun scan() {
@@ -78,9 +81,11 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
         else camera.launch(Manifest.permission.CAMERA)
     }
     if (state.remote != null) {
-        Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f)) {
             SharedTcgRemote(state, model, reduceMotion) { model.leave(); onClose() }
-            Box(Modifier.align(Alignment.BottomCenter).navigationBarsPadding()) { RoomFeedback(state, model) }
+            }
+            Box(Modifier.navigationBarsPadding()) { RoomFeedback(state, model) }
         }
         return
     }
@@ -114,7 +119,10 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
             }
             state.message?.let { Notice(it, p.warn, Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
             when {
-                host != null -> HostingPanel(state, local, model)
+                host != null -> {
+                    ToneButton("Join another table", { confirmSwitch = true }, Modifier.fillMaxWidth(), enabled = !state.busy)
+                    HostingPanel(state, local, model)
+                }
                 else -> {
                     val hostable = local.profile.lanSupported
                     val (qrOnly, setQrOnly) = rememberLanQrOnly()
@@ -155,6 +163,10 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
             }
         }, Modifier.fillMaxWidth().height(300.dp)) },
         confirmButton = { ToneButton("Cancel", { scanning = false }) })
+    if (confirmSwitch) AlertDialog(onDismissRequest = { confirmSwitch = false }, title = { Text("Stop hosting and join another table?") },
+        text = { Text("This disconnects ${state.guests.size} joined ${if (state.guests.size == 1) "device" else "devices"} from this phone and stops showing its game on Atlas. Your local game, profiles and history are kept. You can then scan another host's QR or enter their code.") },
+        confirmButton = { TextButton(onClick = { confirmSwitch = false; onStopShowingOnAtlas(); model.stopHosting() }) { Text("Stop hosting") } },
+        dismissButton = { TextButton(onClick = { confirmSwitch = false }) { Text("Keep hosting") } })
     if (confirmLeave) AlertDialog(onDismissRequest = { confirmLeave = false }, title = { Text("Leave shared game?") },
         text = { Text(if (state.uncertain) "An action's reply is still unknown. Ask the host to check it before entering another change. Leaving disconnects this device from the shared game." else
             "The game and its history remain on the host. Your separate local game is unchanged.") },
@@ -267,7 +279,7 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
             }
         }
     }
-    ArmedButton("End room", "Tap again: disconnect every device", Tone.BAD, model::stopHosting)
+    ArmedButton("End room", "Disconnect every device from this room. Saved profiles and game history will be kept.", Tone.BAD, model::stopHosting)
 }
 
 /** The code in large spaced letters, readable across a table. */

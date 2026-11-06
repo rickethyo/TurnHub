@@ -42,7 +42,7 @@ import android.util.Log
 class AtlasLinkHoldService : Service() {
 
     private val handler = Handler(Looper.getMainLooper())
-    private val stopper = Runnable { stopSelf() }
+    private val stopper = Runnable { requested = false; stopSelf() }
     private var wifiLock: WifiManager.WifiLock? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -60,6 +60,14 @@ class AtlasLinkHoldService : Service() {
             // e.g. ForegroundServiceStartNotAllowedException: nothing to hold with.
             Log.w(TAG, "Could not hold the Atlas link: ${e.javaClass.simpleName}: ${e.message}")
             stopSelf()
+            return START_NOT_STICKY
+        }
+        // Always satisfy startForegroundService before processing a quick return.
+        // stopService from onResume can otherwise cancel delivery of onStartCommand
+        // and leave Android's foreground-start deadline outstanding.
+        if (!requested) {
+            active = false
+            stopSelfResult(startId)
             return START_NOT_STICKY
         }
         active = true
@@ -140,20 +148,29 @@ class AtlasLinkHoldService : Service() {
         var active = false
             private set
 
+        @Volatile
+        private var requested = false
+
         /** Call when the app leaves the screen while connected. Safe to call repeatedly. */
         fun hold(context: Context) {
+            requested = true
             try {
                 val intent = Intent(context, AtlasLinkHoldService::class.java)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
                 else context.startService(intent)
             } catch (e: RuntimeException) {
+                requested = false
                 Log.w(TAG, "Could not start the Atlas link hold: ${e.message}")
             }
         }
 
         /** Call when the app is back on screen. */
         fun release(context: Context) {
-            context.stopService(Intent(context, AtlasLinkHoldService::class.java))
+            if (!requested && !active) return
+            requested = false
+            // Deliver the release after any pending start, rather than cancelling it.
+            try { context.startService(Intent(context, AtlasLinkHoldService::class.java)) }
+            catch (e: RuntimeException) { Log.w(TAG, "Could not release the Atlas link hold: ${e.message}") }
         }
     }
 }

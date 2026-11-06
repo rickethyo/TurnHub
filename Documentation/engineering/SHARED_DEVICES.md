@@ -118,10 +118,18 @@ poll restores the connection. Authorization refusal and ended rooms are handled
 immediately. Network rediscovery starts after confirmed failure rather than on
 every missed poll.
 
-Shared-room errors and history feedback use the app's snackbar overlay, including
-in setup and Planes. An unconfirmed command keeps its exact receipt and offers
+Shared-room errors and history feedback use a reserved status row above the app
+tabs, outside game controls, including in setup and Planes. Tap Details to read
+the full message. Routine artwork status stays in More > Atlas > Atlas connection.
+An unconfirmed command keeps its exact receipt and offers
 **Retry last action**; a successful background poll cannot clear that uncertainty.
-Only the receipt response resolves it. Feedback never shifts the game layout.
+Only the receipt response resolves it. Confirmed action outcomes remain separate
+from background poll messages. A refusal cancels queued edits and says how many
+were cancelled. After a host restart, an old receipt may be unknown: the app
+requires review rather than claiming the original action did not happen.
+Atlas discovery never replaces a manually joined or hosted room. Connection
+labels explicitly distinguish Atlas from the game host. Feedback never shifts
+the game layout or obscures player controls.
 
 Atlas controller verification coalesces concurrent checks per field/value. A
 pending check cannot delay another phone's valid cache hit. Successful results

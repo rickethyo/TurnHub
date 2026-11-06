@@ -146,6 +146,8 @@ fun LocalLibraryScreen(
                             if (table != null) TextButton({ copyingAccount = true }, enabled = state.storageProblem == null) {
                                 Text("Copy an account from another device") }
                             if (table != null) ImportTurnHubButton(table)
+                            Text("Profiles keep names and game history on this phone. Atlas accounts can also be copied between devices and used for private stats or administration.",
+                                color = p.muted, style = MaterialTheme.typography.bodySmall)
                             if (canLink) TextButton(onClick = onLoadProfiles,
                                 enabled = !importState.busy && state.storageProblem == null) { Text("Refresh profiles") }
                         }
@@ -157,7 +159,7 @@ fun LocalLibraryScreen(
                             if (player == null) {
                                 BrassCard {
                                     Text(entry.name, color = p.text, style = MaterialTheme.typography.titleMedium)
-                                    Text("Lives on ${entry.location}", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                                    Text("Saved on ${entry.location}", color = p.muted, style = MaterialTheme.typography.bodySmall)
                                     Text("ID ${entry.atlas!!.profileId}", color = p.faint, style = MaterialTheme.typography.labelSmall)
                                     if (table != null && importState.atlasId != null) TextButton(onClick = {
                                         table.referenceProfile(importState.atlasId, entry.atlas.profileId, entry.atlas.name)
@@ -171,7 +173,7 @@ fun LocalLibraryScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
                                         Text(player.name, color = p.text, style = MaterialTheme.typography.titleMedium)
-                                        Text("Lives on ${entry.location}", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                                        Text("Saved on ${entry.location}", color = p.muted, style = MaterialTheme.typography.bodySmall)
                                         if (state.library.isDeviceAdmin(player.localId))
                                             Text("Device Admin", color = p.accent, style = MaterialTheme.typography.labelMedium)
                                         Text("${totals.played} played · ${totals.won} won · ${totals.draws} draws", color = p.muted,

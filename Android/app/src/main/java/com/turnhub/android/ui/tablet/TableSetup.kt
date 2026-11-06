@@ -234,11 +234,11 @@ internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, st
 }
 
 /** How the seat map is explained in both lobbies. */
-internal const val SEAT_MAP_HINT = "Drag a player onto another seat, or tap two seats, to swap them. Turns go clockwise in number order."
+internal const val SEAT_MAP_HINT = "Tap two seats to swap them, or hold a seat before dragging it. Swipe normally to scroll. Turns go clockwise in number order."
 
 /** The seat map's explanation in Two-Headed Giant. */
 internal const val TEAM_MAP_HINT = "Each outlined panel is a team: players 1 and 2, then 3 and 4, and so on. " +
-    "Teammates share one panel, life total and turn. Drag a player onto another seat to swap them, or tap two seats."
+    "Teammates share one panel, life total and turn. Tap two seats to swap, or hold a seat before dragging it."
 
 /** A game family in the picker: a heading, and a colour stripe on its tiles that the heading always names too. */
 internal enum class GameFamily(val title: String) {

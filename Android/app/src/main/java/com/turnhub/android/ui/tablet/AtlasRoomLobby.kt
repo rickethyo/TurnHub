@@ -28,6 +28,7 @@ internal fun AtlasRoomLobby(state:LanUiState,model:LanViewModel) {
         }
         BrassCard {
             Text("Choose your profile",style=MaterialTheme.typography.titleMedium, color=com.turnhub.android.ui.theme.palette.text)
+            if (state.busy) Text("Connecting to the game host… Profile choices will be available when the connection is ready.", color=com.turnhub.android.ui.theme.palette.muted)
             FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 state.directory.forEach { profile ->
                     SuggestionChip(onClick={model.joinAtlasProfile(profile.id)}, enabled=!state.busy,

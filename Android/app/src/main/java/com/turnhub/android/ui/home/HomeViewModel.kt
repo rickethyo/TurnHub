@@ -147,7 +147,7 @@ class HomeViewModel(
         _hostedResume.value = null
         val table = standalone ?: return
         if (!on) return
-        if(atlasRoomLink?.isAtlasGuest==true) return
+        if(atlasRoomLink?.hasJoinedRoom==true) return
         val signedIn = playerSession.state.value is PlayerSessionState.SignedIn
         if (phonePairing == null && !signedIn) {
             onPlayFromPhoneClicked()

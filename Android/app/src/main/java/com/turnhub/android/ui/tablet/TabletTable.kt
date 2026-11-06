@@ -33,6 +33,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.snap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -606,7 +612,7 @@ internal fun TabletTable(
                     }, Modifier.fillMaxWidth())
                     if (onShareCsv != null) ToneButton("Export CSV", onShareCsv, Modifier.fillMaxWidth())
                     OverlayButtons {
-                        ToneButton("New players", { send(anySeat, "reset") }, Modifier.weight(1f))
+                        ToneButton("Edit players", { send(anySeat, "reset") }, Modifier.weight(1f))
                         AccentButton("Rematch", { send(anySeat, "rematch") }, Modifier.weight(1f))
                     }
                     // The Sean Mode easter egg: the same five, reseated so allies become enemies.
@@ -719,7 +725,7 @@ internal fun TabletTable(
                     }
                     if (standalone) DisclosureCard("Finish game") {
                         ArmedButton("End without a winner",
-                            "Tap again to end the game", Tone.BAD) {
+                            "Finish this game as a draw, without a winner.", Tone.BAD) {
                             menuOpen = false
                             send(anySeat, "draw")
                         }
@@ -842,7 +848,7 @@ private fun BackToSetup(summary: TableSummary, enabled: Boolean = true, onConfir
     val left = com.turnhub.android.standalone.StandaloneGame.UNDO_START_MS - TableClock.gameElapsedMs(summary, nowMs)
     if (left <= 0) return
     val label = "Back to setup (${TableClock.format(left)} left)"
-    if (enabled) ArmedButton(label, "Tap again: this game won't be saved", Tone.WARN, onConfirm)
+    if (enabled) ArmedButton(label, "Return to setup and discard this unfinished game. It will not be saved.", Tone.WARN, onConfirm)
     else ToneButton(label, {}, Modifier.fillMaxWidth(), tone = Tone.WARN, enabled = false)
     Text("Returns to setup with the same players and settings. Available for the first three minutes.",
         color = palette.muted, style = MaterialTheme.typography.bodySmall)
@@ -1333,15 +1339,22 @@ private fun HoldHalf(
 
 /** Hold to pass, so a brushed panel never ends a turn; while Atlas holds the pass, a tap keeps the turn. */
 @Composable
-private fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHaptics, modifier: Modifier, compact: Boolean = false,
+internal fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHaptics, modifier: Modifier, compact: Boolean = false,
     small: Boolean = false,
     clock: @Composable (Color?) -> Unit = {}) {
     val p = palette
     val pass by rememberUpdatedState(onPass)
     val scope = rememberCoroutineScope()
     var holding by remember { mutableStateOf(false) }
+    var confirmPass by remember { mutableStateOf(false) }
+    val progress by animateFloatAsState(if (holding) 1f else 0f,
+        animationSpec = if (holding) tween(PASS_HOLD_MS.toInt(), easing = androidx.compose.animation.core.LinearEasing) else snap(), label = "Pass hold")
     val shape = RoundedCornerShape(14.dp)
-    val label = if (passing) "Passing… tap to keep" else if (compact) "Pass" else "Hold to pass"
+    val label = if (passing) "Passing… tap to keep" else "Hold to pass"
+    if (confirmPass) AlertDialog(onDismissRequest = { confirmPass = false }, title = { Text("Pass the turn?") },
+        text = { Text("End your turn and move to the next player. You can also hold the pass button to do this directly.") },
+        confirmButton = { TextButton(onClick = { confirmPass = false; pass() }) { Text("Pass turn") } },
+        dismissButton = { TextButton(onClick = { confirmPass = false }) { Text("Keep playing") } })
     Box(
         modifier
             .clip(shape)
@@ -1350,7 +1363,7 @@ private fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHap
             .semantics(mergeDescendants = true) {
                 contentDescription = if (passing) "Keep the turn" else "Pass the turn"
                 role = Role.Button
-                onClick { pass(); true }
+                onClick { if (passing) pass() else confirmPass = true; true }
             }
             .pointerInput(passing) {
                 awaitEachGesture {
@@ -1360,14 +1373,16 @@ private fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHap
                         return@awaitEachGesture
                     }
                     holding = true
+                    var completed = false
                     val timer = scope.launch {
                         delay(PASS_HOLD_MS)
+                        completed = true
                         holding = false
                         haptics.confirm()
                         pass()
                     }
                     try {
-                        waitForUpOrCancellation()
+                        if (waitForUpOrCancellation() != null && !completed) confirmPass = true
                     } finally {
                         timer.cancel()
                         holding = false
@@ -1383,6 +1398,9 @@ private fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHap
                 maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
                 style = if (compact) MaterialTheme.typography.labelLarge else LocalTextStyle.current)
             clock(if (holding || passing) p.onActive else null)
+            Box(Modifier.fillMaxWidth().height(3.dp)) {
+                if (holding) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth(), color = p.onActive)
+            }
         }
     }
 }
@@ -1614,13 +1632,70 @@ private fun PlayerMenuItems(
 ) {
     val p = palette
     val playing = (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) && summary.settings.profile.magicRules
-    // One card for the turn, counters and status: the things a player reaches for most.
-    DisclosureCard(if (!playing) "Turn & tools" else if (unit.members.size > 1) "Turn, team counters & status" else "Turn, counters & status",
-        initiallyExpanded = true) {
-        val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
-        if (actor != null && summary.state == TableState.RUNNING) {
-            ArmedButton("I won the game", "Tap again to confirm your win", Tone.GOOD) { onControl(actor.seat(), "win") }
+    val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
+    if (actor != null && summary.state == TableState.RUNNING) {
+        ArmedButton("I won the game", "Record ${actor.label} as the winner and finish this game.", Tone.GOOD) { onControl(actor.seat(), "win") }
+    }
+    if (summary.settings.profile.commanderRules) {
+        DisclosureCard("Commander damage & tax", initiallyExpanded = true) {
+            unit.members.filter { !it.eliminated }.forEach { member ->
+                if (unit.members.size > 1) Text(member.label, color = p.text, fontWeight = FontWeight.Bold)
+                com.turnhub.android.ui.components.CommanderTaxEditor(
+                    member.counters, commanderName = member.namedCommander,
+                    commanderRarity = rememberCommanderArt(member.namedCommander, member.commanderArt)?.rarity,
+                    partner = member.playerNumber in partners,
+                    onPartnerChange = { on -> if (on) partners.add(member.playerNumber) else partners.remove(member.playerNumber) },
+                ) { kind, value, commander -> onCounter(member, kind, value, commander) }
+                Text("Tax changes cast cost only. Damage below also changes your life.",
+                    color = p.muted, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    if (unit.members.size > 1) "Commander damage to ${member.label}" else "Commander damage received",
+                    color = p.muted,
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                val showPartner = member.playerNumber in partners
+                // Star Commander allies can't deal each other Commander damage: they aren't listed.
+                val allies = summary.starAllies(member.playerNumber)
+                if (allies.isNotEmpty()) {
+                    Text("Allies can't deal you Commander damage (${allies.joinToString(" and ") { it.label }}).",
+                        color = p.faint, style = MaterialTheme.typography.bodySmall)
+                }
+                summary.players.filter { summary.commanderDamageAllowed(member.playerNumber, it.playerNumber) }.forEach { source ->
+                    val damage = member.commanderDamage.firstOrNull { it.sourcePlayer == source.playerNumber }?.damage.orEmpty()
+                    fun valueOf(c: Int) = damage.getOrNull(c - 1) ?: 0
+                    val commanders = if (showPartner || valueOf(2) > 0) listOf(1, 2) else listOf(1)
+                    commanders.forEach { c ->
+                        val value = valueOf(c)
+                        // A named commander says whose damage it is; a partner shows as (2).
+                        val label = source.label + when {
+                            source.namedCommander != null && c == 1 -> " · ${source.namedCommander}"
+                            commanders.size > 1 -> " ($c)"
+                            else -> ""
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(label, color = p.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            StepButton("−", "Remove 1 Commander damage from $label", value > 0) {
+                                onCommander(member, source.playerNumber, c, -1)
+                            }
+                            Text(
+                                "$value",
+                                color = if (value >= 21) p.bad else p.text,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.width(40.dp),
+                            )
+                            StepButton("+", "Add 1 Commander damage from $label", true) {
+                                onCommander(member, source.playerNumber, c, 1)
+                            }
+                        }
+                    }
+                }
+            }
         }
+    }
+    // One card for the turn, counters and status: the things a player reaches for most.
+    DisclosureCard(if (!playing) "Turn & tools" else if (unit.members.size > 1) "Other team counters & status" else "Other counters & status",
+        initiallyExpanded = !summary.settings.profile.commanderRules) {
         val rules = summary.localTimerRules
         if (rules != null && summary.settings.turnTimerEnabled) {
             val holder = actor ?: unit.members.first()
@@ -1678,68 +1753,11 @@ private fun PlayerMenuItems(
         CardGameMenuItems(unit, summary, { member, kind, value -> onCounter(member, kind, value, 1) },
             { member, action -> onControl(member.seat(), action) })
     }
-    if (summary.settings.profile.commanderRules) {
-        DisclosureCard("Commander · tax & damage") {
-            unit.members.filter { !it.eliminated }.forEach { member ->
-                if (unit.members.size > 1) Text(member.label, color = p.text, fontWeight = FontWeight.Bold)
-                com.turnhub.android.ui.components.CommanderTaxEditor(
-                    member.counters, commanderName = member.namedCommander,
-                    commanderRarity = rememberCommanderArt(member.namedCommander, member.commanderArt)?.rarity,
-                    partner = member.playerNumber in partners,
-                    onPartnerChange = { on -> if (on) partners.add(member.playerNumber) else partners.remove(member.playerNumber) },
-                ) { kind, value, commander -> onCounter(member, kind, value, commander) }
-                Text("Tax changes cast cost only. Damage below also changes your life.",
-                    color = p.muted, style = MaterialTheme.typography.bodySmall)
-                Text(
-                    if (unit.members.size > 1) "Commander damage to ${member.label}" else "Commander damage received",
-                    color = p.muted,
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                val showPartner = member.playerNumber in partners
-                // Star Commander allies can't deal each other Commander damage: they aren't listed.
-                val allies = summary.starAllies(member.playerNumber)
-                if (allies.isNotEmpty()) {
-                    Text("Allies can't deal you Commander damage (${allies.joinToString(" and ") { it.label }}).",
-                        color = p.faint, style = MaterialTheme.typography.bodySmall)
-                }
-                summary.players.filter { summary.commanderDamageAllowed(member.playerNumber, it.playerNumber) }.forEach { source ->
-                    val damage = member.commanderDamage.firstOrNull { it.sourcePlayer == source.playerNumber }?.damage.orEmpty()
-                    fun valueOf(c: Int) = damage.getOrNull(c - 1) ?: 0
-                    val commanders = if (showPartner || valueOf(2) > 0) listOf(1, 2) else listOf(1)
-                    commanders.forEach { c ->
-                        val value = valueOf(c)
-                        // A named commander says whose damage it is; a partner shows as (2).
-                        val label = source.label + when {
-                            source.namedCommander != null && c == 1 -> " · ${source.namedCommander}"
-                            commanders.size > 1 -> " ($c)"
-                            else -> ""
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(label, color = p.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            StepButton("−", "Remove 1 Commander damage from $label", value > 0) {
-                                onCommander(member, source.playerNumber, c, -1)
-                            }
-                            Text(
-                                "$value",
-                                color = if (value >= 21) p.bad else p.text,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.width(40.dp),
-                            )
-                            StepButton("+", "Add 1 Commander damage from $label", true) {
-                                onCommander(member, source.playerNumber, c, 1)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
     if (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) {
         unit.members.firstOrNull { !it.eliminated }?.let { member ->
             DisclosureCard("Leave game") {
                 val team = unit.members.size > 1
-                ArmedButton(if (team) "Our team concedes" else "Concede", "Tap again to concede", Tone.BAD) {
+                ArmedButton(if (team) "Our team concedes" else "Concede", "Leave this game as conceded.", Tone.BAD) {
                     onControl(member.seat(), "concede")
                 }
                 ToneButton(if (team) "Eliminate this team…" else "Eliminate…", { onEliminate(member, null) }, Modifier.fillMaxWidth())
@@ -1765,29 +1783,15 @@ internal fun StepButton(glyph: String, label: String, enabled: Boolean, onClick:
     }
 }
 
-/** A decisive button: the first tap arms it for three seconds, the second acts. */
+/** A decisive action waits for an explicit confirmation, without a reading deadline. */
 @Composable
-internal fun ArmedButton(label: String, armedLabel: String, tone: Tone, onConfirm: () -> Unit) {
+internal fun ArmedButton(label: String, confirmation: String, tone: Tone, onConfirm: () -> Unit) {
     var armed by remember { mutableStateOf(false) }
-    LaunchedEffect(armed) {
-        if (armed) {
-            delay(3_000)
-            armed = false
-        }
-    }
-    ToneButton(
-        if (armed) armedLabel else label,
-        {
-            if (armed) {
-                armed = false
-                onConfirm()
-            } else {
-                armed = true
-            }
-        },
-        Modifier.fillMaxWidth(),
-        tone = tone,
-    )
+    ToneButton(label, { armed = true }, Modifier.fillMaxWidth(), tone = tone)
+    if (armed) AlertDialog(onDismissRequest = { armed = false }, title = { Text("$label?") },
+        text = { Text(confirmation) },
+        confirmButton = { TextButton(onClick = { armed = false; onConfirm() }) { Text("Confirm") } },
+        dismissButton = { TextButton(onClick = { armed = false }) { Text("Cancel") } })
 }
 
 /** The game menu's whole-table counters, in the order a player's own counters list them. */

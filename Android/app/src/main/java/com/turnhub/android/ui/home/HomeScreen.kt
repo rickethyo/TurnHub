@@ -46,7 +46,6 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -160,6 +159,7 @@ fun HomeScreen(
     localState: com.turnhub.android.standalone.StandaloneState = com.turnhub.android.standalone.StandaloneState(),
     localTable: com.turnhub.android.standalone.StandaloneTable? = null,
     onOpenSharedGame: (() -> Unit)? = null,
+    sharedGameJoined: Boolean = false,
     sharedRoomHeader: @Composable () -> Unit = {},
     sharedRoomFeedback: @Composable () -> Unit = {},
     sharedGameHosting: Boolean = false,
@@ -305,13 +305,6 @@ fun HomeScreen(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
-        snackbarHost = {
-            Column {
-                sharedRoomFeedback()
-                if (!setup.visible && hostedStatus == com.turnhub.android.data.HostedAtlasLink.Status.Hosting && hostedPlanesMessage != null)
-                    Snackbar(Modifier.padding(12.dp)) { Text(hostedPlanesMessage, maxLines = 4) }
-            }
-        },
         topBar = {
             Column(Modifier.background(p.bg.copy(alpha = .92f))) {
                 BrandBar(uiState, running = playing, reduceMotion = reduceMotion,
@@ -322,6 +315,8 @@ fun HomeScreen(
         },
         bottomBar = {
             if (!setup.visible) {
+                Column {
+                sharedRoomFeedback()
                 // A translucent bar over the content with a hairline top edge,
                 // drawn behind the gesture area (edge-to-edge).
                 NavigationBar(
@@ -361,6 +356,7 @@ fun HomeScreen(
                         )
                     }
                 }
+                }
             }
         },
     ) { innerPadding ->
@@ -384,6 +380,11 @@ fun HomeScreen(
                     modifier = Modifier.padding(horizontal = 16.dp).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite })
             }
             if (!setup.visible && tab in listOf(HomeTab.GAME, HomeTab.TABLE, HomeTab.PLANES)) sharedRoomHeader()
+            if (!setup.visible && tab == HomeTab.GAME && !sharedGameHosting && !sharedGameJoined) {
+                onOpenSharedGame?.let { open ->
+                    TextButton(onClick = open, modifier = Modifier.fillMaxWidth()) { Text("Play together · Join or host a table") }
+                }
+            }
             // Tabs push sideways in the bar's direction, like slides; none when motion is reduced.
             AnimatedContent(
                 targetState = tab,
@@ -439,6 +440,7 @@ fun HomeScreen(
                                         if (showPeople) PeopleCard(info, admin, uiState.avatars, adminActions)
                                     }
                                     com.turnhub.android.ui.components.DisclosureCard("Atlas connection") {
+                                        hostedPlanesMessage?.let { Text(it, color = p.muted) }
                                         (hostedStatus as? com.turnhub.android.data.HostedAtlasLink.Status.Failed)?.let {
                                             Text(it.message, color = p.warn)
                                         }
@@ -619,16 +621,16 @@ internal fun ConnectionPill(uiState: HomeUiState) {
     val p = palette
     val (text, color) = when {
         uiState.joiningSsid != null -> "Joining Wi-Fi" to p.warn
-        uiState.isOffline -> "Reconnecting" to p.warn
-        uiState.isRetrying -> "Retrying" to p.warn
-        uiState.connectionState == AtlasConnectionState.CONNECTED -> "Connected" to p.good
-        uiState.connectionState == AtlasConnectionState.CONNECTING -> "Connecting" to p.warn
+        uiState.isOffline -> "Atlas reconnecting" to p.warn
+        uiState.isRetrying -> "Atlas retrying" to p.warn
+        uiState.connectionState == AtlasConnectionState.CONNECTED -> "Atlas connected" to p.good
+        uiState.connectionState == AtlasConnectionState.CONNECTING -> "Atlas connecting" to p.warn
         else -> "On device" to p.muted
     }
     val style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
     val measurer = rememberTextMeasurer()
     val labelWidth = with(LocalDensity.current) {
-        listOf("Joining Wi-Fi", "Reconnecting", "Retrying", "Connected", "Connecting", "On device")
+        listOf("Joining Wi-Fi", "Atlas reconnecting", "Atlas retrying", "Atlas connected", "Atlas connecting", "On device")
             .maxOf { measurer.measure(it, style, maxLines = 1).size.width }.toDp()
     }
     val pill = RoundedCornerShape(99.dp)

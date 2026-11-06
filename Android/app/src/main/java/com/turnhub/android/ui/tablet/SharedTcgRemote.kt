@@ -173,7 +173,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
         }
         if (own != null && state.role == "player" && summary.state == TableState.GAME_OVER) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ToneButton("New players", { model.act("reset") }, enabled = state.online && !state.busy && !state.uncertain)
+                ToneButton("Edit players", { model.act("reset") }, enabled = state.online && !state.busy && !state.uncertain)
                 AccentButton("Rematch", { model.act("rematch") }, enabled = state.online && !state.busy && !state.uncertain)
             }
         }
