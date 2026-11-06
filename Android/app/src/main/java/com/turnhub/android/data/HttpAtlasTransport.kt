@@ -48,8 +48,8 @@ class HttpAtlasTransport(
     private val endpoint: AtlasEndpoint,
     baseOpener: HttpConnectionOpener = HttpConnectionOpener.Default,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val connectTimeoutMs: Int = 3_000,
-    private val readTimeoutMs: Int = 3_000,
+    private val connectTimeoutMs: Int = 8_000,
+    private val readTimeoutMs: Int = 8_000,
 ) : AtlasTransport, AtlasSessionTransport {
 
     private val opener: HttpConnectionOpener = when {
@@ -185,7 +185,7 @@ class HttpAtlasTransport(
         return parsePersonalization(response.body)
     }
 
-    override suspend fun getAvatarImage(path: String, token: String): ByteArray = withContext(ioDispatcher) {
+    override suspend fun getAvatarImage(path: String, token: String): ByteArray = AtlasRequestLane.run(endpoint.baseUrl) { withContext(ioDispatcher) {
         // Only Atlas-owned paths; metadata cannot redirect the app to another host.
         require(path.matches(Regex("/api/avatar\\?profileId=[a-zA-Z0-9_-]+&revision=[0-9a-f]{8}(&pending=1)?")))
         ensureBootstrapRoute("GET", path)
@@ -196,6 +196,7 @@ class HttpAtlasTransport(
             connection.readTimeout = maxOf(readTimeoutMs, ARTWORK_TIMEOUT_MS)
             connection.instanceFollowRedirects = false
             connection.useCaches = false
+            connection.setRequestProperty("Connection", "close")
             if (token.isNotEmpty()) connection.setRequestProperty(TOKEN_HEADER, token)
             val responseCode = connection.responseCode
             captureTlsPeerPin(connection)
@@ -214,7 +215,7 @@ class HttpAtlasTransport(
             out.toByteArray()
         } catch (e: IOException) { throw classify(e) }
         finally { connection.disconnect() }
-    }
+    } }
 
     private fun parsePersonalization(body: String): Personalization = try {
         val root = org.json.JSONObject(body)
@@ -350,7 +351,7 @@ class HttpAtlasTransport(
             maxOf(readTimeoutMs, ARTWORK_TIMEOUT_MS) else readTimeoutMs,
     ): Response {
         ensureBootstrapRoute(method, path)
-        return withContext(ioDispatcher) {
+        return AtlasRequestLane.run(endpoint.baseUrl) { withContext(ioDispatcher) {
         val connection = try {
             opener.open(URL(endpoint.baseUrl + path))
         } catch (e: IOException) {
@@ -361,6 +362,7 @@ class HttpAtlasTransport(
             connection.connectTimeout = connectTimeoutMs
             connection.readTimeout = readTimeout
             connection.useCaches = false
+            connection.setRequestProperty("Connection", "close")
             // A captive portal or other device redirecting us is not an Atlas.
             connection.instanceFollowRedirects = false
             connection.setRequestProperty("Accept", "application/json")
@@ -384,7 +386,7 @@ class HttpAtlasTransport(
         } finally {
             connection.disconnect()
         }
-        }
+        } }
     }
 
     private fun ensureBootstrapRoute(method: String, path: String) {

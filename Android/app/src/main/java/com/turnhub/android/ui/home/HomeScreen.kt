@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -48,6 +49,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -157,6 +160,7 @@ fun HomeScreen(
     localTable: com.turnhub.android.standalone.StandaloneTable? = null,
     onOpenSharedGame: (() -> Unit)? = null,
     sharedRoomHeader: @Composable () -> Unit = {},
+    sharedRoomFeedback: @Composable () -> Unit = {},
     sharedGameHosting: Boolean = false,
     sharedGameCode: String? = null,
     /** Phone-hosted games: this phone's game shown on the connected Atlas. */
@@ -300,6 +304,7 @@ fun HomeScreen(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
+        snackbarHost = { sharedRoomFeedback() },
         topBar = {
             Column(Modifier.background(p.bg.copy(alpha = .92f))) {
                 BrandBar(uiState, running = playing, reduceMotion = reduceMotion,
@@ -353,40 +358,11 @@ fun HomeScreen(
         },
     ) { innerPadding ->
         Column(Modifier.fillMaxSize().padding(innerPadding)) {
-            if (!setup.visible && tab == HomeTab.GAME && (hostedResumeHost != null ||
-                hostedStatus is com.turnhub.android.data.HostedAtlasLink.Status.Failed ||
-                hostedStatus is com.turnhub.android.data.HostedAtlasLink.Status.Busy)) {
-                androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween) {
-                    // Phone-hosted: this phone runs the game, Atlas shows it (and its Sigils, later).
-                    if (onHostOnAtlas != null && summary != null && hostedResumeHost != null) {
-                        TextButton(onClick = { onResumeHosted(true) }) {
-                            Text("Resume " + (hostedResumeHost.takeIf { it.isNotBlank() }?.let { "$it's" } ?: "Atlas") + " game")
-                        }
-                        TextButton(onClick = { onResumeHosted(false) }) { Text("Show mine instead") }
-                    } else if (hostedStatus is com.turnhub.android.data.HostedAtlasLink.Status.Following) {
-                        Text("Atlas table" + (hostedStatus.host?.let { " · $it" } ?: ""),
-                            modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.labelLarge)
-                    } else if (onHostOnAtlas != null && summary != null) {
-                        val hosting = hostedStatus == com.turnhub.android.data.HostedAtlasLink.Status.Hosting
-                        TextButton(onClick = { onHostOnAtlas(!hosting) },
-                            modifier = Modifier.semantics { stateDescription = if (hosting) "Showing on Atlas" else "Not on Atlas" }) {
-                            Text(when (val status = hostedStatus) {
-                                com.turnhub.android.data.HostedAtlasLink.Status.Hosting -> "On Atlas · Stop"
-                                is com.turnhub.android.data.HostedAtlasLink.Status.Busy -> "Atlas busy" + (status.host?.let { " · $it" } ?: "")
-                                is com.turnhub.android.data.HostedAtlasLink.Status.Following -> "Atlas table" + (status.host?.let { " · $it" } ?: "")
-                                is com.turnhub.android.data.HostedAtlasLink.Status.Failed -> "Show on Atlas · Retry"
-                                com.turnhub.android.data.HostedAtlasLink.Status.Off -> "Show on Atlas"
-                            })
-                        }
-                    }
-                    if (onOpenSharedGame != null) TextButton(onClick = onOpenSharedGame) {
-                        Text(when {
-                            sharedGameCode != null -> "Room · ${sharedGameCode.uppercase()}"
-                            sharedGameHosting -> "Room · Hosting"
-                            else -> "Play together"
-                        })
-                    }
+            if (!setup.visible && tab == HomeTab.GAME && hostedResumeHost != null) {
+                androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                    TextButton(onClick = { onResumeHosted(true) }) { Text("Resume " +
+                        (hostedResumeHost.takeIf { it.isNotBlank() }?.let { "$it's" } ?: "Atlas") + " game") }
+                    TextButton(onClick = { onResumeHosted(false) }) { Text("Show mine instead") }
                 }
             }
             // Pairing replaces signing in: Atlas asks "Allow this phone?" with the same code.
@@ -460,6 +436,12 @@ fun HomeScreen(
                                         if (showPeople) PeopleCard(info, admin, uiState.avatars, adminActions)
                                     }
                                     com.turnhub.android.ui.components.DisclosureCard("Atlas connection") {
+                                        (hostedStatus as? com.turnhub.android.data.HostedAtlasLink.Status.Failed)?.let {
+                                            Text(it.message, color = p.warn)
+                                        }
+                                        (hostedStatus as? com.turnhub.android.data.HostedAtlasLink.Status.Busy)?.let {
+                                            Text("Atlas is showing " + (it.host ?: "another phone") + "'s game.", color = p.muted)
+                                        }
                                         if (onHostOnAtlas != null && summary != null) TextButton(onClick = {
                                             onHostOnAtlas(hostedStatus != com.turnhub.android.data.HostedAtlasLink.Status.Hosting)
                                         }) { Text(if (hostedStatus == com.turnhub.android.data.HostedAtlasLink.Status.Hosting) "Stop showing on Atlas" else "Show on Atlas") }
@@ -549,7 +531,7 @@ internal fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Bool
         androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             ConnectionPill(uiState)
-            if (uiState.connectionState == AtlasConnectionState.CONNECTED && !uiState.isOffline) {
+            if (uiState.connectionState == AtlasConnectionState.CONNECTED) {
                 uiState.tableSummary?.battery?.let { AtlasBatteryGauge(it) }
                 uiState.tableSummary?.links?.let { com.turnhub.android.ui.components.AtlasLinkIcons(it) }
             }
@@ -630,7 +612,7 @@ private fun BugReportButton(report: com.turnhub.android.ui.components.BugReportC
 }
 
 @Composable
-private fun ConnectionPill(uiState: HomeUiState) {
+internal fun ConnectionPill(uiState: HomeUiState) {
     val p = palette
     val (text, color) = when {
         uiState.joiningSsid != null -> "Joining Wi-Fi" to p.warn
@@ -640,9 +622,15 @@ private fun ConnectionPill(uiState: HomeUiState) {
         uiState.connectionState == AtlasConnectionState.CONNECTING -> "Connecting" to p.warn
         else -> "On device" to p.muted
     }
+    val style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+    val measurer = rememberTextMeasurer()
+    val labelWidth = with(LocalDensity.current) {
+        listOf("Joining Wi-Fi", "Reconnecting", "Retrying", "Connected", "Connecting", "On device")
+            .maxOf { measurer.measure(it, style, maxLines = 1).size.width }.toDp()
+    }
     val pill = RoundedCornerShape(99.dp)
     Row(
-        Modifier
+        Modifier.width(labelWidth + 36.dp)
             .clip(pill)
             .then(
                 if (p.ornament || p.bg == Color.Black) Modifier.background(p.inset).border(1.dp, color.copy(alpha = .5f), pill)
@@ -654,7 +642,7 @@ private fun ConnectionPill(uiState: HomeUiState) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(color))
-        Text(text, color = color, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+        Text(text, color = color, style = style, maxLines = 1, softWrap = false)
     }
 }
 

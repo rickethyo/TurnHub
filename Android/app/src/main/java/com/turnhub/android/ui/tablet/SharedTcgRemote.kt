@@ -163,7 +163,6 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
                 ToneButton("Display", { displaySettings = true })
             ToneButton("Sound", { soundSettings = true })
         }
-        state.message?.let { Text(it, color = p.warn) }
         state.historyNote?.let { Text(it, color = p.muted, style = MaterialTheme.typography.labelLarge) }
         when (summary.state) {
             TableState.LOBBY -> Text("Waiting for the host to start. Your seat stays connected.", color = p.text)
@@ -200,7 +199,6 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             }
         }
         // Every tap is briefly in flight; only a lost reply adds a row, so the panel doesn't jump.
-        if (state.uncertain && !state.busy) ToneButton("Retry last action", model::retry)
         if (!tableView && summary.settings.twoHeadedGiant) Text("Your team's life and poison are shared.", color = p.muted)
         // A claim from this device waits on the others; say so, and say when it was turned down.
         val claimant = summary.pending.winClaimPlayer

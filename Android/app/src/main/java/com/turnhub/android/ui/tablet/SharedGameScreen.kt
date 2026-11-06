@@ -78,7 +78,10 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
         else camera.launch(Manifest.permission.CAMERA)
     }
     if (state.remote != null) {
-        SharedTcgRemote(state, model, reduceMotion) { model.leave(); onClose() }
+        Box(Modifier.fillMaxSize()) {
+            SharedTcgRemote(state, model, reduceMotion) { model.leave(); onClose() }
+            Box(Modifier.align(Alignment.BottomCenter).navigationBarsPadding()) { RoomFeedback(state, model) }
+        }
         return
     }
     BackHandler { close() }

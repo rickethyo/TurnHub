@@ -164,10 +164,15 @@ class HttpAtlasRepository(
             } catch (e: AtlasException) {
                 failures++
                 val offline = _offlineSinceMs.value != null ||
-                    (failures >= maxConsecutivePollFailures && !holding)
+                    ((failures >= maxConsecutivePollFailures || clock() - live.summary.receivedAtMs >= 10_000) && !holding)
                 if (!publish(connection) {
                         if (offline && _offlineSinceMs.value == null) _offlineSinceMs.value = clock()
-                        _failure.value = if (offline) AtlasFailure.LostConnection(e.failure) else e.failure
+                        _failure.value = when {
+                            offline -> AtlasFailure.LostConnection(e.failure)
+                            e.failure is AtlasFailure.Timeout || e.failure is AtlasFailure.Unreachable ||
+                                (e.failure is AtlasFailure.HttpStatus && (e.failure.code >= 500 || e.failure.code in setOf(408, 429))) -> null
+                            else -> e.failure
+                        }
                     }) return
             }
         }

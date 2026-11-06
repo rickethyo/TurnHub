@@ -2491,3 +2491,11 @@ covering large setup selections without accumulating excessive RAM. Remote saved
 guest removal preserves the current seats and history. Final visual QA removes
 the old duplicate mode/Planechase controls below Start; they appear only in
 1. Game. All three device acceptance tests pass on both LG and tester Fold.
+
+## Atlas retry stability — 2026-11-06, Codex
+
+Owner reports repeated Connected/Retrying blips and layout jumps on connected
+devices. Baseline df267906 on codex/master, clean/fetched. Inspect live pinned
+HTTPS timing and boot continuity, polling/hosting traffic and retry UI. Preserve
+game state, device data and TLS trust; do not replay ambiguous game writes.
+No merge or release. Current workspace moved beneath TurnHub-Main.

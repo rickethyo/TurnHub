@@ -53,7 +53,6 @@ internal fun SharedRoomLobby(state: LanUiState, model: LanViewModel, onOpenPlane
         identityHint = "Choose a profile or add a guest. Guests do not need a profile.", savedTitle = "Saved players",
         embedded = true, phoneHosted = true, startReady = game.canStart,
         savedSetups = { SharedSavedSetups(state, model) },
-        feedback = { state.message?.let { Text(it, color = palette.warn) } },
         extraSettings = {
             if (game.profile.magicRules) {
                 SetupSwitch("Planechase", "Plane cards and the planar die join the game.", game.planechase.enabled, enabled) {

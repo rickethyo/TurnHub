@@ -79,16 +79,17 @@ internal class LanViewModel(
     private var atlasMode=false
     override val isAtlasGuest get() = atlasMode && (_state.value.preview!=null || _state.value.joined || _state.value.busy)
     private val atlasChecks=linkedMapOf<String,Pair<Long,String>>()
-    private suspend fun verifyAtlas(field:String,value:String):String? {
-        val key="$field:$value";val now=System.currentTimeMillis()
-        atlasChecks[key]?.takeIf { now-it.first<5000 }?.let { return it.second }
+    private val atlasCheckMutex = Mutex()
+    private suspend fun verifyAtlas(field:String,value:String):String? = atlasCheckMutex.withLock {
+        val key="$field:$value";val now=android.os.SystemClock.elapsedRealtime()
+        atlasChecks[key]?.takeIf { now-it.first<5000 }?.let { return@withLock it.second }
         val response=atlasCall?.invoke("POST","/api/hosted/controller",listOf(field to value))
             ?: error("Atlas controller check unavailable")
-        if(response.code==403) return null
+        if(response.code==403) return@withLock null
         check(response.ok) { "Atlas controller check unavailable" }
-        val phone=JSONObject(response.body).optString("phone").takeIf { it.matches(Regex("[0-9a-fA-F]{8}")) } ?: return null
+        val phone=JSONObject(response.body).optString("phone").takeIf { it.matches(Regex("[0-9a-fA-F]{8}")) } ?: return@withLock null
         if(atlasChecks.size>=32) atlasChecks.remove(atlasChecks.keys.first())
-        atlasChecks[key]=now to phone;return phone
+        atlasChecks[key]=android.os.SystemClock.elapsedRealtime() to phone;phone
     }
     override suspend fun publishedInvitation():String? {
         if(token!=null) return null
@@ -269,6 +270,7 @@ internal class LanViewModel(
     }
     fun atTable(summary: com.turnhub.android.domain.TableSummary): Boolean =
         _state.value.remote?.let { it.gameId == summary.bootId } ?: false
+    fun dismissMessage() { _state.update { it.copy(message = null) } }
     fun unsupportedAction() { _state.update { it.copy(message = "Use the host for this game setup or decision.") } }
     fun stopHosting() {
         if (hostRecord == null) { leave(); return }
@@ -392,18 +394,24 @@ internal class LanViewModel(
     private fun startPolling(epoch: Int) {
         polling?.cancel()
         polling = viewModelScope.launch {
+            var failures = 0
             while (isActive && epoch == generation) {
                 delay(1_000)
                 val invitation = invite ?: break
                 val credential = token ?: break
                 try {
                     val reply = request(invitation, base(invitation, "poll").put("deviceName", android.os.Build.MODEL.take(64)).put("token", credential).put("looksId", _state.value.looksId))
-                    if (epoch == generation) receive(reply)
+                    if (epoch == generation) {
+                        if (reply.optString("code") == "unavailable") {
+                            failures++
+                            if (failures >= 3) receive(reply)
+                        } else { failures = 0; receive(reply) }
+                    }
                 } catch (error: Exception) {
                     if (error is CancellationException) throw error
-                    if (epoch == generation) {
+                    if (epoch == generation && ++failures >= 3) {
                         _state.update { it.copy(online = false, message = "Connection lost. Reconnecting to your room…") }
-                        rediscover()
+                        if (failures == 3 || failures % 5 == 0) rediscover()
                     }
                 }
             }
@@ -590,7 +598,7 @@ internal class LanViewModel(
                 "view-only" -> null
                 "stale" -> "The table changed before this edit arrived. Review the latest values and try again."
                 "rejected" -> "That change isn't available in the current game state."
-                "unavailable" -> "The host is away or unable to save. Controls wait until it returns."
+                "unavailable" -> if (before.uncertain) "The host has not confirmed this action. Retry the same action to check its saved result." else "Waiting for the shared table to respond. Reconnecting…"
                 "interrupted" -> "The host or connection restarted. Review the current values; your previous edit was not replayed."
                 "forbidden" -> "This view is read only. Game master permission is needed for that action."
                 "renew" -> "Connection renewed without signing in. The last edit was not applied; review it before trying again."

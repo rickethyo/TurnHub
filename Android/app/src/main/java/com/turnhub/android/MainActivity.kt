@@ -500,6 +500,7 @@ class MainActivity : ComponentActivity() {
                             localState = localState.copy(game = lanState.remote ?: localState.game),
                             localTable = standaloneViewModel.table,
                             onOpenSharedGame = { sharedGameOpen = true },
+                            sharedRoomFeedback = { com.turnhub.android.ui.tablet.RoomFeedback(lanState, lanViewModel) },
                             sharedRoomHeader = {
                                 lanState.host?.let { com.turnhub.android.ui.tablet.SharedCodeBanner(it, lanState.guests.size) { sharedGameOpen = true } }
                                 if (lanState.remote != null) com.turnhub.android.ui.tablet.SharedRoomBanner(lanState, lanViewModel)

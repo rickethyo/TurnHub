@@ -50,6 +50,5 @@ internal fun SharedPlanarSetup(state: LanUiState, model: LanViewModel) {
         DisclosureCard("Planechase rules") {
             Text("Roll the planar die during your main phase with an empty stack. The first roll is free; each extra roll costs one more mana. Resolve each plane's instructions at the table.", color = palette.text)
         }
-        state.message?.let { Text(it, color = palette.warn) }
     }
 }
