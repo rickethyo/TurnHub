@@ -150,6 +150,16 @@ private class FakeHost(val atlas: FakeAtlas) : SetupHost {
     }
     override fun holdConnection(hold: Boolean) { holds += hold }
     var deviceAdmin: com.turnhub.android.standalone.SavedLocalPlayer? = null
+    var requireDeviceAdmin = false
+    var saveDeviceAdmin = true
+    val verifiedAdmins = mutableListOf<String>()
+    override fun needsDeviceAdminSetup() = requireDeviceAdmin
+    override fun installVerifiedSetupAdmin(profile: ProfileSummary, pin: String): Boolean {
+        verifiedAdmins += profile.profileId
+        if (!saveDeviceAdmin) return false
+        requireDeviceAdmin = false
+        return true
+    }
     val installed = mutableListOf<Pair<String, String>>()
     override fun deviceAdmin() = deviceAdmin
     override fun deviceAdminInstalled(localId: String, profileId: String, linkKey: String?) { installed += localId to profileId }
@@ -193,6 +203,21 @@ class AtlasSetupAssistantTest {
         val host = FakeHost(atlas)
         val session = AtlasPlayerSession { atlas }
         return Triple(AtlasSetupAssistant(session, releases, host, pollMs = 1), atlas, host)
+    }
+
+    @Test fun `Atlas account setup cannot advance without saving the phone Admin`() = runTest {
+        val (assistant, atlas, host) = setup()
+        host.requireDeviceAdmin = true
+        host.saveDeviceAdmin = false
+        assistant.check(); assistant.next(); assistant.createAccount("Owner", "2468")
+        assertEquals(SetupStep.ACCOUNT, assistant.state.value.step)
+        assertTrue(assistant.state.value.error!!.contains("device's Admin"))
+        val profile = atlas.profiles.entries.single().let { ProfileSummary(it.key, it.value.first, true) }
+        host.saveDeviceAdmin = true
+        assistant.signIn(profile, "2468")
+        assertFalse(host.needsDeviceAdminSetup())
+        assertEquals(profile.profileId, host.verifiedAdmins.last())
+        assertEquals(SetupStep.TABLE_CODE, assistant.state.value.step)
     }
 
     @Test

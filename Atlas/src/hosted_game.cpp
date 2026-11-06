@@ -1,6 +1,7 @@
 #include "hosted_game.h"
 
 #include "turnhub_json.h"
+#include "hosted_sigils.h"
 
 #include <cstdio>
 
@@ -90,6 +91,7 @@ bool HostedTable::publish(const std::string &token, const std::string &stateJson
   if (!hasGame() || gameId != game_.gameId) inputs_.clear();
   // The game to resume is back with a hub (this one resumed it, or its own hub came back).
   if (!gameId.empty() && gameId == resumeGameId_) { resume_.clear(); resumeHost_.clear(); resumeGameId_.clear(); }
+  if (hasGame()) TurnHubAtlas::presentHostedAudio(game_, next);
   game_ = std::move(next);
   state_ = stateJson;
   lease_.renewedAtMs = nowMs;

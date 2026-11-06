@@ -72,6 +72,39 @@ class AtlasPlayerCopiesTest {
         assertEquals(2, attempts)
     }
 
+    @Test fun `confirmed player copies retry a rejected guest record without changing its identity or local history`() = runTest {
+        var now = 0L
+        val table = StandaloneTable(MemoryStandaloneStore(StandaloneGame(), LocalLibrary()), wallClock = { now }, shortGameMs = 0)
+        table.addPlayer("Alex"); table.addGuest()
+        table.start(); now = 100_000; table.control(TabletSeat(9, 1), "win")
+        val original = table.state.value.library.history.single()
+        var accepted = false
+        val sent = mutableListOf<Map<String, String>>()
+        val sync = AtlasPlayerCopies { method, path, fields -> when (path) {
+            "/api/player-copies" -> if (method == "POST") RawResponse(200, """{"ok":true}""")
+                else RawResponse(200, """{"copies":[]}""")
+            "/api/standalone/import" -> {
+                sent += fields.toMap()
+                if (!accepted) RawResponse(400, """{"error":"That game record is not valid"}""")
+                else RawResponse(200, """{"ok":true,"duplicate":false,"credited":1,"guests":1,"unmatched":[]}""")
+            }
+            "/api/player-copies/stats" -> RawResponse(200, """{"lifetime":{"gamesPlayed":1,"gamesWon":1}}""")
+            "/api/player-copies/history" -> RawResponse(503, "{}")
+            else -> error(path)
+        } }
+        sync.sync("atlas", table)
+        assertEquals(DeliveryStatus.REJECTED, table.state.value.library.delivery(original.recordId).status)
+        accepted = true
+        sync.sync("atlas", table)
+        sync.sync("atlas", table)
+        assertEquals(2, sent.size)
+        assertEquals(sent[0], sent[1])
+        assertEquals("", sent[1]["profile1"])
+        assertTrue(JSONObject(sent[1].getValue("record")).getJSONArray("players").getJSONObject(1).getBoolean("guest"))
+        assertEquals(listOf(original), table.state.value.library.history)
+        assertEquals(DeliveryStatus.IMPORTED, table.state.value.library.delivery(original.recordId).status)
+    }
+
     @Test fun `unacknowledged copy never becomes a credited identity`() = runTest {
         val table = StandaloneTable(MemoryStandaloneStore(StandaloneGame(), LocalLibrary()))
         table.addPlayer("Alex")

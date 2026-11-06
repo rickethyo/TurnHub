@@ -181,7 +181,7 @@ private fun Account(state: SetupState, actions: SetupActions) {
         return
     }
     if (!existing || state.profiles.isEmpty()) {
-        Text("This account becomes the table's Admin. Your name and statistics stay with it.", color = p.muted)
+        Text("This account becomes the table's Admin. If this device has no Admin, it also becomes this device's Admin.", color = p.muted)
         OutlinedTextField(name, { name = it.take(32) }, label = { Text("Your name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         PinField(pin, { pin = it }, "Choose a PIN (4–8 digits) or a password")
         PinField(confirm, { confirm = it }, "Type it again")
@@ -197,7 +197,7 @@ private fun Account(state: SetupState, actions: SetupActions) {
             TextButton({ existing = true }) { Text("I already have an account on this Atlas") }
         }
     } else {
-        Text("Choose your account.", color = p.muted)
+        Text("Choose your account. If this device has no Admin, the verified account becomes its Admin too.", color = p.muted)
         Column(Modifier.selectableGroup()) {
             state.profiles.forEach { profile ->
                 Row(

@@ -1826,6 +1826,28 @@ static void firstRunSetup() {
   resetPresence(); resetTouchControls(); endHostedGame();
 }
 
+static void hostedAudioCues() {
+  using turnhub::TableState;
+  FakeSpeaker speaker; audio.clear(); audio.setSpeaker(&speaker); audio.setSpeakerVolume(2);
+  turnhub::Game before;
+  before.players.resize(2); before.players[0].localId="sigil:0:1"; before.players[1].localId="sigil:1:1";
+  auto next=before; next.gameId="sound-match"; next.state=TableState::Running; next.active=0;
+  const auto check=[&](const turnhub::Game &old, const turnhub::Game &current, bool audible) {
+    speaker.volumes.clear(); clearTones();
+    TurnHubAtlas::presentHostedAudio(old,current); drainAudio();
+    assert(speaker.volumes.empty()!=audible);
+  };
+  check(before,next,true);
+  check(next,next,false); // Repeated snapshots never replay cues.
+  before=next; next.active=1; check(before,next,true);
+  before=next; next.state=TableState::Paused; check(before,next,true);
+  before=next; next.state=TableState::Running; check(before,next,true);
+  before=next; next.state=TableState::GameOver; check(before,next,true);
+  before=next; next.gameId="rematch"; next.state=TableState::Running; check(before,next,true);
+  before=next; next.gameId="unrelated-running-game"; check(before,next,false);
+  audio.setSpeaker(nullptr); audio.clear();
+}
+
 static void atlasSpeaker() {
   FakeSpeaker speaker;
   audio.clear(); audio.setSpeaker(&speaker); audio.setSpeakerVolume(TurnHub::DEFAULT_SPEAKER_VOLUME);
@@ -2498,6 +2520,13 @@ static void matchHistory() {
     {"eliminatedBy1","0"},{"name1","Guest"},{"profile1",""},{"turns1","6"},{"turnMs1","500000"},{"fastest1","20000"},{"longest1","150000"},{"out1","1"},
     {"record",phoneRecord("1a2b3c4d-1111-4222-8333-444455556666")},
   };
+  // Exact phone guest encoding: no counters or fabricated per-guest statistics.
+  {
+    auto r=turnhub::Json::parse(record["record"].c_str());
+    auto list=turnhub::Json::array(); list.push(r.get("players")[0]);
+    list.push(turnhub::Json::parse(R"({"name":"Guest","guest":true,"profileId":null,"localId":null,"outOrder":1,"conceded":false,"eliminatedBy":0,"selfEliminated":false,"bagDrawn":false})"));
+    r.set("players",list); record["record"]=r.dump().c_str();
+  }
   // No card: statistics still count, the history says so.
   TurnHubHistory::useFiles(nullptr);
   assert(request("/api/standalone/import",ana,record)==200 && server.body.find("\"history\":\"no_card\"")!=std::string::npos);
@@ -3228,6 +3257,7 @@ static void hostedSigils() {
   const auto &shown=TurnHub::sentGameDisplays[0];
   assert(shown.primary.life==38 && !strcmp(shown.primary.name,"Ana") && shown.commander==1);
   assert(TurnHubProtocol::displayPrimaryPlayer(shown.state)==1);
+  assert(TurnHubProtocol::displayTurnNumber(shown.state)==1);
   assert(TurnHub::sentGameDisplays[1].primary.life==40 && !strcmp(TurnHub::sentGameDisplays[1].primary.name,"Ben"));
   using TurnHubProtocol::SigilAction; using TurnHubProtocol::sigilActionBit;
   assert(sigilMenuFor(0).actions & sigilActionBit(SigilAction::Pass));
@@ -3247,6 +3277,23 @@ static void hostedSigils() {
   assert(inputs[1].player==2 && inputs[1].action=="{\"kind\":\"life\",\"value\":-3,\"slot\":0,\"source\":0}");
   // Atlas changed nothing itself: the game is still the hub's.
   assert(hosted.game().players[0].life==38 && hosted.game().active && *hosted.game().active==0);
+  auto next=turnhub::Json::parse(running);
+  next.set("revision",8); auto players=next.get("players"); auto first=players[0]; first.set("turnsCompleted",5);
+  turnhub::Json updated=turnhub::Json::array(); updated.push(first); updated.push(players[1]); next.set("players",updated);
+  assert(request("/api/hosted/state",ana,{{"state",next.dump().c_str()}})==200);
+  leds.renderHosted(hosted.game(),testNow,0x3);
+  assert(TurnHubProtocol::displayTurnNumber(TurnHub::sentGameDisplays[0].state)==6);
+  next.set("revision",9); next.set("state","GAME_OVER");
+  assert(request("/api/hosted/state",ana,{{"state",next.dump().c_str()}})==200);
+  syncSigilMenus(testNow);
+  assert(sigilMenuFor(0).actions & sigilActionBit(SigilAction::Rematch));
+  assert(sigilMenuFor(1).actions & sigilActionBit(SigilAction::ResetTable));
+  TurnHubAtlas::handleHostedSigilEvent(1,PacketType::SelectAction,encodeSelectAction(SigilAction::Rematch,sigilMenuRevision(1)));
+  assert(turnhub::Json::parse(hosted.inputsAfter(0).back().action).get("kind").asString()=="rematch");
+  assert(hosted.game().state==turnhub::TableState::GameOver);
+  assert(TurnHubAtlas::hostedScreenActions().rematch && TurnHubAtlas::hostedScreenActions().reset);
+  assert(TurnHubAtlas::queueHostedScreenAction(TurnHubAtlas::HostedScreenAction::Reset));
+  assert(turnhub::Json::parse(hosted.inputsAfter(0).back().action).get("kind").asString()=="reset");
   assert(request("/api/hosted/release",ana)==200 && !TurnHubAtlas::hostedForSigil(0,testNow));
   TurnHub::fixtureRadio=false;
   ProfileFixture::profiles.erase(anaId.c_str());
@@ -3393,6 +3440,7 @@ int main() {
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";
   updateNotice(); std::cout<<"PASS update notice: app-reported versions, devices behind, Menu and Info text\n";
   atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, Wi-Fi QR code, turn clock" << std::endl;
+  hostedAudioCues();
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
   standaloneImport(); std::cout<<"PASS standalone import: exact Atlas/profile scope, no name fallback, invalid mapping, guests, per-player receipts, duplicates, storage failure, draw\n";
   matchHistory(); std::cout<<"PASS match history: whole records kept once with Atlas profile IDs, CSV rows, torn lines, history route\n";

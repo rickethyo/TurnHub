@@ -450,6 +450,8 @@ void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
     const HostedScreenActions offered = hostedScreenActions();
     ButtonSpec row[2];
     uint8_t n = 0;
+    if (offered.rematch) row[n++] = {TouchAction::Rematch, "Rematch", 0, 3};
+    if (offered.reset) row[n++] = {TouchAction::ResetGame, "New players", 0, 2};
     if (offered.start) row[n++] = {TouchAction::StartGame, "Start game", 0, 3};
     if (offered.pass) row[n++] = {TouchAction::PassTurn, "Pass", 0, 3};
     if (offered.pause) row[n++] = {TouchAction::Pause, "Pause", 0, 2};
@@ -510,6 +512,8 @@ const char *actionName(TouchAction action) {
     case TouchAction::OpenGame: return "OPEN_GAME";
     case TouchAction::OpenSettings: return "OPEN_SETTINGS";
     case TouchAction::Pair: return "PAIR";
+    case TouchAction::Rematch: return "Rematch";
+    case TouchAction::ResetGame: return "New players";
     case TouchAction::StartGame: return "START_GAME";
     case TouchAction::Pause: return "PAUSE";
     case TouchAction::Resume: return "RESUME";
@@ -687,8 +691,11 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
   // A hosted game: the hub decides, so the tap only queues an input for it.
   if (hostedShown(nowMs) && (action == TouchAction::StartGame || action == TouchAction::PassTurn ||
       action == TouchAction::Pause || action == TouchAction::Resume || action == TouchAction::PlanarRoll ||
-      action == TouchAction::PlanarWalk || action == TouchAction::PlanarResolve)) {
-    const HostedScreenAction hosted = action == TouchAction::StartGame ? HostedScreenAction::Start
+      action == TouchAction::PlanarWalk || action == TouchAction::PlanarResolve ||
+      action == TouchAction::Rematch || action == TouchAction::ResetGame)) {
+    const HostedScreenAction hosted = action == TouchAction::Rematch ? HostedScreenAction::Rematch
+        : action == TouchAction::ResetGame ? HostedScreenAction::Reset
+        : action == TouchAction::StartGame ? HostedScreenAction::Start
         : action == TouchAction::PassTurn ? HostedScreenAction::Pass
         : action == TouchAction::Pause ? HostedScreenAction::Pause
         : action == TouchAction::PlanarRoll ? HostedScreenAction::PlanarRoll
@@ -850,6 +857,7 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
   const turnhub::Game &game = hosted.game();
   const bool inGame = game.state != turnhub::TableState::Lobby;
   screen.showLife = inGame;
+  screen.round = game.active ? static_cast<uint16_t>(std::min(game.players[*game.active].turnsCompleted + 1, 65535)) : 0;
   for (size_t i = 0; i < game.players.size() && screen.playerCount < MAX_SCREEN_PLAYERS; ++i) {
     const turnhub::Player &player = game.players[i];
     ScreenPlayer &chip = screen.players[screen.playerCount++];

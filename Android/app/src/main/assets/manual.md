@@ -4,7 +4,7 @@
 
 ## Prototype Edition v0.22
 
-TurnHub keeps track of the bookkeeping at a tabletop game: whose turn it is, life totals, Commander damage, counters, the turn timer and who won. The TurnHub app runs a whole game on one Android phone or tablet, with saved players, personalization and detailed history. No Atlas, account, internet connection or permission is needed to play.
+TurnHub keeps track of the bookkeeping at a tabletop game: whose turn it is, life totals, Commander damage, counters, the turn timer and who won. The TurnHub app runs a whole game on one Android phone or tablet, with saved players, personalization and detailed history. No Atlas or internet connection is needed to play.
 
 An Atlas (the TurnHub table controller) adds what one device cannot: physical Sigil controllers, the Atlas screen and speaker, and shared accounts and statistics for the table. This manual covers the app and the Atlas administration portal. Atlas and the Sigils have their own manual, the TurnHub Hardware Manual, which the app carries after this one.
 
@@ -39,6 +39,8 @@ At the top of the app are two small buttons: the bug button reports a bug (secti
 
 # 3. Players and Accounts
 
+Every phone or tablet needs a device Admin with a PIN or password. Choose an existing profile or create one; setup cannot be skipped. If Atlas setup verifies your account on a device without an Admin, that account becomes its device Admin too. Existing Admin assignments stay in place. Transfer the role to another protected account before deleting the current Admin.
+
 In Game setup, Add Guest immediately adds a numbered guest without a profile. Choose a saved profile or guest from the picker to reuse it. Add profile opens a name and optional PIN or password dialog; the new profile is then available in the picker. Each profile has an eight-character account ID (such as 1A2B3C4D), so people with the same name stay separate. Delete guest under a saved guest asks before removing it from the picker; current seats and game history are kept.
 
 On a phone every player is equal: local accounts carry no permissions, and anyone at the table can set up, play and finish a game.
@@ -63,7 +65,7 @@ Images are cropped and compressed on this device to at most 512 by 512 pixels an
 
 ## Deleting an Account
 
-**Delete account** removes a player from this device. It is not available while the player is in a game in progress. Their finished games stay in History under the name they played with.
+**Delete account** removes a player from this device. It is not available while the player is in a game in progress. Their finished games stay in History under the name they played with. The device Admin must first transfer the role to another protected account.
 
 # 4. Setting Up a Game
 
@@ -107,7 +109,7 @@ Open Game > Play together > Host game to open a game-night room. Share its join 
 
 On the same Wi-Fi, open Game > Play together and enter the code or scan the QR. Choose a read-only display, Shared table controls, or your profile. A protected profile asks for its PIN on first linking; reconnects use saved room access. Once a phone joins a profile, that profile disappears from the general selector. To add another phone to the same player, open the connected phone’s menu, choose Add another phone, and scan its player-only invitation. It uses the same persistent room and gives control of that player only. Multiple phones and a Sigil share one player and one stats credit. A Sigil alone does not hide the profile. Sitting out does not remove room membership.
 
-Personal screens control their own player. Table display shows everyone read-only. Shared table controls use facing-seat panels so everyone can change normal gameplay values on a central tablet without signing in. Public views stay read-only unless the host grants that device game master access. Setup and special game decisions outside the remote controls stay on the host. Profile IDs establish identity; matching names do not automatically merge profiles. Read-only player panels show Active turn with its clock (Turn paused while paused), completed turns and a format-specific fact such as commander casts, prizes left or lore instead of Pass and More.
+Personal screens control their own player. Table display shows everyone read-only. Shared table controls use facing-seat panels so everyone can change normal gameplay values on a central tablet without signing in. Public views stay read-only unless the host grants that device game master access. Setup and special game decisions outside the remote controls stay on the host. Profile IDs establish identity; matching names do not automatically merge profiles. Read-only player panels show Active turn with its clock (Turn paused while paused), completed turns and a format-specific fact such as commander casts, prizes left or lore instead of Pass and More. On your player phone, Name commander sets your own commander. After game over, Rematch starts the same players again; New players returns everyone to setup.
 
 Display settings: open Display on a connected player screen, or Display settings in any player menu or the table menu > Sound & display. The heading names the screen being changed. Choose another screen selects a Public table display, Host screen or named player screen, with friendly device names underneath. Choose All panels upright for a TV or wall display, or Face each player for a screen in the middle of the table. Only the selected device changes. Any connected player can change this setting without game master permission, including after conceding. The room saves each display choice across reconnects and host restart. Outside a room, it changes only this device. For a public Table or Planes display, Show on this screen switches that selected device between Table and Planes. Planes is available when Planechase is enabled. The room saves this choice; it does not change seats or gameplay permissions.
 
@@ -281,7 +283,7 @@ The game-over card offers:
 
 # 8. History and Statistics
 
-**History** lists every finished game with its winner, mode, starting life, and each player's final life, turns and how they went out. Tap a game for its details.
+**History** lists every finished game with its winner, mode, starting life, and each player's final life, turns and how they went out. Tap a game for its details. To copy saved games to Atlas or retrieve matching archived games, connect and pair this phone, then tap Sync games with Atlas in History. No Atlas profile sign-in is required. Progress and errors appear above the games; open Details to retry a failed copy with its saved player mapping.
 
 **Statistics** lists every saved player, most wins first. Anyone at the table can open it; no PIN is needed. Tap a player for games played and won, draws, starts, eliminations, concessions, turns, total and average game and turn times, fastest and longest turns and their last game. **Share** sends their statistics as text. Opponents eliminated counts explicitly credited removals across all game modes. Credit stays in history and shared results and imports with the match.
 
@@ -417,7 +419,7 @@ Atlas has stopped answering. Your game carries on in the app. Check that Atlas i
 
 ## A Local Game Is Missing From Atlas Statistics
 
-**Reconnect to Atlas and complete pairing if asked. The phone sends player copies and finished games automatically. Check Players for a storage or transfer message, and check Atlas's microSD card for appearance and detailed history. Local records stay on the phone; retrying does not count them twice.**
+**Reconnect to Atlas and complete pairing if asked. The phone sends player copies and finished games automatically. Check Players for a storage or transfer message, and check Atlas's microSD card for appearance and detailed history. Local records stay on the phone; retrying does not count them twice.** Saved on this device confirms local history. Tap Sync games with Atlas in History; open Details if a game needs attention. True guests keep no profile statistics.
 
 # 14. Prototype Limitations
 
@@ -738,7 +740,7 @@ To concede, choose **I'm out** from Menu, then hold **Confirm out** (on a shared
 
 If a match can't be finished, for example after a power cut, tap **Table** on the Atlas screen and hold **End match** for 5 seconds. It ends with no winner, and every player's statistics count a draw.
 
-After the game, choose **Rematch** to play again with the same players, or **Reset** to empty the table, on the Atlas screen, a Sigil or the app.
+After the game, choose **Rematch** to play again with the same players, or **Reset** to return to setup, on the Atlas screen, a Sigil or the app. On a hosted Sigil, Rematch and Reset request the change from the hub; eliminated players can use them too.
 
 # 14. Two Games, Statistics and the microSD Card
 
@@ -766,7 +768,7 @@ There is no shut-down command. End or pause the game, disconnect Atlas's power, 
 
 Atlas's small battery keeps the game, radio and portal alive when USB is pulled; keep USB connected for normal play.
 
-- The screen turns off when nobody has touched it and nothing new has happened for a while: by default after two minutes on USB, between games only, or after 30 seconds on battery, even during a game. Atlas keeps running. A touch lights it again, and that first touch does not press anything; a turn passing or a phone joining lights it too. Choose the timing under Settings > Device > Sound, screen, sleep on Atlas, or in the app’s Device Settings (Admin): Screen off (Auto, 30 s, 1, 2, 5 or 10 min, or Never) and Off in games (On battery, No or Yes).
+- The screen turns off when nobody has touched it and nothing new has happened for a while: by default after two minutes on USB, between games only, or after 30 seconds on battery, even during a game. Atlas keeps running. A touch lights it again, and that first touch does not press anything; a turn passing or a phone joining lights it too. Choose the timing under Settings > Device > Sound, screen, sleep on Atlas, or in the app’s Device Settings (Admin): Screen off (Auto, 30 s, 1, 2, 5 or 10 min, or Never) and Off in games (On battery, No or Yes). A Sigil stays lit throughout a starting, running or paused game, including while waiting for another player. Its game screen shows the active player’s turn number as the round.
 
 - Between games on battery, Atlas goes into deep sleep after five minutes without player activity. Deep sleep (same place) can be set to 5, 10, 15, 30 or 60 minutes, or Off. A flat battery still puts Atlas to sleep, whatever the setting.
 

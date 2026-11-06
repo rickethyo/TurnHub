@@ -191,6 +191,46 @@ class LanSessionsTest {
         }
         override fun commitSnapshot(game: String, library: String): Boolean { commits++; return saveSnapshot(game, library) }
     }
+    @Test fun `finished guests rematch and reset once while ordinary game over edits stay rejected`() {
+        val f = Fixture()
+        val token = f.join().getString("token")
+        assertEquals("ok", f.sessions.handle(f.action(token, "eliminate", 0)).getString("code"))
+        assertEquals(TableState.GAME_OVER, f.table.state.value.game.state)
+        assertEquals("rejected", f.sessions.handle(f.action(token, "life", 1)).getString("code"))
+        val old = f.table.state.value.game.gameId
+        val rematch = f.action(token, "rematch", 0)
+        assertEquals("ok", f.sessions.handle(rematch).getString("code"))
+        val new = f.table.state.value.game.gameId
+        assertNotEquals(old, new)
+        assertEquals("ok", f.sessions.handle(rematch).getString("code"))
+        assertEquals(new, f.table.state.value.game.gameId)
+        assertEquals("rejected", f.sessions.handle(f.action(token, "reset", 0)).getString("code"))
+        assertEquals("ok", f.sessions.handle(f.action(token, "eliminate", 0)).getString("code"))
+        assertEquals("ok", f.sessions.handle(f.action(token, "reset", 0)).getString("code"))
+        assertEquals(TableState.LOBBY, f.table.state.value.game.state)
+        assertEquals(2, f.table.state.value.library.history.size)
+        assertEquals(2, StandaloneTable(f.store).state.value.library.history.size)
+    }
+
+    @Test fun `commander names follow authenticated seat and receipts bind the full card payload`() {
+        val f = Fixture(tcg(GameProfile.MTG_COMMANDER))
+        val token = f.join(player = 2).getString("token")
+        val request = f.action(token, "set-commander", 0).put("player", 1)
+            .put("card", LanCard("Atraxa", null, false).json())
+        assertEquals("ok", f.sessions.handle(request).getString("code"))
+        assertNull(f.table.state.value.game.players[0].commander)
+        assertEquals("Atraxa", f.table.state.value.game.players[1].commander)
+        assertEquals("ok", f.sessions.handle(request).getString("code"))
+        assertEquals("invalid", f.sessions.handle(JSONObject(request.toString())
+            .put("card", LanCard("Other commander", null, false).json())).getString("code"))
+        assertEquals("invalid", f.sessions.handle(f.action(token, "set-commander", 0)
+            .put("card", LanCard("x".repeat(StandaloneGame.MAX_COMMANDER + 1), null, false).json())).getString("code"))
+        kotlinx.coroutines.runBlocking { f.table.control(com.turnhub.android.data.TabletSeat(StandaloneGame.seatHandle(0).id, 1), "reset") }
+        assertEquals("ok", f.sessions.handle(f.action(token, "set-commander", 0)
+            .put("card", LanCard("Lobby commander", null, false).json())).getString("code"))
+        assertEquals("Lobby commander", f.table.state.value.game.players[1].commander)
+    }
+
     private inner class Fixture(initial: StandaloneGame = game()) {
         val store = Store(initial)
         val table = StandaloneTable(store, wallClock = { 90_000 }, shortGameMs = 0)

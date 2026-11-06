@@ -65,8 +65,6 @@ data class LocalLibrary(
      * gives no extra powers on a phone and never travels: uploaded, it is a regular Atlas account.
      */
     val deviceAdmin: String? = null,
-    /** The owner chose "Not now" when asked to set up the device's Admin account. */
-    val adminPromptDismissed: Boolean = false,
     val gameSetups: List<SavedGameSetup> = emptyList(),
     val keepCopiedProfiles: Boolean = true,
     val atlasDisconnectedAtMs: Map<String, Long> = emptyMap(),
@@ -189,7 +187,6 @@ data class LocalLibrary(
         })
         put("planarDecks", JSONArray().apply { planarDecks.forEach { put(it.toJson()) } })
         put("deviceAdmin", deviceAdmin ?: JSONObject.NULL)
-        put("adminPromptDismissed", adminPromptDismissed)
         put("history", JSONArray().apply { history.forEach { put(it.toJson()) } })
         put("deliveries", JSONArray().apply {
             deliveries.forEach { d -> put(JSONObject().apply {
@@ -248,8 +245,7 @@ data class LocalLibrary(
                 },
                 // A device Admin whose account is gone is no Admin; setup asks again.
                 deviceAdmin = json.optStringOrNull("deviceAdmin")?.takeIf { id ->
-                    (0 until players.length()).any { players.getJSONObject(it).optString("localId") == id } },
-                adminPromptDismissed = json.optBoolean("adminPromptDismissed", false),
+                    (0 until players.length()).any { players.getJSONObject(it).optString("localId") == id && !players.getJSONObject(it).isNull("credential") } },
                 deliveries = (0 until deliveries.length()).map { i -> deliveries.getJSONObject(i).let { d ->
                     val ids = d.getJSONArray("profileIds")
                     MatchDelivery(d.getString("recordId"), DeliveryStatus.valueOf(d.getString("status")),

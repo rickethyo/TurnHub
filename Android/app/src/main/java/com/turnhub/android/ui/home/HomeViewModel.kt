@@ -667,6 +667,9 @@ class HomeViewModel(
             override fun holdConnection(hold: Boolean) = repository.holdThroughOutages(hold)
             override fun deviceAdmin() = standalone?.state?.value?.library?.let { library ->
                 library.players.firstOrNull { library.isDeviceAdmin(it.localId) && it.credential != null } }
+            override fun needsDeviceAdminSetup() = standalone?.state?.value?.library?.deviceAdmin == null
+            override fun installVerifiedSetupAdmin(profile: com.turnhub.android.protocol.ProfileSummary, pin: String): Boolean =
+                standalone?.installAtlasSetupAdmin(profile.profileId, profile.name, pin) == true
             override fun deviceAdminInstalled(localId: String, profileId: String, linkKey: String?) {
                 val atlasId = repository.tableSummary.value?.atlasId ?: return
                 standalone?.linkAccount(localId, atlasId, profileId, linkKey)

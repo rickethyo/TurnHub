@@ -457,6 +457,9 @@ class MainActivity : ComponentActivity() {
                         val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
                         val localState by standaloneViewModel.table.state.collectAsStateWithLifecycle()
                         val lanState by lanViewModel.state.collectAsStateWithLifecycle()
+                        if (lanState.remote == null) com.turnhub.android.ui.components.GameSoundEffect(
+                            localState.game.toSummary(0, 0), available = localState.storageProblem == null)
+
                         androidx.compose.runtime.DisposableEffect(lanState.host != null || lanState.joined) {
                             if (lanState.host != null || lanState.joined)
                                 window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -465,9 +468,11 @@ class MainActivity : ComponentActivity() {
                         LaunchedEffect(standalone, localStats) {
                             homeViewModel.onPresentationForeground(!standalone && !localStats && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
                         }
-                        // First-time setup: this device's Admin account (owner, 2026-10-29).
+                        val atlasSetup by homeViewModel.setupState.collectAsStateWithLifecycle()
+                        val localImports by homeViewModel.localImport.collectAsStateWithLifecycle()
+                        // Old skipped setups must also choose a protected device Admin.
                         if (localState.storageProblem == null && localState.library.deviceAdmin == null &&
-                            !localState.library.adminPromptDismissed && !lanState.joined)
+                            !atlasSetup.visible)
                             com.turnhub.android.ui.tablet.DeviceAdminSetupDialog(localState.library, standaloneViewModel.table) {
                                 standalone = false; localStats = false; requestedHomeTab = "MORE"
                                 requestAtlas(AtlasAction.SETUP)
@@ -547,7 +552,8 @@ class MainActivity : ComponentActivity() {
                                 com.turnhub.android.ui.tablet.LocalLibraryScreen(localState, onClose = {},
                                     embeddedSection = com.turnhub.android.ui.tablet.LibrarySection.GAMES,
                                     table = standaloneViewModel.table,
-                                    canImport = uiState.connectionState == AtlasConnectionState.CONNECTED && uiState.player?.signedIn == true,
+                                    canImport = uiState.connectionState == AtlasConnectionState.CONNECTED &&
+                                        (localImports.paired || uiState.player?.signedIn == true),
                                     importState = homeViewModel.localImport.collectAsStateWithLifecycle().value,
                                     onLoadProfiles = homeViewModel::onLoadLocalImportProfiles,
                                     onImport = homeViewModel::onImportLocalRecord,

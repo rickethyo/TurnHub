@@ -74,6 +74,7 @@ class AtlasPlayerCopies(private val raw: suspend (String, String, List<Pair<Stri
             }
         }
         return LocalImportState(atlasId, directory ?: copied, atlasTotals = totals, paired = true,
-            message = if (failed) "Some player copies, records or statistics could not be saved or read. Check Atlas storage and reconnect to retry." else null)
+            message = if (failed) "Some player copies, records or statistics could not be saved or read. Check each game’s Details and Atlas storage, then sync again."
+                else "Atlas sync complete. Your games remain saved on this device.")
     }
 }
