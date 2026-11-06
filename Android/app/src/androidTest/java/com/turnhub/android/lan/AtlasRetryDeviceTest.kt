@@ -163,7 +163,8 @@ class AtlasRetryDeviceTest {
             baseOpener = com.turnhub.android.data.WifiPreferringConnectionOpener(app))
         var successes = 0
         val boots = mutableSetOf<String>()
-        repeat(6) { sample ->
+        val samples = (InstrumentationRegistry.getArguments().getString("atlasSamples")?.toIntOrNull() ?: 6).coerceIn(6, 600)
+        repeat(samples) { sample ->
             val begin = SystemClock.elapsedRealtime()
             try {
                 val state = transport.getState()
@@ -174,8 +175,8 @@ class AtlasRetryDeviceTest {
             }
             delay(1000)
         }
-        android.util.Log.i("TurnHubRetryProbe", "successes=$successes/6 boots=${boots.size}")
-        assertTrue("Atlas must answer reliably under the live phone workload", successes >= 4)
+        android.util.Log.i("TurnHubRetryProbe", "successes=$successes/$samples boots=${boots.size}")
+        assertEquals("Every live Atlas read must succeed", samples, successes)
         assertEquals("Atlas restarted during the read-only sample", 1, boots.size)
     }
 

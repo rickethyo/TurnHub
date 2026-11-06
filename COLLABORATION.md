@@ -2524,3 +2524,18 @@ before final installation and remains outstanding. Real LG lobby is restored,
 Connected, with two guests joined and no host-away banner in the final capture.
 Tests use memory games and isolated preferences. No firmware flash, merge or
 release. Logs and screenshots remain in the sibling Private directory.
+
+Follow-up after the owner reconnected hardware: all five Android devices are
+reachable. The existing preview APK is now also installed data-preserving on the
+wireless owner Fold 36131FDHS001SL and Pixel 10 Pro XL 57150DLCQ0009J. The Pixel
+screen remains locked, so its live app UI was not verified. No firmware update
+was needed. Atlas COM18 and Sigil COM28 are present.
+
+Expanded live checks: 60/60 pinned Atlas reads succeed over 93.6 seconds with
+one boot ID. Twelve separate pinned status reads all report home Wi-Fi connected
+and one Sigil online. A passive 150-second Sigil serial capture contains 60
+HELLO acknowledgments, zero LOST/RESTORED events and zero send errors. Atlas
+serial is quiet (no data); its continuity evidence comes from HTTPS boot IDs.
+These are bounded bench checks, not proof against future network interruptions.
+The opt-in Android live probe accepts atlasSamples (6–600, default 6) and now
+requires every requested read to succeed. Production APK is unchanged.
