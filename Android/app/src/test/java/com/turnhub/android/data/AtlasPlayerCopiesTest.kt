@@ -109,10 +109,40 @@ class AtlasPlayerCopiesTest {
         val table = StandaloneTable(MemoryStandaloneStore(StandaloneGame(), LocalLibrary()))
         table.addPlayer("Alex")
         val result = AtlasPlayerCopies { _, path, _ ->
+            if (path == "/api/activity") return@AtlasPlayerCopies null
             assertEquals("/api/player-copies", path)
             RawResponse(503, "{}")
         }.sync("atlas", table)
         assertTrue(result.profiles.isEmpty())
         assertNotNull(result.message)
     }
+    @Test fun `sync reports progress and returns the bounded Atlas shelf`() = runTest {
+        val table = StandaloneTable(MemoryStandaloneStore(StandaloneGame(), LocalLibrary()))
+        val events = mutableListOf<String>()
+        val result = AtlasPlayerCopies { method, path, fields -> when (path) {
+            "/api/player-copies" -> RawResponse(200, """{"copies":[]}""")
+            "/api/activity" -> if (method == "POST") {
+                events += fields.toMap().getValue("event")
+                RawResponse(200, """{"ok":true}""")
+            } else RawResponse(200, """{"events":[{"id":2,"level":"OK","title":"Sync complete","detail":"Player and game exchange complete"}]}""")
+            else -> error(path)
+        } }.sync("atlas", table)
+        assertEquals(listOf("sync-start", "sync-complete"), events)
+        assertEquals("Sync complete", result.activity.single().title)
+    }
+
+    @Test fun `activity outage cannot block sync but cancellation propagates`() = runTest {
+        val table = StandaloneTable(MemoryStandaloneStore(StandaloneGame(), LocalLibrary()))
+        val sync = AtlasPlayerCopies { _, path, _ ->
+            if (path == "/api/activity") throw java.io.IOException("offline")
+            RawResponse(200, """{"copies":[]}""")
+        }.sync("atlas", table)
+        assertTrue(sync.activity.isEmpty())
+        assertTrue(sync.message!!.startsWith("Atlas sync complete"))
+        try {
+            AtlasPlayerCopies { _, _, _ -> throw kotlinx.coroutines.CancellationException("cancel") }.sync("atlas", table)
+            fail("Cancellation must propagate")
+        } catch (_: kotlinx.coroutines.CancellationException) { }
+    }
+
 }

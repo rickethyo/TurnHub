@@ -32,6 +32,7 @@
 #include "sigil_update_service.h"
 #include "wifi_password_store.h"
 #include <WiFi.h>
+#include "atlas_notifications.h"
 
 using TurnHub::serialLog;
 
@@ -49,6 +50,10 @@ bool pressInside = false;
 TouchAction pressedAction = TouchAction::None;
 uint8_t pressedArg = 0;
 uint32_t lastContactAtMs = 0;
+int16_t touchStartX = 0, touchStartY = 0, touchLastX = 0, touchLastY = 0;
+ScreenKind touchStartKind = ScreenKind::Status;
+ScreenKind notificationOver = ScreenKind::Home;
+uint8_t notificationOffset = 0;
 
 char noticeText[sizeof(AtlasScreen::notice)] = {};
 char syncText[sizeof(AtlasScreen::sync)] = {};
@@ -206,7 +211,7 @@ const char *faceUpPlaneId(const turnhub::Json &planes) {
 bool shownScreen(ScreenKind kind) {
   switch (kind) {
     case ScreenKind::Home: case ScreenKind::Status: case ScreenKind::Qr: case ScreenKind::Menu:
-    case ScreenKind::Device: case ScreenKind::Power: case ScreenKind::Themes: case ScreenKind::ManaTap: case ScreenKind::Storage:
+    case ScreenKind::Device: case ScreenKind::Power: case ScreenKind::Themes: case ScreenKind::ManaTap: case ScreenKind::Storage: case ScreenKind::Notifications:
       return true;
     case ScreenKind::Planes: return hostedPlanechase(millis()) != nullptr;
     // The card view needs a digital plane to show.
@@ -343,14 +348,21 @@ void layoutConfirm(AtlasScreen &screen) {
 void layoutContentButtons(AtlasScreen &screen, uint32_t nowMs) {
   screen.buttonCount = 0;
   switch (activeScreen(nowMs)) {
+    case ScreenKind::Notifications: {
+      const ButtonSpec pages[] = {{TouchAction::NewerNotifications, "Newer", 0, 1}, {TouchAction::OlderNotifications, "Older", 0, 1}};
+      if (TurnHubActivity::journal().count > 2) addRow(screen, BUTTON_UPPER_ROW_Y, pages, 2);
+      const ButtonSpec row[] = {{TouchAction::ClearNotifications, "Clear", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
+      addRow(screen, BUTTON_ROW_Y, row, 2);
+      return;
+    }
     // Home is the table at a glance; the tab bar is the way on, and
     // Mana Tap is there for between turns or games.
     case ScreenKind::Home: {
       static char play[32];
       if (manaBest()) snprintf(play, sizeof(play), "Play Mana Tap (best %u)", manaBest());
       else snprintf(play, sizeof(play), "Play Mana Tap");
-      const ButtonSpec row[] = {{TouchAction::OpenManaTap, play, 0, 1}};
-      addRow(screen, BUTTON_ROW_Y, row, 1);
+      const ButtonSpec row[] = {{TouchAction::OpenManaTap, play, 0, 1}, {TouchAction::OpenNotifications, "Notifications", 0, 1}};
+      addRow(screen, BUTTON_ROW_Y, row, 2);
       return;
     }
     case ScreenKind::ManaTap: {
@@ -609,9 +621,19 @@ bool navigate(TouchAction action) {
       return true;
     }
     case TouchAction::OpenDevice: openScreen = ScreenKind::Device; return true;
+    case TouchAction::OpenNotifications:
+      if (openScreen != ScreenKind::Notifications) notificationOver = openScreen;
+      openScreen = ScreenKind::Notifications; notificationOffset = 0; TurnHubActivity::markSeen(); return true;
+    case TouchAction::ClearNotifications: TurnHubActivity::clear(); notificationOffset = 0; return true;
+    case TouchAction::OlderNotifications:
+      if (notificationOffset + 2 < TurnHubActivity::journal().count) notificationOffset += 2;
+      return true;
+    case TouchAction::NewerNotifications:
+      notificationOffset = notificationOffset >= 2 ? notificationOffset - 2 : 0; return true;
     case TouchAction::OpenStorage: openScreen = ScreenKind::Storage; return true;
     case TouchAction::OpenPower: openScreen = ScreenKind::Power; return true;
     case TouchAction::CloseScreen: {
+      if (openScreen == ScreenKind::Notifications) { openScreen = notificationOver; return true; }
       if (openScreen == ScreenKind::Power || openScreen == ScreenKind::Storage) {
         openScreen = ScreenKind::Device;
         return true;
@@ -1248,6 +1270,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen.batteryCharging = battery.present && battery.charging;
   screen.update = firmwareUpdateKind();
   screen.sigilsOnline = sigilBus.activeCount(nowMs);
+  screen.notificationUnread = TurnHubActivity::unread();
   screen.hotspotOn = atlasHotspotOn();
   screen.hotspotStations = screen.hotspotOn ? static_cast<uint8_t>(WiFi.softAPgetStationNum()) : 0;
   screen.homeWifiOn = homeWifiEnabled() && homeWifiConfigured();
@@ -1272,6 +1295,20 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
       snprintf(screen.detail, sizeof(screen.detail), "Choose the look for this Atlas");
       break;
     case ScreenKind::Device: formatDevice(screen); break;
+    case ScreenKind::Notifications: {
+      snprintf(screen.badge,sizeof(screen.badge),"ACTIVITY");
+      snprintf(screen.title,sizeof(screen.title),"Notifications");
+      snprintf(screen.detail,sizeof(screen.detail),"Recent events / swipe up to close");
+      const auto &j = TurnHubActivity::journal();
+      if (!j.count) { snprintf(screen.lines[screen.lineCount++],sizeof(screen.lines[0]),"No notifications yet"); break; }
+      if (notificationOffset >= j.count) notificationOffset = 0;
+      for (uint8_t i = notificationOffset; i < j.count && i < notificationOffset+2; ++i) {
+        const auto &event = j.entries[i];
+        snprintf(screen.lines[screen.lineCount++],sizeof(screen.lines[0]),"%s: %.24s",TurnHubActivity::levelName(event.level),event.title);
+        snprintf(screen.lines[screen.lineCount++],sizeof(screen.lines[0]),"%.38s",event.detail);
+      }
+      break;
+    }
     case ScreenKind::Storage: formatStorage(screen); break;
     case ScreenKind::Power:
       snprintf(screen.badge, sizeof(screen.badge), "POWER");
@@ -1304,6 +1341,7 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
     lastContactAtMs = nowMs;
     if (!touchDown) {
       touchDown = true;
+      touchStartX = x; touchStartY = y; touchStartKind = activeScreen(nowMs);
       pressedAction = buttonAt(x, y, nowMs);
       // A press in Mana Tap's field aims at an orb as it lands.
       const TurnHub::ManaField &field = manaTap.field();
@@ -1312,6 +1350,7 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
         manaTap.tap(x, y);
       }
     }
+    touchLastX = x; touchLastY = y;
     const TouchButton *button = currentButton(pressedAction, layout, nowMs);
     pressInside = button != nullptr && button->contains(x, y, TOUCH_SLOP_PX);
     return;
@@ -1319,6 +1358,15 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
 
   if (!touchDown || nowMs - lastContactAtMs < TOUCH_RELEASE_MS) return;
   touchDown = false;
+  const int16_t dy = touchLastY - touchStartY, dx = touchLastX - touchStartX;
+  const ScreenKind kind = activeScreen(nowMs);
+  const bool overlay = kind == ScreenKind::Confirm || kind == ScreenKind::Code || kind == ScreenKind::PairCode ||
+      kind == ScreenKind::PhonePair || kind == ScreenKind::Setup || kind == ScreenKind::PlaneCard;
+  if (!overlay && kind == touchStartKind && dx > -70 && dx < 70 &&
+      ((kind != ScreenKind::Notifications && touchStartY <= SCREEN_HEADER_H && dy >= 56) || (kind == ScreenKind::Notifications && dy <= -56))) {
+    dispatchTouchAction(nowMs, kind == ScreenKind::Notifications ? TouchAction::CloseScreen : TouchAction::OpenNotifications);
+    pressedAction = TouchAction::None; pressedArg = 0; pressInside = false; return;
+  }
   const TouchButton *button = currentButton(pressedAction, layout, nowMs);
   if (button != nullptr && pressInside) {
     if (button->confirm) {
@@ -1338,12 +1386,14 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
 
 void showSyncStatus(uint32_t nowMs, const char *text) {
   snprintf(syncText, sizeof(syncText), "%s", text ? text : "");
+  if (text && text[0]) TurnHubActivity::add(TurnHubActivity::Level::Info,"Transfer update",text,nowMs);
   syncAtMs = nowMs;
 }
 
 void resetTouchControls(bool startAtHome) {
   syncText[0] = '\0';
   touchDown = false;
+  notificationOffset = 0;
   pressInside = false;
   pressedAction = TouchAction::None;
   pressedArg = 0;

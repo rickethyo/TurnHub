@@ -207,6 +207,14 @@ fun LocalLibraryScreen(
                                 Text("Completed games appear here. Start a game from the Game tab.", color = p.muted)
                             }
                         }
+                        if (importState.activity.isNotEmpty()) item(key = "atlas-activity") {
+                            DisclosureCard("Atlas notifications") {
+                                importState.activity.forEach { event ->
+                                    Text("${event.level}: ${event.title}", color = p.text)
+                                    Text(event.detail, color = p.muted)
+                                }
+                            }
+                        }
                         item(key = "sync-games") {
                             ToneButton(if (importState.busy) "Syncing games…" else "Sync games with Atlas", onLoadProfiles,
                                 Modifier.fillMaxWidth(), enabled = canImport && !importState.busy && state.storageProblem == null)

@@ -231,6 +231,25 @@ static void originalProfileTime() {
   assert(restored.createdAtMs == sync.createdAtMs && restored.activityMs == sync.activityMs);
 }
 
+static void archivePolicyWithoutAdminBootstrap() {
+  const String id = createProfileWithName("Imported phone profile");
+  auto oldAdmin = FakeNvs::blobs.find("acctadmin");
+  const bool hadAdmin = oldAdmin != FakeNvs::blobs.end();
+  const auto savedAdmin = hadAdmin ? oldAdmin->second : std::vector<uint8_t>();
+  FakeNvs::blobs["acctadmin"] = {1}; // Corrupt permission bootstrap must not reject record credit.
+  TurnHubAccounts::Account account;
+  assert(!TurnHubAccounts::load(id,account));
+  bool archived = true;
+  assert(TurnHubAccounts::archiveStatus(id,archived) && !archived);
+  account.archived = true; assert(TurnHubAccounts::save(id,account));
+  assert(TurnHubAccounts::archiveStatus(id,archived) && archived);
+  const std::string key = std::string("u") + id.c_str();
+  FakeNvs::blobs[key] = {255};
+  assert(!TurnHubAccounts::archiveStatus(id,archived)); // Unreadable policy still fails closed.
+  FakeNvs::blobs.erase(key);
+  if (hadAdmin) FakeNvs::blobs["acctadmin"] = savedAdmin; else FakeNvs::blobs.erase("acctadmin");
+}
+
 int main() {
   assert(begin());
   guestLookups();
@@ -240,5 +259,6 @@ int main() {
   statisticsSplit();
   artworkProfiles();
   originalProfileTime();
+  archivePolicyWithoutAdminBootstrap();
   std::cout << "PASS: real profile store guest lookups, reconnects, saved bindings, legacy placeholder filtering, accessibility preferences and the NVS/SD statistics split\n";
 }
