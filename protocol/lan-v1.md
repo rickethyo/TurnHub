@@ -36,7 +36,7 @@ Every envelope includes integer `v: 2` and string `session` (the room ID).
 | `join` | `key`, UUID `joinId`, `role`, optional profile fields and `deviceName` | Invitation plus initial profile proof |
 | `poll` | `token`, optional `looksId`, `deviceName` | Saved room membership |
 | `presentation` | `token`, `displayTarget`, boolean `displayAllUpright` | Player/shared-table membership or game master |
-| `command` | `token`, `epoch`, UUID `actionId`, `match`, `revision`, `kind`, `value`, `slot`, optional `source`, `target` | Membership and room capability |
+| `command` | `token`, `epoch`, UUID `actionId`, `match`, `revision`, `kind`, `value`, `slot`, optional `source`, `target`, `card` | Membership and room capability |
 | `history` | `token`, `step` (`index`, `pull` with `ids`, `push` with `history`) | Player membership; the member's own profile only |
 | `leave` | `token` | Membership; explicitly removes this device |
 
@@ -142,6 +142,18 @@ use bounded `planar-atlas:` actions, and `atlas-screen:<game|table|planes|card>`
 sets the Atlas screen's view for the guest's own seat (Atlas accepts signed-in
 players only, as from their own phone). Setup and special table decisions unsupported
 by the LAN vocabulary stay on the host and are reported visibly.
+
+Seated players and shared table controllers may request `rematch` or `reset`
+after game over, including from eliminated seats. Value, slot and source must
+be zero. These use the hub's normal rematch/reset rules and durable storage;
+match/revision and receipt checks prevent a retry from starting another match.
+
+`set-commander` carries `card: {name, art, cardOnly}`, with nullable strings,
+a name bounded by the game's commander limit, a validated public card printing
+reference, and a boolean cardOnly. Value, slot and source are zero. Personal
+membership fixes the target to its own seat. It works in setup (whose match ID
+may be empty) and running/paused games. Receipts bind the complete card payload.
+The hub saves the selection through the same path as its own commander picker.
 
 The personal and shared-panel counter menus
 also send `everyone:<kind>:<delta>` for `poison`, `energy`, `experience`,

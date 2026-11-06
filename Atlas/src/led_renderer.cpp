@@ -61,6 +61,8 @@ void LedRenderer::renderHosted(const turnhub::Game &game, uint32_t nowMs, uint16
       DisplayMode::Starting : game.state == TableState::Running ? DisplayMode::Running :
       game.state == TableState::Paused ? DisplayMode::Paused : DisplayMode::GameOver;
   const int n = static_cast<int>(game.players.size());
+  // The focused player's current turn number, matching the phone's LiveTurn.
+  const int round = game.active ? game.players[*game.active].turnsCompleted + 1 : 0;
   auto copyName = [](const std::string &from, char *out, int number) {
     if (from.empty()) { snprintf(out, DISPLAY_NAME_MAX_LENGTH + 1, "Player %d", number); return; }
     for (size_t c = 0; c < from.size() && c < DISPLAY_NAME_MAX_LENGTH; ++c)
@@ -85,7 +87,7 @@ void LedRenderer::renderHosted(const turnhub::Game &game, uint32_t nowMs, uint16
     for (uint8_t page = 0; page < 2; ++page) {
       auto &p = pages[page];
       p.version = VERSION; p.type = PacketType::TableDisplay; p.mode = static_cast<uint8_t>(mode);
-      p.game = 1; p.page = page; p.total = count; p.round = 0;
+      p.game = 1; p.page = page; p.total = count; p.round = static_cast<uint8_t>(std::min(round, 255));
       for (uint8_t i = 0; i < TABLE_PAGE_ROWS && page * TABLE_PAGE_ROWS + i < count; ++i) {
         const int index = page * TABLE_PAGE_ROWS + i;
         auto &row = p.rows[i];
@@ -172,7 +174,7 @@ void LedRenderer::renderHosted(const turnhub::Game &game, uint32_t nowMs, uint16
 
     const uint8_t primaryNumber = primary >= 0 ? static_cast<uint8_t>(primary + 1) : 0;
     const uint8_t secondaryNumber = secondary >= 0 ? static_cast<uint8_t>(secondary + 1) : 0;
-    const int32_t payload = encodeDisplayState(mode, primaryNumber, secondaryNumber, 0, flags);
+    const int32_t payload = encodeDisplayState(mode, primaryNumber, secondaryNumber, static_cast<uint8_t>(std::min(round, 255)), flags);
     if (primary >= 0) {
       GameDisplayPacket snapshot{};
       snapshot.version = VERSION;

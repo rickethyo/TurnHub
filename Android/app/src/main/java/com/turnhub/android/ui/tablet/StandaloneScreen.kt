@@ -75,8 +75,6 @@ fun StandaloneScreen(
         if (previousState in listOf(TableState.RUNNING, TableState.PAUSED, TableState.GAME_OVER) && game.state == TableState.LOBBY) onSetUp()
         previousState = game.state
     }
-    val soundSummary = remember(game) { game.toSummary(0, 0) }
-    com.turnhub.android.ui.components.GameSoundEffect(soundSummary, available = state.storageProblem == null)
     AmbientBackground(reduceMotion, modifier.fillMaxSize(), quiet = true) {
         if (state.storageProblem != null) {
             Column(Modifier.safeDrawingPadding().padding(24.dp)) {
@@ -198,8 +196,6 @@ fun EmbeddedTable(
         if (practiceState?.game?.state == TableState.LOBBY) practiceRound++
     }
     val shown = practiceState ?: state
-    val sound = remember(shown.game) { shown.game.toSummary(0, 0) }
-    com.turnhub.android.ui.components.GameSoundEffect(sound, available = shown.game.state != TableState.LOBBY)
     Column(modifier.fillMaxSize()) {
         TableNavigation(game.state, onFullScreen, practice = lobby, action = if (!lobby) null else {
             {

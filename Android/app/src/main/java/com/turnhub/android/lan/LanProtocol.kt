@@ -75,7 +75,7 @@ internal const val PLANAR_KIND = "planar-"
 internal fun isPlanarRollKind(kind: String): Boolean = kind == "planar-roll"
 
 /** The host infers the player from the authenticated session, never a request's seat. */
-internal data class LanAction(val match: String, val revision: Long, val player: Int, val kind: String, val value: Int, val slot: Int, val source: Int = 0)
+internal data class LanAction(val match: String, val revision: Long, val player: Int, val kind: String, val value: Int, val slot: Int, val source: Int = 0, val card: LanCard? = null)
 
 /** The panel's all-player commands carry their signed unit delta in the kind, with no extra fields. */
 internal fun everyoneCounterAction(kind: String, value: Int, slot: Int, source: Int): Pair<String, Int>? {
@@ -101,4 +101,18 @@ internal fun friendlyDisplayDevice(model: String): String = when {
     model.startsWith("SM-S911") -> "Galaxy S23"
     model.isBlank() -> "Connected device"
     else -> model
+}
+
+/** Bounded public commander/card selection, authorized by the room's own-seat binding. */
+internal data class LanCard(val name: String?, val art: String?, val cardOnly: Boolean) {
+    fun json() = JSONObject().put("name", name ?: JSONObject.NULL).put("art", art ?: JSONObject.NULL).put("cardOnly", cardOnly)
+    companion object {
+        fun read(request: JSONObject): LanCard? {
+            val c = request.optJSONObject("card") ?: return null
+            val name = if (c.isNull("name")) null else c.text("name").also { require(it.length <= com.turnhub.android.standalone.StandaloneGame.MAX_COMMANDER) }
+            val art = if (c.isNull("art")) null else c.text("art").also { require(it.length <= 128 && com.turnhub.android.data.TileCardGame.valid(it)) }
+            require(c.get("cardOnly") is Boolean)
+            return LanCard(name, art, c.getBoolean("cardOnly"))
+        }
+    }
 }

@@ -56,9 +56,11 @@ bool validRecord(const Json &r) {
     return false;
   for (size_t i = 0; i < players.size(); ++i) {
     const Json &p = players[i];
-    if (!p.isObject() || !p.get("name").isString() || !p.get("counters").isObject() ||
-        p.get("counters").get("commanderCasts").size() != 2)
-      return false;
+    if (!p.isObject() || !p.get("name").isString()) return false;
+    // True guests deliberately carry only participation/result, no statistics.
+    if (p.get("guest").asBool()) {
+      if (!p.get("profileId").asString().empty() || !p.get("localId").asString().empty()) return false;
+    } else if (!p.get("counters").isObject() || p.get("counters").get("commanderCasts").size() != 2) return false;
   }
   return true;
 }

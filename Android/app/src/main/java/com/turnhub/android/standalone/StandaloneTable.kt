@@ -647,13 +647,14 @@ class StandaloneTable(
     /**
      * Queues every match whose players are linked to this Atlas. With [guests],
      * a match needs one linked player, and a match already sent here with guests
-     * is sent again when another of its players has since been linked.
+     * is sent again when another of its players has since been linked. Confirmed
+     * player-copy exchanges also retry rejected deliveries using exact identities.
      */
     fun queueAutomaticImports(atlasId: String, available: Set<String>, guests: Boolean = false, copies: Boolean = false) {
         _state.value.library.history.forEach { record ->
             val delivery = _state.value.library.delivery(record.recordId)
             val again = guests && delivery.status == DeliveryStatus.IMPORTED && delivery.atlasId == atlasId && delivery.hasGuests
-            if (delivery.status == DeliveryStatus.NEEDS_LINKING || again) {
+            if (delivery.status == DeliveryStatus.NEEDS_LINKING || copies && delivery.status == DeliveryStatus.REJECTED || again) {
                 _state.value.library.automaticMapping(record, atlasId, available, guests, copies)
                     ?.let { queueImport(record.recordId, atlasId, it, available, guests) }
             }
@@ -1029,7 +1030,19 @@ class StandaloneTable(
         val planar = action.kind.startsWith(com.turnhub.android.lan.PLANAR_KIND)
         if (_state.value.storageProblem != null || game.gameId != action.match ||
             game.revision != action.revision || action.player !in (if (planar) 0 else 1)..game.players.size ||
-            game.state !in listOf(TableState.RUNNING, TableState.PAUSED)) return false
+            game.state !in listOf(TableState.LOBBY, TableState.RUNNING, TableState.PAUSED, TableState.GAME_OVER)) return false
+        val simple = action.value == 0 && action.slot == 0 && action.source == 0
+        if (simple && game.state == TableState.GAME_OVER) return when (action.kind) {
+            "rematch" -> if (planarSelectionReady(game)) publishGame(game.rematch(wallClock(), newId(), planarDeck = planarDeck(game)), durable = true) else false
+            "reset" -> publishGame(game.reset(), durable = true)
+            else -> false
+        }
+        if (action.kind == "set-commander" && simple && game.state != TableState.GAME_OVER) {
+            val card = action.card ?: return false
+            setCommander(action.player - 1, card.name, card.art, card.cardOnly)
+            return _state.value.game.revision != game.revision
+        }
+        if (game.state !in listOf(TableState.RUNNING, TableState.PAUSED)) return false
         if (planar) return applyPlanarLanAction(game, action)
         val index = action.player - 1
         return applyTcgLanAction(game, index, action)
@@ -1120,7 +1133,7 @@ class StandaloneTable(
         if (after === before) return false
         val record = after.record()?.takeIf { (before.state != TableState.GAME_OVER || before.gameId != after.gameId) && it.counted(shortGameMs) }
         val library = record?.let { _state.value.library.withRecord(it) } ?: _state.value.library
-        return publish(_state.value.copy(game = after, library = library), durable)
+        return publish(_state.value.copy(game = after, library = library), durable || record != null)
     }
 
     /** Leaves a blocked store: keeps the unreadable data aside, then starts empty. */

@@ -230,6 +230,7 @@ HostedScreenActions hostedScreenActions() {
       break;
     }
     case turnhub::TableState::Paused: actions.resume = turn && !game.openWinClaim(); break;
+    case turnhub::TableState::GameOver: actions.rematch = actions.reset = game.players.size() >= 2; break;
     default: break;
   }
   return actions;
@@ -239,6 +240,11 @@ bool queueHostedScreenAction(HostedScreenAction action) {
   const HostedScreenActions offered = hostedScreenActions();
   const int active = hostedGame().active ? *hostedGame().active : -1;
   switch (action) {
+    case HostedScreenAction::Rematch:
+    case HostedScreenAction::Reset:
+      if (!(action == HostedScreenAction::Rematch ? offered.rematch : offered.reset)) return false;
+      queueSeat(ATLAS_SCREEN, 0, action == HostedScreenAction::Rematch ? "rematch" : "reset");
+      return true;
     case HostedScreenAction::Start:
       if (!offered.start) return false;
       queueInput(ATLAS_SCREEN, 0, "{\"kind\":\"start\"}");
@@ -270,6 +276,41 @@ bool queueHostedScreenAction(HostedScreenAction action) {
       return true;
   }
   return false;
+}
+
+void presentHostedAudio(const turnhub::Game &before, const turnhub::Game &after) {
+  using turnhub::TableState;
+  uint16_t mask = TurnHub::AudioController::ATLAS_SPEAKER_MASK;
+  const auto playerMask = [](const turnhub::Game &game, int index) -> uint16_t {
+    uint8_t id = 0, slot = 0;
+    return TurnHubHosted::playerSigil(game, index, id, slot) ? TurnHub::AudioController::maskForSigil(id) : 0;
+  };
+  uint16_t muted = 0;
+  for (size_t i = 0; i < after.players.size(); ++i) {
+    const uint16_t ownMask = playerMask(after, static_cast<int>(i));
+    mask |= ownMask;
+    TurnHubProfiles::AccessibilityPrefs prefs;
+    if (!after.players[i].profileId.empty() &&
+        TurnHubProfiles::loadAccessibilityForProfile(String(after.players[i].profileId.c_str()), prefs) && !prefs.sigilSound)
+      muted |= ownMask;
+  }
+  audio.setMutedSigils(muted);
+  // A changed match is a start only from setup or the just-finished match.
+  const bool start = after.state == TableState::Running &&
+      (before.state == TableState::Lobby || before.state == TableState::Starting || before.state == TableState::GameOver);
+  if (start) { audio.gameStart(mask); return; }
+  if (before.gameId != after.gameId) return;
+  if (after.state == TableState::GameOver && before.state != TableState::GameOver) audio.gameOver(mask);
+  else if (after.state == TableState::Paused && before.state == TableState::Running) audio.pause(mask);
+  else if (after.state == TableState::Running && before.state == TableState::Paused) audio.resume(mask);
+  else if (after.state == TableState::Running && before.state == TableState::Running && after.active) {
+    const int active = *after.active;
+    const bool passed = before.active != after.active ||
+        (active < static_cast<int>(before.players.size()) &&
+         after.players[active].turnsCompleted > before.players[active].turnsCompleted);
+    if (passed) audio.play(TurnHub::AudioCue::TurnStarted,
+        playerMask(after, active) | TurnHub::AudioController::ATLAS_SPEAKER_MASK);
+  }
 }
 
 void syncHostedPickers(uint32_t nowMs) {
@@ -323,6 +364,7 @@ TurnHubProtocol::MenuStateFields hostedSigilMenu(uint8_t sigilId) {
       }
       break;
     case TableState::GameOver:
+      if (seatA || seatB) { add(SigilAction::Rematch); add(SigilAction::ResetTable); }
       break;
   }
   TurnHubProtocol::MenuStateFields fields;
@@ -365,6 +407,10 @@ void handleHostedSigilEvent(uint8_t sigilId, TurnHubProtocol::PacketType type, i
     case SigilAction::ClaimWin: queueSeat(sigilId, turnSeat(sigilId), "win"); break;
     case SigilAction::ConfirmWin: queueSeat(sigilId, confirmingSeat(sigilId), "confirm"); break;
     case SigilAction::DenyWin: queueSeat(sigilId, confirmingSeat(sigilId), "deny"); break;
+    case SigilAction::Rematch: queueSeat(sigilId, TurnHubHosted::sigilPlayer(hostedGame(), sigilId, 1) >= 0 ?
+        TurnHubHosted::sigilPlayer(hostedGame(), sigilId, 1) : TurnHubHosted::sigilPlayer(hostedGame(), sigilId, 2), "rematch"); break;
+    case SigilAction::ResetTable: queueSeat(sigilId, TurnHubHosted::sigilPlayer(hostedGame(), sigilId, 1) >= 0 ?
+        TurnHubHosted::sigilPlayer(hostedGame(), sigilId, 1) : TurnHubHosted::sigilPlayer(hostedGame(), sigilId, 2), "reset"); break;
     case SigilAction::Pause: queueSeat(sigilId, livingSeat(sigilId), "pause", 1); break;
     case SigilAction::Resume: queueSeat(sigilId, livingSeat(sigilId), "pause", 0); break;
     default: break;

@@ -7,9 +7,12 @@
 #include <stdint.h>
 
 #include "protocol.h"
+#include "turnhub_core.h"
 
 namespace TurnHubAtlas {
 void syncHostedPickers(uint32_t nowMs);
+// Presentation of accepted hub transitions; a first/reconnected snapshot stays quiet.
+void presentHostedAudio(const turnhub::Game &before, const turnhub::Game &after);
 
 // A hub hosts the game.
 bool hostedForSigil(uint8_t sigilId, uint32_t nowMs);
@@ -31,8 +34,10 @@ struct HostedScreenActions {
   bool roll = false;
   bool resolve = false;
   bool walk = false;
+  bool rematch = false;
+  bool reset = false;
 };
-enum class HostedScreenAction : uint8_t { Start, Pass, Pause, Resume, PlanarRoll, PlanarWalk, PlanarResolve };
+enum class HostedScreenAction : uint8_t { Start, Pass, Pause, Resume, PlanarRoll, PlanarWalk, PlanarResolve, Rematch, Reset };
 HostedScreenActions hostedScreenActions();
 // Queues the action for the hub if the hosted game offers it now.
 bool queueHostedScreenAction(HostedScreenAction action);

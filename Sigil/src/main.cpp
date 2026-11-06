@@ -2164,7 +2164,9 @@ void readSerialCommands() {
 // match in progress keeps it lit.
 void updateScreenLight() {
   static uint32_t shown = 0;
-  const int32_t payload = displayPayload;
+  portENTER_CRITICAL(&displayProfileMux);
+  const int32_t payload = gameDisplayValid ? static_cast<int32_t>(pendingGameDisplay.state) : static_cast<int32_t>(displayPayload);
+  portEXIT_CRITICAL(&displayProfileMux);
   const uint32_t request = static_cast<uint32_t>(lifeRequest.target << 8) | lifeRequest.tag;
   const uint32_t signature = static_cast<uint32_t>(payload) * 31u + sigilId * 7u + request * 131u +
       (pairingCodeShown ? 1u : 0u) + (atlasLostShown ? 2u : 0u) + (pickerActive ? 4u : 0u) +

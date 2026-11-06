@@ -56,13 +56,16 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     LaunchedEffect(tableView, planesChosen) { model.chooseView(if (planesChosen) "planes" else if (tableView) "table" else "personal") }
     val planesDisplay = state.role == "planes"
     val planesView = planesChosen && (device?.planechase?.enabled == true)
+    var commanderPicker by remember { mutableStateOf(false) }
     var menu by rememberSaveable { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
+    var soundSettings by remember { mutableStateOf(false) }
     var displaySettings by remember { mutableStateOf(false) }
     var confirmElimination by remember { mutableStateOf(false) }
     val partners = remember { mutableStateListOf<Int>() }
     val haptics = rememberHaptics()
     val summary = device?.toSummary(System.currentTimeMillis(), TableClock.nowMs())?.withLooks(state.looks) ?: return
+    GameSoundEffect(summary, available = state.online)
     val own = summary.players.firstOrNull { it.playerNumber == state.player }
     // Either teammate may pass. Keep the full host summary for the table and
     // show the claimed teammate as the personal panel's actor during their turn.
@@ -152,6 +155,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
                 GuestPauseButton(summary.state, state.online && !state.busy && !state.uncertain && !own.eliminated, model)
             if (state.role in setOf("player", "table") || state.master)
                 ToneButton("Display", { displaySettings = true })
+            ToneButton("Sound", { soundSettings = true })
         }
         state.message?.let { Text(it, color = p.warn) }
         state.historyNote?.let { Text(it, color = p.muted, style = MaterialTheme.typography.labelLarge) }
@@ -162,6 +166,16 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             TableState.GAME_OVER -> Text(if (summary.winnerPlayerNumbers.isEmpty()) "Game over" else "Winner: " +
                 summary.winnerPlayerNumbers.mapNotNull { n -> summary.players.firstOrNull { it.playerNumber == n }?.label }.joinToString(), color = p.text)
             else -> Unit
+        }
+        if (own != null && state.role == "player" && summary.state == TableState.GAME_OVER) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ToneButton("New players", { model.act("reset") }, enabled = state.online && !state.busy && !state.uncertain)
+                AccentButton("Rematch", { model.act("rematch") }, enabled = state.online && !state.busy && !state.uncertain)
+            }
+        }
+        if (own != null && state.role == "player" && summary.state != TableState.GAME_OVER) {
+            ToneButton(if (summary.settings.profile.commanderRules) "Name commander" else "Choose card art",
+                { commanderPicker = true }, enabled = state.online && !state.busy && !state.uncertain)
         }
         // Bag of Doom: each check's result stays until this device closes it (the host draws).
         summary.doomBag?.takeIf { it.lastCheck > 0 }?.let { bag ->
@@ -261,6 +275,14 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
             if (publicScreen) model.setDisplayView(state.displayId, "planes")
             else { localTableView = false; localPlanesChosen = true }
         })
+    if (commanderPicker && own != null) CommanderPickerDialog(own, summary.settings.profile.commanderRules,
+        com.turnhub.android.data.TileCardGame.forProfile(summary.settings.profile), onSave = { name, art, cardOnly ->
+            model.act("set-commander", card = com.turnhub.android.lan.LanCard(name, art, cardOnly))
+            commanderPicker = false
+        }, onDismiss = { commanderPicker = false })
+    if (soundSettings) androidx.compose.material3.AlertDialog(onDismissRequest = { soundSettings = false },
+        title = { Text("This device's speaker") }, text = { GameSoundControls() },
+        confirmButton = { ToneButton("Done", { soundSettings = false }) })
     if (displaySettings) PublicDisplayDialog { displaySettings = false }
     state.controllerInvitation?.let { invitation ->
         AlertDialog(onDismissRequest = model::dismissControllerInvitation,

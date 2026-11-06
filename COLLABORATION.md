@@ -2288,3 +2288,51 @@ round per step. Step 2 is now ready for that round; step 3 (removing Atlas
 accounts/PINs/sessions/sign-in, including the administration/setup replacement)
 remains open and is not claimed complete. Account-based administration still
 uses its existing authorization. Preserve the active Planechase/Sigil fixes.
+
+## Playtest corrections — 2026-11-05, Codex
+
+Owner reports connected rematch/reset, Sigil rounds, remote commander naming,
+sound, Sigil screen sleep, missing history and confusing profile selection.
+Branch codex/master, baseline 53f03d91; clean/fetched, no open PRs. Scope:
+repair shared action validation/presentation and hosted projections, verify
+completion persistence, retain visible table context while choosing profiles.
+Hub remains canonical; clients request actions and render confirmed snapshots.
+Commander payload extends existing LAN commands with bounded public card fields;
+no dependency. Preserve accessible labeled controls and existing volume/mute.
+Owner authorizes all connected devices and replacement of inactive/test games.
+No merge/release. Record actual host/JVM/build and device outcomes below.
+
+Playtest correction results: the owner found both games in local History; the
+failure was Atlas delivery, not loss of local matches. Atlas archive validation
+rejected true guests because their intentionally minimal record has no counters.
+It now accepts identity-free guest participation; exact-ID player-copy exchanges
+retry rejected deliveries, and History states that the local game is saved and
+provides retry with the original mapping. Local completion commits durably.
+Rematch/reset now reach the hub after game over from eliminated/personal/shared
+controllers, Sigils and Atlas touch controls. Remote commander selection is
+bounded, bound to authenticated seats and receipts, and uses the host picker’s
+save path. Hosted rounds populate radio and Atlas projections; screen keep-on
+reads GameDisplay and wakes an already-dark Sigil. Confirmed transitions drive
+phone/Atlas/Sigil sound, with existing device volume/mute policy. The picker
+keeps a read-only table behind it with readable text and correctly sampled clocks.
+
+Validation: 517 JVM tests, zero failures; Preview and androidTest APK builds;
+all Atlas host/storage/profile/OTA and Sigil host suites; both firmware builds;
+adapter, client-contract, docs, licensed-content, manual-export and whitespace
+guards pass. Explicit Android instrumentation on tester Fold 38091FDHS001WD,
+Tab S7+ R52T30577YX, owner Fold 36131FDHS001SL and Pixel 10 Pro XL 57150DLCQ0009J:
+two tests each pass through Android pinned loopback TLS, room membership, JNI,
+commander own-seat authorization, game-over rematch/reset/retry and durable
+history reload. All six audio resources decode and playback is requested on all
+four; none has muted media, Folds/Pixel use their existing ringer policy. These
+are separate on-device tests, not a simultaneous four-device live match, and
+microphone/acoustic output was not verified. Emulator picker render/accessibility
+assertion passes; reviewed final screenshot and both manuals’ rendered pages
+(19 App, 15 Hardware; native Word fallback because LibreOffice is unavailable).
+Final Preview APK installed on all four authorized physical Android devices;
+existing regular-package installs/data retained. Atlas USB COM18 and Sigil USB
+COM28 identified from current USB inventory, flashed and verified successfully;
+Sigil secured radio handshake/display-profile sync and paired HTTPS Atlas pin
+verification pass after boot. No active-game duration/touch acceptance run was
+claimed; round progression, physical speaker audibility and multi-minute screen
+wake remain useful live-play acceptance. No merge or release performed.

@@ -248,13 +248,14 @@ internal class LanRoom(
         // A process restart loses in-memory receipts. Old commands must never be replayed.
         if (r.optString("epoch") != memberEpoch(m)) return frame("interrupted", m)
         val kind = r.text("kind").also { require(it.length in 1..64) }
-        require(r.text("match").length in 1..128)
+        require(r.text("match").length <= 128)
         val privileged = m.optBoolean("master")
         val table = m.text("role") == "table"
         val own = seat(m)
         val target = if (table || privileged) r.optInt("target", own) else own
         val id = r.text("actionId").also { require(it.matches(Regex("[0-9a-f-]{36}"))) }
-        val payload = listOf(r.text("match"), r.integer("revision"), kind, r.integer("value"), r.integer("slot"), r.optInt("source"), target).joinToString("|")
+        val card = LanCard.read(r)
+        val payload = listOf(card?.json(), r.text("match"), r.integer("revision"), kind, r.integer("value"), r.integer("slot"), r.optInt("source"), target).joinToString("|")
         val ledger = receipts.getOrPut(m.text("token")) { linkedMapOf() }
         ledger[id]?.let { return if (it.payload == payload) frame(it.code, m).put("rollResult", it.roll) else reply("invalid") }
         if (kind.startsWith(PLANAR_KIND)) {

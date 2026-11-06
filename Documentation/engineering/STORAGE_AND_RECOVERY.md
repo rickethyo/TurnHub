@@ -234,3 +234,8 @@ than migrated or overwritten.
 Android commits a hub's Bag of Doom draw's complete snapshot synchronously
 before publishing its result, and saves elimination sources (including Self
 and pending answers) with the game and in history and imports.
+
+True guest match-record entries carry participation and result only; the archive
+accepts them without profile statistics or counters. A rejected Atlas delivery
+never removes the phone's history. A confirmed player-copy exchange can requeue
+rejected records with exact IDs, and History offers retry with the saved mapping.

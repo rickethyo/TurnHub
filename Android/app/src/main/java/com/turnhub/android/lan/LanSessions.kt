@@ -123,15 +123,16 @@ internal class LanSessions(
         val source = if (request.has("source")) request.integer("source").also { require(it in 0..10) }.toInt() else 0
         val revision = request.integer("revision")
         val requestedMatch = request.text("match")
-        require(requestedMatch.length in 1..64)
-        val payload = listOf(requestedMatch, revision, kind, value, slot, source).joinToString("|")
+        require(requestedMatch.length <= 64 && (requestedMatch.isNotEmpty() || game().state == com.turnhub.android.protocol.TableState.LOBBY))
+        val card = LanCard.read(request)
+        val payload = listOf(requestedMatch, revision, kind, value, slot, source, card?.json()).joinToString("|")
         client.receipts[id]?.let { return if (it.payload == payload) snapshot(it.code).put("player", client.guest.player) else reply("invalid") }
         // Never evict receipts and accidentally replay an old delta. Start a new
         // authenticated client session when its bounded command budget is used.
         if (client.receipts.size >= 2048) return snapshot("renew")
         val current = game()
         val code = if (requestedMatch != current.gameId || revision != current.revision) "stale"
-            else if (apply(LanAction(current.gameId, revision, client.guest.player, kind, value, slot, source))) "ok" else "rejected"
+            else if (apply(LanAction(current.gameId, revision, client.guest.player, kind, value, slot, source, card))) "ok" else "rejected"
         client.receipts[id] = Receipt(payload, code)
         return snapshot(code).put("player", client.guest.player)
     }

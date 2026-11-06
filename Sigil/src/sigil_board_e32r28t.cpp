@@ -256,8 +256,12 @@ class TouchSigilDisplay : public LvglSigilDisplay {
       }
       return;
     }
+    if (screenKeepOn) {
+      screenActiveAtMs = nowMs;
+      if (screenDark) { screenDark = false; tft.setBrightness(BACKLIGHT_ON); }
+      return;
+    }
     if (screenDark || calStep != CAL_IDLE) return;
-    if (screenKeepOn) { screenActiveAtMs = nowMs; return; }
     if (nowMs - screenActiveAtMs < SIGIL_SCREEN_OFF_IDLE_MS) return;
     screenDark = true;
     tft.setBrightness(0);

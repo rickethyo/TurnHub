@@ -17,15 +17,17 @@ import com.turnhub.android.ui.components.ToneButton
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun AtlasRoomLobby(state:LanUiState,model:LanViewModel) {
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+    val game = state.preview ?: return
+    TablePreview(game.toSummary(System.currentTimeMillis(), com.turnhub.android.domain.TableClock.nowMs()), reduceMotion = true) {
+    Column(Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
         verticalArrangement=Arrangement.spacedBy(16.dp)) {
         BrassCard {
-            Text("Your Atlas table",style=MaterialTheme.typography.headlineSmall)
-            Text("Choose your profile to join the hub phone's game. Your local game stays saved.")
-            state.preview?.players?.forEachIndexed { index,player -> Text("${index+1}. ${player.name}") }
+            Text("Your Atlas table",style=MaterialTheme.typography.headlineSmall, color=com.turnhub.android.ui.theme.palette.text)
+            Text("Pick your player to control their seat. The game stays visible behind this picker.", color=com.turnhub.android.ui.theme.palette.muted)
+            Text("${game.players.size} players at the table", color=com.turnhub.android.ui.theme.palette.muted)
         }
         BrassCard {
-            Text("Choose your profile",style=MaterialTheme.typography.titleMedium)
+            Text("Choose your profile",style=MaterialTheme.typography.titleMedium, color=com.turnhub.android.ui.theme.palette.text)
             FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 state.directory.forEach { profile ->
                     SuggestionChip(onClick={model.joinAtlasProfile(profile.id)}, enabled=!state.busy,
@@ -41,8 +43,9 @@ internal fun AtlasRoomLobby(state:LanUiState,model:LanViewModel) {
                 }
             }
             if(state.directory.isEmpty()) Text("Waiting for the hub's profiles…")
-            state.message?.let { Text(it) }
+            state.message?.let { Text(it, color=com.turnhub.android.ui.theme.palette.warn) }
             ToneButton("View the table",{model.join("display",0)},enabled=!state.busy)
         }
     }
+}
 }

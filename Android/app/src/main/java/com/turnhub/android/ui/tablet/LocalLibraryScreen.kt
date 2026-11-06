@@ -231,9 +231,9 @@ fun LocalLibraryScreen(
                                 Text(when (delivery.status) {
                                     DeliveryStatus.NEEDS_LINKING -> if (record.profile.atlasSupported) "Saved on this device"
                                         else "Saved on this device (Atlas doesn't import ${record.profile.displayName()} games yet)"
-                                    DeliveryStatus.PENDING -> "Atlas import pending"
+                                    DeliveryStatus.PENDING -> "Saved on this device · Atlas copy pending"
                                     DeliveryStatus.IMPORTED -> "Imported to Atlas"
-                                    DeliveryStatus.REJECTED -> "Atlas import needs attention"
+                                    DeliveryStatus.REJECTED -> "Saved on this device · Atlas copy needs attention"
                                 }, color = if (delivery.status == DeliveryStatus.REJECTED) p.warn else p.muted,
                                     style = MaterialTheme.typography.labelMedium)
                                 TextButton(onClick = { open = !open }, modifier = Modifier.align(Alignment.End).semantics {
@@ -355,6 +355,10 @@ private fun MatchImportForm(
             ToneButton("Cancel and link again", { onCancel(record.recordId) })
         }
         return
+    }
+    if (delivery.status == DeliveryStatus.REJECTED && delivery.atlasId == destination.atlasId &&
+        delivery.profileIds.size == record.players.size) {
+        ToneButton("Retry Atlas copy", { onImport(record.recordId, delivery.profileIds) }, enabled = !destination.busy)
     }
     var editing by rememberSaveable(record.recordId) { mutableStateOf(false) }
     if (!editing) {

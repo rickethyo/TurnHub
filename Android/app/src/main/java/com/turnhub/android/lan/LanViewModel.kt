@@ -131,7 +131,7 @@ internal class LanViewModel(
     private val exchange = Mutex()
     private var commandEpoch = ""
     private data class QueuedAction(val match: String, val epoch: String, val kind: String, val value: Int,
-        val slot: Int, val source: Int, val target: Int)
+        val slot: Int, val source: Int, val target: Int, val card: LanCard?)
     private val queued = ArrayDeque<QueuedAction>()
     private var restoreAttempted = false
     /** This guest's own account in the room, whose games sync with the host (plans/profile-sync.md). */
@@ -451,18 +451,19 @@ internal class LanViewModel(
         return id
     }
 
-    fun act(kind: String, value: Int = 0, slot: Int = 0, source: Int = 0, target: Int = 0, actionId: String? = null) {
+    fun act(kind: String, value: Int = 0, slot: Int = 0, source: Int = 0, target: Int = 0, actionId: String? = null, card: LanCard? = null) {
         val state = _state.value
         val (match, revision) = state.remote?.let { it.gameId to it.revision } ?: return
         val invitation = invite ?: return
         if (!state.online || state.role !in setOf("player", "table") && !state.master) return
         if (state.busy || pending != null) {
-            if (queued.size < 64) queued.addLast(QueuedAction(match, commandEpoch, kind, value, slot, source, target))
+            if (queued.size < 64) queued.addLast(QueuedAction(match, commandEpoch, kind, value, slot, source, target, card))
             else _state.update { it.copy(message = "Too many changes are waiting. Review the table before another edit.") }
             return
         }
         pending = base(invitation, "command").put("token", token).put("actionId", actionId ?: UUID.randomUUID().toString())
             .put("epoch", commandEpoch).put("target", target.takeIf { it > 0 } ?: state.player).put("match", match).put("revision", revision).put("kind", kind).put("value", value).put("slot", slot).put("source", source).put("looksId", state.looksId)
+        card?.let { pending?.put("card", it.json()) }
         retry()
     }
 
@@ -502,7 +503,7 @@ internal class LanViewModel(
             _state.update { it.copy(message = "The game or host changed. Waiting edits were not replayed; review current values.") }
             return
         }
-        act(next.kind, next.value, next.slot, next.source, next.target)
+        act(next.kind, next.value, next.slot, next.source, next.target, card = next.card)
     }
     fun leave() {
         atlasMode=false

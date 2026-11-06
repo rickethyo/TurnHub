@@ -457,6 +457,9 @@ class MainActivity : ComponentActivity() {
                         val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
                         val localState by standaloneViewModel.table.state.collectAsStateWithLifecycle()
                         val lanState by lanViewModel.state.collectAsStateWithLifecycle()
+                        if (lanState.remote == null) com.turnhub.android.ui.components.GameSoundEffect(
+                            localState.game.toSummary(0, 0), available = localState.storageProblem == null)
+
                         androidx.compose.runtime.DisposableEffect(lanState.host != null || lanState.joined) {
                             if (lanState.host != null || lanState.joined)
                                 window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

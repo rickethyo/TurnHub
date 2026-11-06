@@ -21,7 +21,10 @@ guest and the hub swap that profile's games and keep the union by record ID
 Table and Planes views are read-only by default. Shared table controllers
 can act for all normal gameplay panels. The host can grant game-master access to
 a device for editable public views. Room grants confer no Atlas administration
-or private-statistics permissions. Special decisions outside the LAN command
+or private-statistics permissions. Personal phones can name their own commander in setup or play. After game over,
+seated players (including eliminated seats) and shared controllers can request
+Rematch or Reset from the hub. The profile picker keeps the table visible behind
+it. Special decisions outside the LAN command
 vocabulary remain on the host and show a refusal on a remote controller.
 
 The hub owns membership writes. Its room and guests' reconnect credentials are

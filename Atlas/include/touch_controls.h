@@ -67,7 +67,7 @@ enum class TouchAction : uint8_t {
   ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast,
   OpenPlanes, PlanarRoll, PlanarWalk, PlanarResolve, OpenPlaneCard, PlaneCardBack,
   // A phone asking to pair (phone_links.h), and Settings > Device's Forget phones.
-  PhoneAllow, PhoneRefuse, ForgetPhones, OpenStorage
+  PhoneAllow, PhoneRefuse, ForgetPhones, OpenStorage, Rematch, ResetGame
 };
 
 // Main pages and overlays that the touch producer can actually build.
