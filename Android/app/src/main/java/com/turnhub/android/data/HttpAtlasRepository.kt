@@ -32,8 +32,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * - A changed atlasId (different Atlas), changed bootId (Atlas restarted) or a
  *   lower revision (including wrap) discards the cached view and rebuilds from
  *   a fresh info + state handshake. Nothing is merged across epochs.
- * - After [maxConsecutivePollFailures] failed polls the repository goes
- *   offline: it stays CONNECTED with the last snapshot as [tableSummary], sets
+ * - Transient network/busy poll errors retry quietly. After
+ *   [maxConsecutivePollFailures] failures, or a failed poll with data at least
+ *   ten seconds old, the repository goes offline: it stays CONNECTED with the last snapshot as [tableSummary], sets
  *   [offlineSinceMs], and keeps polling every [offlinePollIntervalMs] until
  *   Atlas answers (the epoch rules above then apply) or [disconnect] is
  *   called. [holdThroughOutages] keeps a busy Atlas from counting as offline

@@ -307,14 +307,14 @@ class HttpAtlasRepositoryTest {
     }
 
     @Test
-    fun `one failed poll is retried and cleared`() = runTest {
+    fun `one failed poll retries quietly and preserves the connected presentation`() = runTest {
         val repository = repository()
         repository.connect(AtlasEndpoint.DEFAULT)
 
         transport.state = { fail(timeout) }
         advance(1_000)
         assertEquals(CONNECTED, repository.connectionState.value)
-        assertSame(timeout, repository.failure.value)
+        assertNull(repository.failure.value)
         assertNotNull(repository.tableSummary.value)
 
         transport.state = { Fixtures.state("state-hosted.response.json") { put("revision", 9) } }
@@ -396,7 +396,7 @@ class HttpAtlasRepositoryTest {
         transport.state = { fail(timeout) }
         advance(10_000)
         assertEquals(CONNECTED, repository.connectionState.value)
-        assertSame(timeout, repository.failure.value)
+        assertNull(repository.failure.value)
         assertNotNull(repository.tableSummary.value)
 
         transport.state = { Fixtures.state("state-hosted.response.json") { put("revision", 9) } }
@@ -456,4 +456,34 @@ class HttpAtlasRepositoryTest {
 
         assertEquals(1, transport.stateCalls)
     }
+    @Test fun `slow failed poll marks stale data offline without waiting for three long requests`() = runTest {
+        val repository = HttpAtlasRepository({ transport }, backgroundScope, clock = { testScheduler.currentTime })
+        repository.connect(AtlasEndpoint.DEFAULT)
+        transport.state = { kotlinx.coroutines.delay(11_000); fail(timeout) }
+        advance(12_000)
+        assertNotNull(repository.offlineSinceMs.value)
+        assertTrue(repository.failure.value is AtlasFailure.LostConnection)
+        assertNotNull(repository.tableSummary.value)
+    }
+
+    @Test fun `TLS identity errors are visible on the first bad poll`() = runTest {
+        val repository = repository(); repository.connect(AtlasEndpoint.DEFAULT)
+        val identity = AtlasFailure.TlsIdentity("different key")
+        transport.state = { fail(identity) }
+        advance(1_000)
+        assertSame(identity, repository.failure.value)
+    }
+
+    @Test fun `a transient busy response does not replace the last good presentation`() = runTest {
+        val repository = repository(); repository.connect(AtlasEndpoint.DEFAULT)
+        val before = repository.tableSummary.value
+        transport.state = { fail(AtlasFailure.HttpStatus(503, "busy")) }
+        advance(2_000)
+        assertNull(repository.failure.value)
+        assertNull(repository.offlineSinceMs.value)
+        assertSame(before, repository.tableSummary.value)
+        advance(1_000)
+        assertTrue(repository.failure.value is AtlasFailure.LostConnection)
+    }
+
 }

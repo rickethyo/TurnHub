@@ -46,6 +46,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -304,7 +305,13 @@ fun HomeScreen(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
-        snackbarHost = { sharedRoomFeedback() },
+        snackbarHost = {
+            Column {
+                sharedRoomFeedback()
+                if (!setup.visible && hostedStatus == com.turnhub.android.data.HostedAtlasLink.Status.Hosting && hostedPlanesMessage != null)
+                    Snackbar(Modifier.padding(12.dp)) { Text(hostedPlanesMessage, maxLines = 4) }
+            }
+        },
         topBar = {
             Column(Modifier.background(p.bg.copy(alpha = .92f))) {
                 BrandBar(uiState, running = playing, reduceMotion = reduceMotion,
@@ -374,10 +381,6 @@ fun HomeScreen(
             }
             if (!setup.visible && phonePairing is com.turnhub.android.data.AtlasPhonePairing.State.Failed && pairingLine != null) {
                 Text(pairingLine, style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite })
-            }
-            if (hostedStatus == com.turnhub.android.data.HostedAtlasLink.Status.Hosting && hostedPlanesMessage != null) {
-                Text(hostedPlanesMessage, style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(horizontal = 16.dp).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite })
             }
             if (!setup.visible && tab in listOf(HomeTab.GAME, HomeTab.TABLE, HomeTab.PLANES)) sharedRoomHeader()

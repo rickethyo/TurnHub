@@ -95,6 +95,26 @@ for its "Update available" card.
 - Never automatically replay an ambiguous timed-out request. Request IDs are not
   deduplicated. Reconcile from state, then let the user act again.
 
+### Android request scheduling and short outages
+
+The app permits one in-flight request per Atlas origin on each phone, shared
+across transport instances, polling, hosting, profile copies and artwork. Waiting
+is cancellable, idle scheduling entries are removed, and different Atlases do not
+block each other. Normal connect/read budgets are eight seconds; the existing
+longer artwork budgets remain. Requests explicitly close their connection after
+the response. TLS pin verification and session resumption remain unchanged.
+
+A transient timeout, unreachable response or busy/server error after connecting
+retries quietly with the last snapshot. Three failed polls, or a failed poll whose
+last snapshot is at least ten seconds old, marks it offline. Firmware-update
+outage holding still applies. TLS identity and other non-transient errors remain
+visible immediately. A successful read clears the failure and revalidates the
+identity/boot/revision as usual. This scheduling never retries a game write.
+
+Connection labels reserve the same width, and cached telemetry remains visible
+while reconnecting. Connection failures no longer insert a row above the game;
+shared-room and artwork feedback use overlays.
+
 ## First-run setup (2026-09-30)
 
 One flow for the Android app
