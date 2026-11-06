@@ -555,15 +555,12 @@ warning is a slow red pulse, expired steady red, long turn steady green, over
 the active player's blue breathe. Every cadence is at most 2.5 Hz. Reduced
 motion and Monochrome-safe styles are in [Accessibility](ACCESSIBILITY.md).
 
-**Sound.** `AudioCue` names events; `AudioCueProfile` maps each to notes.
-Sigil buzzers get per-player cues (turn start, joining, decisions waiting on
-that Sigil: `ActionRequired`, two short notes, for a pending win confirmation
-or life request), muted per player by their accessibility setting. The
-**Atlas speaker** plays table-wide cues (countdown, start, turn change, timer
-warning and expiry, pause, eliminations, win claim results, game over) so
-phone players hear them, through `ATLAS_SPEAKER_MASK` to the board's speaker
-(none on the S3 Atlas yet; the Gen 1 chime synthesizer is on
-`legacy/gen1`), volume Off/Low/Medium/High (Admin, `ConfigureSpeaker`). Timer cues play once per turn.
+**Sound.** Atlas's `AudioController` maps hosted turn start, pause, resume,
+game start and game over to fixed note patterns. Device feedback also uses
+`ActionRequired` and `TimerExpired`. Per-player accessibility settings mute
+Sigil sound; speaker volume is Off/Low/Medium/High (Admin, `ConfigureSpeaker`).
+Table-wide cues include `ATLAS_SPEAKER_MASK` for boards with a speaker; the
+S3 Atlas has none. Sounds are supplementary to visible state.
 
 **Android game sounds.** Local and connected play use the same observer for
 confirmed start, pass/turn change, pause, resume, victory and draw, with one

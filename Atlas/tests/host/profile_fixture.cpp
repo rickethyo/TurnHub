@@ -107,10 +107,6 @@ bool resetTransientSeatBindings(const uint8_t *mac) {
 }
 bool releaseSeatBinding(const uint8_t *mac,uint8_t slot) { if(slot!=1&&slot!=2)return false; bindings.erase(key(mac,slot)); return true; }
 bool bindSeatToProfile(const uint8_t *mac,uint8_t slot,const String &id) { if(!profileExists(id))return false; bindings[key(mac,slot)]=id; return true; }
-bool moveSeatProfile(const uint8_t *mac,uint8_t from,uint8_t to,const String &id) {
-  if(boundProfileIdForSeat(mac,from)!=id || boundProfileIdForSeat(mac,to).length())return false;
-  bindings.erase(key(mac,from));bindings[key(mac,to)]=id;return true;
-}
 String nameForProfile(const String &id) { return profileExists(id)?profiles[id].name:String(); }
 bool setNameForProfile(const String &id,const String &name) { if(!profileExists(id))return false; profiles[id].name=name; return true; }
 String storedPinHashForProfile(const String &id) { return profileExists(id)?profiles[id].hash:String(); }
@@ -149,7 +145,6 @@ bool setPinHashForProfile(const String &id,const String &hash) { if(!profileExis
 bool clearPinForProfile(const String &id) { return setPinHashForProfile(id,""); }
 String storedPinHashForSeat(const uint8_t *mac,uint8_t slot) { return storedPinHashForProfile(profileIdForSeat(mac,slot)); }
 bool setPinHashForSeat(const uint8_t *mac,uint8_t slot,const String &hash) { return setPinHashForProfile(profileIdForSeat(mac,slot),hash); }
-bool clearPinForSeat(const uint8_t *mac,uint8_t slot) { return clearPinForProfile(profileIdForSeat(mac,slot)); }
 bool hasPinForSeat(const uint8_t *mac,uint8_t slot) { return hasPinForProfile(profileIdForSeat(mac,slot)); }
 String deviceName(const uint8_t *) { return String(); }
 bool setDeviceName(const uint8_t *,const String &) { return true; }

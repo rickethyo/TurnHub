@@ -562,16 +562,6 @@ bool resetTransientSeatBindings(const uint8_t mac[6]) {
   return releaseSeatBinding(mac, 1) && releaseSeatBinding(mac, 2);
 }
 
-bool moveSeatProfile(const uint8_t mac[6], uint8_t fromSlot, uint8_t toSlot, const String &profileId) {
-  if ((fromSlot != 1 && fromSlot != 2) || toSlot != 3 - fromSlot ||
-      boundProfileIdForSeat(mac, fromSlot) != profileId ||
-      boundProfileIdForSeat(mac, toSlot).length()) return false;
-  if (!bindSeatToProfile(mac, toSlot, profileId)) return false;
-  auto *source = transientSeatFor(mac, fromSlot, false);
-  source->used = false;
-  source->profileId = String();
-  return true;
-}
 
 bool bindSeatToProfile(const uint8_t mac[6], uint8_t slot, const String &profileId) {
   if (!preferencesReady || (slot != 1 && slot != 2) || !profileExists(profileId)) return false;
@@ -613,13 +603,6 @@ bool setPinHashForSeat(
   return setPinHashForProfile(profileId, hash);
 }
 
-bool clearPinForSeat(const uint8_t mac[6], uint8_t slot) {
-  const String profileId = profileIdForSeat(mac, slot);
-  if (validProfileId(profileId)) {
-    clearPinForProfile(profileId);
-  }
-  return true;
-}
 
 bool hasPinForSeat(const uint8_t mac[6], uint8_t slot) {
   return storedPinHashForSeat(mac, slot).length() == 64;

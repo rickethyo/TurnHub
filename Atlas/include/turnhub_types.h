@@ -51,13 +51,7 @@ struct PlayerSeat {
     return playerNumber != 0 && controllerId != INVALID_ID;
   }
 
-  char slotName() const {
-    return slot == 1 ? 'A' : 'B';
-  }
 
-  bool sameSeat(const PlayerSeat &other) const {
-    return controllerId == other.controllerId && slot == other.slot;
-  }
 };
 
 struct PlayerStats {

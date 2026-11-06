@@ -641,10 +641,6 @@ bool SigilBus::sendToMac(
   return sendSealed(*sigil, &packet, sizeof(packet));
 }
 
-bool SigilBus::sendCommanderFlow(const TurnHubProtocol::CommanderFlowPacket &packet) {
-  SigilRecord *sigil = const_cast<SigilRecord *>(record(packet.sigilId));
-  return sigil != nullptr && sendSealed(*sigil, &packet, sizeof(packet));
-}
 
 bool SigilBus::sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &packet) {
   SigilRecord *sigil = const_cast<SigilRecord *>(record(packet.sigilId));

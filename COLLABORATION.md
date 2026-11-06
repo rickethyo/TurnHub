@@ -34,6 +34,24 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
+2026-11-06, Codex, baseline `13f01572`, `codex/atlas-sigil-cleanup`: owner
+requests the audited Atlas/Sigil cleanup on a new branch. Isolated in a managed
+worktree after another chat began record-sync/notification work in the shared
+checkout; those edits are preserved separately. Scope: implement the Sigil screen
+test, prune verified unused APIs and audio configuration, retain active cues and
+test contracts, and use the bounded display-name helper in the LVGL renderer.
+No device flashing or live-game interruption. No push to codex/master.
+The obsolete audio wrappers and profile/venue configuration are removed; direct
+TurnStarted, ActionRequired and TimerExpired cues and active pause/resume/start/end
+wrappers remain. Seat binding/PIN APIs with no callers are removed from production
+and fixtures; profile-ID behavior and host-tested battery/menu hooks remain.
+Validation on the slice: Atlas and Sigil host suites, both firmware builds,
+client contract, adapter/docs/licensed-content guards and diff checks pass.
+LVGL preview checks exact RGB/white/black bands in both themes and inversion,
+plus the bounded name helper; rendered test pattern inspected. Physical panel,
+radio delivery and timed restoration have not been tested on hardware.
+
+
 2026-11-05, Codex, baseline `4c8ca922`, codex/master: owner asks to continue
 profile settings/picker and add to PR #211. Both app editors now separate Profile,
 Appearance, Security and Manage; preview, graphical preset choices, PIN confirmation,

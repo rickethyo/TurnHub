@@ -122,7 +122,6 @@ class HomeWifiRejoin {
     return static_cast<uint32_t>(nowMs - (tried_ ? lastMs_ : 0)) >= waitMs();
   }
 
-  uint8_t failures() const { return failures_; }
 
  private:
   bool requested_ = false;

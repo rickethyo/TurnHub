@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "commander_damage.h"
+#include "display_name.h"
 #include "commander_flow_view.h"
 #include "secure_link.h"
 
@@ -231,12 +232,6 @@ void showTurnBanner(const char *name, uint8_t number) {
   lv_anim_start(&out);
 }
 
-// Life totals use the digit-only numeral fonts.
-void lifeNumber(lv_obj_t *parent, int32_t life, int16_t y, bool large) {
-  char digits[12];
-  snprintf(digits, sizeof(digits), "%ld", static_cast<long>(life));
-  text(parent, digits, large ? &th_num_64 : &th_num_40, pal().text, 0, y, W, LV_TEXT_ALIGN_CENTER);
-}
 
 }  // namespace
 
@@ -635,6 +630,29 @@ void LvglSigilDisplay::menuClose(const char *label, PadRect r, uint32_t meaning)
   keys_[static_cast<uint8_t>(Key::Left)] = pill;
 }
 
+void LvglSigilDisplay::showHardwareTest() {
+  layout_ = Layout::Hidden;
+  frame("Screen test");
+  // Raw panel colors deliberately bypass theme and inversion.
+  auto *screen = lv_screen_active();
+  lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), 0);
+  lv_obj_clean(screen);
+  const uint32_t colors[] = {0xFF0000, 0x00FF00, 0x0000FF, 0xFFFFFF};
+  const char *names[] = {"Red", "Green", "Blue", "White"};
+  for (uint8_t i = 0; i < 4; ++i) {
+    auto *band = box(screen, 0, i * 60, W, 60);
+    lv_obj_set_style_bg_opa(band, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(band, lv_color_hex(colors[i]), 0);
+    auto *label = text(band, names[i], &th_semi_20, 0, 10, 18, W - 20);
+    lv_obj_set_style_text_color(label, lv_color_hex(i == 2 ? 0xFFFFFF : 0), 0);
+  }
+  auto *label = text(screen, "Screen test", &th_semi_20, 0xFFFFFF, 10, 252, W - 20);
+  lv_obj_set_style_text_color(label, lv_color_hex(0xFFFFFF), 0);
+  label = text(screen, "Returns in 3 seconds", &th_semi_16, 0xFFFFFF, 10, 286, W - 20);
+  lv_obj_set_style_text_color(label, lv_color_hex(0xFFFFFF), 0);
+  present();
+}
+
 void LvglSigilDisplay::showBooting() { layout_=Layout::Hidden; statusScreen("Starting", "Looking for Atlas", nullptr, 0xFF, PadLabels()); }
 
 void LvglSigilDisplay::showUnpaired() {
@@ -692,11 +710,7 @@ void LvglSigilDisplay::showUpdate(const char *status, int8_t percent) {
 
 bool LvglSigilDisplay::setSeatName(uint8_t slot, const char *name) {
   if (slot > 1) return false;
-  char next[sizeof(seatName_[0])];
-  snprintf(next, sizeof(next), "%s", name ? name : "");
-  if (strcmp(next, seatName_[slot]) == 0) return false;
-  memcpy(seatName_[slot], next, sizeof(next));
-  return true;
+  return updateDisplayName(seatName_[slot], name);
 }
 
 void LvglSigilDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &g) {

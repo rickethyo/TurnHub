@@ -6,11 +6,6 @@
 
 namespace TurnHubSigil {
 
-// Commander damage stays off the game screen until this player has taken
-// some (test feedback, 2026-09-28). Atlas sends only sources with damage.
-inline bool commanderDamageShown(const TurnHubProtocol::GameDisplayPacket &s) {
-  return s.commander && (s.sourceCount || s.omittedSources);
-}
 
 // "7", "7/3", or "3 (C2)" when only commander 2 has hit (keeps slot identity).
 inline void formatCommanderDamage(const TurnHubProtocol::DisplayCommanderSource &entry,

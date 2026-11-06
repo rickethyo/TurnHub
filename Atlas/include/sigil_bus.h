@@ -84,7 +84,6 @@ class SigilBus {
   using SeatedQuery = bool (*)(uint8_t sigilId);
   void setSeatedQuery(SeatedQuery query) { seatedQuery_ = query; }
 
-  bool sendCommanderFlow(const TurnHubProtocol::CommanderFlowPacket &packet);
   bool sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &packet);
   bool sendTableDisplay(const TurnHubProtocol::TableDisplayPacket &packet);
   bool sendUpdateOffer(const TurnHubProtocol::SigilUpdateOfferPacket &packet);

@@ -161,8 +161,6 @@ String boundProfileIdForSeat(const uint8_t mac[6], uint8_t slot);
 bool resetTransientSeatBindings(const uint8_t mac[6]);
 // Release one seat's binding (that seat becomes a guest).
 bool releaseSeatBinding(const uint8_t mac[6], uint8_t slot);
-// Move a profile between this Sigil's seats, leaving the source as a guest.
-bool moveSeatProfile(const uint8_t mac[6], uint8_t fromSlot, uint8_t toSlot, const String &profileId);
 bool bindSeatToProfile(
     const uint8_t mac[6],
     uint8_t slot,
@@ -177,7 +175,6 @@ bool setPinHashForSeat(
     const uint8_t mac[6],
     uint8_t slot,
     const String &hash);
-bool clearPinForSeat(const uint8_t mac[6], uint8_t slot);
 bool hasPinForSeat(const uint8_t mac[6], uint8_t slot);
 
 String deviceName(const uint8_t mac[6]);

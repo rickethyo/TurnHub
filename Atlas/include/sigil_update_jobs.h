@@ -117,7 +117,6 @@ class SigilUpdateJobs {
   uint8_t error() const { return error_; }
   const char *message() const { return message_; }
   TurnHubFirmwarePackage::Version target() const { return target_; }
-  uint8_t product() const { return product_; }
   const uint8_t *token() const { return token_; }
 
  private:

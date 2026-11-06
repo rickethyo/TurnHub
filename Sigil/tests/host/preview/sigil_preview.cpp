@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "sigil_display_lvgl.h"
+#include "display_name.h"
 
 using namespace TurnHubSigil;
 using namespace TurnHubProtocol;
@@ -78,6 +79,15 @@ GameDisplayPacket game(const char *name, int32_t life, bool active, uint8_t turn
 }  // namespace
 
 int main() {
+  char name[13] = {};
+  assert(!TurnHubSigil::updateDisplayName(name, nullptr));
+  assert(TurnHubSigil::updateDisplayName(name, "Player Alice long"));
+  assert(!strcmp(name, "Player Alice"));
+  assert(!TurnHubSigil::updateDisplayName(name, "Player Alice different suffix"));
+  assert(TurnHubSigil::updateDisplayName(name, "Bob"));
+  assert(!strcmp(name, "Bob") && name[4] == 0);
+  assert(TurnHubSigil::updateDisplayName(name, nullptr));
+  assert(!TurnHubSigil::updateDisplayName(name, ""));
   lv_init();
   lv_tick_set_cb([]() -> uint32_t { return nowMs; });
   lv_display_t *disp = lv_display_create(WIDTH, HEIGHT);
@@ -91,6 +101,20 @@ int main() {
     const auto theme = t == 0 ? TurnHubTheme::Id::Graphite : TurnHubTheme::Id::Brass;
     const std::string suffix = t == 0 ? "" : "-brass";
     d.setTheme(theme); d.setAtlasLink(2);
+    for (bool inverted : {false, true}) {
+      d.setInverted(inverted);
+      d.showHardwareTest();
+      save("screen-test" + suffix + (inverted ? "-inverted" : ""));
+      assert(hasText(lv_screen_active(), "Screen test"));
+      assert(hasText(lv_screen_active(), "Returns in 3 seconds"));
+      assert(d.touchMap().at(120, 120) == nullptr);
+      assert(frame[30 * WIDTH + 230] == 0xF800);
+      assert(frame[90 * WIDTH + 230] == 0x07E0);
+      assert(frame[150 * WIDTH + 230] == 0x001F);
+      assert(frame[210 * WIDTH + 230] == 0xFFFF);
+      assert(frame[310 * WIDTH + 230] == 0);
+    }
+    d.setInverted(false);
     d.showHome(2,true,"Alexandria",static_cast<uint8_t>(DisplayMode::Running)); save("home"+suffix);
     d.setManaBest(24);
     d.showHome(2,true,"Alexandria",static_cast<uint8_t>(DisplayMode::Running)); save("home-mana-best"+suffix);

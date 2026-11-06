@@ -75,27 +75,6 @@ inline bool parseLedStyle(const char *key, LedStyle &style) {
   return false;
 }
 
-// What one Sigil does when two players share it (seats A and B). Each rule
-// picks the more accommodating choice, so sharing never removes an
-// accommodation one of the players asked for:
-// - sound is off if either player turned it off;
-// - Reduced motion wins over Monochrome-safe (its cues are also distinguishable
-//   without color), which wins over Standard;
-// - the longer hold thresholds apply.
-inline AccessibilityPrefs mergeSeatPrefs(const AccessibilityPrefs &a, const AccessibilityPrefs &b) {
-  AccessibilityPrefs merged;
-  merged.sigilSound = a.sigilSound && b.sigilSound;
-  const auto rank = [](LedStyle style) {
-    return style == LedStyle::ReducedMotion ? 2 : style == LedStyle::MonochromeSafe ? 1 : 0;
-  };
-  merged.ledStyle = rank(a.ledStyle) >= rank(b.ledStyle) ? a.ledStyle : b.ledStyle;
-  merged.longPressMs = a.longPressMs > b.longPressMs ? a.longPressMs : b.longPressMs;
-  merged.winHoldMs = a.winHoldMs > b.winHoldMs ? a.winHoldMs : b.winHoldMs;
-  merged.lifeApprovalMs = a.lifeApprovalMs > b.lifeApprovalMs ? a.lifeApprovalMs : b.lifeApprovalMs;
-  // Each input keeps winHold >= longPress + gap, so the maxima do too.
-  return merged;
-}
-
 // Stored record ("x" + profile ID): {schema 1, flags, ledStyle,
 // longPressMs le16, winHoldMs le16} = 7 bytes. Flags: bit 0 Sigil sound,
 // bits 1-2 the life-approval option (0 = 15 s, so older records read as the

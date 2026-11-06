@@ -36,7 +36,6 @@
 #include "hosted_sigils.h"
 #include "touch_controls.h"
 #include "../../../Sigil/include/received_packet.h"
-#include "../../../Sigil/include/display_name.h"
 
 namespace TurnHub { extern uint32_t fixturePairingWindowSaved; extern int fixtureSpeakerVolumeSaved; extern int fixturePowerSettingsSaved; }
 static TurnHubProtocol::TableDisplayPacket sentTableDisplays[8][2]{};
@@ -140,10 +139,6 @@ bool SigilBus::sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &p) {
   sentGameDisplays[p.sigilId] = p;
   ++gameDisplaySends;
   return fixtureRadio;
-}
-static TurnHubProtocol::CommanderFlowPacket sentCommander[MAX_PHYSICAL_SIGILS]{};
-bool SigilBus::sendCommanderFlow(const TurnHubProtocol::CommanderFlowPacket &p) {
-  assert(TurnHubProtocol::validCommanderFlow(p)); sentCommander[p.sigilId] = p; return fixtureRadio;
 }
 static TurnHubProtocol::ProfilePickerPacket sentPickers[MAX_PHYSICAL_SIGILS]{};
 static unsigned pickerSends = 0;
@@ -344,15 +339,6 @@ static bool heardActionRequired(uint8_t id) {
 static void clearTones() { drainAudio(); for (auto &tones : TurnHub::fixtureTones) tones.clear(); }
 
 static void sigilReceivePackets() {
-  char name[13] = {};
-  assert(!TurnHubSigil::updateDisplayName(name, nullptr));
-  assert(TurnHubSigil::updateDisplayName(name, "Player Alice long"));
-  assert(!strcmp(name, "Player Alice"));
-  assert(!TurnHubSigil::updateDisplayName(name, "Player Alice different suffix"));
-  assert(TurnHubSigil::updateDisplayName(name, "Bob"));
-  assert(!strcmp(name, "Bob") && name[4] == 0);
-  assert(TurnHubSigil::updateDisplayName(name, nullptr));
-  assert(!TurnHubSigil::updateDisplayName(name, ""));
   TurnHubSigil::ReceivedPacket received{};
   const uint8_t mac[6] = {1,2,3,4,5,6};
   const auto legacy = TurnHubProtocol::makePacket(PacketType::DisplayState, 0, 42);
