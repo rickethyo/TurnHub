@@ -229,3 +229,44 @@ this filter. A member's existing reconnect token continues to work. Invitations
 survive host restarts, and revoking the issuer invalidates its unused invites.
 The room retains its 16-member capacity; several devices sharing a player count
 as several devices, while game identity and stats still count once.
+
+## Shared lobby setup
+
+An authenticated player, shared-table member or game master may send a normal
+`command` with `kind: "setup"`, zero `value`, `slot` and `source`, and a `setup`
+object (at most 16,384 characters). Its usual match, revision, action ID and epoch
+fields remain mandatory. Read-only display/planes members receive `forbidden`
+without a game-master grant. Setup edits apply only in the lobby and the hub
+rechecks match/revision before changing anything. They use the existing bounded
+receipt ledger; changing a payload under the same action ID is invalid. The
+ledger renews at 2,048 entries or 512 Ki characters of payload per member, so
+large planar selections cannot exhaust app memory.
+
+The `setup.op` allowlist is:
+
+| Operation | Fields |
+| --- | --- |
+| `guest`, `select`, `create-profile` | Optional guest `name`; public `profileId`; or `name` and optional `credential` salt/hash verifier |
+| `forget-guest` | Saved guest `name`; current seats and game history are kept |
+| `remove`, `clear`, `swap` | Zero-based `index`; none; or zero-based `a` and `b` |
+| `configure` | Optional profile wire value `profile`, integer `life`, boolean `teams` |
+| `timer`, `timer-rules` | Preset `ms`; or `timeout`, boolean `earn`, `percent`, `max` |
+| `house-rules`, `zero-life`, `planechase`, `planar-phenomena` | Boolean `on` |
+| `planar-source`, `planar-selection` | `source` (`digital`/`physical`); or validated `selection` |
+| `commander` | Zero-based `index` and the existing bounded `card` object |
+| `starter`, `start` | Zero-based `index`, or null for random |
+| `save-setup`, `load-setup`, `delete-setup` | `name`; save also accepts explicit boolean `replace` |
+
+The hub uses its existing game/setup rules and storage. A failed durable write
+does not publish the edit. Profile creation receives only a salted verifier, never
+a plaintext PIN, and cannot grant device Admin. It cannot replace an existing
+identity, credential, game record or history. Saved-setup loading preserves the
+existing deleted-profile check.
+
+Room frames include bounded `setupOptions.names` and `setupOptions.guests` lists
+(up to 128 strings each). Public profile IDs in the current game match its room
+directory; device-local account IDs and credentials remain hidden. The selected
+planar pool is public, while shuffled deck order stays hidden. Joined phones use
+the same lobby renderer and Game/Table/Planes navigation as the hub. Their setup
+requests are not queued across a busy request or changed revision. Both host and
+guest countdowns cancel when the setup revision changes.

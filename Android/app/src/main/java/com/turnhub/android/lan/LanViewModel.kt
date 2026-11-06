@@ -63,6 +63,8 @@ internal data class LanUiState(
     /** The last history exchange with the host, in words ("3 games synced"); null when nothing moved. */
     val historyNote: String? = null,
     val atlasRoom: Boolean = false,
+    val setupNames: List<String> = emptyList(),
+    val guestNames: List<String> = emptyList(),
 ) {
     /** Seated or displaying a shared game. */
     val joined: Boolean get() = reconnecting || remote != null
@@ -131,7 +133,7 @@ internal class LanViewModel(
     private val exchange = Mutex()
     private var commandEpoch = ""
     private data class QueuedAction(val match: String, val epoch: String, val kind: String, val value: Int,
-        val slot: Int, val source: Int, val target: Int, val card: LanCard?)
+        val slot: Int, val source: Int, val target: Int, val card: LanCard?, val setup: JSONObject?)
     private val queued = ArrayDeque<QueuedAction>()
     private var restoreAttempted = false
     /** This guest's own account in the room, whose games sync with the host (plans/profile-sync.md). */
@@ -199,6 +201,8 @@ internal class LanViewModel(
                 val session = record.text("session")
                 val key = record.text("key")
                 fun localCore() = LanSessions(session, key, { table.state.value.game }, table::applyLanAction,
+                    profileIds = { val state = table.state.value; state.game.players.map { p ->
+                        state.library.players.firstOrNull { it.localId == p.localId }?.profileId ?: p.profileId } },
                     unavailable = { (!foreground && !AtlasLinkHoldService.active) || table.state.value.storageProblem != null },
                     looks = { val state = table.state.value; val looks = state.library.players.associate { it.localId to it.personalization }
                         state.game.players.map { looks[it.localId] } })
@@ -206,7 +210,9 @@ internal class LanViewModel(
                 suspend fun snapshot(): JSONObject = localCore().handle(baseRequest("preview"))
                 val core = LanRoom(record, save = { next -> store.write("host", next) },
                     atlasTicket={ verifyAtlas("ticket",it) },atlasMember={ verifyAtlas("phone",it)!=null },
-                    attachAtlas=table::attachAtlasRoomProfile,
+                    attachAtlas=table::attachAtlasRoomProfile, setup = { table.applyRoomSetup(it) },
+                    setupOptions = { JSONObject().put("names", org.json.JSONArray(table.state.value.library.gameSetups.take(128).map { it.name }))
+                        .put("guests", org.json.JSONArray(table.state.value.library.guestNames.take(128))) },
                     planesAvailable = { table.state.value.game.planechase.enabled },
                     planarPlayerAllowed = { player -> table.state.value.game.players.getOrNull(player - 1)?.eliminated == false },
                     planarRollAllowed = { player ->
@@ -371,7 +377,7 @@ internal class LanViewModel(
                     displayView = reply.optString("displayView").takeIf { it in setOf("table", "planes") },
                     displayId = reply.optString("displayId", "host"), displayAllUpright = reply.optBoolean("displayAllUpright"),
                     displayTargets = reply.optJSONArray("displayTargets")?.let(::readDisplays).orEmpty(),
-                    message = null).withLooks(reply) }
+                    message = null).withLooks(reply).withSetup(reply) }
                 val remembered = saveGuest()
                 startPolling(generation)
                 if (!remembered) _state.update { it.copy(message = "Joined, but this device couldn't save reconnect access. Keep the app open.") }
@@ -451,20 +457,40 @@ internal class LanViewModel(
         return id
     }
 
-    fun act(kind: String, value: Int = 0, slot: Int = 0, source: Int = 0, target: Int = 0, actionId: String? = null, card: LanCard? = null) {
+    fun act(kind: String, value: Int = 0, slot: Int = 0, source: Int = 0, target: Int = 0, actionId: String? = null, card: LanCard? = null, setup: JSONObject? = null) {
         val state = _state.value
         val (match, revision) = state.remote?.let { it.gameId to it.revision } ?: return
         val invitation = invite ?: return
         if (!state.online || state.role !in setOf("player", "table") && !state.master) return
         if (state.busy || pending != null) {
-            if (queued.size < 64) queued.addLast(QueuedAction(match, commandEpoch, kind, value, slot, source, target, card))
+            if (queued.size < 64) queued.addLast(QueuedAction(match, commandEpoch, kind, value, slot, source, target, card, setup?.let { JSONObject(it.toString()) }))
             else _state.update { it.copy(message = "Too many changes are waiting. Review the table before another edit.") }
             return
         }
         pending = base(invitation, "command").put("token", token).put("actionId", actionId ?: UUID.randomUUID().toString())
             .put("epoch", commandEpoch).put("target", target.takeIf { it > 0 } ?: state.player).put("match", match).put("revision", revision).put("kind", kind).put("value", value).put("slot", slot).put("source", source).put("looksId", state.looksId)
         card?.let { pending?.put("card", it.json()) }
+        setup?.let { pending?.put("setup", JSONObject(it.toString())) }
         retry()
+    }
+
+    private fun LanUiState.withSetup(reply: JSONObject): LanUiState {
+        val options = reply.optJSONObject("setupOptions") ?: return this
+        fun names(key: String, max: Int): List<String> = options.optJSONArray(key)?.let { list ->
+            (0 until list.length().coerceAtMost(128)).mapNotNull { list.optString(it).takeIf { name -> name.isNotBlank() && name.length <= max } }
+        }.orEmpty()
+        return copy(setupNames = names("names", 64), guestNames = names("guests", 32))
+    }
+
+    fun setup(game: StandaloneGame, op: String, vararg fields: Pair<String, Any?>) {
+        val current = _state.value
+        if (current.busy || pending != null || current.remote?.gameId != game.gameId || current.remote?.revision != game.revision) {
+            _state.update { it.copy(message = "The table changed. Review the current setup and try again.") }
+            return
+        }
+        val data = JSONObject().put("op", op)
+        fields.forEach { (key, value) -> data.put(key, value ?: JSONObject.NULL) }
+        act("setup", setup = data)
     }
 
     fun retry() {
@@ -503,7 +529,7 @@ internal class LanViewModel(
             _state.update { it.copy(message = "The game or host changed. Waiting edits were not replayed; review current values.") }
             return
         }
-        act(next.kind, next.value, next.slot, next.source, next.target, card = next.card)
+        act(next.kind, next.value, next.slot, next.source, next.target, card = next.card, setup = next.setup)
     }
     fun leave() {
         atlasMode=false
@@ -570,7 +596,7 @@ internal class LanViewModel(
                 "renew" -> "Connection renewed without signing in. The last edit was not applied; review it before trying again."
                 else -> "This session has ended or access was removed. Ask the host for a new invitation."
             },
-        ) }
+        ).withSetup(reply) }
     }
 
     private fun requestHistorySync() {

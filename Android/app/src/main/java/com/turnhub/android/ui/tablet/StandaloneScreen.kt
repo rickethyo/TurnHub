@@ -184,7 +184,7 @@ fun EmbeddedTable(
         if (previousState in listOf(TableState.RUNNING, TableState.PAUSED, TableState.GAME_OVER) && game.state == TableState.LOBBY) onSetUp()
         previousState = game.state
     }
-    val startCountdown = rememberGameStartCountdown(game.state, game.canStart) { table.start() }
+    val startCountdown = rememberGameStartCountdown(game.state, game.canStart, revision = game.revision) { table.start() }
     val lobby = game.state == TableState.LOBBY
     // A new practice table whenever the lobby changes, or the practice game returns to setup.
     var practiceRound by rememberSaveable { mutableStateOf(0) }
@@ -266,7 +266,7 @@ fun StandaloneLobby(
     }
 
     val seated = game.players.mapNotNull { it.localId }.toSet()
-    val startCountdown = rememberGameStartCountdown(game.state, game.canStart) {
+    val startCountdown = rememberGameStartCountdown(game.state, game.canStart, revision = game.revision) {
         table.start()
     }
     TableLobby(

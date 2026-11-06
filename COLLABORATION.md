@@ -2447,3 +2447,47 @@ source export through an alternate index. No merge or release.
 
 Validation: all six branch-maintenance tests pass, including exact-case Copilot
 fast-forward and exclusions, divergence, missing branches and race protection.
+
+## Game-tab layout and shared setup parity — 2026-11-06, Codex
+
+Owner requests compact LG header and sharing banner, setup nearer the top, full
+setup parity on joined phones, removal of Advanced options, Magic mode and
+Planechase under 1. Game, and an always-available collapsed Rules section.
+Branch codex/master, baseline `6b955613`; preserve shared checkout notes and
+use the existing clean-export/alternate-index isolation workflow. No merge or
+release. Test on authorized LG and other connected devices without clearing data.
+
+Implementation: compact full-width telemetry and sharing rows, game/mode/
+Planechase together, Rules always collapsed/available, and saved setups below
+start/rules. Joined controllers stay in the main Game/Table/Planes shell and
+reuse TableLobby with a bounded authenticated host setup-command adapter. The
+hub remains sole game/storage authority; freshness, receipts, epoch, read-only
+roles and private-account boundaries remain enforced. A lobby revision change
+cancels countdowns. Setup retry receipts no longer depend on a player's changed
+seat number after a swap. Public IDs and selected planar pools are shared, never
+private account handles, credentials or shuffled deck order.
+
+PR #215 reviewed for overlap: firmware cleanup/screen test only, no Android
+files. It remains separate and unmerged; this slice uses accepted master.
+
+Validation: 530 JVM tests pass, including setup edits/start, stale and duplicate
+requests, read-only/unauthorized rejection, malformed values, durable-save
+failure, saved setups and protected profile creation without Admin promotion.
+Physical LG and tester Fold pass 1.3x text host/guest setup layout checks, real
+pinned-TLS swap/retry/timer/start/persistence tests, and an isolated guest
+LanViewModel test that joins over Wi-Fi and refreshes saved setups/guest names
+after edits. Tests use memory games and separate reconnect preferences. Preview
+is installed data-preserving on all five authorized physical Android devices and
+the emulator. LG still retains eight profiles, all three Imported records, and
+an empty real lobby. No firmware flash, merge or release in this slice.
+
+Updated App Manual and generated in-app help; rendered all 19 pages through
+Word and inspected layouts. Documentation links, manual export and licensed-
+content guards pass. Build source stays in Private; only this scope is staged
+through an alternate index to preserve the shared checkout's notes.
+
+The receipt ledger also renews at a 512 Ki-character per-member payload budget,
+covering large setup selections without accumulating excessive RAM. Remote saved
+guest removal preserves the current seats and history. Final visual QA removes
+the old duplicate mode/Planechase controls below Start; they appear only in
+1. Game. All three device acceptance tests pass on both LG and tester Fold.

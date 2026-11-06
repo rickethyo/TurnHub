@@ -1044,6 +1044,102 @@ class StandaloneTable(
             action.optString("kind"), action.optInt("value"), action.optInt("slot"), action.optInt("source")))
     }
 
+    /** Authenticated room setup edits, serialized by LanRoom and rechecked against this snapshot. */
+    internal fun applyRoomSetup(request: JSONObject): String {
+        val before = _state.value
+        val game = before.game
+        if (before.storageProblem != null) return "unavailable"
+        if (request.optString("match") != game.gameId || request.optLong("revision", -1) != game.revision) return "stale"
+        if (game.state != TableState.LOBBY) return "rejected"
+        return try {
+            val data = request.getJSONObject("setup")
+            require(data.toString().length <= 16384)
+            fun number(key: String): Long = data.get(key).let { require(it is Int || it is Long); (it as Number).toLong() }
+            fun int(key: String) = number(key).also { require(it in Int.MIN_VALUE..Int.MAX_VALUE) }.toInt()
+            fun index(key: String = "index") = int(key).also { require(it in game.players.indices) }
+            fun flag(key: String = "on") = (data.get(key) as? Boolean) ?: error("Expected boolean")
+            var guestName: String? = null
+            val next = when (data.getString("op")) {
+                "guest" -> {
+                    val names = game.players.map { it.name }.toSet()
+                    val name = data.optString("name").ifBlank { "Guest " + generateSequence(1) { it + 1 }.first { "Guest $it" !in names } }
+                    require(name.isNotBlank() && name.length <= StandaloneGame.MAX_NAME)
+                    guestName = name
+                    game.addPlayer(name, guest = true)
+                }
+                "select" -> {
+                    val player = before.library.players.firstOrNull { it.profileId == data.getString("profileId") } ?: return "rejected"
+                    if (game.players.any { it.localId == player.localId }) return "ok"
+                    game.addPlayer(player.name, localId = player.localId)
+                }
+                "create-profile" -> {
+                    require(!data.has("credential") || data.isNull("credential") || data.optJSONObject("credential") != null)
+                    val name = data.getString("name").also { require(it.isNotBlank() && it.length <= StandaloneGame.MAX_NAME) }
+                    return if (createAccount(name, data.optJSONObject("credential")?.let { c ->
+                        val salt = c.getString("salt"); val hash = c.getString("hash")
+                        require(java.util.Base64.getDecoder().decode(salt).size == 16 && java.util.Base64.getDecoder().decode(hash).size == 32)
+                        LocalCredential(salt, hash)
+                    })) "ok" else "unavailable"
+                }
+                "save-setup", "load-setup", "delete-setup" -> {
+                    val name = data.getString("name").also { require(it.isNotBlank() && it.length <= 64) }
+                    val saved = when (data.getString("op")) {
+                        "save-setup" -> saveGameSetup(name, if (data.has("replace")) flag("replace") else false)
+                        "load-setup" -> loadGameSetup(name)
+                        else -> deleteGameSetup(name)
+                    }
+                    return if (saved) "ok" else "rejected"
+                }
+                "forget-guest" -> {
+                    val name = data.getString("name")
+                    if (name !in before.library.guestNames) return "ok"
+                    return if (publish(before.copy(library = before.library.copy(guestNames = before.library.guestNames - name)), durable = true)) "ok" else "unavailable"
+                }
+                "remove" -> game.removePlayer(index())
+                "clear" -> game.clearPlayers()
+                "swap" -> game.swapPlayers(index("a"), index("b"))
+                "configure" -> {
+                    var changed = game
+                    if (data.has("profile")) changed = changed.setFormat(GameProfile.entries.first { it.wireValue == data.getString("profile") })
+                    if (data.has("teams")) changed = changed.setTwoHeadedGiant(flag("teams"))
+                    if (data.has("life")) changed = changed.setStartingLife(int("life").also { require(it in 1..StandaloneGame.MAX_LIFE) })
+                    changed
+                }
+                "timer" -> game.setTurnTimer(number("ms").also { require(it in StandaloneGame.TURN_TIMER_PRESETS_MS) })
+                "house-rules" -> game.setHouseRules(flag())
+                "zero-life" -> game.setAutoEliminateAtZeroLife(flag(), wallClock())
+                "timer-rules" -> game.setTimerRules(com.turnhub.android.domain.LocalTimerRules(
+                    com.turnhub.android.domain.TimeoutAction.valueOf(data.getString("timeout")), flag("earn"),
+                    int("percent"), int("max")))
+                "planechase" -> game.setPlanechase(flag())
+                "planar-source" -> game.setPlanarSource(PlanarDeckSource.entries.first { it.wireValue == data.getString("source") })
+                "planar-phenomena" -> game.setPlanarPhenomena(flag())
+                "planar-selection" -> {
+                    val selection = PlanarSelection.fromJson(data.getJSONObject("selection"))
+                    return if (setPlanarSelection(selection)) "ok" else "rejected"
+                }
+                "commander" -> {
+                    val card = com.turnhub.android.lan.LanCard.read(JSONObject().put("card", data.getJSONObject("card"))) ?: return "rejected"
+                    game.setCommander(index(), card.name, card.art, card.cardOnly)
+                }
+                "starter" -> game.chooseStarter(if (data.isNull("index")) null else index())
+                "start" -> {
+                    if (!planarSelectionReady(game)) return "rejected"
+                    val chosen = if (data.isNull("index")) null else index()
+                    val ready = if (game.starter != chosen) game.chooseStarter(chosen) else game
+                    ready.copy(askEliminationSource = true).start(wallClock(), newId(), planarDeck = planarDeck(ready))
+                }
+                else -> return "rejected"
+            }
+            if (next === game) "rejected" else {
+                val saved = guestName?.let { name -> publish(before.copy(game = next,
+                    library = before.library.copy(guestNames = (before.library.guestNames + name).distinct())), durable = true) }
+                    ?: publishGame(next, durable = true)
+                if (saved) "ok" else "unavailable"
+            }
+        } catch (_: Exception) { "rejected" }
+    }
+
     internal fun applyLanAction(action: com.turnhub.android.lan.LanAction): Boolean {
         val game = _state.value.game
         val planar = action.kind.startsWith(com.turnhub.android.lan.PLANAR_KIND)

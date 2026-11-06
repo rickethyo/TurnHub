@@ -24,6 +24,8 @@ internal class LanRoom(
     private val atlasTicket: suspend (String) -> String? = { null },
     private val atlasMember: suspend (String) -> Boolean = { false },
     private val attachAtlas: suspend (JSONObject) -> String? = { null },
+    private val setup: suspend (JSONObject) -> String = { "forbidden" },
+    private val setupOptions: () -> JSONObject = { JSONObject() },
 ) {
     data class RoomSeat(val identity: String, val number: Int, val name: String)
     private val epoch = randomLanSecret(16)
@@ -116,6 +118,7 @@ internal class LanRoom(
         val f = snapshot()
         if (f.optString("code") != "ok") return f.put("epoch", epoch)
         f.put("code", code).put("epoch", epoch)
+        f.put("setupOptions", setupOptions())
         f.put("directory", availableProfiles()).put("claimedProfiles", claimedProfiles()).put("displayTargets", displayTargets())
             .put("displayId", m?.text("joinId") ?: "host")
             .put("displayAllUpright", displayAllUpright(m?.text("joinId") ?: "host"))
@@ -255,23 +258,27 @@ internal class LanRoom(
         val target = if (table || privileged) r.optInt("target", own) else own
         val id = r.text("actionId").also { require(it.matches(Regex("[0-9a-f-]{36}"))) }
         val card = LanCard.read(r)
-        val payload = listOf(card?.json(), r.text("match"), r.integer("revision"), kind, r.integer("value"), r.integer("slot"), r.optInt("source"), target).joinToString("|")
+        val payload = listOf(card?.json(), r.text("match"), r.integer("revision"), kind, r.integer("value"), r.integer("slot"), r.optInt("source"), if (kind == "setup") 0 else target, r.optJSONObject("setup")?.toString()).joinToString("|")
         val ledger = receipts.getOrPut(m.text("token")) { linkedMapOf() }
         ledger[id]?.let { return if (it.payload == payload) frame(it.code, m).put("rollResult", it.roll) else reply("invalid") }
-        if (kind.startsWith(PLANAR_KIND)) {
+        if (kind == "setup") {
+            if (m.text("role") !in setOf("player", "table") && !privileged) return frame("forbidden", m)
+            require(r.integer("value") == 0L && r.integer("slot") == 0L && r.optInt("source") == 0)
+            require(r.getJSONObject("setup").toString().length <= 16384)
+        } else if (kind.startsWith(PLANAR_KIND)) {
             if (m.text("role") == "player" && isPlanarRollKind(kind) && !planarRollAllowed(own)) return frame("forbidden", m)
             if (!privileged && !(planesAvailable() && (table ||
                     m.text("role") == "player" && own > 0 && planarPlayerAllowed(own)))) return frame("forbidden", m)
         } else if (target <= 0 || !table && !privileged && m.text("role") != "player") return frame("forbidden", m)
-        if (seats().none { it.number == target } && !kind.startsWith(PLANAR_KIND)) return frame("stale", m)
-        if (ledger.size >= 2048) {
+        if (seats().none { it.number == target } && !kind.startsWith(PLANAR_KIND) && kind != "setup") return frame("stale", m)
+        if (ledger.size >= 2048 || ledger.values.sumOf { it.payload.length } + payload.length > 512 * 1024) {
             val generation = m.optLong("commandGeneration")
             m.put("commandGeneration", generation + 1)
             try { persist() } catch (e: Exception) { m.put("commandGeneration", generation); throw e }
             receipts.remove(m.text("token"))
             return frame("renew", m)
         }
-        val result = command(r, target)
+        val result = if (kind == "setup") JSONObject().put("code",setup(r)) else command(r, target)
         val code = result.text("code")
         val roll = recordedPlanarRoll(kind, result)
         if (code != "unavailable") ledger[id] = Receipt(payload, code, roll)

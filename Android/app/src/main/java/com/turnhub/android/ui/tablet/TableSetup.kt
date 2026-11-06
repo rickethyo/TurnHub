@@ -185,6 +185,23 @@ internal fun GameModeChips(profile: GameProfile, selected: GameMode, enabled: Bo
     Text(selected.detail, color = p.faint, style = MaterialTheme.typography.bodySmall)
 }
 
+/** Keep the selected mode short; its choices live directly under the game picker. */
+@Composable
+internal fun FoldingGameModePicker(profile: GameProfile, selected: GameMode, enabled: Boolean, onSelect: (GameMode) -> Unit) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("Game mode", color = palette.muted, style = MaterialTheme.typography.labelLarge)
+            Text(selected.label, color = palette.text, style = MaterialTheme.typography.titleSmall)
+        }
+        androidx.compose.material3.TextButton({ expanded = !expanded }, enabled = enabled,
+            modifier = Modifier.semantics { contentDescription = if (expanded) "Close game mode choices" else "Change game mode" }) {
+            Text(if (expanded) "Done" else "Change")
+        }
+    }
+    if (expanded) GameModeChips(profile, selected, enabled) { onSelect(it); expanded = false }
+}
+
 /**
  * The one big start button; a team game needs an even table of at least four, Star Commander
  * exactly five, and an official mode with [exactPlayers] (two teams of two, a Duel) that many.

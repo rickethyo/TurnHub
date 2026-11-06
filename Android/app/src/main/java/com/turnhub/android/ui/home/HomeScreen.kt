@@ -156,6 +156,7 @@ fun HomeScreen(
     localState: com.turnhub.android.standalone.StandaloneState = com.turnhub.android.standalone.StandaloneState(),
     localTable: com.turnhub.android.standalone.StandaloneTable? = null,
     onOpenSharedGame: (() -> Unit)? = null,
+    sharedRoomHeader: @Composable () -> Unit = {},
     sharedGameHosting: Boolean = false,
     sharedGameCode: String? = null,
     /** Phone-hosted games: this phone's game shown on the connected Atlas. */
@@ -352,11 +353,11 @@ fun HomeScreen(
         },
     ) { innerPadding ->
         Column(Modifier.fillMaxSize().padding(innerPadding)) {
-            if (!setup.visible && tab == HomeTab.GAME) {
+            if (!setup.visible && tab == HomeTab.GAME && (hostedResumeHost != null ||
+                hostedStatus is com.turnhub.android.data.HostedAtlasLink.Status.Failed ||
+                hostedStatus is com.turnhub.android.data.HostedAtlasLink.Status.Busy)) {
                 androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("On device", color = p.muted,
-                        style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 8.dp, vertical = 16.dp))
                     // Phone-hosted: this phone runs the game, Atlas shows it (and its Sigils, later).
                     if (onHostOnAtlas != null && summary != null && hostedResumeHost != null) {
                         TextButton(onClick = { onResumeHosted(true) }) {
@@ -403,6 +404,7 @@ fun HomeScreen(
                 Text(hostedPlanesMessage, style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(horizontal = 16.dp).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite })
             }
+            if (!setup.visible && tab in listOf(HomeTab.GAME, HomeTab.TABLE, HomeTab.PLANES)) sharedRoomHeader()
             // Tabs push sideways in the bar's direction, like slides; none when motion is reduced.
             AnimatedContent(
                 targetState = tab,
@@ -458,6 +460,9 @@ fun HomeScreen(
                                         if (showPeople) PeopleCard(info, admin, uiState.avatars, adminActions)
                                     }
                                     com.turnhub.android.ui.components.DisclosureCard("Atlas connection") {
+                                        if (onHostOnAtlas != null && summary != null) TextButton(onClick = {
+                                            onHostOnAtlas(hostedStatus != com.turnhub.android.data.HostedAtlasLink.Status.Hosting)
+                                        }) { Text(if (hostedStatus == com.turnhub.android.data.HostedAtlasLink.Status.Hosting) "Stop showing on Atlas" else "Show on Atlas") }
                                         com.turnhub.android.ui.tablet.SetupSwitch("Discover Atlas", null, atlasEnabled, true, onAtlasEnabled)
                                         if (atlasEnabled) ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
                                     }
@@ -514,46 +519,40 @@ fun HomeScreen(
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boolean,
+internal fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boolean,
     report: com.turnhub.android.ui.components.BugReportContext, onManualClick: () -> Unit, onGearClick: () -> Unit) {
     val p = palette
-    Row(
+    Column(
         Modifier
             .fillMaxWidth()
             .background(p.bg.copy(alpha = .92f))
             .statusBarsPadding()
             .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(11.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         // The gear opens About TurnHub; no ripple, so it looks the same as before.
-        androidx.compose.foundation.layout.Box(Modifier.clickable(
+        androidx.compose.foundation.layout.Box(Modifier.size(44.dp).clickable(
             interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
             indication = null, role = Role.Button, onClickLabel = "Open About TurnHub", onClick = onGearClick,
-        ).semantics { contentDescription = "About TurnHub" }) {
+        ).semantics { contentDescription = "About TurnHub" }, contentAlignment = Alignment.Center) {
             GearMark(if (p.ornament) 34.dp else 28.dp, spinning = running, reduceMotion = reduceMotion)
         }
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("TurnHub", color = p.text, style = MaterialTheme.typography.headlineSmall.copy(fontSize = 22.sp),
-                    modifier = Modifier.semantics { heading() })
-                // Atlas's battery, while connected to one that has a cell.
-                val battery = uiState.tableSummary?.battery
-                    ?.takeIf { uiState.connectionState == AtlasConnectionState.CONNECTED && !uiState.isOffline }
-                if (battery != null) AtlasBatteryGauge(battery)
-                uiState.tableSummary?.links
-                    ?.takeIf { uiState.connectionState == AtlasConnectionState.CONNECTED && !uiState.isOffline }
-                    ?.let { com.turnhub.android.ui.components.AtlasLinkIcons(it) }
-            }
-            if (p.ornament) {
-                Text("YOUR TABLE, YOUR TURN", color = p.muted, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp))
-            }
+        Text("TurnHub", color = p.text, style = MaterialTheme.typography.headlineSmall.copy(fontSize = 22.sp),
+            modifier = Modifier.weight(1f).semantics { heading() }, maxLines = 1)
+        BugReportButton(report)
+        ManualButton(onManualClick)
         }
-        ConnectionPill(uiState)
-        Row {
-            BugReportButton(report)
-            ManualButton(onManualClick)
+        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            ConnectionPill(uiState)
+            if (uiState.connectionState == AtlasConnectionState.CONNECTED && !uiState.isOffline) {
+                uiState.tableSummary?.battery?.let { AtlasBatteryGauge(it) }
+                uiState.tableSummary?.links?.let { com.turnhub.android.ui.components.AtlasLinkIcons(it) }
+            }
         }
     }
 }

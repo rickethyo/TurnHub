@@ -42,14 +42,14 @@ internal fun sharedGameTitle(profile: com.turnhub.android.protocol.GameProfile):
  * host's own game.
  */
 @Composable
-internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotion: Boolean, onLeave: () -> Unit) {
+internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotion: Boolean, embedded: Boolean = false, initialView: String? = null, onLeave: () -> Unit) {
     val device = state.remote
     val p = palette
     // Public displays stay unseated; their saved presentation selects Table or Planes.
     val displayOnly = state.role == "display"
-    var localTableView by rememberSaveable { mutableStateOf(state.view == "table" || displayOnly || state.role in setOf("table", "planes")) }
+    var localTableView by rememberSaveable { mutableStateOf(initialView?.let { it == "table" } ?: (state.view == "table" || displayOnly || state.role in setOf("table", "planes"))) }
     // The Planes screen, from a seat or as the planes display (owner, 2026-10-20).
-    var localPlanesChosen by rememberSaveable { mutableStateOf(state.view == "planes") }
+    var localPlanesChosen by rememberSaveable { mutableStateOf(initialView?.let { it == "planes" } ?: (state.view == "planes")) }
     val publicScreen = state.role in setOf("display", "table", "planes") && state.displayView != null
     val planesChosen = if (publicScreen) state.displayView == "planes" else localPlanesChosen
     val tableView = if (publicScreen) !planesChosen else localTableView
@@ -65,6 +65,12 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
     val partners = remember { mutableStateListOf<Int>() }
     val haptics = rememberHaptics()
     val summary = device?.toSummary(System.currentTimeMillis(), TableClock.nowMs())?.withLooks(state.looks) ?: return
+    if (summary.state == TableState.LOBBY) {
+        if (initialView == "planes") SharedPlanarSetup(state, model)
+        else if (initialView == "table") TablePreview(summary, reduceMotion) { }
+        else SharedRoomLobby(state, model)
+        return
+    }
     GameSoundEffect(summary, available = state.online)
     val own = summary.players.firstOrNull { it.playerNumber == state.player }
     // Either teammate may pass. Keep the full host summary for the table and
@@ -132,7 +138,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
         },
         enabled = planarEnabled, rollEnabled = planarRollEnabled,
     )
-    Column(Modifier.fillMaxSize().background(p.bg).safeDrawingPadding().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxSize().background(p.bg).then(if (embedded) Modifier else Modifier.safeDrawingPadding()).padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.role == "player") ToneButton("My player", {
                 menu = false; localTableView = false; localPlanesChosen = false

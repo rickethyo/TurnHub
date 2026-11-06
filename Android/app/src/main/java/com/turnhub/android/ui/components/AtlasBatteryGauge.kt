@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,12 +44,13 @@ fun AtlasBatteryGauge(battery: AtlasBattery, modifier: Modifier = Modifier) {
         if (battery.low) append(", low")
     }
     Row(
-        modifier.semantics(mergeDescendants = true) { contentDescription = description },
+        modifier.width(IntrinsicSize.Min).semantics(mergeDescendants = true) { contentDescription = description },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
             "${battery.percent}%",
+            maxLines = 1, softWrap = false,
             color = if (battery.low) p.bad else p.muted,
             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
         )

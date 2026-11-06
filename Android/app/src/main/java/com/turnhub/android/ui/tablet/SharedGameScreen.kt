@@ -414,22 +414,35 @@ private fun PlanesMark(size: androidx.compose.ui.unit.Dp) {
     }
 }
 
+/** Joined phones keep the same compact sharing strip and an explicit way to leave. */
+@Composable
+internal fun SharedRoomBanner(state: LanUiState, model: LanViewModel) {
+    var leave by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).heightIn(min = 44.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Play together", color = palette.good, style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.weight(1f), maxLines = 1)
+        Text(if (state.online) "Connected" else "Reconnecting", color = palette.muted, style = MaterialTheme.typography.labelSmall)
+        TextButton({ leave = true }, enabled = !state.busy) { Text("Leave") }
+    }
+    if (leave) AlertDialog(onDismissRequest = { leave = false }, title = { Text("Leave shared game?") },
+        text = { Text("The game and its history remain on the host. Your separate local game is kept.") },
+        confirmButton = { TextButton({ leave = false; model.leave() }) { Text("Leave") } },
+        dismissButton = { TextButton({ leave = false }) { Text("Stay") } })
+}
+
 /** The host's join code above the Game and Table tabs while it shares, so the table can read it any time. */
 @Composable
 internal fun SharedCodeBanner(host: com.turnhub.android.lan.LanHosting, guests: Int, onOpen: () -> Unit) {
     val p = palette
-    val shape = RoundedCornerShape(16.dp)
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).clip(shape).background(p.surface)
-        .border(1.dp, p.good.copy(alpha = .6f), shape)
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).heightIn(min = 44.dp)
         .clickable(role = Role.Button, onClickLabel = "Open Play together", onClick = onOpen)
-        .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.weight(1f)) {
-            Text("PLAY TOGETHER", color = p.good, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp), fontWeight = FontWeight.Bold)
-            Text(when (guests) { 0 -> "No devices joined yet"; 1 -> "1 device joined"; else -> "$guests devices joined" },
-                color = p.muted, style = MaterialTheme.typography.bodySmall)
-        }
-        if (host.code != null) JoinCodeTile(host.code, Modifier.width(170.dp), compact = true)
-        else Text("Scan the QR in Play together", color = p.text, style = MaterialTheme.typography.labelLarge)
+        .padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Play together", color = p.good, style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.weight(1f), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Text(host.code?.uppercase() ?: "Show QR", color = p.text, style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold, maxLines = 1)
+        Text("$guests joined  ›", color = p.muted, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
