@@ -1,5 +1,7 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.NavigationRow
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -189,16 +191,7 @@ internal fun GameModeChips(profile: GameProfile, selected: GameMode, enabled: Bo
 @Composable
 internal fun FoldingGameModePicker(profile: GameProfile, selected: GameMode, enabled: Boolean, onSelect: (GameMode) -> Unit) {
     var expanded by rememberSaveable { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text("Game mode", color = palette.muted, style = MaterialTheme.typography.labelLarge)
-            Text(selected.label, color = palette.text, style = MaterialTheme.typography.titleSmall)
-        }
-        androidx.compose.material3.TextButton({ expanded = !expanded }, enabled = enabled,
-            modifier = Modifier.semantics { contentDescription = if (expanded) "Close game mode choices" else "Change game mode" }) {
-            Text(if (expanded) "Done" else "Change")
-        }
-    }
+    NavigationRow("Change game mode", selected.label, enabled = enabled) { expanded = !expanded }
     if (expanded) GameModeChips(profile, selected, enabled) { onSelect(it); expanded = false }
 }
 
@@ -234,11 +227,11 @@ internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, st
 }
 
 /** How the seat map is explained in both lobbies. */
-internal const val SEAT_MAP_HINT = "Drag a player onto another seat, or tap two seats, to swap them. Turns go clockwise in number order."
+internal const val SEAT_MAP_HINT = "Tap two seats to swap them, or hold a seat before dragging it. Swipe normally to scroll. Turns go clockwise in number order."
 
 /** The seat map's explanation in Two-Headed Giant. */
 internal const val TEAM_MAP_HINT = "Each outlined panel is a team: players 1 and 2, then 3 and 4, and so on. " +
-    "Teammates share one panel, life total and turn. Drag a player onto another seat to swap them, or tap two seats."
+    "Teammates share one panel, life total and turn. Tap two seats to swap, or hold a seat before dragging it."
 
 /** A game family in the picker: a heading, and a colour stripe on its tiles that the heading always names too. */
 internal enum class GameFamily(val title: String) {
@@ -297,10 +290,9 @@ internal fun FoldingGamePicker(selected: GameProfile, enabled: Boolean, phoneHos
     val current = FORMATS.firstOrNull { formatSelected(selected, it.profile) }
     if (open || current == null) {
         GamePicker(selected, enabled, phoneHosted) { profile -> open = false; onSelect(profile) }
-        if (current != null) TextButton(onClick = { open = false }) { Text("Keep ${current.label}") }
+        if (current != null) com.turnhub.android.ui.components.ActionButton(onClick = { open = false }) { Text("Keep ${current.label}") }
     } else {
-        GameTile(current, true, enabled, Modifier.fillMaxWidth(), trailing = "Change",
-            description = "Game: ${current.label}. Change the game") { open = true }
+        NavigationRow("Change game", current.label, enabled = enabled) { open = true }
     }
 }
 

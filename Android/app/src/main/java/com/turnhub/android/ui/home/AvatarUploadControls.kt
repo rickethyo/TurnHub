@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -145,7 +149,7 @@ fun AvatarUploadControls(current: Personalization?, busy: Boolean, upload: (Byte
         AvatarBytesPreview(current.pendingImage, "Image awaiting approval")
     } else if (current?.customAvatar?.isNotBlank() == true) Text(if (localOnly) "Saved $imageKind" else "Uploaded image ready", color = palette.muted)
     if (current?.pendingAvatar?.isNotBlank() == true || current?.customAvatar?.isNotBlank() == true)
-        ToneButton(if (localOnly) "Remove $imageKind" else "Remove uploaded image", remove, enabled = !busy)
+        ToneButton(if (localOnly) "Remove $imageKind" else "Remove uploaded image", remove, enabled = !busy, tone = com.turnhub.android.ui.components.Tone.BAD)
     source?.let { bitmap ->
         AvatarCropDialog(bitmap, localOnly = localOnly, imageKind = imageKind, onDismiss = { source = null }, onUpload = { bytes -> source = null
             val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
@@ -216,7 +220,7 @@ private fun AvatarCropDialog(source: Bitmap, onDismiss: () -> Unit, onUpload: (B
             }
         },
         confirmButton = {
-            TextButton(enabled = !saving, onClick = {
+            ActionButton(enabled = !saving, onClick = {
                 val ready = encoded
                 if (ready != null) onUpload(ready)
                 else scope.launch {
@@ -226,9 +230,9 @@ private fun AvatarCropDialog(source: Bitmap, onDismiss: () -> Unit, onUpload: (B
                     catch (e: Exception) { error = e.message ?: "Could not compress crop" }
                     finally { saving = false }
                 }
-            }) { Text(if (saving) "Compressing…" else if (encoded == null) "Preview compressed image" else if (localOnly) "Save image" else "Upload image") }
+            }, role = ActionRole.PRIMARY) { Text(if (saving) "Compressing…" else if (encoded == null) "Preview compressed image" else if (localOnly) "Save image" else "Upload image") }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !saving) { Text("Cancel") } },
+        dismissButton = { ActionButton(onClick = onDismiss, enabled = !saving, role = ActionRole.SECONDARY) { Text("Cancel") } },
     )
 }
 

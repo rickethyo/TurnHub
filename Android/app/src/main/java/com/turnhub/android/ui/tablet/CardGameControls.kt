@@ -178,12 +178,12 @@ internal fun CardGameMenuItems(unit: TableUnit, summary: TableSummary, onMark: (
                 "and ends conditions; clear them here when the Pokémon retreats, evolves or is Knocked Out.",
                 color = p.faint, style = MaterialTheme.typography.bodySmall)
             Text("Other ways to win", color = p.muted, style = MaterialTheme.typography.labelLarge)
-            ArmedButton("Opponent has no Pokémon left in play", "Tap again to win", Tone.GOOD) { onAction(member, "win") }
-            ArmedButton("Opponent can't draw at the start of their turn", "Tap again to win", Tone.GOOD) { onAction(member, "win") }
+            ArmedButton("Opponent has no Pokémon left in play", "Record your win and finish this game.", Tone.GOOD) { onAction(member, "win") }
+            ArmedButton("Opponent can't draw at the start of their turn", "Record your win and finish this game.", Tone.GOOD) { onAction(member, "win") }
         } else {
             Text("Reaching ${summary.settings.startingLife} lore wins at once. A player who has to draw from an empty deck loses.",
                 color = p.faint, style = MaterialTheme.typography.bodySmall)
-            ArmedButton("I had to draw from an empty deck", "Tap again: you're out", Tone.BAD) { onAction(member, "eliminate") }
+            ArmedButton("I had to draw from an empty deck", "Eliminate this player from the game.", Tone.BAD) { onAction(member, "eliminate") }
         }
     }
 }

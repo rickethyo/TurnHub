@@ -358,7 +358,7 @@ private fun PlanarPlay(game: StandaloneGame, controls: PlanarControls, cards: Ma
             AccentButton("Done: planeswalk away", controls.resolvePhenomenon, Modifier.fillMaxWidth(), enabled = running)
         } else {
             val cost = game.active?.let { planar.cost(it) } ?: 0
-            AccentButton("Roll the planar die: {$cost}", { controls.roll(false) }, Modifier.fillMaxWidth(), enabled = running && controls.rollEnabled)
+            AccentButton(if (cost == 0) "Roll the planar die · free" else "Roll the planar die · pay $cost mana", { controls.roll(false) }, Modifier.fillMaxWidth(), enabled = running && controls.rollEnabled)
         }
     }
 

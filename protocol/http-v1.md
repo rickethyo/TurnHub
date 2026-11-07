@@ -113,7 +113,8 @@ identity/boot/revision as usual. This scheduling never retries a game write.
 
 Connection labels reserve the same width, and cached telemetry remains visible
 while reconnecting. Connection failures no longer insert a row above the game;
-shared-room and artwork feedback use overlays.
+shared-room feedback uses a reserved row outside play controls. Routine artwork
+status is available in More > Atlas > Atlas connection.
 
 ## First-run setup (2026-09-30)
 

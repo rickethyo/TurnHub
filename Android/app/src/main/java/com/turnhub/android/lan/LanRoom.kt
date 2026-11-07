@@ -26,6 +26,10 @@ internal class LanRoom(
     private val attachAtlas: suspend (JSONObject) -> String? = { null },
     private val setup: suspend (JSONObject) -> String = { "forbidden" },
     private val setupOptions: () -> JSONObject = { JSONObject() },
+    private val hostOffer: (String) -> String? = { null },
+    private val acceptHost: suspend (String, String) -> JSONObject? = { _, _ -> null },
+    private val hostReceived: suspend (String, String) -> Boolean = { _, _ -> false },
+    private val hostReleased: () -> Boolean = { false },
 ) {
     data class RoomSeat(val identity: String, val number: Int, val name: String)
     private val epoch = randomLanSecret(16)
@@ -36,7 +40,8 @@ internal class LanRoom(
     private val failures = ArrayDeque<Long>()
     val guests: List<LanGuest> get() = (0 until members.length()).map { i ->
         val m = members.getJSONObject(i)
-        LanGuest(m.text("token"), m.text("role"), seat(m), m.optString("name"), m.optBoolean("master"))
+        LanGuest(m.text("token"), m.text("role"), seat(m), m.optString("name"), m.optBoolean("master"),
+            m.optString("deviceName"), m.optBoolean("hostHandoff"))
     }
     private fun claimed(identity: String) = (0 until members.length()).map { members.getJSONObject(it) }
         .any { it.text("role") == "player" && resolveIdentity(it.optString("identity")) == resolveIdentity(identity) }
@@ -123,7 +128,11 @@ internal class LanRoom(
             .put("displayId", m?.text("joinId") ?: "host")
             .put("displayAllUpright", displayAllUpright(m?.text("joinId") ?: "host"))
             .put("displayView", displayView(m?.text("joinId") ?: "host"))
-        if (m != null) f.put("player", seat(m)).put("role", m.text("role")).put("master", m.optBoolean("master")).put("epoch", memberEpoch(m))
+        if (m != null) {
+            f.put("player", seat(m)).put("role", m.text("role")).put("master", m.optBoolean("master")).put("epoch", memberEpoch(m))
+            hostOffer(m.text("token"))?.let { f.put("hostOffer", it) }
+        }
+        if (hostReleased()) f.put("code", "ended")
         return f
     }
     suspend fun handle(r: JSONObject): JSONObject {
@@ -154,14 +163,26 @@ internal class LanRoom(
             }
             else -> {
                 val m = member(r.text("token"))
-                if (m == null || (m.optString("atlasPhone").isNotEmpty() && !atlasMember(m.optString("atlasPhone")))) reply("unauthorized") else when (r.text("op")) {
+                // After relinquishing, a selected member can retry collection/receipt even
+                // though Atlas has released its old controller ticket. No new gameplay is allowed.
+                val collecting = r.text("op") in setOf("accept-host", "host-received") && hostOffer(r.text("token")) == r.optString("transfer")
+                if (m == null || (!(collecting && hostReleased()) && m.optString("atlasPhone").isNotEmpty() && !atlasMember(m.optString("atlasPhone")))) reply("unauthorized") else when (r.text("op")) {
+                    "accept-host" -> commandLock.withLock {
+                        if (hostOffer(m.text("token")) != r.text("transfer")) reply("cancelled")
+                        else acceptHost(m.text("token"), r.text("transfer"))?.let { reply("ok").put("game", it) } ?: reply("unavailable")
+                    }
+                    "host-received" -> commandLock.withLock {
+                        reply(if (hostReceived(m.text("token"), r.text("transfer"))) "ok" else "forbidden")
+                    }
                     "poll" -> {
                         // Backfill model labels for memberships created before display targeting.
                         val device = r.optString("deviceName").take(64)
-                        if (device.isNotBlank() && device != m.optString("deviceName")) {
+                        if (device.isNotBlank() && device != m.optString("deviceName") || r.optBoolean("hostHandoff") && !m.optBoolean("hostHandoff")) {
                             val old = m.optString("deviceName")
-                            m.put("deviceName", device)
-                            try { persist() } catch (e: Exception) { m.put("deviceName", old); throw e }
+                            val oldCapability = m.optBoolean("hostHandoff")
+                            if (device.isNotBlank()) m.put("deviceName", device)
+                            m.put("hostHandoff", r.optBoolean("hostHandoff") || oldCapability)
+                            try { persist() } catch (e: Exception) { m.put("deviceName", old).put("hostHandoff", oldCapability); throw e }
                         }
                         frame("ok", m)
                     }
@@ -243,6 +264,7 @@ internal class LanRoom(
             .put("atlasPhone",atlasPhone ?: "")
             .put("identity", identity).put("name", seats().firstOrNull { it.identity == identity }?.name ?: name)
             .put("master", false).put("joinKeyHash", joinKeyHash(r.text("key"))).put("deviceName", r.optString("deviceName").take(64))
+            .put("hostHandoff", r.optBoolean("hostHandoff"))
         members.put(m)
         try { persist() } catch (e: Exception) { members.remove(members.length() - 1); throw e }
         return frame("ok", m).put("token", m.text("token")).put("profileLink", r.optJSONObject("_profileLink")).put("profile", r.optJSONObject("_profile"))

@@ -44,7 +44,7 @@ internal fun TurnHubPalette.emperorTeamColor(team: Int): Color = if (team == 0) 
 internal val TurnHubPalette.emperorGold: Color get() = rarityRare
 
 internal const val EMPEROR_MAP_HINT = "Seats 1 to 3 are Team A and 4 to 6 Team B. The middle seat of each team (2 and 5) is its emperor; " +
-    "the generals beside them face the other team's generals. Drag or tap two seats to swap them."
+    "the generals beside them face the other team's generals. Tap two seats to swap, or hold a seat before dragging it."
 
 /** "Attack: Bo · Reach: Bo, Cy": who this player can attack and affect now, as ranges close up when players leave. */
 internal fun emperorRangeText(summary: TableSummary, playerNumber: Int, wide: Boolean): String {

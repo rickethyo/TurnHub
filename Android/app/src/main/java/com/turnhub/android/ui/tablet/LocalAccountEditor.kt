@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -77,7 +81,7 @@ fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destina
     if (section == "Profile") {
         OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) }, label = { Text("Display name (up to 32 characters)") },
             singleLine = true, modifier = Modifier.fillMaxWidth())
-        ToneButton("Save name", { saveError = !table.saveAccount(player.localId, name, prefs) },
+        AccentButton("Save name", { saveError = !table.saveAccount(player.localId, name, prefs) },
             enabled = name.isNotBlank() && name.trim() != player.name)
         Text("This name appears in games. Renaming keeps the same profile ID and history.", color = palette.muted)
     }
@@ -97,8 +101,9 @@ fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destina
                         size = 28.dp, color = playerColor(prefs.color, palette.avatarColor(player.profileId.hashCode()))) })
             }
         }
-        ToneButton("Reduced motion: ${if (prefs.reduceMotion) "On" else "Off"}", {
-            saveStyle(prefs.copy(reduceMotion = !prefs.reduceMotion)) })
+        SetupSwitch("Reduced motion", "For this profile", prefs.reduceMotion, true) {
+            saveStyle(prefs.copy(reduceMotion = it))
+        }
         AvatarUploadControls(Personalization(prefs.color, 0, true,
             customAvatar = if (prefs.image == null) "" else "local", customImage = icon?.image,
             uploadApprovalRequired = false), false,
@@ -117,7 +122,7 @@ fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destina
         OutlinedTextField(confirmSecret, { confirmSecret = it.take(ProfileSecret.MAX_CHARS) },
             label = { Text("Confirm PIN or password") }, visualTransformation = PasswordVisualTransformation(),
             singleLine = true, modifier = Modifier.fillMaxWidth())
-        ToneButton("Save PIN or password", {
+        AccentButton("Save PIN or password", {
             scope.launch {
                 credentialBusy = true
                 val credential = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { LocalCredential.create(newSecret) }
@@ -135,12 +140,12 @@ fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destina
         if (removingProtection) AlertDialog(onDismissRequest = { removingProtection = false },
             title = { Text("Remove profile protection?") },
             text = { Text("Anyone using this device will be able to open these settings and detailed statistics.") },
-            confirmButton = { TextButton({
+            confirmButton = { ActionButton({
                 credentialError = if (table.clearAccountCredential(player.localId)) "PIN or password removed."
                     else "Could not remove the PIN or password."
                 removingProtection = false
-            }) { Text("Remove protection") } },
-            dismissButton = { TextButton({ removingProtection = false }) { Text("Cancel") } })
+            }, role = ActionRole.DESTRUCTIVE) { Text("Remove protection") } },
+            dismissButton = { ActionButton({ removingProtection = false }, role = ActionRole.SECONDARY) { Text("Cancel") } })
         credentialError?.let { Text(it, color = palette.muted) }
     }
     if (section == "Manage") {
@@ -302,7 +307,7 @@ private fun DeleteLocalAccount(player: SavedLocalPlayer, table: StandaloneTable)
         title = { Text("Delete ${player.name}?") },
         text = { Text("The account, its PIN and its look are removed from this phone. Finished games stay in History " +
             "under the name played with, but no longer count toward an account.") },
-        confirmButton = { TextButton({ refused = !table.deleteAccount(player.localId); confirming = false }) { Text("Delete") } },
-        dismissButton = { TextButton({ confirming = false }) { Text("Cancel") } },
+        confirmButton = { ActionButton({ refused = !table.deleteAccount(player.localId); confirming = false }, role = ActionRole.DESTRUCTIVE) { Text("Delete") } },
+        dismissButton = { ActionButton({ confirming = false }, role = ActionRole.SECONDARY) { Text("Cancel") } },
     )
 }

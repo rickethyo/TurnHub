@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -56,20 +60,20 @@ internal fun FirstPlayerPicker(players: List<TablePlayer>, teams: Boolean, onPic
                 if (teams) Text("Their team takes the first turn.", color = p.muted, style = MaterialTheme.typography.bodyMedium)
                 FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp), maxItemsInEachRow = 2) {
-                    players.forEach { player ->
-                        val hue = playerColor(player.color, p.avatarColor(player.playerNumber))
+                    (players.map { it as TablePlayer? } + listOf(null)).forEach { player ->
+                        val label = player?.label ?: "Random"
+                        val hue = player?.let { playerColor(it.color, p.avatarColor(it.playerNumber)) } ?: p.lineStrong
                         val shape = RoundedCornerShape(18.dp)
-                        Box(Modifier.weight(1f).heightIn(min = 96.dp).clip(shape).background(hue)
-                            .border(1.dp, p.lineStrong, shape)
-                            .clickable(onClickLabel = "${player.label} goes first", role = Role.Button) { onPick(player) }
+                        Box(Modifier.weight(1f).heightIn(min = 96.dp).clip(shape).background(p.surface2)
+                            .border(2.dp, hue, shape)
+                            .clickable(onClickLabel = if (player == null) "Choose a random first player" else "$label goes first", role = Role.Button) { onPick(player) }
                             .padding(12.dp), contentAlignment = Alignment.Center) {
-                            Text(player.label, color = colorInk(hue), style = MaterialTheme.typography.titleLarge,
+                            Text(label, color = p.text, style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                         }
                     }
                 }
-                AccentButton("Random", { onPick(null) }, Modifier.fillMaxWidth().heightIn(min = 64.dp))
-                TextButton(onClick = onDismiss) { Text("Back to setup", color = p.muted) }
+                ActionButton(onClick = onDismiss, role = ActionRole.SECONDARY) { Text("Back to setup", color = p.muted) }
             }
         }
     }

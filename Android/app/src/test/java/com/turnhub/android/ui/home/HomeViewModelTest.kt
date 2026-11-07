@@ -556,6 +556,21 @@ class HomeViewModelTest {
 
     // --- playing from this phone ------------------------------------------------
 
+    @Test fun `a manually joined room does not claim Atlas on reconnect`() = runTest {
+        val vm = connectedViewModel(table("state-idle.response.json", 1))
+        vm.standalone = com.turnhub.android.standalone.StandaloneTable(com.turnhub.android.standalone.MemoryStandaloneStore(
+            com.turnhub.android.standalone.StandaloneGame(), com.turnhub.android.standalone.LocalLibrary()))
+        vm.atlasRoomLink = object : com.turnhub.android.data.AtlasRoomLink {
+            override val isAtlasGuest = false
+            override val hasJoinedRoom = true
+            override suspend fun publishedInvitation(): String? = error("A guest must not publish a room")
+            override fun offerAtlasRoom(invitation: String, ticket: String) = Unit
+        }
+        vm.onHostOnAtlas(true)
+        assertNull(vm.uiState.value.signIn)
+        assertEquals(com.turnhub.android.data.HostedAtlasLink.Status.Off, vm.hostedStatus.value)
+    }
+
     @Test
     fun `show on Atlas asks for sign in when no session is available`() = runTest {
         val vm = connectedViewModel(table("state-idle.response.json", 1))

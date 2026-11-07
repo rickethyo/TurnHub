@@ -1,5 +1,36 @@
 # Shared devices
 
+## Releasing or transferring the host
+
+Play together has a dedicated **Release host** confirmation. It disconnects the
+room and releases this phone's Atlas publication while preserving its local game,
+profiles and history. Joining another table remains a separate explicit action.
+
+Each joined device has **Transfer host to …**. The selected device must accept
+**Take over hosting** on its Game screen. During the offer, a durable game field
+fences edits, including local controls and Sigil input. Clocks retain their timing.
+Cancel restores the original authority before acceptance. The source persists a
+complete game snapshot in its encrypted room record, relinquishes the game in a
+durable snapshot, then releases Atlas before granting collection. Only the chosen
+authenticated member can collect it. Existing source history stays there; the
+receiver owns subsequent gameplay and the result. Account credentials, device
+Admin grants and historical libraries are not part of the handoff.
+
+The receiver commits the game before acknowledging it. Its durable transfer
+receipt prevents retries from rewinding later play and lets it finish recovery
+after the old room closes. The source retains collection data until acknowledged;
+it cannot cancel or delete an uncollected released game. A separate running local
+game on the receiving device is preserved and blocks acceptance. Local profile
+IDs are remapped by stable profile ID instead of copying another device's keys.
+
+The new host opens a new room; other phones must rejoin using that room's code/QR
+or Atlas discovery. Old memberships and private permissions are not migrated.
+The old room briefly remains reachable to deliver an explicit ended response.
+Keep both apps open through confirmation. This is a consensual planned transfer,
+not automatic failover when the old device is unreachable.
+
+## Rooms
+
 Play Together uses a persistent game-night room on the same Wi-Fi. A phone or
 tablet opens it before or during game setup; a join code or QR authorizes entry
 without host approval. The room survives rematches, different formats and app
@@ -118,10 +149,18 @@ poll restores the connection. Authorization refusal and ended rooms are handled
 immediately. Network rediscovery starts after confirmed failure rather than on
 every missed poll.
 
-Shared-room errors and history feedback use the app's snackbar overlay, including
-in setup and Planes. An unconfirmed command keeps its exact receipt and offers
+Shared-room errors and history feedback use a reserved status row above the app
+tabs, outside game controls, including in setup and Planes. Tap Details to read
+the full message. Routine artwork status stays in More > Atlas > Atlas connection.
+An unconfirmed command keeps its exact receipt and offers
 **Retry last action**; a successful background poll cannot clear that uncertainty.
-Only the receipt response resolves it. Feedback never shifts the game layout.
+Only the receipt response resolves it. Confirmed action outcomes remain separate
+from background poll messages. A refusal cancels queued edits and says how many
+were cancelled. After a host restart, an old receipt may be unknown: the app
+requires review rather than claiming the original action did not happen.
+Atlas discovery never replaces a manually joined or hosted room. Connection
+labels explicitly distinguish Atlas from the game host. Feedback never shifts
+the game layout or obscures player controls.
 
 Atlas controller verification coalesces concurrent checks per field/value. A
 pending check cannot delay another phone's valid cache hit. Successful results

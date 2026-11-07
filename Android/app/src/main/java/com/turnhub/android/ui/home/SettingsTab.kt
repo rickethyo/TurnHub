@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -189,11 +193,11 @@ fun PresenceCodeDialog(admin: AdminState, actions: AdminActions) {
             }
         },
         confirmButton = {
-            TextButton(onClick = { val c = code; actions.run { confirmCode(c) } }, enabled = code.length == 6 && !admin.busy) {
+            ActionButton(onClick = { val c = code; actions.run { confirmCode(c) } }, enabled = code.length == 6 && !admin.busy, role = ActionRole.PRIMARY) {
                 Text("Verify", fontWeight = FontWeight.Bold)
             }
         },
-        dismissButton = { TextButton(onClick = { actions.run { dismissCode() } }) { Text("Cancel", color = p.text) } },
+        dismissButton = { ActionButton(onClick = { actions.run { dismissCode() } }, role = ActionRole.SECONDARY) { Text("Cancel", color = p.text) } },
     )
 }
 
@@ -446,13 +450,13 @@ private fun SigilsCard(admin: AdminState, actions: AdminActions) {
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
+                ActionButton(onClick = {
                     rename = null
                     val n = name.trim()
                     actions.run { renameDevice(device.id, n) }
-                }) { Text("Save name", fontWeight = FontWeight.Bold) }
+                }, role = ActionRole.PRIMARY) { Text("Save name", fontWeight = FontWeight.Bold) }
             },
-            dismissButton = { TextButton(onClick = { rename = null }) { Text("Cancel", color = p.text) } },
+            dismissButton = { ActionButton(onClick = { rename = null }, role = ActionRole.SECONDARY) { Text("Cancel", color = p.text) } },
         )
     }
     forget?.let { device ->
@@ -591,12 +595,11 @@ private fun TableAndAtlasCard(admin: AdminState, actions: AdminActions) {
                 }
             },
             confirmButton = {
-                TextButton(
+                ActionButton(
                     onClick = { confirmFactory = false; typed = ""; actions.run { factoryResetAtlas() } },
-                    enabled = typed.trim().uppercase() == "RESET",
-                ) { Text("Factory reset Atlas", color = p.bad, fontWeight = FontWeight.Bold) }
+                    enabled = typed.trim().uppercase() == "RESET", role = ActionRole.PRIMARY) { Text("Factory reset Atlas", color = p.bad, fontWeight = FontWeight.Bold) }
             },
-            dismissButton = { TextButton(onClick = { confirmFactory = false; typed = "" }) { Text("Cancel", color = p.text) } },
+            dismissButton = { ActionButton(onClick = { confirmFactory = false; typed = "" }, role = ActionRole.SECONDARY) { Text("Cancel", color = p.text) } },
         )
     }
     // Chosen here, sent only by Save (the saved values reset them on refresh).

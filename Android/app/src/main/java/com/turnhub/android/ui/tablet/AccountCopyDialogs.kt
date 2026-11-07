@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -91,7 +95,7 @@ fun ShareAccountDialog(player: SavedLocalPlayer, table: StandaloneTable, onClose
                 message?.let { Text(it, color = p.text, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
             }
         },
-        confirmButton = { TextButton(onClose) { Text("Done") } },
+        confirmButton = { ActionButton(onClose, role = ActionRole.SECONDARY) { Text("Done") } },
     )
 }
 
@@ -163,7 +167,7 @@ fun CopyAccountDialog(table: StandaloneTable, admin: Boolean, onClose: () -> Uni
             }
         },
         confirmButton = {
-            if (pending != null) TextButton(enabled = !busy && ProfileSecret.isValid(secret), onClick = {
+            if (pending != null) ActionButton(enabled = !busy && ProfileSecret.isValid(secret), onClick = {
                 busy = true
                 scope.launch {
                     val ok = withContext(Dispatchers.Default) {
@@ -172,9 +176,9 @@ fun CopyAccountDialog(table: StandaloneTable, admin: Boolean, onClose: () -> Uni
                     busy = false; secret = ""
                     if (ok) finish(pending) else message = "PIN or password was not accepted."
                 }
-            }) { Text("Add account") }
-            else if (!scanning) TextButton(::scan, enabled = !busy) { Text("Scan the code") }
+            }, role = ActionRole.PRIMARY) { Text("Add account") }
+            else if (!scanning) ActionButton(::scan, enabled = !busy, role = ActionRole.PRIMARY) { Text("Scan the code") }
         },
-        dismissButton = { TextButton(onClose, enabled = !busy) { Text("Cancel") } },
+        dismissButton = { ActionButton(onClose, enabled = !busy, role = ActionRole.SECONDARY) { Text("Cancel") } },
     )
 }

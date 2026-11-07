@@ -8,7 +8,7 @@ import com.turnhub.android.standalone.SavedLocalPlayer
 data class UnifiedProfile(val local: SavedLocalPlayer?, val atlas: ProfileSummary?) {
     val name get() = local?.name ?: requireNotNull(atlas).name
     val key get() = local?.let { "local:${it.localId}" } ?: "atlas:${atlas!!.profileId}"
-    val location get() = when { local != null && atlas != null -> "This device · Atlas"; local != null -> "This device"; else -> "Atlas" }
+    val location get() = when { local != null && atlas != null -> "this phone and Atlas"; local != null -> "this phone"; else -> "Atlas" }
 }
 fun unifiedProfiles(library: LocalLibrary, atlasId: String?, remote: List<ProfileSummary>): List<UnifiedProfile> {
     val locals = library.players.map { local ->

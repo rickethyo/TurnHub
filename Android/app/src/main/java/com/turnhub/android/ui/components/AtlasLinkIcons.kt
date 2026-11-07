@@ -42,9 +42,9 @@ fun AtlasLinkIcons(links: AtlasLinks, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        if (links.hotspot) LinkIcon("A", p.accent, lit = true, slashed = false, bars = false)
-        LinkIcon("H", p.info, lit = links.home, slashed = !links.home, bars = false)
-        LinkIcon("S", p.active, lit = links.sigils > 0, slashed = false, bars = true)
+        if (links.hotspot) LinkIcon("Hotspot", p.accent, lit = true, slashed = false, bars = false)
+        LinkIcon("Wi-Fi", p.info, lit = links.home, slashed = !links.home, bars = false)
+        LinkIcon("${links.sigils} ${if (links.sigils == 1) "Sigil" else "Sigils"}", p.active, lit = links.sigils > 0, slashed = false, bars = true)
     }
 }
 

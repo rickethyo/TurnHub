@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -73,7 +77,7 @@ fun WifiPasswordDialog(
                 TextButton(onClick = onUseCurrentWifi) { Text("I've joined this Wi-Fi already") }
             }
         },
-        confirmButton = { TextButton(onClick = { onSubmit(ssid, passphrase) }) { Text("Join") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { ActionButton(onClick = { onSubmit(ssid, passphrase) }, role = ActionRole.PRIMARY) { Text("Join") } },
+        dismissButton = { ActionButton(onClick = onDismiss, role = ActionRole.SECONDARY) { Text("Cancel") } },
     )
 }

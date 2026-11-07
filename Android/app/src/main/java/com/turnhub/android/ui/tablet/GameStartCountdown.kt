@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,7 +45,7 @@ internal fun rememberGameStartCountdown(state: TableState, enabled: Boolean = tr
         title = { Text("Get ready") },
         text = { Text("$seconds", style = MaterialTheme.typography.displayLarge,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive; contentDescription = "Game starts in $seconds" }) },
-        confirmButton = { TextButton({ active = false }) { Text("Cancel") } },
+        confirmButton = { ActionButton({ active = false }, role = ActionRole.SECONDARY) { Text("Cancel") } },
     )
     return { if (!active && enabled && state in listOf(TableState.LOBBY, TableState.GAME_OVER)) {
         expected = state; expectedRevision = revision; seconds = 3; active = true

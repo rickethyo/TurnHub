@@ -96,6 +96,33 @@ class StandaloneTable(
 ) : TableControls {
     private val _state = MutableStateFlow(load())
     val state: StateFlow<StandaloneState> = _state.asStateFlow()
+    private var changingHost = false
+    private fun transferCommit(game: StandaloneGame): Boolean {
+        changingHost = true
+        return try { publish(_state.value.copy(game = game), durable = true) } finally { changingHost = false }
+    }
+    fun prepareHostTransfer(id: String): Boolean {
+        val game = _state.value.game
+        return game.hostTransfer == id || game.hostTransfer == null && transferCommit(game.copy(hostTransfer = id))
+    }
+    fun cancelHostTransfer(id: String): Boolean = _state.value.game.let { game ->
+        game.hostTransfer != id || transferCommit(game.copy(hostTransfer = null))
+    }
+    /** Relinquish durably before the receiver can become authoritative. History stays here. */
+    fun releaseTransferredGame(id: String): Boolean = _state.value.game.let { game ->
+        if (game.receivedTransfer == "released:$id") true
+        else game.hostTransfer == id && transferCommit(StandaloneGame(receivedTransfer = "released:$id"))
+    }
+    fun receiveTransferredGame(id: String, json: JSONObject): Boolean {
+        val current = _state.value.game
+        if (current.receivedTransfer == id) return true
+        if (current.hostTransfer != null || current.state !in setOf(TableState.LOBBY, TableState.GAME_OVER)) return false
+        val game = runCatching { gameFromJson(json) }.getOrNull() ?: return false
+        val players = game.players.map { player ->
+            player.copy(localId = _state.value.library.players.firstOrNull { it.profileId == player.profileId }?.localId)
+        }
+        return transferCommit(game.copy(players = players, hostTransfer = null, receivedTransfer = id))
+    }
 
     /** Named presets are committed before the UI reports success. Same-name replacement is explicit. */
     fun saveGameSetup(name: String, replace: Boolean = false): Boolean {
@@ -1263,6 +1290,7 @@ class StandaloneTable(
 
     private fun publish(next: StandaloneState, durable: Boolean = false): Boolean {
         if (_state.value.storageProblem != null) return false
+        if (!changingHost && _state.value.game.hostTransfer != null && next.game != _state.value.game) return false
         val saved = runCatching {
             val gameJson = gameToJson(next.game).toString()
             val libraryJson = next.library.toJson().toString()
@@ -1303,6 +1331,8 @@ class StandaloneTable(
 
     companion object {
         fun gameToJson(game: StandaloneGame): JSONObject = JSONObject().apply {
+            put("hostTransfer", game.hostTransfer ?: JSONObject.NULL)
+            put("receivedTransfer", game.receivedTransfer ?: JSONObject.NULL)
             put("gameId", game.gameId)
             put("state", game.state.name)
             put("gameProfile", game.profile.wireValue)
@@ -1383,6 +1413,8 @@ class StandaloneTable(
         fun gameFromJson(json: JSONObject): StandaloneGame {
             val players = json.getJSONArray("players")
             return StandaloneGame(
+                hostTransfer = json.optString("hostTransfer").takeUnless { it.isBlank() || it == "null" },
+                receivedTransfer = json.optString("receivedTransfer").takeUnless { it.isBlank() || it == "null" },
                 gameId = json.getString("gameId"),
                 state = TableState.fromWire(json.getString("state")) ?: error("Unsupported local game state"),
                 profile = GameProfile.fromWire(json.getString("gameProfile")) ?: error("Unsupported local game format"),

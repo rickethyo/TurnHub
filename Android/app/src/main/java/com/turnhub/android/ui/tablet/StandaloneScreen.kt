@@ -1,5 +1,11 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.NavigationRow
+
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.collectAsState
@@ -80,7 +86,7 @@ fun StandaloneScreen(
             Column(Modifier.safeDrawingPadding().padding(24.dp)) {
                 Text(state.storageProblem, color = p.text)
                 TextButton(onClick = { table.startFresh() }) { Text("Keep old data aside and start fresh") }
-                TextButton(onClick = onClose) { Text("Back") }
+                ActionButton(onClick = onClose, role = ActionRole.SECONDARY) { Text("Back") }
             }
         } else if (game.state == TableState.LOBBY) {
             StandaloneLobby(state, table)
@@ -94,6 +100,10 @@ fun StandaloneScreen(
 /** The running or finished local game on the shared table screen, full screen or in the Table tab. */
 @Composable
 internal fun LocalTable(state: StandaloneState, table: StandaloneTable, reduceMotion: Boolean, onClose: () -> Unit, onOpenPlanes: (() -> Unit)? = null, phoneView: Boolean = false) {
+    if (state.game.hostTransfer != null) {
+        Text("Waiting for host transfer. Game edits are held. Open Play together to check the receiving device or cancel the transfer.", modifier = Modifier.padding(24.dp), color = palette.text)
+        return
+    }
     val p = palette
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -254,6 +264,10 @@ fun StandaloneLobby(
     atlasId: String? = null,
     remoteProfiles: List<com.turnhub.android.protocol.ProfileSummary> = emptyList(),
 ) {
+    if (state.game.hostTransfer != null) {
+        Text("Waiting for host transfer. Open Play together to check the receiving device or cancel the transfer.", modifier = Modifier.padding(24.dp), color = palette.text)
+        return
+    }
     val game = state.game
     val summary = remember(game, state.library.players) {
         game.toSummary(0, 0, state.library.players.associate { it.localId to it.personalization })
@@ -266,7 +280,10 @@ fun StandaloneLobby(
     }
 
     val seated = game.players.mapNotNull { it.localId }.toSet()
+    var selectedStarter by remember { mutableStateOf<Int?>(null) }
     val startCountdown = rememberGameStartCountdown(game.state, game.canStart, revision = game.revision) {
+        val current = table.state.value.game.starter
+        if (current != selectedStarter) table.chooseStarter(selectedStarter ?: current)
         table.start()
     }
     TableLobby(
@@ -296,10 +313,8 @@ fun StandaloneLobby(
             chooseStarter = { table.chooseStarter(it.playerNumber - 1) },
             start = startCountdown,
             startWith = { player ->
-                // Choosing the chosen player again clears the choice, which is how Random is set.
-                val current = table.state.value.game.starter
-                val target = player?.let { it.playerNumber - 1 }
-                if (current != target) table.chooseStarter(target ?: current)
+                // Keep the draft out of the setup revision until the countdown commits.
+                selectedStarter = player?.let { it.playerNumber - 1 }
                 startCountdown()
             },
             background = { editingLocalId = game.players.getOrNull(it.playerNumber - 1)?.localId },
@@ -331,7 +346,7 @@ fun StandaloneLobby(
                     planar.enabled, true, table::setPlanechase)
                 if (planar.enabled && digital && !planar.selection.available(PlaneLibrary.pool(LocalContext.current)))
                     Text("Selected cards aren't downloaded. Open Planes to refresh the library or choose another deck.", color = palette.bad)
-                if (planar.enabled && onOpenPlanes != null) ToneButton("Planar deck and rules", onOpenPlanes, Modifier.fillMaxWidth())
+                if (planar.enabled && onOpenPlanes != null) NavigationRow("Planar deck and rules", onClick = onOpenPlanes)
             }
         },
     )

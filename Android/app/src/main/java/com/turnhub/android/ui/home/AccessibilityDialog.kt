@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -68,7 +72,7 @@ fun AccessibilityDialog(
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text(if (settings == null) "Close" else "Cancel") } },
+        dismissButton = { ActionButton(onClick = onDismiss, role = ActionRole.SECONDARY) { Text(if (settings == null) "Close" else "Cancel") } },
     )
 }
 
@@ -186,10 +190,11 @@ private fun Editor(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         ErrorText(prompt.error)
-        OutlinedButton(
+        ActionButton(
             onClick = { onSave(sound, style, longMs, winMs, approvalMs) },
             enabled = valid && !prompt.busy,
             modifier = Modifier.fillMaxWidth(),
+            role = ActionRole.PRIMARY,
         ) {
             Text(if (prompt.busy) "Saving…" else "Save on Atlas")
         }
@@ -204,13 +209,13 @@ private fun HoldStepper(title: String, valueMs: Int, choices: List<Int>, enabled
     Column {
         Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(
+            ActionButton(
                 onClick = { onChange(choices[index - 1]) },
                 enabled = enabled && index > 0,
                 modifier = Modifier.semantics { contentDescription = "Shorter: $title" },
             ) { Text("−") }
             Text(seconds, modifier = Modifier.semantics { stateDescription = seconds })
-            OutlinedButton(
+            ActionButton(
                 onClick = { onChange(choices[index + 1]) },
                 enabled = enabled && index < choices.lastIndex,
                 modifier = Modifier.semantics { contentDescription = "Longer: $title" },

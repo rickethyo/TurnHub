@@ -24,6 +24,9 @@ import com.turnhub.android.standalone.StandaloneState
 import com.turnhub.android.standalone.StandaloneTable
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.ToneButton
+import com.turnhub.android.ui.components.ActionButton
+import com.turnhub.android.ui.components.ActionRole
+import com.turnhub.android.ui.components.Tone
 import com.turnhub.android.ui.theme.palette
 
 /** Release filters and saved pools only change setup; the active deck is a snapshot. */
@@ -33,6 +36,12 @@ internal fun PlanarDeckPicker(state: StandaloneState, table: StandaloneTable, ca
     var collectionsOpen by remember { mutableStateOf(false) }
     var browserOpen by rememberSaveable { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
+    var deleting by rememberSaveable { mutableStateOf<String?>(null) }
+    deleting?.let { name -> AlertDialog(onDismissRequest = { deleting = null }, title = { Text("Delete deck: $name?") },
+        text = { Text("Remove this saved planar deck? The card library and current game's planes are kept.") },
+        confirmButton = { ActionButton({ problem = if (table.deletePlanarDeck(name)) null else "Couldn't delete the deck."; deleting = null },
+            enabled = enabled, role = ActionRole.DESTRUCTIVE) { Text("Delete deck") } },
+        dismissButton = { ActionButton({ deleting = null }) { Text("Cancel") } }) }
     Text("Card selection", color = palette.muted, style = MaterialTheme.typography.titleSmall)
     Text(choice.name, color = palette.text, style = MaterialTheme.typography.titleMedium)
     if (!choice.available(cards.map { it.card })) Text("Some selected cards aren't downloaded. Refresh the library or choose another deck.", color = palette.bad)
@@ -59,9 +68,7 @@ internal fun PlanarDeckPicker(state: StandaloneState, table: StandaloneTable, ca
             ToneButton("Use ${deck.name}", {
                 problem = if (table.setPlanarSelection(deck)) null else "Some cards in this deck aren't downloaded."
             }, enabled = enabled)
-            ToneButton("Delete ${deck.name}", {
-                problem = if (table.deletePlanarDeck(deck.name)) null else "Couldn't delete the deck."
-            }, enabled = enabled)
+            ToneButton("Delete ${deck.name}", { deleting = deck.name }, enabled = enabled, tone = Tone.BAD)
         }
     }
     problem?.let { Text(it, color = palette.bad) }

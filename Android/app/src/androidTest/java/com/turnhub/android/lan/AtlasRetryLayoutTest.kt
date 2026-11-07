@@ -39,6 +39,7 @@ class AtlasRetryLayoutTest {
                 activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LOCKED
                 activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 activity.setTurnScreenOn(true)
+                activity.setShowWhenLocked(true)
                 activity.setContent {
                 com.turnhub.android.ui.theme.TurnHubTheme {
                     CompositionLocalProvider(LocalDensity provides Density(context.resources.displayMetrics.density, 1.3f)) {
@@ -86,7 +87,7 @@ class AtlasRetryLayoutTest {
                     room = if (phase == "Retrying") room.copy(uncertain = true, message = "The host has not confirmed this action.") else room.copy(uncertain = false, message = null)
                     planesMessage = if (phase == "Connected") "Plane artwork transfer complete" else null
                 }
-                val changed = waitFor(phase)
+                val changed = waitFor("Atlas " + phase.lowercase())
                 assertEquals("Game moved during $phase",gameRect,position(changed,"1. GAME"))
                 assertEquals("Battery moved during $phase",batteryRect,position(changed,"100%"))
                 if (phase == "Retrying") waitFor("Retry last action")

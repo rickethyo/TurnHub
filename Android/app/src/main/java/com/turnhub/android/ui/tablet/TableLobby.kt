@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -7,6 +11,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -70,7 +76,7 @@ internal data class TableLobbyActions(
     val savedCommanders: (TablePlayer) -> List<Pair<String, String?>> = { emptyList() },
 )
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun TableLobby(
     summary: TableSummary,
@@ -99,6 +105,15 @@ internal fun TableLobby(
 ) {
     val p = palette
     val players = summary.players.sortedBy { it.playerNumber }
+    val newestPlayer = remember { BringIntoViewRequester() }
+    var previousCount by remember { mutableIntStateOf(players.size) }
+    LaunchedEffect(players.size) {
+        if (players.size > previousCount) {
+            withFrameNanos { }
+            newestPlayer.bringIntoView()
+        }
+        previousCount = players.size
+    }
     val settings = summary.settings
     // Official modes keep the official values unless house rules are on.
     val officialMode = officialRules(settings.profile, settings.twoHeadedGiant)
@@ -111,14 +126,14 @@ internal fun TableLobby(
         AlertDialog(onDismissRequest = { deletingGuest = null },
             title = { Text("Delete saved guest $guest?") },
             text = { Text("Removes this guest from the picker. Current players and game history are kept.") },
-            confirmButton = { TextButton(onClick = { actions.forgetGuest?.invoke(guest); deletingGuest = null }, enabled = enabled) { Text("Delete guest") } },
-            dismissButton = { TextButton(onClick = { deletingGuest = null }) { Text("Cancel") } })
+            confirmButton = { ActionButton(onClick = { actions.forgetGuest?.invoke(guest); deletingGuest = null }, enabled = enabled, role = ActionRole.DESTRUCTIVE) { Text("Delete guest") } },
+            dismissButton = { ActionButton(onClick = { deletingGuest = null }, role = ActionRole.SECONDARY) { Text("Cancel") } })
     }
     if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false },
         title = { Text("Remove everyone from setup?") },
         text = { Text("Saved players and game history will be kept.") },
-        confirmButton = { TextButton(onClick = { actions.clear(); confirmClear = false }, enabled = enabled) { Text("Remove players") } },
-        dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } })
+        confirmButton = { ActionButton(onClick = { actions.clear(); confirmClear = false }, enabled = enabled, role = ActionRole.DESTRUCTIVE) { Text("Remove players") } },
+        dismissButton = { ActionButton(onClick = { confirmClear = false }, role = ActionRole.SECONDARY) { Text("Cancel") } })
     Box(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.safeDrawingPadding()), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 880.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -157,10 +172,10 @@ internal fun TableLobby(
 
             BrassCard {
                 Eyebrow("2. Players") {
-                    TextButton(onClick = { confirmClear = true }, enabled = enabled && players.any(actions.canRemove)) { Text("Remove all") }
+                    ActionButton(onClick = { confirmClear = true }, enabled = enabled && players.any(actions.canRemove), role = ActionRole.DESTRUCTIVE) { Text("Remove all") }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ToneButton("Add Guest", actions.add, enabled = enabled && canAdd)
+                    ToneButton("Add guest", actions.add, enabled = enabled && canAdd)
                     actions.addProfile?.let { create ->
                         ToneButton("Add profile", create, enabled = enabled)
                     }
@@ -181,9 +196,9 @@ internal fun TableLobby(
                                     com.turnhub.android.ui.components.PlayerAvatar(player.name, player.displayId.hashCode(), player.avatar,
                                         size = 32.dp, color = com.turnhub.android.ui.components.playerColor(player.color, p.avatarColor(player.displayId.hashCode())))
                                 }, enabled = enabled && canAdd)
-                                if (player.guest && actions.forgetGuest != null) TextButton(
+                                if (player.guest && actions.forgetGuest != null) ActionButton(
                                     onClick = { deletingGuest = player.name }, enabled = enabled,
-                                    modifier = Modifier.semantics { contentDescription = "Delete saved guest ${player.name}" }) { Text("Delete guest") }
+                                    modifier = Modifier.semantics { contentDescription = "Delete saved guest ${player.name}" }, role = ActionRole.DESTRUCTIVE) { Text("Delete guest") }
                             }
                         }
                     }
@@ -216,7 +231,8 @@ internal fun TableLobby(
                         actions.savedCommanders(player)) { namingCommander = null } }
                 }
                 players.forEach { player ->
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(Modifier.fillMaxWidth().then(if (player == players.lastOrNull()) Modifier.bringIntoViewRequester(newestPlayer) else Modifier),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         // Top-aligned: the number sits beside the name, whatever the buttons under the name hold.
                         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             val hue = com.turnhub.android.ui.components.playerColor(player.color, p.avatarColor(player.playerNumber))

@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -34,5 +38,5 @@ internal fun PlanarRollDialog(reduceMotion: Boolean, onRoll: () -> PlanarFace?, 
         text = { Text(result?.label ?: if (reduceMotion) "Rolling…" else listOf("⚀", "⚁", "⚂", "⚃", "⚄", "⚅")[frame % 6],
             style = MaterialTheme.typography.displayMedium,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite; contentDescription = result?.label ?: "Rolling planar die" }) },
-        confirmButton = { TextButton({ finish(result) }) { Text(if (result == null) "Cancel" else "Done") } })
+        confirmButton = { ActionButton({ finish(result) }, role = ActionRole.PRIMARY) { Text(if (result == null) "Cancel" else "Done") } })
 }

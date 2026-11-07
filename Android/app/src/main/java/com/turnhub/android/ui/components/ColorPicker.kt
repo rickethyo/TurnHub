@@ -84,11 +84,11 @@ fun ColorPicker(value: String?, onChange: (String?) -> Unit, defaultColor: Color
                         listOf(Color.Black, Color.hsv(hue, saturation, 1f)))
                 }
             },
-            confirmButton = { TextButton({
+            confirmButton = { ActionButton({
                 onChange(String.format(Locale.ROOT, "#%06X", picked.toArgb() and 0xFFFFFF))
                 custom = false
-            }) { Text("Use color") } },
-            dismissButton = { TextButton({ custom = false }) { Text("Cancel") } },
+            }, role = ActionRole.PRIMARY) { Text("Use color") } },
+            dismissButton = { ActionButton({ custom = false }, role = ActionRole.SECONDARY) { Text("Cancel") } },
         )
     }
 }

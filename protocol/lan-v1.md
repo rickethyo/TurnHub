@@ -3,7 +3,36 @@
 The Android hub serves a persistent game-night room independently of the current
 match or game format. Guests send commands and render snapshots; the standalone
 hub or connected Atlas remains the game authority. There is no room host election
-or automatic change of game authority.
+or automatic change of game authority. A planned transfer requires consent on
+both devices as described below.
+
+## Consensual host transfer
+
+Joining/polling clients advertise `hostHandoff:true` when they implement this
+flow. Hosts hide transfer actions for clients without that capability.
+The host selects a current member locally. Only that member's authenticated
+frames contain `hostOffer`, a random 128-bit transfer ID. An offered game is
+durably fenced against gameplay edits. Normal membership checks still apply.
+
+- `accept-host` with the member `token` and `transfer` ID returns `code:ok` and
+  the complete `game` only after the source has durably relinquished authority
+  and released Atlas. A cancelled/superseded offer returns `cancelled`; a failed
+  durable write returns `unavailable`. Collection can be retried after restart.
+- `host-received` with the same token and ID acknowledges the receiver's durable
+  game commit. The source retains the snapshot until acknowledged. After
+  relinquishment, these two scoped operations can authenticate by the selected
+  token even after the source's Atlas controller lease ends; no gameplay or
+  private account permissions follow from that exception.
+- Other members receive `ended` and join the receiver's new invitation explicitly.
+  Membership, PIN unlocks, Admin permissions and history libraries do not migrate.
+
+The receiver persists a transfer receipt with its game to prevent a retried
+response from rewinding subsequent play. It persists collection credentials
+before requesting acceptance and cannot discard an unresolved collection by
+leaving. An already committed receipt permits recovery without the old socket.
+The complete transfer snapshot is device-private, unlike ordinary public frames;
+it contains no account credentials. See
+[shared devices](../Documentation/engineering/SHARED_DEVICES.md).
 
 ## Invitation and transport
 

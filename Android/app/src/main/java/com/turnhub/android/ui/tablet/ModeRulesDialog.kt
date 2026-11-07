@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.heightIn
@@ -51,6 +55,6 @@ internal fun ModeRulesDialog(profile: GameProfile, teams: Boolean, onDismiss: ()
                 }
             }
         },
-        confirmButton = { TextButton(onDismiss) { Text("Close") } },
+        confirmButton = { ActionButton(onDismiss, role = ActionRole.SECONDARY) { Text("Close") } },
     )
 }

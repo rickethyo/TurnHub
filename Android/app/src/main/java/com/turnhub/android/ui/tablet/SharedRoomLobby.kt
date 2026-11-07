@@ -58,7 +58,7 @@ internal fun SharedRoomLobby(state: LanUiState, model: LanViewModel, onOpenPlane
                 SetupSwitch("Planechase", "Plane cards and the planar die join the game.", game.planechase.enabled, enabled) {
                     model.setup(game, "planechase", "on" to it)
                 }
-                if (game.planechase.enabled && onOpenPlanes != null) ToneButton("Planar deck and rules", onOpenPlanes, Modifier.fillMaxWidth())
+                if (game.planechase.enabled && onOpenPlanes != null) NavigationRow("Planar deck and rules", onClick = onOpenPlanes)
             }
         })
 }

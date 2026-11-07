@@ -72,7 +72,8 @@ class HostedAtlasLink(
             }
         } finally {
             withContext(NonCancellable) {
-                if (_status.value == Status.Hosting) runCatching { call("POST", "/api/hosted/release", emptyList()) }
+                if (_status.value !is Status.Busy && _status.value !is Status.Following && _status.value != Status.Off)
+                    runCatching { call("POST", "/api/hosted/release", emptyList()) }
                 if (_status.value !is Status.Busy && _status.value !is Status.Following) _status.value = Status.Off
             }
         }

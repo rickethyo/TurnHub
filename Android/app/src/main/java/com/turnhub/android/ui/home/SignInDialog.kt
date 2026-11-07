@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -82,8 +86,7 @@ fun SignInDialog(
     var creating by rememberSaveable { mutableStateOf(false) }
     var newName by rememberSaveable { mutableStateOf("") }
     var confirm by rememberSaveable { mutableStateOf("") }
-    // With no accounts on this Atlas yet, the sheet opens straight on Create.
-    val create = creating || (!prompt.loading && prompt.profiles.isEmpty() && prompt.error == null)
+    val create = creating
     val selected = prompt.profiles.firstOrNull { it.profileId == selectedId }
     // No PIN yet: this sign-in sets it, so it is typed twice like a new account's.
     val choosing = false
@@ -114,7 +117,7 @@ fun SignInDialog(
             verticalArrangement = Arrangement.spacedBy(DesignTokens.Space.s4),
         ) {
             Text(
-                if (create) "Create an account" else "Play from this phone",
+                if (create) "Create an account" else "Sign in to Atlas",
                 style = MaterialTheme.typography.headlineSmall,
                 color = p.text,
                 modifier = Modifier.semantics { heading() },
@@ -169,6 +172,7 @@ fun SignInDialog(
                     CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
                     Text("Loading accounts…", color = p.muted)
                 }
+                prompt.profiles.isEmpty() -> Text("No accounts were found on this Atlas. Create an account below, or cancel and check that you connected to the right Atlas.", color = p.muted)
                 else -> GroupedList(Modifier.selectableGroup()) {
                     prompt.profiles.forEachIndexed { index, profile ->
                         val enabled = !prompt.submitting
@@ -278,14 +282,14 @@ fun SignInDialog(
                 Modifier.fillMaxWidth(),
                 enabled = canSubmit,
             )
-            if (!prompt.loading && (creating || prompt.profiles.isNotEmpty())) {
+            if (!prompt.loading) {
                 TextButton(
                     onClick = { creating = !creating; pin = ""; confirm = "" },
                     enabled = !prompt.submitting,
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(if (creating) "I already have an account" else "New here? Create an account", color = p.accent) }
             }
-            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = p.muted) }
+            ActionButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth(), role = ActionRole.SECONDARY) { Text("Cancel", color = p.muted) }
         }
     }
 }

@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -110,7 +114,7 @@ fun LocalLibraryScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Accounts and history", color = p.text, style = MaterialTheme.typography.headlineSmall,
                         modifier = Modifier.weight(1f).semantics { heading() })
-                    TextButton(onClick = onClose) { Text("Back") }
+                    ActionButton(onClick = onClose, role = ActionRole.SECONDARY) { Text("Back") }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LibrarySection.entries.forEach { entry ->
@@ -146,6 +150,8 @@ fun LocalLibraryScreen(
                             if (table != null) TextButton({ copyingAccount = true }, enabled = state.storageProblem == null) {
                                 Text("Copy an account from another device") }
                             if (table != null) ImportTurnHubButton(table)
+                            Text("Profiles keep names and game history on this phone. Atlas accounts can also be copied between devices and used for private stats or administration.",
+                                color = p.muted, style = MaterialTheme.typography.bodySmall)
                             if (canLink) TextButton(onClick = onLoadProfiles,
                                 enabled = !importState.busy && state.storageProblem == null) { Text("Refresh profiles") }
                         }
@@ -157,7 +163,7 @@ fun LocalLibraryScreen(
                             if (player == null) {
                                 BrassCard {
                                     Text(entry.name, color = p.text, style = MaterialTheme.typography.titleMedium)
-                                    Text("Lives on ${entry.location}", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                                    Text("Saved on ${entry.location}", color = p.muted, style = MaterialTheme.typography.bodySmall)
                                     Text("ID ${entry.atlas!!.profileId}", color = p.faint, style = MaterialTheme.typography.labelSmall)
                                     if (table != null && importState.atlasId != null) TextButton(onClick = {
                                         table.referenceProfile(importState.atlasId, entry.atlas.profileId, entry.atlas.name)
@@ -171,7 +177,7 @@ fun LocalLibraryScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
                                         Text(player.name, color = p.text, style = MaterialTheme.typography.titleMedium)
-                                        Text("Lives on ${entry.location}", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                                        Text("Saved on ${entry.location}", color = p.muted, style = MaterialTheme.typography.bodySmall)
                                         if (state.library.isDeviceAdmin(player.localId))
                                             Text("Device Admin", color = p.accent, style = MaterialTheme.typography.labelMedium)
                                         Text("${totals.played} played · ${totals.won} won · ${totals.draws} draws", color = p.muted,
@@ -325,7 +331,7 @@ internal fun CreateProfileDialog(storageAvailable: Boolean,
             }
         },
         confirmButton = {
-            TextButton(enabled = !creating && storageAvailable && name.isNotBlank() && validSecret, onClick = {
+            ActionButton(enabled = !creating && storageAvailable && name.isNotBlank() && validSecret, onClick = {
                 val submittedName = name.trim()
                 val submittedSecret = secret
                 creating = true
@@ -343,9 +349,9 @@ internal fun CreateProfileDialog(storageAvailable: Boolean,
                         creating = false
                     }
                 }
-            }) { Text(if (creating) "Saving…" else "Add profile") }
+            }, role = ActionRole.PRIMARY) { Text(if (creating) "Saving…" else "Add profile") }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !creating) { Text("Cancel") } },
+        dismissButton = { ActionButton(onClick = onDismiss, enabled = !creating, role = ActionRole.SECONDARY) { Text("Cancel") } },
     )
 }
 
@@ -403,5 +409,5 @@ private fun MatchImportForm(
     Text("Import this match to the connected Atlas. Local identities and results stay on this device. Check every choice before importing.", color = p.muted)
     ToneButton("Import mapped match", { onImport(record.recordId, selected) }, enabled = !destination.busy &&
         selected.all { id -> destination.profiles.any { it.profileId == id } } && selected.distinct().size == selected.size)
-    TextButton(onClick = { editing = false }) { Text("Cancel linking") }
+    ActionButton(onClick = { editing = false }, role = ActionRole.SECONDARY) { Text("Cancel linking") }
 }

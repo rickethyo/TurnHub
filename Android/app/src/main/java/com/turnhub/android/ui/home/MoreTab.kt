@@ -1,5 +1,8 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.ui.components.NavigationRow
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -54,7 +57,7 @@ internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit,
     val uriHandler = LocalUriHandler.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         if (page != MorePage.HOME) {
-            TextButton(onClick = { onPage(MorePage.HOME) }) {
+            ActionButton(onClick = { onPage(MorePage.HOME) }) {
                 Icon(painterResource(DesignTokens.Icons.chevronLeft), contentDescription = null,
                     modifier = Modifier.size(20.dp))
                 Text("Back to More")
@@ -84,7 +87,7 @@ internal fun MoreTab(page: MorePage, onPage: (MorePage) -> Unit,
                         "and game statistics together in one place.", color = palette.muted)
                     Text("Designed for the tabletop and built to work locally, TurnHub keeps you connected to your game " +
                         "without requiring a cloud service, subscription, or internet connection.", color = palette.muted)
-                    TextButton(onClick = { onPage(MorePage.DONATE) }) { Text("Support TurnHub") }
+                    NavigationRow("Support TurnHub") { onPage(MorePage.DONATE) }
                 }
                 AppVersionLabel()
             }
@@ -132,17 +135,7 @@ private fun SupportArtwork() {
 
 @Composable
 private fun MoreEntry(title: String, description: String, @DrawableRes icon: Int, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick)
-        .heightIn(min = 72.dp).padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Icon(painterResource(icon), contentDescription = null, tint = palette.accent, modifier = Modifier.size(24.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, color = palette.text, style = MaterialTheme.typography.titleMedium)
-            Text(description, color = palette.muted, style = MaterialTheme.typography.bodySmall)
-        }
-        Icon(painterResource(DesignTokens.Icons.chevronRight), contentDescription = null,
-            tint = palette.muted, modifier = Modifier.size(20.dp))
-    }
+    NavigationRow(title, description, leadingIcon = icon, onClick = onClick)
 }
 
 private const val TURNHUB_DONATION_URL = "https://www.paypal.com/donate/?business=JQQY4P6XE2ANL&no_recurring=0" +

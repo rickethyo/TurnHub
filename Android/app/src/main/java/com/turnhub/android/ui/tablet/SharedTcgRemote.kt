@@ -44,6 +44,14 @@ internal fun sharedGameTitle(profile: com.turnhub.android.protocol.GameProfile):
 @Composable
 internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotion: Boolean, embedded: Boolean = false, initialView: String? = null, onLeave: () -> Unit) {
     val device = state.remote
+    if (state.hostOffer != null) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) { HostOfferCard(state, model) }
+        return
+    }
+    if (device?.hostTransfer != null) {
+        Text("The host is transferring this game. Game edits are held until the selected device accepts or the host cancels.", modifier = Modifier.padding(24.dp), color = palette.text)
+        return
+    }
     val p = palette
     // Public displays stay unseated; their saved presentation selects Table or Planes.
     val displayOnly = state.role == "display"
@@ -173,7 +181,7 @@ internal fun SharedTcgRemote(state: LanUiState, model: LanViewModel, reduceMotio
         }
         if (own != null && state.role == "player" && summary.state == TableState.GAME_OVER) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ToneButton("New players", { model.act("reset") }, enabled = state.online && !state.busy && !state.uncertain)
+                ToneButton("Edit players", { model.act("reset") }, enabled = state.online && !state.busy && !state.uncertain)
                 AccentButton("Rematch", { model.act("rematch") }, enabled = state.online && !state.busy && !state.uncertain)
             }
         }

@@ -75,6 +75,11 @@ data class LocalPlayer(
  */
 data class StandaloneGame(
 
+    /** A durable authority fence while another device is offered this game. */
+    val hostTransfer: String? = null,
+    /** Receipt prevents a retried handoff from rewinding the receiver's game. */
+    val receivedTransfer: String? = null,
+
     /** Fresh for every match (start, rematch); the record's dedupe key on Atlas. */
     val gameId: String = "",
     val state: TableState = TableState.LOBBY,
