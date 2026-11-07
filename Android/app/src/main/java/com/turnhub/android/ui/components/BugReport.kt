@@ -79,7 +79,7 @@ fun BugReportDialog(onDismiss: () -> Unit, report: BugReportContext = BugReportC
                     color = palette.muted, style = MaterialTheme.typography.bodySmall)
             }
         },
-        confirmButton = { androidx.compose.material3.TextButton({ onDismiss(); openBugReport(context, report) }) { Text("Open form") } },
-        dismissButton = { androidx.compose.material3.TextButton(onDismiss) { Text("Cancel") } },
+        confirmButton = { ActionButton({ onDismiss(); openBugReport(context, report) }, role = ActionRole.PRIMARY) { Text("Open form") } },
+        dismissButton = { ActionButton(onDismiss, role = ActionRole.SECONDARY) { Text("Cancel") } },
     )
 }

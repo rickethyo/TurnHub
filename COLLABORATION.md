@@ -2582,3 +2582,42 @@ Final preview installed data-preserving on USB LG LMQ620QM61a3e79c1, tester Fold
 38091FDHS001WD and tablet R52T30577YX. Wireless devices are absent this turn.
 Tests use memory games and isolated room preferences. Existing accounts/history,
 pairing and actual game setup were retained; no firmware flash, merge or release.
+
+## Action consistency and host handoff — 2026-11-06, Codex
+
+Owner requested implementation of the second usability report and explicit host
+release/transfer. The host's first-player picker now keeps its draft outside the
+setup revision until countdown completion; genuine setup edits still cancel.
+Disclosure expansion reveals measured content rather than a one-pixel anchor.
+`ActionButton` centralizes primary/secondary/destructive roles, shared by Accent
+and neutral/bad Tone wrappers, with readable danger text against an opaque
+theme surface. Dialog footers and dismiss controls use the same roles across
+pages. Navigation rows, equal first-player choices, a shared local/remote saved
+setup flow (including player/format summaries), commander draft chips, profile
+switches and explicit action labels address B1–B8. Policy:
+[UI actions](Documentation/engineering/UI_ACTIONS.md).
+
+Play together has Release host and per-device consensual Transfer host. A durable
+source fence, retained collection snapshot, recipient commit receipt and scoped
+member token prevent two authorities, lost replies and replay rewind. Local IDs
+are remapped; credentials, Admin grants and historical libraries do not move.
+The receiver's separate active game blocks acceptance. Old room sockets briefly
+deliver ended responses; other devices rejoin the receiver's new room. Device
+model names and advertised capability distinguish eligible recipients. This is
+a planned transfer with both devices open, not automatic failover.
+
+548 JVM tests pass, including storage failures, cancellation, identity remapping and process/reply
+loss. Device checks cover countdown cancellation, named/Random starts, persistent
+confirmations, release/switch, saved setups, pinned LAN handoff/rejoin, status
+geometry and all four themes at 1.3x text. Eleven checks pass on each USB device;
+final logs/screenshots are private.
+Visible UI walkthrough also moved a real guest-only game from tester Fold to
+tablet, retaining starter, life and elapsed clock. It was explicitly discarded
+inside the three-minute window; temporary guests/rooms were removed and no new
+history record was created. Existing accounts/history and LG setup are kept.
+
+Final preview is installed data-preserving on USB LG LMQ620QM61a3e79c1, Fold
+38091FDHS001WD and tablet R52T30577YX. At final hardware checking, Atlas is absent
+from the serial inventory and its saved pinned HTTPS address times out; Sigil
+COM28 remains present. No fresh live Atlas handoff/soak is claimed. No firmware
+flash, pairing reset, merge or release.

@@ -73,6 +73,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
     var scanning by remember { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
     var confirmSwitch by remember { mutableStateOf(false) }
+    var confirmRelease by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { model.chooseManualRoom() }
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { scanning = it }
     fun close() { if (!state.busy) { if (state.joined) confirmLeave = true else onClose() } }
@@ -95,6 +96,7 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
         Column(Modifier.widthIn(max = 720.dp).fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState())
             .padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (state.reconnecting) {
+                HostOfferCard(state, model)
                 Text("Reconnecting to your room…", color = p.text)
                 ToneButton("Leave room", { model.leave(); onClose() })
                 return@Column
@@ -120,7 +122,8 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
             state.message?.let { Notice(it, p.warn, Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
             when {
                 host != null -> {
-                    ToneButton("Join another table", { confirmSwitch = true }, Modifier.fillMaxWidth(), enabled = !state.busy)
+                    ToneButton("Release host", { confirmRelease = true }, Modifier.fillMaxWidth(), enabled = !state.busy && !state.hostTransferred)
+                    ToneButton("Join another table", { confirmSwitch = true }, Modifier.fillMaxWidth(), enabled = !state.busy && !state.hostTransferred)
                     HostingPanel(state, local, model)
                 }
                 else -> {
@@ -163,14 +166,18 @@ internal fun SharedGameScreen(state: LanUiState, local: StandaloneGame, model: L
             }
         }, Modifier.fillMaxWidth().height(300.dp)) },
         confirmButton = { ToneButton("Cancel", { scanning = false }) })
+    if (confirmRelease) AlertDialog(onDismissRequest = { confirmRelease = false }, title = { Text("Release hosting?") },
+        text = { Text("Disconnect all joined devices and stop showing this game on Atlas? The game remains on this device, with its profiles and history. To move the game, choose Transfer host under a joined device instead.") },
+        confirmButton = { ActionButton({ confirmRelease = false; onStopShowingOnAtlas(); model.stopHosting() }, role = ActionRole.DESTRUCTIVE) { Text("Release host") } },
+        dismissButton = { ActionButton({ confirmRelease = false }) { Text("Keep hosting") } })
     if (confirmSwitch) AlertDialog(onDismissRequest = { confirmSwitch = false }, title = { Text("Stop hosting and join another table?") },
         text = { Text("This disconnects ${state.guests.size} joined ${if (state.guests.size == 1) "device" else "devices"} from this phone and stops showing its game on Atlas. Your local game, profiles and history are kept. You can then scan another host's QR or enter their code.") },
-        confirmButton = { TextButton(onClick = { confirmSwitch = false; onStopShowingOnAtlas(); model.stopHosting() }) { Text("Stop hosting") } },
-        dismissButton = { TextButton(onClick = { confirmSwitch = false }) { Text("Keep hosting") } })
+        confirmButton = { ActionButton(onClick = { confirmSwitch = false; onStopShowingOnAtlas(); model.stopHosting() }, role = ActionRole.DESTRUCTIVE) { Text("Stop hosting") } },
+        dismissButton = { ActionButton(onClick = { confirmSwitch = false }, role = ActionRole.SECONDARY) { Text("Keep hosting") } })
     if (confirmLeave) AlertDialog(onDismissRequest = { confirmLeave = false }, title = { Text("Leave shared game?") },
         text = { Text(if (state.uncertain) "An action's reply is still unknown. Ask the host to check it before entering another change. Leaving disconnects this device from the shared game." else
             "The game and its history remain on the host. Your separate local game is unchanged.") },
-        confirmButton = { ToneButton("Leave", { model.leave(); confirmLeave = false; onClose() }) },
+        confirmButton = { ToneButton("Leave", { model.leave(); confirmLeave = false; onClose() }, tone = Tone.BAD) },
         dismissButton = { ToneButton("Stay", { confirmLeave = false }) })
 }
 
@@ -242,6 +249,11 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
     }
     BrassCard {
         Eyebrow("Joined devices · ${state.guests.size}")
+        if (state.transferringHost) {
+            Text(if (state.hostTransferred) "Hosting has been released. Keep this device open until the receiving device confirms it has the game."
+                else "Waiting for the selected device. Game edits are held; clocks keep their existing timing.", color = p.text)
+            if (!state.hostTransferred) ToneButton("Cancel host transfer", model::cancelHostOffer, Modifier.fillMaxWidth())
+        }
         if (state.guests.isEmpty()) Text("No one has joined yet. Devices appear here as they join.", color = p.muted,
             style = MaterialTheme.typography.bodyMedium)
         state.guests.forEach { guest ->
@@ -269,17 +281,38 @@ private fun HostingPanel(state: LanUiState, local: StandaloneGame, model: LanVie
                     }
                     Column(Modifier.weight(1f)) {
                         Text(title, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(com.turnhub.android.lan.friendlyDisplayDevice(guest.deviceName), color = p.muted, style = MaterialTheme.typography.bodySmall)
                         Text(if (guest.master) "Game master controls enabled" else detail, color = p.muted, style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ToneButton(if (guest.master) "Remove game master" else "Make game master", { model.grantMaster(guest) }, Modifier.weight(1f))
-                    ToneButton("Disconnect", { model.revoke(guest) }, Modifier.weight(1f), tone = Tone.BAD)
+                    ToneButton(if (guest.master) "Remove game master" else "Make game master", { model.grantMaster(guest) }, Modifier.weight(1f), enabled = !state.transferringHost)
+                    ToneButton("Disconnect", { model.revoke(guest) }, Modifier.weight(1f), tone = Tone.BAD, enabled = !state.transferringHost)
                 }
+                if (!state.transferringHost && guest.supportsHostTransfer) {
+                    ArmedButton("Transfer host to ${com.turnhub.android.lan.friendlyDisplayDevice(guest.deviceName)}", "Move this game to the selected device? It must accept on its Game screen. Game edits are held until acceptance or cancellation. Existing history stays here; the new host saves this game's result. Other devices must join the new host's room. Keep both devices open.", Tone.NEUTRAL) { model.offerHost(guest) }
+                }
+                if (!guest.supportsHostTransfer) Text("Update TurnHub on this device to enable host transfer.", color = p.muted)
             }
         }
     }
-    ArmedButton("End room", "Disconnect every device from this room. Saved profiles and game history will be kept.", Tone.BAD, model::stopHosting)
+    if (!state.transferringHost) ArmedButton("End room", "Disconnect every device from this room. Saved profiles and game history will be kept.", Tone.BAD, model::stopHosting)
+}
+
+@Composable
+internal fun HostOfferCard(state: LanUiState, model: LanViewModel) {
+    if (state.hostOffer == null) return
+    var confirm by remember { mutableStateOf(false) }
+    BrassCard {
+        Text("This device was offered hosting", style = MaterialTheme.typography.titleMedium)
+        Text("Taking over moves the shared game here. This device will save its result and show it on Atlas. Other phones must join this device's new room. Your profiles and existing history are kept.")
+        state.message?.let { Text(it, color = palette.warn) }
+        AccentButton("Take over hosting", { confirm = true }, Modifier.fillMaxWidth(), enabled = !state.busy)
+    }
+    if (confirm) AlertDialog(onDismissRequest = { confirm = false }, title = { Text("Take over hosting?") },
+        text = { Text("Replace this device's local setup with the shared game and become its host? A separate game already in progress will be kept and must be finished first. Keep both devices open until hosting is confirmed.") },
+        confirmButton = { ActionButton({ confirm = false; model.acceptHostOffer() }, role = ActionRole.PRIMARY) { Text("Take over hosting") } },
+        dismissButton = { ActionButton({ confirm = false }) { Text("Cancel") } })
 }
 
 /** The code in large spaced letters, readable across a table. */
@@ -438,12 +471,12 @@ internal fun SharedRoomBanner(state: LanUiState, model: LanViewModel) {
         Text("Play together", color = palette.good, style = MaterialTheme.typography.labelLarge,
             modifier = Modifier.weight(1f), maxLines = 1)
         Text(if (state.online) "Connected" else "Reconnecting", color = palette.muted, style = MaterialTheme.typography.labelSmall)
-        TextButton({ leave = true }, enabled = !state.busy) { Text("Leave") }
+        ActionButton({ leave = true }, enabled = !state.busy, role = ActionRole.DESTRUCTIVE) { Text("Leave") }
     }
     if (leave) AlertDialog(onDismissRequest = { leave = false }, title = { Text("Leave shared game?") },
         text = { Text("The game and its history remain on the host. Your separate local game is kept.") },
-        confirmButton = { TextButton({ leave = false; model.leave() }) { Text("Leave") } },
-        dismissButton = { TextButton({ leave = false }) { Text("Stay") } })
+        confirmButton = { ActionButton({ leave = false; model.leave() }, role = ActionRole.DESTRUCTIVE) { Text("Leave") } },
+        dismissButton = { ActionButton({ leave = false }, role = ActionRole.SECONDARY) { Text("Stay") } })
 }
 
 /** The host's join code above the Game and Table tabs while it shares, so the table can read it any time. */

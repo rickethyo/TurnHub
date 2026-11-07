@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -122,14 +126,14 @@ internal fun TableLobby(
         AlertDialog(onDismissRequest = { deletingGuest = null },
             title = { Text("Delete saved guest $guest?") },
             text = { Text("Removes this guest from the picker. Current players and game history are kept.") },
-            confirmButton = { TextButton(onClick = { actions.forgetGuest?.invoke(guest); deletingGuest = null }, enabled = enabled) { Text("Delete guest") } },
-            dismissButton = { TextButton(onClick = { deletingGuest = null }) { Text("Cancel") } })
+            confirmButton = { ActionButton(onClick = { actions.forgetGuest?.invoke(guest); deletingGuest = null }, enabled = enabled, role = ActionRole.DESTRUCTIVE) { Text("Delete guest") } },
+            dismissButton = { ActionButton(onClick = { deletingGuest = null }, role = ActionRole.SECONDARY) { Text("Cancel") } })
     }
     if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false },
         title = { Text("Remove everyone from setup?") },
         text = { Text("Saved players and game history will be kept.") },
-        confirmButton = { TextButton(onClick = { actions.clear(); confirmClear = false }, enabled = enabled) { Text("Remove players") } },
-        dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } })
+        confirmButton = { ActionButton(onClick = { actions.clear(); confirmClear = false }, enabled = enabled, role = ActionRole.DESTRUCTIVE) { Text("Remove players") } },
+        dismissButton = { ActionButton(onClick = { confirmClear = false }, role = ActionRole.SECONDARY) { Text("Cancel") } })
     Box(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.safeDrawingPadding()), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 880.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -168,10 +172,10 @@ internal fun TableLobby(
 
             BrassCard {
                 Eyebrow("2. Players") {
-                    TextButton(onClick = { confirmClear = true }, enabled = enabled && players.any(actions.canRemove)) { Text("Remove all") }
+                    ActionButton(onClick = { confirmClear = true }, enabled = enabled && players.any(actions.canRemove), role = ActionRole.DESTRUCTIVE) { Text("Remove all") }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ToneButton("Add Guest", actions.add, enabled = enabled && canAdd)
+                    ToneButton("Add guest", actions.add, enabled = enabled && canAdd)
                     actions.addProfile?.let { create ->
                         ToneButton("Add profile", create, enabled = enabled)
                     }
@@ -192,9 +196,9 @@ internal fun TableLobby(
                                     com.turnhub.android.ui.components.PlayerAvatar(player.name, player.displayId.hashCode(), player.avatar,
                                         size = 32.dp, color = com.turnhub.android.ui.components.playerColor(player.color, p.avatarColor(player.displayId.hashCode())))
                                 }, enabled = enabled && canAdd)
-                                if (player.guest && actions.forgetGuest != null) TextButton(
+                                if (player.guest && actions.forgetGuest != null) ActionButton(
                                     onClick = { deletingGuest = player.name }, enabled = enabled,
-                                    modifier = Modifier.semantics { contentDescription = "Delete saved guest ${player.name}" }) { Text("Delete guest") }
+                                    modifier = Modifier.semantics { contentDescription = "Delete saved guest ${player.name}" }, role = ActionRole.DESTRUCTIVE) { Text("Delete guest") }
                             }
                         }
                     }

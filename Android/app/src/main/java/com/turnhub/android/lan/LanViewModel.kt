@@ -7,6 +7,7 @@ import com.turnhub.android.data.AtlasLinkHoldService
 import com.turnhub.android.standalone.LocalPersonalization
 import com.turnhub.android.standalone.StandaloneGame
 import com.turnhub.android.standalone.StandaloneTable
+import com.turnhub.android.ui.components.displayName
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -66,7 +67,11 @@ internal data class LanUiState(
     val actionNote: String? = null,
     val atlasRoom: Boolean = false,
     val setupNames: List<String> = emptyList(),
+    val setupDetails: Map<String, String> = emptyMap(),
     val guestNames: List<String> = emptyList(),
+    val hostOffer: String? = null,
+    val transferringHost: Boolean = false,
+    val hostTransferred: Boolean = false,
 ) {
     /** Seated or displaying a shared game. */
     val joined: Boolean get() = reconnecting || remote != null
@@ -78,6 +83,9 @@ internal class LanViewModel(
     private val hostingAccess: LanHostingAccess = LanHostingAccess { true },
 ) : ViewModel(), com.turnhub.android.data.AtlasRoomLink {
     var atlasCall: (suspend (String,String,List<Pair<String,String>>) -> com.turnhub.android.data.RawResponse?)? = null
+    var onHostingReleased: suspend () -> Unit = {}
+    var onHostingReceived: () -> Unit = {}
+    private var handoff: HostHandoff? = null
     private var atlasMode=false
     private var manualRoomChoice = false
     fun chooseManualRoom() { if (!_state.value.joined) manualRoomChoice = true }
@@ -133,6 +141,7 @@ internal class LanViewModel(
     private var joinChoice = ""
     private var polling: Job? = null
     private var generation = 0
+    private var collectingHost: String? = null
     private val exchange = Mutex()
     private var commandEpoch = ""
     private data class QueuedAction(val match: String, val epoch: String, val kind: String, val value: Int,
@@ -170,7 +179,8 @@ internal class LanViewModel(
         val invitation = invite ?: return false
         val credential = token ?: return false
         return store.write("guest", JSONObject().put("invite", invitation.encode()).put("token", credential)
-            .put("role", _state.value.role).put("view", _state.value.view).put("syncProfile", syncProfile ?: JSONObject.NULL).put("atlasRoom",atlasMode))
+            .put("role", _state.value.role).put("view", _state.value.view).put("syncProfile", syncProfile ?: JSONObject.NULL).put("atlasRoom",atlasMode)
+            .put("collectHost", collectingHost ?: JSONObject.NULL))
     }
     fun resumeRoom() {
         if (_state.value.busy || server != null || token != null) return
@@ -180,12 +190,14 @@ internal class LanViewModel(
         invite = runCatching { LanInvite.parse(saved.text("invite")) }.getOrNull() ?: return
         token = saved.text("token")
         atlasMode=saved.optBoolean("atlasRoom")
+        collectingHost = saved.optString("collectHost").takeUnless { it.isBlank() || it == "null" }
         syncProfile = saved.optString("syncProfile").takeIf { id -> savedPlayers().any { it.profileId == id } }
         historyOffered.clear()
         _state.update { it.copy(role = saved.optString("role"), view = saved.optString("view", "personal"),
-            reconnecting = true, resumable = true, atlasRoom=atlasMode, message = "Reconnecting to your room…") }
+            reconnecting = true, resumable = true, atlasRoom=atlasMode, hostOffer = collectingHost,
+            message = if (collectingHost != null) "Host transfer needs confirmation. Retry Take over hosting." else "Reconnecting to your room…") }
         generation++
-        startPolling(generation)
+        if (collectingHost == null) startPolling(generation)
     }
     fun startHosting(qrOnly: Boolean) {
         if (_state.value.busy || token != null || server != null) return
@@ -201,6 +213,13 @@ internal class LanViewModel(
                 record.put("hostDeviceName", android.os.Build.MODEL.take(64))
                 check(store.write("host", record))
                 hostRecord = record
+                val transfer = HostHandoff(record, { store.write("host", record) }, table)
+                handoff = transfer
+                record.optJSONObject("handoff")?.let { offer ->
+                    if (!transfer.released && table.state.value.game.receivedTransfer != "released:${offer.getString("id")}")
+                        check(table.prepareHostTransfer(offer.getString("id")))
+                }
+                if (!transfer.pending) table.state.value.game.hostTransfer?.let { check(table.cancelHostTransfer(it)) }
                 val session = record.text("session")
                 val key = record.text("key")
                 fun localCore() = LanSessions(session, key, { table.state.value.game }, table::applyLanAction,
@@ -212,9 +231,24 @@ internal class LanViewModel(
                 fun baseRequest(op: String) = JSONObject().put("v", LAN_VERSION).put("session", session).put("op", op).put("key", key)
                 suspend fun snapshot(): JSONObject = localCore().handle(baseRequest("preview"))
                 val core = LanRoom(record, save = { next -> store.write("host", next) },
+                    hostOffer = transfer::offerFor, hostReleased = { transfer.released },
+                    acceptHost = { member, id -> transfer.accept(member, id)?.also {
+                        onHostingReleased()
+                        _state.update { it.copy(transferringHost = true, hostTransferred = true) }
+                    } },
+                    hostReceived = { member, id ->
+                        if (transfer.collectedBy(member, id)) {
+                            // Let every old controller poll the explicit ended response before
+                            // closing its socket; otherwise it only sees an absent host forever.
+                            viewModelScope.launch { delay(5_000); stopHosting() }; true
+                        } else false
+                    },
                     atlasTicket={ verifyAtlas("ticket",it) },atlasMember={ verifyAtlas("phone",it)!=null },
                     attachAtlas=table::attachAtlasRoomProfile, setup = { table.applyRoomSetup(it) },
                     setupOptions = { JSONObject().put("names", org.json.JSONArray(table.state.value.library.gameSetups.take(128).map { it.name }))
+                        .put("details", JSONObject().apply { table.state.value.library.gameSetups.take(128).forEach { setup ->
+                            put(setup.name, "${setup.game.profile.displayName()} · ${setup.game.players.joinToString { it.name }}")
+                        } })
                         .put("guests", org.json.JSONArray(table.state.value.library.guestNames.take(128))) },
                     planesAvailable = { table.state.value.game.planechase.enabled },
                     planarPlayerAllowed = { player -> table.state.value.game.players.getOrNull(player - 1)?.eliminated == false },
@@ -262,7 +296,8 @@ internal class LanViewModel(
                 }
                 server = opened
                 _state.update { it.copy(host = LanHosting(key.takeUnless { record.optBoolean("qrOnly") }, invitation.encode()),
-                    guests = core.guests, displayAllUpright = core.displayAllUpright("host"), displayId = "host", displayTargets = readDisplays(core.displayTargets()), busy = false, preview = null, resumable = true) }
+                    guests = core.guests, displayAllUpright = core.displayAllUpright("host"), displayId = "host", displayTargets = readDisplays(core.displayTargets()), busy = false, preview = null, resumable = true,
+                    transferringHost = transfer.pending, hostTransferred = transfer.released) }
             } catch (error: Exception) {
                 opened?.close(); room = null; advertiser?.close(); advertiser = null
                 if (error is CancellationException) throw error
@@ -275,17 +310,73 @@ internal class LanViewModel(
     fun dismissMessage() { _state.update { it.copy(message = null, historyNote = null, actionNote = null) } }
     fun unsupportedAction() { _state.update { it.copy(message = "Use the host for this game setup or decision.") } }
     fun stopHosting() {
+        if (handoff?.released == true && handoff?.collected != true) {
+            _state.update { it.copy(message = "Keep this room open until the receiving device confirms it has the game. Retry Take over hosting there.") }; return
+        }
+        if (handoff?.pending == true && handoff?.released != true && handoff?.cancel() != true) return
         if (hostRecord == null) { leave(); return }
         if (!store.write("host", null)) { _state.update { it.copy(message = "Couldn't end the saved room. Try again.") }; return }
-        room = null; hostRecord = null
+        room = null; hostRecord = null; handoff = null
         advertiser?.close(); advertiser = null; server?.close(); server = null
-        _state.update { it.copy(host = null, guests = emptyList(), resumable = false, message = "Room ended. The game is kept.") }
+        _state.update { it.copy(host = null, guests = emptyList(), resumable = false, transferringHost = false, hostTransferred = false, message = "Room ended. The game is kept.") }
+    }
+    fun offerHost(guest: LanGuest) {
+        val ok = room?.guests?.any { it.token == guest.token && it.supportsHostTransfer } == true && handoff?.offer(guest.token) == true
+        _state.update { it.copy(transferringHost = handoff?.pending == true,
+            message = if (ok) "Waiting for the selected device to accept hosting. Game edits are held until it accepts or you cancel." else "Couldn't offer hosting. Check storage and try again.") }
+    }
+    fun cancelHostOffer() {
+        val ok = handoff?.cancel() == true
+        _state.update { it.copy(transferringHost = handoff?.pending == true,
+            message = if (ok) "Host transfer cancelled. You still host the game." else "Hosting has already moved, or the change couldn't be saved. Keep both devices open and retry on the receiving device.") }
+    }
+    fun acceptHostOffer() {
+        val invitation = invite ?: return
+        val credential = token ?: return
+        val id = _state.value.hostOffer ?: return
+        if (_state.value.busy || pending != null || queued.isNotEmpty()) return
+        if (table.state.value.game.receivedTransfer != id && table.state.value.game.state !in setOf(com.turnhub.android.protocol.TableState.LOBBY, com.turnhub.android.protocol.TableState.GAME_OVER)) {
+            _state.update { it.copy(message = "Finish or leave this device's separate local game before taking over hosting.") }; return
+        }
+        _state.update { it.copy(busy = true) }
+        collectingHost = id
+        if (!saveGuest()) {
+            collectingHost = null
+            _state.update { it.copy(busy = false, message = "Couldn't save the host transfer request. Check storage and try again.") }
+            return
+        }
+        // Polling an ended source must not erase the saved invitation while collection retries.
+        generation++; polling?.cancel(); polling = null
+        viewModelScope.launch {
+            try {
+                if (table.state.value.game.receivedTransfer != id) {
+                    val reply = request(invitation, base(invitation, "accept-host").put("token", credential).put("transfer", id))
+                    if (reply.text("code") == "cancelled") {
+                        collectingHost = null; saveGuest()
+                        _state.update { it.copy(busy = false, hostOffer = null, message = "The host cancelled this transfer. The game stays on the original device.") }
+                        startPolling(generation)
+                        return@launch
+                    }
+                    check(reply.text("code") == "ok")
+                    check(table.receiveTransferredGame(id, reply.getJSONObject("game")))
+                }
+                runCatching { request(invitation, base(invitation, "host-received").put("token", credential).put("transfer", id)) }
+                leave()
+                manualRoomChoice = true
+                startHosting(false)
+                onHostingReceived()
+            } catch (e: Exception) {
+                _state.update { it.copy(busy = false, message = "Host transfer isn't confirmed yet. Keep both devices open and retry Take over hosting; the original game is kept for collection.") }
+            }
+        }
     }
     fun revoke(guest: LanGuest) {
+        if (handoff?.pending == true) return
         val result = runCatching { room?.revoke(guest.token) }
         _state.update { it.copy(guests = room?.guests.orEmpty(), message = if (result.isFailure) "Couldn't save device removal. Try again." else null) }
     }
     fun grantMaster(guest: LanGuest) {
+        if (handoff?.pending == true) return
         val result = runCatching { room?.grant(guest.token, !guest.master) }
         _state.update { it.copy(guests = room?.guests.orEmpty(), message = if (result.isFailure) "Couldn't save this permission. Try again." else null) }
     }
@@ -492,7 +583,11 @@ internal class LanViewModel(
         fun names(key: String, max: Int): List<String> = options.optJSONArray(key)?.let { list ->
             (0 until list.length().coerceAtMost(128)).mapNotNull { list.optString(it).takeIf { name -> name.isNotBlank() && name.length <= max } }
         }.orEmpty()
-        return copy(setupNames = names("names", 64), guestNames = names("guests", 32))
+        val setupNames = names("names", 64)
+        val details = options.optJSONObject("details")
+        return copy(setupNames = setupNames, setupDetails = setupNames.mapNotNull { name ->
+            details?.optString(name)?.takeIf { it.isNotBlank() && it.length <= 1024 }?.let { name to it }
+        }.toMap(), guestNames = names("guests", 32))
     }
 
     fun setup(game: StandaloneGame, op: String, vararg fields: Pair<String, Any?>) {
@@ -565,6 +660,9 @@ internal class LanViewModel(
         act(next.kind, next.value, next.slot, next.source, next.target, card = next.card, setup = next.setup)
     }
     fun leave() {
+        if (collectingHost != null && table.state.value.game.receivedTransfer != collectingHost) {
+            _state.update { it.copy(message = "Hosting may already have been released. Retry Take over hosting before leaving so the game can be recovered safely.") }; return
+        }
         atlasMode=false
         queued.clear()
         val saved = store.read("guest")
@@ -572,7 +670,7 @@ internal class LanViewModel(
         val credential = token ?: saved?.optString("token")
         generation++; polling?.cancel(); polling = null
         store.write("guest", null)
-        token = null; pending = null; invite = null; joinRequest = null; syncProfile = null
+        token = null; pending = null; invite = null; joinRequest = null; syncProfile = null; collectingHost = null
         historyJob?.cancel(); historyOffered.clear()
         _state.value = LanUiState()
         if (invitation != null && credential != null) viewModelScope.launch {
@@ -605,6 +703,7 @@ internal class LanViewModel(
                 game.state == com.turnhub.android.protocol.TableState.GAME_OVER &&
                 earlier.remote?.state != com.turnhub.android.protocol.TableState.GAME_OVER)) requestHistorySync()
         _state.update { before -> before.copy(
+            hostOffer = reply.optString("hostOffer").takeIf { it.isNotBlank() },
             player = reply.optInt("player", before.player),
             role = reply.optString("role", before.role ?: "display"),
             master = reply.optBoolean("master", before.master),
@@ -708,7 +807,7 @@ internal class LanViewModel(
             lanExchange(invitation, body) { wifi.network.bindSocket(it) }
         }
     }
-    private fun base(invitation: LanInvite, op: String) = JSONObject().put("v", LAN_VERSION).put("session", invitation.session).put("op", op)
+    private fun base(invitation: LanInvite, op: String) = JSONObject().put("v", LAN_VERSION).put("session", invitation.session).put("op", op).put("hostHandoff", true)
         .also { if (invitation.profileOnly != null) it.put("profileOnly", invitation.profileOnly) }
     private fun readClaimed(reply: JSONObject): Set<String> = reply.optJSONArray("claimedProfiles")?.let { a ->
         (0 until a.length()).map { a.getString(it) }.toSet() }.orEmpty()

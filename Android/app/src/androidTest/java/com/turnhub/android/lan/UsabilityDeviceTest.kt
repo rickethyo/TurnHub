@@ -44,13 +44,26 @@ class UsabilityDeviceTest {
             }?.let { return it }
             SystemClock.sleep(100)
         } while (SystemClock.uptimeMillis() < deadline)
-        error("Missing $label")
+        error("Missing $label; visible labels: " + nodes(instrumentation.uiAutomation.rootInActiveWindow).mapNotNull { it.text?.toString() }.take(35))
     }
     private fun click(label: String) {
+        instrumentation.waitForIdleSync()
+        SystemClock.sleep(150)
         var target: AccessibilityNodeInfo? = find(label)
         while (target != null && !target.isClickable) target = target.parent
         target?.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id)
         assertTrue("Can't click $label", target?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true)
+        instrumentation.waitForIdleSync()
+        SystemClock.sleep(150)
+    }
+    private fun clickScrolled(label: String) {
+        repeat(20) {
+            val all = nodes(instrumentation.uiAutomation.rootInActiveWindow)
+            if (all.any { it.text?.toString() == label || it.contentDescription?.toString() == label }) { click(label); return }
+            all.firstOrNull { it.isScrollable }?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+            SystemClock.sleep(150)
+        }
+        click(label)
     }
     @Test fun addingAGuestRevealsTheNewSeat() {
         val table = StandaloneTable(MemoryStandaloneStore(StandaloneGame(), LocalLibrary())).apply {
@@ -61,7 +74,7 @@ class UsabilityDeviceTest {
                 val state by table.state.collectAsState()
                 StandaloneLobby(state, table, embedded = true)
             } } }
-            click("Add Guest")
+            click("Add guest")
             instrumentation.waitForIdleSync()
             assertEquals(3, table.state.value.game.players.size)
             val guest = find(table.state.value.game.players.last().name)
@@ -84,6 +97,74 @@ class UsabilityDeviceTest {
             assertTrue(opened)
         }
     }
+    @Test fun choosingANewStarterAndThenRandomDoesNotCancelTheCountdown() {
+        val table = StandaloneTable(MemoryStandaloneStore(StandaloneGame(), LocalLibrary())).apply {
+            addGuest("Starter One"); addGuest("Starter Two"); chooseStarter(0)
+        }
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity -> prepare(activity); activity.setContent { TurnHubTheme {
+                val state by table.state.collectAsState()
+                if (state.game.state == com.turnhub.android.protocol.TableState.LOBBY) StandaloneLobby(state, table, embedded = true)
+                else Text("Game is running")
+            } } }
+            clickScrolled("Start game")
+            click("Starter Two")
+            find("Get ready")
+            find("Game is running")
+            assertEquals(1, table.state.value.game.active)
+            scenario.onActivity {
+                kotlinx.coroutines.runBlocking { table.control(com.turnhub.android.data.TabletSeat(StandaloneGame.seatHandle(0).id, 1), "reset") }
+                table.chooseStarter(0)
+            }
+            clickScrolled("Start game"); click("Random")
+            find("Get ready"); find("Game is running")
+            assertEquals(com.turnhub.android.protocol.TableState.RUNNING, table.state.value.game.state)
+            assertTrue(table.state.value.game.starter in table.state.value.game.players.indices)
+        }
+    }
+    @Test fun editsDuringTheStartCountdownStillCancelIt() {
+        val table = StandaloneTable(MemoryStandaloneStore(StandaloneGame(), LocalLibrary())).apply {
+            addGuest("Starter One"); addGuest("Starter Two")
+        }
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity -> prepare(activity); activity.setContent { TurnHubTheme {
+                val state by table.state.collectAsState()
+                StandaloneLobby(state, table, embedded = true)
+            } } }
+            clickScrolled("Start game"); click("Starter Two"); find("Get ready")
+            val before = table.state.value.game.revision
+            scenario.onActivity { table.addGuest("Late arrival") }
+            assertTrue(table.state.value.game.revision > before)
+            SystemClock.sleep(3_500)
+            assertEquals(com.turnhub.android.protocol.TableState.LOBBY, table.state.value.game.state)
+        }
+    }
+    @Test fun savedSetupsUseNamedActionsAndWaitBeforeReplacingOrDeleting() {
+        val actions = mutableListOf<Pair<String, String>>()
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity -> prepare(activity); activity.setContent { TurnHubTheme {
+                Column {
+                    SavedSetupActions(listOf("Friday"), true, true, "Stored on the host device.",
+                        summaries = mapOf("Friday" to "Commander · One, Two")) { op, name -> actions += op to name }
+                }
+            } } }
+            click("Saved game setups · 1")
+            find("Commander · One, Two")
+            click("Load setup"); find("Load setup: Friday?"); click("Cancel")
+            assertTrue(actions.isEmpty())
+            click("Save current setup")
+            val input = nodes(instrumentation.uiAutomation.rootInActiveWindow).first { it.className == "android.widget.EditText" }
+            assertTrue(input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, android.os.Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "Friday")
+            }))
+            click("Save setup"); find("Replace setup: Friday?"); click("Cancel")
+            assertTrue(actions.isEmpty())
+            click("Delete setup"); find("Delete setup: Friday?"); click("Cancel")
+            assertTrue(actions.isEmpty())
+            click("Load setup"); click("Load setup")
+            assertEquals(listOf("load" to "Friday"), actions)
+        }
+    }
     @Test fun confirmationWaitsForTheReaderAndPassOffersATapAlternative() {
         var wins = 0
         var passes = 0
@@ -101,7 +182,7 @@ class UsabilityDeviceTest {
             assertEquals(0, wins)
             click("Cancel")
             click("I won the game")
-            click("Confirm")
+            click("I won the game")
             instrumentation.waitForIdleSync()
             assertEquals(1, wins)
             find("Hold to pass")

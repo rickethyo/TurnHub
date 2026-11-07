@@ -39,6 +39,7 @@ class AtlasRetryLayoutTest {
                 activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LOCKED
                 activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 activity.setTurnScreenOn(true)
+                activity.setShowWhenLocked(true)
                 activity.setContent {
                 com.turnhub.android.ui.theme.TurnHubTheme {
                     CompositionLocalProvider(LocalDensity provides Density(context.resources.displayMetrics.density, 1.3f)) {

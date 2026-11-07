@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -42,8 +46,8 @@ internal fun RoomFeedback(state: LanUiState, model: LanViewModel) {
         text = { Text(message ?: if (state.host != null) "This phone owns the game and saves its results. Other devices join this phone's table. Atlas has a separate connection for Sigils and syncing."
             else if (state.online) "This phone is connected to the game host. The host saves changes and results. Atlas connectivity is shown separately at the top of the app."
             else "The game host isn't answering. Keep this screen open to reconnect. Check the host phone's Wi-Fi and reopen TurnHub there.") },
-        confirmButton = { TextButton(onClick = { details = false; if (uncertain) model.retry() else model.dismissMessage() }) {
+        confirmButton = { ActionButton(onClick = { details = false; if (uncertain) model.retry() else model.dismissMessage() }, role = ActionRole.PRIMARY) {
             Text(if (uncertain) "Retry last action" else "Done")
         } },
-        dismissButton = { TextButton(onClick = { details = false }) { Text("Close") } })
+        dismissButton = { ActionButton(onClick = { details = false }, role = ActionRole.SECONDARY) { Text("Close") } })
 }

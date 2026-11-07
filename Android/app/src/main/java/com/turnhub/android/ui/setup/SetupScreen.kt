@@ -340,7 +340,7 @@ private fun Updates(state: SetupState, actions: SetupActions) {
             Text(u.reason, color = p.muted)
             if (state.updatesOnly) {
                 ToneButton("Try again", { actions.run { openUpdates() } }, Modifier.fillMaxWidth())
-                AccentButton("Close", actions.close, Modifier.fillMaxWidth())
+                ToneButton("Close", actions.close, Modifier.fillMaxWidth())
             } else {
                 Text("You can carry on and update later from Settings.", color = p.muted)
                 ToneButton("Try again", { actions.run { checkUpdates() } }, Modifier.fillMaxWidth())
@@ -374,7 +374,7 @@ private fun Updates(state: SetupState, actions: SetupActions) {
             } else {
                 Text("Everything is up to date.", color = p.text)
                 if (state.updatesOnly) {
-                    AccentButton("Close", actions.close, Modifier.fillMaxWidth())
+                    ToneButton("Close", actions.close, Modifier.fillMaxWidth())
                 } else {
                     AccentButton("Continue", { actions.run { skipUpdates(); next() } }, Modifier.fillMaxWidth())
                 }
@@ -390,7 +390,7 @@ private fun Updates(state: SetupState, actions: SetupActions) {
                 Text("Anything that didn't update can be updated later from the Update available banner. The table plays either way.", color = p.muted)
             }
             if (state.updatesOnly) {
-                AccentButton("Close", actions.close, Modifier.fillMaxWidth())
+                ToneButton("Close", actions.close, Modifier.fillMaxWidth())
             } else {
                 AccentButton("Continue", { actions.run { next() } }, Modifier.fillMaxWidth())
             }

@@ -29,6 +29,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
 import com.turnhub.android.ui.theme.DesignTokens
 import com.turnhub.android.ui.theme.palette
 
@@ -39,8 +43,14 @@ fun DisclosureCard(title: String, initiallyExpanded: Boolean = false, content: @
     var expanded by rememberSaveable { mutableStateOf(initiallyExpanded) }
     var reveal by remember { mutableStateOf(false) }
     val requester = remember { BringIntoViewRequester() }
-    LaunchedEffect(expanded) {
-        if (expanded && reveal) { withFrameNanos { }; requester.bringIntoView() }
+    val revealHeight = with(LocalDensity.current) { 144.dp.toPx() }
+    var contentSize by remember { mutableStateOf(IntSize.Zero) }
+    LaunchedEffect(expanded, contentSize) {
+        if (expanded && reveal && contentSize.height > 0) {
+            withFrameNanos { }
+            // Include an actionable portion of the content, rather than a one-pixel anchor.
+            requester.bringIntoView(Rect(0f, 0f, contentSize.width.toFloat(), minOf(contentSize.height.toFloat(), revealHeight)))
+        }
     }
     BrassCard(contentPadding = PaddingValues(8.dp)) {
         FilledTonalButton(onClick = { reveal = true; expanded = !expanded },
@@ -56,8 +66,8 @@ fun DisclosureCard(title: String, initiallyExpanded: Boolean = false, content: @
             }
         }
         if (expanded) {
-            Spacer(Modifier.fillMaxWidth().height(1.dp).bringIntoViewRequester(requester))
-            content()
+            androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().onSizeChanged { contentSize = it }.bringIntoViewRequester(requester),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp), content = content)
         }
     }
 }

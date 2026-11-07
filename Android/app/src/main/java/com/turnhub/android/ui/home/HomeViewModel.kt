@@ -27,6 +27,7 @@ import com.turnhub.android.protocol.AtlasConnectionState
 import com.turnhub.android.protocol.ProfileSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.asStateFlow
@@ -138,6 +139,15 @@ class HomeViewModel(
     val hostedPlanesMessage: StateFlow<String?> = _hostedPlanesMessage.asStateFlow()
     private var hostedJob: Job? = null
 
+    /** Complete lease release before a receiving device tries to claim Atlas. */
+    suspend fun releaseHostingForTransfer() {
+        hostingStopped = true
+        val job = hostedJob
+        hostedJob = null
+        _hostedResume.value = null
+        job?.cancelAndJoin()
+    }
+
     /** Start or stop showing this phone's game on the connected Atlas. The phone keeps running it. */
     fun onHostOnAtlas(on: Boolean) {
         // The player's own Stop holds until this phone leaves the Atlas.
@@ -147,6 +157,7 @@ class HomeViewModel(
         _hostedResume.value = null
         val table = standalone ?: return
         if (!on) return
+        if (table.state.value.game.hostTransfer != null) return
         if(atlasRoomLink?.hasJoinedRoom==true) return
         val signedIn = playerSession.state.value is PlayerSessionState.SignedIn
         if (phonePairing == null && !signedIn) {
@@ -237,7 +248,9 @@ class HomeViewModel(
                     hostedJob = null
                     return@collect
                 }
-                if (!hostingStopped && hostedJob?.isActive != true && _hostedResume.value == null &&
+                if (!hostingStopped && standalone?.state?.value?.game?.hostTransfer == null &&
+                    standalone?.state?.value?.game?.receivedTransfer?.startsWith("released:") != true &&
+                    hostedJob?.isActive != true && _hostedResume.value == null &&
                     hostedLink.status.value !is com.turnhub.android.data.HostedAtlasLink.Status.Busy) onHostOnAtlas(true)
             }
         }

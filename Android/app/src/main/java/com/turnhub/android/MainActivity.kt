@@ -408,6 +408,8 @@ class MainActivity : ComponentActivity() {
         sharedGameOpen = savedInstanceState?.getBoolean("shared_game_open") == true
         homeViewModel.atlasRoomLink=lanViewModel
         lanViewModel.atlasCall=homeViewModel::atlasRoomRequest
+        lanViewModel.onHostingReleased = homeViewModel::releaseHostingForTransfer
+        lanViewModel.onHostingReceived = { homeViewModel.onHostOnAtlas(true) }
         homeViewModel.standalone = standaloneViewModel.table
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {

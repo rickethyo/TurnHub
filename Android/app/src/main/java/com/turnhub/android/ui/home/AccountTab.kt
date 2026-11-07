@@ -146,7 +146,7 @@ private fun ProfileCard(uiState: HomeUiState, session: PlayerSessionState.Signed
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
-            ToneButton("Save", { actions.onSaveName(name) }, enabled = name.isNotBlank() && name != session.name)
+            AccentButton("Save name", { actions.onSaveName(name) }, enabled = name.isNotBlank() && name != session.name)
         }
         val hasPin = uiState.profileChoices?.hasPin == true
         if (hasPin) {

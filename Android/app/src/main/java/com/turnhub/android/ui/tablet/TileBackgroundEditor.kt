@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,7 +34,7 @@ internal fun LocalTileBackgroundDialog(player: SavedLocalPlayer, table: Standalo
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 LocalAccountEditor(player, table, LocalImportState(), false, { _, _, _ -> }, backgroundOnly = true)
             }
-            TextButton(onClick = onDismiss) { Text("Done") }
+            ActionButton(onClick = onDismiss, role = ActionRole.SECONDARY) { Text("Done") }
         }
     }
 }

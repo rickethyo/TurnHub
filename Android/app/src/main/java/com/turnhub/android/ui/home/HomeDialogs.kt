@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -50,8 +54,8 @@ internal fun ConfirmDialog(
         containerColor = p.surface,
         title = { Text(title) },
         text = { Text(text, color = p.muted) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(confirm, color = p.bad, fontWeight = FontWeight.Bold) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = p.text) } },
+        confirmButton = { ActionButton(onClick = onConfirm, role = ActionRole.DESTRUCTIVE) { Text(confirm, fontWeight = FontWeight.Bold) } },
+        dismissButton = { ActionButton(onClick = onDismiss, role = ActionRole.SECONDARY) { Text("Cancel", color = p.text) } },
     )
 }
 

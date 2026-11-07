@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -45,11 +49,11 @@ internal fun RemotePlanarRollDialog(actionId: String, feedback: PlanarRollFeedba
         }
     }, confirmButton = {
         when {
-            !waiting && (face != null && face != PlanarFace.BLANK || result?.status == "accepted") -> TextButton(onShowPlanes) { Text("Show planes") }
-            !waiting && canRetry && result?.status == "uncertain" -> TextButton(onRetry) { Text("Check same roll") }
-            else -> TextButton(onClose) { Text(if (waiting) "Close" else "Done") }
+            !waiting && (face != null && face != PlanarFace.BLANK || result?.status == "accepted") -> ActionButton(onShowPlanes, role = ActionRole.PRIMARY) { Text("Show planes") }
+            !waiting && canRetry && result?.status == "uncertain" -> ActionButton(onRetry, role = ActionRole.PRIMARY) { Text("Check same roll") }
+            else -> ActionButton(onClose, role = ActionRole.PRIMARY) { Text(if (waiting) "Close" else "Done") }
         }
     }, dismissButton = {
-        if (!waiting && (face != null && face != PlanarFace.BLANK || canRetry)) TextButton(onClose) { Text("Done") }
+        if (!waiting && (face != null && face != PlanarFace.BLANK || canRetry)) ActionButton(onClose, role = ActionRole.SECONDARY) { Text("Done") }
     })
 }

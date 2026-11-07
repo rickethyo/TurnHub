@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,7 +61,7 @@ fun StatsScreen(
             item {
                 Text("Stats", color = p.text, style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.semantics { heading() })
-                TextButton(onClick = onClose) { Text("Back") }
+                ActionButton(onClick = onClose, role = ActionRole.SECONDARY) { Text("Back") }
                 Text("Every table has its legends.", color = p.muted, style = MaterialTheme.typography.bodySmall)
                 Text("On this device · Most wins first", color = p.muted, style = MaterialTheme.typography.labelMedium)
             }

@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
@@ -225,8 +229,8 @@ fun HomeScreen(
                     Text(atlas.linkCode, style = MaterialTheme.typography.headlineSmall)
                 }
             },
-            confirmButton = { TextButton(onClick = discoveryActions.onConfirmHomePairing) { Text("Codes match · Link Atlas") } },
-            dismissButton = { TextButton(onClick = discoveryActions.onDismissHomePairing) { Text("Cancel") } },
+            confirmButton = { ActionButton(onClick = discoveryActions.onConfirmHomePairing, role = ActionRole.PRIMARY) { Text("Codes match · Link Atlas") } },
+            dismissButton = { ActionButton(onClick = discoveryActions.onDismissHomePairing, role = ActionRole.SECONDARY) { Text("Cancel") } },
         )
     }
     uiState.wifiPrompt?.let { prompt ->
@@ -237,8 +241,8 @@ fun HomeScreen(
             onDismissRequest = onWifiOffDismiss,
             title = { Text("Turn on Wi-Fi to connect?") },
             text = { Text("Wi-Fi is off on this phone. TurnHub reaches your Atlas table over its Wi-Fi.") },
-            confirmButton = { androidx.compose.material3.TextButton(onClick = onTurnOnWifi) { Text("Turn on Wi-Fi") } },
-            dismissButton = { androidx.compose.material3.TextButton(onClick = onWifiOffDismiss) { Text("Not now") } },
+            confirmButton = { ActionButton(onClick = onTurnOnWifi, role = ActionRole.PRIMARY) { Text("Turn on Wi-Fi") } },
+            dismissButton = { ActionButton(onClick = onWifiOffDismiss, role = ActionRole.SECONDARY) { Text("Not now") } },
         )
     }
     uiState.signIn?.let { prompt -> SignInDialog(prompt = prompt, onSubmit = onSignInSubmit, onCreate = onCreateAccount, onDismiss = onSignInDismiss) }

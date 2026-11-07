@@ -35,6 +35,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
+import com.turnhub.android.ui.components.ActionButton
+import com.turnhub.android.ui.components.ActionRole
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -1353,8 +1355,8 @@ internal fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHa
     val label = if (passing) "Passing… tap to keep" else "Hold to pass"
     if (confirmPass) AlertDialog(onDismissRequest = { confirmPass = false }, title = { Text("Pass the turn?") },
         text = { Text("End your turn and move to the next player. You can also hold the pass button to do this directly.") },
-        confirmButton = { TextButton(onClick = { confirmPass = false; pass() }) { Text("Pass turn") } },
-        dismissButton = { TextButton(onClick = { confirmPass = false }) { Text("Keep playing") } })
+        confirmButton = { ActionButton(onClick = { confirmPass = false; pass() }, role = ActionRole.PRIMARY) { Text("Pass turn") } },
+        dismissButton = { ActionButton(onClick = { confirmPass = false }, role = ActionRole.SECONDARY) { Text("Keep playing") } })
     Box(
         modifier
             .clip(shape)
@@ -1616,7 +1618,7 @@ internal fun PlayerMenu(
             PublicDisplayButton()
             PlayerMenuItems(unit, summary, partners, onControl, onEliminate, onCommander, onCounter)
         }
-        AccentButton("Done", onClose, Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp))
+        ToneButton("Done", onClose, Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp))
     }
 }
 
@@ -1790,8 +1792,9 @@ internal fun ArmedButton(label: String, confirmation: String, tone: Tone, onConf
     ToneButton(label, { armed = true }, Modifier.fillMaxWidth(), tone = tone)
     if (armed) AlertDialog(onDismissRequest = { armed = false }, title = { Text("$label?") },
         text = { Text(confirmation) },
-        confirmButton = { TextButton(onClick = { armed = false; onConfirm() }) { Text("Confirm") } },
-        dismissButton = { TextButton(onClick = { armed = false }) { Text("Cancel") } })
+        confirmButton = { ActionButton(onClick = { armed = false; onConfirm() },
+            role = if (tone == Tone.BAD) ActionRole.DESTRUCTIVE else ActionRole.PRIMARY) { Text(label) } },
+        dismissButton = { ActionButton(onClick = { armed = false }, role = ActionRole.SECONDARY) { Text("Cancel") } })
 }
 
 /** The game menu's whole-table counters, in the order a player's own counters list them. */

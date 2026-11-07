@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -285,7 +289,7 @@ fun SignInDialog(
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(if (creating) "I already have an account" else "New here? Create an account", color = p.accent) }
             }
-            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = p.muted) }
+            ActionButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth(), role = ActionRole.SECONDARY) { Text("Cancel", color = p.muted) }
         }
     }
 }

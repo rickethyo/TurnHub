@@ -228,31 +228,8 @@ fun AccentButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    val p = palette
-    val shape = RoundedCornerShape(if (p.ornament) 12.dp else DesignTokens.Radius.md)
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        shape = shape,
-        contentPadding = PaddingValues(0.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = Color.Transparent,
-            contentColor = p.onAccent,
-            disabledContainerColor = p.surface2,
-            disabledContentColor = p.faint,
-        ),
-        modifier = modifier.heightIn(min = 48.dp),
-    ) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .then(if (enabled) Modifier.background(p.accentBrush, shape) else Modifier)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(text, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-        }
+    ActionButton(onClick, modifier, enabled, ActionRole.PRIMARY) {
+        Text(text, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
     }
 }
 
@@ -267,6 +244,13 @@ fun ToneButton(
     /** 1 keeps a row's height fixed whatever the label says; long labels end in an ellipsis. */
     maxLines: Int = Int.MAX_VALUE,
 ) {
+    if (tone == Tone.NEUTRAL || tone == Tone.BAD) {
+        ActionButton(onClick, modifier, enabled, if (tone == Tone.BAD) ActionRole.DESTRUCTIVE else ActionRole.SECONDARY) {
+            Text(text, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = maxLines,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+        return
+    }
     val p = palette
     // Brass and High contrast keep their outlined look. In the modern themes a neutral
     // button is an opaque accent tint with an accent edge (owner, 2026-10-19: the

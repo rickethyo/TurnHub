@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
@@ -93,7 +97,9 @@ internal fun CommanderPickerDialog(player: TablePlayer, commander: Boolean, game
                     Text("Saved commanders", color = p.muted, style = MaterialTheme.typography.titleSmall)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         saved.forEach { (savedName, savedArt) ->
-                            FilterChip(player.commander == savedName, { onSave(savedName, savedArt, false) }, label = { Text(savedName) })
+                            FilterChip(chosen == savedName, {
+                                name = savedName; chosen = savedName; printing = savedArt; random = false
+                            }, label = { Text(savedName) })
                         }
                     }
                 }
@@ -112,7 +118,7 @@ internal fun CommanderPickerDialog(player: TablePlayer, commander: Boolean, game
                     if (name != chosen) { chosen = null; printing = null; random = false; if (magic) printings = emptyList() }
                 }, label = { Text(if (commander && magic) "Commander (optional)" else "Card (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 if (artOn) {
-                    OutlinedButton({
+                    ActionButton({
                         drawing = true; randomFailed = false
                         scope.launch {
                             val card = CommanderArtCache.source(context).random(game)
@@ -169,12 +175,12 @@ internal fun CommanderPickerDialog(player: TablePlayer, commander: Boolean, game
         confirmButton = {
             // Another game's card needs a picked card: its name alone finds no art.
             val trimmed = name.trim().ifEmpty { null }
-            TextButton({ onSave(trimmed, printing ?: printings.firstOrNull()?.id?.takeIf { magic }, !asCommander) },
-                enabled = trimmed == null || magic || printing != null) { Text("Save") }
+            ActionButton({ onSave(trimmed, printing ?: printings.firstOrNull()?.id?.takeIf { magic }, !asCommander) },
+                enabled = trimmed == null || magic || printing != null, role = ActionRole.PRIMARY) { Text("Save") }
         },
         dismissButton = {
-            if (player.commander != null) TextButton({ onSave(null, null, false) }) { Text("Clear") }
-            else TextButton(onDismiss) { Text("Cancel") }
+            if (player.commander != null) ActionButton({ onSave(null, null, false) }, role = ActionRole.DESTRUCTIVE) { Text("Clear") }
+            else ActionButton(onDismiss, role = ActionRole.SECONDARY) { Text("Cancel") }
         },
     )
 }
@@ -318,12 +324,12 @@ private fun NamedCommanderPickerDialog(
                 else -> "Select a suggested Magic card to see its artwork. Searches use Scryfall. Naming a commander is optional."
             }, color = p.muted, style = MaterialTheme.typography.bodySmall)
         } },
-        confirmButton = { TextButton(onClick = {
+        confirmButton = { ActionButton(onClick = {
             onSave(name.trim().ifBlank { null }, when (artMode) {
                 "none" -> TileCardGame.NO_ART
                 "other" -> printing
                 else -> printing ?: options.firstOrNull()?.id
             }, false)
-        }, enabled = artMode != "other" || printing != null || name.isBlank()) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+        }, enabled = artMode != "other" || printing != null || name.isBlank(), role = ActionRole.PRIMARY) { Text("Save") } },
+        dismissButton = { ActionButton(onClick = onDismiss, role = ActionRole.SECONDARY) { Text("Cancel") } })
 }

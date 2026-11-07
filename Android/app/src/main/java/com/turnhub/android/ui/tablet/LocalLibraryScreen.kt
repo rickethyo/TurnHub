@@ -1,5 +1,9 @@
 package com.turnhub.android.ui.tablet
 
+import com.turnhub.android.ui.components.ActionRole
+
+import com.turnhub.android.ui.components.ActionButton
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -110,7 +114,7 @@ fun LocalLibraryScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Accounts and history", color = p.text, style = MaterialTheme.typography.headlineSmall,
                         modifier = Modifier.weight(1f).semantics { heading() })
-                    TextButton(onClick = onClose) { Text("Back") }
+                    ActionButton(onClick = onClose, role = ActionRole.SECONDARY) { Text("Back") }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LibrarySection.entries.forEach { entry ->
@@ -327,7 +331,7 @@ internal fun CreateProfileDialog(storageAvailable: Boolean,
             }
         },
         confirmButton = {
-            TextButton(enabled = !creating && storageAvailable && name.isNotBlank() && validSecret, onClick = {
+            ActionButton(enabled = !creating && storageAvailable && name.isNotBlank() && validSecret, onClick = {
                 val submittedName = name.trim()
                 val submittedSecret = secret
                 creating = true
@@ -345,9 +349,9 @@ internal fun CreateProfileDialog(storageAvailable: Boolean,
                         creating = false
                     }
                 }
-            }) { Text(if (creating) "Saving…" else "Add profile") }
+            }, role = ActionRole.PRIMARY) { Text(if (creating) "Saving…" else "Add profile") }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !creating) { Text("Cancel") } },
+        dismissButton = { ActionButton(onClick = onDismiss, enabled = !creating, role = ActionRole.SECONDARY) { Text("Cancel") } },
     )
 }
 
@@ -405,5 +409,5 @@ private fun MatchImportForm(
     Text("Import this match to the connected Atlas. Local identities and results stay on this device. Check every choice before importing.", color = p.muted)
     ToneButton("Import mapped match", { onImport(record.recordId, selected) }, enabled = !destination.busy &&
         selected.all { id -> destination.profiles.any { it.profileId == id } } && selected.distinct().size == selected.size)
-    TextButton(onClick = { editing = false }) { Text("Cancel linking") }
+    ActionButton(onClick = { editing = false }, role = ActionRole.SECONDARY) { Text("Cancel linking") }
 }
